@@ -15,9 +15,21 @@
  *   parameter and does NOT call cleanupRoutes() internally.
  * - Added TypeScript interfaces for mock data types.
  * - Added utility functions for common testing patterns.
+ *
+ * Test-only globals (attached to window for test inspection):
+ * - `window.__VIZ_TEST__` - Visualizer test harness (setMode, set2DMode, getState)
+ * - `window.__healthStore` - Health Zustand store (used by SSE tests)
+ * - `window.__jobStore` - Job Zustand store (used by SSE tests)
+ * - `window.__sseService` - SSE service singleton (feedMessage method)
+ * - `window.__toast` - Toast system module (showToast, clearToasts)
+ *
+ * These globals are NOT part of the production API and should only be used in tests.
  */
 
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Page, type Route } from "@playwright/test";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as url from "node:url";
 
 // ---------------------------------------------------------------------------
 // Base URL handling
@@ -29,7 +41,7 @@ import { expect, type Page, type Route } from '@playwright/test';
  * with a relative URL (e.g. page.goto('/health')).
  */
 /** Base URL used when a test has to build an absolute URL by hand. */
-const DEFAULT_TEST_BASE_URL = 'http://localhost:5173';
+const DEFAULT_TEST_BASE_URL = "http://localhost:5173";
 
 /**
  * Base URL for manually constructed URLs.
@@ -41,7 +53,7 @@ const DEFAULT_TEST_BASE_URL = 'http://localhost:5173';
  * `use.baseURL` from playwright.config.ts (override with `PW_BASE_URL`).
  */
 export function getBaseUrl(_page?: Page): string {
-  return (process.env.PW_BASE_URL ?? DEFAULT_TEST_BASE_URL).replace(/\/$/, '');
+  return (process.env.PW_BASE_URL ?? DEFAULT_TEST_BASE_URL).replace(/\/$/, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -56,15 +68,15 @@ export async function navigateWithWait(page: Page, path: string, timeout = 15_00
   const browserErrors: string[] = [];
   const onPageError = (error: Error) => browserErrors.push(error.message);
   const onConsole = (message: { type: () => string; text: () => string }) => {
-    if (message.type() === 'error') browserErrors.push(message.text());
+    if (message.type() === "error") browserErrors.push(message.text());
   };
-  page.on('pageerror', onPageError);
-  page.on('console', onConsole);
+  page.on("pageerror", onPageError);
+  page.on("console", onConsole);
 
   try {
-    await page.goto(path, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#root')).toHaveCount(1, { timeout });
-    await expect(page.locator('main.layout-main, main')).toBeVisible({ timeout });
+    await page.goto(path, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#root")).toHaveCount(1, { timeout });
+    await expect(page.locator("main.layout-main, main")).toBeVisible({ timeout });
     // After navigation, not just in beforeEach: the Vite dev server injects its
     // overlay on every page load, so cleaning only in `beforeEach` leaves it in
     // place for the entire test — which is what made the sidebar footer toggle
@@ -72,11 +84,11 @@ export async function navigateWithWait(page: Page, path: string, timeout = 15_00
     await removeDevToolOverlays(page);
   } catch (error) {
     const url = page.url();
-    const details = browserErrors.length ? ` Browser errors: ${browserErrors.join(' | ')}` : '';
+    const details = browserErrors.length ? ` Browser errors: ${browserErrors.join(" | ")}` : "";
     throw new Error(`Navigation to ${path} failed at ${url}.${details}`, { cause: error });
   } finally {
-    page.off('pageerror', onPageError);
-    page.off('console', onConsole);
+    page.off("pageerror", onPageError);
+    page.off("console", onConsole);
   }
 }
 
@@ -89,7 +101,11 @@ export async function navigateWithWait(page: Page, path: string, timeout = 15_00
  * and sees the source URL. `toHaveURL` retries until the pattern matches or the
  * assertion timeout elapses.
  */
-export async function expectRedirectedTo(page: Page, pathPattern: string | RegExp, timeout = 5_000): Promise<void> {
+export async function expectRedirectedTo(
+  page: Page,
+  pathPattern: string | RegExp,
+  timeout = 5_000,
+): Promise<void> {
   await expect(page).toHaveURL(pathPattern, { timeout });
 }
 
@@ -127,11 +143,11 @@ export function registerRouteHandler(page: Page, handler: RouteHandler): () => v
   }
   const handlers = pageRouteHandlers.get(page)!;
   handlers.add(handler);
-  page.route('**', handler);
+  page.route("**", handler);
 
   return () => {
     handlers.delete(handler);
-    page.unroute('**', handler).catch(() => {});
+    page.unroute("**", handler).catch(() => {});
   };
 }
 
@@ -145,7 +161,7 @@ export async function cleanupRoutes(page: Page): Promise<void> {
     const handlersArray = Array.from(handlers);
     handlers.clear();
     for (const handler of handlersArray) {
-      await page.unroute('**', handler).catch(() => {});
+      await page.unroute("**", handler).catch(() => {});
     }
   }
   await removeDevToolOverlays(page);
@@ -176,13 +192,13 @@ export async function removeDevToolOverlays(page: Page): Promise<void> {
   // fails on. That is what made two `unity.spec.ts` tests fail — not the app.
   // Blocking the request keeps the CDN out of the test entirely.
   await page
-    .route('**/__devtools/**', (route) => route.abort())
+    .route("**/__devtools/**", (route) => route.abort())
     .catch(() => {
       // Already routed by this page; ignore.
     });
   await page
     .evaluate(() => {
-      const DEV_TAGS = ['devframes-dock-embedded', 'vite-error-overlay', 'react-refresh'];
+      const DEV_TAGS = ["devframes-dock-embedded", "vite-error-overlay", "react-refresh"];
       for (const tag of DEV_TAGS) {
         // Removing is correct: none of these carry app content, and the HMR
         // overlay is re-injected after a rebuild, so `cleanupRoutes` runs again
@@ -191,7 +207,7 @@ export async function removeDevToolOverlays(page: Page): Promise<void> {
       }
       // `vite-plugin-inspect` and similar can leave a full-screen wrapper.
       document
-        .querySelectorAll('body > [data-vite-dev-overlay], body > vite-error-overlay')
+        .querySelectorAll("body > [data-vite-dev-overlay], body > vite-error-overlay")
         .forEach((node) => node.remove());
     })
     .catch(() => {
@@ -204,8 +220,8 @@ export async function removeDevToolOverlays(page: Page): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export interface MockHealthResponse {
-  backend: 'online' | 'offline';
-  overall: 'healthy' | 'unhealthy';
+  backend: "online" | "offline";
+  overall: "healthy" | "unhealthy";
   adapters: {
     comfyui: { name: string; status: string; response_time_ms: number };
     ollama: { name: string; status: string; response_time_ms: number };
@@ -214,7 +230,7 @@ export interface MockHealthResponse {
 }
 
 export interface MockSystemHealthResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
   platform: string;
   platform_version: string;
@@ -265,10 +281,11 @@ export interface MockGoServiceHealthResponse {
 // Do not edit here; update config/ports.json instead.
 function loadGoServicePorts(): Record<string, number> {
   try {
-    const fs = require("node:fs");
-    const path = require("node:path");
     const raw = JSON.parse(
-      fs.readFileSync(path.resolve(__dirname, "../../config/ports.json"), "utf-8"),
+      fs.readFileSync(
+        path.resolve(url.fileURLToPath(import.meta.url), "../../config/ports.json"),
+        "utf-8",
+      ),
     );
     // Extract port from URLs like "http://127.0.0.1:3847"
     const portFromUrl = (key: string): number => {
@@ -299,7 +316,7 @@ function loadGoServicePorts(): Record<string, number> {
 const GO_SERVICE_PORTS = loadGoServicePorts();
 
 const DEFAULT_GO_HEALTH_RESPONSE: MockGoServiceHealthResponse = {
-  status: 'ok',
+  status: "ok",
   timestamp: new Date().toISOString(),
 };
 
@@ -308,30 +325,30 @@ const DEFAULT_GO_HEALTH_RESPONSE: MockGoServiceHealthResponse = {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_HEALTH_RESPONSE: MockHealthResponse = {
-  backend: 'online',
-  overall: 'healthy',
+  backend: "online",
+  overall: "healthy",
   adapters: {
-    comfyui: { name: 'ComfyUI', status: 'online', response_time_ms: 42 },
-    ollama: { name: 'Ollama', status: 'online', response_time_ms: 18 },
+    comfyui: { name: "ComfyUI", status: "online", response_time_ms: 42 },
+    ollama: { name: "Ollama", status: "online", response_time_ms: 18 },
   },
   timestamp: new Date().toISOString(),
 };
 
 const DEFAULT_SYSTEM_HEALTH: MockSystemHealthResponse = {
-  status: 'healthy',
+  status: "healthy",
   timestamp: new Date().toISOString(),
-  platform: 'Windows',
-  platform_version: '10',
+  platform: "Windows",
+  platform_version: "10",
   cpu: { usage_percent: 12, count: 6, count_logical: 12 },
   memory: { total_gb: 32, available_gb: 24, used_gb: 8, percent: 25 },
   disk: { total_gb: 512, free_gb: 256, percent: 50 },
 };
 
 const DEFAULT_SERVICE_STATUS: MockServiceStatusResponse = {
-  adapters: { comfyui: 'connected', ollama: 'connected' },
+  adapters: { comfyui: "connected", ollama: "connected" },
   adapter_details: {
-    comfyui: { status: 'connected', url: 'http://localhost:8188' },
-    ollama: { status: 'connected', url: 'http://localhost:11434' },
+    comfyui: { status: "connected", url: "http://localhost:8188" },
+    ollama: { status: "connected", url: "http://localhost:11434" },
   },
   connections: 2,
 };
@@ -355,19 +372,20 @@ export type MockHealthOverrides = {
  */
 export async function mockApiHealth(
   page: Page,
-  overrides: 200 | 500 | MockHealthOverrides = {}
+  overrides: 200 | 500 | MockHealthOverrides = {},
 ): Promise<void> {
-  const options: MockHealthOverrides = typeof overrides === 'number' ? { status: overrides } : overrides;
+  const options: MockHealthOverrides =
+    typeof overrides === "number" ? { status: overrides } : overrides;
   const { status = 200, body } = options;
   const healthBody =
     status === 200
       ? JSON.stringify({ ...DEFAULT_HEALTH_RESPONSE, ...body })
-      : JSON.stringify('Server error');
+      : JSON.stringify("Server error");
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/health') {
-      await route.fulfill({ status, contentType: 'application/json', body: healthBody });
+    if (pathname === "/api/health") {
+      await route.fulfill({ status, contentType: "application/json", body: healthBody });
     } else {
       await route.fallback();
     }
@@ -381,16 +399,19 @@ export async function mockApiHealth(
 export async function mockApiQueueEmpty(page: Page): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/jobs' || (pathname.startsWith('/api/jobs/') && !pathname.includes('/stats'))) {
+    if (
+      pathname === "/api/jobs" ||
+      (pathname.startsWith("/api/jobs/") && !pathname.includes("/stats"))
+    ) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify([]),
       });
-    } else if (pathname === '/api/jobs/stats' || pathname.startsWith('/api/jobs/stats/')) {
+    } else if (pathname === "/api/jobs/stats" || pathname.startsWith("/api/jobs/stats/")) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify({ pending: 0, running: 0, completed: 0, failed: 0, total: 0 }),
       });
     } else {
@@ -404,49 +425,52 @@ export async function mockApiQueueEmpty(page: Page): Promise<void> {
  * COMPOSABLE: Does NOT call cleanupRoutes().
  */
 export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void> {
-  const cycle: Array<'running' | 'pending' | 'completed' | 'failed'> = [
-    'running',
-    'completed',
-    'failed',
-    'pending',
+  const cycle: Array<"running" | "pending" | "completed" | "failed"> = [
+    "running",
+    "completed",
+    "failed",
+    "pending",
   ];
   const jobs = Array.from({ length: count }, (_, i) => {
     const status = cycle[i % cycle.length];
     return {
       id: `job-${i + 1}`,
-      job_type: 'image_generation',
+      job_type: "image_generation",
       status,
       params: { prompt: `Test prompt ${i + 1}` },
       progress:
-        status === 'running' ? 0.45 : status === 'completed' ? 1 : status === 'failed' ? 0.6 : 0,
-      result_path: status === 'completed' ? '/output/video/test.mp4' : null,
-      error: status === 'failed' ? 'Something went wrong' : null,
+        status === "running" ? 0.45 : status === "completed" ? 1 : status === "failed" ? 0.6 : 0,
+      result_path: status === "completed" ? "/output/video/test.mp4" : null,
+      error: status === "failed" ? "Something went wrong" : null,
       created_at: new Date().toISOString(),
       retry_count: 0,
       max_retries: 3,
     };
   });
   const stats = {
-    pending: jobs.filter((j) => j.status === 'pending').length,
-    running: jobs.filter((j) => j.status === 'running').length,
-    completed: jobs.filter((j) => j.status === 'completed').length,
-    failed: jobs.filter((j) => j.status === 'failed').length,
+    pending: jobs.filter((j) => j.status === "pending").length,
+    running: jobs.filter((j) => j.status === "running").length,
+    completed: jobs.filter((j) => j.status === "completed").length,
+    failed: jobs.filter((j) => j.status === "failed").length,
     total: count,
     total_jobs: count,
   };
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/jobs' || (pathname.startsWith('/api/jobs/') && !pathname.includes('/stats'))) {
+    if (
+      pathname === "/api/jobs" ||
+      (pathname.startsWith("/api/jobs/") && !pathname.includes("/stats"))
+    ) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(jobs),
       });
-    } else if (pathname === '/api/jobs/stats' || pathname.startsWith('/api/jobs/stats/')) {
+    } else if (pathname === "/api/jobs/stats" || pathname.startsWith("/api/jobs/stats/")) {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(stats),
       });
     } else {
@@ -461,14 +485,14 @@ export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void>
  */
 export async function mockApiSystemHealth(
   page: Page,
-  overrides: Partial<MockSystemHealthResponse> = {}
+  overrides: Partial<MockSystemHealthResponse> = {},
 ): Promise<void> {
   const body = JSON.stringify({ ...DEFAULT_SYSTEM_HEALTH, ...overrides });
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/render/health' || pathname.startsWith('/api/render/health/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body });
+    if (pathname === "/api/render/health" || pathname.startsWith("/api/render/health/")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body });
     } else {
       await route.fallback();
     }
@@ -481,14 +505,14 @@ export async function mockApiSystemHealth(
  */
 export async function mockApiServiceStatus(
   page: Page,
-  overrides: Partial<MockServiceStatusResponse> = {}
+  overrides: Partial<MockServiceStatusResponse> = {},
 ): Promise<void> {
   const body = JSON.stringify({ ...DEFAULT_SERVICE_STATUS, ...overrides });
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/services/status' || pathname.startsWith('/api/services/status/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body });
+    if (pathname === "/api/services/status" || pathname.startsWith("/api/services/status/")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body });
     } else {
       await route.fallback();
     }
@@ -502,19 +526,22 @@ export async function mockApiServiceStatus(
 export async function mockApiComfyUIStatus(
   page: Page,
   installed = true,
-  running = false
+  running = false,
 ): Promise<void> {
   const body = JSON.stringify({
     installed,
     running,
     port: 8188,
-    url: 'http://localhost:8188',
+    url: "http://localhost:8188",
   } as MockComfyUIStatusResponse);
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/services/comfyui/status' || pathname.startsWith('/api/services/comfyui/status/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body });
+    if (
+      pathname === "/api/services/comfyui/status" ||
+      pathname.startsWith("/api/services/comfyui/status/")
+    ) {
+      await route.fulfill({ status: 200, contentType: "application/json", body });
     } else {
       await route.fallback();
     }
@@ -527,23 +554,26 @@ export async function mockApiComfyUIStatus(
  */
 export async function mockApiSettings(
   page: Page,
-  overrides: Partial<Record<string, string>> = {}
+  overrides: Partial<Record<string, string>> = {},
 ): Promise<void> {
   const defaultSettings: Record<string, string> = {
-    comfyui_url: 'http://127.0.0.1:8188',
-    ollama_url: 'http://127.0.0.1:11434',
-    log_level: 'INFO',
-    max_queue_workers: '1',
-    backend_port: '8000',
-    frontend_port: '5173',
-    default_model: '',
+    comfyui_url: "http://127.0.0.1:8188",
+    ollama_url: "http://127.0.0.1:11434",
+    log_level: "INFO",
+    max_queue_workers: "1",
+    backend_port: "8000",
+    frontend_port: "5173",
+    default_model: "",
   };
   const body = JSON.stringify({ ...defaultSettings, ...overrides });
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/integrations/config/settings' || pathname.startsWith('/api/integrations/config/settings/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body });
+    if (
+      pathname === "/api/integrations/config/settings" ||
+      pathname.startsWith("/api/integrations/config/settings/")
+    ) {
+      await route.fulfill({ status: 200, contentType: "application/json", body });
     } else {
       await route.fallback();
     }
@@ -564,14 +594,14 @@ export interface MockGpuSnapshot {
 
 export const DEFAULT_GPU_SNAPSHOT: MockGpuSnapshot = {
   available: true,
-  name: 'NVIDIA GeForce RTX 4070',
+  name: "NVIDIA GeForce RTX 4070",
   memory_used_mb: 4096,
   memory_free_mb: 4096,
   memory_total_mb: 8192,
   memory_percent: 50,
   gpu_utilization: 35,
   temperature_c: 61,
-  processes: [{ pid: 1234, name: 'ComfyUI.exe', used_mb: 3200 }],
+  processes: [{ pid: 1234, name: "ComfyUI.exe", used_mb: 3200 }],
 };
 
 /**
@@ -583,11 +613,11 @@ export const DEFAULT_GPU_SNAPSHOT: MockGpuSnapshot = {
  */
 export async function mockGpuTelemetry(
   page: Page,
-  overrides: Partial<MockGpuSnapshot> = {}
+  overrides: Partial<MockGpuSnapshot> = {},
 ): Promise<void> {
   const snapshotBody = JSON.stringify({ ...DEFAULT_GPU_SNAPSHOT, ...overrides });
   const processesBody = JSON.stringify({
-    processes: [{ pid: 1234, name: 'ComfyUI.exe', mem_mb: 3200 }],
+    processes: [{ pid: 1234, name: "ComfyUI.exe", mem_mb: 3200 }],
     count: 1,
   });
   // The page hydrates charts from history/stats on mount; empty series are valid.
@@ -596,14 +626,14 @@ export async function mockGpuTelemetry(
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/health/gpu') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: snapshotBody });
-    } else if (pathname === '/api/health/gpu/processes') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: processesBody });
-    } else if (pathname === '/api/health/gpu/stats') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: emptyStatsBody });
-    } else if (pathname.startsWith('/api/health/gpu/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: emptyHistoryBody });
+    if (pathname === "/api/health/gpu") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: snapshotBody });
+    } else if (pathname === "/api/health/gpu/processes") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: processesBody });
+    } else if (pathname === "/api/health/gpu/stats") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: emptyStatsBody });
+    } else if (pathname.startsWith("/api/health/gpu/")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: emptyHistoryBody });
     } else {
       await route.fallback();
     }
@@ -617,64 +647,71 @@ export async function mockGpuTelemetry(
  * COMPOSABLE: does NOT call cleanupRoutes().
  */
 export async function mockLogAnalytics(page: Page): Promise<void> {
-  const tsIso = '2026-09-28T12:00:00+00:00';
+  const tsIso = "2026-09-28T12:00:00+00:00";
   const tsMs = Date.parse(tsIso);
   const event = {
     ts_iso: tsIso,
     ts_ms: tsMs,
-    level: 'INFO',
-    logger: 'app.api',
-    message: 'startup complete',
-    source: 'app',
+    level: "INFO",
+    logger: "app.api",
+    message: "startup complete",
+    source: "app",
   };
   const bodies: Record<string, string> = {
-    '/api/logs/analytics/summary': JSON.stringify({
+    "/api/logs/analytics/summary": JSON.stringify({
       total_events: 3,
       last_event_at: tsIso,
       last_cleanup_at: null,
       levels: [
-        { level: 'INFO', count: 2 },
-        { level: 'ERROR', count: 1 },
+        { level: "INFO", count: 2 },
+        { level: "ERROR", count: 1 },
       ],
-      top_loggers: [{ logger: 'app.api', count: 3 }],
-      top_messages: [{ message: 'startup complete', count: 1, level: 'INFO' }],
-      sources: [{ source: 'app', count: 3 }],
+      top_loggers: [{ logger: "app.api", count: 3 }],
+      top_messages: [{ message: "startup complete", count: 1, level: "INFO" }],
+      sources: [{ source: "app", count: 3 }],
     }),
-    '/api/logs/analytics/patterns': JSON.stringify({
+    "/api/logs/analytics/patterns": JSON.stringify({
       levels: [
-        { level: 'INFO', count: 2 },
-        { level: 'ERROR', count: 1 },
+        { level: "INFO", count: 2 },
+        { level: "ERROR", count: 1 },
       ],
-      loggers: [{ logger: 'app.api', count: 3 }],
-      messages: [{ message: 'startup complete', count: 1, level: 'INFO' }],
+      loggers: [{ logger: "app.api", count: 3 }],
+      messages: [{ message: "startup complete", count: 1, level: "INFO" }],
     }),
-    '/api/logs/analytics/errors': JSON.stringify({ errors: [] }),
-    '/api/logs/analytics/events': JSON.stringify({ count: 1, events: [event] }),
-    '/api/logs/analytics/trends': JSON.stringify({
+    "/api/logs/analytics/errors": JSON.stringify({ errors: [] }),
+    "/api/logs/analytics/events": JSON.stringify({ count: 1, events: [event] }),
+    "/api/logs/analytics/trends": JSON.stringify({
       count: 1,
-      points: [{ ts_iso: tsIso, ts_ms: tsMs, level: 'INFO', logger: 'app.api', message: 'startup complete' }],
+      points: [
+        {
+          ts_iso: tsIso,
+          ts_ms: tsMs,
+          level: "INFO",
+          logger: "app.api",
+          message: "startup complete",
+        },
+      ],
     }),
-    '/api/logs/': JSON.stringify({ log_directory: 'logs', files: {} }),
+    "/api/logs/": JSON.stringify({ log_directory: "logs", files: {} }),
   };
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
     const body = bodies[pathname];
     if (body) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body });
-    } else if (pathname.startsWith('/api/logs/')) {
+      await route.fulfill({ status: 200, contentType: "application/json", body });
+    } else if (pathname.startsWith("/api/logs/")) {
       // Raw log viewer requests (GET /api/logs/<name>): answer with an empty tail.
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ log: pathname.split('/').pop(), lines: 0, content: [] }),
+        contentType: "application/json",
+        body: JSON.stringify({ log: pathname.split("/").pop(), lines: 0, content: [] }),
       });
     } else {
       await route.fallback();
     }
   });
 }
-
 
 /**
  * Mock all health-page endpoints in a single handler.
@@ -684,10 +721,10 @@ export async function mockLogAnalytics(page: Page): Promise<void> {
 /** Service-status overrides whose nested adapter maps are merged, not replaced. */
 export type MockServiceStatusOverrides = Omit<
   Partial<MockServiceStatusResponse>,
-  'adapters' | 'adapter_details'
+  "adapters" | "adapter_details"
 > & {
-  adapters?: Partial<MockServiceStatusResponse['adapters']>;
-  adapter_details?: Partial<MockServiceStatusResponse['adapter_details']>;
+  adapters?: Partial<MockServiceStatusResponse["adapters"]>;
+  adapter_details?: Partial<MockServiceStatusResponse["adapter_details"]>;
 };
 
 export async function mockHealthPage(
@@ -698,7 +735,7 @@ export async function mockHealthPage(
     serviceStatus?: MockServiceStatusOverrides;
     comfyuiInstalled?: boolean;
     comfyuiRunning?: boolean;
-  } = {}
+  } = {},
 ): Promise<void> {
   const {
     healthStatus = 200,
@@ -711,7 +748,7 @@ export async function mockHealthPage(
   const healthBody =
     healthStatus === 200
       ? JSON.stringify({ ...DEFAULT_HEALTH_RESPONSE })
-      : JSON.stringify('Server error');
+      : JSON.stringify("Server error");
 
   const systemHealthBody = JSON.stringify({ ...DEFAULT_SYSTEM_HEALTH, ...systemHealth });
   // Merge the nested maps so an override such as { adapters: { comfyui: 'degraded' } }
@@ -720,25 +757,46 @@ export async function mockHealthPage(
     ...DEFAULT_SERVICE_STATUS,
     ...serviceStatus,
     adapters: { ...DEFAULT_SERVICE_STATUS.adapters, ...serviceStatus.adapters },
-    adapter_details: { ...DEFAULT_SERVICE_STATUS.adapter_details, ...serviceStatus.adapter_details },
+    adapter_details: {
+      ...DEFAULT_SERVICE_STATUS.adapter_details,
+      ...serviceStatus.adapter_details,
+    },
   });
   const comfyuiStatusBody = JSON.stringify({
     installed: comfyuiInstalled,
     running: comfyuiRunning,
     port: 8188,
-    url: 'http://localhost:8188',
+    url: "http://localhost:8188",
   });
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
-    if (pathname === '/api/health') {
-      await route.fulfill({ status: healthStatus, contentType: 'application/json', body: healthBody });
-    } else if (pathname === '/api/render/health' || pathname.startsWith('/api/render/health/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: systemHealthBody });
-    } else if (pathname === '/api/services/status' || pathname.startsWith('/api/services/status/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: serviceStatusBody });
-    } else if (pathname === '/api/services/comfyui/status' || pathname.startsWith('/api/services/comfyui/status/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: comfyuiStatusBody });
+    if (pathname === "/api/health") {
+      await route.fulfill({
+        status: healthStatus,
+        contentType: "application/json",
+        body: healthBody,
+      });
+    } else if (pathname === "/api/render/health" || pathname.startsWith("/api/render/health/")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: systemHealthBody });
+    } else if (
+      pathname === "/api/services/status" ||
+      pathname.startsWith("/api/services/status/")
+    ) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: serviceStatusBody,
+      });
+    } else if (
+      pathname === "/api/services/comfyui/status" ||
+      pathname.startsWith("/api/services/comfyui/status/")
+    ) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: comfyuiStatusBody,
+      });
     } else {
       await route.fallback();
     }
@@ -776,10 +834,10 @@ export async function dispatchSseEvent(page: Page, event: Record<string, unknown
  * Categories of console errors that should be filtered out in tests.
  */
 export const consoleErrorFilters = {
-  connection: ['ERR_CONNECTION_REFUSED', 'ERR_CONNECTION_RESET', 'ECONNREFUSED'],
-  network: ['net::', 'NetworkError'],
-  cdn: ['Failed to load resource', 'script error'],
-  vite: ['[vite]'],
+  connection: ["ERR_CONNECTION_REFUSED", "ERR_CONNECTION_RESET", "ECONNREFUSED"],
+  network: ["net::", "NetworkError"],
+  cdn: ["Failed to load resource", "script error"],
+  vite: ["[vite]"],
 };
 
 /**
@@ -788,8 +846,8 @@ export const consoleErrorFilters = {
  */
 export function setupConsoleErrorCapture(page: Page): string[] {
   const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
       errors.push(msg.text());
     }
   });
@@ -830,26 +888,39 @@ export function isFilteredError(error: string): boolean {
  */
 export async function mockGoServiceHealth(
   page: Page,
-  overrides: Record<string, Partial<MockGoServiceHealthResponse>> = {}
+  overrides: Record<string, Partial<MockGoServiceHealthResponse>> = {},
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
     const pathname = getPathname(url);
-    if (pathname === '/events') {
+    if (pathname === "/events") {
       await route.fallback();
       return;
     }
-    if (pathname === '/api/health/diagnostics/services' || pathname.startsWith('/api/health/diagnostics/services/')) {
-      const sidecars = Object.fromEntries(Object.keys(GO_SERVICE_PORTS).map((name) => [name, {
-        status: 'online', url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
-      }]));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ adapters: {}, sidecars }) });
+    if (
+      pathname === "/api/health/diagnostics/services" ||
+      pathname.startsWith("/api/health/diagnostics/services/")
+    ) {
+      const sidecars = Object.fromEntries(
+        Object.keys(GO_SERVICE_PORTS).map((name) => [
+          name,
+          {
+            status: "online",
+            url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
+          },
+        ]),
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ adapters: {}, sidecars }),
+      });
       return;
     }
     for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
       if (url.includes(`127.0.0.1:${port}`) || url.includes(`localhost:${port}`)) {
         const body = JSON.stringify({ ...DEFAULT_GO_HEALTH_RESPONSE, ...(overrides[name] || {}) });
-        await route.fulfill({ status: 200, contentType: 'application/json', body });
+        await route.fulfill({ status: 200, contentType: "application/json", body });
         return;
       }
     }
@@ -863,31 +934,47 @@ export async function mockGoServiceHealth(
  */
 export async function mockGoServiceHealthDegraded(
   page: Page,
-  offlineServices: string[] = []
+  offlineServices: string[] = [],
 ): Promise<void> {
   registerRouteHandler(page, async (route) => {
     const url = route.request().url();
     const pathname = getPathname(url);
-    if (pathname === '/events') {
+    if (pathname === "/events") {
       await route.fallback();
       return;
     }
-    if (pathname === '/api/health/diagnostics/services' || pathname.startsWith('/api/health/diagnostics/services/')) {
-      const sidecars = Object.fromEntries(Object.keys(GO_SERVICE_PORTS).map((name) => [name, {
-        status: offlineServices.includes(name) ? 'offline' : 'online',
-        url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
-      }]));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ adapters: {}, sidecars }) });
+    if (
+      pathname === "/api/health/diagnostics/services" ||
+      pathname.startsWith("/api/health/diagnostics/services/")
+    ) {
+      const sidecars = Object.fromEntries(
+        Object.keys(GO_SERVICE_PORTS).map((name) => [
+          name,
+          {
+            status: offlineServices.includes(name) ? "offline" : "online",
+            url: `http://127.0.0.1:${GO_SERVICE_PORTS[name]}`,
+          },
+        ]),
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ adapters: {}, sidecars }),
+      });
       return;
     }
     for (const [name, port] of Object.entries(GO_SERVICE_PORTS)) {
       if (url.includes(`127.0.0.1:${port}`) || url.includes(`localhost:${port}`)) {
         const isOffline = offlineServices.includes(name);
         const body = JSON.stringify({
-          status: isOffline ? 'error' : 'ok',
+          status: isOffline ? "error" : "ok",
           timestamp: new Date().toISOString(),
         });
-        await route.fulfill({ status: isOffline ? 503 : 200, contentType: 'application/json', body });
+        await route.fulfill({
+          status: isOffline ? 503 : 200,
+          contentType: "application/json",
+          body,
+        });
         return;
       }
     }
@@ -924,7 +1011,7 @@ export async function isCardVisible(page: Page, className: string): Promise<bool
  * Wait for all resource cards to be rendered (used in health page tests).
  */
 export async function waitForResourceCards(page: Page, count = 3, timeout = 10_000): Promise<void> {
-  await expect(page.locator('.resource-card')).toHaveCount(count, { timeout });
+  await expect(page.locator(".resource-card")).toHaveCount(count, { timeout });
 }
 
 /**
@@ -934,7 +1021,7 @@ export async function expectCardToHaveText(
   page: Page,
   className: string,
   text: string | RegExp,
-  timeout = 5_000
+  timeout = 5_000,
 ): Promise<void> {
   const card = page.locator(`.${className}`);
   await expect(card).toHaveText(text, { timeout });

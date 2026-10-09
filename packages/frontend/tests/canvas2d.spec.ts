@@ -1,21 +1,26 @@
-import { test, expect } from '@playwright/test';
-import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors } from './helpers';
+import { expect, test } from "@playwright/test";
+import {
+  cleanupRoutes,
+  expectNoConsoleErrors,
+  navigateWithWait,
+  setupConsoleErrorCapture,
+} from "./helpers";
 
-test.describe('Canvas2D Visualizer', () => {
+test.describe("Canvas2D Visualizer", () => {
   test.beforeEach(async ({ page }) => {
     await cleanupRoutes(page);
   });
 
-  test('renders 2D mode canvas and cycles modes', async ({ page }) => {
+  test("renders 2D mode canvas and cycles modes", async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
-    await navigateWithWait(page, '/visualizer');
+    await navigateWithWait(page, "/visualizer");
 
     // Wait for the track selector to appear
     const trackSelect = page.locator('[data-testid="viz-track-select"]');
     await expect(trackSelect).toBeVisible({ timeout: 15_000 });
 
     // Pick the first available track if any
-    const optionCount = await trackSelect.locator('option').count();
+    const optionCount = await trackSelect.locator("option").count();
     if (optionCount > 1) {
       await trackSelect.selectOption({ index: 1 });
     }
@@ -23,28 +28,40 @@ test.describe('Canvas2D Visualizer', () => {
     // Use the test harness to switch to 2D mode reliably
     await page.evaluate(() => {
       const win = window as unknown as { __VIZ_TEST__?: { setMode?: (mode: string) => void } };
-      win.__VIZ_TEST__?.setMode?.('2d');
+      win.__VIZ_TEST__?.setMode?.("2d");
     });
 
     // Wait for canvas to render
-    const canvas = page.locator('canvas');
+    const canvas = page.locator("canvas");
     await expect(canvas.first()).toBeVisible({ timeout: 15_000 });
 
     // Cycle through 2D sub-modes via the harness
-    const modes = ['bars', 'waveform', 'radial', 'spectrogram', 'lissajous', 'constellation', 'particles'] as const;
+    const modes = [
+      "bars",
+      "waveform",
+      "radial",
+      "spectrogram",
+      "lissajous",
+      "constellation",
+      "particles",
+    ] as const;
     for (const mode of modes) {
-      await page.evaluate((m) => { (window as unknown as { __VIZ_TEST__?: { set2DMode?: (mode: string) => void } }).__VIZ_TEST__?.set2DMode?.(m); }, mode);
+      await page.evaluate((m) => {
+        (
+          window as unknown as { __VIZ_TEST__?: { set2DMode?: (mode: string) => void } }
+        ).__VIZ_TEST__?.set2DMode?.(m);
+      }, mode);
       await expect(canvas.first()).toBeVisible({ timeout: 5_000 });
     }
 
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
   });
 
-  test('visualizer page loads without console errors', async ({ page }) => {
+  test("visualizer page loads without console errors", async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
-    await navigateWithWait(page, '/visualizer');
+    await navigateWithWait(page, "/visualizer");
     await page.waitForTimeout(1000);
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
   });
 
   /**
@@ -58,25 +75,25 @@ test.describe('Canvas2D Visualizer', () => {
    * mode. It also caught `value="stereo-split-bands"`, an option whose value was
    * not a mode at all.
    */
-  test('2D mode picker offers exactly the modes the runtime supports', async ({ page }) => {
-    await navigateWithWait(page, '/visualizer');
+  test("2D mode picker offers exactly the modes the runtime supports", async ({ page }) => {
+    await navigateWithWait(page, "/visualizer");
     const trackSelect = page.locator('[data-testid="viz-track-select"]');
     await expect(trackSelect).toBeVisible({ timeout: 15_000 });
-    const optionCount = await trackSelect.locator('option').count();
+    const optionCount = await trackSelect.locator("option").count();
     if (optionCount > 1) await trackSelect.selectOption({ index: 1 });
 
     await page.evaluate(() => {
       const win = window as unknown as { __VIZ_TEST__?: { setMode?: (mode: string) => void } };
-      win.__VIZ_TEST__?.setMode?.('2d');
+      win.__VIZ_TEST__?.setMode?.("2d");
     });
     // The compact "More" menu holds the 2D mode picker in the V2 UI.
     await page.click('button[aria-label="More controls"]');
-    const select = page.locator('select.viz-2d-mode-select');
+    const select = page.locator("select.viz-2d-mode-select");
     await expect(select).toBeVisible({ timeout: 5_000 });
 
-    const values = await select.locator('option').evaluateAll((os) =>
-      os.map((o) => (o as HTMLOptionElement).value),
-    );
+    const values = await select
+      .locator("option")
+      .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
 
     // Every mode the runtime can render must be reachable from the UI.
     // The canonical list is read from the *served* source rather than hardcoded
@@ -85,17 +102,24 @@ test.describe('Canvas2D Visualizer', () => {
     // tsconfig.tests.json has no mapping for Vite-rooted paths, and the spec
     // has to type-check.)
     const runtimeModes: string[] = await page.evaluate(async () => {
-      const src = await fetch('/src/features/visualizer/visualizerHelpers.ts').then((r) => r.text());
-      // Match up to the closing bracket only. The served module is transpiled,
-      // so `as const` is gone — anchoring on it makes the regex silently
-      // return an empty list and the test passes vacuously.
-      const body = src.match(/CANVAS_2D_MODES\s*=\s*\[([\s\S]*?)\]/)?.[1] ?? '';
-      return body
-        .split(',')
-        .map((s) => s.trim().replace(/^["']|["']$/g, ''))
-        .filter((s) => /^[a-z]/.test(s));
+      try {
+        const src = await fetch("/src/features/visualizer/visualizerHelpers.ts").then((r) =>
+          r.text(),
+        );
+        // Match up to the closing bracket only. The served module is transpiled,
+        // so `as const` is gone — anchoring on it makes the regex silently
+        // return an empty list and the test passes vacuously.
+        const body = src.match(/CANVAS_2D_MODES\s*=\s*\[([\s\S]*?)\]/)?.[1] ?? "";
+        return body
+          .split(",")
+          .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+          .filter((s) => /^[a-z]/.test(s));
+      } catch (e) {
+        // If source fetch fails, return empty array to fail the test clearly
+        return [];
+      }
     });
-    expect(runtimeModes.length).toBeGreaterThan(0);
+    expect(runtimeModes.length, "Failed to extract CANVAS_2D_MODES from source").toBeGreaterThan(0);
     for (const mode of runtimeModes) {
       expect(values, `mode "${mode}" is implemented but not selectable`).toContain(mode);
     }
@@ -105,16 +129,18 @@ test.describe('Canvas2D Visualizer', () => {
     }
 
     // The specific historical defects, named so the failure is legible.
-    expect(values).toContain('aurora');
-    expect(values).not.toContain('stereo-split-bands');
+    expect(values).toContain("aurora");
+    expect(values).not.toContain("stereo-split-bands");
 
     // Selecting through the UI must actually change state (not just the <option>).
-    await select.selectOption('aurora');
+    await select.selectOption("aurora");
     await page.waitForTimeout(500);
     const mode = await page.evaluate(() => {
-      const win = window as unknown as { __VIZ_TEST__?: { getState?: () => { canvas2DMode?: string } } };
+      const win = window as unknown as {
+        __VIZ_TEST__?: { getState?: () => { canvas2DMode?: string } };
+      };
       return win.__VIZ_TEST__?.getState?.()?.canvas2DMode;
     });
-    expect(mode).toBe('aurora');
+    expect(mode).toBe("aurora");
   });
 });
