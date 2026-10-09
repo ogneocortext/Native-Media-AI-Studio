@@ -130,12 +130,19 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const { filter } = get();
-      const fileType = filter.type === "all" ? undefined : filter.type;
-      const response = await fetchOutputsFromAPI(fileType, filter.limit || 200, filter.offset, {
-        search: filter.search,
-        dateFrom: filter.dateFrom,
-        dateTo: filter.dateTo,
-      });
+      // Always fetch the complete, unfiltered set. The MediaLibrary's
+      // filteredOutputs selector re-derives category / search / date
+      // filters client-side, and the sidebar chips + StatCards need the
+      // GLOBAL counts. Passing file_type (or search/date) here would make
+      // the backend filter the set and report per-category counts, which
+      // zeroes out every non-active category (e.g. "Audio 0" while the
+      // Videos tab is selected) on every refresh, rename, delete or
+      // extract that calls fetchOutputs.
+      const response = await fetchOutputsFromAPI(
+        undefined,
+        filter.limit || 200,
+        filter.offset,
+      );
       set({
         outputs: response.outputs,
         counts: {

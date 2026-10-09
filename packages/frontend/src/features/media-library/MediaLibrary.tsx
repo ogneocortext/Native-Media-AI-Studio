@@ -445,6 +445,276 @@ const MediaCard = memo(function MediaCard({
   );
 });
 
+/** Compact single-row layout for the list view (viewMode === "list"). */
+const MediaRow = memo(function MediaRow({
+  output,
+  index,
+  selected,
+  isDup,
+  onSelect,
+  onToggle,
+  onDelete,
+  onRename,
+  onOpenBlender,
+  onOpenUnity,
+  onAddToStudio,
+  onAnalyze,
+  onSendToVisualizer,
+  onSendToWizard,
+}: {
+  output: OutputFile;
+  index: number;
+  selected: boolean;
+  isDup: boolean;
+  onSelect: () => void;
+  onToggle: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
+  onRename: (e: React.MouseEvent) => void;
+  onOpenBlender?: (e: React.MouseEvent) => void;
+  onOpenUnity?: (e: React.MouseEvent) => void;
+  onAddToStudio?: (e: React.MouseEvent) => void;
+  onAnalyze?: (e: React.MouseEvent) => void;
+  onSendToVisualizer?: (output: OutputFile) => void;
+  onSendToWizard?: (output: OutputFile) => void;
+}) {
+  const [showActions, setShowActions] = useState(false);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  useEffect(() => {
+    if (!showActions) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node))
+        setShowActions(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [showActions]);
+
+  const TypeIcon =
+    output.file_type === "video"
+      ? Video
+      : output.file_type === "audio"
+        ? Music
+        : output.file_type === "image"
+          ? Image
+          : output.file_type === "3d"
+            ? Box
+            : FileType;
+  const typeColor =
+    output.file_type === "video"
+      ? "text-blue-400"
+      : output.file_type === "audio"
+        ? "text-emerald-400"
+        : output.file_type === "image"
+          ? "text-purple-400"
+          : output.file_type === "3d"
+            ? "text-amber-400"
+            : "text-muted";
+  const thumbSrc =
+    output.file_type === "image"
+      ? getOutputUrl(output.relative_path)
+      : output.cover_image
+        ? getOutputUrl(output.cover_image)
+        : null;
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
+      className={`group card flex items-center gap-3 px-3 py-2 cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all animate-in fade-in slide-in-from-bottom-1 fill-mode-both ${typeAccent[output.file_type] || ""}`}
+    >
+      <button
+        onClick={onToggle}
+        aria-pressed={selected}
+        aria-label={`${selected ? "Deselect" : "Select"} ${output.filename} for bulk actions`}
+        className={`shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-all ${selected ? "bg-violet-600 border-violet-500 text-white shadow" : "bg-black/40 border-white/20 text-white/70 hover:bg-black/60"}`}
+        title={selected ? "Deselect" : "Select for bulk"}
+      >
+        {selected ? <Check size={12} /> : <Square size={12} />}
+      </button>
+      {isDup && (
+        <span
+          className="shrink-0 w-5 h-5 rounded-full bg-amber-500/90 border border-amber-600 flex items-center justify-center"
+          title="Duplicate"
+        >
+          <Copy size={9} className="text-white" />
+        </span>
+      )}
+      <span className={`shrink-0 ${typeColor}`} title={output.file_type}>
+        <TypeIcon size={16} />
+      </span>
+      <span className="shrink-0 w-9 h-9 rounded-md overflow-hidden bg-surface flex items-center justify-center border border-white/5">
+        {thumbSrc ? (
+          <img
+            src={thumbSrc}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <TypeIcon size={14} className="text-muted" />
+        )}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span
+          className="block text-sm text-foreground truncate font-medium"
+          title={output.filename}
+        >
+          {output.filename}
+        </span>
+        <span
+          className="block text-[11px] text-muted truncate"
+          title={output.relative_path}
+        >
+          {output.relative_path}
+        </span>
+      </span>
+      <span className="hidden md:flex shrink-0 items-center gap-1 text-xs text-muted">
+        <HardDrive size={11} className="shrink-0" />
+        {formatFileSize(output.size_bytes)}
+      </span>
+      <span className="hidden lg:flex shrink-0 items-center gap-1 text-xs text-muted">
+        <Clock size={11} className="shrink-0" />
+        {formatDate(output.created_at)}
+      </span>
+      <span className="shrink-0 flex items-center gap-0.5">
+        <a
+          href={getOutputUrl(output.relative_path)}
+          download
+          onClick={stop}
+          title="Download"
+          className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-all"
+        >
+          <Download size={14} />
+        </a>
+        {output.file_type === "audio" && onAnalyze && (
+          <button
+            onClick={(e) => {
+              stop(e);
+              onAnalyze(e);
+            }}
+            title="Analyze audio"
+            className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-400 transition-all"
+          >
+            <Activity size={14} />
+          </button>
+        )}
+        {output.file_type === "audio" && onSendToVisualizer && (
+          <button
+            onClick={(e) => {
+              stop(e);
+              onSendToVisualizer(output);
+            }}
+            title="Send to Visualizer"
+            className="p-1.5 rounded-lg hover:bg-violet-500/20 text-violet-400 transition-all"
+          >
+            <Sparkles size={14} />
+          </button>
+        )}
+        {output.file_type === "audio" && onSendToWizard && (
+          <button
+            onClick={(e) => {
+              stop(e);
+              onSendToWizard(output);
+            }}
+            title="Send to Music Video Wizard"
+            className="p-1.5 rounded-lg hover:bg-blue-500/20 text-blue-400 transition-all"
+          >
+            <Video size={14} />
+          </button>
+        )}
+        {is3DModelFile(output.filename) && onAddToStudio && (
+          <button
+            onClick={(e) => {
+              stop(e);
+              onAddToStudio(e);
+            }}
+            title="Add to Studio"
+            className="p-1.5 rounded-lg hover:bg-violet-500/20 text-violet-400 transition-all"
+          >
+            <Sparkles size={14} />
+          </button>
+        )}
+        <div className="relative" ref={actionsRef}>
+          <button
+            onClick={(e) => {
+              stop(e);
+              setShowActions((v) => !v);
+            }}
+            title="More actions"
+            className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-all"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {showActions && (
+            <div className="absolute right-0 top-full mt-1 bg-gray-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-[180px] z-30">
+              <button
+                onClick={(e) => {
+                  stop(e);
+                  onRename(e);
+                  setShowActions(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10"
+              >
+                <Pencil size={14} /> Rename
+              </button>
+              <button
+                onClick={(e) => {
+                  stop(e);
+                  onDelete(e);
+                  setShowActions(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-300 hover:bg-red-500/10"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+              <button
+                onClick={(e) => {
+                  stop(e);
+                  onSelect();
+                  setShowActions(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10"
+              >
+                <Eye size={14} /> Quick view
+              </button>
+              {is3DModelFile(output.filename) && (
+                <>
+                  {onOpenBlender && (
+                    <button
+                      onClick={(e) => {
+                        stop(e);
+                        onOpenBlender(e);
+                        setShowActions(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-orange-300 hover:bg-orange-500/10"
+                    >
+                      <Box size={14} /> Open in Blender
+                    </button>
+                  )}
+                  {onOpenUnity && (
+                    <button
+                      onClick={(e) => {
+                        stop(e);
+                        onOpenUnity(e);
+                        setShowActions(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-300 hover:bg-blue-500/10"
+                    >
+                      <Layers size={14} /> Open in Unity
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </span>
+    </div>
+  );
+});
+
 function SkeletonGrid() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -1011,6 +1281,48 @@ export function MediaLibrary() {
   const canLoadMore = visibleCount < filteredOutputs.length;
   const currentCategory = categoryConfig.find((c) => c.key === filter.type) || categoryConfig[0];
 
+  // Shared per-item wiring so the grid (MediaCard) and list (MediaRow)
+  // views stay identical in behaviour. `list` is the array the shift-click
+  // range selection operates over (visibleOutputs or a group's `visible`).
+  const itemProps = (output: OutputFile, i: number, list: OutputFile[]) => ({
+    output,
+    index: i,
+    selected: selectedPaths.has(output.relative_path),
+    isDup: duplicatePaths.has(output.relative_path),
+    onSelect: () => setSelectedOutput(output),
+    onToggle: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      toggleSelectRange(e, i, output.relative_path, list);
+    },
+    onDelete: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setOutputToDelete(output);
+    },
+    onRename: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setRenameTarget(output);
+      setRenameValue(output.filename);
+    },
+    onOpenBlender: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      handleOpenBlender(output);
+    },
+    onOpenUnity: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      handleOpenUnity(output);
+    },
+    onAddToStudio: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      handleAddToStudio(output, false);
+    },
+    onAnalyze: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      handleAnalyzeAudio(output);
+    },
+    onSendToVisualizer: (o: OutputFile) => handleSendToVisualizer(o),
+    onSendToWizard: (o: OutputFile) => handleSendToWizard(o),
+  });
+
   return (
     <div className="flex h-full">
       <div
@@ -1399,51 +1711,20 @@ export function MediaLibrary() {
           <SkeletonGrid />
         ) : (
           <>
-            {!groupByType && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {visibleOutputs.map((output, i) => (
-                  <MediaCard
-                    key={output.path}
-                    output={output}
-                    index={i}
-                    selected={selectedPaths.has(output.relative_path)}
-                    isDup={duplicatePaths.has(output.relative_path)}
-                    onSelect={() => setSelectedOutput(output)}
-                    onToggle={(e) => {
-                      e.stopPropagation();
-                      toggleSelectRange(e, i, output.relative_path, visibleOutputs);
-                    }}
-                    onDelete={(e) => {
-                      e.stopPropagation();
-                      setOutputToDelete(output);
-                    }}
-                    onRename={(e) => {
-                      e.stopPropagation();
-                      setRenameTarget(output);
-                      setRenameValue(output.filename);
-                    }}
-                    onOpenBlender={(e) => {
-                      e.stopPropagation();
-                      handleOpenBlender(output);
-                    }}
-                    onOpenUnity={(e) => {
-                      e.stopPropagation();
-                      handleOpenUnity(output);
-                    }}
-                    onAddToStudio={(e) => {
-                      e.stopPropagation();
-                      handleAddToStudio(output, false);
-                    }}
-                    onAnalyze={(e) => {
-                      e.stopPropagation();
-                      handleAnalyzeAudio(output);
-                    }}
-                    onSendToVisualizer={(output) => handleSendToVisualizer(output)}
-                    onSendToWizard={(output) => handleSendToWizard(output)}
-                  />
-                ))}
-              </div>
-            )}
+            {!groupByType &&
+              (viewMode === "list" ? (
+                <div className="space-y-1.5">
+                  {visibleOutputs.map((output, i) => (
+                    <MediaRow key={output.path} {...itemProps(output, i, visibleOutputs)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {visibleOutputs.map((output, i) => (
+                    <MediaCard key={output.path} {...itemProps(output, i, visibleOutputs)} />
+                  ))}
+                </div>
+              ))}
             {groupByType && groupedOutputs && (
               <div className="space-y-6">
                 {(["video", "audio", "image", "3d"] as const).map((type) => {
@@ -1482,49 +1763,19 @@ export function MediaLibrary() {
                         <span className="text-xs font-normal text-muted">({items.length})</span>
                         <span className="flex-1 h-px bg-white/5 ml-2" />
                       </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {visible.map((output, i) => (
-                          <MediaCard
-                            key={output.path}
-                            output={output}
-                            index={i}
-                            selected={selectedPaths.has(output.relative_path)}
-                            isDup={duplicatePaths.has(output.relative_path)}
-                            onSelect={() => setSelectedOutput(output)}
-                            onToggle={(e) => {
-                              e.stopPropagation();
-                              toggleSelectRange(e, i, output.relative_path, visible);
-                            }}
-                            onDelete={(e) => {
-                              e.stopPropagation();
-                              setOutputToDelete(output);
-                            }}
-                            onRename={(e) => {
-                              e.stopPropagation();
-                              setRenameTarget(output);
-                              setRenameValue(output.filename);
-                            }}
-                            onOpenBlender={(e) => {
-                              e.stopPropagation();
-                              handleOpenBlender(output);
-                            }}
-                            onOpenUnity={(e) => {
-                              e.stopPropagation();
-                              handleOpenUnity(output);
-                            }}
-                            onAddToStudio={(e) => {
-                              e.stopPropagation();
-                              handleAddToStudio(output, false);
-                            }}
-                            onAnalyze={(e) => {
-                              e.stopPropagation();
-                              handleAnalyzeAudio(output);
-                            }}
-                            onSendToVisualizer={(output) => handleSendToVisualizer(output)}
-                            onSendToWizard={(output) => handleSendToWizard(output)}
-                          />
-                        ))}
-                      </div>
+                      {viewMode === "list" ? (
+                        <div className="space-y-1.5">
+                          {visible.map((output, i) => (
+                            <MediaRow key={output.path} {...itemProps(output, i, visible)} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                          {visible.map((output, i) => (
+                            <MediaCard key={output.path} {...itemProps(output, i, visible)} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
