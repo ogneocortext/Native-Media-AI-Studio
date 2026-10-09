@@ -811,14 +811,14 @@ export function MediaLibrary() {
       setOpeningApp(null);
     }
   };
-  const handleExtractThumbnail = async () => {
+  const handleExtractThumbnail = async (timeSec: number, width: number) => {
     if (!selectedOutput || selectedOutput.file_type !== "video") return;
     setThumbnailLoading(true);
     try {
       const res = await extractThumbnailAtTime({
         path: selectedOutput.relative_path,
-        time_sec: 1.0,
-        width: 480,
+        time_sec: timeSec,
+        width,
       });
       if (res.thumbnail_path) setThumbnailUrl(getOutputUrl(res.thumbnail_path));
       else if (res.error) alert(res.error);
@@ -1571,6 +1571,7 @@ export function MediaLibrary() {
 
         {selectedOutput && (
           <MediaDetailModal
+            key={selectedOutput.relative_path}
             output={selectedOutput}
             onClose={() => setSelectedOutput(null)}
             audioRef={audioRef}

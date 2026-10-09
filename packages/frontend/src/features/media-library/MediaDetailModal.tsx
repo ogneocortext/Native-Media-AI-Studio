@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { AudioTransport } from "../../components/audio";
 import { OutputFile } from "../../state/outputStore";
 import { WaveformDisplay } from "./WaveformDisplay";
@@ -74,7 +74,7 @@ export interface MediaDetailModalProps {
   mediaInfoError: string | null;
   thumbnailUrl: string | null;
   thumbnailLoading: boolean;
-  onExtractThumbnail: () => void;
+  onExtractThumbnail: (timeSec: number, width: number) => void;
   onRegenerateCover: () => void;
   onAddToStudio: (output: OutputFile, openInNewTab?: boolean) => void;
   onOpenBlender: (output: OutputFile) => void;
@@ -116,6 +116,13 @@ export function MediaDetailModal({
   setRenameTarget,
   setRenameValue,
 }: MediaDetailModalProps) {
+  // Thumbnail extraction controls (video only). Local state so the user can
+  // pick the timestamp + resolution the /api/media/thumbnail endpoint
+  // supports; reset per file via the `key` on <MediaDetailModal> in
+  // MediaLibrary.
+  const [thumbTime, setThumbTime] = useState("1.0");
+  const [thumbWidth, setThumbWidth] = useState(480);
+
   if (!output) return null;
 
   const probe = mediaInfo?.probe?.probe;
@@ -404,9 +411,62 @@ export function MediaDetailModal({
                           </div>
                         )}
                         <div className="flex flex-col gap-2">
+                          {output.file_type === "video" && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <label
+                                className="text-[10px] text-muted"
+                                htmlFor="thumb-time"
+                              >
+                                Timestamp (s)
+                              </label>
+                              <input
+                                id="thumb-time"
+                                type="number"
+                                min={0}
+                                max={duration ? Number(duration) : 3600}
+                                step={0.1}
+                                value={thumbTime}
+                                onChange={(e) => setThumbTime(e.target.value)}
+                                className="bg-black/30 border border-white/10 rounded-lg text-xs text-white px-2 py-1 w-20"
+                                aria-label="Thumbnail timestamp in seconds"
+                              />
+                              <label
+                                className="text-[10px] text-muted"
+                                htmlFor="thumb-width"
+                              >
+                                Width
+                              </label>
+                              <select
+                                id="thumb-width"
+                                value={thumbWidth}
+                                onChange={(e) =>
+                                  setThumbWidth(Number(e.target.value))
+                                }
+                                className="bg-black/30 border border-white/10 rounded-lg text-xs text-white px-2 py-1"
+                                aria-label="Thumbnail width in pixels"
+                              >
+                                {[480, 720, 1080, 1280, 1920].map((w) => (
+                                  <option key={w} value={w}>
+                                    {w}px
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <button
                             onClick={
-                              output.file_type === "video" ? onExtractThumbnail : onRegenerateCover
+                              output.file_type === "video"
+                                ? () => {
+                                    const dur = duration
+                                      ? Number(duration)
+                                      : 3600;
+                                    const t = Math.max(
+                                      0,
+                                      Math.min(Number(thumbTime) || 0, dur),
+                                    );
+                                    onExtractThumbnail(t, thumbWidth);
+                                  }
+                                : onRegenerateCover
                             }
                             disabled={thumbnailLoading}
                             className="btn btn-secondary text-xs flex items-center gap-1.5"
