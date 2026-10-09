@@ -19,8 +19,11 @@ from __future__ import print_function
 import io
 import os
 import re
-import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_lines  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, "docs")
@@ -38,13 +41,8 @@ def read(path):
 
 def real_dirs():
     """Directories under docs/ that contain git-tracked files."""
-    out = subprocess.check_output(["git", "ls-files", "docs/"], cwd=ROOT,
-                                  stderr=subprocess.DEVNULL)
     dirs = set()
-    for rel in out.decode("utf-8", "replace").split("\n"):
-        rel = rel.strip()
-        if not rel:
-            continue
+    for rel in git_lines("ls-files", "docs/", cwd=ROOT):
         parts = rel.split("/")[1:-1]
         for i in range(len(parts)):
             dirs.add("/".join(parts[:i + 1]))

@@ -23,8 +23,11 @@ from __future__ import print_function
 
 import io
 import os
-import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_lines  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -60,13 +63,15 @@ GROUPS = [
 
 
 def tracked_md():
-    try:
-        out = subprocess.check_output(["git", "ls-files", "*.md"], cwd=ROOT,
-                                      stderr=subprocess.DEVNULL)
-    except Exception:
+    files = git_lines("ls-files", "*.md", cwd=ROOT)
+    if not files:
+        # run_git decodes rather than raises, so a non-checkout (or git
+        # missing from PATH) surfaces as an empty listing instead of a
+        # CalledProcessError. Empty is still an error here: this repo
+        # tracks hundreds of .md files.
         print("error: not a git checkout, or git unavailable", file=sys.stderr)
         sys.exit(2)
-    return [r.strip() for r in out.decode("utf-8", "replace").split("\n") if r.strip()]
+    return files
 
 
 def has_frontmatter(rel):

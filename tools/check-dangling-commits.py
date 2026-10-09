@@ -13,26 +13,11 @@ Usage::
 """
 from __future__ import annotations
 
-import subprocess
 import sys
+from pathlib import Path
 
-
-def git(*args) -> str:
-    """Run git and return stdout decoded as UTF-8.
-
-    Two things matter here:
-
-    - Always return a string. git can exit non-zero or emit bytes that are not
-      valid in the locale encoding, and either case makes subprocess return None
-      for text output. A None propagates into string concatenation and fails far
-      from the actual cause.
-    - Decode UTF-8 explicitly. With text=True and no encoding, Python uses the
-      locale codec (cp1252 on this machine), so a leading UTF-8 BOM decodes to
-      the three characters "ï»¿" instead of U+FEFF and BOM-stripping silently
-      does nothing.
-    """
-    res = subprocess.run(["git", *args], capture_output=True)
-    return res.stdout.decode("utf-8", "replace")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import run_git  # noqa: E402
 
 
 def normalize_subject(subject: str) -> str:
@@ -50,14 +35,14 @@ def normalize_subject(subject: str) -> str:
 def main() -> int:
     dangling = [
         line.split()[2]
-        for line in git("fsck", "--lost-found").splitlines()
+        for line in run_git("fsck", "--lost-found").splitlines()
         if line.startswith("dangling commit")
     ]
     if not dangling:
         print("no dangling commits.")
         return 0
 
-    main_revs = git("rev-list", "main").split()
+    main_revs = run_git("rev-list", "main").split()
     # Match on commit subject. Computing main's patch-ids instead means running
     # `git show` over all 427 commits, which is slow and (via stdin) deadlocks
     # on Windows. Subject matching is the weaker signal - it cannot see a
@@ -66,16 +51,22 @@ def main() -> int:
     # confirm with `git diff`. Checkpoints are by construction snapshots of
     # work that was already committed, so a same-subject match is the expected
     # case; the point of this report is to surface anything that is NOT.
-    main_subjects = git("log", "main", "--format=%s").splitlines()
+    main_subjects = run_git("log", "main", "--format=%s").splitlines()
     main_subject_set = {normalize_subject(s) for s in main_subjects}
 
     print(f"dangling commits: {len(dangling)}   commits on main: {len(main_revs)}\n")
 
     unique = []
     for sha in dangling:
-        subject = git("log", "-1", "--format=%s", sha).strip()
-        date = git("log", "-1", "--format=%ci", sha).strip()[:10]
-        if normalize_subject(subject) in main_subject_set:
+        # Normalize once, at the source. A checkpoint subject can carry
+        # a UTF-8 BOM: it compares unequal after normalization, and
+        # printing the raw subject crashes on a cp1252 console because
+        # U+FEFF has no cp1252 mapping. The normalized subject is also
+        # exactly what was compared against main's set.
+        subject = normalize_subject(
+            run_git("log", "-1", "--format=%s", sha).strip())
+        date = run_git("log", "-1", "--format=%ci", sha).strip()[:10]
+        if subject in main_subject_set:
             print(f"  published     {sha[:8]}  {date}  {subject}")
         else:
             unique.append((sha, date, subject))

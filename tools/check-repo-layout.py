@@ -22,8 +22,11 @@ from __future__ import print_function
 import io
 import os
 import re
-import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_lines, git_ok  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -74,10 +77,7 @@ REVIEWABLE_EXT = (
 
 def git_check_ignore(path):
     """True if git would ignore this path."""
-    proc = subprocess.Popen(["git", "check-ignore", "-q", path], cwd=ROOT,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    proc.communicate()
-    return proc.returncode == 0
+    return git_ok("check-ignore", "-q", path, cwd=ROOT)
 
 
 # Scripts referenced in AGENTS.md. Always POSIX: git reports paths with forward
@@ -106,13 +106,8 @@ def documented_scripts(text):
     return found
 
 
-def run(args):
-    return subprocess.check_output(args, cwd=ROOT,
-                                   stderr=subprocess.DEVNULL).decode("utf-8", "replace")
-
-
 def tracked():
-    return [f for f in run(["git", "ls-files"]).split("\n") if f]
+    return git_lines("ls-files", cwd=ROOT)
 
 
 def size_of(rel):
@@ -136,7 +131,7 @@ def main():
 
     # 2. byte-identical duplicates outside vendored/generated trees
     index = {}
-    for line in run(["git", "ls-files", "-s"]).split("\n"):
+    for line in git_lines("ls-files", "-s", cwd=ROOT):
         parts = line.split()
         if len(parts) < 4:
             continue

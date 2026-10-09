@@ -30,17 +30,17 @@ from __future__ import print_function
 
 import os
 import shutil
-import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_lines  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def tracked_files():
-    proc = subprocess.Popen(["git", "ls-files"], cwd=ROOT,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, _ = proc.communicate()
-    return [p for p in out.decode("utf-8", "replace").split("\n") if p.strip()]
+    return git_lines("ls-files", cwd=ROOT)
 
 
 def dir_size(path):
