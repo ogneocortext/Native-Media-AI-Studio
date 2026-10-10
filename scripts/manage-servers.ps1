@@ -7,10 +7,12 @@
 .PARAMETER Action
     Action to perform: start, stop, restart, status
 .PARAMETER Services
-    Services to manage: all, backend, frontend, comfyui, video
+    Services to manage: all, backend, frontend, comfyui, video, or a
+    comma-separated list / string array (e.g. -Services backend,frontend).
 .EXAMPLE
     pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
     pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services backend,frontend
 #>
 #Requires -Version 7.6
 [CmdletBinding()]
@@ -21,7 +23,7 @@ param(
     [string]$Action,
 
     [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')]
-    [string]$Services = 'all'
+    [string[]]$Services = @('all')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -421,8 +423,10 @@ function Start-StudioService {
 }
 
 # Determine which services to manage
+# $Services is a string array: a single -Services all, a comma list, or
+# the array start-services.ps1 passes all bind correctly.
 $allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')
-$serviceList = if ($Services -eq 'all') { $allServices } else { @($Services) }
+$serviceList = if ($Services -contains 'all') { $allServices } else { $Services }
 
 switch ($Action) {
     'status' {
