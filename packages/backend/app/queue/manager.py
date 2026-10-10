@@ -353,6 +353,18 @@ class QueueManager:
         """Subscribe to job updates"""
         self._subscribers.append(callback)
 
+    async def unsubscribe(self, callback: Callable) -> bool:
+        """Remove a previously-registered subscriber.
+
+        Returns True when the callback was registered (and is now removed),
+        False when it was not found. Lets the composition root clean up
+        subscriptions on shutdown instead of leaking them.
+        """
+        if callback in self._subscribers:
+            self._subscribers.remove(callback)
+            return True
+        return False
+
     async def _notify_subscribers(self, job: Job):
         """Notify subscribers of job updates"""
         for callback in self._subscribers:

@@ -147,6 +147,14 @@ class PortManager:
             except Exception:
                 pass
 
+    async def is_service_running(self, service: str, port: int) -> bool:
+        """Public entry point for the sticky-port guard.
+
+        Wraps ``_is_service_running`` so callers outside this module do not
+        reach into a private method.
+        """
+        return await self._is_service_running(service, port)
+
     def cleanup_orphaned_processes(self, port: int) -> bool:
         """
         Kill orphaned Python processes from previous crashes that are

@@ -19,14 +19,19 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
         self._max_connections = 20
 
-    async def connect(self, websocket: WebSocket):
-        """Accept and track a new connection"""
+    async def connect(self, websocket: WebSocket) -> bool:
+        """Accept and track a new connection.
+
+        Returns False when the connection was rejected (at capacity) so the
+        caller does not send on a socket it never accepted.
+        """
         async with self._lock:
             if len(self._active_connections) >= self._max_connections:
                 await websocket.close(code=4001, reason="Server at capacity")
-                return
+                return False
             await websocket.accept()
             self._active_connections.add(websocket)
+            return True
 
     async def disconnect(self, websocket: WebSocket):
         """Remove a connection"""

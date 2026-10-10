@@ -98,7 +98,7 @@ async def _ensure_backend_port_free(port: int) -> None:
         return
 
     # Check if our backend is already serving on this port.
-    if _is_backend_responding(port):
+    if await port_manager.is_service_running("backend", port):
         logger.info("Backend already running on port %d; no cleanup needed", port)
         return
 
@@ -120,24 +120,6 @@ async def _ensure_backend_port_free(port: int) -> None:
         )
     else:
         logger.info("Backend port %d is now free", port)
-
-
-def _is_backend_responding(port: int, host: str = "127.0.0.1") -> bool:
-    """Return True when our backend is already serving on ``port``."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(2.0)
-            sock.connect((host, port))
-            sock.sendall(
-                b"GET /api/health HTTP/1.1\r\n"
-                b"Host: 127.0.0.1\r\n"
-                b"Connection: close\r\n"
-                b"\r\n"
-            )
-            response = sock.recv(1024)
-            return b"200" in response or b"healthy" in response.lower()
-    except Exception:
-        return False
 
 
 # NOTE: Port cleanup is intentionally deferred to `main()` / `lifespan()`
@@ -329,6 +311,14 @@ async def lifespan(app: FastAPI):
     await _cancel_background_tasks()
     logger.info("Background tasks stopped")
 
+    # Remove the job-update fan-out subscription so a re-imported app
+    # (e.g. tests that enter lifespan repeatedly) does not accumulate
+    # duplicate subscribers on the queue manager.
+    try:
+        await queue_manager.unsubscribe(_fanout_job_update)
+    except Exception as e:
+        logger.warning(f"Failed to unsubscribe job fan-out: {e}")
+
     try:
         await processor.stop()
         logger.info("Queue processor stopped")
@@ -484,12 +474,6 @@ app.add_middleware(RequestIDMiddleware)
 # ---------------------------------------------------------------------------
 # Uniform error envelope
 # ---------------------------------------------------------------------------
-_ERROR_ENVELOPE = {
-    "error": {
-        "code": "INTERNAL_ERROR",
-        "message": "An unexpected error occurred.",
-    }
-}
 
 
 def _error_response(status_code: int, code: str, message: str, details: object = None):
@@ -768,7 +752,7 @@ if config.output_dir.exists():
 async def root():
     return {
         "name": "Native Media AI Studio",
-        "version": "1.0.0",
+        "version": app.version,
         "description": "Local AI media generation platform",
         "endpoints": {
             "docs": "/docs",
@@ -808,7 +792,8 @@ async def websocket_endpoint(websocket: WebSocket):
     if origin and not is_local_origin(origin):
         await websocket.close(code=4001, reason="Origin not allowed")
         return
-    await connection_manager.connect(websocket)
+    if not await connection_manager.connect(websocket):
+        return
     try:
         # Send initial hello so legacy clients know the protocol
         await websocket.send_text(json.dumps({
@@ -922,7 +907,7 @@ async def main():
     # instead of binding a second instance. This is the "sticky port"
     # guard that prevents duplicate backends when an agent re-invokes the
     # server while it is already running.
-    if await port_manager._is_service_running("backend", port):
+    if await port_manager.is_service_running("backend", port):
         logger.info(
             "Backend already running on port %d; skipping duplicate bind.", port
         )
@@ -932,10 +917,10 @@ async def main():
     # canonical backend is healthy, exit too. Without this, two launchers
     # racing at boot each bind their own port and both stay up (observed
     # 2026-09-20: healthy instances on :8000 AND :8001). A zombie on the
-    # canonical port still allows fallback: _is_service_running only
+    # canonical port still allows fallback: is_service_running only
     # returns True for a *responding* backend.
     canonical_port = config.backend_port
-    if port != canonical_port and await port_manager._is_service_running(
+    if port != canonical_port and await port_manager.is_service_running(
         "backend", canonical_port
     ):
         logger.info(
