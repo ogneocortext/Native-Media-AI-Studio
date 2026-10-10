@@ -165,13 +165,25 @@ async def health_broadcast_loop():
     while True:
         try:
             health_status = await health_monitor.get_aggregate_health()
-            # Map internal adapter statuses to API contract: healthy -> online, offline -> offline
-            for adapter in health_status.get("adapters", {}).values():
-                adapter["status"] = "online" if adapter.get("status") == "healthy" else "offline"
-            await sse_manager.broadcast_health_status(health_status)
+            # Map internal adapter statuses to the API contract (healthy -> online)
+            # on a COPY. get_aggregate_health returns the shared cached dict, so
+            # mutating it in place would corrupt the cache: the /api/health endpoint
+            # then reads the already-mapped "online" and re-maps it to "offline",
+            # making healthy adapters flap to offline between broadcasts.
+            broadcast_status = {
+                **health_status,
+                "adapters": {
+                    name: {
+                        **adapter,
+                        "status": "online" if adapter.get("status") == "healthy" else "offline",
+                    }
+                    for name, adapter in health_status.get("adapters", {}).items()
+                },
+            }
+            await sse_manager.broadcast_health_status(broadcast_status)
             # Mirror to legacy WS clients
             try:
-                await connection_manager.broadcast_health_status(health_status)
+                await connection_manager.broadcast_health_status(broadcast_status)
             except Exception:
                 pass
             consecutive_errors = 0  # Reset on success
