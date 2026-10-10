@@ -37,6 +37,8 @@ export function AIToolsPage() {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState<string>("");
+  const [thinking, setThinking] = useState<string>("");
+  const [showThinking, setShowThinking] = useState(false);
   const [toolCalls, setToolCalls] = useState<
     Array<{ name: string; arguments: Record<string, unknown>; result?: string }>
   >([]);
@@ -154,6 +156,8 @@ export function AIToolsPage() {
     setGenerating(true);
     setError(null);
     setResponse("");
+    setThinking("");
+    setShowThinking(false);
     setToolCalls([]);
     setVizConfig(null);
 
@@ -185,9 +189,12 @@ export function AIToolsPage() {
       for await (const event of parseOllamaStream(stream)) {
         if (controller.signal.aborted) break;
         if (event.type === "content") {
-          const data = event.data as { content: string };
+          const data = event.data as { content: string; thinking?: string };
           fullResponse += data.content;
           setResponse(fullResponse);
+          if (data.thinking) {
+            setThinking((prev) => prev + data.thinking);
+          }
         } else if (event.type === "tool_calls") {
           const data = event.data as {
             tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
@@ -434,6 +441,28 @@ export function AIToolsPage() {
             <div className={DS.cardError}>
               <AlertCircle size={20} />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Thinking (collapsible) */}
+          {thinking && (
+            <div className={DS.card}>
+              <button
+                type="button"
+                onClick={() => setShowThinking((v) => !v)}
+                className={DS.flexCenter + " w-full mb-1"}
+              >
+                <Brain size={16} className={DS.accentPurple} />
+                <span className={DS.textBold}>Thinking</span>
+                <span className={DS.textXs}>
+                  ({showThinking ? "hide" : "show"})
+                </span>
+              </button>
+              {showThinking && (
+                <div className={DS.textSm + " whitespace-pre-wrap opacity-80"}>
+                  {thinking}
+                </div>
+              )}
             </div>
           )}
 

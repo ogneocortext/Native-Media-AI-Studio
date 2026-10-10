@@ -735,14 +735,27 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
-    elif tools and "tool" in message.lower():
+    elif tools:
+        # Small local models are far more reliable when the request names
+        # the callable tools explicitly. List every tool we are about to
+        # send so the model knows what it can call. Without this, a vague
+        # prompt plus several tools makes the model think for hundreds of
+        # tokens and emit nothing (measured on Ollama 0.40.2 /
+        # gemma4:e2b-it-qat: 351 thinking chunks, zero content, no call).
+        tool_list = "\n".join(
+            f"- {t.get('function', {}).get('name', '')}: {t.get('function', {}).get('description', '')}"
+            for t in tools
+            if isinstance(t, dict)
+        )
         messages.append({
             "role": "system",
             "content": (
-                "You have callable tools. If the user's request requires tool data, "
-                "call the appropriate tool immediately before answering. Do not describe "
-                "the call, do not invent results, and do not answer until the tool result "
-                "has been returned."
+                "You have callable tools. Available tools:\n"
+                + tool_list
+                + "\n\nIf the user's request requires data from a tool, call "
+                "that tool now. Respond by calling the tool, not by describing "
+                "it. Do not invent results; wait for the tool result before "
+                "answering."
             ),
         })
     for h in history:
@@ -769,6 +782,12 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     tool_call_count = 0
                     fallback_executed = False
                     current_messages = messages[:]
+                    # Ollama streams the answer as deltas; the final "done"
+                    # chunk carries an empty message.content. Accumulate the
+                    # streamed text so a completed answer is never mistaken
+                    # for "no response" (measured on Ollama 0.40.2).
+                    streamed_content = ""
+                    saw_thinking = False
 
                     while tool_call_count < max_tool_calls:
                         async for chunk in await adapter.chat(
@@ -779,89 +798,110 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                             think=think,
                             **ollama_options,
                         ):
-                            if chunk.get("done"):
-                                msg = chunk.get("message", {})
-                                tool_calls = msg.get("tool_calls", [])
+                            msg = chunk.get("message", {}) or {}
+                            tool_calls = msg.get("tool_calls", [])
 
-                                if tool_calls and tool_call_count < max_tool_calls:
+                            # Tool calls can arrive in a non-done chunk on
+                            # Ollama streaming (measured on 0.40.2: the
+                            # tool_calls chunk has done=false and the
+                            # following done chunk is empty). Handle them
+                            # wherever they appear so the call is never
+                            # dropped.
+                            if tool_calls and tool_call_count < max_tool_calls:
+                                tool_call_count += 1
+                                yield {
+                                    "event": "tool_calls",
+                                    "data": json.dumps({
+                                        "tool_calls": [{"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]} for tc in tool_calls]
+                                    }),
+                                }
+
+                                current_messages.append({
+                                    "role": "assistant",
+                                    "content": msg.get("content", "") or "",
+                                    "tool_calls": tool_calls,
+                                })
+
+                                for tc in tool_calls:
+                                    result = await adapter.execute_tool_call(
+                                        tc["function"]["name"],
+                                        tc["function"]["arguments"],
+                                        {},
+                                    )
+                                    current_messages.append({
+                                        "role": "tool",
+                                        "tool_name": tc["function"]["name"],
+                                        "content": result,
+                                    })
+                                break
+
+                            if chunk.get("done"):
+                                # The done chunk's content is empty on
+                                # Ollama streaming; the real answer was
+                                # streamed as deltas above.
+                                done_content = msg.get("content", "") or ""
+                                final_content = done_content or streamed_content
+                                # Guarded fallback for explicit, unambiguous
+                                # requests: small local models sometimes
+                                # describe a tool instead of emitting the
+                                # native tool call. Execute only a named
+                                # registered tool, never guess a tool. Only
+                                # on the first completion (tool_call_count
+                                # == 0) so it never re-fires after a real
+                                # tool call and executes the tool twice.
+                                explicit_names = [
+                                    tool.get("function", {}).get("name", "")
+                                    for tool in tools
+                                    if isinstance(tool, dict)
+                                ]
+                                explicit_names = [name for name in explicit_names if name and name.lower() in message.lower()]
+                                if not final_content and not fallback_executed and tool_call_count == 0 and len(explicit_names) == 1 and tool_call_count < max_tool_calls:
+                                    name = explicit_names[0]
+                                    args: dict[str, object] = {}
+                                    depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE)
+                                    if depth_match:
+                                        args["depth"] = min(6, int(depth_match.group(1)))
                                     tool_call_count += 1
+                                    fallback_executed = True
                                     yield {
                                         "event": "tool_calls",
+                                        "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
+                                    }
+                                    result = await adapter.execute_tool_call(name, args, {})
+                                    current_messages.extend([
+                                        {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": name, "arguments": args}}]},
+                                        {"role": "tool", "tool_name": name, "content": result},
+                                    ])
+                                    break
+                                if not final_content and tool_call_count == 0:
+                                    if saw_thinking:
+                                        no_response_msg = "The model finished reasoning but produced no answer. Try rephrasing, or disable thinking mode."
+                                    else:
+                                        no_response_msg = "The model produced no response. Try rephrasing, or use a model with native tool support."
+                                    yield {
+                                        "event": "error",
                                         "data": json.dumps({
-                                            "tool_calls": [{"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]} for tc in tool_calls]
+                                            "message": no_response_msg,
+                                            "model": chunk.get("model", model),
                                         }),
                                     }
-
-                                    current_messages.append({
-                                        "role": "assistant",
-                                        "content": msg.get("content", ""),
-                                        "tool_calls": tool_calls,
-                                    })
-
-                                    for tc in tool_calls:
-                                        result = await adapter.execute_tool_call(
-                                            tc["function"]["name"],
-                                            tc["function"]["arguments"],
-                                            {},
-                                        )
-                                        current_messages.append({
-                                            "role": "tool",
-                                            "tool_name": tc["function"]["name"],
-                                            "content": result,
-                                        })
-                                    break
                                 else:
-                                    final_content = msg.get("content", "") or ""
-                                    # Guarded fallback for explicit, unambiguous
-                                    # requests: small local models sometimes
-                                    # describe a tool instead of emitting the
-                                    # native tool call. Execute only a named
-                                    # registered tool, never guess a tool.
-                                    explicit_names = [
-                                        tool.get("function", {}).get("name", "")
-                                        for tool in tools
-                                        if isinstance(tool, dict)
-                                    ]
-                                    explicit_names = [name for name in explicit_names if name and name.lower() in message.lower()]
-                                    if not final_content and not fallback_executed and len(explicit_names) == 1 and tool_call_count < max_tool_calls:
-                                        name = explicit_names[0]
-                                        args: dict[str, object] = {}
-                                        depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE)
-                                        if depth_match:
-                                            args["depth"] = min(6, int(depth_match.group(1)))
-                                        tool_call_count += 1
-                                        fallback_executed = True
-                                        yield {
-                                            "event": "tool_calls",
-                                            "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
-                                        }
-                                        result = await adapter.execute_tool_call(name, args, {})
-                                        current_messages.extend([
-                                            {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": name, "arguments": args}}]},
-                                            {"role": "tool", "tool_name": name, "content": result},
-                                        ])
-                                        break
-                                    if not final_content and tool_call_count == 0:
-                                        yield {
-                                            "event": "error",
-                                            "data": json.dumps({
-                                                "message": "Ollama completed without a tool call or response. Try a model with native tool support.",
-                                                "model": chunk.get("model", model),
-                                            }),
-                                        }
-                                    else:
-                                        yield {
-                                            "event": "done",
-                                            "data": json.dumps({
-                                                "content": final_content,
-                                                "model": chunk.get("model", model),
-                                                "tool_calls": tool_call_count,
-                                            }),
-                                        }
-                                    return
+                                    yield {
+                                        "event": "done",
+                                        "data": json.dumps({
+                                            "content": final_content,
+                                            "model": chunk.get("model", model),
+                                            "tool_calls": tool_call_count,
+                                        }),
+                                    }
+                                return
                             else:
                                 content = chunk.get("message", {}).get("content", "")
                                 thinking = chunk.get("message", {}).get("thinking", "")
+                                if content:
+                                    streamed_content += content
+                                if thinking:
+                                    saw_thinking = True
                                 if content or thinking:
                                     yield {
                                         "event": "content",
