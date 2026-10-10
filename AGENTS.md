@@ -1,6 +1,6 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-10-06
+> **Last Updated:** 2026-10-10
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
@@ -16,7 +16,7 @@
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D33 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D37 — do not re-litigate) and open questions
 > (Q1–Q6). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
@@ -29,12 +29,12 @@
 > `tools/model-reliability/observed.jsonl` -- that observed layer is tracked and
 > is the only handoff state a new agent cannot rebuild for itself.
 >
-> **Finding documentation:** the tree is 146 files across 14 directories, so
-> searching blind returns the wrong document. `docs/README.md` is the index;
-> `docs/knowledge-library/index.md` is the entry point for the 76-article
-> research library. Note that `docs/knowledge/` is a _separate_ doc set from the
-> library and `docs/notes/` and `docs/scratch/` are explicitly not authoritative
-> (D12).
+> **Finding documentation:** the tree is 156 markdown files across 14
+> directories, so searching blind returns the wrong document. `docs/README.md`
+> is the index; `docs/knowledge-library/index.md` is the entry point for the
+> 89-article research library. Note that `docs/knowledge/` is a _separate_ doc
+> set from the library and `docs/notes/` and `docs/scratch/` are explicitly not
+> authoritative (D12).
 
 ## Project Overview
 
@@ -85,8 +85,8 @@ Native-Media-AI-Studio/
   call the endpoints. There is now a fifth: `audio_remix.py`
   (`/api/audio/remix/*`).
   - To check whether a route is registered, read `app.openapi()["paths"]`.
-    `app.routes` holds _router groupings_, so it reports 37 entries with zero
-    `/api/audio` paths while all 249 operations are live.
+    `app.routes` holds _router groupings_, so it reports 39 entries with zero
+    `/api/audio` paths while all 286 operations are live.
 - **Remixes are ordinary stem sets.** `services/stem_remixer.py` builds mashups
   from stems of _different_ songs and writes a plain
   `output/remixes/<name>/{vocals,drums,bass,other}.wav` + `remix.json`. That is
@@ -119,12 +119,17 @@ Native-Media-AI-Studio/
 | Server       | Command                                               | Port        | Status                |
 | ------------ | ----------------------------------------------------- | ----------- | --------------------- |
 | Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                 | stdio       | 10 tools, executes    |
-| Vision       | `node tools/mcp/vision-mcp.mjs`                       | stdio       | 13 tools, executes    |
+| Vision       | `node tools/mcp/vision-mcp.mjs`                       | stdio       | 11 tools, executes    |
 | Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                 | 7800 (REST) | 17 tools; needs Unity |
 | Blender MCP  | `uvx blender-mcp`                                     | 9876        | Running               |
 | ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188` | 8188        | Running               |
 | Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio       | Configured            |
 | HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                  | stdio       | 9 tools, executes     |
+
+Tool counts are as-of 2026-10-10 and go stale — MCP tool
+availability is dynamic, not fixed. The authoritative list is each
+server's `tools/list` response (or the `server.registerTool` /
+`TOOL_DEFS` registrations in the bridge source), not this table.
 
 ## MCP clients: which config holds the servers
 
@@ -289,16 +294,18 @@ curl -s http://127.0.0.1:8000/api/health    # or just reload the browser tab
 Rules:
 
 - Check what is up before starting anything: `scripts\check_ports.ps1`.
-- Start only what is actually down. `-Services` takes **one** name, not a list.
+- Start only what is actually down. `-Services` accepts one
+  name, `all`, or an array.
 - **Leave services running when you finish.** The next step usually needs them,
   and a stopped service is a slower "it doesn't work" than a running one.
 - Restart only when the process is _wrong_ — wedged, listening on the wrong
   port, or started before a dependency it needs.
 
-`scripts\start-services.ps1` is currently broken: it builds an array and passes
-it to `manage-servers.ps1`'s `[string]$Services` parameter, which fails with
-"Cannot convert value to type System.String". Until that is fixed, call the
-manager directly:
+`scripts\start-services.ps1` delegates to `manage-servers.ps1`, whose
+`-Services` parameter accepts a single name, an array (what
+start-services passes), or `all`. Via `-File` a comma list arrives as
+one string and fails `ValidateSet` — pass arrays with `-Command`, or
+one service per invocation:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all

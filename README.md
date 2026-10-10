@@ -16,7 +16,7 @@ nothing here assumes a specific provider (D21). Bootstrap order:
 
 1. **`AGENTS.md`** — how to operate in this repo (services, shells, gates, traps)
 2. **`docs/README.md`** — documentation index; the fastest way to find the right document
-3. **`docs/architecture/decision-log.md`** — decisions D1–D23, **do not re-litigate**; update it when you make or reverse one
+3. **`docs/architecture/decision-log.md`** — decisions D1–D37, **do not re-litigate**; update it when you make or reverse one
 4. **`docs/architecture/provider-notes.md`** — per-model behavior notes, append-only
 
 Commits carry the reasoning ("why"), so `git log` is a guidance channel.
@@ -73,8 +73,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action
 ```
 
 Do not restart services that are already running — both dev servers hot-reload.
-`scripts\start-services.ps1` is currently broken; call `manage-servers.ps1`
-directly as above.
+`scripts\start-services.ps1` delegates to `manage-servers.ps1`
+(its `-Services` parameter accepts a single name, `all`, or an
+array; via `-File` pass one name or `all`).
 
 | Service      | Port | Description                        |
 | ------------ | ---- | ---------------------------------- |

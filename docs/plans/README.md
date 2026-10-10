@@ -11,8 +11,9 @@ they live in git, not in a chat window.
 - Every plan starts with a header: **Status**, **Decides** (decision-log Q#),
   **Owner**, **Approved**.
 - Before implementing a plan, read it **and** `docs/architecture/decision-log.md`.
-  Do not re-litigate items marked decided (D1–D8). Open questions (Q1–Q4) are
-  fair game only inside the plan that decides them.
+  Do not re-litigate items marked decided in the log (currently
+  D1–D37). Open questions (Q1–Q6) are fair game only inside the
+  plan that decides them.
 - When implementation is done, update the plan: set **Status: Done** and append
   a **Build notes** section (what was built, what diverged from the plan and why).
 - Plans are planning documents, not code. Implementation lands in normal commits.
