@@ -248,7 +248,7 @@ function Start-VideoEditor {
     }
 }
 
-function Restart-Service {
+function Restart-StartedService {
     param([string]$Name)
     if (-not $restartCounts.ContainsKey($Name)) { $restartCounts[$Name] = 0 }
     $restartCounts[$Name]++
@@ -435,11 +435,15 @@ try {
             if ([Console]::KeyAvailable) {
                 if ([Console]::ReadKey($true).Key -eq 'Q') { break }
             }
-        } catch { }
+        } catch {
+            # [Console]::KeyAvailable throws when stdin is redirected
+            # (piped input, `pwsh -File x.ps1 < input`); no key to read.
+            Write-Verbose 'stdin is not a console; skipping key check'
+        }
 
         foreach ($s in $script:started) {
             if ($s.Process -and $s.Process.HasExited) {
-                Restart-Service -Name $s.Name
+                Restart-StartedService -Name $s.Name
             }
         }
         Start-Sleep -Milliseconds 500

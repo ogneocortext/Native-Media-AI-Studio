@@ -91,7 +91,9 @@ if ($state.frontend_url) {
     try {
         $r = Invoke-WebRequest -Uri $state.frontend_url -Headers @{ 'User-Agent' = 'Mozilla/5.0' } -UseBasicParsing -TimeoutSec 20
         $pageOk = ($r.StatusCode -eq 200)
-    } catch { }
+    } catch {
+        Write-Verbose "frontend page probe failed: $($_.Exception.Message)"
+    }
     if ($pageOk) {
         Write-Host "  (page)     : UP   HTML served" -ForegroundColor Green
     }

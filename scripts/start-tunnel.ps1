@@ -166,12 +166,16 @@ $frontendOk = $false
 try {
     $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/api/health' -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
     if ($r.StatusCode -eq 200) { $backendOk = $true }
-} catch { }
+} catch {
+    Write-Verbose "backend health probe failed: $($_.Exception.Message)"
+}
 
 try {
     $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5173' -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
     if ($r.StatusCode -eq 200) { $frontendOk = $true }
-} catch { }
+} catch {
+    Write-Verbose "frontend health probe failed: $($_.Exception.Message)"
+}
 
 if (-not $backendOk) {
     Write-Warning "Backend not responding at http://127.0.0.1:8000. Start it before tunnelling."

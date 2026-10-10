@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Shared utility functions for Native Media AI Studio PowerShell scripts.
 .DESCRIPTION

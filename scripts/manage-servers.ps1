@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Unified server management for Native Media AI Studio.
 .DESCRIPTION

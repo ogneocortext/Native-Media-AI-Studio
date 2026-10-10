@@ -65,11 +65,11 @@ foreach ($proc in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue))
     if (-not $cl) { continue }
     if ($cl -match 'localtunnel' -or $proc.Name -eq 'ngrok.exe') {
         if ($proc.Name -eq 'ngrok.exe' -or $cl -match '--port (8000|5173)') {
-            try {
-                Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
-                $swept++
-                Write-Log "Swept orphaned tunnel process $($proc.Name) PID $($proc.ProcessId)"
-            } catch { }
+            # -ErrorAction SilentlyContinue already swallows a process
+            # that raced us to exit; no try/catch needed around the kill.
+            Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+            $swept++
+            Write-Log "Swept orphaned tunnel process $($proc.Name) PID $($proc.ProcessId)"
         }
     }
 }

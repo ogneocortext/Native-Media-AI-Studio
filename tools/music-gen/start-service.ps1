@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+﻿#Requires -Version 7.0
 <#
 .SYNOPSIS
     Start the Music Generation subprocess service.
@@ -74,7 +74,9 @@ try {
         $condaBase = & conda info --base 2>$null
         $candidates += (Join-Path $condaBase "envs\music-gen\python.exe")
     }
-} catch { }
+} catch {
+    Write-Verbose "conda not available; skipping conda env probe: $($_.Exception.Message)"
+}
 $candidates += "python"
 
 $Python = $null

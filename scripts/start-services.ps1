@@ -24,8 +24,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
-$services = @('backend', 'frontend', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')
+$services = @('backend', 'frontend', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')
 if ($ComfyUI) { $services += 'comfyui' }
+if ($VideoEditor) { $services += 'video' }
 $services = $services | Select-Object -Unique
 
 $manageScript = Join-Path $ProjectRoot 'scripts\manage-servers.ps1'

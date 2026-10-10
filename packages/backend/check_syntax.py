@@ -1,5 +1,6 @@
 import re
-with open(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\app\adapters\comfyui.py', 'r') as f:
+
+with open(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\app\adapters\comfyui.py') as f:
     content = f.read()
 
 count = content.count('"""')

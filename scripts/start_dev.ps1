@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Legacy developer launcher — delegates to start-studio.ps1.
 .DESCRIPTION
@@ -25,8 +25,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
-$Launcher   = Join-Path $PSScriptRoot 'start-studio.ps1'
+$Launcher = Join-Path $PSScriptRoot 'start-studio.ps1'
 
 if (-not (Test-Path -LiteralPath $Launcher)) {
     Write-Err "Canonical launcher not found: $Launcher"
