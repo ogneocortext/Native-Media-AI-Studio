@@ -276,11 +276,11 @@ export function AIToolsPage() {
         </div>
         <div className="flex items-center gap-2">
           {ollamaConnected ? (
-            <span className="flex items-center gap-1 text-xs text-green-400">
+            <span className={"flex items-center gap-1 text-xs " + DS.accentGreen}>
               <Wifi size={12} /> Connected
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-xs text-red-400">
+            <span className={"flex items-center gap-1 text-xs " + DS.accentRed}>
               <WifiOff size={12} /> Disconnected
             </span>
           )}
@@ -328,11 +328,11 @@ export function AIToolsPage() {
                   <button
                     onClick={handleRunBenchmark}
                     disabled={benchLoading}
-                    className="ml-2 px-2 py-1 text-xs rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/20 disabled:opacity-50 flex items-center gap-1"
+                    className="ml-2 px-2 py-1 text-xs rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 light:text-amber-700 border border-amber-500/20 disabled:opacity-50 flex items-center gap-1"
                     title="Benchmark all models"
                   >
                     {benchLoading ? (
-                      <span className="w-3 h-3 border border-amber-300 border-t-transparent rounded-full animate-spin inline-block" />
+                      <span className="w-3 h-3 border border-amber-300 light:border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
                     ) : (
                       "⚡"
                     )}{" "}
@@ -367,27 +367,27 @@ export function AIToolsPage() {
                       </span>
                     )}
                     {selectedModelData.verified_features?.includes("blender") && (
-                      <span className="bg-amber-900/50 text-amber-300 border border-amber-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                      <span className="bg-amber-900/50 text-amber-300 light:text-amber-700 border border-amber-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
                         <Code2 size={10} /> Blender Scripts
                       </span>
                     )}
                     {selectedModelData.verified_features?.includes("visualizer") && (
-                      <span className="bg-purple-900/50 text-purple-300 border border-purple-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                      <span className="bg-purple-900/50 text-purple-300 light:text-purple-700 border border-purple-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
                         <Palette size={10} /> Visualizer
                       </span>
                     )}
                     {selectedModelData.performance?.tokens_per_sec && (
-                      <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-xs">
+                      <span className="bg-gray-800 text-gray-200 border border-gray-700 px-2 py-0.5 rounded text-xs">
                         ⚡ {selectedModelData.performance.tokens_per_sec} tok/s
                       </span>
                     )}
                     {selectedModelData.performance?.vision_latency_sec && (
-                      <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-xs">
+                      <span className="bg-gray-800 text-gray-200 border border-gray-700 px-2 py-0.5 rounded text-xs">
                         👁 ~{selectedModelData.performance.vision_latency_sec}s vision
                       </span>
                     )}
                     {selectedModelData.verification_notes && (
-                      <span className="bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-xs" title={selectedModelData.verification_notes}>
+                      <span className="bg-gray-800 text-gray-200 border border-gray-700 px-2 py-0.5 rounded text-xs" title={selectedModelData.verification_notes}>
                         ℹ️
                       </span>
                     )}
@@ -502,10 +502,10 @@ export function AIToolsPage() {
                 {toolCalls.map((tc, i) => (
                   <div key={i} className="p-3 bg-gray-700/50 rounded-lg">
                     <div className={DS.flexCenter + " mb-1"}>
-                      <Zap size={12} className="text-amber-400" />
-                      <span className="text-amber-400 text-sm font-medium">{tc.name}</span>
+                      <Zap size={12} className="text-amber-400 light:text-amber-700" />
+                      <span className="text-amber-400 light:text-amber-700 text-sm font-medium">{tc.name}</span>
                     </div>
-                    {tc.result && <p className="text-xs text-green-400 mt-1">{tc.result}</p>}
+                    {tc.result && <p className="text-xs text-green-400 light:text-green-700 mt-1">{tc.result}</p>}
                     <pre className={DS.mono + " overflow-auto mt-1"}>
                       {JSON.stringify(tc.arguments, null, 2)}
                     </pre>

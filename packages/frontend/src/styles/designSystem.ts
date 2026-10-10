@@ -17,7 +17,10 @@ export const DS = {
   grid3: "grid grid-cols-1 md:grid-cols-3 gap-4",
   grid4: "grid grid-cols-2 md:grid-cols-4 gap-4",
   gridMainSidebar: "grid grid-cols-1 lg:grid-cols-3 gap-6",
-  gridChat: "grid grid-cols-1 lg:grid-cols-4 gap-6",
+  // Chat-style split: 2-col main + 1-col sidebar. Three columns total — a
+  // 4-col grid here left a full empty column (~200px dead space) because
+  // nothing ever spans the 4th.
+  gridChat: "grid grid-cols-1 lg:grid-cols-3 gap-6",
   flexBetween: "flex items-center justify-between",
   flexCenter: "flex items-center gap-2",
   flexWrap: "flex flex-wrap gap-2",

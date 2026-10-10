@@ -134,20 +134,20 @@ export function Sidebar({
                 }}
                 className="accent-violet-500"
               />
-              <span className="text-sm text-gray-300 flex-1 truncate">{tool.name}</span>
+              <span className="text-sm text-foreground flex-1 truncate">{tool.name}</span>
               <button
                 onClick={() => {
                   setEditingTool(tool);
                   setToolJsonValid(true);
                   setShowToolEditor(true);
                 }}
-                className="text-gray-500 hover:text-white"
+                className="text-muted hover:text-foreground"
               >
                 <Settings size={12} />
               </button>
               <button
                 onClick={() => deleteTool(tool.id)}
-                className="text-gray-500 hover:text-red-400"
+                className="text-muted hover:text-red-400 light:hover:text-red-700"
               >
                 <Trash2 size={12} />
               </button>
@@ -173,8 +173,8 @@ export function Sidebar({
                 onClick={() => setSelectedModel(m.name)}
                 className={`w-full text-left px-2 py-1.5 rounded text-sm ${
                   selectedModel === m.name
-                    ? "bg-violet-600/30 text-violet-300"
-                    : "text-gray-400 hover:bg-gray-700"
+                    ? "bg-violet-600/30 text-violet-300 light:text-violet-700"
+                    : "text-muted hover:bg-gray-700"
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -206,12 +206,12 @@ export function Sidebar({
                   setPrompt(h.prompt);
                   setResponse(h.response);
                 }}
-                className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-gray-400 truncate hover:bg-gray-700"
+                className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-muted truncate hover:bg-gray-700"
               >
                 <div className="flex items-center justify-between">
                   <span className="truncate">{h.prompt}</span>
                   {h.toolCalls ? (
-                    <span className="text-amber-400 ml-2">🔧{h.toolCalls}</span>
+                    <span className="text-amber-400 light:text-amber-700 ml-2">🔧{h.toolCalls}</span>
                   ) : null}
                 </div>
               </button>
