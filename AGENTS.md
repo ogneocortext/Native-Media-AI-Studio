@@ -4,9 +4,16 @@
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
-> **Shell rule: always use PowerShell 7 (`pwsh`).** The project's own
-> scripts require PowerShell 7.6+; the agent shell may itself be
-> PowerShell **5.1**, so invoke scripts as
+> **Shell rule: all commands go through PowerShell 7 (`pwsh`) by
+> default.** The agent shell is configured as pwsh **7.6.6** via the
+> global Kilo config (`~/.config/kilo/kilo.jsonc`, `"shell":
+> "C:\\kilo\\pwsh7\\pwsh.exe"`); the runtime is a full copy of the
+> WindowsApps install at `C:\kilo\pwsh7\` (the old
+> `C:\kilo\pwsh.exe` was a 0-byte placeholder that silently fell
+> back to 5.1 — removed 2026-10-10). The project's own scripts
+> require PowerShell 7.6+. If a session still reports
+> `$PSVersionTable.PSVersion.Major` = 5 (config picked up only at
+> session start), invoke scripts as
 > `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\<name>.ps1`
 > and never as `powershell ...`. Check
 > `$PSVersionTable.PSVersion.Major` before concluding a script is
@@ -311,8 +318,10 @@ one service per invocation:
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
 ```
 
-Note `pwsh`, not `powershell` — the agent shell is 5.1 and these scripts require
-7.6+. ComfyUI and the video editor are optional; the studio runs without them.
+Note `pwsh`, not `powershell` — the agent shell is pwsh 7.6.6 by
+default (a session that predates the config change may still be
+5.1) and these scripts require 7.6+. ComfyUI and the video editor
+are optional; the studio runs without them.
 
 **Before blaming ComfyUI, measure it.** A deep ComfyUI queue plus
 `timed out after 300s` in the logs looks exactly like "ComfyUI is broken", and
@@ -345,8 +354,10 @@ aesthetic:
   this repo's own docs contain em dashes and arrows.
 - Native commands writing to stderr raise `NativeCommandError` even on success,
   so `2>&1 | Select-Object -Last N` is unreliable for diagnostics.
-- The agent shell is PowerShell 5.1; the repo's scripts need 7.6+. That gap is a
-  recurring source of "the script is broken" conclusions that are wrong.
+- The agent shell defaults to PowerShell 7.6.6 (a session that
+  predates the config change may still be 5.1); the repo's scripts
+  need 7.6+. That gap was a recurring source of "the script is
+  broken" conclusions that are wrong.
 - **The same trap exists inside Python.** `subprocess.run(..., text=True)` with no
   `encoding=` decodes with the locale codec (cp1252), and a leading BOM becomes
   `"..."` rather than `U+FEFF`, so BOM-stripping silently does nothing. This
@@ -364,9 +375,10 @@ scripts in Python under `tools/`. Reserve `.ps1` for genuine Windows
 integration — service lifecycle, port binding, Unity launch — where it is the
 right tool and nothing has gone wrong.
 
-- **Requires PowerShell 7.6+ for the project's own scripts.** The agent shell may
-  itself be PowerShell **5.1** — check `$PSVersionTable.PSVersion.Major` before
-  concluding the scripts are broken.
+- **Requires PowerShell 7.6+ for the project's own scripts.** The
+  agent shell is pwsh 7.6.6 by default; a session that predates the
+  config change may still be PowerShell **5.1** — check
+  `$PSVersionTable.PSVersion.Major` before concluding the scripts are broken.
 - On PowerShell failures, **fall back to Python immediately**. This is not just
   for crashes: PowerShell mangles tool output. Run any gate whose exit code
   matters from Python `subprocess` with an explicit `cwd`, and read
@@ -406,7 +418,7 @@ It was fixed on 2026-10-01 to stop writing to stderr in non-interactive sessions
 if spurious `NativeCommandError` appears from a command that succeeded, check
 whether that is back. It does **not** fix the `python` trap - `python` resolves
 to `C:\Python314` in both shells.
-`C:\Python314` in both pwsh 7 and the 5.1 agent shell.
+`C:\Python314` in both pwsh 7 and a 5.1 session.
 
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
 they are not part of this project and should never be invoked for repo tasks.
