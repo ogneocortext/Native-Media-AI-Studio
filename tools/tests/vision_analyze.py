@@ -7,7 +7,7 @@ unreachable. Also used directly by vision-mcp.mjs as its fallback backend.
 Usage:
     python tools/tests/vision_analyze.py <image_path> "Your question here" [model]
     python tools/tests/vision_analyze.py screenshot.png "Describe the UI"
-    VISION_MODEL=qwen3-vl:2b python tools/tests/vision_analyze.py shot.png "OCR this"
+    VISION_MODEL=gemma4:e2b-it-qat python tools/tests/vision_analyze.py shot.png "OCR this"
 """
 
 import base64
@@ -24,7 +24,7 @@ except ImportError:
     sys.exit(1)
 
 OLLAMA_HOST = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
-DEFAULT_MODEL = os.environ.get("VISION_MODEL", "qwen3-vl:4b")
+DEFAULT_MODEL = os.environ.get("VISION_MODEL", "gemma4:e2b-it-qat")
 MAX_DIMENSION = 1200  # Max width/height for vision models (balances detail vs reliability)
 JPEG_QUALITY = 70
 # Small files skip re-encoding: JPEG recompression smears glyphs on

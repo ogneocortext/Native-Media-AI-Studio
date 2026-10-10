@@ -369,8 +369,6 @@ export function Settings() {
               >
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
                 <option value="qwen3.5:9b">qwen3.5:9b (quality, 9B)</option>
-                <option value="ornith-1.5:9b">ornith-1.5:9b (vision+tools)</option>
-                <option value="deepseek-r1:7b">deepseek-r1:7b (reasoning)</option>
                 <option value="gemma4:e2b-it-qat">gemma4:e2b-it-qat (vision)</option>
                 <option value="llama3.2:3b">llama3.2:3b (lightweight)</option>
               </select>

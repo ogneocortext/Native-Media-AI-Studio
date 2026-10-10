@@ -33,7 +33,7 @@ const ANALYZE_PY = path.join(
 );
 
 const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
-const DEFAULT_MODEL = process.env.VISION_MODEL || "qwen3-vl:2b";
+const DEFAULT_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
@@ -891,7 +891,7 @@ server.setRequestHandler("tools/list", async () => ({
     {
       name: "vision_describe",
       description:
-        "Describe a screenshot/image using local Ollama vision model (qwen3-vl:2b fast, or gemma4 for detailed). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
+        "Describe a screenshot/image using local Ollama vision model (gemma4:e2b-it-qat, detailed and reliable). For non-vision coding agents: pass image path, get text description back. Scoped strictly to Native Media AI Studio.",
       inputSchema: {
         type: "object",
         properties: {

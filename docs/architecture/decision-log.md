@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D36 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D37 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -1254,4 +1254,46 @@
   verification above. No model re-pulls needed (same GGUF quants
   on llama.cpp, `details.runner` still `ggml`).
 
-  always `ggml`.
+### D37 — Vision routing: gemma4 primary, qwen3-vl family pruned (2026-10-10)
+
+- **Status:** Decided
+- **Context:** Every vision analysis mode hung 120 s+ because
+  `qwen3-vl:2b` degenerates: at `num_predict: 4096` it burns
+  69.7 s, returns `done_reason: length` with **0 chars of
+  `content`** and a 11775-char `thinking` trace (Ollama
+  [#17978](https://github.com/ollama/ollama/issues/17978)).
+  `gemma4:e2b-it-qat` on the same request: 21.6 s,
+  `done_reason: stop`, 1062 chars of real content — faster
+  *and* reliable. `think: false`/`"none"`/`"minimal"` do not
+  disable qwen3-vl thinking, and the issue's official
+  stream-abort-and-resume workaround was tested and does not
+  converge on structured prompts. Separately, seven models
+  (the qwen3-vl family, `gemma4-vision-optimized`,
+  `ornith-1.5:9b`, `deepseek-r1:7b`,
+  `openbmb/minicpm-v4.6:q4_K_M`) held 25.81 GB and were
+  unused or duplicate-capability.
+- **Decision:** `gemma4:e2b-it-qat` is the vision primary for
+  **every** analysis mode in `tools/vision/analyze.mjs`
+  (`MODE_MODEL`); qwen3-vl is reachable only via explicit
+  `--model`. A degenerate attempt (empty `content`, answer
+  recovered from `thinking` — `lastFromThinking`) skips the
+  same-model 4096 retry and falls straight to the fallback
+  model (`emptyDegenerate` guard). The seven models were
+  deleted via `ollama rm`, and every default that pointed at
+  a deleted model was swept (13 edits, 11 files:
+  `vision-common.mjs`, `vision-mcp.mjs`, `ollama-tools-mcp.mjs`,
+  `config.py`, `vision.py`, `integrations_config.py`,
+  `vision_analyze.py`, `analyze-visualizer-frames.mjs`,
+  `AIVisualizerPrompt.tsx`, `Settings.tsx`,
+  `MusicPromptGenerator.tsx`).
+- **Consequences:** `minicpm-v:8b` is the only other surviving
+  vision model and remains the OCR fallback
+  (`vision.py` `FALLBACK_MODEL`). Evidence, measurements, and
+  the pruning record live in
+  `docs/knowledge-library/vision-model-reliability-2026.md`;
+  `ollama-utilization-2026.md` inventory and routing tables
+  were corrected in place. A future agent tempted to re-pull
+  qwen3-vl should read that article first: the family's
+  thinking loop is a client-visible defect, not a prompt
+  problem.
+

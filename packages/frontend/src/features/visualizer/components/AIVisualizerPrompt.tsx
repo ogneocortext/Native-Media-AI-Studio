@@ -7,7 +7,6 @@ import { AIPresetGallery } from "./AIPresetGallery";
 
 const TOOL_CAPABLE_MODELS = [
   "gemma4:e2b-it-qat",
-  "gemma4-vision-optimized:latest",
   "qwen3.5:9b",
   "qwen3.5:4b",
 ];

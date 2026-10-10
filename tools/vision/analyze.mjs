@@ -48,14 +48,25 @@ const MODEL_PROFILES = {
 };
 const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic' };
 
-// Extractive modes want trustworthiness over flair; multi-image modes want
-// context headroom. Everything else defaults to VISION_MODEL.
+// Extractive modes want trustworthiness over flair. The qwen3-vl family
+// is a reasoning model that puts its ENTIRE answer in the `thinking`
+// field and returns empty `content` for these prompts (measured:
+// qwen3-vl:2b at num_predict 4096 -> 70 s, done_reason "length",
+// content 0 chars, thinking 11775 chars), so every analysis mode that
+// reads `content` routes to gemma4:e2b-it-qat instead — it terminates
+// cleanly (done_reason "stop", real content) and is ~3x faster.
+// compare/multicomp are multi-image but gemma4 handles that fine at
+// num_ctx 8192; the degenerate-thinking fallback below still catches
+// any model that comes back empty.
 const MODE_MODEL = {
   ocr: 'gemma4:e2b-it-qat',
   table: 'gemma4:e2b-it-qat',
   chart: 'gemma4:e2b-it-qat',
-  compare: 'qwen3-vl:2b',
-  multicomp: 'qwen3-vl:2b',
+  ui: 'gemma4:e2b-it-qat',
+  responsive: 'gemma4:e2b-it-qat',
+  regression: 'gemma4:e2b-it-qat',
+  compare: 'gemma4:e2b-it-qat',
+  multicomp: 'gemma4:e2b-it-qat',
 };
 
 function profileFor(model) {
@@ -548,12 +559,18 @@ async function main() {
     // on complete answers that end abruptly ("... SYSTEM |"), which used
     // to trigger two wasted full regenerations per call.
     let lastDoneReason = '';
+    // True when the last Ollama attempt returned EMPTY content and we
+    // fell back to its `thinking` field — the signature of the
+    // qwen3-vl reasoning-loop bug (ollama/ollama#17978): the model
+    // exhausts num_predict re-evaluating and never emits content.
+    let lastFromThinking = false;
     // Auto-enable reasoning for complex analysis modes on capable models.
     const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp']);
     const autoThink = args.think || reasoningModes.has(args.mode);
     const ollamaAttempt = async (model, budget) => {
       const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink);
       lastDoneReason = r.done_reason;
+      lastFromThinking = !!r.fromThinking;
       analysis = r.text;
       note();
     };
@@ -620,10 +637,19 @@ async function main() {
       }
     }
 
-    // Safety net: same-model retry only when the model itself reports it
-    // hit the output budget (done_reason "length"). Swapping models churns
-    // VRAM (unload + cold load) and is strictly slower than a longer decode.
-    if (needsMore(analysis)) {
+    // A reasoning model that returned EMPTY content (its whole answer
+    // landed in `thinking`, lastFromThinking) is degenerate, not
+    // truncated: re-rolling the same model at the same 4096 budget
+    // reproduces the same reasoning loop (measured: qwen3-vl:2b ->
+    // 70 s, content 0 chars, every time; the streaming early-abort
+    // + resume workaround from ollama/ollama#17978 also fails to
+    // converge on structured prompts). Skip the same-model retry and
+    // go straight to the fallback model. Only a NON-empty answer
+    // that hit the output budget is worth a re-roll (sampling may
+    // stop earlier).
+    const emptyDegenerate =
+      lastFromThinking || typeof analysis !== 'string' || !analysis.trim();
+    if (needsMore(analysis) && !emptyDegenerate) {
       console.error(`[vision] Response hit output budget, retrying ${activeModel}...`);
       try {
         await ollamaAttempt(activeModel, 4096);

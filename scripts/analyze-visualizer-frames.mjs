@@ -100,7 +100,7 @@ Options:
   --seek <sec>          Seek to timestamp before recording (default: 5)
   --crop <spec>         Crop region: "left,top,width,height" (default: full image)
   --threshold <n>       Pixel threshold 0-255 for motion (default: 20)
-  --model <model>       Ollama vision model (default: qwen3-vl:4b)
+  --model <model>       Ollama vision model (default: gemma4:e2b-it-qat)
   --prompt-type <type>  motion|quality|glitches|beat-sync|comprehensive (default: comprehensive)
   --quant-only          Skip vision analysis
   --vision-only         Skip quantitative analysis

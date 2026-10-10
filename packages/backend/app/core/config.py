@@ -41,7 +41,7 @@ class AppConfig(BaseModel):
     output_dir: Path = OUTPUT_DIR
     log_level: str = "INFO"
     default_model: str = "gemma4:e2b-it-qat"
-    vision_model: str = "gemma4-vision-optimized:latest"
+    vision_model: str = "gemma4:e2b-it-qat"
     embedding_model: str = "nomic-embed-text:v1.5"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

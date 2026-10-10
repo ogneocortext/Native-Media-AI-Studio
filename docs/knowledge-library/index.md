@@ -106,6 +106,7 @@ date: 2026-09-30
 ### 🤖 AI & ML (Models & Training)
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
+- [[vision-model-reliability-2026|🖼️ Vision Model Reliability 2026]] — qwen3-vl degenerate reasoning loop (Ollama #17978), measured evidence, the gemma4 primary routing fix, and the 2026-10-10 model pruning (NEW 2026-10-10)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy
 - [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
 - [[minicpm-v-best-practices|🔍 MiniCPM-V 2.6 Best Practices]] — your `minicpm-v:8b` local vision: 1.8MP any-aspect OCR, multi-image/video, RLAIF-V trustworthy, 640-token efficiency on GTX 1070 Ti
@@ -147,7 +148,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 11 documents |
 || `#creative/*` | Design, effects & visualization | 20 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 11 documents |
+|| `#ai/*` | AI models, training & ML | 12 documents |
 || `#research/*` | Industry trends & analysis | 11 documents |
 
 ### Cross-Cutting Tags
@@ -159,7 +160,7 @@ date: 2026-09-30
 || `#platform-blender` | Blender-specific | 3 documents |
 || `#platform-comfyui` | ComfyUI-specific | 6 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
-|| `#hardware-8gb` | 8GB VRAM constraints | 15 documents |
+|| `#hardware-8gb` | 8GB VRAM constraints | 16 documents |
 || `#hardware-pascal` | Pascal architecture specifics | 8 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 3 documents |
@@ -234,12 +235,12 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 88 (markdown) + 9 (JSON data files) = 97 total |
+|| Total Documents | 89 (markdown) + 9 (JSON data files) = 98 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-06 (X-platform video research + HyperFrames Studio eval added) |
-|| Latest Add | 2026-10-06 (X-Platform Video Research 2026) |
+|| Last Updated | 2026-10-10 (vision model reliability + model pruning added) |
+|| Latest Add | 2026-10-10 (Vision Model Reliability 2026) |
 
 ---
 
-_Last updated: 2026-10-06 (docs audit and corrections)_
+_Last updated: 2026-10-10 (vision model reliability article + model pruning record)_

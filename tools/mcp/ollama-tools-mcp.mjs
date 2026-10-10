@@ -138,7 +138,7 @@ server.setRequestHandler('tools/list', async () => ({
         properties: {
           image_path: { type: "string", description: "Path or URL to the image" },
           prompt: { type: "string", description: "Question to ask about the image", default: "Describe this image in detail." },
-          model: { type: "string", description: "Ollama vision model (qwen3-vl:2b=fast, gemma4:e2b-it-qat=detailed). Defaults to a resident vision model when one is warm; otherwise qwen3-vl:2b.", default: "" },
+          model: { type: "string", description: "Ollama vision model (gemma4:e2b-it-qat, detailed and reliable). Defaults to a resident vision model when one is warm; otherwise gemma4:e2b-it-qat.", default: "" },
           think: { type: "boolean", description: "Enable extended reasoning (Ollama 0.21.3+)", default: false },
         },
         required: ["image_path"],

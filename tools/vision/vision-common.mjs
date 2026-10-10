@@ -9,7 +9,7 @@ export const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1280');
 export const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
 export const VISION_KEEP_ALIVE = process.env.VISION_KEEP_ALIVE || '10m';
 export const VISION_NUM_CTX = parseInt(process.env.VISION_NUM_CTX || '8192');
-export const DEFAULT_VISION_MODEL = process.env.VISION_MODEL || 'qwen3-vl:2b';
+export const DEFAULT_VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-qat';
 // Must NOT equal DEFAULT_VISION_MODEL. It used to, which made the fallback a no-op
 // retry of the model that had just failed and reported itself as a second backend.
 // Measured on an 8 GB card with the desktop holding ~5 GB, gemma4:e2b-it-qat was

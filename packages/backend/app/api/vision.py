@@ -1,5 +1,5 @@
 """
-Vision OCR & chart reading via MiniCPM-V (your latest local model).
+Vision OCR & chart reading via gemma4 (primary) with MiniCPM-V fallback.
 Wraps Ollama /api/chat so Media Library / GPU Monitor can extract text without
 re-implementing curl on the frontend. Model-aware: minicpm-v disables tools/thinking.
 """
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 
 DEFAULT_MODEL = "gemma4:e2b-it-qat"
-FALLBACK_MODEL = "qwen3-vl:2b"
+FALLBACK_MODEL = "minicpm-v:8b"
 
 OLLAMA_URL = ollama_url()
 

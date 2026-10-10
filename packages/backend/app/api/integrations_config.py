@@ -131,19 +131,10 @@ VERIFIED_WORKING_MODELS = {
         "performance": {"tokens_per_sec": 104, "vision_latency_sec": 27},
         "notes": "Fastest overall; works for all features",
     },
-    # Vision - optimized variants
-    "qwen3-vl-optimized:latest": {
-        "verified": True,
-        "verified_features": ["chat", "vision"],
-        "performance": {"tokens_per_sec": 0, "vision_latency_sec": 8},
-        "notes": "Fastest vision model (~8s)",
-    },
-    "gemma4-vision-optimized:latest": {
-        "verified": True,
-        "verified_features": ["chat", "vision"],
-        "performance": {"tokens_per_sec": 0, "vision_latency_sec": 95},
-        "notes": "Good vision quality, slower",
-    },
+    # Vision: gemma4:e2b-it-qat (above) is the verified vision model.
+    # qwen3-vl-optimized and gemma4-vision-optimized were deleted -
+    # qwen3-vl hits the Ollama #17978 reasoning-loop bug (empty content)
+    # and gemma4-vision-optimized ran 95 s per audit. See BROKEN_MODELS.
     "llamacpp:94c2d4e5": {  # partial match for llama.cpp vision models
         "verified": True,
         "verified_features": ["chat", "vision"],

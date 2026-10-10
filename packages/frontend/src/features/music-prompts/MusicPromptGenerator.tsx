@@ -641,7 +641,6 @@ export function MusicPromptGenerator({
               <datalist id="music-prompt-models">
                 <option value="qwen3.5:9b" />
                 <option value="qwen3.5:4b" />
-                <option value="ornith-1.5:9b" />
               </datalist>
             </div>
             <button
