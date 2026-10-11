@@ -3,6 +3,7 @@ import {
   Brain,
   Send,
   Loader2,
+  RefreshCw,
   AlertCircle,
   CheckCircle,
   Zap,
@@ -440,9 +441,35 @@ export function AIToolsPage() {
                 )}
               </div>
             ) : (
-              <p className={DS.textXs}>
-                No verified Ollama models available. Start Ollama to use this feature.
-              </p>
+              <div className="space-y-2">
+                <p className={DS.textXs}>
+                  No verified Ollama models available. Start Ollama to use this feature.
+                </p>
+                {!ollamaConnected && (
+                  <p className={DS.textXs + " opacity-70"}>
+                    Ollama is unreachable right now — check that it is running, then retry.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => loadModels(true)}
+                    className={DS.btnSecondary + " flex items-center gap-1"}
+                  >
+                    <RefreshCw size={14} /> Retry
+                  </button>
+                  <button
+                    onClick={() => {
+                      const next = !showAllModels;
+                      setShowAllModels(next);
+                      loadModels(!next);
+                    }}
+                    className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
+                    title="Show all models, including unverified ones"
+                  >
+                    {showAllModels ? "Verified only" : "Show all"}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 

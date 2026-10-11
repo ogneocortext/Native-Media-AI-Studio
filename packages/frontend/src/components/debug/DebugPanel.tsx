@@ -75,6 +75,10 @@ export function DebugPanel() {
   }, [logs]);
 
   if (!open) {
+    // The floating button is dev clutter on a production page; the panel
+    // still mounts (it collects API logs from load) and Ctrl+Shift+D
+    // toggles it in any environment.
+    if (!import.meta.env.DEV) return null;
     return (
       <button
         onClick={() => setOpen(true)}

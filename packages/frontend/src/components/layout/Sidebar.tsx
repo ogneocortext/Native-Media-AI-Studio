@@ -380,6 +380,17 @@ export function Sidebar() {
     if (isMobile) setMobileOpen(false);
   }, [location.pathname, isMobile]);
 
+  // Bring the active destination into view: the Create group alone can
+  // exceed the nav's scroll height on short viewports, leaving the
+  // current page clipped at the bottom edge.
+  useEffect(() => {
+    const nav = document.querySelector<HTMLElement>(".sidebar-nav");
+    const active = nav?.querySelector<HTMLElement>(".nav-item.active");
+    if (nav && active) {
+      nav.scrollTo({ top: active.offsetTop - nav.clientHeight / 2 });
+    }
+  }, [location.pathname]);
+
   const [systemFooterOpen, setSystemFooterOpen] = useState(false);
 
   const getOverallStatus = (): "online" | "offline" | "unknown" => {
