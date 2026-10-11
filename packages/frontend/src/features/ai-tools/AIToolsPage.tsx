@@ -53,6 +53,7 @@ export function AIToolsPage() {
     new Set(DEFAULT_TOOLS.map((t) => t.id)),
   );
   const [ollamaConnected, setOllamaConnected] = useState(false);
+  const [showAllModels, setShowAllModels] = useState(false);
   const [vizConfig, setVizConfig] = useState<
     import("./VisualizationCanvas").VisualizationConfig | null
   >(null);
@@ -62,13 +63,12 @@ export function AIToolsPage() {
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    loadModels();
+    loadModels(true);
   }, []);
 
-  const loadModels = async () => {
+  const loadModels = async (verifiedOnly: boolean) => {
     try {
-      // Load verified models by default
-      const modelList = await getOllamaModels(true);
+      const modelList = await getOllamaModels(verifiedOnly);
       // Trust the backend. It now asks Ollama /api/show for authoritative
       // capabilities; the name checks that used to live here were wrong in both
       // directions and only ever added false positives - a model named "qwen..." was
@@ -301,7 +301,7 @@ export function AIToolsPage() {
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className={DS.select + " flex-1"}
-                    onClick={loadModels}
+                    onClick={() => loadModels(!showAllModels)}
                     aria-label="Model"
                   >
                     {models.map((m) => {
@@ -323,7 +323,9 @@ export function AIToolsPage() {
                       return (
                         <option key={m.name} value={m.name}>
                           {m.name} ({formatSize(m.size)})
-                          {m.verified ? "" : " (unverified)"}
+                          {m.verified
+                            ? ""
+                            : ` · ${m.broken_reason === "not_tested" ? "not tested" : m.broken_reason || "unverified"}`}
                           {caps ? ` · ${caps}` : ""}
                           {s !== null
                             ? ` · ${s}/100${latency ? ` · ${(latency / 1000).toFixed(1)}s` : ""}`
@@ -344,8 +346,23 @@ export function AIToolsPage() {
                     ) : (
                       "⚡"
                     )}{" "}
-                    {benchLoading ? "…" : "Benchmark"}
-                  </button>
+                     {benchLoading ? "…" : "Benchmark"}
+                   </button>
+                   <button
+                     onClick={() => {
+                       const next = !showAllModels;
+                       setShowAllModels(next);
+                       loadModels(!next);
+                     }}
+                     className="ml-1 px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
+                     title={
+                       showAllModels
+                         ? "Show only verified models"
+                         : "Show all models, including unverified ones"
+                     }
+                   >
+                     {showAllModels ? "Verified only" : "Show all"}
+                   </button>
                 </div>
                 {selectedModelData && (
                   <div className="flex flex-wrap gap-2 text-xs">
