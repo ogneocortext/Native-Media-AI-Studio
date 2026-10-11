@@ -147,7 +147,12 @@ VERIFIED_WORKING_MODELS = {
 BROKEN_MODELS = {
     "qwen3-vl:2b": {"reason": "timeout, thinking-only output"},
     "qwen3-vl:4b": {"reason": "timeout >120s"},
-    "minicpm-v:8b": {"reason": "timeout >180s"},
+    # minicpm-v is NOT broken for vision anymore: the /api/vision and
+    # Ollama generate/chat timeouts were raised 120s -> 300s
+    # (2026-10-11) after measuring a 183-254 s cold load on 8 GB
+    # VRAM. It stays out of chat selectors because it is
+    # vision-only (no tools/thinking) and slow to cold-load.
+    "minicpm-v:8b": {"reason": "vision-only (no tools/thinking); ~254s cold load — works via /api/vision (300s timeout)"},
     "qwen3.5:9b": {"reason": "timeout 180s for blender script"},
     "openbmb/minicpm-v4.6:q4_K_M": {"reason": "invalid Blender API output"},
     "deepseek-v4-flash:cloud": {"reason": "cloud model, /api/show fails"},

@@ -49,7 +49,11 @@ def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -> str:
         payload["think"] = True
     data = _json.dumps(payload).encode()
     req = urllib.request.Request(f"{OLLAMA_URL}/api/chat", data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    # 300s, not 120s: the minicpm-v fallback needs ~183 s to
+    # cold-load on 8 GB VRAM (measured 2026-10-11); a 120 s
+    # timeout made the fallback fail on every cold start, which
+    # is why minicpm-v sat in BROKEN_MODELS as "timeout >180s".
+    with urllib.request.urlopen(req, timeout=300) as resp:
         j = _json.loads(resp.read())
         return (j.get("message") or {}).get("content") or ""
 

@@ -483,10 +483,14 @@ Generate 3-8 scenes based on the input theme or concept."""
                 payload["options"] = options
 
             session = await self._get_session()
+            # 300s, not 120s: a cold model load on 8 GB VRAM takes
+            # 60-183 s (measured 2026-10-11: qwen3.5:4b 78 s,
+            # minicpm-v:8b 183 s), which left too little of a 120 s
+            # budget for generation. Matches the chat timeout below.
             async with session.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=120),
+                timeout=aiohttp.ClientTimeout(total=300),
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()

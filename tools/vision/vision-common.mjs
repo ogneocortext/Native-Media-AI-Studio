@@ -125,7 +125,12 @@ export async function analyzeWithOllama(images, prompt, model, numPredict = 4096
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120000),
+    // 300 s, not 120 s: a cold model load on 8 GB VRAM takes
+    // 60-183 s (measured 2026-10-11: minicpm-v:8b 183 s), which
+    // blew the 120 s budget before any image was processed. This
+    // inner fetch is the binding limit, so it must match the
+    // VISION_TIMEOUT_MS (300 s) outer budget in analyze.mjs.
+    signal: AbortSignal.timeout(300000),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
