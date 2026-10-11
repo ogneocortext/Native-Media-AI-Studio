@@ -103,6 +103,28 @@ export async function getIntegrationStatus(serviceName: string): Promise<Integra
   return res.json();
 }
 
+export interface AtomicChatStatus {
+  reachable: boolean;
+  model?: string;
+  model_count?: number;
+  reason?: string;
+}
+
+/**
+ * Probe the Atomic Chat OpenAI-compatible endpoint. Distinct from
+ * getIntegrationStatus("ollama"): Atomic Chat is an optional routing
+ * target inside the Ollama adapter, so testing it must not report
+ * Ollama's own status.
+ */
+export async function getAtomicChatStatus(): Promise<AtomicChatStatus> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/atomic-chat/status`, {
+    timeout: 30000,
+  });
+  if (!res.ok) throw new Error(`Failed to get Atomic Chat status: ${res.status}`);
+  return res.json();
+}
+
 export interface VRAMStatus {
   vram?: {
     available: boolean;

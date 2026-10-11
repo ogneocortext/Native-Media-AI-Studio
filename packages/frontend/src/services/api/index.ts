@@ -274,6 +274,7 @@ export {
   restartComfyUI,
   updateComfyUI,
   getIntegrationStatus,
+  getAtomicChatStatus,
   getVRAMStatus,
   getModelsStatus,
   getMusicVideoStyles,
@@ -286,6 +287,7 @@ export type {
   ComfyUIStopResponse,
   ComfyUIUpdateResponse,
   IntegrationStatus,
+  AtomicChatStatus,
   VRAMStatus,
   UpscaleResponse,
 } from "./integrations";

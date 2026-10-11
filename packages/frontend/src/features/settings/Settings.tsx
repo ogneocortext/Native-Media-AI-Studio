@@ -3,7 +3,13 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge } from "../../components/common";
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
-import { getSettings, getIntegrationStatus, type IntegrationStatus } from "../../services/api";
+import {
+  getSettings,
+  getIntegrationStatus,
+  getAtomicChatStatus,
+  type IntegrationStatus,
+  type AtomicChatStatus,
+} from "../../services/api";
 import { getPortConfigFromEnv } from "../../services/portConfig";
 import { useNotificationStore } from "../../state/notificationStore";
 import {
@@ -24,6 +30,8 @@ interface AppSettings {
   backend_port: number;
   frontend_port: number;
   default_model?: string;
+  default_workflow?: string;
+  output_node_id?: string;
 }
 
 /**
@@ -58,6 +66,8 @@ export function Settings() {
       max_queue_workers: 1,
       backend_port: env.backend_port || 8000,
       frontend_port: env.frontend_port || 5173,
+      default_workflow: "default",
+      output_node_id: "9",
     };
   });
   const [connectionTests, setConnectionTests] = useState<Record<string, ConnectionTestResult>>({});
@@ -99,6 +109,8 @@ export function Settings() {
           log_level: settings.log_level,
           max_queue_workers: settings.max_queue_workers,
           default_model: settings.default_model,
+          default_workflow: settings.default_workflow,
+          output_node_id: settings.output_node_id,
         }),
       });
       if (!res.ok) {
@@ -128,6 +140,43 @@ export function Settings() {
       setConnectionTests((prev) => ({
         ...prev,
         [key]: { status: "error", message: `Not reachable at ${url}` },
+      }));
+    }
+    setTimeout(() => {
+      setConnectionTests((prev) => ({ ...prev, [key]: { status: "idle", message: "" } }));
+    }, 5000);
+  };
+
+  /**
+   * Probe the Atomic Chat endpoint specifically. Atomic Chat is an
+   * optional routing target inside the Ollama adapter, so the generic
+   * testConnection(url, "ollama") would report Ollama's status and
+   * ignore the Atomic Chat URL entirely — a false "Connected" when
+   * Atomic Chat itself is down.
+   */
+  const testAtomicChat = async () => {
+    const key = "atomic-chat";
+    setConnectionTests((prev) => ({
+      ...prev,
+      [key]: { status: "testing", message: "Testing..." },
+    }));
+    try {
+      const data: AtomicChatStatus = await getAtomicChatStatus();
+      setConnectionTests((prev) => ({
+        ...prev,
+        [key]: data.reachable
+          ? {
+              status: "success",
+              message: `Connected — ${data.model ?? "model"} (${data.model_count ?? 1} model${
+                (data.model_count ?? 1) === 1 ? "" : "s"
+              })`,
+            }
+          : { status: "error", message: data.reason ?? "Not reachable" },
+      }));
+    } catch {
+      setConnectionTests((prev) => ({
+        ...prev,
+        [key]: { status: "error", message: "Not reachable" },
       }));
     }
     setTimeout(() => {
@@ -231,7 +280,12 @@ export function Settings() {
 
             <div>
               <label className="label">Default Workflow</label>
-              <select className="select" defaultValue="default" aria-label="Default workflow">
+              <select
+                className="select"
+                aria-label="Default workflow"
+                value={settings.default_workflow || "default"}
+                onChange={(e) => updateSetting("default_workflow", e.target.value)}
+              >
                 <option value="default">Standard Image Generation</option>
                 <option value="animate">AnimateDiff Video</option>
                 <option value="controlnet">ControlNet + Image</option>
@@ -248,7 +302,8 @@ export function Settings() {
                 type="text"
                 className="input"
                 aria-label="Output node ID"
-                defaultValue="9"
+                value={settings.output_node_id || "9"}
+                onChange={(e) => updateSetting("output_node_id", e.target.value)}
                 placeholder="SaveImage node ID"
               />
               <p className="text-xs text-muted mt-1">
@@ -347,12 +402,31 @@ export function Settings() {
                   <button
                     className="btn btn-secondary"
                     title="Test Connection"
-                    disabled={!settings.atomic_chat_enabled}
-                    onClick={() => testConnection(settings.atomic_chat_url, "ollama")}
+                    disabled={
+                      !settings.atomic_chat_enabled ||
+                      connectionTests["atomic-chat"]?.status === "testing"
+                    }
+                    onClick={testAtomicChat}
                   >
-                    <Link2 size={16} />
+                    {connectionTests["atomic-chat"]?.status === "testing" ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Link2 size={16} />
+                    )}
                   </button>
                 </div>
+                {connectionTests["atomic-chat"]?.status === "success" && (
+                  <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                    <CheckCircle2 size={12} />{" "}
+                    {connectionTests["atomic-chat"].message}
+                  </p>
+                )}
+                {connectionTests["atomic-chat"]?.status === "error" && (
+                  <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                    <AlertCircle size={12} />{" "}
+                    {connectionTests["atomic-chat"].message}
+                  </p>
+                )}
                 <p className="text-xs text-muted mt-1">
                   Atomic Chat OpenAI-compatible API endpoint
                 </p>

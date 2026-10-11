@@ -266,6 +266,25 @@ async def get_integration(service_name: str) -> dict:
     }
 
 
+@router.get("/atomic-chat/status")
+async def get_atomic_chat_status() -> dict:
+    """Health-check the Atomic Chat OpenAI-compatible endpoint.
+
+    Atomic Chat is an optional routing target inside the Ollama adapter,
+    not a registered adapter of its own, so it needs a dedicated probe:
+    the generic ``/{service_name}`` route only knows about the comfyui
+    and ollama adapters and would report Ollama's status regardless of
+    whether the Atomic Chat URL is reachable.
+    """
+    adapter = adapter_registry.get_adapter("ollama")
+    if adapter is None:
+        raise HTTPException(status_code=503, detail="Ollama adapter not available")
+    probe = getattr(adapter, "atomic_chat_health", None)
+    if not callable(probe):
+        raise HTTPException(status_code=501, detail="Atomic Chat probe not supported")
+    return await probe()
+
+
 @router.get("/config/mock-mode")
 async def get_mock_mode() -> dict:
     """Get current mock mode status"""
@@ -311,6 +330,9 @@ async def get_settings() -> dict:
         "max_queue_workers": config.max_queue_workers,
         "backend_port": config.backend_port,
         "frontend_port": config.frontend_port,
+        "default_model": config.default_model,
+        "default_workflow": config.default_workflow,
+        "output_node_id": config.output_node_id,
     }
 
 
@@ -344,6 +366,15 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
     if req.max_queue_workers is not None:
         config.max_queue_workers = req.max_queue_workers
         updates["max_queue_workers"] = req.max_queue_workers
+    if req.default_model is not None:
+        config.default_model = req.default_model
+        updates["default_model"] = req.default_model
+    if req.default_workflow is not None:
+        config.default_workflow = req.default_workflow
+        updates["default_workflow"] = req.default_workflow
+    if req.output_node_id is not None:
+        config.output_node_id = req.output_node_id
+        updates["output_node_id"] = req.output_node_id
 
     save_config(config)
     return {"updated": updates, "message": "Settings saved. Restart may be required for some changes."}

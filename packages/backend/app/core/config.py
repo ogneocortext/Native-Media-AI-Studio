@@ -43,6 +43,10 @@ class AppConfig(BaseModel):
     default_model: str = "gemma4:e2b-it-qat"
     vision_model: str = "gemma4:e2b-it-qat"
     embedding_model: str = "nomic-embed-text:v1.5"
+    # ComfyUI image-generation defaults surfaced on the Settings page.
+    # Persisted with the rest of the config so the controls round-trip.
+    default_workflow: str = "default"
+    output_node_id: str = "9"
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

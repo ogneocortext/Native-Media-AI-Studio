@@ -391,38 +391,64 @@ Generate 3-8 scenes based on the input theme or concept."""
             self.set_status(AdapterStatus.ERROR)
         return False
 
-    async def _atomic_chat_health_check(self) -> bool:
-        """Check if Atomic Chat OpenAI-compatible endpoint is available and can serve inference."""
+    async def atomic_chat_health(self) -> dict[str, Any]:
+        """Probe the Atomic Chat OpenAI-compatible endpoint.
+
+        Atomic Chat is an optional routing target inside this adapter, so it
+        needs its own probe distinct from the Ollama adapter status — the
+        Settings page tests it independently of whether Ollama itself is up.
+        Returns a structured result: ``reachable`` plus the served model
+        count and first model id when the endpoint can run inference, or a
+        ``reason`` describing why it cannot. This is a pure probe — it does
+        not mutate the adapter status (Atomic Chat being up says nothing
+        about Ollama's own connectivity).
+        """
         if not self._atomic_chat_url:
-            return False
+            return {"reachable": False, "reason": "Atomic Chat URL is not configured"}
         try:
             session = await self._get_session()
             target = f"{self._atomic_chat_url.rstrip('/')}/v1/models"
             async with session.get(target, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status != 200:
-                    return False
+                    return {
+                        "reachable": False,
+                        "reason": f"/v1/models returned HTTP {resp.status}",
+                    }
                 data = await resp.json()
                 models = data.get("data") or data.get("models") or []
                 if not models:
-                    return False
+                    return {"reachable": False, "reason": "no models listed"}
                 model_id = (models[0].get("id") or models[0].get("name") or "").strip()
                 if not model_id:
-                    return False
+                    return {"reachable": False, "reason": "empty model id"}
 
             chat_target = f"{self._atomic_chat_url.rstrip('/')}/v1/chat/completions"
             async with session.post(
                 chat_target,
-                json={"model": model_id, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 2},
+                json={
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 2,
+                },
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:
-                    if self._status != AdapterStatus.CONNECTED:
-                        logger.info("Atomic Chat backend is online")
-                    self.set_status(AdapterStatus.CONNECTED)
-                    return True
+                    return {
+                        "reachable": True,
+                        "model": model_id,
+                        "model_count": len(models),
+                    }
+                return {
+                    "reachable": False,
+                    "reason": f"/v1/chat/completions returned HTTP {resp.status}",
+                }
         except Exception as e:
             logger.warning(f"Atomic Chat health check failed: {e}")
-        return False
+            return {"reachable": False, "reason": str(e)}
+
+    async def _atomic_chat_health_check(self) -> bool:
+        """Check if Atomic Chat OpenAI-compatible endpoint is available and can serve inference."""
+        return (await self.atomic_chat_health()).get("reachable", False)
 
     async def generate(self, params: dict[str, Any]) -> dict[str, Any]:
         """
