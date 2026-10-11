@@ -24,7 +24,7 @@ interface SidebarProps {
 const promptTemplates = [
   {
     label: "Video Concept",
-    text: "Generate a creative music video concept for a [genre] song about [theme]. Include visual style, color palette, and camera movements.",
+    text: "Generate a creative music video concept for a synthwave song about a neon-lit city at night. Include visual style, color palette, and camera movements.",
   },
   {
     label: "Scene Description",
@@ -32,7 +32,7 @@ const promptTemplates = [
   },
   {
     label: "Color Palette",
-    text: "Suggest a color palette for a music video with [mood] mood. Include hex codes and usage guidelines.",
+    text: "Suggest a color palette for a music video with a dark cyberpunk mood. Include hex codes and usage guidelines.",
   },
   {
     label: "Transition Ideas",
@@ -148,6 +148,7 @@ export function Sidebar({
                   });
                 }}
                 className="accent-violet-500"
+                aria-label={`Enable ${tool.name || "unnamed tool"}`}
               />
               <span className="text-sm text-foreground flex-1 truncate">{tool.name}</span>
               <button
@@ -160,7 +161,7 @@ export function Sidebar({
                 aria-label={`Edit ${tool.name || "unnamed tool"}`}
                 title={`Edit ${tool.name || "unnamed tool"}`}
               >
-                <Settings size={12} />
+                <Settings size={14} />
               </button>
               <button
                 onClick={() => deleteTool(tool.id)}
@@ -168,7 +169,7 @@ export function Sidebar({
                 aria-label={`Delete ${tool.name || "unnamed tool"}`}
                 title={`Delete ${tool.name || "unnamed tool"}`}
               >
-                <Trash2 size={12} />
+                <Trash2 size={14} />
               </button>
             </div>
           ))}

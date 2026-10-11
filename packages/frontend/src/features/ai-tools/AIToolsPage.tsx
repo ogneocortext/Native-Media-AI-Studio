@@ -460,11 +460,12 @@ export function AIToolsPage() {
                 type="button"
                 onClick={() => setShowThinking((v) => !v)}
                 className={DS.flexCenter + " w-full mb-1"}
+                aria-expanded={showThinking}
               >
                 <Brain size={16} className={DS.accentPurple} />
                 <span className={DS.textBold}>Thinking</span>
                 <span className={DS.textXs}>
-                  ({showThinking ? "hide" : "show"})
+                  {showThinking ? "Hide" : "Show"}
                 </span>
               </button>
               {showThinking && (
