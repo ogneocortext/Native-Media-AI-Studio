@@ -1166,13 +1166,17 @@ Generate 3-8 scenes based on the input theme or concept."""
         """List real jobs from the queue manager."""
         try:
             from ..queue.manager import queue_manager
-            jobs = queue_manager.get_all_jobs()
+            # get_all_jobs() is async and returns Pydantic Job objects, so the
+            # result must be awaited and read via attributes, not dict access.
+            # Calling it unawaited yielded a coroutine, and iterating it raised
+            # "'coroutine' object is not iterable" (measured 2026-10-11).
+            jobs = await queue_manager.get_all_jobs()
             if status:
-                jobs = [j for j in jobs if j.get("status") == status]
+                jobs = [j for j in jobs if j.status == status]
 
             status_counts: dict[str, int] = {}
             for job in jobs:
-                s = job.get("status", "unknown")
+                s = job.status
                 status_counts[s] = status_counts.get(s, 0) + 1
 
             parts = [f"{count} {st}" for st, count in sorted(status_counts.items())]
@@ -1185,14 +1189,13 @@ Generate 3-8 scenes based on the input theme or concept."""
         """Get real status of a specific job."""
         try:
             from ..queue.manager import queue_manager
-            job = queue_manager.get_job(job_id)
+            # get_job() is async and returns a Pydantic Job (or None).
+            job = await queue_manager.get_job(job_id)
             if not job:
                 return f"Job {job_id}: not found"
-            status = job.get("status", "unknown")
-            progress = job.get("progress")
-            if progress is not None:
-                return f"Job {job_id}: {status}, {progress:.0%} complete"
-            return f"Job {job_id}: {status}"
+            status = job.status
+            progress = job.progress
+            return f"Job {job_id}: {status}, {progress:.0%} complete"
         except Exception as e:
             logger.warning(f"Failed to get job status: {e}")
             return f"Job {job_id}: error retrieving status ({e})"

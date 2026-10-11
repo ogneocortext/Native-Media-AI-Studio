@@ -334,7 +334,7 @@ export async function ollamaChatStream(
 }
 
 export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): AsyncGenerator<{
-  type: "content" | "tool_calls" | "done" | "connected" | "error";
+  type: "content" | "tool_calls" | "tool_result" | "done" | "connected" | "error";
   data: unknown;
 }> {
   const reader = stream.getReader();
@@ -362,6 +362,8 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
               yield { type: "content", data };
             } else if (lastEvent === "tool_calls") {
               yield { type: "tool_calls", data };
+            } else if (lastEvent === "tool_result") {
+              yield { type: "tool_result", data };
             } else if (lastEvent === "done") {
               yield { type: "done", data };
             } else if (lastEvent === "connected") {

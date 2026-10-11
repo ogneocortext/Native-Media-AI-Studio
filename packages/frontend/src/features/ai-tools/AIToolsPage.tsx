@@ -196,15 +196,35 @@ export function AIToolsPage() {
           if (data.thinking) {
             setThinking((prev) => prev + data.thinking);
           }
-        } else if (event.type === "tool_calls") {
-          const data = event.data as {
-            tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
-          };
-          for (const tc of data.tool_calls) {
-            toolDetails.push(tc);
+      } else if (event.type === "tool_calls") {
+        const data = event.data as {
+          tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
+        };
+        for (const tc of data.tool_calls) {
+          toolDetails.push(tc);
+        }
+        setToolCalls([...toolDetails]);
+      } else if (event.type === "tool_result") {
+        // The backend streams each tool's result after executing it. Attach
+        // it to the matching call so the Tool Calls card can show output, and
+        // render the visualization canvas when generate_visualization returns.
+        const data = event.data as { name: string; result: string };
+        const target = toolDetails.find((t) => t.name === data.name && !t.result);
+        if (target) {
+          target.result = data.result;
+        }
+        setToolCalls([...toolDetails]);
+        if (data.name === "generate_visualization") {
+          try {
+            const cfg = JSON.parse(data.result) as import("./VisualizationCanvas").VisualizationConfig;
+            if (cfg && cfg.style && cfg.colors) {
+              setVizConfig(cfg);
+            }
+          } catch {
+            /* result was not a visualization config */
           }
-          setToolCalls([...toolDetails]);
-        } else if (event.type === "error") {
+        }
+      } else if (event.type === "error") {
           const data = event.data as { message?: string };
           throw new Error(data.message || "Ollama returned no response or tool call");
         }

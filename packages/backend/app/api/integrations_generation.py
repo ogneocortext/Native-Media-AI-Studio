@@ -828,6 +828,17 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                         tc["function"]["arguments"],
                                         {},
                                     )
+                                    # Stream the result back to the client so it
+                                    # can display tool output (and render things
+                                    # like the visualization canvas) without having
+                                    # to re-parse the model's prose.
+                                    yield {
+                                        "event": "tool_result",
+                                        "data": json.dumps({
+                                            "name": tc["function"]["name"],
+                                            "result": result,
+                                        }),
+                                    }
                                     current_messages.append({
                                         "role": "tool",
                                         "tool_name": tc["function"]["name"],
@@ -868,6 +879,10 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                         "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
                                     }
                                     result = await adapter.execute_tool_call(name, args, {})
+                                    yield {
+                                        "event": "tool_result",
+                                        "data": json.dumps({"name": name, "result": result}),
+                                    }
                                     current_messages.extend([
                                         {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": name, "arguments": args}}]},
                                         {"role": "tool", "tool_name": name, "content": result},
@@ -921,7 +936,14 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
             last_response = ""
             tool_details = []
 
-            while tool_call_count < max_tool_calls:
+            # Loop until the model produces a final answer. The bound is
+            # the tool-call guard below, not the loop condition: with
+            # max_tool_calls == 0 the model must still be called once to
+            # answer, and after the last allowed tool call it must be
+            # called again to produce the final text. The old
+            # `while tool_call_count < max_tool_calls` skipped both and
+            # returned an empty response (measured 2026-10-11).
+            while True:
                 result = await adapter.chat(
                     messages=current_messages,
                     model=model,
