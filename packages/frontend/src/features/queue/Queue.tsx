@@ -14,7 +14,14 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
-import { useJobStore } from "../../state/jobStore";
+import {
+  useJobStore,
+  useJobs,
+  useQueueStats,
+  useJobLoading,
+  useJobError,
+  useJobSseConnected,
+} from "../../state/jobStore";
 import { JobListSection } from "./QueueList";
 import { showToast } from "../../utils/toast";
 
@@ -56,19 +63,21 @@ interface ConfirmDialogState {
 
 export function Queue() {
   const navigate = useNavigate();
-  const {
-    jobs,
-    stats,
-    isLoading,
-    error,
-    sseConnected,
-    fetchJobs,
-    cancelJob,
-    retryJob,
-    deleteJob,
-    clearCompleted,
-    clearFailed,
-  } = useJobStore();
+  // Fine-grained selectors: subscribing to the whole store re-renders
+  // this page on every job-store change (e.g. isLoading toggling on
+  // each poll). State slices and stable action references keep
+  // re-renders scoped to the data each part of the UI actually reads.
+  const jobs = useJobs();
+  const stats = useQueueStats();
+  const isLoading = useJobLoading();
+  const error = useJobError();
+  const sseConnected = useJobSseConnected();
+  const fetchJobs = useJobStore((state) => state.fetchJobs);
+  const cancelJob = useJobStore((state) => state.cancelJob);
+  const retryJob = useJobStore((state) => state.retryJob);
+  const deleteJob = useJobStore((state) => state.deleteJob);
+  const clearCompleted = useJobStore((state) => state.clearCompleted);
+  const clearFailed = useJobStore((state) => state.clearFailed);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
