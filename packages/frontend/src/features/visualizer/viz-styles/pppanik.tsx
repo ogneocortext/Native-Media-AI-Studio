@@ -20,6 +20,7 @@ import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getStemEnergy } from "./helpers";
 import { InstancedBlobField, type BlobFieldDrivers } from "../components/InstancedBlobField";
+import { beatSnap, rolloff } from "./vizMotion";
 
 export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -51,8 +52,16 @@ export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps)
     d.beat = live?.beat ?? false;
     d.beatPhase = live?.beatPhase ?? 0;
 
+    // Beat-quantized radial displacement (2026): the field
+    // swells ON the grid, so the blob thumps with the kick
+    // instead of breathing smoothly.
+    const snap = d.beatPhase != null ? beatSnap(d.beatPhase) : d.beat ? 1 : 0;
+    // Rolloff-capped displacement so loud frames keep
+    // blob detail instead of blowing out the shell.
+    const displace = rolloff(d.bass * 0.3 + snap * 0.25, 1.0);
+
     // Scale the entire blob field with bass
-    const bassScale = 1 + d.bass * 0.5;
+    const bassScale = 1 + displace;
     groupRef.current.scale.setScalar(bassScale);
 
     // Rotate based on vocal/mid energy

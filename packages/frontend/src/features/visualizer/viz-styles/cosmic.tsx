@@ -5,6 +5,7 @@ import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
 import { InstancedParticles } from "./instancedParticles";
 import { getStemEnergy } from "./helpers";
+import { attackRelease, beatSnap, energyHue, rolloff } from "./vizMotion";
 
 // =============================================================================
 // COSMIC DUST — Galaxy spiral with differential rotation
@@ -23,15 +24,20 @@ export function OrbitalParticles({
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // TODO: add isWebGPU detection when TSL particle material is wired in
-  useFrame((_s) => {
+  useFrame((_s, delta) => {
     const { bass } = audioData.current;
     const features = getTrackFeatures();
+    const dt60 = Math.min(delta, 0.1) * 60;
 
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
-    if (audioData.current.beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5)
-      beatPulse.current = 1.0;
-    beatPulse.current *= 0.9;
+    const beatTarget =
+      audioData.current.beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
+    beatPulse.current = attackRelease(beatPulse.current, beatTarget, 0.35, 0.88, dt60);
+    const snap =
+      audioData.current.beatPhase != null
+        ? beatSnap(audioData.current.beatPhase)
+        : beatPulse.current;
     if (!sceneFrozen)
       rotRef.current +=
         0.004 *
@@ -43,18 +49,18 @@ export function OrbitalParticles({
           stemEnergyRef.current.vocals * 0.2);
 
     if (shockRef.current) {
-      const sScale = 0.5 + beatPulse.current * 6 + stemEnergyRef.current.bass * 0.4;
+      const sScale = 0.5 + beatPulse.current * 6 + snap * 2 + stemEnergyRef.current.bass * 0.4;
       shockRef.current.scale.setScalar(sScale);
       const sm = shockRef.current.material as THREE.MeshStandardMaterial;
       sm.opacity = (1 - beatPulse.current) * 0.35 + stemEnergyRef.current.drums * 0.15;
-      sm.emissiveIntensity = (1 - beatPulse.current) * 4 + stemEnergyRef.current.drums * 1.2;
+      sm.emissiveIntensity = rolloff((1 - beatPulse.current) * 4 + stemEnergyRef.current.drums * 1.2, 1.0);
       sm.color.setHSL(
-        0.55 - features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.1,
+        energyHue(features.energy) - features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.1,
         0.9,
         0.5,
       );
       sm.emissive.setHSL(
-        0.6 - features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.08,
+        energyHue(features.energy) + 0.05 - features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.08,
         1.0,
         0.4,
       );
@@ -63,12 +69,15 @@ export function OrbitalParticles({
 
   return (
     <group>
+      {/* 2026 declutter: 3000 → 2000. The spiral plus the
+          shockwave read as a soft wash in a single frame;
+          trimming keeps the galaxy structure legible. */}
       <InstancedParticles
         audioData={audioData}
         vizParams={vizParams}
         sceneFrozen={sceneFrozen}
         prefersReducedMotion={prefersReducedMotion}
-        count={3000}
+        count={2000}
         baseSize={0.1}
         spread={5}
         hueBase={0.55}
@@ -114,35 +123,41 @@ export function EnergyWaves({
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // TODO: add isWebGPU detection when TSL material path is needed
-  useFrame((_s) => {
+  useFrame((_s, delta) => {
     const { bass, peak, beat, energy } = audioData.current;
+    const dt60 = Math.min(delta, 0.1) * 60;
 
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
-    if (beat || stemEnergyRef.current.drums > 0.5)
-      suckRef.current = Math.min(suckRef.current + 0.8, 4);
-    suckRef.current *= 0.95;
+    const suckTarget = beat || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
+    suckRef.current = attackRelease(suckRef.current, suckTarget, 0.4, 0.95, dt60);
+    const snap =
+      audioData.current.beatPhase != null
+        ? beatSnap(audioData.current.beatPhase)
+        : suckRef.current;
+    const eHue = energyHue(energy);
 
     if (!sceneFrozen)
       rotRef.current +=
         0.005 * vizParams.rotationSpeed * (1 + energy * 2 + stemEnergyRef.current.bass * 0.4);
 
     if (drainRef.current) {
-      const ds = 0.3 + bass * 0.4 + suckRef.current * 0.3 + stemEnergyRef.current.other * 0.2;
+      const ds = 0.3 + bass * 0.4 + snap * 0.5 + stemEnergyRef.current.other * 0.2;
       drainRef.current.scale.setScalar(ds);
       const dm = drainRef.current.material as THREE.MeshStandardMaterial;
-      dm.emissiveIntensity = 2 + bass * 4 + peak * 3 + stemEnergyRef.current.drums * 1.5;
+      dm.emissiveIntensity = rolloff(2 + bass * 4 + peak * 3 + stemEnergyRef.current.drums * 1.5, 1.0);
     }
 
     if (funnelRef.current) {
       funnelRef.current.rotation.y = rotRef.current * 0.2;
       const fm = funnelRef.current.material as THREE.MeshStandardMaterial;
       fm.opacity = 0.15 + bass * 0.15 + stemEnergyRef.current.vocals * 0.1;
-      fm.emissiveIntensity = 0.3 + bass + stemEnergyRef.current.other * 0.2;
+      fm.emissiveIntensity = 0.3 + rolloff(bass + stemEnergyRef.current.other * 0.2, 0.8);
+      fm.color.setHSL(eHue, 0.8, 0.5);
     }
 
     if (jetRef.current) {
-      const jLen = 2 + bass * 5 + suckRef.current * 3 + stemEnergyRef.current.bass * 0.4;
+      const jLen = 2 + bass * 5 + snap * 3 + stemEnergyRef.current.bass * 0.4;
       jetRef.current.scale.set(
         0.8 + bass + stemEnergyRef.current.drums * 0.2,
         jLen,
@@ -151,25 +166,28 @@ export function EnergyWaves({
       jetRef.current.position.y = -2 - jLen * 0.3;
       const jm = jetRef.current.material as THREE.MeshStandardMaterial;
       jm.opacity = 0.2 + bass * 0.4 + stemEnergyRef.current.drums * 0.15;
-      jm.emissiveIntensity = 1 + bass * 3 + stemEnergyRef.current.other * 0.3;
+      jm.emissiveIntensity = rolloff(1 + bass * 3 + stemEnergyRef.current.other * 0.3, 1.0);
+      jm.color.setHSL(eHue + 0.1, 0.85, 0.55);
     }
 
     if (glowRef.current) {
-      const gs = 0.5 + bass * 0.6 + peak * 0.4 + stemEnergyRef.current.vocals * 0.2;
+      const gs = 0.5 + bass * 0.6 + peak * 0.4 + snap * 0.3 + stemEnergyRef.current.vocals * 0.2;
       glowRef.current.scale.setScalar(gs);
       const gm = glowRef.current.material as THREE.MeshStandardMaterial;
-      gm.emissiveIntensity = 1 + bass * 3 + peak * 2 + stemEnergyRef.current.drums * 1;
+      gm.emissiveIntensity = rolloff(1 + bass * 3 + peak * 2 + stemEnergyRef.current.drums * 1, 1.0);
+      gm.color.setHSL(eHue + 0.05, 0.9, 0.5);
     }
   });
 
   return (
     <group>
+      {/* 2026 declutter: 3500 → 2400 for the vortex funnel */}
       <InstancedParticles
         audioData={audioData}
         vizParams={vizParams}
         sceneFrozen={sceneFrozen}
         prefersReducedMotion={prefersReducedMotion}
-        count={3500}
+        count={2400}
         baseSize={0.09}
         spread={5}
         hueBase={0.6}

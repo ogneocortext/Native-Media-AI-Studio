@@ -12,6 +12,7 @@ import {
 } from "../VisualizationFX";
 import { InstancedParticles } from "./instancedParticles";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { attackRelease, beatSnap, energyHue, rolloff } from "./vizMotion";
 
 export function GeometricViz({
   audioData,
@@ -56,8 +57,12 @@ export function GeometricViz({
   useDisposeOnUnmount(coreMat);
 
   // Layer 4: Orbital particles (radius 3.5-5)
+  // 2026 declutter: 600 → 420. The orbital spiral plus the
+  // 1000 outer instanced quads plus the 6 mesh layers read as
+  // clutter in a single frame; trimming the spiral keeps the
+  // structure legible without losing the energy read.
   const orbitGeom = useMemo(() => {
-    const n = 600;
+    const n = 420;
     const pos = new Float32Array(n * 3);
     const col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
@@ -148,11 +153,26 @@ export function GeometricViz({
       beatPulse.current = 1.0;
       shockScale.current = 1.0;
     }
-    // Frame-rate-normalized decay (0.9 @ 60fps) and drift so 120 Hz / 30 Hz
-    // displays pulse and shift hue at the same wall-clock rate.
-    beatPulse.current *= Math.pow(0.9, dt60);
-    shockScale.current *= Math.pow(0.92, dt60);
+    // Attack/release envelope (2026): the old code stepped the pulse to
+    // 1.0 and decayed with a fixed multiplier — release-only, so the
+    // attack was an instant pop on 120 Hz displays. A real envelope
+    // has both. beatSnap quantizes motion to the musical grid via the
+    // continuous beat phase, so the core thumps ON the beat instead
+    // of swelling around it.
+    const beatTarget =
+      beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.6 ? 1.0 : 0.0;
+    beatPulse.current = attackRelease(beatPulse.current, beatTarget, 0.35, 0.88, dt60);
+    shockScale.current = attackRelease(shockScale.current, beatTarget, 0.3, 0.92, dt60);
+    const snap =
+      audioData.current.beatPhase != null
+        ? beatSnap(audioData.current.beatPhase)
+        : beatPulse.current;
     const pulseScale = 1 + beatPulse.current * 0.5;
+
+    // Energy-driven hue (2026): cool blue at rest → warm orange-red
+    // in the loud sections, so a chorus reads warmer than a verse
+    // instead of just brighter.
+    const eHue = energyHue(features.energy);
 
     hueRef.current += (features.energy * 0.002 + 0.0005) * dt60;
     // Stem-driven hue drift: vocals shift hue, other shifts saturation
@@ -194,7 +214,15 @@ export function GeometricViz({
 
     // Layer 0: Core (radius ~0.6) — TSL audio-reactive on WebGPU, JS-driven on WebGL
     if (coreRef.current) {
-      const s = vizParams.scale * 0.6 * (1 + bass * vizParams.scaleBoost * 0.4) * pulseScale;
+      // Beat-quantized scale: the snap spikes on the grid, the
+      // envelope carries the decay — the core thumps rather than
+      // breathing smoothly.
+      const s =
+        vizParams.scale *
+        0.6 *
+        (1 + bass * vizParams.scaleBoost * 0.4) *
+        pulseScale *
+        (1 + snap * 0.25);
       coreRef.current.scale.setScalar(s);
       coreRef.current.rotation.y = rotRef.current;
       coreRef.current.rotation.x = Math.sin(t * 0.3) * 0.2;
@@ -207,13 +235,13 @@ export function GeometricViz({
         );
       } else if (coreRef.current.material) {
         const m = coreRef.current.material as THREE.MeshStandardMaterial;
-        // Exposure-capped: the pre-2026-09-16 gains clipped the core to a
-        // featureless white disc under bloom (see 0:07–0:12 captures).
+        // Rolloff-capped emissive: the pre-2026 linear gains clipped
+        // the core to a featureless white disc under bloom.
         m.emissiveIntensity =
-          0.6 + bass * vizParams.glowIntensity * 2 + beatPulse.current * 1.4 + features.onset * 2;
-        m.color.setHSL(hueRef.current + features.brightness * 0.2, 0.9, 0.55 + bass * 0.15);
+          0.6 + rolloff(bass * vizParams.glowIntensity * 2 + beatPulse.current * 1.4 + features.onset * 2, 1.1);
+        m.color.setHSL(eHue + features.brightness * 0.2, 0.9, 0.55 + bass * 0.15);
         m.emissive.setHSL(
-          hueRef.current + 0.1 + features.brightness * 0.15 + beatHue,
+          eHue + 0.1 + features.brightness * 0.15 + beatHue,
           1.0,
           0.5 + bass * 0.3 + beatPulse.current * 0.15,
         );
@@ -235,9 +263,9 @@ export function GeometricViz({
       wireRef.current.rotation.y = -rotRef.current * 0.6;
       wireRef.current.rotation.x = Math.sin(t * 0.25) * mid * 0.4;
       const m = wireRef.current.material as THREE.MeshStandardMaterial;
-      m.emissiveIntensity = 0.4 + mid * vizParams.glowIntensity * 1.5;
+      m.emissiveIntensity = 0.4 + rolloff(mid * vizParams.glowIntensity * 1.5, 1.0);
       m.opacity = 0.2 + mid * 0.4 + beatPulse.current * 0.15;
-      m.color.setHSL(hueRef.current + 0.15 + beatHue, 0.8, 0.6);
+      m.color.setHSL(eHue + 0.15 + beatHue, 0.8, 0.6);
     }
     // Layer 3: Shockwave (expands from 2.5 to 12)
     if (shockRef.current) {
@@ -265,9 +293,9 @@ export function GeometricViz({
       ringRef.current.rotation.x = Math.PI / 2 - 0.45 + Math.sin(t * 0.1) * 0.1;
       ringRef.current.rotation.z = -rotRef.current * 0.8;
       const rm = ringRef.current.material as THREE.MeshStandardMaterial;
-      rm.emissiveIntensity = 0.6 + mid * 2;
+      rm.emissiveIntensity = 0.6 + rolloff(mid * 2, 0.8);
       rm.opacity = 0.15 + mid * 0.25;
-      rm.color.setHSL(hueRef.current + 0.3 + beatHue, 0.8, 0.5);
+      rm.color.setHSL(eHue + 0.3 + beatHue, 0.8, 0.5);
     }
   });
 
@@ -355,7 +383,7 @@ export function GeometricViz({
         vizParams={vizParams}
         sceneFrozen={sceneFrozen}
         prefersReducedMotion={prefersReducedMotion}
-        count={1500}
+        count={1000}
         baseSize={0.08}
         spread={4}
         hueBase={0.6}
@@ -423,21 +451,30 @@ export function AudioReactiveCore({
   useFrame((s) => {
     if (!meshRef.current) return;
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, energy } = audioData.current;
+    const { bass, mid, treble, energy, beatPhase } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
+    // Beat-quantized displacement: the terrain swells ON the grid
+    // (beatSnap) rather than breathing smoothly, so the waveform
+    // reads as rhythm, not as a slow tide.
+    const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
     if (isWebGPU) {
       updateTerrainMaterialTSL(
         mat,
         t,
         { bass, mid, treble, energy },
-        vizParams.glowIntensity * 0.6,
+        vizParams.glowIntensity * 0.6 * (1 + snap * 0.5),
       );
     } else {
-      updateTerrainMaterial(mat, t, { bass, mid, treble, energy }, vizParams.glowIntensity * 0.6);
+      updateTerrainMaterial(
+        mat,
+        t,
+        { bass, mid, treble, energy },
+        vizParams.glowIntensity * 0.6 * (1 + snap * 0.5),
+      );
     }
     meshRef.current.rotation.x = -Math.PI / 2.5;
     if (!sceneFrozen) meshRef.current.rotation.z = t * 0.02 * vizParams.rotationSpeed * speedMul;
-    meshRef.current.scale.setScalar(vizParams.scale * (1 + bass * 0.15));
+    meshRef.current.scale.setScalar(vizParams.scale * (1 + bass * 0.15 + snap * 0.08));
   });
 
   return (

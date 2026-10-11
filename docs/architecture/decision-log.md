@@ -1297,3 +1297,58 @@
   thinking loop is a client-visible defect, not a prompt
   problem.
 
+### D38 — 3D visualizations share one 2026-grade motion vocabulary (2026-10-11)
+
+- **Status:** Decided
+- **Context:** The 8 FX shader presets got beat-quantized
+  snaps, attack/release smoothing, energy-driven palettes
+  and highlight rolloff, but the 15 Three.js styles
+  (`viz-styles/`) still moved by continuous oscillation with
+  release-only pulses (instant attack, fixed decay), fixed
+  hue ranges, and linear emissive gains that clip to white
+  under bloom. A vision audit of all 15 styles (captured
+  mid-track, analyzed with gemma4) flagged static-looking
+  frames (storm, vinyl, aurora, three-particles), clutter
+  (geometric, neural, cosmic, inferno), and flat palettes.
+  Web research on 2026 Three.js audio-viz practice
+  (three.js forum showcases, `7g3n/phase-viz`,
+  `KaranChandekar/music-visualizer`, `carthworks/audio-visualizer`)
+  converged on the same four primitives the shader work
+  adopted, plus frequency-range color mapping and an idle
+  path so a silent scene never looks dead.
+- **Decision:** A new pure module
+  `viz-styles/vizMotion.ts` owns the shared primitives —
+  `attackRelease` (frame-rate-independent envelope),
+  `beatSnap` (quantizes the continuous `beatPhase` into a
+  grid-locked spike), `energyHue` (cool blue 0.58 at rest →
+  warm orange-red 0.03 at full energy, quadratic so quiet
+  passages stay cool), and `rolloff` (`1 - exp(-x·k)` so
+  loud frames keep detail instead of clipping white). Every
+  style imports from it; none re-derives its own. Applied
+  across all 15 styles: beat-quantized snaps on cores,
+  rings, bars, bolts, embers and the blob field;
+  attack/release envelopes replacing the fixed decay
+  multipliers; energy-driven hues on the geometric core,
+  neural nodes, cosmic funnel, fractal rings, pulse rings,
+  storm bolts, vinyl disc, aurora/ocean curtains and the
+  three-particles core; highlight rolloff on every emissive
+  intensity; declutter where the audit flagged it (geometric
+  1500→1000 outer + 600→420 orbital, neural 48→36 nodes +
+  link range 2.8→2.3, cosmic 3000→2000 / 3500→2400,
+  inferno 2000→1400, storm 6→10 bolts for density); a
+  secondary lagging ribbon behind the aurora for depth; a
+  beat-pulsing central sphere in three-particles; and
+  frequency-range color mapping on the synthwave spectrum
+  bars (bass→warm red, mid→green, treble→blue).
+- **Consequences:** The 3D styles and the FX presets now
+  read as one studio — a beat lands the same way in both.
+  The energy palette is deliberately quiet-section-cool: a
+  frame captured mid-verse reads blue by design, and warms
+  only into the loud sections, so a single cool screenshot
+  is not a defect. `vizMotion.ts` is pure and unit-testable;
+  the per-style wiring is verified by re-capturing all 15
+  styles and vision-checking the six weakest (geometric,
+  neural, storm, vinyl, aurora, three-particles) — structure
+  and depth improved, storm/aurora now read dynamic, neural
+  and vinyl decluttered. Gates: type, lint, unit all pass.
+

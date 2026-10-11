@@ -9,6 +9,7 @@ import {
   updateTerrainMaterialTSL,
 } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { beatSnap, energyHue } from "./vizMotion";
 
 // =============================================================================
 // OCEAN — Wave simulation with peaks and valleys
@@ -57,7 +58,7 @@ export function OceanWaves({
   useFrame((s) => {
     if (!meshRef.current) return;
     const t = s.clock.elapsedTime;
-    const { bass, mid, treble, energy } = audioData.current;
+    const { bass, mid, treble, energy, beatPhase } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
     // Map stems to visual channels: vocals → wave motion intensity,
@@ -65,25 +66,33 @@ export function OceanWaves({
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     const stemLift = 1 + stemEnergyRef.current.vocals * 0.6 + stemEnergyRef.current.bass * 0.2;
+    // Beat-quantized swell (2026): waves crest on the grid
+    const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
+    // Energy-driven palette: teal at rest → warm when loud
+    const eHue = energyHue(energy);
     if (isWebGPU) {
       updateTerrainMaterialTSL(
         mat,
         t,
         { bass, mid, treble, energy },
-        vizParams.glowIntensity * 0.5 * stemLift,
+        vizParams.glowIntensity * 0.5 * stemLift * (1 + snap * 0.4),
       );
     } else {
       updateTerrainMaterial(
         mat,
         t,
         { bass, mid, treble, energy },
-        vizParams.glowIntensity * 0.5 * stemLift,
+        vizParams.glowIntensity * 0.5 * stemLift * (1 + snap * 0.4),
       );
     }
-    meshRef.current.rotation.x = -Math.PI / 2.2;
+    meshRef.current.rotation.x = -Math.PI / 2.2 + snap * 0.02;
     if (!sceneFrozen)
       meshRef.current.rotation.z =
-        t * 0.005 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.02;
+        t * 0.005 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.02 + snap * 0.01;
+    // Tint the wave field toward the energy hue so the
+    // ocean warms in loud sections instead of staying teal.
+    const m = meshRef.current.material as THREE.MeshStandardMaterial;
+    if (m && m.color) m.color.setHSL(eHue, 0.75, 0.5);
   });
 
   return (
