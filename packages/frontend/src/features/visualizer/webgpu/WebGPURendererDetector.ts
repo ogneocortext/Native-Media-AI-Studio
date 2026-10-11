@@ -138,6 +138,9 @@ export async function createVisualizerRenderer(defaultProps: RendererInitProps):
     powerPreference: defaultProps.powerPreference ?? "high-performance",
     antialias: defaultProps.antialias ?? true,
     alpha: defaultProps.alpha ?? true,
+    // Frame snapshots (More → Snapshot) read this canvas via
+    // toDataURL(); without a preserved buffer the readback is blank.
+    preserveDrawingBuffer: true,
   });
 }
 

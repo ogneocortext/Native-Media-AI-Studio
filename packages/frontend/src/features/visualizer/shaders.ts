@@ -56,8 +56,9 @@ export const SHADER_PRESETS = {
 
       float t = u_time * 0.3;
 
-      // Horizon line moves with bass
-      float horizon = 0.2 + u_bass * 0.15;
+      // Horizon line moves with bass; beats snap it up a notch —
+      // quantized events read as "on the music", not "following" it
+      float horizon = 0.2 + u_bass * 0.15 + u_beat * 0.06;
 
       // Electric signal waves
       float wave = 0.0;
@@ -89,8 +90,8 @@ export const SHADER_PRESETS = {
         particles += 0.002 / (dist + 0.01) * (1.0 + u_energy);
       }
 
-      // Beat flash
-      float beatFlash = u_beat * 0.3 * exp(-abs(p.y - horizon) * 3.0);
+      // Beat flash — squared so the pulse snaps on the beat grid
+      float beatFlash = u_beat * u_beat * 0.35 * exp(-abs(p.y - horizon) * 3.0);
 
       vec3 color = sky + horizonColor + vec3(0.1, 0.3, 0.8) * particles + vec3(0.5, 0.7, 1.0) * beatFlash;
 
@@ -146,6 +147,11 @@ export const SHADER_PRESETS = {
       float glow = exp(-abs(p.y + 0.5) * (2.0 - u_bass));
       vec3 warmGlow = vec3(0.8, 0.3, 0.1) * glow * (0.5 + u_bass);
 
+      // Cool moonlight at top — cool contrast against the
+      // warm sub-bass glow (critique: monochromatic warm palette)
+      float coolGlow = exp(-abs(p.y - 0.7) * 3.0) * (0.3 + u_treble * 0.5);
+      vec3 coolColor = vec3(0.2, 0.35, 0.6) * coolGlow * 0.4;
+
       // Cool fog color
       vec3 fogColor = mix(vec3(0.05, 0.07, 0.12), vec3(0.15, 0.12, 0.2), fog);
 
@@ -158,10 +164,10 @@ export const SHADER_PRESETS = {
         shafts += shaft * 0.15 * (1.0 + u_mid);
       }
 
-      // Beat pulse
-      float pulse = u_beat * 0.2;
+      // Beat pulse — squared for a quantized snap
+      float pulse = u_beat * u_beat * 0.25;
 
-      vec3 color = fogColor + warmGlow + vec3(0.3, 0.4, 0.5) * shafts + vec3(0.2, 0.1, 0.05) * pulse;
+      vec3 color = fogColor + warmGlow + coolColor + vec3(0.3, 0.4, 0.5) * shafts + vec3(0.2, 0.1, 0.05) * pulse;
 
       // Dark vignette
       float vig = 1.0 - dot(p * 0.7, p * 0.7);
@@ -198,8 +204,11 @@ export const SHADER_PRESETS = {
       // Rain drops
       float rain = 0.0;
       for (float i = 0.0; i < 30.0; i++) {
-        float speed = 0.5 + hash(i * 3.0) * 1.0;
-        float x = hash(i) * 2.0 - 1.0;
+        // Drop speed breathes with treble; a slow sine drift
+        // adds wind so the streaks are not perfectly vertical
+        // (critique: rigid lines read as a static screenshot)
+        float speed = (0.5 + hash(i * 3.0) * 1.0) * (0.6 + u_treble * 0.8);
+        float x = hash(i) * 2.0 - 1.0 + sin(t * 0.5 + i) * 0.05 * (0.5 + u_mid);
         float y = fract(hash(i + 100.0) - t * speed * 0.3);
         y = y * 2.0 - 1.0;
         float drop = 0.0;
@@ -270,11 +279,11 @@ export const SHADER_PRESETS = {
       float horizon = 0.3;
       vec2 gp = vec2(p.x, p.y - horizon);
       float perspective = 1.0 / (abs(gp.y) + 0.1);
-      vec2 gridUV = vec2(gp.x * perspective, t * 0.5 + perspective * 0.5);
+      vec2 gridUV = vec2(gp.x * perspective, t * (0.3 + u_mid * 0.5) + perspective * 0.5);
 
       // Grid lines
       float grid = 0.0;
-      float gridSize = 0.1 + u_bass * 0.05;
+      float gridSize = 0.1 + u_bass * 0.05 + u_beat * 0.03;
       grid += (1.0 - smoothstep(0.0, gridSize, abs(fract(gridUV.x) - 0.5)));
       grid += (1.0 - smoothstep(0.0, gridSize, abs(fract(gridUV.y) - 0.5)));
       grid *= (1.0 - smoothstep(-0.5, horizon, p.y));
@@ -283,8 +292,9 @@ export const SHADER_PRESETS = {
       float glitch = step(0.98, hash(floor(t * 10.0))) * u_beat;
       p.x += glitch * 0.1 * (hash(floor(t * 20.0)) - 0.5);
 
-      // Neon grid color
-      vec3 gridColor = vec3(0.0, 0.8, 1.0) * grid * (0.5 + u_energy);
+        // Neon grid color — calmer baseline so quiet sections
+        // breathe instead of filling the frame (critique: dense)
+        vec3 gridColor = vec3(0.0, 0.8, 1.0) * grid * (0.4 + u_energy * 1.0);
 
       // Secondary magenta grid
       vec2 gridUV2 = vec2(gp.x * perspective + 0.5, t * 0.3 + perspective * 0.3);
@@ -361,8 +371,16 @@ export const SHADER_PRESETS = {
 
       // Fire colors: red → orange → yellow → white
       vec3 fireColor = mix(vec3(0.5, 0.0, 0.0), vec3(1.0, 0.3, 0.0), fire);
-      fireColor = mix(fireColor, vec3(1.0, 0.8, 0.2), fire * fire);
-      fireColor = mix(fireColor, vec3(1.0, 1.0, 0.8), fire * fire * fire * u_peak);
+       fireColor = mix(fireColor, vec3(1.0, 0.8, 0.2), fire * fire);
+       fireColor = mix(fireColor, vec3(1.0, 1.0, 0.8), fire * fire * fire * u_peak);
+
+       // Soft saturation clamp: past the peak knee the white
+       // mix blows out and buries subtle audio changes
+       // (critique: over-saturation fatigues the eye).
+       // Desaturate toward luminance instead of adding more white.
+       float satKnee = smoothstep(0.6, 1.0, u_peak);
+       float fireLum = dot(fireColor, vec3(0.299, 0.587, 0.114));
+       fireColor = mix(fireColor, vec3(fireLum), satKnee * 0.45);
 
       // Embers rising
       float embers = 0.0;
@@ -378,13 +396,19 @@ export const SHADER_PRESETS = {
       float crown = exp(-abs(p.y - 0.7) * 5.0) * exp(-abs(p.x) * 2.0);
       vec3 crownColor = vec3(1.0, 0.8, 0.2) * crown * (0.5 + u_peak * 1.5);
 
-      // Beat explosion
-      float explosion = u_beat * exp(-length(p) * 2.0) * 0.3;
+      // Beat explosion — squared for a quantized snap
+      float explosion = u_beat * u_beat * exp(-length(p) * 2.0) * 0.35;
 
       vec3 color = fireColor + emberColor + crownColor + vec3(1.0, 0.7, 0.3) * explosion;
 
       // Dark background with slight red tint
       color += vec3(0.05, 0.01, 0.0);
+
+      // Soft highlight rolloff — loud sections bloom instead of
+      // clipping to flat white, preserving hue (same approach as
+      // abstractWaves v3). Grounds the saturation the peak
+      // clamp alone can't (critique: over-saturation).
+      color = vec3(1.0) - exp(-color * 1.2);
 
       gl_FragColor = vec4(color, 1.0);
     }
@@ -432,10 +456,11 @@ export const SHADER_PRESETS = {
       float sun = exp(-length(vec2(p.x, p.y - 0.3)) * (4.0 - u_bass * 2.0));
       vec3 sunColor = vec3(1.0, 0.7, 0.2) * sun;
 
-      // Sun rays
+      // Sun rays — rotation breathes with mids so the
+      // rays are not a static starburst (critique: repetition)
       float rays = 0.0;
       for (float i = 0.0; i < 8.0; i++) {
-        float angle = i * 0.785 + t * 0.2;
+        float angle = i * 0.785 + t * (0.1 + u_mid * 0.3);
         float ray = abs(sin(atan(p.y - 0.3, p.x) - angle));
         ray = 1.0 - smoothstep(0.0, 0.1, ray);
         ray *= exp(-length(vec2(p.x, p.y - 0.3)) * 1.5);
@@ -457,8 +482,8 @@ export const SHADER_PRESETS = {
       // Smooth wave motion
       float waves = sin(p.x * 10.0 + t * 3.0) * 0.02 * ocean;
 
-      // Beat pulse warmth
-      float warmth = u_beat * 0.1 * exp(-abs(p.y) * 2.0);
+      // Beat pulse warmth — squared for a quantized snap
+      float warmth = u_beat * u_beat * 0.12 * exp(-abs(p.y) * 2.0);
 
       vec3 color = sky + sunColor + vec3(1.0, 0.5, 0.2) * rays + oceanColor + waves + vec3(1.0, 0.3, 0.1) * warmth;
 
@@ -525,7 +550,9 @@ export const SHADER_PRESETS = {
       float wave = 0.0;
       for (float i = 1.0; i <= 5.0; i++) {
         float freq = 3.0 * i + u_mid * 2.0;
-        float amp = (0.1 / i) * (1.0 + u_bass * 1.5 + u_beat * 1.2);
+        // Slow breathing swell keeps the wave alive in quiet
+        // sections (critique: stagnant when the music dips)
+        float amp = (0.1 / i) * (0.85 + 0.15 * sin(t * 0.7 + i) + u_bass * 1.2 + u_beat * 1.2);
         float phase = t * (1.0 + i * 0.3) + p.x * freq;
         wave += sin(phase) * amp;
       }
@@ -716,8 +743,10 @@ export const SHADER_PRESETS = {
       float angle = atan(kp.y, kp.x);
       float radius = length(kp);
 
-      // Tunnel depth pulses with bass
-      float depth = radius * (2.0 + u_bass * 1.5) + t * 0.5;
+      // Tunnel depth pulses with bass; rotation breathes
+      // with mids so the tunnel is not a constant spin
+      // (critique: simple continuous rotation)
+      float depth = radius * (2.0 + u_bass * 1.5) + t * (0.3 + u_mid * 0.5);
 
       // Spiral arms driven by mids
       float arms = 3.0 + floor(u_mid * 4.0);
@@ -736,8 +765,8 @@ export const SHADER_PRESETS = {
       float C = (0.06 + u_key_sat * 0.12) + u_mid * 0.1 + u_transient * 0.08;
       vec3 baseColor = oklch_to_linear_srgb(vec3(L, C, hueAngle));
 
-      // Beat flash
-      float flash = u_beat * 0.4 * exp(-radius * 2.0);
+      // Beat flash — squared for a quantized snap
+      float flash = u_beat * u_beat * 0.45 * exp(-radius * 2.0);
 
       // Compose scene
       vec3 scene = baseColor * grid * (0.4 + u_energy * 1.2);

@@ -23,6 +23,8 @@ import {
   MoreHorizontal,
   Keyboard,
   Film,
+  Camera,
+  Repeat,
 } from "lucide-react";
 import { formatTime } from "../../utils/format";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
@@ -148,6 +150,13 @@ export function Visualizer() {
   const [stemsData, setStemsData] = useState<Record<string, StemAnalysisData>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [sceneFrozen, setSceneFrozen] = useState(false);
+  // A-B loop region on the timeline. `loopAnchor` holds the pending
+  // start while the user walks to the end point: one button cycles
+  // set-A → set-B → clear (see handleLoopToggle).
+  const [loopRegion, setLoopRegion] = useState<{ start: number; end: number } | null>(null);
+  const [loopAnchor, setLoopAnchor] = useState<number | null>(null);
+  const loopRegionRef = useRef<{ start: number; end: number } | null>(null);
+  loopRegionRef.current = loopRegion;
   const [showSettings, setShowSettings] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [rendererReady, setRendererReady] = useState(false);
@@ -702,6 +711,12 @@ export function Visualizer() {
         rafId = requestAnimationFrame(track);
         return;
       }
+      // A-B loop: wrap at the region end before sampling so the clock
+      // picks up the seeked position on the same frame.
+      const loop = loopRegionRef.current;
+      if (loop && el.currentTime >= loop.end) {
+        el.currentTime = loop.start;
+      }
       const heard = audioClockRef.current.sample(el, latencyRef.current);
       audioElapsedRef.current = heard;
       // Full-rate LRC state for frame-critical visuals (phrase pulses are 150 ms —
@@ -793,6 +808,9 @@ export function Visualizer() {
       void ensureAudioContext();
       // New track: clear manual preset lock so auto-apply is allowed to run.
       setActiveVisualPresetId(null);
+      // New track: an A-B loop from the previous track makes no sense.
+      setLoopRegion(null);
+      setLoopAnchor(null);
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
@@ -1039,6 +1057,65 @@ export function Visualizer() {
     return () => window.removeEventListener("keydown", onKey);
   }, [currentFilename, handleAnalyzeTrack]);
 
+  // A-B loop: one button cycles set-start → set-end → clear. Reads the
+  // latency-compensated clock ref so the callback keeps a stable identity
+  // (the stage keyboard map registers it once).
+  const handleLoopToggle = useCallback(() => {
+    const el = audioElRef.current;
+    const duration = el?.duration;
+    if (!el || duration === undefined || !Number.isFinite(duration) || duration <= 0)
+      return;
+    const now = audioElapsedRef.current;
+    if (loopRegion) {
+      setLoopRegion(null);
+      setLoopAnchor(null);
+    } else if (loopAnchor === null) {
+      setLoopAnchor(now);
+    } else {
+      const start = loopAnchor;
+      // A degenerate span (clicked twice in the same instant) falls back
+      // to a 5 s loop so the button never arms a zero-length region.
+      const end = now > start + 0.25 ? now : Math.min(duration, start + 5);
+      setLoopRegion({ start, end });
+      setLoopAnchor(null);
+    }
+  }, [loopRegion, loopAnchor]);
+
+  // Frame snapshot: the topmost visible canvas. Shader and 2D canvases
+  // paint over the always-mounted 3D canvas, so scan in reverse DOM
+  // order — ties resolve to the canvas on top.
+  const captureFrame = useCallback(() => {
+    const canvases = Array.from(
+      document.querySelectorAll<HTMLCanvasElement>(".viz-page canvas"),
+    );
+    let best: HTMLCanvasElement | null = null;
+    let bestArea = 0;
+    for (let i = canvases.length - 1; i >= 0; i--) {
+      const rect = canvases[i].getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) continue;
+      const area = rect.width * rect.height;
+      if (area > bestArea) {
+        bestArea = area;
+        best = canvases[i];
+      }
+    }
+    if (!best) {
+      showToast("No visualizer canvas to capture", "error");
+      return;
+    }
+    try {
+      const url = best.toDataURL("image/png");
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = url;
+      a.download = `${cleanTrackName(currentFilename ?? "visualizer")}-frame-${stamp}.png`;
+      a.click();
+      showToast("Frame captured as PNG", "success");
+    } catch {
+      showToast("Frame capture failed", "error");
+    }
+  }, [currentFilename]);
+
   // Stage keyboard map — "instruments are played, not clicked".
   // Kept in a separate listener so the Ctrl+Shift+T / Ctrl+Shift+A shortcuts
   // above are untouched.
@@ -1089,6 +1166,8 @@ export function Visualizer() {
         setCanvas2DMode(CANVAS_2D_MODES[Number(k) - 1]);
       } else if (k === "f" || k === "F") {
         toggleFocusMode();
+      } else if (k === "l" || k === "L") {
+        handleLoopToggle();
       } else if (k === "h" || k === "H" || k === "?") {
         toggleOverlay("shortcuts");
       } else if (k === "Escape") {
@@ -1097,7 +1176,7 @@ export function Visualizer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlayPause, cycleVizMode, toggleFocusMode, toggleOverlay]);
+  }, [togglePlayPause, cycleVizMode, toggleFocusMode, toggleOverlay, handleLoopToggle]);
 
   // Plan 1.3 — a single outside-click dismisser replaces the two per-menu
   // listeners (shortcuts / more). Clicks on the toggles themselves, on the
@@ -1454,6 +1533,10 @@ export function Visualizer() {
                   <kbd>F</kbd>
                 </div>
                 <div className="viz-shortcut-row">
+                  <span>Loop A–B (start / end / clear)</span>
+                  <kbd>L</kbd>
+                </div>
+                <div className="viz-shortcut-row">
                   <span>This list</span>
                   <span className="viz-shortcut-keys">
                     <kbd>H</kbd>
@@ -1532,6 +1615,39 @@ export function Visualizer() {
                 >
                   <Film size={14} />
                   <span className="viz-more-label">Export MP4</span>
+                </button>
+                <button
+                  onClick={captureFrame}
+                  className="viz-icon-btn viz-more-item"
+                  aria-label="Capture frame as PNG"
+                  title="Capture frame as PNG"
+                >
+                  <Camera size={14} />
+                  <span className="viz-more-label">Snapshot</span>
+                </button>
+                <button
+                  onClick={handleLoopToggle}
+                  className={`viz-icon-btn viz-more-item ${loopRegion ? "active" : ""}`}
+                  aria-label={
+                    loopRegion
+                      ? `Looping ${formatTime(loopRegion.start)} to ${formatTime(loopRegion.end)} — click to clear`
+                      : loopAnchor !== null
+                        ? `Loop start set at ${formatTime(loopAnchor)} — click to set the end`
+                        : "Loop A–B: click to set start, again for end, again to clear"
+                  }
+                  aria-pressed={!!loopRegion}
+                  title={
+                    loopRegion
+                      ? `Loop ${formatTime(loopRegion.start)}–${formatTime(loopRegion.end)} — click to clear`
+                      : loopAnchor !== null
+                        ? `Start set at ${formatTime(loopAnchor)} — click to set end`
+                        : "Loop A–B"
+                  }
+                >
+                  <Repeat size={14} />
+                  <span className="viz-more-label">
+                    {loopRegion ? "Loop on" : loopAnchor !== null ? "Set end" : "Loop A–B"}
+                  </span>
                 </button>
                 <button
                   onClick={() => setSceneFrozen(!sceneFrozen)}
@@ -1746,6 +1862,23 @@ export function Visualizer() {
               aria-valuetext={`${formatTime(elapsed)} of ${formatTime(audioDuration)}`}
             >
               <div className="viz-playhead-track" aria-hidden="true" />
+              {audioDuration > 0 && loopRegion && (
+                <div
+                  className="viz-loop-region"
+                  aria-hidden="true"
+                  style={{
+                    left: `${(loopRegion.start / audioDuration) * 100}%`,
+                    width: `${((loopRegion.end - loopRegion.start) / audioDuration) * 100}%`,
+                  }}
+                />
+              )}
+              {audioDuration > 0 && loopAnchor !== null && !loopRegion && (
+                <div
+                  className="viz-loop-anchor"
+                  aria-hidden="true"
+                  style={{ left: `${(loopAnchor / audioDuration) * 100}%` }}
+                />
+              )}
               <div
                 className="viz-playhead-marker"
                 aria-hidden="true"

@@ -124,7 +124,9 @@ export function ShaderCanvas({
     const gl = canvas.getContext("webgl", {
       antialias: true,
       alpha: false,
-      preserveDrawingBuffer: false,
+      // Frame snapshots (More → Snapshot) read this canvas via
+      // toDataURL(); without a preserved buffer the readback is blank.
+      preserveDrawingBuffer: true,
     });
     if (!gl) {
       console.error("WebGL not supported");
