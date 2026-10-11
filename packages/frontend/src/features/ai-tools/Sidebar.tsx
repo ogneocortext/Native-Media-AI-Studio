@@ -13,6 +13,7 @@ interface SidebarProps {
   setShowToolEditor: (show: boolean) => void;
   setTools: React.Dispatch<React.SetStateAction<Tool[]>>;
   setPrompt: (prompt: string) => void;
+  promptRef: React.RefObject<HTMLTextAreaElement | null>;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
   models: OllamaModel[];
@@ -53,6 +54,7 @@ export function Sidebar({
   setShowToolEditor,
   setTools,
   setPrompt,
+  promptRef,
   selectedModel,
   setSelectedModel,
   models,
@@ -63,6 +65,16 @@ export function Sidebar({
     if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
     if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
     return `${(bytes / 1e3).toFixed(0)} KB`;
+  };
+
+  const timeAgo = (d: Date) => {
+    const secs = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+    if (secs < 60) return "just now";
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
   };
 
   const addTool = () => {
@@ -98,7 +110,10 @@ export function Sidebar({
           {promptTemplates.map((t) => (
             <button
               key={t.label}
-              onClick={() => setPrompt(t.text)}
+              onClick={() => {
+                setPrompt(t.text);
+                promptRef.current?.focus();
+              }}
               className="w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300"
             >
               {t.label}
@@ -114,7 +129,7 @@ export function Sidebar({
             <Wrench size={14} />
             Tool Registry
           </h3>
-          <button onClick={addTool} className={DS.btnGhost}>
+          <button onClick={addTool} className={DS.btnGhost} aria-label="Add tool" title="Add tool">
             <Plus size={14} />
           </button>
         </div>
@@ -142,12 +157,16 @@ export function Sidebar({
                   setShowToolEditor(true);
                 }}
                 className="text-muted hover:text-foreground"
+                aria-label={`Edit ${tool.name || "unnamed tool"}`}
+                title={`Edit ${tool.name || "unnamed tool"}`}
               >
                 <Settings size={12} />
               </button>
               <button
                 onClick={() => deleteTool(tool.id)}
                 className="text-muted hover:text-red-400 light:hover:text-red-700"
+                aria-label={`Delete ${tool.name || "unnamed tool"}`}
+                title={`Delete ${tool.name || "unnamed tool"}`}
               >
                 <Trash2 size={12} />
               </button>
@@ -205,14 +224,20 @@ export function Sidebar({
                 onClick={() => {
                   setPrompt(h.prompt);
                   setResponse(h.response);
+                  setSelectedModel(h.model);
                 }}
-                className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-muted truncate hover:bg-gray-700"
+                className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-muted hover:bg-gray-700"
+                title={`${h.model} · ${timeAgo(h.timestamp)}`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="truncate">{h.prompt}</span>
                   {h.toolCalls ? (
-                    <span className="text-amber-400 light:text-amber-700 ml-2">🔧{h.toolCalls}</span>
+                    <span className="text-amber-400 light:text-amber-700 ml-2 shrink-0">🔧{h.toolCalls}</span>
                   ) : null}
+                </div>
+                <div className={DS.textXs + " flex items-center justify-between gap-2 mt-0.5"}>
+                  <span className="truncate">{h.model}</span>
+                  <span className="shrink-0">{timeAgo(h.timestamp)}</span>
                 </div>
               </button>
             ))}

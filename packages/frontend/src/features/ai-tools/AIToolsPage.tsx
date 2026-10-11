@@ -59,6 +59,7 @@ export function AIToolsPage() {
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
   const [benchLoading, setBenchLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     loadModels();
@@ -301,26 +302,33 @@ export function AIToolsPage() {
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className={DS.select + " flex-1"}
                     onClick={loadModels}
+                    aria-label="Model"
                   >
                     {models.map((m) => {
                       const bench = benchmarks[m.name];
-                      const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
-                      const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
-                      const success = bench?.success ?? m.benchmark?.success ?? null;
-                      let badge = "";
-                      if (score !== null && score >= 0) {
-                        const s = Math.round(score);
-                        const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
-                        badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
-                      } else if (score === null) {
-                        badge = " [—]";
-                      }
-                      const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                      const score =
+                        bench?.validation?.score ?? m.benchmark?.score ?? null;
+                      const latency =
+                        bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                      const s =
+                        score !== null && score >= 0 ? Math.round(score) : null;
+                      const caps = [
+                        m.supportsTools ? "tools" : "",
+                        m.supportsVision ? "vision" : "",
+                      ]
+                        .filter(Boolean)
+                        .join("+");
+                      const isBest =
+                        models[0]?.name === m.name && s !== null && s >= 60;
                       return (
                         <option key={m.name} value={m.name}>
-                          {m.name} ({formatSize(m.size)}){m.verified ? " ✅" : " ⚠️"}{m.supportsTools ? " 🔧" : ""}
-                          {m.supportsVision ? " 👁" : ""}{badge}
-                          {isBest ? " ★ Best" : ""}
+                          {m.name} ({formatSize(m.size)})
+                          {m.verified ? "" : " (unverified)"}
+                          {caps ? ` · ${caps}` : ""}
+                          {s !== null
+                            ? ` · ${s}/100${latency ? ` · ${(latency / 1000).toFixed(1)}s` : ""}`
+                            : " · not benchmarked"}
+                          {isBest ? " · Best" : ""}
                         </option>
                       );
                     })}
@@ -405,6 +413,7 @@ export function AIToolsPage() {
           <div className={DS.card}>
             <label className={DS.textSmMedium + " block mb-2"}>Prompt</label>
             <textarea
+              ref={promptRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               className={DS.textarea}
@@ -526,6 +535,7 @@ export function AIToolsPage() {
           setShowToolEditor={setShowToolEditor}
           setTools={setTools}
           setPrompt={setPrompt}
+          promptRef={promptRef}
           selectedModel={selectedModel}
           setSelectedModel={setSelectedModel}
           models={models}
