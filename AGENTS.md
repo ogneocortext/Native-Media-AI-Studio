@@ -28,6 +28,14 @@
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
 >
+> **Project skills** live in `.kilo/skills/` (local-only, auto-discovered
+> each session). Key ones: `visual-qa-loop` (screenshot → vision-analyze →
+> research → improve → re-verify), `gates-commit-push` (commit/push
+> protocol with the Co-authored-by trailer), `ollama-model-ops` (model
+> selection, vision pre-warm, VRAM/timeout budgets), `vision-page-analysis`,
+> `music-video-vision`, `blender-mcp`, `comfyui-mcp`, `unity-mcp`. Load one
+> with the `skill` tool when the task matches its description.
+>
 > **If you are a rotated-in agent (D21):** the models used here rotate, so the
 > previous agent's model is not yours and its failure modes are not yours.
 > `docs/architecture/provider-notes.md` holds per-model field notes, and
