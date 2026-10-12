@@ -16,10 +16,12 @@
       "go_*_url": "Go sidecars (see tools/go-*/). Optional: the studio runs without them, but dashboards and media serving degrade.",
       "sse_url / events_url": "Server-Sent Events feed. Shared with the Go dashboard on 3847.",
       "ws_url": "WebSocket endpoint for bidirectional traffic (chat, live job control).",
-      "backend_events_url": "Backend's own event stream; distinct from the Go dashboard's."
+      "backend_events_url": "Backend's own event stream; distinct from the Go dashboard's.",
+      "ollama_url / atomic_chat_url": "Local AI services. load_config reads these from THIS file; the same keys in settings.json are ignored on purpose (see core/config.py).",
+      "atomic_chat_enabled": "Whether the Atomic Chat adapter is active. Also owned by this file; settings.json cannot override it."
     },
     "note": "Two backend processes cannot bind the same port. Run scripts/check_ports.ps1 before starting a second instance, and prefer changing the value here over editing any script or component that hardcodes a port.",
-    "last_updated": "2026-10-01"
+    "last_updated": "2026-10-11"
   },
   "backend_url": "http://127.0.0.1:8000",
   "backend_port": 8000,
@@ -28,6 +30,9 @@
   "video_editor_port": 8080,
   "comfyui_port": 8188,
   "comfyui_url": "http://127.0.0.1:8188",
+  "ollama_url": "http://127.0.0.1:11434",
+  "atomic_chat_url": "http://127.0.0.1:1337",
+  "atomic_chat_enabled": false,
   "dashboard_port": 3847,
   "dashboard_url": "http://127.0.0.1:3847",
   "events_url": "http://127.0.0.1:3847/events",

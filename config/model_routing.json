@@ -10,11 +10,11 @@
       "rules[].match.section_type": "required - the analysed section label (intro, verse, chorus, bridge, drop, breakdown, outro, ...)",
       "rules[].match.energy_max": "optional - upper bound on the section's 0..1 analysed energy; the rule does not apply above it",
       "rules[].model": "model id to render with; must exist in app/core/model_tiers.py",
-      "rules[].tier": "draft | balanced | quality - controls VRAM budget and render time",
+      "rules[].tier": "draft | balanced | hero - controls VRAM budget and render time",
       "rules[].reason": "human-readable justification, surfaced in the wizard so a choice is never opaque"
     },
     "extending": "Insert a new rule ABOVE any broader rule you want it to override, since first match wins. Keep energy_max consistent with the section type, or a quiet chorus will be caught by the verse rule.",
-    "last_updated": "2026-10-01"
+    "last_updated": "2026-10-11"
   },
   "rules": [
     {
