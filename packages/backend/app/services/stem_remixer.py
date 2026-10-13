@@ -39,6 +39,8 @@ import json
 import logging
 import math
 import re
+import shutil
+import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -707,6 +709,47 @@ def _equal_power_ramp(n: int) -> tuple[np.ndarray, np.ndarray]:
 # ─── source cache ────────────────────────────────────────────────────────────
 
 
+# ─── loudness staging ────────────────────────────────────────────────────────
+#
+# Source stems come from different masters: 0 dB on a loud master is not 0 dB
+# on a quiet one, so a recipe's gain_db is meaningless until the sources are
+# calibrated to a common anchor. The anchor is a working level, not a target:
+# the enhance chain still masters the finished mix to -14 LUFS downstream.
+# Calibration is fail-open (0 dB) when ffmpeg is missing or a measurement
+# fails — no calibration beats a wrong one.
+LOUDNESS_ANCHOR_LUFS = -20.0
+CALIBRATION_MAX_DB = 12.0
+
+
+def _ebur128_integrated_lufs(y: "np.ndarray", sr: int) -> float | None:
+    """Integrated LUFS of a (2, N) float32 buffer via ffmpeg's ebur128.
+
+    Piped through stdin — no temp files. This is the same measurement
+    ffmpeg_tools.compute_loudness uses (and the repo's +157 LUFS lesson is
+    why it is not reimplemented in numpy here). Returns None when ffmpeg
+    is missing or the measurement fails.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        return None
+    buf = np.ascontiguousarray(y[:2], dtype=np.float32)
+    if buf.shape[0] == 1:
+        buf = np.repeat(buf, 2, axis=0)
+    try:
+        proc = subprocess.run(
+            [ffmpeg, "-hide_banner", "-loglevel", "info",
+             "-f", "f32le", "-ac", "2", "-ar", str(sr), "-i", "pipe:0",
+             "-af", "ebur128=framelog=verbose", "-f", "null", "-"],
+            input=np.ascontiguousarray(buf.T).tobytes(),
+            capture_output=True, timeout=120,
+        )
+    except Exception:
+        return None
+    stderr = proc.stderr.decode("utf-8", "replace") if isinstance(proc.stderr, bytes) else (proc.stderr or "")
+    m = re.search(r"Integrated loudness:\s*\n\s*I:\s*([+-]?\d+(?:\.\d+)?)\s*LUFS", stderr, re.IGNORECASE)
+    return float(m.group(1)) if m else None
+
+
 class _SourceCache:
     """Load, tempo-align and key-shift each (track, stem) at most once.
 
@@ -724,6 +767,8 @@ class _SourceCache:
         self._audio: dict[tuple[str, str, float, float], np.ndarray] = {}
         self._bpms: dict[str, float] = {}
         self.stretch_ratios: dict[str, float] = {}
+        # (track, stem) -> {"offset_db": float, "measured_lufs": float | None, "clamped": bool}
+        self._calibration: dict[tuple[str, str], dict[str, Any]] = {}
 
     def bpm_for(self, track: str) -> float:
         if track not in self._bpms:
@@ -795,6 +840,40 @@ class _SourceCache:
         self._audio[key] = y
         return y
 
+    def calibration_db(self, track: str, stem: str) -> float:
+        """Per-source loudness calibration offset in dB.
+
+        Measures the raw source stem's integrated loudness and returns
+        LOUDNESS_ANCHOR_LUFS - measured, so 0 dB of recipe gain means the
+        same perceived loudness for every source. Clamped to
+        ±CALIBRATION_MAX_DB; fail-open 0.0 when ffmpeg is missing or the
+        measurement fails. Cached per (track, stem).
+        """
+        key = (track, stem)
+        if key not in self._calibration:
+            record: dict[str, Any] = {"offset_db": 0.0, "measured_lufs": None, "clamped": False}
+            try:
+                path = resolve_stem_path(track, stem)
+                y, _ = librosa.load(str(path), sr=REMIX_SR, mono=False)
+                if y.ndim == 1:
+                    y = y[np.newaxis, :]
+                lufs = _ebur128_integrated_lufs(y, REMIX_SR)
+                if lufs is not None:
+                    raw = LOUDNESS_ANCHOR_LUFS - lufs
+                    clamped = max(-CALIBRATION_MAX_DB, min(CALIBRATION_MAX_DB, raw))
+                    record = {"offset_db": clamped, "measured_lufs": round(lufs, 2),
+                              "clamped": abs(clamped - raw) > 1e-9}
+            except Exception:
+                pass
+            self._calibration[key] = record
+            if len(self._calibration) > self.MAX_ENTRIES:
+                self._calibration.pop(next(iter(self._calibration)))
+        return float(self._calibration[key]["offset_db"])
+
+    def calibration_report(self) -> dict[str, dict[str, Any]]:
+        """Per-source calibration records, keyed "track/stem". For the manifest."""
+        return {f"{track}/{stem}": dict(rec) for (track, stem), rec in self._calibration.items()}
+
     def measured_rms_db(self, layer: RemixLayer) -> float:
         """RMS of the aligned source, for suggesting sensible per-layer gains."""
         y = self.get(layer)
@@ -839,12 +918,17 @@ def _render_slot(
         # Loop rather than truncate, so a long arrangement over a short stem
         # does not fade to silence for the remainder.
         window = _loop_to_length(source, offset + n_samples)[:, offset:]
-        out[layer.stem] += window * _db_to_linear(layer.gain_db)
+        # Loudness staging: the calibration equalizes source masters so the
+        # recipe's gain_db is relative to a common anchor, not to whoever
+        # mastered loudest. Recorded per (track, stem) in the manifest.
+        staged_gain = layer.gain_db + cache.calibration_db(layer.track, layer.stem)
+        out[layer.stem] += window * _db_to_linear(staged_gain)
     return out
 
 
 def _mix_recipe(
     recipe: RemixRecipe,
+    cache: _SourceCache | None = None,
 ) -> tuple[dict[str, np.ndarray], dict[str, int], list[str], dict[str, float]]:
     """Render a recipe's slots into per-stem buffers, in memory.
 
@@ -858,7 +942,7 @@ def _mix_recipe(
     """
     plan = plan_timeline(recipe)
     bar_n, seg_ns, xf_ns, total_n = (plan["bar_n"], plan["seg_ns"], plan["xf_ns"], plan["total_n"])
-    cache = _SourceCache(recipe.target_bpm)
+    cache = cache or _SourceCache(recipe.target_bpm)
     mixed = {stem: np.zeros((2, total_n), dtype=np.float32) for stem in STEM_NAMES}
 
     written = 0
@@ -918,7 +1002,14 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
     if not LIBROSA_AVAILABLE:
         raise RuntimeError("librosa is required to render remixes")
     name = _safe_remix_name(recipe.name)
-    mixed, plan, warnings, stretch_ratios = _mix_recipe(recipe)
+    cache = _SourceCache(recipe.target_bpm)
+    mixed, plan, warnings, stretch_ratios = _mix_recipe(recipe, cache)
+    calibration = cache.calibration_report()
+    for ref, rec in calibration.items():
+        if rec["measured_lufs"] is None:
+            warnings.append(f"{ref}: loudness calibration skipped (ffmpeg/measurement failed) — layer renders uncalibrated")
+        elif rec["clamped"]:
+            warnings.append(f"{ref}: calibration {rec['offset_db']:+.1f} dB hit the ±{CALIBRATION_MAX_DB:.0f} dB clamp — source is unusually quiet/loud, check the stem")
     total_n = plan["total_n"]
 
     try:
@@ -951,6 +1042,7 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
         "source_tracks": sorted({layer.track for slot in recipe.slots for layer in slot.layers}),
         "stretch_ratios": {k: round(v, 4) for k, v in stretch_ratios.items()},
         "warnings": warnings,
+        "loudness_calibration_db": {ref: rec["offset_db"] for ref, rec in calibration.items()},
         "slots": [
             {
                 "bars": slot.bars,

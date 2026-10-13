@@ -665,6 +665,88 @@ def test_preview_audible_layers_warn_about_nothing(tmp_path, monkeypatch):
     assert data["warnings"] == []
     assert data["warnings_detail"] == []
 
+# ─── loudness staging ────────────────────────────────────────────────────────
+
+
+class _StubCalLibrosa:
+    """librosa.load stand-in: fixed level per stem file name."""
+
+    @staticmethod
+    def load(path, sr=None, mono=True):
+        level = 0.5 if "loud" in str(path) else 0.05
+        y = np.full((2, 22050), level, dtype=np.float32)
+        return y, sr
+
+
+def _stub_resolve(track, stem):
+    from pathlib import Path
+
+    return Path(f"/fake/{track}-{stem}.wav")
+
+
+def test_calibration_equalizes_source_masters(monkeypatch):
+    """A loud master and a quiet master calibrate to the same anchor."""
+    monkeypatch.setattr(stem_remixer, "librosa", _StubCalLibrosa(), raising=False)
+    monkeypatch.setattr(stem_remixer, "resolve_stem_path", _stub_resolve)
+    # -10 LUFS vs -26 LUFS: 16 dB apart, both inside the clamp.
+    monkeypatch.setattr(stem_remixer, "_ebur128_integrated_lufs", lambda y, sr: -10.0 if y[0, 0] > 0.1 else -26.0)
+    cache = stem_remixer._SourceCache(target_bpm=120.0)
+    loud_off = cache.calibration_db("loud", "vocals")
+    quiet_off = cache.calibration_db("quiet", "vocals")
+    assert loud_off == pytest.approx(-10.0)
+    assert quiet_off == pytest.approx(6.0)
+    # Second call hits the cache: no re-measurement.
+    assert cache.calibration_db("loud", "vocals") == loud_off
+
+
+def test_calibration_clamps_and_reports(monkeypatch):
+    """A -70 LUFS source would want +50 dB: clamped, and flagged."""
+    monkeypatch.setattr(stem_remixer, "librosa", _StubCalLibrosa(), raising=False)
+    monkeypatch.setattr(stem_remixer, "resolve_stem_path", _stub_resolve)
+    monkeypatch.setattr(stem_remixer, "_ebur128_integrated_lufs", lambda y, sr: -70.0)
+    cache = stem_remixer._SourceCache(target_bpm=120.0)
+    assert cache.calibration_db("quiet", "vocals") == 12.0
+    report = cache.calibration_report()
+    assert report["quiet/vocals"]["clamped"] is True
+    assert report["quiet/vocals"]["measured_lufs"] == -70.0
+
+
+def test_calibration_fail_open_without_ffmpeg(monkeypatch):
+    """No measurement means 0 dB, not a broken render."""
+    monkeypatch.setattr(stem_remixer, "librosa", _StubCalLibrosa(), raising=False)
+    monkeypatch.setattr(stem_remixer, "resolve_stem_path", _stub_resolve)
+    monkeypatch.setattr(stem_remixer, "_ebur128_integrated_lufs", lambda y, sr: None)
+    cache = stem_remixer._SourceCache(target_bpm=120.0)
+    assert cache.calibration_db("loud", "vocals") == 0.0
+    assert cache.calibration_report()["loud/vocals"]["measured_lufs"] is None
+
+
+class _StubCalRenderCache:
+    """Minimal cache for _render_slot: canned audio + canned calibration."""
+
+    def __init__(self, calibrations):
+        self._cal = calibrations
+
+    def get(self, layer):
+        return np.ones((2, 22050), dtype=np.float32)
+
+    def calibration_db(self, track, stem):
+        return self._cal.get((track, stem), 0.0)
+
+
+def test_render_slot_applies_calibration_on_top_of_recipe_gain():
+    """Staged gain = recipe gain_db + calibration; recipe intent preserved."""
+    slot = RemixSlot(bars=4, layers=[
+        RemixLayer(track="loud", stem="vocals", gain_db=3.0),
+        RemixLayer(track="quiet", stem="drums", gain_db=0.0),
+    ])
+    cache = _StubCalRenderCache({("loud", "vocals"): -10.0, ("quiet", "drums"): 2.0})
+    out = stem_remixer._render_slot(slot, cache, n_samples=22050, bar_n=22050)
+    # vocals: 3 dB recipe - 10 dB calibration = -7 dB; drums: 0 + 2 = +2 dB.
+    assert float(out["vocals"][0, 0]) == pytest.approx(10 ** (-7 / 20))
+    assert float(out["drums"][0, 0]) == pytest.approx(10 ** (2 / 20))
+
+
 # ─── B4 tone shaping ─────────────────────────────────────────────────────────
 
 
@@ -743,8 +825,10 @@ def test_recipe_with_tone_fields_round_trips_through_validate():
 class _StubRenderCache:
     """Stands in for `_SourceCache`: silence, so nothing is loaded or stretched.
 
-    The mix core's contract with the cache is one call, `get(layer)`, and the
-    buffers only need to be long enough for the window `_render_slot` takes.
+    The mix core's contract with the cache is two calls, `get(layer)` and
+    `calibration_db(track, stem)`, and the buffers only need to be long
+    enough for the window `_render_slot` takes. Calibration is 0 dB here:
+    a stub has no source masters to equalize.
     """
 
     def __init__(self, target_bpm: float) -> None:
@@ -754,6 +838,9 @@ class _StubRenderCache:
     def get(self, layer: RemixLayer) -> np.ndarray:
         n = int(layer.source_start_bar * 44100) + 44100
         return np.zeros((2, n), dtype=np.float32)
+
+    def calibration_db(self, track: str, stem: str) -> float:
+        return 0.0
 
 
 def _preview_mix_stub(warnings: list[str] | None = None):
