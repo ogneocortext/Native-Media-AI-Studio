@@ -5,7 +5,7 @@ import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
 import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
-import { attackRelease, beatSnap, energyHue, rolloff } from "./vizMotion";
+import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 // =============================================================================
 // STORM — Lightning bolts and energy discharges
@@ -108,7 +108,7 @@ export function StormViz({
         m.color.setHSL(
           eHue + snap * 0.1 + stemEnergyRef.current.vocals * 0.1,
           0.9,
-          0.5 + snap * 0.3 + stemEnergyRef.current.bass * 0.1,
+          0.5 + snap * 0.3 + gammaDrive(stemEnergyRef.current.bass) * 0.1,
         );
       }
     });

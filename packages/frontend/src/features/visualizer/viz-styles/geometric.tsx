@@ -12,7 +12,7 @@ import {
 } from "../VisualizationFX";
 import { InstancedParticles } from "./instancedParticles";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
-import { attackRelease, beatSnap, energyHue, rolloff } from "./vizMotion";
+import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 export function GeometricViz({
   audioData,
@@ -239,11 +239,15 @@ export function GeometricViz({
         // the core to a featureless white disc under bloom.
         m.emissiveIntensity =
           0.6 + rolloff(bass * vizParams.glowIntensity * 2 + beatPulse.current * 1.4 + features.onset * 2, 1.1);
-        m.color.setHSL(eHue + features.brightness * 0.2, 0.9, 0.55 + bass * 0.15);
+        // Lightness is a perceptual channel, so the bass drive goes
+        // through gamma (vizMotion): raw linear energy clips early and
+        // leaves quiet verses flat. beatPulse is an envelope, not a
+        // reading, so it stays linear.
+        m.color.setHSL(eHue + features.brightness * 0.2, 0.9, 0.55 + gammaDrive(bass) * 0.15);
         m.emissive.setHSL(
           eHue + 0.1 + features.brightness * 0.15 + beatHue,
           1.0,
-          0.5 + bass * 0.3 + beatPulse.current * 0.15,
+          0.5 + gammaDrive(bass) * 0.3 + beatPulse.current * 0.15,
         );
       }
     }

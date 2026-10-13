@@ -5,7 +5,7 @@ import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
 import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { setPositionAttribute, useDisposeOnUnmount, getStemEnergy } from "./helpers";
-import { attackRelease, beatSnap, energyHue, rolloff } from "./vizMotion";
+import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 /** Link radius (world units) for the connection graph. */
 const LINK_RANGE = 2.3;
@@ -164,7 +164,7 @@ export function FrequencyRings({
             features.brightness * 0.2 +
             stemEnergyRef.current.vocals * 0.12,
           0.9,
-          0.5 + features.brightness * 0.2 + stemEnergyRef.current.other * 0.1,
+          0.5 + gammaDrive(features.brightness) * 0.2 + gammaDrive(stemEnergyRef.current.other) * 0.1,
         );
         m.emissive.setHSL(
           eHue + 0.05 + freq * 0.2 + features.brightness * 0.15 + stemEnergyRef.current.vocals * 0.08,

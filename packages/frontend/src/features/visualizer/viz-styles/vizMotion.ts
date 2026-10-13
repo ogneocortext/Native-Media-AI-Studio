@@ -19,6 +19,10 @@
  *    low end sensitive and rolls the peak off instead of clipping it.
  *  - beatSnap: beatPhase is continuous [0,1); a smooth cos curve over it
  *    quantizes motion to the musical grid without a boolean onset.
+ *  - gammaDrive: HSL lightness was driven by raw linear band energy, a
+ *    perceptual channel fed a non-perceptual value — quiet frames sank
+ *    and loud frames clipped. pow(x, 1/2.2), the same curve the shader
+ *    path's uniforms already use.
  */
 
 /**
@@ -71,4 +75,25 @@ export function energyHue(energy: number): number {
  */
 export function rolloff(x: number, k = 1.2): number {
   return 1 - Math.exp(-Math.max(0, x) * k);
+}
+
+/**
+ * Gamma-corrected brightness drive for perceptual channels (HSL
+ * lightness, emissive lightness). Eyes respond logarithmically, so a raw
+ * linear energy→brightness map clips early and reads as wrong
+ * ([[audio-reactive-best-practices-2026]] §2). `pow(x, 1/2.2)` lifts
+ * quiet passage detail and compresses the loud half, so a quiet verse
+ * still moves the lightness channel and a chorus does not blow it out.
+ *
+ * Same convention as `AudioReactivityProcessor`'s shader uniforms
+ * (`gamma: 2.2` default) — one curve across both render paths.
+ *
+ * Only for energy *readings* (band levels, spectral features). Control
+ * ramps and envelopes (beatPulse, beatSnap, the processor's
+ * `anticipation` uniform) stay linear: they are timelines, not
+ * intensities, and gamma there would distort the grid they encode.
+ */
+export function gammaDrive(value: number, gamma = 2.2): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.pow(Math.min(1, Math.max(0, value)), 1 / gamma);
 }

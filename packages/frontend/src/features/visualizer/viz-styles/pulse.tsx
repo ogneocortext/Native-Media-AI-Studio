@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { VizProps } from "./types";
 import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
-import { attackRelease, beatSnap, energyHue, rolloff } from "./vizMotion";
+import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 // =============================================================================
 // PULSE — Concentric rings emitting from center on beats
@@ -191,7 +191,7 @@ export function SpectrumBars({
         // glance instead of a uniform hue sweep.
         const hue = i < barCount * 0.25 ? 0.02 : i < barCount * 0.6 ? 0.33 : 0.58;
         m.color.setHSL(hue, 0.8, 0.5);
-        m.emissive.setHSL(hue, 0.9, 0.2 + freq * 0.6);
+        m.emissive.setHSL(hue, 0.9, 0.2 + gammaDrive(freq) * 0.6);
         m.emissiveIntensity = 0.2 + rolloff(freq * vizParams.glowIntensity * 1.5, 1.0);
         m.roughness = 0.3;
         m.metalness = 0.7;

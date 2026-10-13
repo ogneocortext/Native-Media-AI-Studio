@@ -240,7 +240,22 @@ Status verified against the repo 2026-10-06:
 | 2.3 genre reactivity presets | **Done** — `reactivityGenrePresets.ts` (EDM / ambient / vocal-led / phonk-bass) + HUD chips + auto-apply on track load from the filename genre signal |
 | 2.4 motion vocabulary | **Done** — `useMotionDriver` is consumed by `ShaderVisualizer.tsx` (camera-offset node); `vizMotion.ts` covers the 15 Three.js styles. The Oct 6 "zero consumers" note was stale. |
 | 2.5 latency visible | **Done** — `1bf5ca7`: `RenderStats` reports `audioToVisualMs` (audio→visual pipeline latency, 20–40 ms target band) |
-| 2.6 color polish | **Partial** — `energyHue` (cool→warm energy palette) done in `5d6ac8b`; gamma-correct brightness drive + per-frequency color conventions open |
+| 2.6 color polish | **Done** — `energyHue` (cool→warm energy palette) in `5d6ac8b`; gamma via `vizMotion.ts`'s `gammaDrive` applied at the five energy-driven HSL lightness sites (`geometric`, `neural`, `storm`, `pulse`); frequency→color verified (see build notes below) |
+
+**Build notes (2026-10-13):** 2.6 landed on Windows, gates green (type /
+lint / unit, 9 new `vizMotion.test.ts` cases pinning the curve).
+`gammaDrive(x, γ=2.2)` in `vizMotion.ts` gamma-corrects energy *readings*
+before they reach the perceptual lightness channel — the same exponent
+`AudioReactivityProcessor` uses for its shader uniforms, so the 3D and FX
+paths share one curve. Envelope/control ramps (`beatPulse`, `beatSnap`,
+the processor's `anticipation` uniform) deliberately stay linear: they
+encode timelines, not intensities, and gamma would distort the grid.
+Frequency→color verified, not built: `pulse.tsx`'s bars already implement
+the §2 convention (bass → warm red 0.02, mid → green 0.33, treble → blue
+0.58); the remaining styles key hue by *energy* (`energyHue`, the shipped
+Q5 Tier 1 axis), which is a different documented axis, not a violation.
+Still open per the Phase 2 exit rule: the before/after captures on a
+dense / sparse / acoustic track (browser vision work, not code).
 
 ### 2.7 Wire the motion vocabulary (completes 2.4)
 
