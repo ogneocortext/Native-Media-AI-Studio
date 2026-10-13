@@ -146,7 +146,7 @@ The agent must still never infer the source key.
 |---|---|
 | Stretch ratio band (§2) | `from-prompt` system prompt (`target_bpm` rule); `preview` warning beyond 1.10 |
 | Phrase alignment (§3) | `from-prompt` system prompt (`source_start_bar` rule); section-driver pairing |
-| Frequency slotting (§4) | Adjective map + a future `preview` masking warning |
+| Frequency slotting (§4) | Adjective map + `preview` masking warnings (`bass_collision`, `midrange_masking`, 2026-10-13) |
 | Shift ladder (§5) | Docs only — applied by whoever sets `key_shift_semitones` explicitly |
 
 If a future key-detection method ever beats the chroma-flatness wall, §1 gets

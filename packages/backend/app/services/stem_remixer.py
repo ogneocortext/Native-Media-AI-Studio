@@ -1177,6 +1177,51 @@ def _near_silent_detail(layer: RemixLayer, rms: float, bar_seconds: float) -> di
     }
 
 
+def _masking_warnings(slot_index: int, layers: list["RemixLayer"]) -> tuple[list[str], list[dict[str, Any]]]:
+    """Frequency-slotting warnings (knowledge: mashup-arrangement-theory §4).
+
+    Two layers in the same band mask each other: louder but muddier, not
+    fuller. Drums are exempt — transients poke through sustained material,
+    so stacking drums is a level problem, not a masking problem.
+    """
+    warnings: list[str] = []
+    details: list[dict[str, Any]] = []
+    by_stem: dict[str, list["RemixLayer"]] = {}
+    for layer in layers:
+        by_stem.setdefault(layer.stem, []).append(layer)
+    bass = by_stem.get("bass", [])
+    if len(bass) >= 2:
+        refs = " + ".join(f"{lyr.track}/bass" for lyr in bass)
+        warnings.append(
+            f"slot {slot_index + 1}: two bass layers ({refs}) will mask each other — "
+            "keep one, or cut the other 3-6 dB"
+        )
+        details.append(
+            {
+                "code": "bass_collision",
+                "layer_ref": f"slot {slot_index + 1}: {refs}",
+                "field": "gain_db",
+                "suggestion": "keep one bass layer; cut the other 3-6 dB or drop it",
+            }
+        )
+    other = by_stem.get("other", [])
+    if len(other) >= 2 and max(lyr.gain_db for lyr in other) - min(lyr.gain_db for lyr in other) <= 6.0:
+        refs = " + ".join(f"{lyr.track}/other" for lyr in other)
+        warnings.append(
+            f"slot {slot_index + 1}: two 'other' stems at similar gain ({refs}) — "
+            "midrange masking likely; pull one down 3-6 dB or lowpass it (lowpass_hz)"
+        )
+        details.append(
+            {
+                "code": "midrange_masking",
+                "layer_ref": f"slot {slot_index + 1}: {refs}",
+                "field": "gain_db",
+                "suggestion": "pull one \u2018other\u2019 down 3-6 dB or set lowpass_hz on it",
+            }
+        )
+    return warnings, details
+
+
 def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
     """Resolve a recipe without rendering any audio.
 
@@ -1200,7 +1245,7 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
     layers: list[dict[str, Any]] = []
     warnings: list[str] = []
     warnings_detail: list[dict[str, Any]] = []
-    for slot in recipe.slots:
+    for si, slot in enumerate(recipe.slots):
         for layer in slot.layers:
             rms = cache.measured_rms_db(layer)
             source_bpm = cache.bpm_for(layer.track)
@@ -1220,6 +1265,9 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
                     f"{layer.track}/{layer.stem} is near-silent at this offset "
                     f"({rms:.0f} dBFS) - check source_start_bar"
                 )
+        mw, md = _masking_warnings(si, slot.layers)
+        warnings.extend(mw)
+        warnings_detail.extend(md)
     return {
         "duration_sec": round(plan["total_n"] / REMIX_SR, 3),
         "total_bars": sum(slot.bars for slot in recipe.slots),

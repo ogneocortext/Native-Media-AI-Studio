@@ -525,6 +525,15 @@ def test_repair_clamps_out_of_range_tone_with_warnings():
     assert sum("clamped" in w for w in warnings) == 2
 
 
+def test_system_prompt_carries_arrangement_theory():
+    """Stretch-ratio, phrase-alignment and slotting rules (knowledge article)."""
+    system = remix_prompt.build_system_prompt(SOURCES)
+    assert "within 5% of the sources" in system  # stretch ratio, not BPM delta
+    assert "half-time (0.5x)" in system
+    assert "multiples of 4 bars" in system  # phrase alignment
+    assert "never stack two" in system  # frequency slotting
+
+
 def test_system_prompt_documents_the_tone_fields():
     system = remix_prompt.build_system_prompt(SOURCES)
     assert "lowpass_hz" in system

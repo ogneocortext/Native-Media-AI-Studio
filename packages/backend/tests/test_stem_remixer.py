@@ -582,6 +582,79 @@ def test_preview_near_silent_without_probe_gets_generic_suggestion(
     assert data["warnings_detail"][0]["suggestion"] == "check source_start_bar"
 
 
+def test_preview_warns_on_two_bass_layers(tmp_path, monkeypatch):
+    """Two bass layers mask each other — arrangement theory §4."""
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes")
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[RemixSlot(bars=4, layers=[
+            RemixLayer(track="loud", stem="bass"),
+            RemixLayer(track="louder", stem="bass", gain_db=-2.0),
+        ])],
+    )
+    data = stem_remixer.preview_recipe(recipe)
+    codes = [d["code"] for d in data["warnings_detail"]]
+    assert "bass_collision" in codes
+    assert any("two bass layers" in w for w in data["warnings"])
+    detail = data["warnings_detail"][codes.index("bass_collision")]
+    assert detail["field"] == "gain_db"
+    assert "3-6 dB" in detail["suggestion"]
+
+
+def test_preview_warns_on_stacked_other_stems(tmp_path, monkeypatch):
+    """Two `other` stems at similar gain invite midrange masking."""
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes")
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[RemixSlot(bars=4, layers=[
+            RemixLayer(track="loud", stem="other", gain_db=0.0),
+            RemixLayer(track="louder", stem="other", gain_db=-3.0),
+        ])],
+    )
+    data = stem_remixer.preview_recipe(recipe)
+    codes = [d["code"] for d in data["warnings_detail"]]
+    assert "midrange_masking" in codes
+    assert any("masking" in w for w in data["warnings"])
+
+
+def test_preview_silent_when_other_stems_are_carved(tmp_path, monkeypatch):
+    """A 10 dB carve between `other` stems means no masking warning."""
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes")
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[RemixSlot(bars=4, layers=[
+            RemixLayer(track="loud", stem="other", gain_db=0.0),
+            RemixLayer(track="louder", stem="other", gain_db=-10.0),
+        ])],
+    )
+    data = stem_remixer.preview_recipe(recipe)
+    assert data["warnings"] == []
+    assert data["warnings_detail"] == []
+
+
+def test_preview_stacked_drums_do_not_warn(tmp_path, monkeypatch):
+    """Drums are exempt: transients poke through, stacking is a level issue."""
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes")
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubSourceCache)
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[RemixSlot(bars=4, layers=[
+            RemixLayer(track="loud", stem="drums"),
+            RemixLayer(track="louder", stem="drums"),
+        ])],
+    )
+    data = stem_remixer.preview_recipe(recipe)
+    assert data["warnings"] == []
+    assert data["warnings_detail"] == []
+
+
 def test_preview_audible_layers_warn_about_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes"

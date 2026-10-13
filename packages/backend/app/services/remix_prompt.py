@@ -741,6 +741,14 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
         "highs above it) and brightness_db (-12..+12 dB/octave around 1 kHz, positive",
         "= brighter). Use them for mood words — 'dark' means lowpass plus a negative",
         "tilt, never just quieter.",
+        "Tempo: keep target_bpm within 5% of the sources\u2019 BPMs; beyond 10% the drums",
+        "smear audibly \u2014 only stretch further for a deliberate half-time (0.5x) or",
+        "double-time (2.0x) feel.",
+        "Structure: source_start_bar on multiples of 4 bars (prefer 8); when skipping a",
+        "silent intro, round up past first_audible to the next 4-bar boundary. Match",
+        "energy across layers: chorus vocals over a chorus instrumental, not a verse.",
+        "Slotting: never stack two \u2018other\u2019 stems at similar gain in one slot (midrange",
+        "masking) and never two bass layers \u2014 pick one, cut the other 3-6 dB, or lowpass it.",
         "Explain the arrangement in one sentence per slot.",
     ]
     return "\n".join(lines)
