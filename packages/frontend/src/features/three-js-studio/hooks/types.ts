@@ -71,10 +71,16 @@ export interface UseThreeSceneResult {
    *  returns — no rAF, no wall clock. Null before the scene is
    *  built (the call is a safe no-op until then). */
   renderAtTime: (tSec: number, dtSec: number) => void;
-  /** F5: reset every stateful driver so a deterministic export
-   *  starts from a known state (seed, shake, camera blend, section
-   *  override, light palette, character mixers, particle layout). */
-  resetDeterministicState: () => void;
+  /** F5: quiesce the live loop and reset every stateful driver, so
+   *  an export is a pure function of its frame indices (seed, frame
+   *  parity, shake, camera blend, section override, light palette,
+   *  character mixers, particle layout). Call before frame 0. */
+  beginDeterministicRun: () => void;
+  /** F5: resume live rendering after the last frame. Safe to call
+   *  more than once; pairs with `beginDeterministicRun` in a
+   *  finally-style path so a failed export never leaves the scene
+   *  frozen. */
+  endDeterministicRun: () => void;
 }
 
 export interface UseObjectManagerOptions {

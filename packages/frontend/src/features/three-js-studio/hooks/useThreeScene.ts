@@ -127,10 +127,11 @@ export function useThreeScene({
   >(null);
   // F5: deterministic-export clock hijack. While `active`, the loop
   // takes delta/elapsed from the export driver instead of the
-  // THREE.Timer; `quiesce` stops live rAF frames so no state mutates
-  // between two captured frames.
+  // THREE.Timer, and the live rAF driver is quiesced for the whole
+  // export — not just per captured frame — so no state (frame parity,
+  // shake, camera drift) mutates between two captures.
   const exportClockRef = useRef({ active: false, t: 0, dt: 0 });
-  const exportQuiesceRef = useRef(false);
+  const exportActiveRef = useRef(false);
   const frameRunnerRef = useRef<(() => void) | null>(null);
   const renderAtTimeRef = useRef<(tSec: number, dtSec: number) => void>(() => {});
   const resetDeterministicRef = useRef<() => void>(() => {});
@@ -490,7 +491,7 @@ export function useThreeScene({
       // (reset by `resetDeterministicRef`).
       let exportRandom = createSeededRandom();
       const nextRandom = () =>
-        exportQuiesceRef.current ? exportRandom() : Math.random();
+        exportActiveRef.current ? exportRandom() : Math.random();
       // The frame body, shared by the live rAF driver and the export
       // path's `renderAtTime`. When the export clock is active the
       // body takes delta/elapsed from the driver, so a frame's
@@ -829,11 +830,10 @@ export function useThreeScene({
 
       // F5: expose the frame body to the export driver, the reset that
       // makes an export a pure function of its frame indices, and the
-      // live rAF driver that quiesces while a manual frame renders.
+      // live rAF driver that quiesces for the whole export.
       frameRunnerRef.current = runFrame;
       renderAtTimeRef.current = (tSec: number, dtSec: number) => {
         const ec = exportClockRef.current;
-        exportQuiesceRef.current = true;
         ec.active = true;
         ec.t = tSec;
         ec.dt = dtSec;
@@ -841,11 +841,14 @@ export function useThreeScene({
           runFrame();
         } finally {
           ec.active = false;
-          exportQuiesceRef.current = false;
         }
       };
       resetDeterministicRef.current = () => {
         exportRandom = createSeededRandom();
+        // The particle update runs on every other frame; resetting the
+        // counter pins that parity so the same frames animate in every
+        // run regardless of how long the scene ran live beforehand.
+        frameCountRef.current = 0;
         shakeRef.current = 0;
         cameraTransitionRef.current = null;
         sectionCameraModeRef.current = null;
@@ -875,10 +878,11 @@ export function useThreeScene({
 
       const animate = () => {
         animationRef.current = requestAnimationFrame(animate);
-        // F5: while an export frame is rendered manually, live frames
-        // must not run — they would mutate state between two captured
-        // frames and break determinism.
-        if (exportQuiesceRef.current) return;
+        // F5: while an export is running, live frames must not run at
+        // all — the frame counter, shake and camera drift all advance
+        // with them, so an interleaved live frame changes what the next
+        // captured frame contains.
+        if (exportActiveRef.current) return;
         runFrame();
       };
       animate();
@@ -1119,6 +1123,12 @@ export function useThreeScene({
     // safe no-ops before the scene effect runs.
     renderAtTime: (tSec: number, dtSec: number) =>
       renderAtTimeRef.current(tSec, dtSec),
-    resetDeterministicState: () => resetDeterministicRef.current(),
+    beginDeterministicRun: () => {
+      exportActiveRef.current = true;
+      resetDeterministicRef.current();
+    },
+    endDeterministicRun: () => {
+      exportActiveRef.current = false;
+    },
   };
 }

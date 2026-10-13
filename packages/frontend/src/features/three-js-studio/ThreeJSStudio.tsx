@@ -131,7 +131,8 @@ export function ThreeJSStudio() {
     audioSourceRef,
     audioElementRef,
     renderAtTime,
-    resetDeterministicState,
+    beginDeterministicRun,
+    endDeterministicRun,
   } = useThreeScene({
     canvasRef,
     containerRef,
@@ -249,7 +250,8 @@ export function ThreeJSStudio() {
         fps: plan.fps,
         durationSec: plan.durationSec,
         renderAtTime: (t) => renderAtTime(t, plan.dtSec),
-        beginDeterministicRun: () => resetDeterministicState(),
+        beginDeterministicRun: () => beginDeterministicRun(),
+        endDeterministicRun: () => endDeterministicRun(),
         onProgress: (done) => setVideoExportLabel(`${done}/${plan.totalFrames}`),
       });
       if (!buffer) {
@@ -277,7 +279,7 @@ export function ThreeJSStudio() {
       setVideoExportBusy(false);
       setVideoExportLabel("");
     }
-  }, [renderAtTime, resetDeterministicState]);
+  }, [renderAtTime, beginDeterministicRun, endDeterministicRun]);
 
   // ---- Track manager ----
   const {
