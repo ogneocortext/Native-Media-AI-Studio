@@ -27,6 +27,10 @@ import { BufferTarget, CanvasSource, Mp4OutputFormat, Output } from "mediabunny"
 import type { Mp4Codec } from "../mp4Recording";
 
 export interface FrameAccurateExportOptions {
+  /**
+   * The canvas the frames land on. Prefer `FrameAccurateRenderApi.canvas()`;
+   * this is the host-level fallback for a caller that has not published one.
+   */
   canvas: HTMLCanvasElement;
   /** Frames per second of the export timeline. Default 30. */
   fps?: number;
@@ -54,6 +58,41 @@ const CODEC_STRINGS: Record<Mp4Codec, string> = {
   vp9: "vp09.00.10.08",
   av1: "av01.0.04M.08",
 };
+
+/**
+ * What a render path must publish for a frame-accurate export.
+ *
+ * The shader lane (`ShaderVisualizer`), the 2D lane (`Canvas2DVisualizer`)
+ * and the three-js studio lane each implement this; the exporter depends on
+ * the interface only, so adding a fourth path means implementing three
+ * functions, not branching the exporter on mode.
+ */
+export interface FrameAccurateRenderApi {
+  /** Reset stateful drivers and quiesce the live loop, so frame 0 is clean. */
+  beginDeterministicRun: () => void;
+  /** Render exactly one frame at virtual time `tSec` (seconds), at `fps`. */
+  renderAtVirtualTime: (tSec: number, fps: number) => void;
+  /** Re-enable live rendering after the last frame. */
+  endDeterministicRun: () => void;
+  /**
+   * The canvas this lane renders into — what the exporter captures. A getter,
+   * because the element is null until the lane mounts. The visualizer page
+   * mounts more than one canvas (three-js is always mounted for context
+   * preservation), so the lane that renders must name its own: querying the
+   * DOM for "a canvas" captured whichever came first in document order, which
+   * in 2D mode was the wrong one and produced a perfect-looking 300-frame
+   * file of a blank canvas.
+   */
+  canvas: () => HTMLCanvasElement | null;
+  /**
+   * Can this path render a faithful frame *right now*? Optional: a path whose
+   * frames do not depend on external data (the shader lane) omits it and is
+   * always assumed ready. A path that does depend (the 2D lane, driven by the
+   * analyzed timeline) implements it so the exporter refuses rather than
+   * writing a file that looks fine and is blank.
+   */
+  readiness?: () => { ok: boolean; reason?: string };
+}
 
 /** True when the browser can actually encode the export profile. */
 export async function canExportFrameAccurate(

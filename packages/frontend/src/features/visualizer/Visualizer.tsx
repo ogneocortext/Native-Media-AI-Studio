@@ -41,7 +41,10 @@ import type {
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import { getVisualizationForTrack, VisualizationStyle } from "./trackConceptAnalyzer";
-import { Canvas2DVisualizer } from "./Canvas2DVisualizer";
+import {
+  Canvas2DVisualizer,
+  type Canvas2DFrameAccurateApi,
+} from "./Canvas2DVisualizer";
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
@@ -375,9 +378,12 @@ export function Visualizer() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   // Canvas capture (MP4 via WebCodecs, else WebM). Owns its recorder + timer teardown.
-  // Plan 2.9 — the shader visualizer publishes its deterministic
-  // render API here for frame-accurate export.
+  // Plan 2.9 — each render path publishes its deterministic render API here
+  // for frame-accurate export: shader mode and 2D mode each have a ref, and
+  // the exporter is given the one the current mode publishes (3D mode has its
+  // own studio-lane exporter in StudioHeader).
   const shaderFrameAccurateApiRef = useRef<ShaderFrameAccurateApi | null>(null);
+  const canvas2dFrameAccurateApiRef = useRef<Canvas2DFrameAccurateApi | null>(null);
   const {
     isRecording,
     recordingTime,
@@ -388,7 +394,11 @@ export function Visualizer() {
     isExporting,
     exportProgress,
     startFrameAccurateExport,
-  } = useVisualizerRecording(containerRef, setError, shaderFrameAccurateApiRef);
+  } = useVisualizerRecording(containerRef, setError, () =>
+    vizMode === "2d"
+      ? canvas2dFrameAccurateApiRef.current
+      : shaderFrameAccurateApiRef.current,
+  );
   // Monotonic id guarding async track-select flows against out-of-order resolves.
   const trackRequestRef = useRef(0);
   // Latest vizParams for callbacks that must not re-subscribe on every slider tick.
@@ -1699,9 +1709,10 @@ export function Visualizer() {
                   </span>
                 </button>
                 {/* Plan 2.9 — deterministic 10 s @ 30 fps export, exactly
-                    300 frames, driven from the frame index. Shader mode
-                    only (the one mode the plan scopes). */}
-                {vizMode === "shader" && (
+                    300 frames, driven from the frame index. Shader and 2D
+                    modes publish the API; 3D mode exports from the studio
+                    lane's own button (it owns its clock hijack). */}
+                {(vizMode === "shader" || vizMode === "2d") && (
                   <button
                     onClick={() => startFrameAccurateExport(10)}
                     disabled={isRecording || isExporting}
@@ -2124,8 +2135,21 @@ export function Visualizer() {
                   mode={canvas2DMode}
                   lrcSync={lrcSync}
                   lrcSyncLive={lrcSyncLiveRef}
+                  // Plan 2.9 — virtual frames need LRC state as a function of
+                  // time, not the live snapshot (which describes *now*), and the
+                  // same sampler the playing loop uses.
+                  lrcSyncAt={(t) => {
+                    const { lyrics: liveLyrics, sectionBounds: liveBounds } =
+                      liveTimingRefs.current;
+                    return liveLyrics.length
+                      ? computeLrcSync(liveLyrics, t, liveBounds)
+                      : null;
+                  }}
+                  analysisData={currentAnalysisData}
+                  trackFile={currentFilename ?? null}
                   bgColor={bgColor}
                   prefersReducedMotion={prefersReducedMotion}
+                  frameAccurateApiRef={canvas2dFrameAccurateApiRef}
                 />
               )}
               {vizMode === "3d" && !rendererReady && (

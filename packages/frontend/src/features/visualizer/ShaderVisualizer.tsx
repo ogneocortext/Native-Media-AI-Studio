@@ -130,6 +130,12 @@ export interface ShaderFrameAccurateApi {
   renderAtVirtualTime: (tSec: number, fps: number) => void;
   /** Re-enable the live rAF loop after the export. */
   endDeterministicRun: () => void;
+  /**
+   * The canvas these frames land on. Published (rather than queried from the
+   * DOM) because the visualizer page always mounts a three-js canvas too, so
+   * "the first canvas" is not reliably this one.
+   */
+  canvas: () => HTMLCanvasElement | null;
 }
 
 interface ShaderVisualizerProps {
@@ -349,6 +355,9 @@ export function ShaderVisualizer({
   const virtualTimeRef = useRef<number | null>(null);
   const exportFpsRef = useRef(30);
   const exportActiveRef = useRef(false);
+  // Plan 2.9 — the canvas these frames land on, published to the exporter so
+  // it captures this one and not the three-js canvas the page also mounts.
+  const shaderCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const reactivityProcessorRef = useRef<AudioReactivityProcessor | null>(null);
   const reactivityConfigRef = useRef<ReactivityConfig>(DEFAULT_REACTIVITY_CONFIG);
@@ -648,6 +657,9 @@ export function ShaderVisualizer({
         endDeterministicRun: () => {
           exportActiveRef.current = false;
         },
+        // The canvas these frames land on. The page always mounts a three-js
+        // canvas, so the exporter must be told which one to capture.
+        canvas: () => shaderCanvasRef.current,
       };
     }
     if (isPlaying) raf = requestAnimationFrame(update);
@@ -733,6 +745,7 @@ export function ShaderVisualizer({
           feedbackZoom={feedbackZoom}
           feedbackRotation={feedbackRotation}
           feedbackDecay={feedbackDecay}
+          canvasRef={shaderCanvasRef}
         />
       </div>
 

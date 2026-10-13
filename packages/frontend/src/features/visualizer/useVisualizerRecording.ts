@@ -12,8 +12,8 @@ import { canRecordMp4, createMp4Recorder } from "./mp4Recording";
 import {
   canExportFrameAccurate,
   exportFramesDeterministic,
+  type FrameAccurateRenderApi,
 } from "./services/frameAccurateExport";
-import type { ShaderFrameAccurateApi } from "./ShaderVisualizer";
 
 export interface VisualizerRecording {
   isRecording: boolean;
@@ -25,11 +25,11 @@ export interface VisualizerRecording {
   /** Teardown for an in-flight recorder — call on unmount / track change. */
   dispose: () => void;
   /**
-   * Plan 2.9 — deterministic frame-accurate export (shader mode
-   * only). Renders `durationSec` seconds at 30 fps by driving the
-   * visualizer clock from the frame index; the result lands in
-   * `recordedBlob` for the existing download path. Exactly
-   * `round(durationSec * 30)` frames — no drops, even backgrounded.
+   * Plan 2.9 — deterministic frame-accurate export (shader and 2D modes).
+   * Renders `durationSec` seconds at 30 fps by driving the visualizer clock
+   * from the frame index; the result lands in `recordedBlob` for the existing
+   * download path. Exactly `round(durationSec * 30)` frames — no drops, even
+   * backgrounded.
    */
   isExporting: boolean;
   exportProgress: number;
@@ -39,7 +39,17 @@ export interface VisualizerRecording {
 export function useVisualizerRecording(
   canvasHostRef: React.RefObject<HTMLDivElement | null>,
   onError: (message: string) => void,
-  frameAccurateApiRef?: React.RefObject<ShaderFrameAccurateApi | null>,
+  /**
+   * Which render path is exporting right now. A resolver rather than a ref so
+   * one hook serves both lanes without knowing the mode: each visualizer
+   * publishes its own API, and the caller hands back the one that is mounted.
+   *
+   * `readiness` is checked before encoding. The 2D lane reports when it has
+   * nothing to render from (no analyzed timeline), because a 300-frame MP4 of
+   * a blank canvas is indistinguishable from a successful export by anything
+   * downstream of the button.
+   */
+  frameAccurateApi?: () => FrameAccurateRenderApi | null,
 ): VisualizerRecording {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -168,14 +178,24 @@ export function useVisualizerRecording(
   const startFrameAccurateExport = useCallback(
     async (durationSec = 10) => {
       if (isRecording || isExporting) return;
-      const canvas = canvasHostRef.current?.querySelector("canvas") ?? null;
-      const api = frameAccurateApiRef?.current ?? null;
+      const api = frameAccurateApi?.() ?? null;
+      if (!api) {
+        onError("Export failed — frame-accurate export needs shader or 2D mode");
+        return;
+      }
+      // The lane's own canvas, not "a canvas" from the DOM: the page mounts a
+      // three-js canvas that can come first, and capturing it yields a
+      // well-formed video of nothing.
+      const canvas = api.canvas?.() ?? canvasHostRef.current?.querySelector("canvas") ?? null;
       if (!canvas) {
         onError("Export failed — no visualizer canvas found");
         return;
       }
-      if (!api) {
-        onError("Export failed — frame-accurate export needs shader mode");
+      // Screen *before* encoding: an unrenderable frame would otherwise produce
+      // a perfect-looking 300-frame file nobody can use.
+      const ready = api.readiness?.();
+      if (ready && !ready.ok) {
+        onError(`Export failed — ${ready.reason ?? "this mode cannot export right now"}`);
         return;
       }
       if (!(await canExportFrameAccurate(canvas.width, canvas.height))) {
@@ -205,7 +225,7 @@ export function useVisualizerRecording(
         setIsExporting(false);
       }
     },
-    [canvasHostRef, frameAccurateApiRef, isExporting, isRecording, onError],
+    [canvasHostRef, frameAccurateApi, isExporting, isRecording, onError],
   );
 
   // Never leave a recorder or timer running past unmount.

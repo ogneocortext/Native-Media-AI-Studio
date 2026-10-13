@@ -105,6 +105,57 @@ download path. Backgrounding the tab drops nothing (no rAF in the loop).
 
 **2.10 / 2.11** were already done (verified, not built here).
 
+**2.9 follow-up landed — the 2D lane (2026-10-13).** The shader lane could
+freeze its audio inputs and still render, because a shader frame is a function
+of time plus the analysis timeline. The 2D lane cannot: its bars read the live
+`AnalyserNode` byte spectrum and its waveform reads the time-domain buffer, so
+a frozen frame is a blank canvas rather than a recording. The follow-up
+therefore added a real piece rather than a copy of the same three functions:
+
+- `services/analysisAudioFrame.ts` — a pure frame synthesizer. Band energies
+  come from the **measured** spectral timeline (the same endpoint the shader
+  lane reads), RMS from the same frame, the beat grid from `AudioAnalysisData`
+  when it exists (onsets, downbeats, `beat_times`, drum classes), and the
+  spectrum is filled so each band's *mean byte* equals that band's measured
+  energy — the export's anchor to the real signal. The waveform is a sine at
+  the frequency the measured ZCR implies with the measured envelope as
+  amplitude: an oscilloscope at the right pitch and level, and the header
+  says plainly that it is not the track's waveform.
+- Timeline-first, not analysis-first. Observed live: the analysis cache and
+  the spectral timeline are populated separately (Ad Nauseam's analysis is
+  keyed `…Ad-NauseamV2`, so `analysis/by-filename/…Ad-Nauseam.m4a` 404s while
+  its timeline returns 200). Requiring analysis first produced a
+  **300-frame MP4 of a black canvas that looked like a success**. A
+  timeline-only frame is a real recording of the track's envelope, so that is
+  now the primary path; `frameReadiness` reports what a frame can be built
+  from, and the exporter refuses with a message when it is nothing.
+- `Canvas2DVisualizer` publishes `Canvas2DFrameAccurateApi`:
+  `beginDeterministicRun` resets every stateful driver (particles, springs,
+  shockwaves, palette, gradient cache), the live rAF loop is gated, `Math.random`
+  draws from a seeded generator and `performance.now()` returns virtual time
+  (both re-exported through `nowMs()`/`rand()` so live behaviour is
+  unchanged), and `document.hidden` no longer skips a virtual frame.
+- The exporter captures **the canvas the lane names**, not "a canvas" from
+  the DOM. The visualizer page always mounts a three-js canvas, and it comes
+  first in document order — that was the actual cause of the black export
+  above. `FrameAccurateRenderApi.canvas()` is now part of the contract, and
+  `ShaderCanvas` forwards its element up through a new `canvasRef` prop so the
+  shader lane publishes the same one.
+- The hook takes a resolver instead of a shader-only ref, so one exporter
+  serves both lanes; the button shows in shader and 2D modes.
+
+**Verified in-browser** (Ad Nauseam, 490×240, Windows): 300 frames,
+10.000000 s @ 30 fps, h264; two runs differ in exactly **6 bytes** (the
+container's creation-time fields — the same signature the shader lane's
+verified pair shows); frame 0 is clean (flat baseline, one shockwave ring)
+and frame 150 carries bars plus expanding shockwaves. The refusal path was
+exercised live too: exporting 2D with no track loaded yields no file and
+`Export failed — this track has no analyzed timeline — run analysis first`.
+
+New: 21 frontend unit tests (`analysisAudioFrame.test.ts`), with a
+mutation check that reverting the band geometry to the live `bandAverage`
+rounding makes the band-exactness test fail.
+
 **three-js-motion-features-2026-10.md** (F3 → F1 → F4 → F2 → F5):
 F3 **Done** (`vizMotion.ts`); F4 / F5 **Partial**; F1 / F2 **Open**.
 
@@ -142,6 +193,12 @@ converge is a D-call, not a cleanup.
 3. **2.9 deterministic frame-accurate export** — ✅ Done, shader scope
    (Orion 2026-10-13, needs Windows verification). Follow-up: extend the
    virtual-time pattern to the 2D / 3D / LrcViz render paths.
+   → **2D lane landed 2026-10-13** (build notes below); 3D exports from its
+   own studio lane (F5, `useThreeScene.ts` clock hijack). The "LrcViz render
+   path" in the follow-up no longer exists as a separate path: LRC is a lyric
+   overlay layer consumed by shader/2D/3D, and its state is sampled
+   deterministically per frame rather than re-drivered (see the `lrcSyncAt`
+   note below).
 4. **2.10 / 2.11 real-time data correctness** — ✅ Already done
    (pre-existing).
 5. **2.6 color/feel polish (remainder)** — ✅ Done (2026-10-13):

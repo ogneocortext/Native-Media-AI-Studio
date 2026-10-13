@@ -48,16 +48,9 @@ export function planExport(durationSec = 10, fps = 30): ExportPlan {
 }
 
 /**
- * mulberry32: a small, fast, seedable PRNG. Same seed → same sequence,
- * which is the whole point — an export frame's jitter must be a
- * function of the seed and the number of prior draws, nothing else.
+ * mulberry32, re-exported from `shared/seededRandom` so this lane and the 2D
+ * canvas lane draw from one sequence definition rather than two copies of the
+ * same 8 lines. A second implementation would be a second sequence to keep in
+ * sync, and determinism is the entire contract here.
  */
-export function createSeededRandom(seed = 0x9e3779b9): () => number {
-  let state = seed | 0;
-  return () => {
-    state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+export { createSeededRandom } from "../../../shared/seededRandom";

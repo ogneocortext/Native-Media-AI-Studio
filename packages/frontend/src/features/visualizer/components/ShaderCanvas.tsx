@@ -17,6 +17,14 @@ interface ShaderCanvasProps {
   feedbackRotation?: number;
   /** Feedback decay/fade factor (0.95 = slow fade, 0.99 = long trails) */
   feedbackDecay?: number;
+  /**
+   * Where the rendered canvas element is published. Frame-accurate export
+   * captures the canvas the frames actually land on, and the visualizer page
+   * mounts more than one canvas (three-js is always mounted), so the lane that
+   * renders names its own rather than leaving the exporter to guess from the
+   * DOM.
+   */
+  canvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }
 
 interface FBO {
@@ -77,6 +85,7 @@ export function ShaderCanvas({
   feedbackZoom = 1.0,
   feedbackRotation = 0.0,
   feedbackDecay = 0.97,
+  canvasRef: externalCanvasRef,
 }: ShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
@@ -583,9 +592,21 @@ export function ShaderCanvas({
     };
   }, [uniformsRef, fragmentShader, initGL, contextRestored, ensureFBOs]);
 
+  // The lane that renders here publishes this canvas to the exporter, which
+  // must capture *this* one: the visualizer page always mounts a second
+  // (three-js) canvas, and querying the DOM for "a canvas" grabbed whichever
+  // came first in document order.
+  const attachCanvas = useCallback(
+    (node: HTMLCanvasElement | null) => {
+      canvasRef.current = node;
+      if (externalCanvasRef) externalCanvasRef.current = node;
+    },
+    [externalCanvasRef],
+  );
+
   return (
     <canvas
-      ref={canvasRef}
+      ref={attachCanvas}
       className={className}
       style={{ width: "100%", height: "100%", display: "block" }}
     />

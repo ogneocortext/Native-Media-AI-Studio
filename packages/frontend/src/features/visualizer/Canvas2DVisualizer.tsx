@@ -21,10 +21,29 @@ import {
   VIGNETTE_ALPHA_CEILING,
   type Canvas2DMode,
 } from "./canvas2dModeBudget";
-import type { AudioData } from "./types";
+import { deterministicAudioFrame, frameReadiness } from "./services/analysisAudioFrame";
+import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
+import { useSpectralTimeline } from "./useSpectralTimeline";
+import type { AudioAnalysisData, AudioData } from "./types";
+import { createSeededRandom } from "../../shared/seededRandom";
 
 export interface Canvas2DVisualizerRef {
   captureScreenshot: () => string | null;
+}
+
+/**
+ * Plan 2.9 — deterministic render API published by the 2D lane for
+ * frame-accurate export. The exporter (not the rAF loop) drives time; each
+ * call renders exactly one frame synchronously.
+ *
+ * `readiness` is the 2D lane's extension of `FrameAccurateRenderApi`: the
+ * shader lane can always render (its virtual frame is motion plus the
+ * timeline), but a 2D frame is built from analyzed data, and a 300-frame MP4
+ * of a blank canvas would look exactly like a successful export. The exporter
+ * asks first and refuses with `reason` when there is nothing to render from.
+ */
+export interface Canvas2DFrameAccurateApi extends FrameAccurateRenderApi {
+  readiness: () => { ok: boolean; reason?: string };
 }
 
 interface Props {
@@ -45,12 +64,30 @@ interface Props {
    * Falls back to `lrcSync` when null (e.g. demo mode).
    */
   lrcSyncLive?: { current: Props["lrcSync"] };
+  /**
+   * Plan 2.9 — deterministic LRC state at a virtual time. The live
+   * `lrcSyncLive` snapshot describes *now*, which would make an exported
+   * frame depend on when the export ran; this one is a function of time
+   * alone. Optional: without it, virtual frames hold phrase flash at 0.
+   */
+  lrcSyncAt?: (tSec: number) => Props["lrcSync"];
+  /** Backend analysis for the selected track, used only by virtual frames. */
+  analysisData?: AudioAnalysisData | null;
+  /** Raw library filename — the key the spectral timeline is fetched by. */
+  trackFile?: string | null;
   bgColor?: string;
   onAnalysis?: (result: { text: string; model: string; mode: string }) => void;
   /** Honor OS reduced-motion preference — scales down phraseFlash, beat vignette, and trail persistence. */
   prefersReducedMotion?: boolean;
   /** Perceptual frequency scale for bar mapping (2026 research: bark/erb/mel for better human pitch perception). */
   perceptualScale?: PerceptualScale;
+  /**
+   * Plan 2.9 — frame-accurate export. When provided, the component publishes
+   * its deterministic render API here after mount, and the exporter drives
+   * frames manually at 1/fps steps. Meaningful in 2D mode, the same way the
+   * shader lane's ref is meaningful in shader mode.
+   */
+  frameAccurateApiRef?: React.MutableRefObject<Canvas2DFrameAccurateApi | null>;
 }
 
 /**
@@ -83,10 +120,14 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       mode = "bars",
       lrcSync,
       lrcSyncLive,
+      lrcSyncAt,
+      analysisData,
+      trackFile,
       bgColor = "#050505",
       onAnalysis,
       prefersReducedMotion = false,
       perceptualScale = "log",
+      frameAccurateApiRef,
     }: Props,
     ref,
   ) {
@@ -97,6 +138,16 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
     lrcSyncLiveHolder.current = lrcSyncLive;
     const lrcSyncPropHolder = useRef(lrcSync);
     lrcSyncPropHolder.current = lrcSync;
+    // Plan 2.9 — holders for the virtual-frame sources, so the draw effect
+    // stays subscribed once (its deps are playback/mode/config, not data).
+    const analysisHolder = useRef(analysisData);
+    analysisHolder.current = analysisData;
+    const lrcSyncAtHolder = useRef(lrcSyncAt);
+    lrcSyncAtHolder.current = lrcSyncAt;
+    // Measured per-frame band energies, from the same endpoint the shader lane
+    // reads; null on tracks without a spectral timeline (the modelled tier).
+    const { sampleAtTime: sampleSpectralTimeline, loading: spectralLoading } =
+      useSpectralTimeline(trackFile ?? null, 24);
 
     // Smooth section palette transitions
     const currentPaletteRef = useRef<string[]>([]);
@@ -167,6 +218,25 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       let barPeaks: number[] | null = null;
       const PEAK_DECAY = 0.985;
 
+      // Plan 2.9 — deterministic export state.
+      //
+      // `exportActive` gates the live loop (a live frame mid-export would
+      // mutate particle/spring state and make two runs diverge, exactly as it
+      // did in the shader lane). `virtualTime` is the frame being rendered, or
+      // null for live frames. `virtualRandom` replaces Math.random, and
+      // `virtualAudio`/`virtualFreq`/`virtualWave` replace the analyser reads.
+      let exportActive = false;
+      let virtualTime: number | null = null;
+      let virtualRandom: (() => number) | null = null;
+      let virtualAudio: AudioData | null = null;
+      let virtualFreq: Uint8Array | null = null;
+      let virtualWave: Uint8Array | null = null;
+
+      /** Random for the frame being drawn: seeded during export, live otherwise. */
+      const rand = (): number => virtualRandom?.() ?? Math.random();
+      /** Wall clock for the frame being drawn: virtual time during export. */
+      const nowMs = (): number => (virtualTime !== null ? virtualTime * 1000 : performance.now());
+
       // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
       let barVelocities: number[] | null = null;
       // Plan 2.1: asymmetric (0.8 attack / 0.12 release) envelope state for the
@@ -195,8 +265,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       const MAX_SHOCKWAVES = 8;
       function spawnShockwave(w: number, h: number, drumType?: string) {
         if (shockwaves.length >= MAX_SHOCKWAVES) return;
-        const cx = w / 2 + (Math.random() - 0.5) * w * 0.4;
-        const cy = h / 2 + (Math.random() - 0.5) * h * 0.3;
+        const cx = w / 2 + (rand() - 0.5) * w * 0.4;
+        const cy = h / 2 + (rand() - 0.5) * h * 0.3;
 
         // Per-drum differentiation per 2026 research:
         // kick = slower/thicker, snare = fast/sheared, hat = flash
@@ -296,18 +366,18 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       function spawnIdleParticle(w: number, h: number) {
         if (idleParticles.length >= MAX_IDLE_PARTICLES) return;
         idleParticles.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: (Math.random() - 0.5) * 0.3,
-          life: 0.4 + Math.random() * 0.6,
-          hue: Math.random() * 360,
-          size: 0.8 + Math.random() * 1.2,
+          x: rand() * w,
+          y: rand() * h,
+          vx: (rand() - 0.5) * 0.3,
+          vy: (rand() - 0.5) * 0.3,
+          life: 0.4 + rand() * 0.6,
+          hue: rand() * 360,
+          size: 0.8 + rand() * 1.2,
         });
       }
       function updateIdleParticles(w: number, h: number, motionScale: number) {
         // Spawn a gentle trickle
-        if (Math.random() < 0.06 * motionScale) spawnIdleParticle(w, h);
+        if (rand() < 0.06 * motionScale) spawnIdleParticle(w, h);
         for (let i = idleParticles.length - 1; i >= 0; i--) {
           const p = idleParticles[i];
           p.x += p.vx * motionScale;
@@ -352,16 +422,16 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       const MAX_PARTICLES = 300;
       function spawnParticle(w: number, h: number, energy: number, beat: boolean) {
         if (particles.length >= MAX_PARTICLES) return;
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 0.5 + Math.random() * 2 + energy * 3 + (beat ? 3 : 0);
+        const angle = rand() * Math.PI * 2;
+        const speed = 0.5 + rand() * 2 + energy * 3 + (beat ? 3 : 0);
         particles.push({
-          x: w / 2 + (Math.random() - 0.5) * w * 0.5,
-          y: h / 2 + (Math.random() - 0.5) * h * 0.5,
+          x: w / 2 + (rand() - 0.5) * w * 0.5,
+          y: h / 2 + (rand() - 0.5) * h * 0.5,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           life: 1,
-          hue: Math.random() * 360,
-          size: 0.6 + Math.random() * 2.0,
+          hue: rand() * 360,
+          size: 0.6 + rand() * 2.0,
         });
       }
 
@@ -388,10 +458,26 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       applySize();
 
       const draw = () => {
+        // Plan 2.9 — while a deterministic export drives frames manually, the
+        // rAF loop stays alive but renders nothing. A live frame would advance
+        // particle/spring state between captures and make two runs diverge;
+        // virtual frames run the same code path with `virtualTime` set.
+        if (exportActive && virtualTime === null) {
+          raf = requestAnimationFrame(draw);
+          return;
+        }
+        const isVirtual = virtualTime !== null;
         const analyser = analyserRef.current;
-        const d = audioData.current;
+        const d = virtualAudio ?? audioData.current;
         // Live per-frame sync preferred; React-state snapshot as fallback.
-        const sync = lrcSyncLiveHolder.current?.current ?? lrcSyncPropHolder.current;
+        // Virtual frames read the *deterministic* sampler: the live snapshot
+        // describes now, so using it would tie an exported frame to when the
+        // export happened to run. (Checked on `virtualTime` directly, not on
+        // `isVirtual`, so TypeScript narrows the argument to a number.)
+        const sync =
+          virtualTime !== null
+            ? (lrcSyncAtHolder.current?.(virtualTime) ?? null)
+            : (lrcSyncLiveHolder.current?.current ?? lrcSyncPropHolder.current);
         const section = sync?.currentSection || "VERSE";
         const target = palettes[section] || palettes.VERSE;
 
@@ -408,12 +494,17 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
 
         // Lazy-size frequency/waveform buffers when the analyser config changes.
         // Always allocated (default 1024/2048) so downstream code never sees null —
-        // buffers are only *filled* with real data while playing.
+        // buffers are only *filled* with real data while playing. A virtual
+        // frame swaps in its synthesized buffers instead (see the API below).
         if (!freq || freq.length !== (analyser?.frequencyBinCount ?? 1024)) {
           freq = new Uint8Array(analyser?.frequencyBinCount ?? 1024);
         }
         if (!wave || wave.length !== (analyser?.fftSize ?? 2048)) {
           wave = new Uint8Array(analyser?.fftSize ?? 2048);
+        }
+        if (isVirtual && virtualFreq && virtualWave) {
+          freq = virtualFreq;
+          wave = virtualWave;
         }
         if (!smoothed || smoothed.length !== wave.length) {
           smoothed = new Uint8Array(wave.length);
@@ -506,7 +597,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
 
         // Skip painting while the tab is hidden — the parent's analyser loop also
         // pauses, so this only saves battery; the rAF loop stays alive.
-        if (typeof document !== "undefined" && document.hidden) {
+        // A virtual frame is not a live paint, so the hidden-tab skip must not
+        // swallow it: the export loop is exactly what keeps running when the
+        // user switches away mid-export (plan 2.9's "drops nothing" clause).
+        if (!isVirtual && typeof document !== "undefined" && document.hidden) {
           raf = requestAnimationFrame(draw);
           return;
         }
@@ -536,7 +630,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // rather than a 4-level nested ternary with duplicated reduced-motion
         // branches. A mode with no trails clears fully each frame, which is what
         // `spectrogram` was already special-casing for itself.
-        if (isPlaying) {
+        if (isPlaying || isVirtual) {
           const trailAlpha = prefersReducedMotion ? budget.trailAlphaReduced : budget.trailAlpha;
           if (active.has("trails") && trailAlpha !== null) {
             ctx.fillStyle = bg + trailAlpha.toString(16).padStart(2, "0").toUpperCase();
@@ -576,15 +670,19 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           drawShockwaves(ctx, dpr);
         }
 
-        if (!analyser || !isPlaying) {
+        // The idle branch fires when there is nothing to react to. A virtual
+        // frame always has something (its synthesized buffers), even when the
+        // user never pressed play — so it takes the live path instead of the
+        // "drop a track" placeholder.
+        if (!isVirtual && (!analyser || !isPlaying)) {
           // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
           // Ambient particle layer — soft floating motes that keep the canvas feeling alive
           updateIdleParticles(w, h, motionScale);
           drawIdleParticles(ctx, dpr);
           const idlePulse =
             phraseFlash * 0.3 +
-            Math.sin(performance.now() * 0.002 * motionScale) * 0.08 * motionScale;
-          const t = performance.now() * 0.001;
+            Math.sin(nowMs() * 0.002 * motionScale) * 0.08 * motionScale;
+          const t = nowMs() * 0.001;
           const breathe = 0.55 + Math.sin(t * 0.8) * 0.15;
           ctx.textAlign = "center";
           // Soft glow behind the text so it reads over the particle field.
@@ -604,8 +702,13 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           return;
         }
 
-        analyser.getByteFrequencyData(freq as Uint8Array<ArrayBuffer>);
-        analyser.getByteTimeDomainData(wave as Uint8Array<ArrayBuffer>);
+        if (isVirtual) {
+          // The synthesized buffers are already in `freq`/`wave` — do not
+          // overwrite them from the analyser (which is frozen or null).
+        } else if (analyser) {
+          analyser.getByteFrequencyData(freq as Uint8Array<ArrayBuffer>);
+          analyser.getByteTimeDomainData(wave as Uint8Array<ArrayBuffer>);
+        }
 
         // Plan 2.1: per-mode smoothing decision as data (canvas2dHelpers).
         const asymmetric = usesAsymmetricSmoothing(mode);
@@ -749,7 +852,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
                 ctx.beginPath();
                 ctx.arc(
                   x + barW / 2,
-                  y - 6 * dpr - Math.random() * 6 * dpr,
+                  y - 6 * dpr - rand() * 6 * dpr,
                   2 * dpr,
                   0,
                   Math.PI * 2,
@@ -1138,7 +1241,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           for (let gx = 0; gx < w; gx += gridStep) {
             ctx.beginPath();
             ctx.moveTo(gx, h * 0.2);
-            ctx.lineTo(gx + 8 * dpr * Math.sin(performance.now() * 0.0003 + gx * 0.01), h * 0.8);
+            ctx.lineTo(gx + 8 * dpr * Math.sin(nowMs() * 0.0003 + gx * 0.01), h * 0.8);
             ctx.stroke();
           }
           for (let gy = h * 0.25; gy < h * 0.75; gy += h * 0.15) {
@@ -1187,7 +1290,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             waveEnvelope[i] = waveEnvelope[i] + waveVelocities[i];
             const y = h / 2 + waveEnvelope[i];
             const xOff =
-              (sync?.lineProgress ?? 0) * 14 * dpr * Math.sin(i * 0.01 + performance.now() * 0.001);
+              (sync?.lineProgress ?? 0) * 14 * dpr * Math.sin(i * 0.01 + nowMs() * 0.001);
             if (i === 0) ctx.moveTo(x + xOff, y);
             else ctx.lineTo(x + xOff, y);
           }
@@ -1369,7 +1472,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             ((midIdx - bassIdx) * 255 || 1);
           const ampX = w * 0.35 * (1 + bassV * 0.6 + effectiveEnergy * 0.3);
           const ampY = h * 0.35 * (1 + midV * 0.6 + effectiveEnergy * 0.3);
-          const t = performance.now() * 0.001;
+          const t = nowMs() * 0.001;
           ctx.strokeStyle = colors[1];
           ctx.lineWidth = 2 * dpr;
           ctx.shadowColor = colors[0];
@@ -1519,7 +1622,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         } else if (mode === "aurora") {
           // Domain-warped FBM aurora curtains — vertical color bands with
           // audio-reactive brightness/height and slow horizontal drift.
-          const t = performance.now() * 0.0003;
+          const t = nowMs() * 0.0003;
           const bandCount = 5;
           const bandW = w / bandCount;
           const bassEnergy = d.bass || 0;
@@ -1562,11 +1665,100 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         raf = requestAnimationFrame(draw);
       };
       raf = requestAnimationFrame(draw);
+
+      // Plan 2.9 — publish the deterministic render API. Re-published on every
+      // effect run so the closure always sees the current `draw`.
+      if (frameAccurateApiRef) {
+        frameAccurateApiRef.current = {
+          readiness: () => {
+            // Sampled at the export's start, where frame 0 lands. A timeline
+            // still in flight reads as "not ready yet" rather than "no data",
+            // so the caller is told to retry instead of exporting blank.
+            const frame = sampleSpectralTimeline(0);
+            if (spectralLoading && !frame) {
+              return {
+                ok: false,
+                reason: "the analyzed timeline is still loading — try again in a moment",
+              };
+            }
+            return frameReadiness({
+              analysis: analysisHolder.current ?? null,
+              spectralFrame: frame,
+            });
+          },
+          beginDeterministicRun: () => {
+            exportActive = true;
+            // Every stateful driver returns to frame-0 state, or the export
+            // inherits whatever the live loop left behind and two runs diverge.
+            virtualRandom = createSeededRandom(0x5eed_2d01);
+            phraseFlash = 0;
+            beatVignette = 0;
+            silentFrames = 0;
+            barVelocities = null;
+            smoothedBars = null;
+            smoothedStack = null;
+            barPeaks = null;
+            waveEnvelope = null;
+            waveVelocities = null;
+            smoothed = null;
+            particles.length = 0;
+            idleParticles.length = 0;
+            shockwaves.length = 0;
+            currentPaletteRef.current = [];
+            targetPaletteRef.current = [];
+            paletteTRef.current = 1;
+            barGradientsCacheRef.current = null;
+          },
+          renderAtVirtualTime: (tSec: number) => {
+            const analyser = analyserRef.current;
+            const binCount = analyser?.frequencyBinCount ?? 1024;
+            const fftSize = analyser?.fftSize ?? 2048;
+            const sampleRate = analyser?.context?.sampleRate ?? 44100;
+            const frame = deterministicAudioFrame({
+              analysis: analysisHolder.current ?? null,
+              // Measured band energies when the track has a spectral
+              // timeline, the modelled tier otherwise. The timeline is
+              // sampled with the same index math the live path uses.
+              spectralFrame: sampleSpectralTimeline(tSec),
+              tSec,
+              binCount,
+              fftSize,
+              sampleRate,
+            });
+            virtualTime = tSec;
+            virtualAudio = frame.audio;
+            virtualFreq = frame.freq;
+            virtualWave = frame.wave;
+            try {
+              draw();
+            } finally {
+              // Cleared before the next frame so a throw cannot leave the
+              // live loop rendering a stale virtual frame.
+              virtualTime = null;
+              virtualAudio = null;
+              virtualFreq = null;
+              virtualWave = null;
+            }
+          },
+          endDeterministicRun: () => {
+            exportActive = false;
+            virtualRandom = null;
+          },
+          // The canvas these frames land on. The page always mounts a three-js
+          // canvas, and it can come first in document order — capturing "a
+          // canvas" from the DOM produced a valid 300-frame file of a blank
+          // one, which is the hardest kind of bug to notice.
+          canvas: () => canvasRef.current,
+        };
+      }
+
       return () => {
         cancelAnimationFrame(raf);
         resizeObserver?.disconnect();
+        // A torn-down component must not leave an API pointing at its closures.
+        if (frameAccurateApiRef) frameAccurateApiRef.current = null;
       };
-    }, [isPlaying, mode, bgColor, analyserRef, audioData]);
+    }, [isPlaying, mode, bgColor, analyserRef, audioData, frameAccurateApiRef, sampleSpectralTimeline]);
 
     return (
       <div

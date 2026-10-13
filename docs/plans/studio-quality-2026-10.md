@@ -346,6 +346,16 @@ rides on 2.7's easing) → 2.9 (export records the improved motion, so motion
 first) → 2.2/2.3 (reactivity UI + presets) → 2.5/2.6 (latency display, color)
 → 2.10/2.11 (real-time data correctness).
 
+**Status 2026-10-13 — shader and 2D scopes done** (3D exports from the studio
+lane's own button, and the page has no separate LrcViz render path: LRC is an
+overlay layer, sampled per frame during export). The "four render paths, each
+needs its own clock-hijack" estimate was right about the shape and wrong about
+the cost: the 2D lane needed a *frame synthesizer*, not a second hijack,
+because its bars read the live FFT and freezing inputs leaves a blank canvas.
+See `next-actions-2026-10.md`'s 2.9 build notes for what that involved,
+including the two way a blank export can pass for a success (requiring
+analysis first, and capturing whichever canvas came first in the DOM).
+
 ## Real-time render gaps (added 2026-10-06)
 
 Verified against the shader render loop 2026-10-06. The pipeline itself is
