@@ -16,7 +16,65 @@ one under test, and the assertions inspect the argv it actually built.
 """
 
 import pytest
-from app.services.source_separation import SeparationOptions, SourceSeparator
+from app.services.source_separation import (
+    SeparationOptions,
+    SourceSeparator,
+    clamp_segment_seconds,
+)
+
+
+def test_clamp_segment_seconds_passes_through_none():
+    """No segment requested means no ``--segment`` flag at all.
+
+    ``None`` is the dataclass default, so this is the path every
+    caller that does not expose the quality knob takes.
+    """
+    assert clamp_segment_seconds("htdemucs", None) is None
+
+
+@pytest.mark.parametrize(
+    ("model", "segment_size", "expected"),
+    [
+        # Under the cap: untouched.
+        ("mdx_extra_q", 5, 5),
+        ("htdemucs", 5, 5),
+        # Exactly at the cap.
+        ("mdx_extra_q", 44, 44),
+        # Over an MDX bag's cap: capped, not truncated (44.0 is integral).
+        ("mdx_extra_q", 256, 44),
+        ("mdx", 100, 44),
+        # Over HTDemucs' 7.8 s cap: capped AND int-truncated to 7.
+        ("htdemucs", 256, 7),
+        ("htdemucs_ft", 10, 7),
+        ("htdemucs_6s", 8, 7),
+    ],
+)
+def test_clamp_segment_seconds_caps_to_the_trained_max(model, segment_size, expected):
+    """The clamp is the fix for the UVR5-style 256-samples knob.
+
+    ``--segment`` is in seconds, so the frontend's old 128/256/512 values
+    became 128-512 *seconds*, which demucs rejects with "Cannot use a
+    Transformer model with a longer segment than it was trained for".
+    """
+    assert clamp_segment_seconds(model, segment_size) == expected
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "UVR-MDX-NET-Voc_FT",
+        "Kim_Vocal_2",
+        "some_future_model",
+    ],
+)
+def test_clamp_segment_seconds_leaves_unknown_models_alone(model):
+    """An unknown model's cap is not ours to invent.
+
+    These names are not in the demucs HF repo, so their trained segment
+    is unknown; passing the value through lets demucs itself validate it
+    rather than silently capping to a guessed number.
+    """
+    assert clamp_segment_seconds(model, 256) == 256
 
 
 class _DemucsRecorder:
@@ -120,18 +178,56 @@ async def test_demucs_argv_is_built_with_the_expected_flags(tmp_path):
         device="cuda",
         output_dir=tmp_path,
         demucs_cmd=["demucs"],
-        opts=SeparationOptions(model="mdx_extra_q", overlap=0.25, denoise=True),
+        opts=SeparationOptions(
+            model="mdx_extra_q", segment_size=5, overlap=0.25, denoise=True,
+        ),
     )
 
     argv = rec.argv
     assert argv[0] == "demucs"
     assert argv[argv.index("-n") + 1] == "mdx_extra_q"
     assert argv[argv.index("-d") + 1] == "cuda"
+    # demucs 4.1.0 renamed --segment_size to --segment and has no
+    # --denoise flag; both old spellings are unrecognized arguments
+    # that make argparse exit 2 with the usage text. --segment is
+    # in SECONDS, so a value under the model's trained max passes
+    # through unchanged.
+    assert argv[argv.index("--segment") + 1] == "5"
     assert argv[argv.index("--overlap") + 1] == "0.25"
-    assert "--denoise" in argv
+    assert "--segment_size" not in argv
+    assert "--denoise" not in argv
     # The input is the positional that immediately follows `-o <dir>`; quality
     # flags are appended after it, so it is NOT argv[-1].
     assert argv[argv.index("-o") + 2] == "in.wav"
+
+
+@pytest.mark.asyncio
+async def test_demucs_segment_is_clamped_to_the_model_max(tmp_path):
+    """--segment is seconds; a UVR5-style value must be capped.
+
+    demucs 4.1.0's --segment is in seconds and each model caps it
+    at the segment it was trained with (HTDemucs 7.8 s, MDX bags
+    44 s). A raw 256 — the frontend's old UVR5-style sample count —
+    would be 256 seconds and trip "Cannot use a Transformer model
+    with a longer segment than it was trained for", so it is
+    clamped to the model's max (int-truncated: 7.8 -> 7).
+    """
+    for model, expected in (("mdx_extra_q", "44"), ("htdemucs", "7")):
+        rec = _DemucsRecorder()
+        sep = _sep_with_stub(rec)
+
+        await SourceSeparator._separate_demucs(
+            sep,
+            audio_path="in.wav",
+            model=model,
+            device="cuda",
+            output_dir=tmp_path,
+            demucs_cmd=["demucs"],
+            opts=SeparationOptions(model=model, segment_size=256),
+        )
+
+        argv = rec.argv
+        assert argv[argv.index("--segment") + 1] == expected, model
 
 
 @pytest.mark.asyncio

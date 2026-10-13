@@ -27,6 +27,52 @@ SEPARATION_DIR.mkdir(parents=True, exist_ok=True)
 
 STEM_NAMES = ("vocals", "drums", "bass", "other")
 
+# demucs 4.1.0's --segment is in SECONDS, and each model family caps
+# it at the segment length it was trained with: HTDemucs at 7.8 s
+# (probed from the safetensors __metadata__.kwargs.segment of every
+# htdemucs/htdemucs_ft/htdemucs_6s checkpoint), the MDX bags at the
+# 44 s default their yaml ships. The frontend's UVR5-style
+# "128/256/512" knob is in samples, so a raw 256 would be 256
+# *seconds* — far past the HTDemucs cap, which demucs rejects with
+# "Cannot use a Transformer model with a longer segment than it was
+# trained for" (demucs/apply.py). Clamp to the model's trained max.
+# MDX-Net vocal models (UVR-MDX-NET-Voc_FT, Kim_Vocal_2) are absent:
+# they are not in the demucs HF repo, so their cap is unknown and the
+# value passes through for demucs itself to validate.
+DEMUCS_MAX_SEGMENT_SECONDS: dict[str, float] = {
+    "htdemucs": 7.8,
+    "htdemucs_ft": 7.8,
+    "htdemucs_6s": 7.8,
+    "mdx_extra": 44.0,
+    "mdx_extra_q": 44.0,
+    "mdx": 44.0,
+    "mdx_q": 44.0,
+}
+
+
+def clamp_segment_seconds(model: str, segment_size: int | None) -> int | None:
+    """Clamp a demucs ``--segment`` value (seconds) to the model's max.
+
+    Returns the clamped value, or ``None`` when no segment was
+    requested. Unknown models pass through unchanged — demucs itself
+    validates those. ``--segment`` is ``type=int``, so a fractional
+    cap (HTDemucs' 7.8) truncates to 7, which is still under the
+    limit demucs checks (``segment > max_allowed_segment``).
+    """
+    if segment_size is None:
+        return None
+    max_segment = DEMUCS_MAX_SEGMENT_SECONDS.get(model)
+    if max_segment is None:
+        return segment_size
+    clamped = int(min(segment_size, max_segment))
+    if clamped != segment_size:
+        logger.warning(
+            "segment_size=%d s exceeds what %s was trained for "
+            "(max %s s) — capping to %d s",
+            segment_size, model, max_segment, clamped,
+        )
+    return clamped
+
 
 def find_stem_dir(filename: str) -> Path | None:
     """Locate the Demucs output dir for a library file, tolerating renames.
@@ -121,9 +167,11 @@ class SeparationResult:
 class SeparationOptions:
     """Quality/performance tuning knobs for separation."""
     model: str = "mdx_extra_q"
-    segment_size: int | None = None  # caps memory on 8 GB GPUs
+    # demucs --segment, in SECONDS; clamped to the model's
+    # trained max by clamp_segment_seconds.
+    segment_size: int | None = None
     overlap: float | None = None      # 0..0.75, higher = slower/better
-    denoise: bool | None = None       # post-denoise pass when supported
+    denoise: bool | None = None       # accepted for API compat; demucs has no --denoise flag
 
 
 @dataclass
@@ -146,10 +194,12 @@ class SourceSeparator:
     """Audio source separation using Demucs or Spleeter.
 
     Quality knobs:
-      - ``segment_size``: smaller = less VRAM, more border artifacts.
-        Gemini/1070 Ti guidance: 128 or 256 keeps VRAM under ~6.5 GB.
+      - ``segment_size``: demucs ``--segment``, in SECONDS.
+        Smaller = less VRAM, more border artifacts. Clamped to
+        the model's trained max (HTDemucs 7.8 s, MDX bags 44 s)
+        — see ``clamp_segment_seconds``.
       - ``overlap``: 0.25–0.75. Higher improves seam quality at 2× compute.
-      - ``denoise``: post-denoise pass when the backend supports it.
+      - ``denoise``: accepted but ignored — demucs has no denoise flag.
 
     Hierarchical mode (``mode="hierarchical"``):
       1. Run a dedicated vocal model (UVR-MDX-NET-Voc_FT / Kim_Vocal_2).
@@ -506,9 +556,18 @@ class SourceSeparator:
             audio_path,
         ]
         if opts.segment_size is not None:
-            cmd.extend(["--segment_size", str(opts.segment_size)])
+            # demucs 4.1.0 renamed --segment_size to --segment;
+            # clamp to the model's trained max (see
+            # clamp_segment_seconds).
+            cmd.extend([
+                "--segment",
+                str(clamp_segment_seconds(model, opts.segment_size)),
+            ])
         if opts.denoise:
-            cmd.extend(["--denoise"])
+            # demucs has no --denoise flag in any 4.x release.
+            logger.warning(
+                "denoise requested but demucs has no --denoise flag — ignoring"
+            )
 
         try:
             returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
@@ -583,11 +642,26 @@ class SourceSeparator:
             if self._shifts:
                 cmd.extend(["--shifts", str(self._shifts)])
             if opts.segment_size is not None:
-                cmd.extend(["--segment_size", str(opts.segment_size)])
+                # demucs 4.1.0 renamed --segment_size to --segment; the
+                # old spelling is an unrecognized argument, so argparse
+                # prints the usage text and exits 2 before separating.
+                # --segment is in seconds and each model caps it at the
+                # segment it was trained with, so clamp (a UVR5-style
+                # 256 would otherwise be 256 seconds and trip the
+                # HTDemucs 7.8 s cap).
+                cmd.extend([
+                    "--segment",
+                    str(clamp_segment_seconds(model, opts.segment_size)),
+                ])
             if opts.overlap is not None:
                 cmd.extend(["--overlap", str(opts.overlap)])
             if opts.denoise:
-                cmd.extend(["--denoise"])
+                # demucs has no --denoise flag in any 4.x release; the
+                # knob is accepted by the API but this backend cannot
+                # honor it.
+                logger.warning(
+                    "denoise requested but demucs has no --denoise flag — ignoring"
+                )
 
             try:
                 returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
