@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D39 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D40 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -1396,3 +1396,39 @@
   The checker scans ~1230 tracked files and ~1470 references in
   about a second.
 
+
+### D40 — `motion/` is live; the "dead code" removal is struck (2026-10-13)
+
+- **Status:** Decided (corrects a stale claim; forwards the
+  convergence question to the owner)
+- **Context:** D23 (2026-10-02, extended 2026-10-06) recorded the
+  `motion/` modules as "not yet wired into a viz style", and a
+  2026-10-12 plan note escalated that to "zero consumers -> remove".
+  Both were stale by the time they were acted on: `1bf5ca7` and
+  `5d6ac8b` wired them in, and plan 2.8 (commit `44b91e3`)
+  extended the same driver. Measured against the tree, not
+  remembered: `ShaderVisualizer.tsx` imports
+  `./motion/useMotionDriver` and consumes `buildShaderMotionInput`,
+  `createMotionHistory`, `resolveMotion` and `MotionHistory`;
+  `shaderMotionWiring.test.ts` pins that wiring, and the 2.8
+  beat-anticipation work drives the driver's lookahead. The modules
+  are one of two live motion systems -- the other being
+  `viz-styles/vizMotion.ts` (D38), which the Three.js styles
+  import.
+- **Decision:** The removal is struck and the modules stay. Two
+  motion systems coexist: `motion/` for the FX shader presets
+  (richer -- springs, ten named moves, impulse trigger, frame
+  driver, beat grid) and `vizMotion.ts` for the Three.js styles
+  (four primitives). Whether they converge is an owner call,
+  recorded as an open question in
+  `docs/plans/next-actions-2026-10.md` section 3 item 4 -- it is a
+  design decision with a real cost either way, not a cleanup.
+- **Consequences:** Any agent reading D23's 2026-10-02/06 note
+  without re-measuring would delete live code; the same trap the
+  plan's Step 0 "trust but verify" clause exists for. The
+  coexistence is intentional for now: the vocabularies serve
+  different render paths at different fidelity, and forcing
+  convergence mid-plan would stall both lanes.
+  `ShaderVisualizer.tsx` is the load-bearing consumer -- treat it
+  as the test of any future removal, and re-measure consumers
+  (grep + tests) before re-opening the question.
