@@ -247,9 +247,11 @@ entry point and controls.
   studio audio fix is load-bearing, not incidental: without a real audio
   element the section playhead is null and the driver is inert by design.
 - Still open across both: ~~the browser accept checks~~ — **done for 2.6
-  (2026-10-13):** before/after captures of the geometric style on "The
-  Last"'s quiet verse, measured luma +2.01 at the quiet decile, median
-  unchanged, clipped-white identical (0.5281%), crushed blacks 55.2% →
-  53.7% (see studio-quality build notes). F4's stub and the section-track
-  check are closed (above); the D24 three-track sweep for the *other*
-  styles (sparse/acoustic tracks) remains browser work.
+  (2026-10-13):** before/after captures in the 3D viz-styles path on "The
+  Last"'s quiet verse for all four changed styles; measured quiet-decile
+  lift +1.12 (geometric) and +2.00 (neural), median ~unchanged, no clipping
+  increase in any style, crushed blacks down 1–4.6 pp (see studio-quality
+  build notes for the table and the noise caveat; an earlier shader-mode pair
+  was struck as measuring the wrong render path). F4's stub and the
+  section-track check are closed (above); the D24 three-track sweep's
+  sparse/acoustic tracks remain browser work.

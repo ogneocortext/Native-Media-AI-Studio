@@ -254,16 +254,34 @@ Frequency→color verified, not built: `pulse.tsx`'s bars already implement
 the §2 convention (bass → warm red 0.02, mid → green 0.33, treble → blue
 0.58); the remaining styles key hue by *energy* (`energyHue`, the shipped
 Q5 Tier 1 axis), which is a different documented axis, not a violation.
-Phase 2 exit rule's before/after captures are done for 2.6: geometric
-style on the "The Last" track (intro 0–68 s, so a quiet verse moment),
-captured in-browser with the gamma change reverted vs applied
-(`packages/frontend/tests/browser/out/2.6-{before,after}-geometric-verse.png`,
-agent screenshots, gitignored). Measured luma over the canvas region:
-quiet-decile +2.01, median unchanged, mean +1.97, **clipped-white pixels
-identical (0.5281% — no new clipping)**, crushed-black pixels 55.2% →
-53.7%. Direction matches the design — quiet detail lifted, the loud half
-not clipped. Caveat: the two frames are 0.27 s apart in a live animated
-scene, so the deltas are directional evidence, not a pure A/B.
+Phase 2 exit rule's before/after captures for 2.6 are done, on the
+dense track ("The Last", 176 s, 7 sections — the intro/verse at ~15 s is
+the quiet passage), in the **3D viz-styles render path** that actually
+consumes `gammaDrive` (`…/out/2.6-3d-{before,after}-{geometric,pulse,storm,
+neural}.png`, agent screenshots, gitignored). An earlier pair was captured
+in *shader mode* and measured nothing about 2.6 — struck, not counted.
+
+Measured luma over the trimmed canvas region (before → after):
+
+| style | quiet decile (p10) | median | crushed blacks (<20) |
+|---|---|---|---|
+| geometric | 5.81 → 6.93 (**+1.12**) | unchanged | 71.8% → 67.3% (**−4.6 pp**) |
+| neural | 0.00 → 2.00 (**+2.00**) | 14.0 → 15.0 (+1.0) | 80.2% → 78.7% (−1.5 pp) |
+| storm | 0.00 → 0.21 (+0.21) | 14.0 → 14.2 (+0.2) | 82.0% → 81.0% (−1.0 pp) |
+| pulse | 0.21 → 0.00 (−0.21) | 14.0 → 13.2 (−0.8) | 81.9% → 82.1% (+0.2 pp) |
+
+Direction matches the design where it matters: both styles whose
+lightness term carries a large energy coefficient (geometric's `bass*0.15`
+/ `bass*0.3`, neural's `brightness*0.2`) lift the quiet decile and move the
+median little; pulse's per-bar term (`freq*0.6` over ~1/3 s changing bar
+heights) is inside run-to-run noise. No style shows a clipping increase —
+the >250-luma share is identical to 4 decimals across all eight captures
+(it is dominated by UI text in the trimmed region, so this bounds new
+blowout rather than measuring canvas clipping).
+
+Caveats: frames are ~0.3 s apart in a live, audio-reactive scene, so
+per-style deltas are directional evidence; the sparse and acoustic tracks
+of D24's three-track sweep are still outstanding browser work.
 
 ### 2.7 Wire the motion vocabulary (completes 2.4)
 
