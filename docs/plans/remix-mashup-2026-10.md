@@ -1,8 +1,10 @@
 # Remix / Mashup Plan — Oct 2026
 
 **Status:** Complete (2026-10-13) — B1–B7 (Parts A and B) all landed; A3/A4/
-A6/A7 finished the frontend. Only the B2-drafted route-baseline catch-up and
-a Windows e2e pass on the new panel controls remain as follow-ups.
+A6/A7 finished the frontend. Both stated follow-ups are closed: the route
+baseline was refreshed alongside A3 (it also caught up B2's `/from-prompt`),
+and the Windows e2e pass landed as `packages/frontend/tests/remix-panel.spec.ts`
+(4 tests, full suite 90/90 green).
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -397,6 +399,37 @@ frontend long ops) → B3 (richer sources) → B2 (NL endpoint) → B1 (MCP cont
 **Phase 2 — expressiveness + robustness:** B4 (tone shaping) → B6/B7.
 **Phase 3 — frontend:** A1 → A2 → A5 (cheap wins) → A3/A4/A6 (preview, controls,
 timeline) → A7 (docstring).
+
+### Windows e2e pass over the Phase 3 controls (2026-10-13)
+
+`packages/frontend/tests/remix-panel.spec.ts`, 4 tests, in the same style as
+`canvas2d.spec.ts`:
+
+1. **A1** — seeds `__pendingRemixOpen` on the origin (the panel only mounts once
+   a track is loaded, so a flag set after navigation arrives too late), selects a
+   track the panel can actually source, and asserts both that the stems resolved
+   and that the panel is *expanded*. "N stems ready" appears in both panel
+   states, so the expansion claim rests on the timeline, which only the expanded
+   body renders.
+2. **A6 + A7** — parses the timeline caption's own numbers and checks its
+   seconds are the bars it claims at the tempo it claims, then compares the key
+   advisory against what `/probe` actually returned (key *and* confidence), so
+   the test cannot pass by asserting the text alone.
+3. **A4** — counts the three labelled sliders per seeded layer and moves two of
+   them, reading the values back so a control that renders but does nothing fails.
+4. **A3** — clicks Audition, waits for the excerpt player, checks its src is a
+   `/preview-file/` URL and that the element has no media error (a 404 there
+   surfaces on the element, not as a failed request).
+
+Machine-independent by construction: instead of hardcoding a library track, the
+spec asks `/api/audio/remix/sources` which track the panel can source, using the
+same normalization and fixture guard `matchSource` uses. A hardcoded name would
+pass here and silently select nothing elsewhere. Track whose analysis is not
+cached 404s on load (the visualizer then falls back to live audio), so those
+console lines are filtered by name rather than by dropping the console assertion.
+
+The caption assertion is mutation-checked: reverting the seconds formula to the
+bug A6 fixed makes it fail.
 
 ## Non-goals
 
