@@ -90,6 +90,57 @@ export function nextFreeName(base: string, taken: readonly string[]): string {
   return `${cleaned}-${Date.now()}`;
 }
 
+/** Per-stem chip colours for the timeline (A6). */
+export const STEM_TIMELINE_COLORS: Record<EditableLayer["stem"], string> = {
+  vocals: "bg-rose-400/70",
+  drums: "bg-amber-400/70",
+  bass: "bg-emerald-400/70",
+  other: "bg-sky-400/70",
+};
+
+export interface TimelineSegment {
+  slotIndex: number;
+  bars: number;
+  /** Width as a percentage of the whole arrangement. */
+  pct: number;
+  crossfadeBars: number;
+  /** Crossfade into the previous slot, as a percentage of the arrangement. */
+  crossfadePct: number;
+  /** Distinct stems this slot plays, in STEM_NAMES order. */
+  stems: EditableLayer["stem"][];
+}
+
+/**
+ * Proportional view of the arrangement (A6).
+ *
+ * A 4-bar and a 32-bar slot used to look identical in the form, so the shape
+ * of the song was unreadable. Widths are shares of total bars — the same
+ * relationship the render uses, so what the bar shows is what the mix does.
+ * Degenerate input (no bars) yields no segments rather than NaN widths.
+ */
+/** Canonical stem order for the timeline chips (A6). */
+const TIMELINE_STEM_ORDER = ["drums", "bass", "vocals", "other"] as const;
+
+export function timelineSegments(slots: EditableSlot[]): TimelineSegment[] {
+  const playable = slots.filter((s) => s.layers.length > 0 && s.bars > 0);
+  const totalBars = playable.reduce((n, s) => n + s.bars, 0);
+  if (totalBars <= 0) return [];
+  return playable.map((slot, i) => {
+    // Canonical order, not insertion order: the chips read the same way
+    // whichever order the layers happen to be listed in.
+    const present = new Set(slot.layers.map((l) => l.stem));
+    const stems = TIMELINE_STEM_ORDER.filter((s) => present.has(s)) as EditableLayer["stem"][];
+    return {
+      slotIndex: i,
+      bars: slot.bars,
+      pct: (slot.bars / totalBars) * 100,
+      crossfadeBars: slot.crossfade_bars,
+      crossfadePct: (slot.crossfade_bars / totalBars) * 100,
+      stems,
+    };
+  });
+}
+
 export function nextLayerId(): string {
   return `L${layerSeq++}`;
 }

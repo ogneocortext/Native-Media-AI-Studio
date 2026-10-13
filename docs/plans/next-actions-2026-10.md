@@ -186,13 +186,14 @@ the way: the live loop originally quiesced per captured frame, so
 `frameCountRef` (the particle-update parity gate) advanced between
 captures; it is now a per-export quiesce with the counter reset. **The
 F5 accept criterion is met and measured.**
-
 ### Step 4 — Remix / mashup (gated)
-Plan is **Proposed** and untouched — **do not build until the owner
-approves**. Suggested sequence when approved: job tracking → richer
-source discovery → local-Ollama prompt-to-recipe (draft/review/build) →
-MCP `remix_*` tools → tone shaping + structured warnings → frontend
-entry point and controls.
+
+**Landed 2026-10-13** — the plan was approved and is now complete: B1–B7
+(agent backbone, expressiveness, robustness) plus A1–A7 (frontend
+ease-of-use). See `remix-mashup-2026-10.md` for the build notes; the two
+additions to `/api/audio/*` (`preview-audio`, `preview-file`) are in
+`tools/audio_routes_baseline.json` alongside B2's `/from-prompt`, which had
+been left out of the baseline when it shipped.
 
 ## 3. Decisions needed from the owner
 1. Approve this sequencing (Step 2 order) or reprioritize.

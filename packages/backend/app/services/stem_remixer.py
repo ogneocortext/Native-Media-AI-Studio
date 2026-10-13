@@ -34,6 +34,7 @@ once" are the same mechanism with different slot contents.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -86,9 +87,7 @@ PROBE_CACHE_VERSION = 4
 
 _PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 # Krumhansl-Schmuckler major-key profile.
-_MAJOR_PROFILE = np.array(
-    [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
-)
+_MAJOR_PROFILE = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 
 
 # ─── source discovery ────────────────────────────────────────────────────────
@@ -334,9 +333,7 @@ def list_stem_sources() -> list[dict[str, Any]]:
                 track_dir.name,
                 {"track": track_dir.name, "model": model_dir.name, "stems": {}},
             )
-            entry["stems"] = {
-                s: entry["stems"].get(s, False) or present[s] for s in STEM_NAMES
-            }
+            entry["stems"] = {s: entry["stems"].get(s, False) or present[s] for s in STEM_NAMES}
     for entry in found.values():
         entry.update(_probe_summary(entry["track"]))
     # One library scan for the whole listing (see library_file_for).
@@ -370,8 +367,7 @@ def _pick_analysis_stem(track: str) -> tuple[str, Path]:
             # at all (B6). Either way the next stem in the chain is tried.
             continue
     raise FileNotFoundError(
-        f"Track {track!r} has no stems under {SEPARATION_DIR} "
-        f"(looked for {', '.join(STEM_NAMES)})"
+        f"Track {track!r} has no stems under {SEPARATION_DIR} (looked for {', '.join(STEM_NAMES)})"
     )
 
 
@@ -445,7 +441,7 @@ def probe_track(track: str) -> dict[str, Any]:
     frame = 1024
     n_frames = max(1, len(y) // frame)
     frames = y[: n_frames * frame].reshape(n_frames, frame).astype(np.float64)
-    frame_rms = np.sqrt(np.mean(frames ** 2, axis=1))
+    frame_rms = np.sqrt(np.mean(frames**2, axis=1))
     loudest = float(np.max(frame_rms)) if frame_rms.size else 0.0
     if loudest > 1e-9:
         # -45 dB relative to the stem's own loudest frame.
@@ -464,9 +460,7 @@ def probe_track(track: str) -> dict[str, Any]:
         "key_advisory": _PITCH_NAMES[int(np.argmax(chroma))],
         "key_correlation": round(correlation, 4),
         "chroma_flatness": round(flatness, 4),
-        "key_confident": bool(
-            correlation >= KEY_CONFIDENCE_FLOOR and flatness < 0.5
-        ),
+        "key_confident": bool(correlation >= KEY_CONFIDENCE_FLOOR and flatness < 0.5),
         "beat_count": int(len(beats)),
         "analysed_stem": analysed_stem,
         "source": analysis_path.name,
@@ -529,13 +523,8 @@ class RemixLayer:
             # ±12 dB/octave is the range where a tilt reads as tone rather
             # than as a broken signal. B4.
             raise ValueError(f"brightness_db out of range: {self.brightness_db}")
-        if (
-            not math.isfinite(self.key_shift_semitones)
-            or abs(self.key_shift_semitones) > 12.0
-        ):
-            raise ValueError(
-                f"key_shift_semitones out of range: {self.key_shift_semitones}"
-            )
+        if not math.isfinite(self.key_shift_semitones) or abs(self.key_shift_semitones) > 12.0:
+            raise ValueError(f"key_shift_semitones out of range: {self.key_shift_semitones}")
         if self.source_start_bar < 0:
             raise ValueError("source_start_bar must be >= 0")
 
@@ -543,6 +532,7 @@ class RemixLayer:
 @dataclass
 class RemixSlot:
     """A span of the arrangement, in bars."""
+
     layers: list[RemixLayer]
     bars: int = 8
     # Equal-power crossfade into the *next* slot, in bars. Clamped to the slot
@@ -693,7 +683,9 @@ def _brightness_tilt(y: np.ndarray, sr: int, db_per_octave: float) -> np.ndarray
         lambda freqs: np.where(
             freqs <= _TILT_PIVOT_HZ,
             1.0,
-            np.power(10.0, (db_per_octave * np.log2(np.maximum(freqs, 1.0) / _TILT_PIVOT_HZ)) / 20.0),
+            np.power(
+                10.0, (db_per_octave * np.log2(np.maximum(freqs, 1.0) / _TILT_PIVOT_HZ)) / 20.0
+            ),
         ).astype(np.float32),
     )
 
@@ -791,7 +783,10 @@ class _SourceCache:
             ).astype(np.float32)
         if layer.brightness_db:
             y = np.stack(
-                [_brightness_tilt(y[c], REMIX_SR, float(layer.brightness_db)) for c in range(y.shape[0])],
+                [
+                    _brightness_tilt(y[c], REMIX_SR, float(layer.brightness_db))
+                    for c in range(y.shape[0])
+                ],
                 axis=0,
             ).astype(np.float32)
 
@@ -848,21 +843,21 @@ def _render_slot(
     return out
 
 
-def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
-    """Render a recipe to a four-stem directory under `output/remixes/`.
+def _mix_recipe(
+    recipe: RemixRecipe,
+) -> tuple[dict[str, np.ndarray], dict[str, int], list[str], dict[str, float]]:
+    """Render a recipe's slots into per-stem buffers, in memory.
 
-    The output is a plain stem set, so it feeds the existing enhancer chain,
-    `/api/audio/stem-file` playback and the visualizer with no special casing.
+    Shared by the full render and the audible preview (A3), so a preview
+    exercises the same tempo alignment, key shifting, tone shaping,
+    crossfades and per-layer gains as the build it previews — a preview
+    that mixed differently would misrepresent the thing it previews.
+
+    Returns (stems, plan, warnings, stretch_ratios); the ratios are part of
+    the manifest's provenance, so they come back with the audio.
     """
-    if not LIBROSA_AVAILABLE:
-        raise RuntimeError("librosa is required to render remixes")
-    name = _safe_remix_name(recipe.name)
     plan = plan_timeline(recipe)
-    bar_n, seg_ns, xf_ns, total_n = (
-        plan["bar_n"], plan["seg_ns"], plan["xf_ns"], plan["total_n"]
-    )
-    warnings: list[str] = []
-
+    bar_n, seg_ns, xf_ns, total_n = (plan["bar_n"], plan["seg_ns"], plan["xf_ns"], plan["total_n"])
     cache = _SourceCache(recipe.target_bpm)
     mixed = {stem: np.zeros((2, total_n), dtype=np.float32) for stem in STEM_NAMES}
 
@@ -886,23 +881,45 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
                     + segment[stem][:, :xf] * fade_in
                 )
                 if seg_n > xf:
-                    mixed[stem][:, written : written + seg_n - xf] += segment[stem][
-                        :, xf:
-                    ]
+                    mixed[stem][:, written : written + seg_n - xf] += segment[stem][:, xf:]
             written += seg_n - xf
         previous = segment
         previous_n = seg_n
 
     assert written == total_n, f"write cursor {written} != planned length {total_n}"
 
-    # Warn rather than silently clipping. The enhancer's limiter catches this
-    # later, but a remix needing -3 dB of it is worth saying out loud.
+    # Consumers need plain Python ints (a manifest can hand over floats, and
+    # numpy scalars leak in through the stretch maths), so normalise here
+    # once. `seg_ns`/`xf_ns` are lists, so each element is converted: `int()`
+    # on the list itself is a TypeError, which is exactly how this line
+    # failed when `_mix_recipe` first ran.
+    int_plan: dict[str, Any] = {
+        key: [int(v) for v in value] if isinstance(value, list) else int(value)
+        for key, value in plan.items()
+    }
+
+    # Peak warnings, shared by both paths: a caller is told before it writes.
+    warnings: list[str] = []
     for stem, buf in mixed.items():
         peak = float(np.max(np.abs(buf))) if buf.size else 0.0
         if peak > 1.0:
             warnings.append(
                 f"{stem} peaks at {20.0 * math.log10(peak):+.2f} dBFS before the limiter"
             )
+    return mixed, int_plan, warnings, dict(cache.stretch_ratios)
+
+
+def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
+    """Render a recipe to a four-stem directory under `output/remixes/`.
+
+    The output is a plain stem set, so it feeds the existing enhancer chain,
+    `/api/audio/stem-file` playback and the visualizer with no special casing.
+    """
+    if not LIBROSA_AVAILABLE:
+        raise RuntimeError("librosa is required to render remixes")
+    name = _safe_remix_name(recipe.name)
+    mixed, plan, warnings, stretch_ratios = _mix_recipe(recipe)
+    total_n = plan["total_n"]
 
     try:
         import soundfile as sf
@@ -931,10 +948,8 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
         "duration_sec": round(total_n / REMIX_SR, 3),
         "sample_rate": REMIX_SR,
         "key_advisory": recipe.key,
-        "source_tracks": sorted(
-            {layer.track for slot in recipe.slots for layer in slot.layers}
-        ),
-        "stretch_ratios": {k: round(v, 4) for k, v in cache.stretch_ratios.items()},
+        "source_tracks": sorted({layer.track for slot in recipe.slots for layer in slot.layers}),
+        "stretch_ratios": {k: round(v, 4) for k, v in stretch_ratios.items()},
         "warnings": warnings,
         "slots": [
             {
@@ -957,12 +972,187 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
     )
 
 
-# ─── preview ─────────────────────────────────────────────────────────────────
+# ─── audible preview (A3) ────────────────────────────────────────────────────
+#
+# `preview_recipe` answers "what would this render to" in numbers; A3 answers
+# "what does it sound like" without paying for a build. The preview is the same
+# recipe rendered through the same mix core, truncated to a bounded length and
+# cached by recipe hash so re-clicking Preview Audio after a tweak is one load.
+
+PREVIEW_DIR = REMIX_DIR / ".previews"
+PREVIEW_MAX_SECONDS = 30.0
+PREVIEW_MAX_ENTRIES = 12
 
 
-def _near_silent_detail(
-    layer: RemixLayer, rms: float, bar_seconds: float
+def truncate_recipe(recipe: RemixRecipe, max_seconds: float = PREVIEW_MAX_SECONDS) -> RemixRecipe:
+    """Bound a recipe's rendered length to `max_seconds`, whole slots first.
+
+    Whole slots stay whole — an audition of the first three slots and a
+    fade tells the user more about the arrangement than a hard cut in the
+    middle of the second one. Only the final kept slot is trimmed, and its
+    crossfade is clamped with it so `plan_timeline` cannot reject the
+    result. Recipes that already fit are returned unchanged.
+    """
+    bar_seconds = recipe.bar_seconds
+    if bar_seconds <= 0:
+        raise ValueError("bar_seconds must be positive")
+    max_bars = max(1, int(max_seconds / bar_seconds))
+    kept: list[RemixSlot] = []
+    total_bars = 0
+    for slot in recipe.slots:
+        if not slot.layers:
+            continue
+        remaining = max_bars - total_bars
+        if remaining <= 0:
+            break
+        if slot.bars <= remaining:
+            kept.append(slot)
+            total_bars += slot.bars
+            continue
+        # Trim the crossing slot: at least one bar, and a crossfade that
+        # fits inside both adjacent segments after the trim.
+        bars = max(1, remaining)
+        trimmed = RemixSlot(
+            layers=list(slot.layers),
+            bars=bars,
+            crossfade_bars=min(
+                slot.crossfade_bars, float(bars), float(kept[-1].bars) if kept else float(bars)
+            ),
+        )
+        kept.append(trimmed)
+        total_bars += bars
+        break
+    if not kept:
+        raise ValueError("recipe renders to no playable bars")
+    return RemixRecipe(
+        name=recipe.name,
+        target_bpm=recipe.target_bpm,
+        beats_per_bar=recipe.beats_per_bar,
+        key=recipe.key,
+        slots=kept,
+    )
+
+
+def _preview_key(recipe: RemixRecipe) -> str:
+    """Stable hash of everything the preview audio depends on."""
+    payload = json.dumps(
+        {
+            "bpm": round(recipe.target_bpm, 3),
+            "beats_per_bar": recipe.beats_per_bar,
+            "slots": [
+                {
+                    "bars": slot.bars,
+                    "crossfade_bars": slot.crossfade_bars,
+                    "layers": [asdict(layer) for layer in slot.layers],
+                }
+                for slot in recipe.slots
+            ],
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]  # noqa: S324 - cache key, not security
+
+
+def _preview_meta_path(wav_path: Path) -> Path:
+    """Sidecar JSON beside a cached excerpt, carrying what the wav cannot."""
+    return wav_path.with_suffix(".json")
+
+
+def _write_preview_meta(wav_path: Path, warnings: list[str]) -> None:
+    """Record the mix facts that produced the excerpt.
+
+    The written file is peak-normalised, so the pre-normalisation warnings
+    cannot be recovered from it. Without the sidecar a cache hit would report
+    `warnings: []` for a recipe whose first render warned, which is a
+    different answer for the same input.
+    """
+    _preview_meta_path(wav_path).write_text(
+        json.dumps({"warnings": warnings}), encoding="utf-8"
+    )
+
+
+def _read_preview_warnings(wav_path: Path) -> list[str]:
+    """Warnings recorded when the excerpt was rendered; [] if unreadable."""
+    try:
+        data = json.loads(_preview_meta_path(wav_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return []
+    return list(data.get("warnings", [])) if isinstance(data, dict) else []
+
+
+def render_preview_audio(
+    recipe: RemixRecipe, max_seconds: float = PREVIEW_MAX_SECONDS
 ) -> dict[str, Any]:
+    """Render a bounded, playable excerpt of a recipe (A3).
+
+    Returns `{path, duration_sec, truncated, warnings}`. The result is
+    cached by recipe hash, so an unchanged recipe replays from disk rather
+    than re-timestretching every source. The cache holds the newest
+    `PREVIEW_MAX_ENTRIES` excerpts and drops the rest - a preview nobody
+    replays is dead weight.
+    """
+    if not LIBROSA_AVAILABLE:
+        raise RuntimeError("librosa is required to render a preview")
+    bounded = truncate_recipe(recipe, max_seconds)
+    truncated = len(bounded.slots) != len(recipe.slots) or any(
+        a.bars != b.bars for a, b in zip(bounded.slots, recipe.slots, strict=False)
+    )
+    key = _preview_key(bounded)
+    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    destination = PREVIEW_DIR / f"{key}.wav"
+
+    if destination.exists():
+        warnings = _read_preview_warnings(destination)
+    else:
+        import soundfile as sf
+
+        mixed, plan, warnings, _ratios = _mix_recipe(bounded)
+        # A single stereo mixdown, peak-normalised: an audition is no use
+        # if it plays back quieter than the full build would.
+        mono = np.zeros(plan["total_n"], dtype=np.float32)
+        for buf in mixed.values():
+            mono += buf.mean(axis=0)
+        peak = float(np.max(np.abs(mono))) if mono.size else 0.0
+        if peak > 0:
+            mono = mono / peak
+        sf.write(str(destination), np.stack([mono, mono], axis=0).T, REMIX_SR, subtype="PCM_16")
+        _write_preview_meta(destination, warnings)
+
+    _prune_previews()
+    return {
+        "path": str(destination),
+        "duration_sec": round(_wav_duration_sec(destination), 3),
+        "truncated": truncated,
+        "warnings": warnings,
+    }
+
+
+def _wav_duration_sec(path: Path) -> float:
+    """Duration of a 16-bit PCM WAV from its header — no decode needed."""
+    import wave
+
+    with wave.open(str(path), "rb") as handle:
+        return handle.getnframes() / float(handle.getframerate())
+
+
+def _prune_previews(keep: int = PREVIEW_MAX_ENTRIES) -> None:
+    """Drop the oldest preview files beyond `keep`, newest-first by mtime.
+
+    The `.json` sidecar goes with its wav: leaving it behind would orphan a
+    file every later run rewrites anyway.
+    """
+    if not PREVIEW_DIR.exists():
+        return
+    files = sorted(PREVIEW_DIR.glob("*.wav"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for stale in files[keep:]:
+        for candidate in (stale, _preview_meta_path(stale)):
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
+
+
+def _near_silent_detail(layer: RemixLayer, rms: float, bar_seconds: float) -> dict[str, Any]:
     """Structured form of the near-silence warning.
 
     `first_audible_sec` is already measured by the probe, so the
@@ -973,15 +1163,10 @@ def _near_silent_detail(
     """
     first_audible = _probe_summary(layer.track).get("first_audible_sec")
     suggestion = "check source_start_bar"
-    if (
-        isinstance(first_audible, (int, float))
-        and first_audible > 0.0
-        and bar_seconds > 0.0
-    ):
+    if isinstance(first_audible, (int, float)) and first_audible > 0.0 and bar_seconds > 0.0:
         bar = math.ceil(float(first_audible) / bar_seconds - 1e-9)
         suggestion = (
-            f"first_audible_sec is {float(first_audible):.2f}; "
-            f"try source_start_bar >= {bar}"
+            f"first_audible_sec is {float(first_audible):.2f}; try source_start_bar >= {bar}"
         )
     return {
         "code": "near_silent",
@@ -1030,9 +1215,7 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
                 }
             )
             if rms < -50.0:
-                warnings_detail.append(
-                    _near_silent_detail(layer, rms, recipe.bar_seconds)
-                )
+                warnings_detail.append(_near_silent_detail(layer, rms, recipe.bar_seconds))
                 warnings.append(
                     f"{layer.track}/{layer.stem} is near-silent at this offset "
                     f"({rms:.0f} dBFS) - check source_start_bar"
@@ -1089,9 +1272,7 @@ def list_remixes() -> list[dict[str, Any]]:
                 "duration_sec": manifest.get("duration_sec"),
                 "target_bpm": manifest.get("target_bpm"),
                 "source_tracks": manifest.get("source_tracks", []),
-                "stems": sorted(
-                    p.stem for p in entry.glob("*.wav")
-                ),
+                "stems": sorted(p.stem for p in entry.glob("*.wav")),
                 "has_enhanced": (entry / "enhanced").is_dir(),
             }
         )
@@ -1221,9 +1402,7 @@ def list_remixes_for_track(track: str) -> list[dict[str, Any]]:
             {
                 **entry,
                 "recipe": recipe,
-                "role": (
-                    "primary" if _normalize_track_name(first) == target else "contributor"
-                ),
+                "role": ("primary" if _normalize_track_name(first) == target else "contributor"),
             }
         )
     return matched

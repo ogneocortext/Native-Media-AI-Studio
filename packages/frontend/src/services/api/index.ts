@@ -109,6 +109,7 @@ export {
   getRemixSources,
   probeRemixTrack,
   previewRemix,
+  previewRemixAudio,
   startBuildRemix,
   buildRemix,
   startEnhanceRemix,

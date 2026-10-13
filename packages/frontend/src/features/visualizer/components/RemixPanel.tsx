@@ -22,9 +22,12 @@ import {
   STEM_NAMES,
   buildRemix,
   enhanceRemix,
+  getAudioStems,
+  getApiBase,
   getRemixSources,
   listRemixes,
   previewRemix,
+  previewRemixAudio,
   probeRemixTrack,
   remixFileUrl,
   separateAudioFile,
@@ -65,6 +68,8 @@ import {
   matchSource,
   nextFreeName,
   recipeToEditableSlots,
+  timelineSegments,
+  STEM_TIMELINE_COLORS,
   type EditableLayer,
   type EditableSlot,
 } from "./remixRecipe";
@@ -81,9 +86,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   const [nameTouched, setNameTouched] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [slots, setSlots] = useState<UISlot[]>([]);
-  const [busy, setBusy] = useState<null | "preview" | "build" | "master" | "separate">(null);
+  const [busy, setBusy] = useState<null | "preview" | "build" | "master" | "separate" | "listen" | "audition">(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RemixPreview | null>(null);
+  // A3: the last rendered audition, played through a hidden <audio>.
+  const [listen, setListen] = useState<{ url: string; duration_sec: number; truncated: boolean } | null>(null);
   const [built, setBuilt] = useState<RemixSummary | null>(null);
   const [remixes, setRemixes] = useState<RemixSummary[]>([]);
   // A5: replacing an existing remix is an explicit choice, not the default.
@@ -117,6 +124,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   // a tenth of a second of scratch vocal. Probe results are cached on disk by
   // the backend, so this costs one slow load and nothing after.
   const [durations, setDurations] = useState<Record<string, number>>({});
+  // A7: the probe's key advisory for the seeded track. It is *advisory*: on
+  // this library chroma flatness is 0.978-0.998 and the argmax moved between
+  // runs, so it is displayed labelled as unreliable rather than treated as a
+  // key. The panel docstring claims this; now it is true.
+  const [keyAdvisory, setKeyAdvisory] = useState<{ key: string; confident: boolean } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -155,7 +167,12 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     const wanted = matchSource(currentTrack, tracks) ?? tracks[0];
     setPrimaryTrack(wanted);
     void probeRemixTrack(wanted)
-      .then((p) => setBpm(Math.round(p.bpm)))
+      .then((p) => {
+        setBpm(Math.round(p.bpm));
+        setKeyAdvisory(
+          p.key_advisory ? { key: p.key_advisory, confident: Boolean(p.key_confident) } : null,
+        );
+      })
       .catch(() => {});
     setSlots([
       {
@@ -305,6 +322,23 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     }
   }, [recipe]);
 
+  // A3: an audible audition of the arrangement. Preview answers "what would
+  // this render to" in numbers; this answers "what does it sound like",
+  // before a build is paid for.
+  const runListen = useCallback(async () => {
+    setBusy("listen");
+    setError(null);
+    try {
+      const result = await previewRemixAudio(recipe());
+      setListen({ url: result.url, duration_sec: result.duration_sec, truncated: result.truncated });
+    } catch (e) {
+      setError((e as Error).message);
+      setListen(null);
+    } finally {
+      setBusy(null);
+    }
+  }, [recipe]);
+
   const runBuild = useCallback(async () => {
     // A5: refuse the one case that used to be silent. A colliding name with
     // overwrite off would have rendered to a directory that already exists;
@@ -365,6 +399,33 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     if (el.src !== src) el.src = src;
     void el.play().catch(() => setError("Playback was blocked by the browser"));
   }, []);
+
+  // A4: audition one layer's *source* stem — "what does B's vocals actually
+  // sound like" without building anything. Resolved through the library
+  // filename the sources listing carries (B6), then the stems index.
+  const auditionLayer = useCallback(
+    async (layer: UILayer) => {
+      const source = sources.find((s) => s.track === layer.track);
+      const libraryFile = source?.library_file;
+      if (!libraryFile) {
+        setError(`No library file is linked to ${layer.track}; cannot audition its ${layer.stem}.`);
+        return;
+      }
+      setBusy("audition");
+      setError(null);
+      try {
+        const stems = await getAudioStems(libraryFile);
+        const url = stems.stems[layer.stem];
+        if (!url) throw new Error(`${libraryFile} has no separated ${layer.stem}`);
+        play(url.startsWith("/") ? `${getApiBase()}${url}` : url);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [sources, play],
+  );
 
   if (!open) {
     return (
@@ -456,6 +517,19 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
             )}
           </div>
 
+          {/* A7: render the advisory the panel docstring always claimed, with
+              its unreliability attached. It sits with the arrangement header
+              because it is a fact about the seeded source track, not about a
+              rendered remix. */}
+          {keyAdvisory && (
+            <p className="text-[10px] text-muted" data-testid="remix-key-advisory">
+              advisory key <span className="text-white/80">{keyAdvisory.key}</span>
+              {keyAdvisory.confident
+                ? ""
+                : " — unreliable (chroma is flat on these stems); key shifts stay explicit per layer"}
+            </p>
+          )}
+
           <div className="flex flex-wrap gap-1">
             {(["swap", "intro", "blend"] as const).map((p) => (
               <button key={p} onClick={() => applyPreset(p)} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
@@ -463,6 +537,48 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               </button>
             ))}
           </div>
+
+          {/* A6: the arrangement at a glance. Widths are shares of total
+              bars — the relationship the render uses — so a 4-bar slot and a
+              32-bar slot finally look different. */}
+          {timelineSegments(slots).length > 0 && (
+            <div className="space-y-1" data-testid="remix-timeline">
+              <div className="flex h-6 rounded overflow-hidden border border-white/10">
+                {timelineSegments(slots).map((seg) => (
+                  <div
+                    key={seg.slotIndex}
+                    className="relative flex flex-col justify-center gap-0.5 px-1 bg-white/[0.04] border-r border-white/10 last:border-r-0"
+                    style={{ width: `${seg.pct}%` }}
+                    title={`Slot ${seg.slotIndex + 1}: ${seg.bars} bars${seg.crossfadePct > 0 ? `, ${seg.crossfadeBars}-bar crossfade` : ""}`}
+                  >
+                    <span className="text-[9px] text-muted truncate">
+                      {seg.bars}b{seg.crossfadeBars > 0 ? ` ×${seg.crossfadeBars}` : ""}
+                    </span>
+                    <div className="flex gap-0.5">
+                      {seg.stems.map((stem) => (
+                        <span
+                          key={stem}
+                          className={`h-1.5 flex-1 rounded-sm ${STEM_TIMELINE_COLORS[stem]}`}
+                          title={stem}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {(() => {
+                const totalBars = slots.filter((s) => s.layers.length > 0).reduce((n, s) => n + s.bars, 0);
+                // beats_per_bar is fixed at 4 in `recipe()`, so seconds =
+                // bars x 4 beats x 60 / bpm. (Crossfades overlap slots, so this
+                // is the upper bound: a 2-bar crossfade into slot 2 removes it.)
+                return (
+                  <p className="text-[9px] text-muted">
+                    {totalBars} bars · {((totalBars * 4 * 60) / bpm).toFixed(1)}s at {bpm} BPM
+                  </p>
+                );
+              })()}
+            </div>
+          )}
 
           {slots.map((slot, si) => (
             <div key={si} className="space-y-1 rounded bg-white/[0.03] p-1.5">
@@ -478,36 +594,94 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               </div>
 
               {slot.layers.map((layer, li) => (
-                <div key={layer.__id} className="flex items-center gap-1">
-                  <select
-                    value={layer.track}
-                    onChange={(e) => updateLayer(si, li, { track: e.target.value })}
-                    aria-label="Source track"
-                    className="flex-1 min-w-0 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
-                  >
-                    {tracks.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={layer.stem}
-                    onChange={(e) => updateLayer(si, li, { stem: e.target.value as StemName })}
-                    aria-label="Stem"
-                    className="px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
-                  >
-                    {stemsFor(layer.track).map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                  <label className={LABEL}>dB</label>
-                  <input type="number" step={0.5} value={layer.gain_db} onChange={(e) => updateLayer(si, li, { gain_db: Number(e.target.value) })} className={NUM} aria-label="Gain dB" />
-                  <label className={LABEL}>st</label>
-                  <input type="number" step={1} value={layer.key_shift_semitones} onChange={(e) => updateLayer(si, li, { key_shift_semitones: Number(e.target.value) })} className={NUM} aria-label="Key shift semitones" />
-                  <label className={LABEL}>@bar</label>
-                  <input type="number" min={0} value={layer.source_start_bar} onChange={(e) => updateLayer(si, li, { source_start_bar: Math.max(0, Number(e.target.value)) })} className={NUM} aria-label="Source start bar" />
-                  <button onClick={() => setSlots((p) => p.map((s, i) => (i === si ? { ...s, layers: s.layers.filter((_, j) => j !== li) } : s)))} aria-label="Remove layer" className="text-muted hover:text-red-300">
-                    <Trash2 size={11} />
-                  </button>
+                <div key={layer.__id} className="space-y-1 rounded bg-white/[0.03] p-1.5">
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={layer.track}
+                      onChange={(e) => updateLayer(si, li, { track: e.target.value })}
+                      aria-label="Source track"
+                      className="flex-1 min-w-0 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
+                    >
+                      {tracks.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={layer.stem}
+                      onChange={(e) => updateLayer(si, li, { stem: e.target.value as StemName })}
+                      aria-label="Stem"
+                      className="px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
+                    >
+                      {stemsFor(layer.track).map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    {/* A4: audition this layer's source stem before it is
+                        committed to the arrangement. */}
+                    <button
+                      onClick={() => void auditionLayer(layer)}
+                      disabled={busy !== null}
+                      aria-label={`Audition ${layer.stem} from ${layer.track}`}
+                      title={`Play ${layer.track}'s ${layer.stem}`}
+                      className="p-1 rounded bg-white/5 hover:bg-white/10 text-white disabled:opacity-40"
+                    >
+                      {busy === "audition" ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
+                    </button>
+                    <button onClick={() => setSlots((p) => p.map((s, i) => (i === si ? { ...s, layers: s.layers.filter((_, j) => j !== li) } : s)))} aria-label="Remove layer" className="text-muted hover:text-red-300">
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+
+                  {/* A4: labelled sliders with readouts instead of dB/st/@bar
+                      micro-inputs, which read as noise rather than as
+                      controls. */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <label className="space-y-0.5">
+                      <span className="flex justify-between text-[9px] text-muted">
+                        gain <span className="text-white/80">{layer.gain_db > 0 ? "+" : ""}{layer.gain_db} dB</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={-24}
+                        max={12}
+                        step={0.5}
+                        value={layer.gain_db}
+                        onChange={(e) => updateLayer(si, li, { gain_db: Number(e.target.value) })}
+                        aria-label="Gain dB"
+                        className="w-full accent-amber-400"
+                      />
+                    </label>
+                    <label className="space-y-0.5">
+                      <span className="flex justify-between text-[9px] text-muted">
+                        key <span className="text-white/80">{layer.key_shift_semitones > 0 ? "+" : ""}{layer.key_shift_semitones} st</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={-12}
+                        max={12}
+                        step={1}
+                        value={layer.key_shift_semitones}
+                        onChange={(e) => updateLayer(si, li, { key_shift_semitones: Number(e.target.value) })}
+                        aria-label="Key shift semitones"
+                        className="w-full accent-amber-400"
+                      />
+                    </label>
+                    <label className="space-y-0.5">
+                      <span className="flex justify-between text-[9px] text-muted">
+                        start <span className="text-white/80">bar {layer.source_start_bar}</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={32}
+                        step={1}
+                        value={Math.min(layer.source_start_bar, 32)}
+                        onChange={(e) => updateLayer(si, li, { source_start_bar: Number(e.target.value) })}
+                        aria-label="Source start bar"
+                        className="w-full accent-amber-400"
+                      />
+                    </label>
+                  </div>
                 </div>
               ))}
 
@@ -525,10 +699,37 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
             <button onClick={runPreview} disabled={busy !== null} className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white disabled:opacity-40">
               {busy === "preview" ? <Loader2 size={10} className="animate-spin" /> : null} Preview
             </button>
+            <button
+              onClick={runListen}
+              disabled={busy !== null || slots.every((s) => s.layers.length === 0)}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-violet-500/20 hover:bg-violet-500/30 text-[10px] text-violet-100 disabled:opacity-40"
+              title="Render a ~30 s excerpt of this arrangement and play it"
+            >
+              {busy === "listen" ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />} Audition
+            </button>
             <button onClick={runBuild} disabled={busy !== null} className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100 disabled:opacity-40">
               {busy === "build" ? <Loader2 size={10} className="animate-spin" /> : null} Build
             </button>
           </div>
+
+          {listen && (
+            <div className="space-y-1 rounded bg-violet-500/10 p-1.5" data-testid="remix-listen">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-violet-100">Audition</span>
+                <span className="text-[10px] text-muted">
+                  {listen.duration_sec.toFixed(1)}s{listen.truncated ? " of the arrangement" : ""}
+                </span>
+              </div>
+              {/* A native control is deliberate: the excerpt is a plain wav
+                  URL, and a real transport gives scrubbing for free. */}
+              <audio controls src={listen.url} className="w-full h-7" preload="auto" />
+              {listen.truncated && (
+                <p className="text-[10px] text-muted">
+                  Excerpt only — build renders the full arrangement.
+                </p>
+              )}
+            </div>
+          )}
 
           {busy === "build" && <p className="text-[10px] text-muted">Rendering — time-stretching each source onto the grid…</p>}
           {busy === "master" && <p className="text-[10px] text-muted">Mastering through the Suno chain — this takes about a minute…</p>}
@@ -568,12 +769,13 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
                   {busy === "master" ? "Mastering…" : built.has_enhanced ? "Mastered ✓" : "Master it"}
                 </button>
               </div>
+
               <div className="flex flex-wrap gap-1">
                 {(built.has_enhanced ? [...built.stems, "master" as const] : built.stems).map((which) => (
                   <button key={which} onClick={() => play(remixFileUrl(built.name, which as StemName | "master"))} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
                     <Play size={9} /> {which}
                   </button>
-              ))}
+                ))}
               </div>
             </div>
           )}

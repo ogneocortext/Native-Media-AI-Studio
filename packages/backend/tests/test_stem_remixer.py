@@ -12,6 +12,8 @@ does the summed power stay flat through the transition?
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -660,6 +662,221 @@ def test_recipe_with_tone_fields_round_trips_through_validate():
         slots=[RemixSlot(layers=[RemixLayer(track="t", stem="bass", lowpass_hz=600.0, brightness_db=-6.0)])],
     )
     recipe.validate()  # must not raise
+
+
+# ─── A3: audible preview ─────────────────────────────────────────────────────
+
+
+class _StubRenderCache:
+    """Stands in for `_SourceCache`: silence, so nothing is loaded or stretched.
+
+    The mix core's contract with the cache is one call, `get(layer)`, and the
+    buffers only need to be long enough for the window `_render_slot` takes.
+    """
+
+    def __init__(self, target_bpm: float) -> None:
+        self.target_bpm = target_bpm
+        self.stretch_ratios: dict[str, float] = {}
+
+    def get(self, layer: RemixLayer) -> np.ndarray:
+        n = int(layer.source_start_bar * 44100) + 44100
+        return np.zeros((2, n), dtype=np.float32)
+
+
+def _preview_mix_stub(warnings: list[str] | None = None):
+    """Stand-in for `_mix_recipe` returning a fixed-amplitude buffer.
+
+    A 440 Hz tone rather than silence, so the peak-normalisation and the
+    duration paths in `render_preview_audio` have a real signal to work on.
+    """
+
+    def _mix(recipe: RemixRecipe):
+        plan = plan_timeline(recipe)
+        t = np.arange(plan["total_n"], dtype=np.float32) / REMIX_SR
+        tone = 0.25 * np.sin(2.0 * np.pi * 440.0 * t)
+        mixed = {stem: np.stack([tone, tone]) for stem in stem_remixer.STEM_NAMES}
+        return mixed, dict(plan), list(warnings or []), {}
+
+    return _mix
+
+
+@pytest.fixture
+def preview_dir(tmp_path, monkeypatch):
+    """Redirect PREVIEW_DIR at a tmp path so tests never touch real output."""
+    fake = tmp_path / "previews"
+    monkeypatch.setattr(stem_remixer, "PREVIEW_DIR", fake)
+    return fake
+
+
+def test_mix_recipe_plan_values_are_plain_ints(monkeypatch):
+    """`seg_ns`/`xf_ns` are lists: cast each element, not the list.
+
+    `_mix_recipe` is shared by `/build` and the preview, and its first
+    version returned `{k: int(v) for k, v in plan.items()}` — a TypeError on
+    the two list-valued entries that took both endpoints down at once.
+    """
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _StubRenderCache)
+
+    mixed, plan, warnings, ratios = stem_remixer._mix_recipe(_recipe())
+
+    assert isinstance(plan["total_n"], int)
+    assert isinstance(plan["bar_n"], int)
+    # Buffer sizes match the plan, and the lists survived as lists.
+    assert plan["seg_ns"] == [4 * plan["bar_n"], 4 * plan["bar_n"]]
+    assert plan["xf_ns"] == [0, 2 * plan["bar_n"]]
+    assert all(isinstance(v, int) for v in plan["seg_ns"])
+    assert all(isinstance(v, int) for v in plan["xf_ns"])
+    # 8 bars minus one 2-bar crossfade, at 120 BPM (2 s per bar) = 12 s.
+    assert mixed["drums"].shape[1] == 6 * plan["bar_n"]
+    assert warnings == []
+    assert ratios == {}
+
+
+def test_truncate_recipe_leaves_a_short_recipe_unchanged():
+    # `_recipe()` renders 8 bars minus one 2-bar crossfade = 12 s.
+    recipe = _recipe()
+    bounded = stem_remixer.truncate_recipe(recipe, max_seconds=30.0)
+    assert bounded.slots == recipe.slots
+    assert sum(s.bars for s in bounded.slots) == 8
+
+
+def test_truncate_recipe_drops_whole_slots_past_the_cap():
+    # 120 BPM in 4/4 is 2 s per bar, so 30 s is 15 bars: two 8-bar slots fit
+    # one bar short of three, and the third must go rather than be sliced.
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[
+            RemixSlot(bars=8, crossfade_bars=0, layers=[RemixLayer(track="a", stem="drums")])
+            for _ in range(3)
+        ],
+    )
+    bounded = stem_remixer.truncate_recipe(recipe)
+    assert [s.bars for s in bounded.slots] == [8, 7]
+    assert sum(s.bars for s in bounded.slots) == 15
+
+
+def test_truncate_recipe_keeps_the_plan_valid():
+    """A trimmed slot's crossfade must fit, or `plan_timeline` rejects it."""
+    big_fade = [
+        RemixSlot(
+            bars=8,
+            crossfade_bars=8,
+            layers=[RemixLayer(track="a", stem="drums")],
+        )
+        for _ in range(3)
+    ]
+    recipe = RemixRecipe(name="t", target_bpm=120.0, slots=big_fade)
+
+    bounded = stem_remixer.truncate_recipe(recipe)
+
+    for slot in bounded.slots:
+        assert slot.crossfade_bars <= slot.bars
+    plan = plan_timeline(bounded)  # must not raise
+    assert plan["total_n"] > 0
+
+
+def test_truncate_recipe_rejects_a_recipe_with_no_playable_bars():
+    with pytest.raises(ValueError, match="no playable bars"):
+        stem_remixer.truncate_recipe(
+            RemixRecipe(
+                name="t",
+                target_bpm=120.0,
+                slots=[RemixSlot(bars=4, layers=[])],  # type: ignore[arg-type]
+            )
+        )
+
+
+def test_preview_key_changes_when_the_recipe_changes():
+    assert stem_remixer._preview_key(_recipe()) != stem_remixer._preview_key(
+        _recipe(target_bpm=128.0)
+    )
+    # The name is not part of the audio, so it must not change the key.
+    assert stem_remixer._preview_key(_recipe(name="one")) == stem_remixer._preview_key(
+        _recipe(name="two")
+    )
+
+
+def test_render_preview_audio_writes_the_excerpt_and_reports_it(
+    tmp_path, monkeypatch, preview_dir
+):
+    monkeypatch.setattr(
+        stem_remixer,
+        "_mix_recipe",
+        _preview_mix_stub(warnings=["drums peaks at +0.50 dBFS before the limiter"]),
+    )
+
+    data = stem_remixer.render_preview_audio(_recipe())
+
+    path = Path(data["path"])
+    assert path.parent == preview_dir
+    assert data["truncated"] is False
+    # 12 s of material at 22050 Hz stereo 16-bit.
+    assert data["duration_sec"] == pytest.approx(12.0, abs=0.01)
+    assert data["warnings"] == ["drums peaks at +0.50 dBFS before the limiter"]
+    # The sidecar exists because the written file is normalised: the
+    # pre-normalisation warnings cannot be read back from it.
+    meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+    assert meta["warnings"] == data["warnings"]
+    # 12 s of 16-bit stereo at 22050 Hz, give or take the WAV header.
+    assert path.stat().st_size == pytest.approx(12 * REMIX_SR * 4, rel=1e-3)
+
+
+def test_render_preview_audio_replays_from_cache_without_remixing(
+    tmp_path, monkeypatch, preview_dir
+):
+    calls: list[RemixRecipe] = []
+    stub = _preview_mix_stub()
+
+    def counting_mix(recipe: RemixRecipe):
+        calls.append(recipe)
+        return stub(recipe)
+
+    monkeypatch.setattr(stem_remixer, "_mix_recipe", counting_mix)
+
+    first = stem_remixer.render_preview_audio(_recipe())
+    second = stem_remixer.render_preview_audio(_recipe())
+
+    assert len(calls) == 1  # the second call came from disk
+    assert first == second  # same input, same answer
+
+
+def test_render_preview_audio_truncates_and_says_so(
+    tmp_path, monkeypatch, preview_dir
+):
+    monkeypatch.setattr(stem_remixer, "_mix_recipe", _preview_mix_stub())
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[
+            RemixSlot(bars=8, crossfade_bars=0, layers=[RemixLayer(track="a", stem="drums")])
+            for _ in range(4)
+        ],
+    )
+
+    data = stem_remixer.render_preview_audio(recipe)
+
+    assert data["truncated"] is True
+    # Capped at 15 bars x 2 s, crossfades off.
+    assert data["duration_sec"] == pytest.approx(30.0, abs=0.05)
+
+
+def test_prune_previews_keeps_newest_and_drops_sidecars(preview_dir):
+    preview_dir.mkdir(parents=True)
+    for i in range(4):
+        wav = preview_dir / f"{i}.wav"
+        wav.write_bytes(b"")
+        wav.with_suffix(".json").write_text('{"warnings": []}', encoding="utf-8")
+        stamp = 1_000 + i
+        os.utime(wav, (stamp, stamp))
+
+    stem_remixer._prune_previews(keep=2)
+
+    assert sorted(p.name for p in preview_dir.glob("*.wav")) == ["2.wav", "3.wav"]
+    # The sidecar goes with its wav, or the next run orphans it.
+    assert not (preview_dir / "0.json").exists()
+    assert not (preview_dir / "1.json").exists()
+    assert (preview_dir / "2.json").exists()
 
 
 # ─── B6 either-key acceptance ────────────────────────────────────────────────

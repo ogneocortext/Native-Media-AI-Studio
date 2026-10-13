@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -284,6 +285,50 @@ async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
     return RemixDraftResponse(**draft)
 
 
+class RemixPreviewAudioResponse(BaseModel):
+    """A playable excerpt of a recipe, without rendering it for real (A3)."""
+
+    url: str
+    duration_sec: float
+    truncated: bool
+    warnings: list[str] = []
+
+
+@router.post("/preview-audio", response_model=RemixPreviewAudioResponse)
+async def remix_preview_audio(body: RemixRecipeRequest) -> RemixPreviewAudioResponse:
+    """Render a bounded, playable excerpt of a recipe (A3).
+
+    Same mix core as `/build` — tempo alignment, key shift, tone shaping,
+    crossfades and gains — truncated to ~30 s so an audition costs one
+    render rather than a full build. Cached by recipe hash, so re-clicking
+    after a tweak replays only the changed part.
+    """
+    recipe = _to_recipe(body)
+    preview = await asyncio.to_thread(stem_remixer.render_preview_audio, recipe)
+    name = Path(preview["path"]).stem
+    return RemixPreviewAudioResponse(
+        url=f"/api/audio/remix/preview-file/{name}",
+        duration_sec=preview["duration_sec"],
+        truncated=preview["truncated"],
+        warnings=preview["warnings"],
+    )
+
+
+@router.get("/preview-file/{key}")
+async def remix_preview_file(key: str):
+    """Serve one cached preview excerpt (A3)."""
+    try:
+        # The key is a hash this module minted itself, but it arrives off the
+        # wire: a key that is not a plain filename is "not found", not a 500.
+        safe = stem_remixer._safe_remix_name(Path(key).stem)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Preview not found; render one first") from exc
+    path = stem_remixer.PREVIEW_DIR / f"{safe}.wav"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Preview not found; render one first")
+    return FileResponse(str(path), media_type="audio/wav")
+
+
 @router.post("/preview", response_model=RemixPreviewResponse)
 async def remix_preview(body: RemixRecipeRequest) -> RemixPreviewResponse:
     """Resolve a recipe without rendering.
@@ -312,6 +357,7 @@ async def remix_list() -> dict:
 
 class RemixEnhanceRequest(BaseModel):
     """Optional overrides; anything omitted uses the enhancer's own defaults."""
+
     target_peak_dbfs: float = -1.0
     master_ceiling_dbfs: float = -1.0
     pre_highpass_hz: float | None = None
@@ -332,9 +378,7 @@ class RemixEnhanceResponse(BaseModel):
 
 
 @router.post("/{name}/enhance", response_model=RemixJobAccepted)
-async def remix_enhance(
-    name: str, body: RemixEnhanceRequest | None = None
-) -> RemixJobAccepted:
+async def remix_enhance(name: str, body: RemixEnhanceRequest | None = None) -> RemixJobAccepted:
     """Run the Suno master chain over an already-rendered remix.
 
     This exists because `/api/audio/enhance-stems` cannot be used for a remix:
@@ -361,8 +405,9 @@ async def remix_enhance(
     if not directory.is_dir():
         raise HTTPException(status_code=404, detail=f"Remix not found: {name}")
 
-    missing = [s for s in ("vocals", "drums", "bass", "other")
-               if not (directory / f"{s}.wav").exists()]
+    missing = [
+        s for s in ("vocals", "drums", "bass", "other") if not (directory / f"{s}.wav").exists()
+    ]
     if missing:
         raise HTTPException(
             status_code=409,
@@ -396,9 +441,7 @@ async def remix_enhance(
         # written at render time.
         duration = 0.0
         try:
-            manifest = json.loads(
-                (directory / "remix.json").read_text(encoding="utf-8")
-            )
+            manifest = json.loads((directory / "remix.json").read_text(encoding="utf-8"))
             duration = float(manifest.get("duration_sec", 0.0))
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             logger.debug("could not read remix manifest for %s", name)
@@ -536,9 +579,7 @@ async def remix_file(name: str, which: str):
 
     if which == "master":
         enhanced = directory / "enhanced"
-        candidates = (
-            sorted(enhanced.glob("*_enhanced.wav")) if enhanced.is_dir() else []
-        )
+        candidates = sorted(enhanced.glob("*_enhanced.wav")) if enhanced.is_dir() else []
         if not candidates:
             raise HTTPException(
                 status_code=404,

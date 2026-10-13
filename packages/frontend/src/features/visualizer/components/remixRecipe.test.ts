@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource, nextFreeName } from "./remixRecipe";
+import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource, nextFreeName, timelineSegments } from "./remixRecipe";
 import type { RemixRecipeSpec } from "../../../services/api/remix";
 
 /**
@@ -157,5 +157,45 @@ describe("nextFreeName", () => {
     expect(nextFreeName("   ", [])).toBe("mashup");
     // The fallback base is still collision-checked.
     expect(nextFreeName("", ["mashup"])).toBe("mashup-2");
+  });
+});
+// ─── A6: timeline segment widths ─────────────────────────────────────────
+
+const slotOf = (bars: number, crossfade: number, stems: Array<"drums" | "bass" | "vocals" | "other">) => ({
+  bars,
+  crossfade_bars: crossfade,
+  layers: stems.map((stem) => newEditableLayer("t", stem)),
+});
+
+describe("timelineSegments", () => {
+  it("splits total bars into proportional widths", () => {
+    const segs = timelineSegments([slotOf(4, 2, ["drums"]), slotOf(12, 0, ["bass"])]);
+    expect(segs).toHaveLength(2);
+    // 4 of 16 bars is a quarter of the arrangement.
+    expect(segs[0].pct).toBeCloseTo(25, 6);
+    expect(segs[1].pct).toBeCloseTo(75, 6);
+    expect(segs[0].crossfadePct).toBeCloseTo(12.5, 6); // 2 bars of 16
+  });
+
+  it("makes a 4-bar and a 32-bar slot look different (the whole point)", () => {
+    const [small, big] = timelineSegments([slotOf(4, 0, ["drums"]), slotOf(32, 0, ["drums"])]);
+    expect(big.pct).toBeCloseTo(88.9, 1);
+    expect(small.pct).toBeCloseTo(11.1, 1);
+  });
+
+  it("lists the distinct stems of a slot once, in STEM_NAMES order", () => {
+    const [seg] = timelineSegments([slotOf(8, 0, ["bass", "drums", "bass"])]);
+    expect(seg.stems).toEqual(["drums", "bass"]);
+  });
+
+  it("skips empty slots rather than dividing by a bigger total", () => {
+    const segs = timelineSegments([slotOf(8, 0, ["drums"]), { bars: 4, crossfade_bars: 0, layers: [] }]);
+    expect(segs).toHaveLength(1);
+    expect(segs[0].pct).toBeCloseTo(100, 6);
+  });
+
+  it("returns nothing for an empty or bar-less arrangement", () => {
+    expect(timelineSegments([])).toEqual([]);
+    expect(timelineSegments([{ bars: 0, crossfade_bars: 0, layers: [] }])).toEqual([]);
   });
 });

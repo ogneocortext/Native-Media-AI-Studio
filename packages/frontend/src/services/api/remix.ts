@@ -18,10 +18,13 @@ export interface RemixSource {
   track: string;
   model: string;
   stems: Record<StemName, boolean>;
-  /** Cached probe measurements, present once the track has been probed. */
+  /** BPM from the cached probe, when one exists. */
   bpm?: number | null;
   duration_sec?: number | null;
   first_audible_sec?: number | null;
+  /** B6: the library filename this stem directory joined to, when
+   *  unambiguous. Lets a picker speak the library's identity. */
+  library_file?: string;
 }
 
 export interface RemixProbe {
@@ -203,6 +206,31 @@ export async function previewRemix(recipe: RemixRecipeSpec): Promise<RemixPrevie
     timeout: 180000,
   });
   return unwrap<RemixPreview>(res, "Remix preview failed");
+}
+
+/**
+ * Render a bounded, playable excerpt of a recipe (A3). Same mix core as
+ * the build, truncated to ~30 s and cached by recipe hash, so hearing the
+ * arrangement costs one short render rather than a full build.
+ */
+export async function previewRemixAudio(recipe: RemixRecipeSpec): Promise<RemixPreviewAudio> {
+  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/preview-audio`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(recipe),
+    // A preview is one truncated render: a few seconds per source stretch.
+    timeout: 240000,
+  });
+  return unwrap<RemixPreviewAudio>(res, "Remix preview audio failed");
+}
+
+export interface RemixPreviewAudio {
+  /** Playable URL for the excerpt. */
+  url: string;
+  duration_sec: number;
+  /** True when the excerpt is shorter than the arrangement. */
+  truncated: boolean;
+  warnings: string[];
 }
 
 /**

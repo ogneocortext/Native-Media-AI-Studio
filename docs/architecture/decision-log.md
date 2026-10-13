@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D40 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D41 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -1432,3 +1432,36 @@
   `ShaderVisualizer.tsx` is the load-bearing consumer -- treat it
   as the test of any future removal, and re-measure consumers
   (grep + tests) before re-opening the question.
+
+
+### D41 — The audible remix preview mixes server-side, from the build's own core (2026-10-13)
+
+- **Status:** Decided (A3 of the remix/mashup plan)
+- **Context:** The plan offered two ways to let a user hear an arrangement
+  before paying for a build: a `POST /api/audio/remix/preview-audio` that
+  renders an excerpt, or a client-side WebAudio mix of the already-addressable
+  stem files. A browser-side mix looks free (no backend render, instant
+  scrub) but needs its own copy of the tempo alignment, key shift, tone
+  shaping (`lowpass_hz`/`brightness_db`, B4), crossfades and per-layer gains --
+  the exact maths the preview exists to represent.
+- **Decision:** The preview is a server render through the same mix core as
+  `/build`: `stem_remixer._mix_recipe` now serves both, the preview truncating
+  the recipe *before* mixing. Truncation keeps whole slots up to ~30 s and
+  trims only the slot that crosses the cap, clamping its crossfade with it so
+  `plan_timeline` cannot reject the result. The output is one stereo,
+  peak-normalised mixdown cached by recipe hash under
+  `output/remixes/.previews/` (12 newest, plus a `.json` sidecar carrying the
+  mix warnings -- the written file is normalised, so a cache hit could not
+  otherwise report the same facts).
+- **Consequences:** One implementation of the mix maths to keep in sync, and
+  the preview cannot misrepresent what the build will sound like. The cost is
+  a render (measured 10.57 s for a 4-bar single-stem recipe; a cached replay
+  is 0.017 s), and the preview cache is a second thing to prune. It also means
+  `/build` and the preview share a fate: when the shared core was introduced
+  it returned `{k: int(v) for k, v in plan.items()}`, and `plan_timeline`'s
+  `seg_ns`/`xf_ns` are lists, so both endpoints 500'd until the cast was made
+  per-element. The regression test is
+  `tests/test_stem_remixer.py::test_mix_recipe_plan_values_are_plain_ints`,
+  mutation-checked against the old line. Two new routes
+  (`preview-audio`, `preview-file/{key}`) are in the route baseline alongside
+  B2's `/from-prompt`, which was never added to it.

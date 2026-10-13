@@ -1,7 +1,8 @@
 # Remix / Mashup Plan — Oct 2026
 
-**Status:** Phase 2 complete (2026-10-13) — B1–B7 all landed; Phase 3
-(frontend ease-of-use) next
+**Status:** Complete (2026-10-13) — B1–B7 (Parts A and B) all landed; A3/A4/
+A6/A7 finished the frontend. Only the B2-drafted route-baseline catch-up and
+a Windows e2e pass on the new panel controls remain as follow-ups.
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -64,7 +65,7 @@ stem-free state this machine does not have (every candidate track already has
 stems), so it is code-complete and guard-tested rather than click-verified;
 the non-empty branch was verified live (7 stems ready, panel interactive).
 
-### A3. Audible preview
+### A3. Audible preview — DONE 2026-10-13
 
 `runPreview` (`RemixPanel.tsx:248-258`) returns JSON only (duration, stretch
 ratios, per-layer RMS, warnings) — the user can't hear anything until paying
@@ -74,12 +75,68 @@ client-side via WebAudio — the source stems are already addressable).
 
 - **Accept:** user hears a recognizable excerpt before committing to a build.
 
-### A4. Legible per-layer controls
+Landed as its own endpoint rather than a client-side WebAudio mix. The plan
+offered both; the mix core is the thing worth previewing, and a browser-side
+mix would have needed its own copy of the tempo/key/tone/crossfade maths — a
+second implementation to keep in sync with the one being previewed. So
+`stem_remixer._mix_recipe` is now the shared core for `/build` and the
+preview, and the preview truncates *before* mixing.
+
+Design points the implementation forced:
+
+- **Truncate whole slots first, then one boundary.** `truncate_recipe` keeps
+  whole slots up to ~30 s and trims only the slot that crosses the cap,
+  clamping its crossfade with it so `plan_timeline` cannot reject the result.
+  An audition of the first three slots says more than a hard cut mid-slot.
+- **One stereo mixdown, peak-normalised.** The build writes four stems; the
+  audition is a single file, normalised to its own peak so it is not quieter
+  than the build would be.
+- **Cached by recipe hash** (`output/remixes/.previews/`, 12 newest kept, plus
+  a `.json` sidecar). Re-clicking Audition after a tweak replays only the
+  changed part: measured 0.017 s replay against a 10.57 s render for a
+  4-bar one-stem recipe. The sidecar exists because the written file is
+  normalised, so a cache hit's `warnings` could not otherwise be recovered.
+- **Warnings survive the cache.** A second call returns the same facts as the
+  first (`test_render_preview_audio_replays_from_cache_without_remixing`
+  asserts the mix runs once and the two results are equal).
+
+One defect this work found and fixed on the way, recorded here because it was
+not the new code: the shared-core refactor returned
+`{k: int(v) for k, v in plan.items()}`, and `seg_ns`/`xf_ns` are **lists**, so
+`int()` raised `TypeError` — `/build` and `/preview-audio` both 500'd until it
+was corrected to a per-element cast. Measured: `POST /preview-audio` → 500
+`TypeError`, then 200 with a playable 6.687 s excerpt after the fix; `/build`
+re-verified end-to-end (8-bar two-slot recipe → 10.031 s manifest). The
+regression test is `test_mix_recipe_plan_values_are_plain_ints`, and it was
+mutation-checked — with the old line restored the suite fails, so the test
+sees the bug. 10 new tests (69 in the file).
+
+**Verified live:** render 10.57 s → `GET /api/audio/remix/preview-file/<hash>`
+200 `audio/wav`, 589,868 bytes (6.687 s × 22050 × 2ch × 2B); replay 0.017 s;
+a 24-bar arrangement truncated at 23.406 s with `truncated: true`; bad keys
+(`..`, unknown) return 404 rather than 500. **Browser-verified:** clicking
+Audition on the seeded arrangement renders and mounts a native `<audio>`
+(13.3 s, `src=/api/audio/remix/preview-file/…`) — the length the A6 caption
+predicts.
+
+### A4. Legible per-layer controls — DONE 2026-10-13
 
 Layer rows expose `dB`, `st`, `@bar` micro-inputs (`RemixPanel.tsx:430-445`) —
 gain, key-shift, source-start-bar abbreviated past decoding. Replace with
 labeled sliders + value readouts, and add a per-layer audition button for the
 source stem excerpt.
+
+Landed: each layer row carries three labelled range inputs with live readouts
+(gain −24…+12 dB step 0.5; key ±12 st step 1; start bar 0…32) and a per-layer
+audition button that plays that layer's **source** stem, resolved through the
+`library_file` join B6 added to `/sources` (a source with no unambiguous
+library file gets a message rather than a dead button). Every control keeps
+its `aria-label`, so the existing specs and screen readers still address them.
+
+**Verified in-browser** on Ad Nauseam: four seeded layer rows each render the
+three sliders, and the vocals audition issued
+`/api/audio/stems/SunoV6Mini-Ad-Nauseam.m4a` → 200 `found: true`, playing
+`/api/audio/stem-file/SunoV6Mini-Ad-Nauseam/vocals`.
 
 ### A5. No silent overwrite — DONE 2026-10-13
 
@@ -97,12 +154,23 @@ asking. A live hint names the collision and clears on rename.
 existing name showed the hint and Build refused with the expected message
 while nothing rendered, and the hint cleared on rename.
 
-### A6. Timeline view of the arrangement
+### A6. Timeline view of the arrangement — DONE 2026-10-13
 
 Slots are stacked form sections with `bars`/`xfade` numbers
 (`RemixPanel.tsx:398-428`) — a 4-bar and a 32-bar slot look identical. Render
 a proportional horizontal bar timeline above the forms, one segment per slot,
 colored chips per stem.
+
+Landed: `timelineSegments` in `remixRecipe.ts` (pure — slot width = bars /
+total bars, crossfade share, distinct stems in canonical order) renders as one
+bar with per-stem coloured chips and a caption (`8 bars · 13.3s at 144 BPM`).
+5 unit tests, including the plan's own accept case: a 4-bar and a 32-bar slot
+now measure 11.1% and 88.9%.
+
+A first caption computed seconds as `bars * bpm / 60 / 4`, which reports 4.8 s
+for an arrangement the audition renders as 13.3 s. Corrected to
+`bars * 4 * 60 / bpm` and re-verified against the rendered excerpt — they now
+agree to one decimal.
 
 ### A7. Fix the key-advisory doc/code drift
 
@@ -110,6 +178,17 @@ The panel docstring claims the probe's advisory key is shown "labelled as
 unreliable", but `key_advisory`/`key_confident` appear nowhere in
 `RemixPanel.tsx` (only the type in `remix.ts:28-32`). Either render the
 advisory with its label or correct the docstring.
+
+Landed: the docstring is now true. The seeding probe's result feeds a
+`keyAdvisory` state rendered beside the arrangement header — it is a fact
+about the seeded source track, not about a built remix — with the
+unreliability attached only when the probe itself is not confident.
+**Verified in-browser** on Ad Nauseam: `advisory key F — unreliable (chroma
+is flat on these stems); key shifts stay explicit per layer`, matching the
+probe's `key_advisory: "F"`, `chroma_flatness: 0.9979`,
+`key_confident: false`. (An earlier draft of this hunk nested the advisory
+inside the `{built && …}` block, where it only appeared after a render; the
+browser check caught that and it moved.)
 
 ## Part B — Agent-drivability
 

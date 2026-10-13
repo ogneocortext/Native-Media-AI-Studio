@@ -62,7 +62,11 @@ def main() -> int:
         return 2
 
     if args.write:
-        BASELINE.write_text(json.dumps(routes, indent=2) + "\n", encoding="utf-8")
+        # newline="\n": `write_text` translates "\n" to CRLF on Windows, which
+        # rewrites every line of the baseline and buries the real diff.
+        BASELINE.write_text(
+            json.dumps(routes, indent=2) + "\n", encoding="utf-8", newline="\n"
+        )
         print(f"wrote {len(routes)} audio routes to {BASELINE.name}")
         return 0
 
