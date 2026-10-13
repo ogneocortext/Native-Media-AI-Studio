@@ -128,8 +128,8 @@ const [activeTemplateId, setActiveTemplateId] = useState<string>("concert");
 - `packages/frontend/src/features/three-js-studio/hooks/useObjectManager.ts` — add/remove/template apply
 - `packages/frontend/src/features/three-js-studio/hooks/useTrackManager.ts` — track + beat wiring
 - `packages/frontend/src/hooks/useBeatTimeline.ts` — shared beat analysis/getCurrentBeat
-- `packages/frontend/tests/browser/three-studio-audit-checks.mjs` — UX audit regression (F2-F6/F9)
-- `packages/frontend/tests/browser/three-studio-dispose-check.mjs` — GPU dispose regression (F1)
+- `packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs` — UX audit regression (F2-F6/F9)
+- `packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs` — GPU dispose regression (F1)
 - `docs/ux-audit/three-js-visualizer-review-2026-09-29.md` — findings F1-F11 + triage
 - `tools/vision/analyze.mjs` — VLM analysis for AI scene generation
 - `docs/knowledge/unity-audio-visualization-2026.md` — Unity-side beat reactivity reference
