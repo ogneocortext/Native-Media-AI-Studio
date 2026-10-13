@@ -108,6 +108,30 @@ function writeFxToApi(values: FxValues): Promise<void> {
   });
 }
 
+/**
+ * Plan 2.9 — deterministic render API published by ShaderVisualizer
+ * for frame-accurate export. The exporter (not the rAF loop) drives
+ * time; each call renders exactly one frame synchronously.
+ */
+export interface ShaderFrameAccurateApi {
+  /**
+   * Reset motion history + reactivity processor and quiesce the live
+   * rAF loop, so frame 0 starts clean and no live frame can mutate
+   * driver state mid-export.
+   */
+  beginDeterministicRun: () => void;
+  /**
+   * Render one frame at virtual time `tSec` (seconds), stepping at
+   * `1/fps`. Synchronous w.r.t. the canvas: when it returns, the
+   * canvas holds frame `tSec`. Live inputs (audio graph, FFT, beat
+   * pulse) are frozen — the frame is a pure function of the
+   * analysis timeline at `tSec`.
+   */
+  renderAtVirtualTime: (tSec: number, fps: number) => void;
+  /** Re-enable the live rAF loop after the export. */
+  endDeterministicRun: () => void;
+}
+
 interface ShaderVisualizerProps {
   audioData: React.MutableRefObject<AudioData>;
   /**
@@ -192,6 +216,13 @@ interface ShaderVisualizerProps {
   /** Active shader preset controlled externally (e.g. from quick-bar) */
   activePreset?: ShaderPresetName;
   onPresetChange?: (preset: ShaderPresetName) => void;
+  /**
+   * Plan 2.9 — frame-accurate export. When provided, the component
+   * publishes its deterministic render API here after mount; the
+   * exporter drives frames manually at 1/fps steps. Only meaningful
+   * in shader mode (the one mode the plan scopes).
+   */
+  frameAccurateApiRef?: React.MutableRefObject<ShaderFrameAccurateApi | null>;
 }
 
 /**
@@ -218,6 +249,7 @@ export function ShaderVisualizer({
   onFxOpenChange,
   activePreset,
   onPresetChange,
+  frameAccurateApiRef,
 }: ShaderVisualizerProps) {
   const [preset, setPreset] = useState<ShaderPresetName>(
     () => activePreset ?? getShaderPresetForTrack(trackName),
@@ -310,6 +342,13 @@ export function ShaderVisualizer({
   }
   const prevLiveRmsRef = useRef(0);
   const lastFrameTimeRef = useRef<number | null>(null);
+  // Plan 2.9 — virtual-time export state. When `virtualTimeRef` is
+  // non-null, the frame loop renders the analysis timeline at that
+  // exact time with live inputs frozen; `exportActiveRef` quiesces
+  // the rAF loop so no live frame mutates driver state mid-export.
+  const virtualTimeRef = useRef<number | null>(null);
+  const exportFpsRef = useRef(30);
+  const exportActiveRef = useRef(false);
 
   const reactivityProcessorRef = useRef<AudioReactivityProcessor | null>(null);
   const reactivityConfigRef = useRef<ReactivityConfig>(DEFAULT_REACTIVITY_CONFIG);
@@ -356,14 +395,33 @@ export function ShaderVisualizer({
     let phraseFlash = 0;
     let beatPulse = 0;
     const update = () => {
-      const d = audioData.current;
+      // Plan 2.9 — while a deterministic export drives frames manually,
+      // the rAF loop stays alive but renders nothing: a live frame
+      // mutating processor/motion state mid-export would break
+      // determinism. Virtual frames bypass this gate via
+      // renderAtVirtualTime (virtualTimeRef set).
+      if (exportActiveRef.current && virtualTimeRef.current === null) {
+        raf = requestAnimationFrame(update);
+        return;
+      }
+      const virtualT = virtualTimeRef.current;
+      const isVirtual = virtualT !== null;
+      const live = audioData.current;
+      // Plan 2.9 — virtual frames freeze every live input: the frame
+      // must be a pure function of the analysis timeline at `elapsed`.
+      const d = isVirtual
+        ? { ...live, beat: false, bass: 0, mid: 0, treble: 0, energy: 0 }
+        : live;
       const sync = lrcSyncLive?.current ?? lrcSyncPropRef.current;
-      if (sync?.isPhraseStart) phraseFlash = 1;
+      if (isVirtual) {
+        phraseFlash = 0;
+        beatPulse = 0;
+      } else if (sync?.isPhraseStart) phraseFlash = 1;
       else phraseFlash = Math.max(0, phraseFlash - 0.07);
       // Beat pulse: snap on beat, exponential decay (half-life ~80ms, not linear 0.12) — matches audioTiming RELEASE
-      if (d.beat) {
+      if (!isVirtual && d.beat) {
         beatPulse = 1;
-      } else {
+      } else if (!isVirtual) {
         // decay with dt-agnostic factor ~0.08 per frame @60fps
         beatPulse *= 0.88;
         if (beatPulse < 0.01) beatPulse = 0;
@@ -376,7 +434,7 @@ export function ShaderVisualizer({
       }
       // Energy: live + phrase flash only (sectionProgress was biasing lag); analysis energy already blended in Visualizer
       const lrcEnergy = d.energy + phraseFlash * 0.3;
-      const elapsed = sampleAudio?.() ?? 0;
+      const elapsed = virtualT ?? sampleAudio?.() ?? 0;
       const stemEnergy = {
         vocals:
           (stemsMutedRef.current?.vocals ? 0 : sampleStemEnergy(stems?.vocals, elapsed)) *
@@ -394,7 +452,9 @@ export function ShaderVisualizer({
 
       // Professional mixer meters override analysis-based stem energy when active.
       // This gives the visualizer accurate real-time levels per stem channel.
-      if (stemsProMetersRef.current) {
+      // Plan 2.9: virtual frames skip the live meters — determinism
+      // requires the analysis curves alone.
+      if (!isVirtual && stemsProMetersRef.current) {
         const pm = stemsProMetersRef.current;
         stemEnergy.vocals = pm.vocals?.rms ?? stemEnergy.vocals;
         stemEnergy.drums = pm.drums?.rms ?? stemEnergy.drums;
@@ -412,15 +472,27 @@ export function ShaderVisualizer({
       // (`sampleSpectral` → null) the live frame takes over, so
       // the reactivity uniforms keep moving instead of freezing at
       // stale values while the base uniforms stay live.
-      const liveFrame = synthesizeLiveFrame(
-        analyserRefProp.current?.current ?? null,
-        prevLiveRmsRef.current,
-      );
+      // Plan 2.9: virtual frames skip the live FFT — determinism
+      // requires the timeline alone.
+      const liveFrame = isVirtual
+        ? null
+        : synthesizeLiveFrame(
+            analyserRefProp.current?.current ?? null,
+            prevLiveRmsRef.current,
+          );
       if (liveFrame) prevLiveRmsRef.current = liveFrame.rms;
       const spectral =
         sampleSpectral(elapsed) ??
         (liveFrame ? { ...liveFrame, time: elapsed } : null);
-      const sectionType = sync?.currentSection ?? "verse";
+      // Plan 2.9 — virtual frames read the section from the analysis
+      // timeline at the virtual time, never the live LRC sync: a live
+      // section change mid-export would make two runs diverge.
+      const analysisSections = analysisDataRef.current?.sections;
+      const sectionType =
+        isVirtual && analysisSections && analysisSections.length > 0
+          ? (analysisSections.find((s) => elapsed >= s.start && elapsed < s.end)
+              ?.type ?? "verse")
+          : (sync?.currentSection ?? "verse");
 
       if (sectionType && sectionType !== lastSectionRef.current) {
         lastSectionRef.current = sectionType;
@@ -485,8 +557,11 @@ export function ShaderVisualizer({
       // backgrounded tab cannot inject a huge delta.
       const prevElapsed = lastFrameTimeRef.current;
       lastFrameTimeRef.current = elapsed;
-      const dtSec =
-        prevElapsed !== null && elapsed >= prevElapsed
+      // Plan 2.9: virtual frames step at exactly 1/fps — the wall
+      // clock never enters the motion driver during an export.
+      const dtSec = isVirtual
+        ? 1 / exportFpsRef.current
+        : prevElapsed !== null && elapsed >= prevElapsed
           ? Math.min(0.25, elapsed - prevElapsed)
           : 1 / 60;
       let motionCameraOffsetX = 0;
@@ -531,7 +606,7 @@ export function ShaderVisualizer({
         energy: reactivityUniforms
           ? Math.min(1, reactivityUniforms.energy * 0.5 + baseEnergy * 0.5)
           : baseEnergy,
-        peak: Math.max(d.peak, stemBoost),
+        peak: isVirtual ? stemBoost : Math.max(d.peak, stemBoost),
         sub: spectral?.sub ?? 0,
         high: spectral?.high ?? 0,
         transient: reactivityUniforms
@@ -550,9 +625,39 @@ export function ShaderVisualizer({
       };
       raf = requestAnimationFrame(update);
     };
+    // Plan 2.9 — publish the deterministic render API for
+    // frame-accurate export. Re-published whenever the effect
+    // re-runs so the closure always sees the current `update`.
+    if (frameAccurateApiRef) {
+      frameAccurateApiRef.current = {
+        beginDeterministicRun: () => {
+          exportActiveRef.current = true;
+          motionHistoryRef.current = createMotionHistory();
+          reactivityProcessorRef.current?.reset();
+          lastFrameTimeRef.current = null;
+        },
+        renderAtVirtualTime: (tSec: number, fps: number) => {
+          exportFpsRef.current = fps;
+          virtualTimeRef.current = tSec;
+          try {
+            update();
+          } finally {
+            virtualTimeRef.current = null;
+          }
+        },
+        endDeterministicRun: () => {
+          exportActiveRef.current = false;
+        },
+      };
+    }
     if (isPlaying) raf = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(raf);
-  }, [isPlaying, audioData, lrcSyncLive, stems, sampleAudio, sampleSpectral]);
+    return () => {
+      cancelAnimationFrame(raf);
+      // Plan 2.9 — don't leave a stale api behind for an unmounted
+      // (or mode-switched) visualizer to be driven by mistake.
+      if (frameAccurateApiRef) frameAccurateApiRef.current = null;
+    };
+  }, [isPlaying, audioData, lrcSyncLive, stems, sampleAudio, sampleSpectral, frameAccurateApiRef]);
 
   // Auto-change preset when track changes (only if user hasn't manually overridden)
   useEffect(() => {

@@ -9,6 +9,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { canRecordMp4, createMp4Recorder } from "./mp4Recording";
+import {
+  canExportFrameAccurate,
+  exportFramesDeterministic,
+} from "./services/frameAccurateExport";
+import type { ShaderFrameAccurateApi } from "./ShaderVisualizer";
 
 export interface VisualizerRecording {
   isRecording: boolean;
@@ -19,11 +24,22 @@ export interface VisualizerRecording {
   downloadRecording: () => void;
   /** Teardown for an in-flight recorder — call on unmount / track change. */
   dispose: () => void;
+  /**
+   * Plan 2.9 — deterministic frame-accurate export (shader mode
+   * only). Renders `durationSec` seconds at 30 fps by driving the
+   * visualizer clock from the frame index; the result lands in
+   * `recordedBlob` for the existing download path. Exactly
+   * `round(durationSec * 30)` frames — no drops, even backgrounded.
+   */
+  isExporting: boolean;
+  exportProgress: number;
+  startFrameAccurateExport: (durationSec?: number) => Promise<void>;
 }
 
 export function useVisualizerRecording(
   canvasHostRef: React.RefObject<HTMLDivElement | null>,
   onError: (message: string) => void,
+  frameAccurateApiRef?: React.RefObject<ShaderFrameAccurateApi | null>,
 ): VisualizerRecording {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -33,6 +49,9 @@ export function useVisualizerRecording(
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingFormatRef = useRef<"webm" | "mp4">("webm");
+  // Plan 2.9 — frame-accurate export state.
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   const clearTimer = useCallback(() => {
     if (recordingTimerRef.current) {
@@ -141,6 +160,54 @@ export function useVisualizerRecording(
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [recordedBlob]);
 
+  // Plan 2.9 — deterministic export. The visualizer clock is driven
+  // from the frame index (never the wall clock), so the frame count
+  // is exact and backgrounding the tab drops nothing. Not
+  // cancellable mid-run by design: every frame is cheap and the run
+  // is bounded (default 10 s at 30 fps = 300 frames).
+  const startFrameAccurateExport = useCallback(
+    async (durationSec = 10) => {
+      if (isRecording || isExporting) return;
+      const canvas = canvasHostRef.current?.querySelector("canvas") ?? null;
+      const api = frameAccurateApiRef?.current ?? null;
+      if (!canvas) {
+        onError("Export failed — no visualizer canvas found");
+        return;
+      }
+      if (!api) {
+        onError("Export failed — frame-accurate export needs shader mode");
+        return;
+      }
+      if (!(await canExportFrameAccurate(canvas.width, canvas.height))) {
+        onError("Export failed — WebCodecs H.264 is not available");
+        return;
+      }
+      const fps = 30;
+      setIsExporting(true);
+      setExportProgress(0);
+      setRecordedBlob(null);
+      try {
+        const buffer = await exportFramesDeterministic({
+          canvas,
+          fps,
+          durationSec,
+          renderAtTime: (t) => api.renderAtVirtualTime(t, fps),
+          beginDeterministicRun: () => api.beginDeterministicRun(),
+          endDeterministicRun: () => api.endDeterministicRun(),
+          onProgress: (done, total) => setExportProgress(done / total),
+        });
+        recordingFormatRef.current = "mp4";
+        if (buffer) setRecordedBlob(new Blob([buffer], { type: "video/mp4" }));
+        else onError("Export failed — the encoder produced no data");
+      } catch (e) {
+        onError(e instanceof Error ? `Export failed — ${e.message}` : "Export failed");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [canvasHostRef, frameAccurateApiRef, isExporting, isRecording, onError],
+  );
+
   // Never leave a recorder or timer running past unmount.
   useEffect(() => dispose, [dispose]);
 
@@ -152,5 +219,8 @@ export function useVisualizerRecording(
     stopRecording,
     downloadRecording,
     dispose,
+    isExporting,
+    exportProgress,
+    startFrameAccurateExport,
   };
 }

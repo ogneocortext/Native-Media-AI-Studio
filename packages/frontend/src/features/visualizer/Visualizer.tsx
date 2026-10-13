@@ -46,7 +46,7 @@ import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
 import { type EQBand } from "./audioEQ";
-import { ShaderVisualizer } from "./ShaderVisualizer";
+import { ShaderVisualizer, type ShaderFrameAccurateApi } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import {
   useWebGPUDector,
@@ -66,6 +66,10 @@ import {
   DEFAULT_REACTIVITY_TRIAD,
   type ReactivityTriad,
 } from "./audioReactivityProcessor";
+import {
+  matchReactivityGenrePreset,
+  type ReactivityGenrePreset,
+} from "./reactivityGenrePresets";
 import type { ShaderPresetName } from "./shaders";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
@@ -244,6 +248,18 @@ export function Visualizer() {
       // no-op
     }
   }, [reactivityTriad]);
+  // Plan 2.3 — genre reactivity presets. The active chip highlight;
+  // the guard ref mirrors the visual-preset lock: a preset the user
+  // picks by hand while a track is loading wins over auto-apply.
+  const [activeGenrePresetId, setActiveGenrePresetId] = useState<string | null>(null);
+  const userPickedGenrePresetRef = useRef(false);
+  const handleGenrePresetSelect = useCallback((preset: ReactivityGenrePreset) => {
+    userPickedGenrePresetRef.current = true;
+    setReactivityTriad(preset.triad);
+    setFrequencyFocus(preset.focus);
+    setReactivityGain(preset.gain);
+    setActiveGenrePresetId(preset.id);
+  }, []);
   // Monotonic lock so a manual preset click that happens while
   // handleSelectLibraryTrack is still awaiting ensureAnalysis() is not
   // clobbered by the pending auto-apply.
@@ -359,6 +375,9 @@ export function Visualizer() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   // Canvas capture (MP4 via WebCodecs, else WebM). Owns its recorder + timer teardown.
+  // Plan 2.9 — the shader visualizer publishes its deterministic
+  // render API here for frame-accurate export.
+  const shaderFrameAccurateApiRef = useRef<ShaderFrameAccurateApi | null>(null);
   const {
     isRecording,
     recordingTime,
@@ -366,7 +385,10 @@ export function Visualizer() {
     startRecording,
     stopRecording,
     downloadRecording,
-  } = useVisualizerRecording(containerRef, setError);
+    isExporting,
+    exportProgress,
+    startFrameAccurateExport,
+  } = useVisualizerRecording(containerRef, setError, shaderFrameAccurateApiRef);
   // Monotonic id guarding async track-select flows against out-of-order resolves.
   const trackRequestRef = useRef(0);
   // Latest vizParams for callbacks that must not re-subscribe on every slider tick.
@@ -853,6 +875,9 @@ export function Visualizer() {
       // New track: an A-B loop from the previous track makes no sense.
       setLoopRegion(null);
       setLoopAnchor(null);
+      // New track: the manual genre-preset guard resets so auto-apply
+      // may run again (a pick made mid-load still wins — see below).
+      userPickedGenrePresetRef.current = false;
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
@@ -908,6 +933,22 @@ export function Visualizer() {
       }
       if (isStale()) return;
       setKineticPreset(kineticPresetId);
+
+      // Plan 2.3 — auto-select a genre reactivity preset from the
+      // track name (the same signal the kinetic auto-select uses).
+      // Guard: a preset the user picked by hand while analysis was
+      // loading wins over the auto-apply.
+      if (!userPickedGenrePresetRef.current) {
+        const genrePreset = matchReactivityGenrePreset([cleanName]);
+        if (genrePreset) {
+          setReactivityTriad(genrePreset.triad);
+          setFrequencyFocus(genrePreset.focus);
+          setReactivityGain(genrePreset.gain);
+          setActiveGenrePresetId(genrePreset.id);
+        } else {
+          setActiveGenrePresetId(null);
+        }
+      }
 
       // Auto-apply optimized visual preset based on track characteristics.
       // Track-specific tuned profiles (trackVisualProfiles.ts) win over the
@@ -1657,6 +1698,25 @@ export function Visualizer() {
                     {isRecording ? "Stop recording" : "Record"}
                   </span>
                 </button>
+                {/* Plan 2.9 — deterministic 10 s @ 30 fps export, exactly
+                    300 frames, driven from the frame index. Shader mode
+                    only (the one mode the plan scopes). */}
+                {vizMode === "shader" && (
+                  <button
+                    onClick={() => startFrameAccurateExport(10)}
+                    disabled={isRecording || isExporting}
+                    className="viz-icon-btn viz-more-item"
+                    aria-label="Export 10 seconds frame-accurate"
+                    title="Export 10 s @ 30 fps frame-accurate (exactly 300 frames, deterministic)"
+                  >
+                    <Film size={14} />
+                    <span className="viz-more-label">
+                      {isExporting
+                        ? `Exporting ${Math.round(exportProgress * 100)}%`
+                        : "Export 10s HQ"}
+                    </span>
+                  </button>
+                )}
                 {recordedBlob && !isRecording && (
                   <button
                     onClick={downloadRecording}
@@ -2052,6 +2112,7 @@ export function Visualizer() {
                   onFxOpenChange={(open) => setOpenOverlay(open ? "fx" : null)}
                   activePreset={activeShaderPreset}
                   onPresetChange={setActiveShaderPreset}
+                  frameAccurateApiRef={shaderFrameAccurateApiRef}
                   className="absolute inset-0"
                 />
               )}
@@ -2168,6 +2229,8 @@ export function Visualizer() {
               onFrequencyFocusChange={setFrequencyFocus}
               triad={reactivityTriad}
               onTriadChange={setReactivityTriad}
+              activeGenrePresetId={activeGenrePresetId}
+              onGenrePresetSelect={handleGenrePresetSelect}
             />
           </div>
         </div>

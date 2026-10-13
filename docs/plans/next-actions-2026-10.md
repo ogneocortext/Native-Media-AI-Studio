@@ -1,6 +1,7 @@
 # Next Actions — Oct 2026 (post viz-motion review)
 
-**Status:** Proposed 2026-10-12 — awaiting owner review (updated 2026-10-13)
+**Status:** Proposed 2026-10-12 — awaiting owner review (updated 2026-10-13;
+2.3/2.8/2.9 implemented by Orion 2026-10-13, pending owner verification)
 **Decides:** none (status reconciliation + sequencing; no new architecture)
 **Owner:** repo owner (implementation: local coding agent)
 **Approved:** (pending)
@@ -51,10 +52,58 @@ permanent.
 | 2.5 latency visible | **Done** — `audioToVisualMs` in `RenderStats` (`1bf5ca7`) |
 | 2.4 motion vocabulary (`motion/` modules) | **Live, not dead — correction.** `useMotionDriver` is consumed by `ShaderVisualizer.tsx` (+ `shaderMotionWiring.test.ts`); `motionEasing`/`motionMoves` feed `useMotionDriver`. The Oct 6 "zero consumers" note was stale. **Do not remove.** |
 | 2.6 color/feel polish | **Partial** — `energyHue` done; remainder open |
-| 2.8 beat anticipation (predictive) | **Partial** — `beatSnap` quantizes; true look-ahead not built |
-| 2.9 deterministic export | **Partial** — PNG still snapshot only |
-| 2.3 genre reactivity presets | **Open** |
-| 2.10 / 2.11 real-time data correctness | **Open** |
+| 2.8 beat anticipation (predictive) | **Done** — see build notes below |
+| 2.9 deterministic export | **Done** (shader scope) — see build notes below |
+| 2.3 genre reactivity presets | **Done** — see build notes below |
+| 2.10 / 2.11 real-time data correctness | **Done** (pre-existing: `tempo_bpm` + `beat_times` plumbing, `liveSpectralFrame.ts`) |
+
+## Build notes — 2.3 / 2.8 / 2.9 (Orion, 2026-10-13)
+
+Implemented and pushed; **not yet verified on Windows** (gates, Playwright,
+vision checks must run on the owner's machine before this is trusted).
+
+**2.3 genre reactivity presets** — new `reactivityGenrePresets.ts`: four
+presets (EDM: fast attack 0.8 / beat 2.0 / bass focus; Ambient: release 0.45 /
+beat 0.35; Vocal-led: mid focus; Phonk/Bass: attack 0.85 / beat 2.2) each with
+genre keywords, triad, focus and gain. `matchReactivityGenrePreset(genres)`
+mirrors the kinetic presets' substring matching. UI: chips in the reactivity
+panel (`ReactivityHUD`), never Master EQ. `Visualizer.tsx` applies the
+preset (triad + focus + gain, persisted via the existing triad storage) and
+auto-applies on track load from the filename genre signal — the same signal
+the kinetic auto-select uses — with a guard ref so a manual pick made
+mid-load is never clobbered. 8 unit tests; triad values pinned inside the
+HUD slider ranges.
+
+**2.8 beat anticipation** — two channels:
+- *Processor uniform* (`audioReactivityProcessor.ts`): `BeatPhaseWave.
+  timeToNextDownbeat()` (grid index % 4 === 0; BPM-grid fallback) feeds an
+  `anticipation` uniform that ramps 0→1 over 120 ms before each downbeat,
+  hits 1 as the transient accent fires, then holds at 0 — no drift, no
+  effect on non-downbeat beats. `anticipationEnabled` config (default true).
+- *Motion driver* (`motion/`): `buildShaderMotionInput` now derives the
+  lookahead from the next **downbeat** (the `MotionInput.nextBeat`
+  contract always said "downbeat"; the builder never filtered — two
+  existing tests updated to the corrected behavior). `ResolveMotionOptions.
+  anticipationEnabled` is the per-style toggle. Note: the motion wind-up
+  keeps its tuned 2-beat `durationBeats` (vision-validated); the plan's
+  "~120 ms" is implemented as the processor uniform ramp.
+- 9 new/updated unit tests; 33/33 green via tsc + a node harness
+  (vitest could not run in this environment).
+
+**2.9 deterministic frame-accurate export (shader scope)** — new
+`services/frameAccurateExport.ts`: drives `renderAtTime(i/fps)` for exactly
+`round(durationSec * 30)` frames (10 s → 300), timestamping each at `i/fps`
+(never the wall clock), muxing via mediabunny. `ShaderVisualizer` publishes
+a `ShaderFrameAccurateApi` (`beginDeterministicRun` /
+`renderAtVirtualTime` / `endDeterministicRun`): virtual frames override the
+audio clock, freeze all live inputs (audio graph, FFT, beat pulse, phrase
+flash — the frame is a pure function of the analysis timeline), step
+`dtSec` at exactly 1/fps, and quiesce the rAF loop so no live frame can
+mutate driver state mid-export. Trigger: "Export 10s HQ" in the More menu
+(shader mode only); result lands in `recordedBlob` for the existing
+download path. Backgrounding the tab drops nothing (no rAF in the loop).
+
+**2.10 / 2.11** were already done (verified, not built here).
 
 **three-js-motion-features-2026-10.md** (F3 → F1 → F4 → F2 → F5):
 F3 **Done** (`vizMotion.ts`); F4 / F5 **Partial**; F1 / F2 **Open**.
@@ -86,15 +135,18 @@ converge is a D-call, not a cleanup.
    are live. Do not remove.
 
 ### Step 2 — Visualizer lane, in this order (user-facing gaps first)
-1. **2.3 genre reactivity presets** — extend the existing genre-matching
-   pattern (currently kinetic lyric presets only) to reactivity.
-2. **2.8 proper (predictive anticipation)** — `beatSnap` quantizes the beat;
-   build look-ahead so motion *leads* the beat instead of landing on it.
-3. **2.9 deterministic frame-accurate export** — graduate the PNG snapshot
-   into a recorded export of the visualizer page.
-4. **2.10 / 2.11 real-time data correctness** — plumb real BPM + beat grid
-   into the reactivity processor; live FFT fallback when the spectral
-   timeline is absent.
+1. **2.3 genre reactivity presets** — ✅ Done (Orion 2026-10-13, needs
+   Windows verification).
+2. **2.8 proper (predictive anticipation)** — ✅ Done (Orion 2026-10-13,
+   needs Windows verification).
+3. **2.9 deterministic frame-accurate export** — ✅ Done, shader scope
+   (Orion 2026-10-13, needs Windows verification). Follow-up: extend the
+   virtual-time pattern to the 2D / 3D / LrcViz render paths.
+4. **2.10 / 2.11 real-time data correctness** — ✅ Already done
+   (pre-existing).
+5. **2.6 color/feel polish (remainder)** — gamma-correct the brightness
+   drive where a linear map remains; verify frequency→color conventions
+   per the audio-reactive best-practices note.
 
 ### Step 3 — Motion lane remainder
 F1 (eased camera transitions) → F2 (section-aware motion driver) →

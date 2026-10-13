@@ -2,6 +2,10 @@ import { memo, useState } from "react";
 import { Sliders, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import type { AudioData } from "../types";
 import type { ReactivityTriad } from "../audioReactivityProcessor";
+import {
+  REACTIVITY_GENRE_PRESETS,
+  type ReactivityGenrePreset,
+} from "../reactivityGenrePresets";
 
 interface ReactivityHUDProps {
   audioData: AudioData;
@@ -18,6 +22,14 @@ interface ReactivityHUDProps {
    */
   triad: ReactivityTriad;
   onTriadChange: (triad: ReactivityTriad) => void;
+  /**
+   * Plan 2.3 — genre preset chips. The parent applies the
+   * preset (triad + focus + gain) and reports which preset is
+   * active, if any. A manual slider drag does not clear the
+   * chip highlight; picking a chip always wins.
+   */
+  activeGenrePresetId?: string | null;
+  onGenrePresetSelect?: (preset: ReactivityGenrePreset) => void;
   className?: string;
 }
 
@@ -69,6 +81,8 @@ export const ReactivityHUD = memo(function ReactivityHUD({
   onFrequencyFocusChange,
   triad,
   onTriadChange,
+  activeGenrePresetId = null,
+  onGenrePresetSelect,
   className = "",
 }: ReactivityHUDProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -176,6 +190,35 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               title="Scale reactivity intensity"
             />
           </div>
+
+          {/* Plan 2.3 — genre reactivity presets. Chips live in the
+              reactivity panel (not Master EQ): one click applies the
+              preset's triad + focus + gain via the parent. */}
+          {onGenrePresetSelect && (
+            <div className="space-y-1 pt-1 border-t border-white/10">
+              <div className="text-[10px] text-white/60">Genre Presets</div>
+              <div className="flex flex-wrap gap-1">
+                {REACTIVITY_GENRE_PRESETS.map((p) => {
+                  const isActive = activeGenrePresetId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => onGenrePresetSelect(p)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${
+                        isActive
+                          ? "bg-violet-600 text-white border-violet-400 shadow-sm"
+                          : "bg-white/5 text-white/60 border-white/10 hover:text-white hover:bg-white/10"
+                      }`}
+                      title={p.description}
+                      aria-pressed={isActive}
+                    >
+                      {p.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Plan 2.2 — reactivity triad: sensitivity / attack /
               release + beat response. These move the

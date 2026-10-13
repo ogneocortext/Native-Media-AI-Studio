@@ -134,6 +134,13 @@ export interface ResolveMotionOptions {
   reducedMotion?: boolean;
   /** Base FOV used as the centre of the focal-breathing range. */
   baseFov?: number;
+  /**
+   * Plan 2.8 -- kill switch for the anticipation pullback
+   * (toggleable per style). When false, the anticipation
+   * contract is skipped and the scene rests at neutral scale.
+   * Default true.
+   */
+  anticipationEnabled?: boolean;
 }
 
 /**
@@ -177,12 +184,17 @@ export function resolveMotion(
     { energy: input.high },
   ]);
 
-  const anticipation = anticipationContract(
-    nowSec,
-    input.nextBeat ?? null,
-    DEFAULT_ANTICIPATION,
-    bpm,
-  );
+  // Plan 2.8 -- the anticipation pullback is toggleable per style;
+  // disabled, the scene holds neutral scale through the downbeat.
+  const anticipation =
+    options.anticipationEnabled === false
+      ? { scale: 1, orbitSpeed: 1, snapped: false }
+      : anticipationContract(
+          nowSec,
+          input.nextBeat ?? null,
+          DEFAULT_ANTICIPATION,
+          bpm,
+        );
   const freeze = preDropFreeze(nowSec, input.nextDrop ?? null, DEFAULT_PRE_DROP_FREEZE, bpm);
   // `Infinity` = "no gate": `subBassSwell` expects time *since the swell began*,
   // which is not a quantity the driver has. Passing the absolute audio clock
@@ -254,9 +266,11 @@ export function phaseLagChain(history: MotionHistory, chainLength = 4): number[]
  * loop calls this, then hands the result to `resolveMotion`.
  *
  * `beatTimes` is the backend's analyzed grid (plan 2.10);
- * the next beat after `nowSec` becomes the lookahead event
+ * the next *downbeat* after `nowSec` becomes the lookahead event
  * the anticipation-contract and pre-drop-freeze moves read.
- * An empty grid (unanalyzed track) yields `nextBeat: null`,
+ * Plan 2.8: anticipation targets downbeats only (4/4 assumption
+ * -- grid index % 4 === 0), so non-downbeat beats produce no
+ * pullback. An empty grid (unanalyzed track) yields `nextBeat: null`,
  * which those moves treat as "no anticipation" rather than
  * guessing.
  */
@@ -272,7 +286,9 @@ export function buildShaderMotionInput(args: {
   let nextBeat: { timeSec: number } | null = null;
   if (beatTimes.length > 0) {
     for (let i = 0; i < beatTimes.length; i++) {
-      if (beatTimes[i] > nowSec) {
+      // Plan 2.8 -- the MotionInput.nextBeat contract has always said
+      // "downbeat"; the builder just never filtered. 4/4 assumption.
+      if (i % 4 === 0 && beatTimes[i] > nowSec) {
         nextBeat = { timeSec: beatTimes[i] };
         break;
       }

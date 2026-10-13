@@ -54,6 +54,18 @@ export interface ReactivityConfig {
   highSensitivity: number;
   /** Initial BPM estimate (used until audio BPM is known). Default 120. */
   bpm?: number;
+  /**
+   * Plan 2.8 — master switch for the anticipation pullback uniform.
+   * When false, `anticipation` stays 0 (per-style toggle surface;
+   * the motion driver's `ResolveMotionOptions.anticipationEnabled`
+   * is the spatial counterpart). Default true.
+   */
+  anticipationEnabled?: boolean;
+  /**
+   * Plan 2.8 — the anticipation ramp window in seconds: how far
+   * before the downbeat the pullback starts. Default 0.12 (~120 ms).
+   */
+  anticipationWindowSec?: number;
 }
 
 export const DEFAULT_REACTIVITY_CONFIG: ReactivityConfig = {
@@ -66,6 +78,8 @@ export const DEFAULT_REACTIVITY_CONFIG: ReactivityConfig = {
   bassSensitivity: 1.0,
   midSensitivity: 1.0,
   highSensitivity: 1.0,
+  anticipationEnabled: true,
+  anticipationWindowSec: 0.12,
 };
 
 /**
@@ -148,6 +162,20 @@ export interface ReactivityUniforms {
   bpm: number;
   /** Smoothed sub energy (0..1). */
   bass: number;
+  /**
+   * Plan 2.8 — anticipation pullback (0..1). Ramps from 0 to 1 over
+   * `anticipationWindowSec` before each downbeat, hits 1 exactly as
+   * the transient accent fires, then drops back to 0 and holds —
+   * no post-beat drift. 0 on non-downbeat beats and when
+   * `anticipationEnabled` is false. Passed through linearly (no
+   * gamma): it is a control ramp, not an energy reading.
+   */
+  anticipation: number;
+}
+
+/** Clamp to 0..1 (local — this module must not import the motion/ tree). */
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
 /**
@@ -199,6 +227,34 @@ export class BeatPhaseWave {
   getPhase(): number {
     return this.phase;
   }
+
+  /**
+   * Plan 2.8 — seconds from `time` to the next downbeat (bar line),
+   * for the anticipation pullback.
+   *
+   * With a beat grid, the next downbeat is the next grid entry whose
+   * index is a multiple of 4 (4/4 assumption — the same grid the
+   * backend analysis produces). Without a grid, it falls back to the
+   * BPM grid: bars of 4 beats measured from t=0. Never negative: when
+   * `time` sits exactly on a downbeat, the *next* one (a full bar
+   * ahead) is returned.
+   */
+  timeToNextDownbeat(time: number, beatTimes: number[] = []): number {
+    if (beatTimes.length > 0) {
+      for (let i = 0; i < beatTimes.length; i++) {
+        // The epsilon keeps a frame landing exactly on the downbeat
+        // reading 0 ("the accent fires now") instead of skipping to
+        // the next bar.
+        if (i % 4 === 0 && beatTimes[i] + 1e-9 >= time) {
+          return Math.max(0, beatTimes[i] - time);
+        }
+      }
+    }
+    const bpm = this.bpm > 0 ? this.bpm : 120;
+    const barDuration = (60.0 / bpm) * 4;
+    const nextBar = (Math.floor(time / barDuration) + 1) * barDuration;
+    return nextBar - time;
+  }
 }
 
 export class AudioReactivityProcessor {
@@ -219,6 +275,7 @@ export class AudioReactivityProcessor {
       centroid: 0,
       beatPhase: 0,
       downbeat: 0,
+      anticipation: 0,
       bpm: config.bpm ?? 120,
       sub: 0,
     };
@@ -318,6 +375,17 @@ export class AudioReactivityProcessor {
     const phase = this.beatWave.update(frame.time, beatTimes);
     this.smoothed.beatPhase = phase;
     this.smoothed.downbeat = phase < 0.05 ? 1 : 0;
+    // Plan 2.8 — anticipation pullback. Deterministic ramp, not
+    // smoothed: smoothing would lag the pullback behind the beat it
+    // precedes. Hits 1 exactly on the downbeat, then holds at 0.
+    if (this.config.anticipationEnabled === false) {
+      this.smoothed.anticipation = 0;
+    } else {
+      const windowSec = this.config.anticipationWindowSec ?? 0.12;
+      const toDownbeat = this.beatWave.timeToNextDownbeat(frame.time, beatTimes);
+      this.smoothed.anticipation =
+        windowSec > 0 ? clamp01(1 - toDownbeat / windowSec) : 0;
+    }
     this.smoothed.bpm = this.lastBpm;
   }
 
@@ -332,6 +400,7 @@ export class AudioReactivityProcessor {
       centroid: this.smoothed.centroid,
       beatPhase: this.smoothed.beatPhase,
       downbeat: this.smoothed.downbeat,
+      anticipation: this.smoothed.anticipation,
       bpm: this.smoothed.bpm,
       sub: this.gamma(this.smoothed.sub),
     };
@@ -352,6 +421,7 @@ export class AudioReactivityProcessor {
       centroid: 0,
       beatPhase: 0,
       downbeat: 0,
+      anticipation: 0,
       bpm: this.lastBpm,
       sub: 0,
     };

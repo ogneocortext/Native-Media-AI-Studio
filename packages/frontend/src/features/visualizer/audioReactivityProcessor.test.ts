@@ -176,3 +176,60 @@ describe("AudioReactivityProcessor reactivity triad", () => {
     );
   });
 });
+
+describe("Plan 2.8 — beat anticipation", () => {
+  // 120 BPM grid from t=0: beats every 0.5 s, downbeats (index % 4)
+  // at 0, 2.0, 4.0, ...
+  const grid120 = Array.from({ length: 17 }, (_, i) => i * 0.5);
+
+  it("ramps anticipation to 1 in the 120 ms before a downbeat", () => {
+    const processor = new AudioReactivityProcessor(DEFAULT_REACTIVITY_CONFIG);
+    // 50 ms before the downbeat at t=2.0.
+    processor.update(frame({ time: 1.95 }), grid120, 120);
+    expect(processor.getUniforms().anticipation).toBeCloseTo(
+      1 - 0.05 / 0.12,
+      6,
+    );
+    // Exactly on the downbeat: full pullback as the accent fires.
+    processor.update(frame({ time: 2.0 }), grid120, 120);
+    expect(processor.getUniforms().anticipation).toBeCloseTo(1, 6);
+  });
+
+  it("holds at 0 on non-downbeat beats and far from bar lines", () => {
+    const processor = new AudioReactivityProcessor(DEFAULT_REACTIVITY_CONFIG);
+    // 50 ms before beat index 2 (t=1.0) — not a downbeat, so the
+    // pullback must not fire; the next downbeat is 1.05 s away.
+    processor.update(frame({ time: 0.95 }), grid120, 120);
+    expect(processor.getUniforms().anticipation).toBe(0);
+    // Mid-bar, far from any downbeat.
+    processor.update(frame({ time: 1.0 }), grid120, 120);
+    expect(processor.getUniforms().anticipation).toBe(0);
+  });
+
+  it("falls back to the BPM grid when no beat times exist", () => {
+    const processor = new AudioReactivityProcessor(DEFAULT_REACTIVITY_CONFIG);
+    // 120 BPM, no grid: bars of 2 s from t=0. 100 ms before t=4.0.
+    processor.update(frame({ time: 3.9 }), [], 120);
+    expect(processor.getUniforms().anticipation).toBeCloseTo(
+      1 - 0.1 / 0.12,
+      6,
+    );
+  });
+
+  it("stays at 0 when anticipation is disabled", () => {
+    const processor = new AudioReactivityProcessor({
+      ...DEFAULT_REACTIVITY_CONFIG,
+      anticipationEnabled: false,
+    });
+    processor.update(frame({ time: 1.95 }), grid120, 120);
+    expect(processor.getUniforms().anticipation).toBe(0);
+  });
+
+  it("resets anticipation to 0", () => {
+    const processor = new AudioReactivityProcessor(DEFAULT_REACTIVITY_CONFIG);
+    processor.update(frame({ time: 1.95 }), grid120, 120);
+    expect(processor.getUniforms().anticipation).toBeGreaterThan(0);
+    processor.reset();
+    expect(processor.getUniforms().anticipation).toBe(0);
+  });
+});

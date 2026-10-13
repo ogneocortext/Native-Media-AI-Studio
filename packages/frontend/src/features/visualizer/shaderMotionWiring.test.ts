@@ -46,17 +46,33 @@ describe("buildShaderMotionInput — the mapping", () => {
     expect(input.section).toBe("PRE-CHORUS");
   });
 
-  it("derives the next-beat lookahead from the analyzed grid", () => {
-    // 100 BPM → beats every 0.6 s. At t=1.0 the next beat is 1.2.
+  it("derives the next-downbeat lookahead from the analyzed grid", () => {
+    // 100 BPM → beats every 0.6 s; downbeats (index % 4) at 0 and 2.4.
+    // Plan 2.8: at t=1.0 the lookahead is the downbeat at 2.4, not
+    // the plain beat at 1.2.
     const input = buildShaderMotionInput({
       nowSec: 1.0,
       dtSec: 1 / 60,
       bpm: 100,
       spectral: FRAME,
       section: null,
-      beatTimes: [0, 0.6, 1.2, 1.8],
+      beatTimes: [0, 0.6, 1.2, 1.8, 2.4, 3.0],
     });
-    expect(input.nextBeat).toEqual({ timeSec: 1.2 });
+    expect(input.nextBeat).toEqual({ timeSec: 2.4 });
+  });
+
+  it("skips non-downbeat beats when deriving the lookahead", () => {
+    // 120 BPM grid; at t=0.45 the next beat (0.5, index 1) is not a
+    // downbeat, so the lookahead jumps to the downbeat at 2.0.
+    const input = buildShaderMotionInput({
+      nowSec: 0.45,
+      dtSec: 1 / 60,
+      bpm: 120,
+      spectral: FRAME,
+      section: null,
+      beatTimes: [0, 0.5, 1.0, 1.5, 2.0],
+    });
+    expect(input.nextBeat).toEqual({ timeSec: 2.0 });
   });
 
   it("yields no lookahead on an unanalyzed track (empty grid)", () => {
@@ -168,22 +184,54 @@ describe("shader motion composition — onset moves the camera", () => {
     expect(state.cameraOffset).toEqual([0, 0, 0]);
   });
 
-  it("a analyzed grid arms anticipation before the next beat", () => {
-    // With a real grid, the frame just before a beat carries a
+  it("an analyzed grid arms anticipation before the next downbeat", () => {
+    // With a real grid, the frame just before a downbeat carries a
     // nextBeat lookahead, which anticipation-contract reads.
-    // 120 BPM → 0.5 s beats; at t=0.45 the next beat (0.5) is
-    // 0.05 s away — inside the 2-beat lead window.
+    // 120 BPM → 0.5 s beats; downbeats at 0 and 2.0. At t=1.95 the
+    // downbeat (2.0) is 0.05 s away — inside the 2-beat lead window.
+    const input = buildShaderMotionInput({
+      nowSec: 1.95,
+      dtSec: 1 / 60,
+      bpm: 120,
+      spectral: FRAME,
+      section: "VERSE",
+      beatTimes: [0, 0.5, 1.0, 1.5, 2.0],
+    });
+    expect(input.nextBeat).toEqual({ timeSec: 2.0 });
+    const state = resolveMotion(input, createMotionHistory());
+    // Anticipation winds the scale down inside the lead window.
+    expect(state.anticipation).toBeLessThan(1);
+  });
+
+  it("leaves non-downbeat beats alone (plan 2.8)", () => {
+    // At t=0.45 the next downbeat (2.0) is 1.55 s out — beyond the
+    // 2-beat (1.0 s) lead window — so the scene rests at neutral scale.
     const input = buildShaderMotionInput({
       nowSec: 0.45,
       dtSec: 1 / 60,
       bpm: 120,
       spectral: FRAME,
       section: "VERSE",
-      beatTimes: [0, 0.5, 1.0],
+      beatTimes: [0, 0.5, 1.0, 1.5, 2.0],
     });
-    expect(input.nextBeat).toEqual({ timeSec: 0.5 });
     const state = resolveMotion(input, createMotionHistory());
-    // Anticipation winds the scale down inside the lead window.
-    expect(state.anticipation).toBeLessThan(1);
+    expect(state.anticipation).toBe(1);
+  });
+
+  it("anticipationEnabled: false holds neutral scale through the downbeat", () => {
+    // Same frame as the arming test, but the per-style toggle kills
+    // the pullback.
+    const input = buildShaderMotionInput({
+      nowSec: 1.95,
+      dtSec: 1 / 60,
+      bpm: 120,
+      spectral: FRAME,
+      section: "VERSE",
+      beatTimes: [0, 0.5, 1.0, 1.5, 2.0],
+    });
+    const state = resolveMotion(input, createMotionHistory(), {
+      anticipationEnabled: false,
+    });
+    expect(state.anticipation).toBe(1);
   });
 });

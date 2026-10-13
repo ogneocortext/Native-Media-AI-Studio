@@ -236,11 +236,11 @@ Status verified against the repo 2026-10-06:
 | Item | State |
 |---|---|
 | 2.1 asymmetric smoother | **Done** — `dece4e9` wired it + envelope reset on track change |
-| 2.2 reactivity triad UI | **Open** — sensitivity exists internally (`audioReactivityProcessor.ts`, `ShaderVisualizer.tsx:227-230` defaults) but there is no user-facing reactivity panel |
-| 2.3 genre reactivity presets | **Open** — genre matching exists for kinetic lyric presets only, not reactivity |
-| 2.4 motion vocabulary | **Half-built** — `motion/motionEasing.ts`, `motionMoves.ts`, `useMotionDriver.ts` + tests exist, but **zero consumers** outside `motion/` itself (no `.tsx` imports it). Remaining work is integration, not invention |
-| 2.5 latency visible | **Open** — `audioTiming.ts` compensates internally; `RenderStats` (`components/RenderStats.tsx:11-15`) reports only fps/calls/triangles |
-| 2.6 color polish | **Open** |
+| 2.2 reactivity triad UI | **Done** — `1bf5ca7`: `ReactivityHUD` + `QuickPresetBar` (sensitivity / attack / release / beat response), persisted to localStorage |
+| 2.3 genre reactivity presets | **Done** — `reactivityGenrePresets.ts` (EDM / ambient / vocal-led / phonk-bass) + HUD chips + auto-apply on track load from the filename genre signal |
+| 2.4 motion vocabulary | **Done** — `useMotionDriver` is consumed by `ShaderVisualizer.tsx` (camera-offset node); `vizMotion.ts` covers the 15 Three.js styles. The Oct 6 "zero consumers" note was stale. |
+| 2.5 latency visible | **Done** — `1bf5ca7`: `RenderStats` reports `audioToVisualMs` (audio→visual pipeline latency, 20–40 ms target band) |
+| 2.6 color polish | **Partial** — `energyHue` (cool→warm energy palette) done in `5d6ac8b`; gamma-correct brightness drive + per-frequency color conventions open |
 
 ### 2.7 Wire the motion vocabulary (completes 2.4)
 
