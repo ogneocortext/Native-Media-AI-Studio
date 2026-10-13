@@ -134,7 +134,7 @@ real time.
 
 - `packages/backend/app/services/source_separation.py` — `STEM_NAMES = ("vocals", "drums", "bass", "other")`
 - `get_stems` returns `stems_mp3` URL map
-- `packages/frontend/src/features/visualizer/StemMixer.tsx` — per-stem volume/mute UI, propagates state upward
+- `packages/frontend/src/features/visualizer/components/StemMixer.tsx` — per-stem volume/mute UI, propagates state upward
 - `packages/frontend/src/features/visualizer/Visualizer.tsx` — fetches stem analysis, passes `stems`, `sampleAudio`, `stemsMuted`, `stemsVolumes` to `ShaderVisualizer`
 - `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx` — samples stem energy curves per frame and applies mute/volume scaling before blending into shader uniforms
 

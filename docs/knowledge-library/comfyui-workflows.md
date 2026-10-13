@@ -436,7 +436,7 @@ Frontend (React) → Backend (FastAPI) → ComfyUI REST API (port 8188)
 **Frontend paths:**
 
 - `packages/frontend/src/services/comfyui.ts` — Direct ComfyUI calls (image generation, model listing)
-- `packages/frontend/src/services/api.ts` — Backend-proxied calls (job queue, progress)
+- `packages/video-editor/src/services/api.ts` — Backend-proxied calls (job queue, progress)
 
 **Backend paths:**
 

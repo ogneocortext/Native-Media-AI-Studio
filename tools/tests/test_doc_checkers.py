@@ -132,9 +132,30 @@ CASES = [
      lambda m: _untrack_then("scripts/check_ports.ps1", unignore=True),
      "gitignore excludes"),
     ("documented script is untracked only", "check-repo-layout.py",
-     SAMPLE,
-     lambda m: _untrack_then("scripts/start-services.ps1"),
-     "will be lost"),
+      SAMPLE,
+      lambda m: _untrack_then("scripts/start-services.ps1"),
+      "will be lost"),
+    # --- stale path references -----------------------------------------
+    # The moved-file signature: the target is gone but its basename
+    # (or last two segments) is still tracked elsewhere, i.e. the file
+    # moved and the reference did not follow. A name that exists
+    # nowhere in the repo is undecidable from the tree alone and is
+    # deliberately NOT flagged - that is the negative case below.
+    # The payloads below are split across a string concatenation so the
+    # stale path never appears literally in this file: it is itself
+    # tracked text that check-path-references.py scans, and a literal
+    # dangling reference here would be a genuine finding. In source,
+    # each fragment alone either resolves (an existing directory) or
+    # matches nothing tracked, so only the runtime-concatenated
+    # payload the checker sees in the mutated sample can fail.
+    ("reference to a moved file", "check-path-references.py",
+     SAMPLE, lambda m: m.append(
+         "\nSee `docs/no-such-" + "dir/check-docs-map.py` for the map.\n"),
+     "does not exist on disk"),
+    ("stale frontend api.ts reference", "check-path-references.py",
+     SAMPLE, lambda m: m.append(
+         "\nQueue it with `packages/frontend/src/services/" + "api.ts`.\n"),
+     "did you mean"),
 ]
 
 
@@ -240,6 +261,24 @@ def negative_cases():
     else:
         print(f"not flagged:    {'UTF-8 BOM is allowed':<44} ({'check-text-encoding.py'})")
 
+    # Path references: existing paths with trailing prose, an
+    # extension-less import that resolves by suffix, and MCP method
+    # names must all pass. Only the moved-file signature may fail.
+    with Mutated(SAMPLE) as m:
+        m.append("\nRun tools/check-all.py for every check; see "
+                 "docs/README.md for the map. Imports look like "
+                 'from "shared/types" import StemState. The MCP '
+                 "transport exposes tools/call; the server lists "
+                 "tools/list.\n")
+        code, out = run("check-path-references.py")
+    if code != 0:
+        failures.append("valid path references rejected")
+        print("FALSE POSITIVE: existing paths, a resolvable import "
+              "and MCP method names must not be flagged")
+    else:
+        print(f"not flagged:    {'valid path references':<44} "
+              "('check-path-references.py')")
+
     # Every mutation above must have been restored byte-for-byte.
     code, out = run("check-text-encoding.py")
     if code != 0:
@@ -260,7 +299,8 @@ def main():
 
     # Baseline: the real tree must be clean, or the cases prove nothing.
     for checker in ("validate-knowledge-tags.py", "check-docs-map.py",
-                    "check-repo-layout.py", "check-text-encoding.py"):
+                    "check-repo-layout.py", "check-text-encoding.py",
+                    "check-path-references.py"):
         code, out = run(checker)
         if code != 0:
             print(f"BASELINE FAILED: {checker} on the unmodified tree")

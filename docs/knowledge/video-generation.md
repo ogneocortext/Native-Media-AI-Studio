@@ -78,10 +78,8 @@ Backend checks `ensure_vram_available(required_mb=4096)` before enqueue. Fronten
 - Preview generation is synchronous (returns after render); no async polling for preview jobs
 
 ## Related Files
-- `packages/frontend/src/features/video-generation/VideoGenerationPage.tsx`
-- `packages/frontend/src/features/video-generation/StylePicker.tsx`
-- `packages/frontend/src/features/video-generation/ProgressPanel.tsx`
+- `packages/frontend/src/features/video-generation/VideoGenerationPage.tsx` — page; style picker and progress banner are inlined here
 - `packages/backend/app/api/integrations_music_video.py` — styles + generate + progress endpoints
 - `packages/backend/app/api/integrations_config.py` — `ensure_vram_available` (advisory preflight)
 - `packages/backend/app/services/generation_estimator.py` — `estimate_generation_time`
-- `packages/frontend/src/services/api.ts` — `getMusicVideoStyles()`, `generateMusicVideo()`
+- `packages/video-editor/src/services/api.ts` — `getMusicVideoStyles()`, `generateMusicVideo()`

@@ -39,8 +39,8 @@ Source of truth for the findings and their verification:
 Browser checks (dev server on `127.0.0.1:5173`):
 
 ```bash
-node packages/frontend/tests/browser/three-studio-audit-checks.mjs   # F2-F6/F9
-node packages/frontend/tests/browser/three-studio-dispose-check.mjs  # F1
+node packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs   # F2-F6/F9
+node packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs  # F1
 ```
 
 Headless hook: `window.__renderer` (live `WebGLRenderer`, removed on unmount)

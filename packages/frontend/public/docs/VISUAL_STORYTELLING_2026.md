@@ -123,7 +123,7 @@
 - `signal-breaking-video/remotion.config.ts:7` — `concurrency 6`, `angle`, `h264` — GPU + parallel
 - `output/still-i-rise-analysis.json:1` — 99.4 BPM, -14.1 LUFS analysis
 - `output/still-i-rise-whisper.json:1` — segments for lyric timing
-- `docs/VISUAL_STORYTELLING_2026.md` — this playbook
+- `docs/visual-storytelling/VISUAL_STORYTELLING_2026.md` — this playbook
 - `VIDEO_SETUP.md:1` / `Guidelines.md:1` — existing workspace rules
 
 **How to use:** Pick a new track → run `analyze_audio.py` → map BPM/key/loudness → choose palette → storyboard bento layout per act → generate Blender plates headless → compose Remotion with liquid glass + kinetic per-word → render vertical + horizontal → cut 3-8s Canvas loop.

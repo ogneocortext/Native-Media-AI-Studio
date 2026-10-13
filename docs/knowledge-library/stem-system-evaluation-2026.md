@@ -501,7 +501,7 @@ accounts for explicitly:
 **Implementation notes:**
 - Default model is now `mdx_extra_q` (MDX-Net high-quality variant).
 - `--shifts 0` for fast iteration, `--shifts 1` for final renders.
-- `--segment_size` cap available for 8 GB GPUs on long tracks.
+- `--segment` cap available for 8 GB GPUs on long tracks (renamed from `--segment_size` in demucs 4.1.0). It is in **seconds** and each model caps it at the segment it was trained with — HTDemucs 7.8 s, MDX bags 44 s — so `segment_size` is clamped to the model's max (`clamp_segment_seconds`). The old UVR5-style "128/256/512" sample counts are a different unit and would be read as 128–512 *seconds*.
 - Windows validation: `torchaudio.list_audio_backends()` checked; `soundfile`
   must be installed (`pip install soundfile`) or decoding fails silently.
 

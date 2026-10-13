@@ -84,7 +84,7 @@ Each finding checked against the code before acting. Scope:
 
 | ID | Applicable? | Status / change |
 |----|-------------|-----------------|
-| F1 perf leak | **Confirmed.** The object-sync effect removed meshes from the scene but never called `dispose()`; character model swaps leaked the old mesh too; teardown left `OrbitControls`, the effect composers and the scene graph alive. | `hooks/useThreeScene.ts`: `disposeObject3D()` / `disposeEntry()` dispose geometry, materials (and their per-material textures) and stop character mixers on removal and on model swap; teardown disposes objects, controls, composers, renderer, and clears `window.__camera` / `window.__renderer`. **Verified:** `renderer.info.memory.geometries` 24 → 30 (6 adds) → 24 (6 removes). Regression script: `tests/browser/three-studio-dispose-check.mjs`. |
+| F1 perf leak | **Confirmed.** The object-sync effect removed meshes from the scene but never called `dispose()`; character model swaps leaked the old mesh too; teardown left `OrbitControls`, the effect composers and the scene graph alive. | `hooks/useThreeScene.ts`: `disposeObject3D()` / `disposeEntry()` dispose geometry, materials (and their per-material textures) and stop character mixers on removal and on model swap; teardown disposes objects, controls, composers, renderer, and clears `window.__camera` / `window.__renderer`. **Verified:** `renderer.info.memory.geometries` 24 → 30 (6 adds) → 24 (6 removes). Regression script: `tests/browser/audit/three-studio-dispose-check.mjs`. |
 | F2 spawn on top of each other | **Confirmed.** `addObject` hard-coded `position: [0, 0.5, 0]`. | `hooks/useObjectManager.ts`: golden-angle spiral slot per new object; `ThreeJSStudio.handleAddObject` now shows a success toast naming the new object. Auto-select already existed. |
 | F3 no select / delete | **Partly.** An object list with per-row remove already existed (`components/ObjectsTab.tsx`) but is behind a collapsed drawer, and there was no canvas selection at all — repo-wide raycast search returned zero hits. | Added click-to-select raycast on the canvas (drag threshold 5 px so orbiting never selects, empty click deselects) + `Delete`/`Backspace` removal, both guarded against text fields. |
 | F4 silent disabled button | **Confirmed.** `disabled={!selectedModel \|\| !metadata}` with no explanation. | `components/AISceneGenerator.tsx`: `generateBlockedReason` drives the button `title` and an inline amber hint ("No Ollama model selected…", "No track selected…", "Loading track metadata…"). |
@@ -103,7 +103,7 @@ Each finding checked against the code before acting. Scope:
 
 ### Verification
 
-`node packages/frontend/tests/browser/three-studio-audit-checks.mjs` (needs `pnpm dev`)
+`node packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs` (needs `pnpm dev`)
 — 10/10 checks pass, no console errors: scene load, F9 label, preview runs, F2 add
 feedback, F4 hint, F5 labels, F6 select fit + toggle label, F3 select and Delete.
 

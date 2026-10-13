@@ -104,4 +104,4 @@ if (beatFrame % 12 == 0 && bassEnergy > 0.3f)
 4. **Add VFX Graph** embers with per-act spawn rates
 5. **Render frames** → FFmpeg encode with audio
 
-See: `docs/STORYBOARD_TakeTheCrown.md` for full production notes, palette, and typography specs.
+See: `docs/visual-storytelling/STORYBOARD_TakeTheCrown.md` for full production notes, palette, and typography specs.

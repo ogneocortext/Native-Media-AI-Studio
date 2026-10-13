@@ -202,7 +202,7 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 One command runs everything:
 
 ```bash
-python tools/check-all.py            # all checks, ~900ms
+python tools/check-all.py            # all checks, ~2s
 python tools/check-all.py -v         # show each check's last line
 ```
 
@@ -211,8 +211,11 @@ gives the same verdict the hook will.
 
 The individual checkers are still runnable alone and are documented below.
 
-- `check-all.py` — runs `check-docs-map.py`, `validate-knowledge-tags.py`,
-  `check-repo-layout.py`, and the report-only `docs-triage.py`, cheapest first so
+- `check-all.py` — runs the doc/repo checkers (`check-docs-map.py`,
+  `check-text-encoding.py`, `check-subprocess-encoding.py`,
+  `validate-knowledge-tags.py`, `check-repo-layout.py`,
+  `check-path-references.py`), then `report-nesting.py` against its
+  baseline and the report-only `docs-triage.py`, cheapest first so
   a fast failure surfaces early. Exits non-zero if any check fails. This exists
   so there is one command to remember and one list that cannot silently fall
   behind the set of checkers.
@@ -259,6 +262,30 @@ The individual checkers are still runnable alone and are documented below.
   data files in the library, and was not referenced from `AGENTS.md` — so an
   agent following it would have been sent to a directory that isn't there, and
   no agent would have read it first. A stale map is worse than none.
+
+- `check-path-references.py` verifies that repo-relative path references in
+  tracked text files point at files that exist: documentation, docstrings and
+  comments naming `packages/…`, `tools/…`, `docs/…`, `scripts/…`, `shared/…`,
+  `config/…`, `unity-project-mcp/…`, `unity-visualizer/…` or `suno-templates/…`.
+  It reports the *moved-file signature* only — a reference whose target is gone
+  while a tracked file with the same basename (or last two path segments) still
+  exists, i.e. the file moved and the reference did not follow. Each finding
+  carries a "did you mean" line naming the tracked file. A name that exists
+  nowhere in the repo is undecidable from the tree alone (generated, external
+  or planned paths) and is deliberately not flagged.
+
+  ```bash
+  python tools/check-path-references.py
+  ```
+
+  This exists because a directory reorganisation left 12 references pointing
+  at files that had moved (an `api.ts` now in `packages/video-editor`, a
+  `StemMixer.tsx` now under `features/visualizer/components/`, storyboard
+  docs now under `docs/visual-storytelling/`) — each one sent an agent to a
+  file that was not there. MCP method names (`tools/call`, `tools/list`),
+  extension-less imports (`shared/types`), template placeholders and `output/`
+  write targets are excluded, and `CHANGELOG.md` plus the D12
+  `docs/notes/`/`docs/scratch/` sets are not scanned.
 
 - `docs-triage.py` groups the untagged markdown outside the library by
   disposition, so triage is six decisions rather than 65 filenames:

@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D37 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D39 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -1351,4 +1351,48 @@
   neural, storm, vinyl, aurora, three-particles) — structure
   and depth improved, storm/aurora now read dynamic, neural
   and vinyl decluttered. Gates: type, lint, unit all pass.
+
+### D39 — Stale path references fail a gate (2026-10-13)
+
+- **Status:** Decided
+- **Context:** A directory reorganisation left 12 documentation
+  references pointing at files that had moved: `api.ts` (now
+  `packages/video-editor/src/services/api.ts`), `StemMixer.tsx`
+  (now under `features/visualizer/components/`), two storyboard
+  docs and the visual-storytelling playbook (now under
+  `docs/visual-storytelling/`), and `compose_mv.py` (now under
+  `tools/demos/`). Every one sent an agent to a missing file.
+  Web research (deadcode-py's confidence tiers, hyperhawk's
+  broken-link checking, codebase-cartographer's MAP.md)
+  converged on: verify references against the tree, and report
+  only what the tree can decide.
+- **Decision:** New checker `tools/check-path-references.py`
+  scans tracked text files for repo-relative path references
+  (`packages/…`, `tools/…`, `docs/…`, `scripts/…`, `shared/…`,
+  `config/…`, `unity-project-mcp/…`, `unity-visualizer/…`,
+  `suno-templates/…`) and fails when a reference's target is
+  gone while a tracked file with the same basename (or last two
+  segments) exists — the moved-file signature. Findings carry a
+  "did you mean" line naming the tracked file. A name that
+  exists nowhere is undecidable (generated, external, planned)
+  and is not reported. Excluded by design: MCP method names
+  (`tools/call`/`tools/list`), extension-less imports (resolved
+  by suffix), template placeholders, `output/` write targets,
+  quoted multi-segment `PROJECT_ROOT / "…" / "…"` and
+  `os.path.join(…)` joins, prose absorbed by the space-tolerant
+  match, `CHANGELOG.md` (historical record) and the D12
+  `docs/notes/` + `docs/scratch/` sets. Wired into
+  `tools/check-all.py` (8 checks) and covered by mutation tests
+  in `tools/tests/test_doc_checkers.py` (two positive cases —
+  moved file, stale `api.ts` — plus negatives: existing paths
+  with trailing prose, a resolvable `shared/types` import, MCP
+  method names).
+- **Consequences:** The 12 stale references are fixed in place
+  (10 docs + 1 demo docstring; `video-generation.md`'s Related
+  Files now names the style picker and progress banner as
+  inlined in `VideoGenerationPage.tsx` instead of the component
+  files that no longer exist). Doc drift that sends agents to
+  missing files is now a pre-commit failure, not a discovery.
+  The checker scans ~1230 tracked files and ~1470 references in
+  about a second.
 

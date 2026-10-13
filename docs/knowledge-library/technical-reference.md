@@ -481,7 +481,7 @@ nsys stats --report cuda_api_sum output/logs/nsys-audio-admin.nsys-rep
 #### Applied fixes 2026-08-25 (verified)
 
 - **GPU health fallback**: `app/diagnostics/resources.py:541` + `app/services/vram_manager.py:109` now fallback to `torch.cuda.mem_get_info`/`get_device_properties` when `pynvml` fails (System Python hardcodes `NVSMI/nvml.dll` missing on WDDM; ghost workers `PIDs 20460/37124` blocked restart). Also patched `C:\...\Python311\Lib\site-packages\pynvml.py:641` to `System32\nvml.dll`. Verified `GET /api/health/gpu` `available:true 3782/8192 MB` + `GET /api/integrations/cuda/status` `available:true GTX 1070 Ti` after `venv` restart `PID 23524`.
-- **Frontend endpoint**: `packages/frontend/src/services/api.ts:607` corrected `/api/health/integrations/cuda/status` 404 → `/api/integrations/cuda/status` with fallback; banner now `role=status` shows `CUDA Available` + VRAM badge + `fallback` badge, `GPU on/off` toggle, `CPU Mode` fallback text. `AudioAnalysisPage.tsx:100` adds `previewUrl`/`validateFile`/`audio` preview, `fileError`, `border-dashed` states, beats sampled to ≤80, `Select all`, `filtered/paged` library empty states (`No files match + Clear filter`), `aria-*`.
+- **Frontend endpoint**: `packages/video-editor/src/services/api.ts` corrected `/api/health/integrations/cuda/status` 404 → `/api/integrations/cuda/status` with fallback; banner now `role=status` shows `CUDA Available` + VRAM badge + `fallback` badge, `GPU on/off` toggle, `CPU Mode` fallback text. `AudioAnalysisPage.tsx:100` adds `previewUrl`/`validateFile`/`audio` preview, `fileError`, `border-dashed` states, beats sampled to ≤80, `Select all`, `filtered/paged` library empty states (`No files match + Clear filter`), `aria-*`.
 - **Integration fix**: `packages/backend/app/api/integrations_generation.py:19` defined `ImageGenerationRequest`/`VideoGenerationRequest` locally (was `NameError`), cleared `__pycache__`, backend now starts.
 - **Confidence**: `app/services/audio_analyzer.py:224` windowed onset (`p85` ±1) + regularity (`CV`) + dynamic → `0.28→0.85` on `182s 143BPM` (`0.86-0.88` on `5` library files)
 - **Video**: `music_video_handler.py:231` `showspectrum rate` → `Option not found` fix, `QueueList.tsx:109` renders `<video>` via `/output/video/{file}` + `Download`/`Open`, `crf 23 preset fast` (`772MB→3.16MB 5s`), `-t duration` (was full `4:24` → `timeout`), palette by `section`/`energy`
@@ -682,7 +682,7 @@ curl http://localhost:8188/system_stats | python -m json.tool
    from .api import my_new_route
    app.include_router(my_new_route.router)
    ```
-3. Add frontend API function in `packages/frontend/src/services/api.ts`
+3. Add frontend API function in `packages/video-editor/src/services/api.ts`
 
 ### Adding a New Service
 

@@ -1,16 +1,19 @@
 """Run every documentation and repository check in one command.
 
-Three checkers exist, each runnable alone, but there is no single command that
-runs them all. That gap is easy to miss: a fourth checker gets added, nobody
+Several checkers exist, each runnable alone, but there is no single command
+that runs them all. That gap is easy to miss: a new checker gets added, nobody
 notices the aggregate is incomplete, and the pre-commit hook quietly runs a
 subset. This runner is the single entry point, and `tools/tests/` covers it.
 
 Checks, in order of cost (cheapest first, so a fast failure surfaces early):
-  1. tools/validate-knowledge-tags.py  - frontmatter, tags, tracker, index
-  2. tools/check-docs-map.py           - docs/README.md is an accurate map
-  3. tools/check-repo-layout.py        - generated output, duplicates, collisions
-  4. tools/check-text-encoding.py      - rejects UTF-16 / NUL / invalid UTF-8
-  5. tools/check-subprocess-encoding.py - rejects text=True with no encoding=
+  1. tools/check-docs-map.py            - docs/README.md is an accurate map
+  2. tools/check-text-encoding.py       - rejects UTF-16 / NUL / invalid UTF-8
+  3. tools/check-subprocess-encoding.py - rejects text=True with no encoding=
+  4. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
+  5. tools/check-repo-layout.py         - generated output, duplicates, collisions
+  6. tools/check-path-references.py     - stale repo-relative path references
+  7. tools/report-nesting.py            - control-flow nesting vs baseline
+  8. tools/docs-triage.py               - report-only untagged-doc grouping
 
 Run:  python tools/check-all.py
 Exit 0 = all pass, 1 = at least one failed.
@@ -30,6 +33,10 @@ CHECKS = [
     ("subprocess encoding", "check-subprocess-encoding.py", []),
     ("knowledge tags", "validate-knowledge-tags.py", []),
     ("repo layout", "check-repo-layout.py", []),
+    # Dangling repo-relative path references: the moved-file signature
+    # (target gone, same basename still tracked elsewhere). The only
+    # check that catches documentation pointing at files that moved.
+    ("path references", "check-path-references.py", []),
     # Fails if a function's control-flow nesting got deeper than the committed
     # baseline. Deep nesting is a proxy for "hard to navigate", and this is the
     # only check that stops it coming back. Re-baseline deliberately:

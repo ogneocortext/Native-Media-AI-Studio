@@ -300,8 +300,8 @@ counters, add toasts, canvas hit-testing, panel selects).
 ### Regression checks
 
 ```bash
-node packages/frontend/tests/browser/three-studio-audit-checks.mjs   # audit F2-F6/F9 (10 checks)
-node packages/frontend/tests/browser/three-studio-dispose-check.mjs  # audit F1 (GPU dispose on removal)
+node packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs   # audit F2-F6/F9 (10 checks)
+node packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs  # audit F1 (GPU dispose on removal)
 ```
 
 Both scripts need a dev server on `127.0.0.1:5173` and assert **zero console

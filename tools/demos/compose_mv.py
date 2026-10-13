@@ -3,7 +3,7 @@
 Composite rendered frames + audio into the final music video.
 
 Usage:
-    python tools/compose_mv.py [--fps 24] [--audio <path>]
+    python tools/demos/compose_mv.py [--fps 24] [--audio <path>]
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 # Storyboard — Still I Rise — NeoCortext
 *Lyric-mapped, research-backed, ready for shot planning*
 *Duration 234.12s (7024f @30fps) • 99.4 detected / ~132 intended BPM (future-garage swung) • Bb Maj • 2026-08-20 v4 critique → v5 nocturnal plan*
-*Files: `src/StillIRise.tsx` `public/blender-*.png` `docs/VISUAL_STORYTELLING_2026.md`*
+*Files: `src/StillIRise.tsx` `public/blender-*.png` `docs/visual-storytelling/VISUAL_STORYTELLING_2026.md`*
 *Prompt: `Nocturnal future-garage, low-130s BPM swung off-grid, warm slowly modulating sub-bass, foggy reverb pads, soft analog texture, pitched vocal fragments low, intimate breathy male, minor-key, slow-building: intro/verse/half-time refrain/interlude/final refrain. Spacious headphone mix, introspective.` — verified lyrics below match extracted `lyrics-und` + Whisper anchors*
 
 > **Why v4 looked worse:** Audit of 12 frames (10s–225s) showed we added *layers without hierarchy*. Paper fiber (0.035 overlay) + burlap weave + dust 18 motes + mirrored reflection + spring jitter all on one locked center composition = visual noise, not story. Character still centered 50% occluded by lyric glass + waveform mid-line, bento 2-cards identical every frame, palette still slate. **2026 lesson:** StudioMeyer — kinetic type + heavy glass + WebGL often demo-only; needs restraint + act-specific cameras, not one AbsoluteFill with opacity tweaks. This board fixes via 10 distinct sequences with own camera, palette, prop focus, and transition.
