@@ -1,6 +1,6 @@
 # Remix / Mashup Plan — Oct 2026
 
-**Status:** Phase 1 in progress (2026-10-06) — B5, B3, B7 landed; B2, B1 next
+**Status:** Phase 1 in progress (2026-10-13) — B5, B3, B7, B2 landed; B1 (MCP contract) next
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -96,7 +96,7 @@ a new audio MCP): `remix_list_sources`, `remix_probe`, `remix_preview`,
 `remix_build`, `remix_enhance`, `remix_list`, `remix_get_file`, with
 JSON-Schema contracts recorded in `mcp-contracts-2026.md`.
 
-### B2. Natural-language entry point
+### B2. Natural-language entry point — DONE 2026-10-13
 
 No endpoint accepts a prompt today; the caller must hand-build the full
 `RemixRecipeRequest` (name, target_bpm, 1–64 slots, per-layer
@@ -108,6 +108,40 @@ library, resolve stem names, map mood adjectives (see B4) to arrangement
 choices. Return `{recipe, explanation}` for agent review; the existing
 `/build` renders it. **Two-step (draft → confirm)** — never prompt → audio in
 one shot.
+
+Landed: new `services/remix_prompt.py` (pure core, 36 tests) +
+`POST /api/audio/remix/from-prompt` → `{recipe, explanation, warnings,
+model_used, source}`. `recipe` is the exact `/build` request shape, and
+`overwrite` defaults **False** on a draft (A5 starts here). Design
+points that the first live run forced:
+
+- **Draft-only**, per the plan's non-goals; `/preview` or `/build` (B5's
+  job-tracked render) does the rest.
+- **The model never invents sources.** Its system prompt carries the real
+  source table (names, available stems, cached probe BPM) and every
+  returned layer is re-resolved against it; an unresolvable track or
+  missing stem is dropped with a warning rather than a 400.
+- **Per-source stem attribution** — the plan's own target sentence
+  ("drums and bass from X, vocals from Y") cannot be answered by a
+  global stem scan, so `attribute_stems` assigns by corridor plus a
+  from/of handoff ("the vocals *from* Ad Nauseam").
+- **B6's fixture guard.** The first live test drafted from
+  `demucs_test_input` — the ~10-second test fixture the plan warns about —
+  because `list_stem_sources` lists every stem directory. Drafts now
+  exclude test-fixture names and *name the exclusion* in the warnings.
+- **Substitution honesty.** When the model uses a track the prompt never
+  named (an unfulfillable request substituted), the warning says so and
+  lists the tracks.
+- **Deterministic fallback.** With no model answering, the same prompt
+  parses deterministically into a valid recipe with `source: heuristic`
+  and a warning naming the fallback, so an agent always gets something
+  reviewable. A prompt naming no library track is a 400.
+
+Verified live against the real model (`source: ollama`, `qwen3.5:9b`):
+the target sentence drafted a 2-slot recipe with drums+bass under
+borrowed vocals at the source track's probed BPM; an unavailable-track
+prompt produced the substitution warning naming the stand-in; a prompt
+naming nothing produced all three honesty warnings.
 
 ### B3. Richer source discovery — DONE 2026-10-06
 

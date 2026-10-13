@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from ..services import essentia_tempo_store, remix_jobs, stem_remixer
+from ..services import essentia_tempo_store, remix_jobs, remix_prompt, stem_remixer
 from ..services.stem_remixer import RemixLayer, RemixRecipe, RemixSlot
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,28 @@ class TempoRefreshRequest(BaseModel):
     """Which tracks to measure. Omit to refresh every track with stems on disk."""
 
     tracks: list[str] | None = None
+
+
+class RemixPromptRequest(BaseModel):
+    """Natural-language mashup request (plan B2)."""
+
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+class RemixDraftResponse(BaseModel):
+    """A reviewable draft: the recipe plus why it looks the way it does.
+
+    `recipe` is the exact `/build` request shape, so reviewing means one
+    call, not a translation step. `source` names the drafter — `ollama` or
+    `heuristic` (the deterministic fallback when no model answered) — so a
+    caller can tell a modelled arrangement from a parsed one.
+    """
+
+    recipe: dict
+    explanation: str
+    warnings: list[str] = []
+    model_used: str | None = None
+    source: str
 
 
 def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
@@ -211,6 +233,30 @@ async def remix_by_track(track: str) -> dict:
         "track": track,
         "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, track),
     }
+
+
+@router.post("/from-prompt", response_model=RemixDraftResponse)
+async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
+    """Draft a mashup recipe from natural language (plan B2).
+
+    Deliberately draft-only: the plan's non-goals forbid prompt → audio in
+    one shot, so this returns `{recipe, explanation, warnings}` and the
+    caller reviews before spending a render on `/build`. `recipe` is the
+    exact `/build` request shape, so review is one call, not a
+    translation step.
+
+    The local model (qwen3.5:9b, falling back to 4b, then to a
+    deterministic parse of the same prompt) never invents sources: every
+    layer is re-resolved against `list_stem_sources()` and an
+    unresolvable track or missing stem is dropped with a warning rather
+    than failing the request. A prompt naming no library track is a 400 —
+    that is a caller error worth reporting, not something to paper over.
+    """
+    try:
+        draft = await remix_prompt.draft_recipe_from_prompt(body.prompt)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RemixDraftResponse(**draft)
 
 
 @router.post("/preview", response_model=RemixPreviewResponse)
