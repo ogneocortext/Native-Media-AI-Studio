@@ -277,5 +277,14 @@ effect budget and its runtime cap), and `motion/` (the motion
   assertions live in `canvas2dModeBudget.test.ts` because they compare the
   budget against `CANVAS_2D_MODES`. That drift was real: `aurora` was
   implemented, budgeted and unit-tested but absent from the picker, so no user
-  could reach it. Still untested and pure: `perceptualScales.ts`,
-  `sectionStateMachine.ts`, `lyricsParser.ts`.
+  could reach it. As of 2026-10-13 the last three pure modules are covered
+  too: `perceptualScales.ts` (`perceptualScales.test.ts` — mel/erb exact
+  inverses vs the approximate bark one, the single-band NaN guard in
+  `generatePerceptualBands`, and the two-pointer band sweep),
+  `sectionStateMachine.test.ts` (every section → preset, the case-insensitive
+  lookup, and the unknown-section→verse fallback that fails silently), and
+  `lyricsParser.test.ts` (LRC timestamp/offset/section parsing, the two CSV
+  variants, and `generateTimedLyrics` duration distribution). Note these are
+  shared *read-only* config objects: `getAllSectionPresets` returns a fresh
+  top-level map but shares the per-section values (as does `getSectionPreset`),
+  so tests override a top-level key rather than mutate a value in place.

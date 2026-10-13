@@ -174,14 +174,17 @@ def _untrack_then(rel, unignore=False):
     The index is restored in restore_untracked_probes() rather than here, because
     the checker runs after this returns - restoring immediately would defeat the
     test.
+
+    Like _retrack, the index mutation is verified and retried: `git rm --cached`
+    fails transiently here for the same reason `git add` does (index.lock held by
+    the multi-gigabyte .git plus Windows indexing). The old code swallowed that
+    exit code, leaving the file still tracked, which made the checker skip it and
+    the case report a misleading WRONG MESSAGE instead of "did not apply".
     """
-    was_tracked = subprocess.call(
-        ["git", "ls-files", "--error-unmatch", rel], cwd=ROOT,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
-    if not was_tracked:
+    if not _is_tracked(rel):
         return False
-    subprocess.call(["git", "rm", "--cached", "-q", "-f", rel], cwd=ROOT,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if not _untrack(rel):
+        return False
     UNTRACKED_PROBES.append(rel)
 
     if unignore and os.path.exists(GITIGNORE):
@@ -198,6 +201,36 @@ def _untrack_then(rel, unignore=False):
 
 
 GITIGNORE_PROBES = []
+
+
+def _is_tracked(rel):
+    """True if git currently has this path in its index."""
+    return subprocess.run(
+        ["git", "ls-files", "--error-unmatch", rel], cwd=ROOT,
+        capture_output=True).returncode == 0
+
+
+def _untrack(rel):
+    """Remove one probe file from the index, retrying transient failures.
+
+    Mirrors _retrack: `git rm --cached` can fail exactly like `git add` on this
+    machine, and the previous single unchecked call let a silent failure leave
+    the file tracked. Retry, verify it really left the index, and return False so
+    the caller reports an honest SETUP FAILED rather than a confusing WRONG
+    MESSAGE.
+    """
+    err = ""
+    for attempt in range(3):
+        proc = subprocess.run(
+            ["git", "rm", "--cached", "-q", "-f", rel], cwd=ROOT,
+            capture_output=True, encoding="utf-8", errors="replace")
+        if not _is_tracked(rel):
+            return True
+        err = (proc.stderr or proc.stdout).strip()
+        time.sleep(0.5 * (attempt + 1))
+    print(f"WARNING: could not un-track {rel} ({err or 'git rm --cached failed'}); "
+          f"the mutation did not apply.")
+    return False
 
 
 def _retrack(rel):
