@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recipeToEditableSlots, newEditableLayer } from "./remixRecipe";
+import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource } from "./remixRecipe";
 import type { RemixRecipeSpec } from "../../../services/api/remix";
 
 /**
@@ -91,5 +91,38 @@ describe("newEditableLayer", () => {
 
   it("allocates a fresh id each time", () => {
     expect(newEditableLayer("A", "drums").__id).not.toBe(newEditableLayer("A", "drums").__id);
+  });
+});
+
+// ─── B6: library path <-> stem key, with the fixture guard ────────────────
+
+describe("matchSource", () => {
+  const tracks = ["demucs_test_input", "SunoV6Mini-Ad-Nauseam", "take-the-crown"];
+
+  it("resolves a library path to its stem key", () => {
+    expect(matchSource("Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a", tracks)).toBe("SunoV6Mini-Ad-Nauseam");
+    expect(matchSource("SunoV6Mini-Ad-Nauseam.wav", tracks)).toBe("SunoV6Mini-Ad-Nauseam");
+  });
+
+  it("never preselects a fixture, even when the current track matches nothing", () => {
+    // The regression this guards: the fallback used to pick tracks[0],
+    // which is the 10-second demucs fixture on this machine.
+    expect(matchSource("Some Unrelated Track.wav", tracks)).not.toBe("demucs_test_input");
+    expect(matchSource("Some Unrelated Track.wav", tracks)).toBe("SunoV6Mini-Ad-Nauseam"); // first non-fixture
+  });
+
+  it("returns undefined when the only candidate is a fixture", () => {
+    expect(matchSource("Anything", ["demucs_test_input", "test_input_2"])).toBeUndefined();
+    expect(matchSource(null, tracks)).toBeUndefined();
+    expect(matchSource(undefined, tracks)).toBeUndefined();
+  });
+
+  it("recognises fixture-shaped names", () => {
+    expect(isFixtureSource("demucs_test_input")).toBe(true);
+    expect(isFixtureSource("DEMUCS_TEST_INPUT")).toBe(true);
+    expect(isFixtureSource("test_input_2")).toBe(true);
+    expect(isFixtureSource("fixture-x")).toBe(true);
+    expect(isFixtureSource("SunoV6Mini-Ad-Nauseam")).toBe(false);
+    expect(isFixtureSource("ec2c167538d44391af7d14d57fede26d")).toBe(false);
   });
 });

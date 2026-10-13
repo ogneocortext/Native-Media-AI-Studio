@@ -20,6 +20,56 @@ export type EditableSlot = Omit<RemixSlotSpec, "layers"> & { layers: EditableLay
  */
 let layerSeq = 0;
 
+/** Normalize a name to its lowercase-alphanumeric identity (B6). */
+function normalizeKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * True for test-fixture stem directories that must never be preselected.
+ *
+ * `demucs_test_input` is a ~10 s fixture that sorts first alphabetically,
+ * so a fallback that lands on it makes the panel look broken (the plan
+ * B6 cautionary tale).
+ */
+export function isFixtureSource(track: string): boolean {
+  const t = track.toLowerCase();
+  return t.startsWith("demucs_test_input") || t.startsWith("test_input") || t.startsWith("fixture");
+}
+
+/** Match a visualizer track against a stem source directory (B6).
+ *
+ *  The visualizer holds library *paths* ("Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a")
+ *  while separation writes directories keyed by the bare stem name
+ *  ("SunoV6Mini-Ad-Nauseam"). Comparing them directly always failed, so the
+ *  panel fell back to the first entry alphabetically — which on this machine is
+ *  `demucs_test_input`, a 10-second test fixture. The seed then built a
+ *  mashup from scratch audio, which looks like the panel being broken.
+ *
+ *  Order: exact normalized identity, then a substring either way, then the
+ *  first non-fixture entry — never a fixture. Returns undefined only when
+ *  every candidate is a fixture, which the caller should treat as "nothing
+ *  to preselect" rather than picking one anyway.
+ */
+export function matchSource(
+  currentTrack: string | null | undefined,
+  tracks: string[],
+): string | undefined {
+  if (!currentTrack) return undefined;
+  const base = (currentTrack.split(/[\\/]/).pop() ?? currentTrack).replace(/\.[^.]+$/, "");
+  const target = normalizeKey(base);
+  const nonFixture = tracks.filter((t) => !isFixtureSource(t));
+  return (
+    nonFixture.find((t) => normalizeKey(t) === target) ??
+    nonFixture.find((t) => {
+      const n = normalizeKey(t);
+      return n.includes(target) || target.includes(n);
+    }) ??
+    nonFixture[0] ??
+    undefined
+  );
+}
+
 export function nextLayerId(): string {
   return `L${layerSeq++}`;
 }

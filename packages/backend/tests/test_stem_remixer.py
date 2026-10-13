@@ -660,3 +660,71 @@ def test_recipe_with_tone_fields_round_trips_through_validate():
         slots=[RemixSlot(layers=[RemixLayer(track="t", stem="bass", lowpass_hz=600.0, brightness_db=-6.0)])],
     )
     recipe.validate()  # must not raise
+
+
+# ─── B6 either-key acceptance ────────────────────────────────────────────────
+
+
+@pytest.fixture
+def remix_dirs(tmp_path, monkeypatch):
+    """A synthetic stems/ + output/audio/ tree for the key-resolution tests."""
+    stems = tmp_path / "stems"
+    audio = tmp_path / "audio"
+    stems.mkdir()
+    audio.mkdir()
+    for track in ("SunoV6Mini-Ad-Nauseam", "take-the-crown", "demucs_test_input"):
+        d = stems / "htdemucs" / track
+        d.mkdir(parents=True)
+        (d / "drums.wav").write_bytes(b"x")
+    (audio / "SunoV6Mini-Ad-Nauseam.m4a").write_bytes(b"x")
+    (audio / "2f9a5ced_SunoV6Mini-Ad-Nauseam.m4a").write_bytes(b"x")  # hash-prefixed copy
+    (audio / "85a406ef_NeoCortext - Take the Crown.mp3").write_bytes(b"x")
+    (audio / "Cold-Steel.m4a").write_bytes(b"x")  # library track with no stems
+    monkeypatch.setattr(stem_remixer, "SEPARATION_DIR", stems)
+    monkeypatch.setattr(stem_remixer, "AUDIO_DIR", audio)
+    return stems, audio
+
+
+def test_resolve_accepts_the_stem_key_unchanged(remix_dirs):
+    assert stem_remixer.resolve_track_key("SunoV6Mini-Ad-Nauseam") == "SunoV6Mini-Ad-Nauseam"
+
+
+def test_resolve_accepts_a_library_filename(remix_dirs):
+    assert stem_remixer.resolve_track_key("SunoV6Mini-Ad-Nauseam.m4a") == "SunoV6Mini-Ad-Nauseam"
+    # A hash-prefixed upload normalizes to the same identity.
+    assert stem_remixer.resolve_track_key("2f9a5ced_SunoV6Mini-Ad-Nauseam.m4a") == "SunoV6Mini-Ad-Nauseam"
+
+
+def test_resolve_accepts_a_library_path(remix_dirs):
+    assert stem_remixer.resolve_track_key("Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a") == "SunoV6Mini-Ad-Nauseam"
+
+
+def test_resolve_accepts_a_shortened_name_with_a_suffix_match(remix_dirs):
+    # The stem directory is often a shortened form of the library filename.
+    assert stem_remixer.resolve_track_key("take-the-crown.mp3") == "take-the-crown"
+
+
+def test_resolve_rejects_unknown_and_ambiguous(remix_dirs):
+    with pytest.raises(ValueError, match="not a separated source"):
+        stem_remixer.resolve_track_key("Cold-Steel.m4a")  # library track, no stems
+    with pytest.raises(ValueError, match="not a separated source"):
+        stem_remixer.resolve_track_key("No Such Track")
+    with pytest.raises(ValueError, match="empty"):
+        stem_remixer.resolve_track_key("   ")
+
+
+def test_library_file_join_is_reported_only_when_unambiguous(remix_dirs):
+    # Ad Nauseam has two library copies (one hash-prefixed) of the same
+    # basename -> still the same file identity after dedup.
+    assert stem_remixer.library_file_for("SunoV6Mini-Ad-Nauseam") == "SunoV6Mini-Ad-Nauseam.m4a"
+    # take-the-crown's normalised form is a suffix of the library name, not
+    # an equality -> the join is refused, not guessed.
+    assert stem_remixer.library_file_for("take-the-crown") is None
+    assert stem_remixer.library_file_for("demucs_test_input") is None
+
+
+def test_list_stem_sources_carries_the_library_file(remix_dirs, monkeypatch):
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", remix_dirs[0].parent / "probes")
+    sources = {s["track"]: s for s in stem_remixer.list_stem_sources()}
+    assert sources["SunoV6Mini-Ad-Nauseam"]["library_file"] == "SunoV6Mini-Ad-Nauseam.m4a"
+    assert "library_file" not in sources["take-the-crown"]

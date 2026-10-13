@@ -1,7 +1,7 @@
 # Remix / Mashup Plan — Oct 2026
 
-**Status:** Phase 1+2 in progress (2026-10-13) — B5, B3, B7, B2, B1, B4
-landed; B6 next, then Phase 3 frontend
+**Status:** Phase 2 complete (2026-10-13) — B1–B7 all landed; Phase 3
+(frontend ease-of-use) next
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -233,7 +233,7 @@ thread. Frontend keeps `buildRemix`/`enhanceRemix` as start+poll wrappers
 Verified live: build acknowledged 0.010 s → done 8.2 s with full payload;
 enhance acknowledged 0.015 s → done with 16 steps + wav path.
 
-### B6. Accept either track key
+### B6. Accept either track key — DONE 2026-10-13
 
 Sources are keyed by bare stem-directory names (`SunoV6Mini-Ad-Nauseam`) while
 the library reports paths; the frontend needs a `matchSource` normalizer with
@@ -241,6 +241,31 @@ fixture guards because naive matching once built mashups from a 10-second
 demucs test fixture. Return the resolved library filename alongside the stem
 key in `/sources` wherever the join is unambiguous, and accept either key on
 all remix endpoints.
+
+Landed. `stem_remixer.resolve_track_key` accepts a stem key, a library
+filename (`SunoV6Mini-Ad-Nauseam.m4a`), a relative path
+(`Suno-V6-Mini/…m4a`), or a hash-prefixed variant (`2f9a5ced_…m4a`) and maps
+it to the canonical stem key; ambiguity is reported, never guessed (a suffix
+match is used only when it is the unique candidate). Every remix endpoint
+resolves through it — `/build` and `/preview` normalise at
+`_to_recipe`, so the manifest records provenance in the stem service's own
+vocabulary, and `/probe`, `/build` and `/by-track` all accept library names.
+`/sources` now carries `library_file` wherever the join is unambiguous, and
+omits it when it is not. The frontend's `matchSource` moved into the testable
+`remixRecipe.ts` module with the fixture guard: a preselect never lands on
+`demucs_test_input`, and returns undefined rather than picking a fixture.
+
+Verified live: `/sources` joined 5 of 7 sources (refusing the fixture and the
+suffix-only match); `/probe/SunoV6Mini-Ad-Nauseam.m4a` returned
+bpm 143.555; `/build` with a library filename rendered and its manifest
+recorded the canonical `SunoV6Mini-Ad-Nauseam`; an unknown library name got a
+400 naming the endpoint to check. 8 new backend tests + 4 new frontend tests
+(11 in the file).
+
+One regression this wiring caught and fixed along the way: `_pick_analysis_stem`'s
+per-stem probe loop caught only `FileNotFoundError`, so a reference that
+resolved to no source at all escaped as a `ValueError` from a function
+documented to raise `FileNotFoundError`. Both now mean "next stem".
 
 ### B7. Structured warnings — DONE 2026-10-06
 

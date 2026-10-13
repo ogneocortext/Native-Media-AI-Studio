@@ -48,22 +48,8 @@ const LABEL = "text-[9px] uppercase tracking-wide text-muted";
 /** A source shorter than this is a fixture, not a song, so it is not used as a mash partner. */
 const MIN_SOURCE_SECONDS = 30;
 
-/** Match a visualizer track against a stem source directory.
- *
- *  The visualizer holds library *paths* ("Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a")
- *  while separation writes directories keyed by the bare stem name
- *  ("SunoV6Mini-Ad-Nauseam"). Comparing them directly always failed, so the
- *  panel fell back to the first entry alphabetically — which on this machine is
- *  `demucs_test_input`, a 10-second test fixture. The seed then built a
- *  mashup from scratch audio, which looks like the panel being broken.
- */
-function matchSource(currentTrack: string | null | undefined, tracks: string[]): string | undefined {
-  if (!currentTrack) return undefined;
-  const base = (currentTrack.split(/[\\/]/).pop() ?? currentTrack).replace(/\.[^.]+$/, "");
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const target = norm(base);
-  return tracks.find((t) => norm(t) === target) ?? tracks.find((t) => norm(t).includes(target) || target.includes(norm(t)));
-}
+// matchSource (library path <-> stem key, with the fixture guard) lives in
+// ./remixRecipe so the unit suite can exercise it without React.
 // UILayer / UISlot are the panel's own aliases for the shared editable types, so
 // the component's existing annotations keep working while the definitions (and
 // their `__id` allocation) live in a module the unit suite can import on its own.
@@ -75,6 +61,7 @@ type UISlot = EditableSlot;
 // suite can exercise them without importing React.
 import {
   newEditableLayer,
+  matchSource,
   recipeToEditableSlots,
   type EditableLayer,
   type EditableSlot,

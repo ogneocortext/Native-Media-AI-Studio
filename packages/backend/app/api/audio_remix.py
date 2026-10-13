@@ -137,6 +137,18 @@ class RemixDraftResponse(BaseModel):
 
 
 def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
+    # B6: a layer may name a library filename, path or hash-prefixed
+    # variant. Normalise to the canonical stem key here — the single
+    # HTTP-to-dataclass translation point — so the manifest records
+    # provenance in the stem service's own vocabulary and the render path
+    # never has to resolve again. An unresolvable reference is a missing
+    # resource (404), not a malformed one (400).
+    def _resolve(track: str) -> str:
+        try:
+            return stem_remixer.resolve_track_key(track)
+        except ValueError as exc:
+            raise FileNotFoundError(str(exc)) from exc
+
     return RemixRecipe(
         name=body.name,
         target_bpm=body.target_bpm,
@@ -148,7 +160,7 @@ def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
                 crossfade_bars=slot.crossfade_bars,
                 layers=[
                     RemixLayer(
-                        track=layer.track,
+                        track=_resolve(layer.track),
                         stem=layer.stem,
                         gain_db=layer.gain_db,
                         key_shift_semitones=layer.key_shift_semitones,
@@ -234,12 +246,15 @@ async def remix_by_track(track: str) -> dict:
     docs/knowledge-library/track-similarity-measurement-2026.md.
     """
     try:
-        stem_remixer._safe_track_name(track)
+        # B6: accept a library filename here too, so the lineage view works
+        # with the identity the rest of the UI uses.
+        resolved = stem_remixer.resolve_track_key(track)
+        stem_remixer._safe_track_name(resolved)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
-        "track": track,
-        "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, track),
+        "track": resolved,
+        "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, resolved),
     }
 
 

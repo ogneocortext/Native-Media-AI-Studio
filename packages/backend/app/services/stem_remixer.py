@@ -94,6 +94,108 @@ _MAJOR_PROFILE = np.array(
 # ─── source discovery ────────────────────────────────────────────────────────
 
 
+# ─── track-key resolution (B6) ─────────────────────────────────────────────
+#
+# The library reports filenames and paths (`2f9a5ced_Suno-V6-mini-….m4a`,
+# `Suno-V6-Mini/SunoV6Mini-The Last-Original-V1.m4a`); this module keys stems
+# by the bare directory demucs wrote (`SunoV6Mini-Ad-Nauseam`). Both forms are
+# real to a caller, so every remix endpoint accepts either: a stem key passes
+# through, and a library filename, relative path or hash-prefixed variant is
+# normalised to the stem key. The join is deliberately conservative — a
+# reference that matches no stem directory, or more than one after
+# normalisation, is a ValueError naming the candidates rather than a guess.
+
+AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
+AUDIO_EXTENSIONS = (".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".wma")
+_HASH_PREFIX_RE = re.compile(r"^([0-9a-f]{8}_)+", re.IGNORECASE)
+
+
+def _normalize_track_name(name: str) -> str:
+    """Lowercase alphanumeric-only identity of a track name.
+
+    Hash prefixes stripped (the library adds 1-3 of them), separators and
+    punctuation dropped, so `Suno-V6-mini-Cold-Steel` and `SunoV6Mini-ColdSteel`
+    normalise to the same identity.
+    """
+    base = _HASH_PREFIX_RE.sub("", (name or "").strip())
+    return re.sub(r"[^a-z0-9]+", "", base.lower())
+
+
+def library_audio_files() -> list[Path]:
+    """Every audio file in the library. A path query, so no decoding."""
+    if not AUDIO_DIR.exists():
+        return []
+    return [
+        f
+        for f in sorted(AUDIO_DIR.rglob("*"))
+        if f.is_file() and f.suffix.lower() in AUDIO_EXTENSIONS and not f.name.startswith(".")
+    ]
+
+
+def _stem_dir_map() -> dict[str, str]:
+    """Normalized stem-dir name -> stem key, for the reverse join."""
+    found: dict[str, str] = {}
+    for model_dir in sorted(SEPARATION_DIR.iterdir()) if SEPARATION_DIR.exists() else []:
+        if not model_dir.is_dir():
+            continue
+        for track_dir in sorted(model_dir.iterdir()):
+            if not track_dir.is_dir():
+                continue
+            if not any((track_dir / f"{s}.wav").exists() for s in STEM_NAMES):
+                continue
+            found.setdefault(_normalize_track_name(track_dir.name), track_dir.name)
+    return found
+
+
+def resolve_track_key(reference: str) -> str:
+    """Resolve a stem key OR a library filename/path to the stem key (B6).
+
+    Order matters: an exact stem-dir hit wins first (it is the form this
+    module speaks), then an exact basename match, then a normalized-unique
+    match. Ambiguity is reported, not resolved silently — "which track did
+    you mean" is a question for the caller, and a wrong guess renders
+    the wrong song.
+    """
+    reference = (reference or "").strip()
+    if not reference:
+        raise ValueError("track reference is empty")
+    # Folder components are caller decoration, never identity.
+    basename = reference.replace("\\", "/").split("/")[-1].strip()
+    candidates = _stem_dir_map()
+    if not candidates:
+        raise ValueError("No separated stems exist yet — run separation first.")
+
+    # 1. The reference is already the stem key (or its normalized form
+    #    is unique among stem directories).
+    direct = _normalize_track_name(Path(basename).stem)
+    if direct in candidates:
+        return candidates[direct]
+
+    # 2. Normalized with hash prefixes stripped from BOTH sides: a library
+    #    filename like `2f9a5ced_Suno-….m4a` normalizes to the same
+    #    identity as its stem directory.
+    matches = {key for norm, key in candidates.items() if norm == direct}
+    if not matches:
+        # 3. A suffix relationship covers `take-the-crown` <-> `NeoCortext -
+        #    Take the Crown.mp3`: the stem dir is often a shortened form.
+        matches = {
+            key
+            for norm, key in candidates.items()
+            if norm and (norm.endswith(direct) or direct.endswith(norm))
+        }
+    if len(matches) == 1:
+        return next(iter(matches))
+    if not matches:
+        raise ValueError(
+            f"{reference!r} is not a separated source. Call GET /api/audio/remix/sources "
+            "for the available tracks."
+        )
+    raise ValueError(
+        f"{reference!r} is ambiguous — it matches {', '.join(sorted(matches))}. "
+        "Pass one of those exactly."
+    )
+
+
 def _safe_track_name(name: str) -> str:
     """Reject anything that could escape SEPARATION_DIR.
 
@@ -125,9 +227,15 @@ def _safe_remix_name(name: str) -> str:
 
 
 def resolve_stem_path(track: str, stem: str) -> Path:
-    """Locate one stem WAV on disk, preferring newer separation models."""
+    """Locate one stem WAV on disk, preferring newer separation models.
+
+    `track` is resolved through `resolve_track_key` first (B6), so a caller
+    may pass the library filename or path it already has rather than having
+    to know the stem-directory name demucs chose.
+    """
     if stem not in STEM_NAMES:
         raise ValueError(f"stem must be one of {', '.join(STEM_NAMES)}")
+    track = resolve_track_key(track)
     safe = _safe_track_name(track)
     base = SEPARATION_DIR.resolve()
     model_dirs = [d for d in sorted(SEPARATION_DIR.iterdir()) if d.is_dir()]
@@ -167,6 +275,30 @@ def _probe_summary(track: str) -> dict[str, Any]:
     }
 
 
+def library_file_for(track: str) -> str | None:
+    """The library filename a stem key came from, when the join is unambiguous.
+
+    B6: the UI names tracks the way the library reports them, so a source
+    listing that also carries the library filename lets a picker show one
+    consistent identity. The join is refused rather than guessed when it is
+    ambiguous (two library files normalizing to the same identity), because
+    a picker preselected to the wrong song is worse than no preselection.
+    """
+    target = _normalize_track_name(track)
+    if not target:
+        return None
+    hits = [
+        f
+        for f in library_audio_files()
+        if _normalize_track_name(f.stem) == target or _normalize_track_name(f.name) == target
+    ]
+    if not hits:
+        return None
+    # Hash-prefixed re-uploads of the same track are one identity, not two;
+    # the shortest name is the cleanest label to show a picker.
+    return min((f.name for f in hits), key=len)
+
+
 def list_stem_sources() -> list[dict[str, Any]]:
     """Every track directory holding at least one stem, with per-stem presence.
 
@@ -174,7 +306,8 @@ def list_stem_sources() -> list[dict[str, Any]]:
     dropdown open without waiting on demucs. Cached probe measurements
     (bpm, duration, first-audible) are joined from the probe cache when
     they exist, so a picker can show tempo and length without a probe
-    round-trip per track.
+    round-trip per track. `library_file` (B6) carries the library filename
+    whenever the join is unambiguous, and is omitted when it is not.
     """
     found: dict[str, dict[str, Any]] = {}
     for model_dir in sorted(SEPARATION_DIR.iterdir()):
@@ -195,6 +328,9 @@ def list_stem_sources() -> list[dict[str, Any]]:
             }
     for entry in found.values():
         entry.update(_probe_summary(entry["track"]))
+        library_file = library_file_for(entry["track"])
+        if library_file:
+            entry["library_file"] = library_file
     return sorted(found.values(), key=lambda d: d["track"].lower())
 
 
@@ -214,7 +350,10 @@ def _pick_analysis_stem(track: str) -> tuple[str, Path]:
     for stem in ("drums", *STEM_NAMES):
         try:
             return stem, resolve_stem_path(track, stem)
-        except FileNotFoundError:
+        except (FileNotFoundError, ValueError):
+            # Both mean "no stem file for this track": FileNotFoundError from
+            # a missing WAV, ValueError from a key that resolves to no source
+            # at all (B6). Either way the next stem in the chain is tried.
             continue
     raise FileNotFoundError(
         f"Track {track!r} has no stems under {SEPARATION_DIR} "
@@ -246,6 +385,9 @@ def probe_track(track: str) -> dict[str, Any]:
     """
     if not LIBROSA_AVAILABLE:
         raise RuntimeError("librosa is required for remix analysis")
+    # B6: accept a library filename/path here too, so /probe and the render
+    # cache agree on what was asked.
+    track = resolve_track_key(track)
     analysed_stem, analysis_path = _pick_analysis_stem(track)
     cache_path = PROBE_CACHE_DIR / f"{_safe_track_name(track)}.json"
     if cache_path.exists():
