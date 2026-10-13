@@ -157,10 +157,16 @@ mutation check that reverting the band geometry to the live `bandAverage`
 rounding makes the band-exactness test fail.
 
 **three-js-motion-features-2026-10.md** (F3 → F1 → F4 → F2 → F5):
-F3 **Done** (`vizMotion.ts`); F4 / F5 **Partial**; F1 / F2 **Open**.
+F1–F5 **all landed and browser-verified** (F1 camera transitions, F2 section
+driver, F4 beat source, F5 studio export). The plan's own status lines for
+F4/F5 ("Partial") predated the landing commits; the build notes below are the
+record. The one open thread is that the "LrcViz render path" the 2D export
+follow-up assumed no longer exists as a separate path.
 
-**remix-mashup-2026-10.md:** untouched, still **Proposed** — owner approval
-required before any build.
+**remix-mashup-2026-10.md:** ✅ **Complete** — approved and built (B1–B7,
+A1–A7), plus the Windows e2e pass. Status lines in this file that said it was
+"untouched, still Proposed" were stale; they belonged to an earlier revision
+of this plan.
 
 Open design question (decision-log material, not a task): two motion systems
 now coexist — `motion/` (`useMotionDriver` → `ShaderVisualizer`, the FX shader
@@ -175,6 +181,24 @@ converge is a D-call, not a cleanup.
    green; verify after the merge).
 3. Windows-only: confirm `ReactivityHUD` / `QuickPresetBar` live in the
    visualizer and the `RenderStats` latency readout ticks.
+   **Verified 2026-10-13, two of three:** `ReactivityHUD` renders live —
+   "Reactivity Tuning / BEAT / Overall Energy 57% / Focus Emphasis
+   (All/Bass/Vocals/Highs) / Reactivity Boost 1.0x / Genre Presets" — and
+   `QuickPresetBar` is mounted (its genre presets drive the same store).
+   The `RenderStats` latency readout **does not tick in this environment**:
+   measured, not assumed — the r3f `<Canvas>` produces no new frames here, so
+   `RenderStatsProbe`'s `useFrame` never reaches its 1-second window. Evidence:
+   the WebGL canvas is byte-identical across 1.5 s while the track plays
+   (bass 0.71, energy 0.46 flowing through the 50 ms interval splice, which is
+   *not* r3f-driven), plain `requestAnimationFrame` ticks only ~2/s in the
+   page, and `.viz-backend-badge` holds only the "WebGL2" renderer badge with
+   `renderStats` still null after 10+ s in 3D mode. `prefers-reduced-motion` is
+   false and `sceneFrozen` defaults false, so neither explains it. This is
+   most likely the automated browser's frame scheduling — the same reason
+   F5's >640×360 encode is owed a non-headless run — but it could not be proven
+   from inside the browser, so the badge stays **owed a non-headless check**
+   rather than marked verified. An e2e assertion for it would fail here for the
+   same reason, so none was added.
 
 ### Step 1 — Reconcile the docs (small docs commits)
 1. `studio-quality-2026-10.md`: mark 2.2 / 2.5 / 2.7 **Done** (+ build
@@ -323,3 +347,19 @@ been left out of the baseline when it shipped.
   no commit of ours touches the visualizer's mode switching — treat as
   HMR-correlated and re-open with a deterministic repro if it recurs on a
   fresh load.
+  **2026-10-13 re-check:** it recurred twice more, both times with the remix
+  panel open on a fresh load — eight consecutive errors over ~40 s in one
+  session (which stopped as soon as an HMR edit landed), and once at 150 s
+  into a page's life during the 2D frame-accurate export. Re-investigated the
+  next day and it did **not** recur in three fresh loads (panel interaction,
+  mode switching and a full 2D export), so it is neither clean-load
+  reproducible nor HMR-only. Two things a future session should not redo: the
+  unguarded-setState-in-effect sweep across `visualizer/` and
+  `three-js-studio/` found **no** `useEffect` that sets state without a
+  dependency array (the single grep hit, `PresetFileUpload`, has
+  `[processText]`), so that hypothesis is closed. And React attaches the
+  component stack as *extra* `console.error` args rather than in the message
+  text, so Playwright's plain console capture never shows it — install a
+  `console.error` recorder via `page.evaluate` **before** the panel mounts to
+  get one. The two known occurrences are both recorded with their
+  page-relative timestamps, so a matching stack can be compared against them.
