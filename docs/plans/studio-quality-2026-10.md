@@ -279,6 +279,20 @@ the >250-luma share is identical to 4 decimals across all eight captures
 (it is dominated by UI text in the trimmed region, so this bounds new
 blowout rather than measuring canvas clipping).
 
+A second track ("Before the Fade", the library's sparsest analyzed track,
+geometric style) lifts the quiet decile **+4.21** with the median
+unchanged and crushed blacks −8.8 pp, but shows a **small clipping
+increase (+0.11 pp)** that the dense-track runs did not. It is consistent
+with the lift brightening already-near-threshold pixels in a quieter
+scene, but frames are ~0.3 s apart in a live scene, so it stays a watch
+item rather than a defect claim.
+
+**D24's third class cannot be honestly filled from this library.** The
+analyzed tracks all sit in a 0.306–0.369 mean-energy band (measured), all
+from the same generated pipeline — there is no acoustic or genuinely
+sparse source to capture. That class needs different material imported,
+and is recorded as blocked on input, not skipped.
+
 Caveats: frames are ~0.3 s apart in a live, audio-reactive scene, so
 per-style deltas are directional evidence; the sparse and acoustic tracks
 of D24's three-track sweep are still outstanding browser work.

@@ -250,8 +250,18 @@ entry point and controls.
   (2026-10-13):** before/after captures in the 3D viz-styles path on "The
   Last"'s quiet verse for all four changed styles; measured quiet-decile
   lift +1.12 (geometric) and +2.00 (neural), median ~unchanged, no clipping
-  increase in any style, crushed blacks down 1–4.6 pp (see studio-quality
-  build notes for the table and the noise caveat; an earlier shader-mode pair
-  was struck as measuring the wrong render path). F4's stub and the
-  section-track check are closed (above); the D24 three-track sweep's
-  sparse/acoustic tracks remain browser work.
+  increase in any style, crushed blacks down 1–4.6 pp. A second track
+  ("Before the Fade") adds +4.21 at the quiet decile with a small +0.11 pp
+  clipping increase (watch item). **D24's third class is blocked on input,
+  not skipped:** every analyzed track in the library measures 0.306–0.369
+  mean energy, all from the same generated pipeline — there is no
+  acoustic/sparse source to capture until one is imported. F4's stub and
+  the section-track check are closed (above).
+- **Watch item:** a one-off *"Maximum update depth exceeded"* crash in the
+  visualizer, observed right after Vite hot-reloaded `viz-styles` modules
+  during a live 3D scene (the `git revert`/`reset` capture cycles), which
+  reverted the mode to shader and unmounted the 3D tree. Not reproducible
+  in three clean-load attempts with the same mode/track/style sequence, and
+  no commit of ours touches the visualizer's mode switching — treat as
+  HMR-correlated and re-open with a deterministic repro if it recurs on a
+  fresh load.
