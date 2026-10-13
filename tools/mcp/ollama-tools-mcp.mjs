@@ -254,6 +254,101 @@ server.setRequestHandler('tools/list', async () => ({
         required: ["context"],
       },
     },
+    // ---- Remix / mashup (remix plan B1; JSON-Schema contracts recorded in
+    //      docs/knowledge-library/mcp-contracts-2026.md) ----
+    {
+      name: "remix_list_sources",
+      description: "Tracks with separated stems, per-stem availability, and cached probe data (bpm, duration, first-audible) where a probe exists. The first call of any remix job.",
+      inputSchema: { type: "object", properties: {} },
+    },
+    {
+      name: "remix_probe",
+      description: "Tempo and advisory key for one source track. key_confident is advisory only: chroma flatness on this library makes the detected key untrustworthy.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          track: { type: "string", description: "Source track (stem directory) name" },
+        },
+        required: ["track"],
+      },
+    },
+    {
+      name: "remix_from_prompt",
+      description: "Draft a mashup recipe from one natural-language sentence (e.g. 'make a darker version of X using its drums and bass plus the vocals from Y'). Returns {recipe, explanation, warnings} for review — it never renders; call remix_preview then remix_build with the returned recipe.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "Natural-language mashup request" },
+        },
+        required: ["prompt"],
+      },
+    },
+    {
+      name: "remix_preview",
+      description: "Resolve a recipe without rendering: timeline, per-source stretch ratios, measured levels, and structured warnings (near-silent layers with a source_start_bar hint).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          recipe: { type: "object", description: "The build recipe: {name, target_bpm, slots:[{layers:[{track,stem,gain_db,key_shift_semitones,source_start_bar}], bars, crossfade_bars}], beats_per_bar?}" },
+        },
+        required: ["recipe"],
+      },
+    },
+    {
+      name: "remix_build",
+      description: "Render a recipe to output/remixes/<name>/ (vocals/drums/bass/other.wav + remix.json). Submits the job and polls to completion (builds measured 8-23 s), returning the final payload: name, stems, duration, manifest, warnings.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          recipe: { type: "object", description: "The build recipe (same shape as remix_preview's). Set overwrite=true to replace an existing remix; it defaults to false so a build never clobbers silently." },
+        },
+        required: ["recipe"],
+      },
+    },
+    {
+      name: "remix_job_status",
+      description: "Status of a build/enhance job: queued | running | done | failed, with the result payload on done and the error on failed.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          job_id: { type: "string", description: "Job id returned by remix_build or remix_enhance" },
+        },
+        required: ["job_id"],
+      },
+    },
+    {
+      name: "remix_enhance",
+      description: "Master an already-rendered remix with the Suno chain (highpass, EQ, vocal balance, limiter). Submits and polls to completion (~60 s).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Remix name (the directory under output/remixes/)" },
+          target_peak_dbfs: { type: "number", description: "Default -1.0" },
+          master_ceiling_dbfs: { type: "number", description: "Default -1.0" },
+          pre_highpass_hz: { type: "number", description: "Omit for the chain's own default" },
+          vocal_balance_db: { type: "number", description: "Default 0.0" },
+          output_format: { type: "string", description: "wav or mp3", default: "wav" },
+        },
+        required: ["name"],
+      },
+    },
+    {
+      name: "remix_list",
+      description: "Rendered remixes, each with its manifest (slots, layers, gains, key shifts, source offsets) — the reopen-and-rearrange view.",
+      inputSchema: { type: "object", properties: {} },
+    },
+    {
+      name: "remix_get_file",
+      description: "The playable URL for one stem (vocals/drums/bass/other) or the mastered 'master' of a rendered remix. Served by the backend, so the URL is a localhost API path.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Remix name" },
+          which: { type: "string", description: "vocals | drums | bass | other | master" },
+        },
+        required: ["name", "which"],
+      },
+    },
   ],
 }));
 
@@ -303,6 +398,24 @@ server.setRequestHandler('tools/call', async (request) => {
         return await planBlenderScript(reqId, effectiveArgs);
       case "update_mcp_context":
         return await updateMCPContext(reqId, effectiveArgs);
+      case "remix_list_sources":
+        return await remixListSources(reqId);
+      case "remix_probe":
+        return await remixProbe(reqId, effectiveArgs);
+      case "remix_from_prompt":
+        return await remixFromPrompt(reqId, effectiveArgs);
+      case "remix_preview":
+        return await remixPreview(reqId, effectiveArgs);
+      case "remix_build":
+        return await remixBuild(reqId, effectiveArgs);
+      case "remix_job_status":
+        return await remixJobStatus(reqId, effectiveArgs);
+      case "remix_enhance":
+        return await remixEnhance(reqId, effectiveArgs);
+      case "remix_list":
+        return await remixList(reqId);
+      case "remix_get_file":
+        return await remixGetFile(reqId, effectiveArgs);
       default:
         logRequest(reqId, name, "unknown-tool");
         return textResponse(`Unknown tool: ${name}`, true);
@@ -666,6 +779,157 @@ Rules:
     logRequest(reqId, "plan_blender_script", `error=${err.message}`);
     return textResponse(`Failed to generate Blender script: ${err.message}`, true);
   }
+}
+
+// ============================================================
+// REMIX TOOL HANDLERS (remix plan B1)
+// All of them are thin bridges to the backend's /api/audio/remix/*
+// surface — the DSP, job registry and validation live there, so an MCP
+// client and the studio UI share one implementation.
+// ============================================================
+
+const REMIX_POLL_TIMEOUT_MS = 240000; // build measured 8-23 s, enhance ~60 s
+
+async function pollRemixJob(jobId, timeoutMs = REMIX_POLL_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    const res = await fetchWithTimeout(
+      `${BACKEND_URL}/api/audio/remix/jobs/${encodeURIComponent(jobId)}`,
+      {},
+      15000,
+    );
+    last = await res.json();
+    if (last && (last.state === "done" || last.state === "failed")) return last;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return last
+    ? { ...last, note: `still ${last.state} after ${Math.round(timeoutMs / 1000)}s — poll remix_job_status later` }
+    : null;
+}
+
+async function remixListSources(reqId) {
+  logRequest(reqId, "remix_list_sources", "fetching-backend");
+  const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/sources`);
+  const data = await res.json();
+  return textResponse(JSON.stringify(data, null, 2));
+}
+
+async function remixProbe(reqId, args) {
+  if (!args.track) return textResponse("Missing required arg: track", true);
+  logRequest(reqId, "remix_probe", `track=${args.track}`);
+  const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/probe/${encodeURIComponent(args.track)}`);
+  const data = await res.json();
+  return textResponse(JSON.stringify(data, null, 2));
+}
+
+async function remixFromPrompt(reqId, args) {
+  if (!args.prompt) return textResponse("Missing required arg: prompt", true);
+  logRequest(reqId, "remix_from_prompt", `prompt=${String(args.prompt).slice(0, 80)}`);
+  const res = await fetchWithTimeout(
+    `${BACKEND_URL}/api/audio/remix/from-prompt`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: args.prompt }),
+    },
+    180000, // the local model drafts; the deterministic fallback is fast, the model is not
+  );
+  const data = await res.json();
+  // The warnings carry the guards an agent must respect (excluded fixtures,
+  // substituted tracks, missing stems). Surface them in the text, not only
+  // in the JSON, so a client that shows only text still sees them.
+  const warnings = Array.isArray(data.warnings) && data.warnings.length
+    ? `\n\nWarnings:\n- ${data.warnings.join("\n- ")}`
+    : "";
+  return textResponse(`${data.explanation}\n\nRecipe (draft — review, then remix_preview / remix_build):\n${JSON.stringify(data.recipe, null, 2)}${warnings}`);
+}
+
+async function remixPreview(reqId, args) {
+  if (!args.recipe) return textResponse("Missing required arg: recipe", true);
+  logRequest(reqId, "remix_preview", `name=${args.recipe?.name ?? "?"}`);
+  const res = await fetchWithTimeout(
+    `${BACKEND_URL}/api/audio/remix/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args.recipe),
+    },
+    120000,
+  );
+  const data = await res.json();
+  return textResponse(JSON.stringify(data, null, 2));
+}
+
+async function remixBuild(reqId, args) {
+  if (!args.recipe) return textResponse("Missing required arg: recipe", true);
+  const name = args.recipe?.name ?? "?";
+  logRequest(reqId, "remix_build", `name=${name}`);
+  const res = await fetchWithTimeout(
+    `${BACKEND_URL}/api/audio/remix/build`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args.recipe),
+    },
+    60000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return textResponse(`Build rejected (${res.status}): ${body.slice(0, 300)}`, true);
+  }
+  const accepted = await res.json();
+  logRequest(reqId, "remix_build", `job=${accepted.job_id} polling`);
+  const final = await pollRemixJob(accepted.job_id);
+  return textResponse(JSON.stringify(final, null, 2));
+}
+
+async function remixJobStatus(reqId, args) {
+  if (!args.job_id) return textResponse("Missing required arg: job_id", true);
+  logRequest(reqId, "remix_job_status", `job=${args.job_id}`);
+  const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/jobs/${encodeURIComponent(args.job_id)}`);
+  const data = await res.json();
+  return textResponse(JSON.stringify(data, null, 2));
+}
+
+async function remixEnhance(reqId, args) {
+  if (!args.name) return textResponse("Missing required arg: name", true);
+  logRequest(reqId, "remix_enhance", `name=${args.name}`);
+  const { name, ...overrides } = args;
+  const res = await fetchWithTimeout(
+    `${BACKEND_URL}/api/audio/remix/${encodeURIComponent(name)}/enhance`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(overrides),
+    },
+    60000,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return textResponse(`Enhance rejected (${res.status}): ${body.slice(0, 300)}`, true);
+  }
+  const accepted = await res.json();
+  logRequest(reqId, "remix_enhance", `job=${accepted.job_id} polling`);
+  const final = await pollRemixJob(accepted.job_id);
+  return textResponse(JSON.stringify(final, null, 2));
+}
+
+async function remixList(reqId) {
+  logRequest(reqId, "remix_list", "fetching-backend");
+  const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/list`);
+  const data = await res.json();
+  return textResponse(JSON.stringify(data, null, 2));
+}
+
+async function remixGetFile(reqId, args) {
+  if (!args.name || !args.which) return textResponse("Missing required args: name, which", true);
+  logRequest(reqId, "remix_get_file", `${args.name}/${args.which}`);
+  const url = `${BACKEND_URL}/api/audio/remix/${encodeURIComponent(args.name)}/file/${encodeURIComponent(args.which)}`;
+  // HEAD-ish check via a ranged GET is wasteful; instead report the URL and
+  // let the backend 404 if the remix or stem is missing. The agent asked for
+  // a locator, not the bytes.
+  return textResponse(JSON.stringify({ url, name: args.name, which: args.which }, null, 2));
 }
 
 async function updateMCPContext(reqId, args) {

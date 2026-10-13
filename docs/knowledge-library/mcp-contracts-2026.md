@@ -580,6 +580,85 @@ Execute any Unity Editor command. Prefer specific tools when available.
 
 - **errors**: `Missing required arg: context (partial context object)`
 
+### 3.11 Remix / mashup tools (`remix_*`)
+
+Nine tools (remix plan B1, landed 2026-10-13), all thin bridges to the
+backend's `/api/audio/remix/*` surface — the DSP, the job registry and
+the validation live there, so an MCP client and the studio UI share one
+implementation. Two of them are beyond the plan's original seven because
+the plan predates them: `remix_job_status` exists because B5 made
+`/build` and `/enhance` asynchronous, and `remix_from_prompt` is B2's
+natural-language entry point.
+
+**`remix_list_sources`** — no args. Returns the source table: every
+track with separated stems, per-stem availability, and the cached probe
+data (`bpm`, `duration_sec`, `first_audible_sec`) where a probe exists.
+
+```jsonc
+// output
+{ "sources": [{ "track": "SunoV6Mini-Ad-Nauseam", "model": "htdemucs",
+                "stems": { "vocals": true, "drums": true, "bass": true, "other": true },
+                "bpm": 143.555, "duration_sec": 209.003 }] }
+```
+
+**`remix_probe`** — `{ track }` → tempo + advisory key. `key_confident`
+is advisory only: chroma flatness measures 0.978–0.998 on this library,
+so the detected key is noise and `key_shift_semitones` stays explicit
+per layer.
+
+**`remix_from_prompt`** — `{ prompt }` → the B2 draft:
+
+```jsonc
+// output (text; the JSON block is the draft)
+{
+  "recipe": { "name": "...", "target_bpm": 143.6, "overwrite": false, "slots": [...] },
+  "explanation": "one sentence per slot",
+  "warnings": ["..."],
+  "model_used": "qwen3.5:9b",
+  "source": "ollama" | "heuristic"
+}
+```
+
+The draft **never renders**. Review it, then `remix_preview`, then
+`remix_build`. `warnings` are load-bearing: the fixture guard names any
+excluded test-fixture source (`demucs_test_input`), and a substitution
+line names any track the model used that the prompt did not ask for.
+
+**`remix_preview`** — `{ recipe }` → resolved timeline, stretch ratios,
+per-layer levels and `warnings_detail` (`{code, layer_ref, field,
+measured_rms_db, suggestion}` — the structured form added by B7).
+
+**`remix_build`** — `{ recipe }` → submits a job and **polls to
+completion** (builds measured 8–23 s), returning the terminal job:
+
+```jsonc
+// output
+{ "job_id": "...", "kind": "build", "state": "done",
+  "result": { "name": "...", "stems": {"vocals": "...", "drums": "..."},
+              "duration_sec": 62.787, "manifest": {...}, "warnings": [] } }
+```
+
+`state` is `queued | running | done | failed`; a build past the job
+timeout reports `failed` with `timed_out`. `remix_job_status`
+(`{ job_id }`) serves the same shape for a caller polling itself.
+
+**`remix_enhance`** — `{ name, target_peak_dbfs?, master_ceiling_dbfs?,
+pre_highpass_hz?, vocal_balance_db?, output_format? }` → submits and
+polls (~60 s measured; the Suno master chain is CPU-bound).
+
+**`remix_list`** — no args → rendered remixes with their manifests (the
+reopen-and-rearrange view).
+
+**`remix_get_file`** — `{ name, which }` → `{ url }`, where `which` is
+`vocals | drums | bass | other | master`. A locator, not the bytes.
+
+- **errors** (all tools): missing required args return
+  `Missing required arg: <name>` with `isError: true`;
+  backend rejections surface as `Build rejected (404): …` /
+  `Enhance rejected (409): …` carrying the backend's detail. Test-fixture
+  tracks never reach a draft: they are filtered out and named in
+  `warnings` rather than silently dropped.
+
 ---
 
 ## 4. Vision MCP

@@ -1,6 +1,7 @@
 # Remix / Mashup Plan — Oct 2026
 
-**Status:** Phase 1 in progress (2026-10-13) — B5, B3, B7, B2 landed; B1 (MCP contract) next
+**Status:** Phase 1 complete (2026-10-13) — B5, B3, B7, B2, B1 landed;
+Phase 2 (B4 tone shaping, B6) next
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -88,13 +89,31 @@ advisory with its label or correct the docstring.
 Target scenario: *"make a darker version of track X using its drums and bass
 plus the vocals from track Y"* — from that sentence to a rendered track.
 
-### B1. MCP contract for remix
+### B1. MCP contract for remix — DONE 2026-10-13
 
 `mcp-contracts-2026.md` documents Unity, Ollama Tools, Vision, HyperFrames —
 zero audio/remix tools. Add `remix_*` tools to the Ollama Tools MCP server (or
 a new audio MCP): `remix_list_sources`, `remix_probe`, `remix_preview`,
 `remix_build`, `remix_enhance`, `remix_list`, `remix_get_file`, with
 JSON-Schema contracts recorded in `mcp-contracts-2026.md`.
+
+Landed: nine `remix_*` tools on the Ollama Tools bridge
+(`tools/mcp/ollama-tools-mcp.mjs`) — the plan's seven plus
+`remix_job_status` (B5 made `/build` and `/enhance` asynchronous, so a
+job id without a poller is unusable) and `remix_from_prompt` (B2, the
+target scenario's entry point). Every handler is a thin bridge to
+`/api/audio/remix/*`; `remix_build` and `remix_enhance` submit then poll
+to a terminal job state (build measured 8–23 s, enhance ~60 s).
+Schemas registered in `_TOOL_SCHEMAS` (`services/mcp_validator.py`) so
+the pre-call validator covers them, and the JSON-Schema contracts
+recorded in `docs/knowledge-library/mcp-contracts-2026.md` §3.11.
+
+Verified live over stdio: `tools/list` returns 19 tools (9 remix), and a
+full agent path — from-prompt draft → preview of the returned recipe
+(62.787 s / 32 bars) → get_file locator — plus both error paths
+(`Missing required arg: track`, `Unknown tool: …`) returning readable
+errors rather than crashing. **Phase 1 (agent backbone) is now complete:
+B5, B3, B2, B1 all landed.**
 
 ### B2. Natural-language entry point — DONE 2026-10-13
 

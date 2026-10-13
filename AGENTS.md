@@ -133,7 +133,7 @@ Native-Media-AI-Studio/
 
 | Server       | Command                                               | Port        | Status                |
 | ------------ | ----------------------------------------------------- | ----------- | --------------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`                 | stdio       | 10 tools, executes    |
+| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`           | stdio       | 19 tools (incl. 9 `remix_*`), executes |
 | Vision       | `node tools/mcp/vision-mcp.mjs`                       | stdio       | 11 tools, executes    |
 | Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                 | 7800 (REST) | 17 tools; needs Unity |
 | Blender MCP  | `uvx blender-mcp`                                     | 9876        | Running               |

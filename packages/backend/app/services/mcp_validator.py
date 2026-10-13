@@ -117,6 +117,71 @@ _TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
             "context": {"type": "object"},
         },
     },
+    # ---- Remix / mashup (remix plan B1; contracts in
+    #      docs/knowledge-library/mcp-contracts-2026.md) ----
+    "remix_list_sources": {
+        "type": "object",
+        "properties": {},
+    },
+    "remix_probe": {
+        "type": "object",
+        "required": ["track"],
+        "properties": {
+            "track": {"type": "string"},
+        },
+    },
+    "remix_from_prompt": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+            "prompt": {"type": "string"},
+        },
+    },
+    "remix_preview": {
+        "type": "object",
+        "required": ["recipe"],
+        "properties": {
+            "recipe": {"type": "object"},
+        },
+    },
+    "remix_build": {
+        "type": "object",
+        "required": ["recipe"],
+        "properties": {
+            "recipe": {"type": "object"},
+        },
+    },
+    "remix_job_status": {
+        "type": "object",
+        "required": ["job_id"],
+        "properties": {
+            "job_id": {"type": "string"},
+        },
+    },
+    "remix_enhance": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+            "name": {"type": "string"},
+            "target_peak_dbfs": {"type": "number"},
+            "master_ceiling_dbfs": {"type": "number"},
+            "pre_highpass_hz": {"type": "number"},
+            "vocal_balance_db": {"type": "number"},
+            "output_format": {"type": "string"},
+        },
+    },
+    "remix_list": {
+        "type": "object",
+        "properties": {},
+    },
+    "remix_get_file": {
+        "type": "object",
+        "required": ["name", "which"],
+        "properties": {
+            "name": {"type": "string"},
+            "which": {"type": "string"},
+        },
+    },
     # ---- Unity MCP bridge ----
     "create_gameobject": {
         "type": "object",
