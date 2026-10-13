@@ -26,7 +26,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { audioDisplayName } from "../../state/audioNaming";
-import { setPendingRemixRecipe, setPendingTrack } from "../../utils/pendingTrack";
+import { setPendingRemixOpen, setPendingRemixRecipe, setPendingTrack } from "../../utils/pendingTrack";
 import {
   getTrackLineage,
   remixFileUrl,
@@ -103,13 +103,32 @@ export function LineagePanel({ filename }: Props) {
     [filename, navigate],
   );
 
+  // A1: the *start* path, not just the reopen path. The Remix Panel is
+  // collapsed by default and sits two levels under the transport, so
+  // loading the track alone left the user hunting for it; the pending-open
+  // intent expands it on arrival.
+  const startMashup = useCallback(() => {
+    setPendingTrack(filename);
+    setPendingRemixOpen();
+    navigate("/visualizer");
+  }, [filename, navigate]);
+
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3" data-testid="lineage-panel">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-white flex items-center gap-2">
           <GitBranch size={16} className="text-amber-300" /> Mashups from this track
         </span>
-        <span className="text-[10px] text-muted">provenance · reopen to rearrange</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={startMashup}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100"
+            title="Open the Visualizer with this track loaded and the Remix panel expanded"
+          >
+            <Wand2 size={10} /> Mashup this track
+          </button>
+          <span className="text-[10px] text-muted hidden sm:inline">provenance · reopen to rearrange</span>
+        </div>
       </div>
 
       {/* Hidden player: lineage must be silent until a stem is explicitly clicked. */}

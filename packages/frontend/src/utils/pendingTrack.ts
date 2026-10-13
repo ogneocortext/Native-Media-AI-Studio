@@ -128,3 +128,46 @@ export function clearPendingTrack(): void {
     /* ignore */
   }
 }
+
+// ─── pending "open the remix panel" intent ─────────────────────────────────
+//
+// A1: the Remix Panel renders collapsed (it sits two levels below the
+// Visualizer's transport and squeezed the canvas out of the viewport when
+// expanded by default), so a handoff that only loads the track still leaves
+// the user hunting for the panel. This flag carries the *intent* to expand
+// it, in the same window+sessionStorage shape as the other handoffs.
+
+const PENDING_REMIX_OPEN_KEY = "__pendingRemixOpen";
+
+type WindowWithRemixOpen = Window & { __pendingRemixOpen?: boolean };
+
+export function setPendingRemixOpen(): void {
+  const w = (typeof window === "undefined" ? null : window) as WindowWithRemixOpen | null;
+  if (w) w.__pendingRemixOpen = true;
+  try {
+    sessionStorage.setItem(PENDING_REMIX_OPEN_KEY, "1");
+  } catch {
+    /* private mode — ignore */
+  }
+}
+
+/** Take the intent (clearing both slots), or false when there is none. */
+export function consumePendingRemixOpen(): boolean {
+  const w = (typeof window === "undefined" ? null : window) as WindowWithRemixOpen | null;
+  const pending = Boolean(w?.__pendingRemixOpen) || sessionStorageHas(PENDING_REMIX_OPEN_KEY);
+  if (w) delete w.__pendingRemixOpen;
+  try {
+    sessionStorage.removeItem(PENDING_REMIX_OPEN_KEY);
+  } catch {
+    /* private mode — ignore */
+  }
+  return pending;
+}
+
+function sessionStorageHas(key: string): boolean {
+  try {
+    return sessionStorage.getItem(key) !== null;
+  } catch {
+    return false;
+  }
+}

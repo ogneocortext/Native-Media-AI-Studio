@@ -246,15 +246,17 @@ async def remix_by_track(track: str) -> dict:
     docs/knowledge-library/track-similarity-measurement-2026.md.
     """
     try:
-        # B6: accept a library filename here too, so the lineage view works
-        # with the identity the rest of the UI uses.
-        resolved = stem_remixer.resolve_track_key(track)
-        stem_remixer._safe_track_name(resolved)
+        # NOT resolved through resolve_track_key: this scans rendered
+        # manifests, so a track with no separated stems still has a
+        # lineage. Resolving here 400'd exactly those tracks — the ones
+        # whose mashups were built from stems that have since been moved
+        # or cleaned.
+        stem_remixer._safe_track_name(track)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
-        "track": resolved,
-        "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, resolved),
+        "track": track,
+        "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, track),
     }
 
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource } from "./remixRecipe";
+import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource, nextFreeName } from "./remixRecipe";
 import type { RemixRecipeSpec } from "../../../services/api/remix";
 
 /**
@@ -124,5 +124,38 @@ describe("matchSource", () => {
     expect(isFixtureSource("fixture-x")).toBe(true);
     expect(isFixtureSource("SunoV6Mini-Ad-Nauseam")).toBe(false);
     expect(isFixtureSource("ec2c167538d44391af7d14d57fede26d")).toBe(false);
+  });
+});
+// ─── A5: next-free-name suggestion ───────────────────────────────────────
+
+describe("nextFreeName", () => {
+  it("returns the base when nothing collides", () => {
+    expect(nextFreeName("mashup", [])).toBe("mashup");
+    expect(nextFreeName("mashup", ["other"])).toBe("mashup");
+  });
+
+  it("bumps a colliding name to the next unused variant", () => {
+    expect(nextFreeName("mashup", ["mashup"])).toBe("mashup-2");
+    expect(nextFreeName("mashup", ["mashup", "mashup-2"])).toBe("mashup-3");
+    // A gap is filled, not skipped past.
+    expect(nextFreeName("mashup", ["mashup", "mashup-3"])).toBe("mashup-2");
+  });
+
+  it("matches case-insensitively, like the backend directory does", () => {
+    expect(nextFreeName("Mashup", ["mashup"])).toBe("Mashup-2");
+  });
+
+  it("falls back to a timestamp when every variant is taken", () => {
+    const taken = ["mashup", ...Array.from({ length: 998 }, (_, i) => `mashup-${i + 2}`)];
+    const result = nextFreeName("mashup", taken);
+    expect(result).toMatch(/^mashup-\d+$/);
+    expect(taken).not.toContain(result);
+  });
+
+  it("handles empty/whitespace bases", () => {
+    expect(nextFreeName("", [])).toBe("mashup");
+    expect(nextFreeName("   ", [])).toBe("mashup");
+    // The fallback base is still collision-checked.
+    expect(nextFreeName("", ["mashup"])).toBe("mashup-2");
   });
 });

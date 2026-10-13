@@ -70,6 +70,26 @@ export function matchSource(
   );
 }
 
+/**
+ * The first unused variant of `base` (`base`, `base-2`, `base-3`, …).
+ *
+ * A5: the build name used to be a fixed default with `overwrite` hardcoded
+ * true, so a second build silently replaced the first. The panel now suggests
+ * the next free name and treats overwrite as an explicit opt-in; this is the
+ * suggestion. `taken` is compared case-insensitively because the backend
+ * writes the directory verbatim from whatever the request carried.
+ */
+export function nextFreeName(base: string, taken: readonly string[]): string {
+  const cleaned = (base || "").trim() || "mashup";
+  const lowerTaken = new Set(taken.map((t) => t.toLowerCase()));
+  if (!lowerTaken.has(cleaned.toLowerCase())) return cleaned;
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${cleaned}-${n}`;
+    if (!lowerTaken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${cleaned}-${Date.now()}`;
+}
+
 export function nextLayerId(): string {
   return `L${layerSeq++}`;
 }

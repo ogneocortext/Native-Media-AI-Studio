@@ -12,6 +12,8 @@ import { parsePanelOpen, panelStorageKey, serializePanelOpen } from "./panelColl
 export function usePanelCollapsed(panelId: string, defaultOpen = false): {
   open: boolean;
   toggle: () => void;
+  /** Force a state without toggling — used by cross-page handoffs (A1). */
+  setOpen: (open: boolean) => void;
 } {
   const [open, setOpen] = useState(() => {
     try {
@@ -21,17 +23,32 @@ export function usePanelCollapsed(panelId: string, defaultOpen = false): {
     }
   });
 
-  const toggle = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
+  const persist = useCallback(
+    (next: boolean) => {
       try {
         localStorage.setItem(panelStorageKey(panelId), serializePanelOpen(next));
       } catch {
         // session-only fallback; the toggle still works
       }
+    },
+    [panelId],
+  );
+
+  const toggle = useCallback(() => {
+    setOpen((prev) => {
+      const next = !prev;
+      persist(next);
       return next;
     });
-  }, [panelId]);
+  }, [persist]);
 
-  return { open, toggle };
+  const setOpenAndPersist = useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      persist(next);
+    },
+    [persist],
+  );
+
+  return { open, toggle, setOpen: setOpenAndPersist };
 }

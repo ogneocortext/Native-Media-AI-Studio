@@ -728,3 +728,13 @@ def test_list_stem_sources_carries_the_library_file(remix_dirs, monkeypatch):
     sources = {s["track"]: s for s in stem_remixer.list_stem_sources()}
     assert sources["SunoV6Mini-Ad-Nauseam"]["library_file"] == "SunoV6Mini-Ad-Nauseam.m4a"
     assert "library_file" not in sources["take-the-crown"]
+
+
+def test_normalize_track_name_folds_extension_hash_and_separators():
+    n = stem_remixer._normalize_track_name
+    # The same identity in four spellings a caller may hold.
+    assert n("SunoV6Mini-Ad-Nauseam") == n("SunoV6Mini-Ad-Nauseam.m4a")
+    assert n("SunoV6Mini-Ad-Nauseam") == n("2f9a5ced_SunoV6Mini-Ad-Nauseam.wav")
+    assert n("SunoV6Mini-Ad-Nauseam") == n("32129cfa_2f9a5ced_SunoV6Mini-Ad-Nauseam.mp3")
+    # Separators and punctuation are not identity.
+    assert n("Suno-V6-mini-Cold-Steel") == n("sunov6minicoldsteel")

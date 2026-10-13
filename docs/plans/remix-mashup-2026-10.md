@@ -28,7 +28,7 @@
 
 ## Part A — Frontend ease-of-use
 
-### A1. Entry point from the Media Library
+### A1. Entry point from the Media Library — DONE 2026-10-13
 
 `RemixPanel.tsx` is buried two levels deep (Visualizer → Stem Mixer → collapsed
 "Remix / Mashup" toggle, `RemixPanel.tsx:340-348`); `LineagePanel.tsx:189-196`
@@ -38,14 +38,31 @@ track preselected and the Remix panel auto-expanded — mirror the existing
 `setPendingRemixRecipe`/`setPendingTrack` handoff (`utils/pendingTrack.ts:37`).
 
 - **Accept:** from a library track, one click lands in the visualizer with the
-  Remix panel open and the track loaded.
+  Remix panel open and the track loaded. **Verified in-browser** (below).
 
-### A2. Inline stem separation in the empty state
+Landed: `setPendingRemixOpen` / `consumePendingRemixOpen` in `pendingTrack.ts`
+(a third handoff slot, same window+sessionStorage shape as the others), a
+"Mashup this track" button in `LineagePanel`'s header, and `setOpen` added to
+`usePanelCollapsed` so a handoff can expand the panel — the panel ships
+collapsed by default, so loading the track alone still left the user hunting
+for the control they just asked for. Browser-verified from the library detail:
+one click lands on `/visualizer` with the track loaded and the panel expanded.
+
+### A2. Inline stem separation in the empty state — DONE 2026-10-13 (code-complete)
 
 With no separated stems the panel shows a text instruction
 (`RemixPanel.tsx:355-359`), not an action — the user must leave, separate, and
 return. Add an inline "Separate stems" button that triggers separation for the
 current track and refreshes `getRemixSources()` on completion.
+
+Landed: the empty state now renders a "Separate stems for the current track"
+button (via `separateAudioFile`, the existing `/api/audio/separate-file` call)
+that refreshes the source list and re-seeds on completion, with a busy state
+and the friendly error path; with no track loaded it says so instead of
+offering a button that cannot work. Browser-verifying *this* branch needs a
+stem-free state this machine does not have (every candidate track already has
+stems), so it is code-complete and guard-tested rather than click-verified;
+the non-empty branch was verified live (7 stems ready, panel interactive).
 
 ### A3. Audible preview
 
@@ -64,11 +81,21 @@ gain, key-shift, source-start-bar abbreviated past decoding. Replace with
 labeled sliders + value readouts, and add a per-layer audition button for the
 source stem excerpt.
 
-### A5. No silent overwrite
+### A5. No silent overwrite — DONE 2026-10-13
 
 `recipe()` hardcodes `overwrite: true` (`RemixPanel.tsx:243`); the name
 defaults to `"mashup-1"`. On build, auto-suggest the next free name and make
 overwrite an explicit checkbox, default off.
+
+Landed: `nextFreeName` (pure, in `remixRecipe.ts`, 5 tests) keeps an untouched
+name one step ahead of what exists; anything typed is never rewritten.
+Overwrite is a visible checkbox defaulting to off, `recipe()` passes it
+instead of hardcoding `true`, and `runBuild` refuses a colliding name with
+overwrite off — the case that used to replace the previous remix without
+asking. A live hint names the collision and clears on rename.
+**Browser-verified:** the name auto-suggested collision-free, typing an
+existing name showed the hint and Build refused with the expected message
+while nothing rendered, and the hint cleared on rename.
 
 ### A6. Timeline view of the arrangement
 

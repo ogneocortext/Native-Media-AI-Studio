@@ -113,11 +113,17 @@ _HASH_PREFIX_RE = re.compile(r"^([0-9a-f]{8}_)+", re.IGNORECASE)
 def _normalize_track_name(name: str) -> str:
     """Lowercase alphanumeric-only identity of a track name.
 
-    Hash prefixes stripped (the library adds 1-3 of them), separators and
-    punctuation dropped, so `Suno-V6-mini-Cold-Steel` and `SunoV6Mini-ColdSteel`
-    normalise to the same identity.
+    Hash prefixes stripped (the library adds 1-3 of them) and a trailing
+    library extension dropped, so `X.m4a`, `2f9a5ced_X.wav` and `X` all
+    normalize to the same identity. Separators and punctuation go too, so
+    `Suno-V6-mini-Cold-Steel` and `SunoV6Mini-ColdSteel` agree.
     """
     base = _HASH_PREFIX_RE.sub("", (name or "").strip())
+    lowered = base.lower()
+    for ext in AUDIO_EXTENSIONS:
+        if lowered.endswith(ext):
+            base = base[: -len(ext)]
+            break
     return re.sub(r"[^a-z0-9]+", "", base.lower())
 
 
@@ -275,7 +281,7 @@ def _probe_summary(track: str) -> dict[str, Any]:
     }
 
 
-def library_file_for(track: str) -> str | None:
+def library_file_for(track: str, files: list[Path] | None = None) -> str | None:
     """The library filename a stem key came from, when the join is unambiguous.
 
     B6: the UI names tracks the way the library reports them, so a source
@@ -283,13 +289,18 @@ def library_file_for(track: str) -> str | None:
     consistent identity. The join is refused rather than guessed when it is
     ambiguous (two library files normalizing to the same identity), because
     a picker preselected to the wrong song is worse than no preselection.
+
+    `files` is the pre-scanned library listing: a caller listing every source
+    should pass one scan rather than re-walking `AUDIO_DIR` per track (this
+    measured 0.25 s per call on a library of ~120 files, which is not a
+    dropdown-load cost).
     """
     target = _normalize_track_name(track)
     if not target:
         return None
     hits = [
         f
-        for f in library_audio_files()
+        for f in (files if files is not None else library_audio_files())
         if _normalize_track_name(f.stem) == target or _normalize_track_name(f.name) == target
     ]
     if not hits:
@@ -328,7 +339,10 @@ def list_stem_sources() -> list[dict[str, Any]]:
             }
     for entry in found.values():
         entry.update(_probe_summary(entry["track"]))
-        library_file = library_file_for(entry["track"])
+    # One library scan for the whole listing (see library_file_for).
+    library_files = library_audio_files()
+    for entry in found.values():
+        library_file = library_file_for(entry["track"], library_files)
         if library_file:
             entry["library_file"] = library_file
     return sorted(found.values(), key=lambda d: d["track"].lower())
@@ -1184,8 +1198,15 @@ def list_remixes_for_track(track: str) -> list[dict[str, Any]]:
     what this endpoint exists to answer.
     """
     matched: list[dict[str, Any]] = []
+    # B6: a caller may hold the library filename (`….m4a`) or a
+    # hash-prefixed variant where the manifest recorded the bare stem key,
+    # so join on the normalized identity rather than the raw string —
+    # otherwise "accept either key" would mean "does not 400", which is not
+    # the same as finding the lineage.
+    target = _normalize_track_name(track)
     for entry in list_remixes():
-        if track not in entry.get("source_tracks", []):
+        sources = entry.get("source_tracks", [])
+        if target not in {_normalize_track_name(s) for s in sources}:
             continue
         directory = REMIX_DIR / entry["name"]
         recipe = None
@@ -1195,11 +1216,14 @@ def list_remixes_for_track(track: str) -> list[dict[str, Any]]:
                 recipe = _manifest_recipe(json.loads(manifest_path.read_text(encoding="utf-8")))
             except (json.JSONDecodeError, OSError):
                 recipe = None
+        first = sources[0] if sources else ""
         matched.append(
             {
                 **entry,
                 "recipe": recipe,
-                "role": "primary" if entry.get("source_tracks", [None])[0] == track else "contributor",
+                "role": (
+                    "primary" if _normalize_track_name(first) == target else "contributor"
+                ),
             }
         )
     return matched

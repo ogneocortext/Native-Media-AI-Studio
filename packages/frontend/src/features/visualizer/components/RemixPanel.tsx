@@ -17,7 +17,7 @@
  *    every source to measure levels; the button says what it costs.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ChevronDown, Loader2, Play, Plus, Trash2, Wand2 } from "lucide-react";
+import { AlertCircle, ChevronDown, Loader2, Play, Plus, Scissors, Trash2, Wand2 } from "lucide-react";
 import {
   STEM_NAMES,
   buildRemix,
@@ -27,6 +27,7 @@ import {
   previewRemix,
   probeRemixTrack,
   remixFileUrl,
+  separateAudioFile,
   type RemixPreview,
   type RemixRecipeSpec,
   type RemixSlotSpec,
@@ -35,7 +36,7 @@ import {
   type StemName,
 } from "../../../services/api";
 import { usePanelCollapsed } from "../usePanelCollapsed";
-import { consumePendingRemixRecipe } from "../../../utils/pendingTrack";
+import { consumePendingRemixOpen, consumePendingRemixRecipe } from "../../../utils/pendingTrack";
 
 export interface RemixPanelProps {
   /** Track the visualizer is already showing; preselected as source A. */
@@ -62,6 +63,7 @@ type UISlot = EditableSlot;
 import {
   newEditableLayer,
   matchSource,
+  nextFreeName,
   recipeToEditableSlots,
   type EditableLayer,
   type EditableSlot,
@@ -72,17 +74,20 @@ function newLayer(track: string, stem: StemName): EditableLayer {
 }
 
 export function RemixPanel({ currentTrack }: RemixPanelProps) {
-  const { open, toggle } = usePanelCollapsed("stem-remix");
+  const { open, toggle, setOpen } = usePanelCollapsed("stem-remix");
   const [sources, setSources] = useState<RemixSource[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [name, setName] = useState("mashup-1");
+  const [name, setName] = useState("mashup");
+  const [nameTouched, setNameTouched] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [slots, setSlots] = useState<UISlot[]>([]);
-  const [busy, setBusy] = useState<null | "preview" | "build" | "master">(null);
+  const [busy, setBusy] = useState<null | "preview" | "build" | "master" | "separate">(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RemixPreview | null>(null);
   const [built, setBuilt] = useState<RemixSummary | null>(null);
   const [remixes, setRemixes] = useState<RemixSummary[]>([]);
+  // A5: replacing an existing remix is an explicit choice, not the default.
+  const [overwrite, setOverwrite] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const tracks = useMemo(() => sources.map((s) => s.track), [sources]);
@@ -165,6 +170,23 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     listRemixes().then(setRemixes).catch(() => {});
   }, []);
 
+  // A1: a Media Library handoff ("Mashup this track") carries the intent to
+  // expand this panel. The panel renders collapsed by default, so without
+  // this the user lands on the Visualizer and hunts for the control they
+  // just asked for. Consumed once, so a later reload does not re-open it.
+  useEffect(() => {
+    if (consumePendingRemixOpen()) setOpen(true);
+  }, [setOpen]);
+
+  // A5: with the name field untouched, keep it one step ahead of what exists,
+  // so a second build does not collide (and with overwrite off, cannot
+  // clobber). Anything the user types wins and is never rewritten.
+  useEffect(() => {
+    if (nameTouched || remixes.length === 0) return;
+    const taken = remixes.map((r) => r.name);
+    setName((current) => nextFreeName(current, taken));
+  }, [remixes, nameTouched]);
+
   // Consume a reopened arrangement. Runs once per arrival, guarded by a ref so a
   // later `remixes` load cannot re-apply it. Deliberately AFTER seeding, so a
   // pending recipe always wins over the default arrangement: the whole point is to
@@ -200,8 +222,39 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
         crossfade_bars: s.crossfade_bars,
         layers: s.layers.map(({ __id: _drop, ...layer }) => layer),
       }));
-    return { name: name.trim() || "mashup", target_bpm: bpm, slots: clean, beats_per_bar: 4, overwrite: true };
-  }, [name, bpm, slots]);
+    return {
+      name: name.trim() || "mashup",
+      target_bpm: bpm,
+      slots: clean,
+      beats_per_bar: 4,
+      // A5: explicit, not hardcoded. The name suggestion above keeps the
+      // default collision-free, so overwrite stays off unless asked for.
+      overwrite,
+    };
+  }, [name, bpm, slots, overwrite]);
+
+  // A2: the empty state used to be an instruction ("run stem separation…
+  // first"), which sends the user somewhere else for the very thing they
+  // opened this panel to do. Separation is one call, so it happens here and
+  // refreshes the source list on completion.
+  const runSeparate = useCallback(async () => {
+    if (!currentTrack) {
+      setError("Load a track first — separation runs on the track you are viewing.");
+      return;
+    }
+    setBusy("separate");
+    setError(null);
+    try {
+      await separateAudioFile(currentTrack);
+      const fresh = await getRemixSources();
+      setSources(fresh);
+      setSourcesLoaded(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }, [currentTrack]);
 
   const applyPreset = useCallback(
     (preset: "swap" | "blend" | "intro") => {
@@ -253,6 +306,14 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   }, [recipe]);
 
   const runBuild = useCallback(async () => {
+    // A5: refuse the one case that used to be silent. A colliding name with
+    // overwrite off would have rendered to a directory that already exists;
+    // the build used to pass overwrite: true, which replaced it without
+    // asking. Now the collision is surfaced and the caller decides.
+    if (!overwrite && remixes.some((r) => r.name.toLowerCase() === name.trim().toLowerCase())) {
+      setError(`A remix named "${name.trim()}" already exists. Pick another name, or enable overwrite.`);
+      return;
+    }
     setBusy("build");
     setError(null);
     try {
@@ -273,7 +334,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     } finally {
       setBusy(null);
     }
-  }, [recipe, bpm, slots]);
+  }, [recipe, bpm, slots, overwrite, remixes, name]);
 
   const runMaster = useCallback(async () => {
     if (!built) return;
@@ -327,9 +388,28 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
       {loadError && <p className="text-[10px] text-red-300/80">{loadError}</p>}
 
       {sources.length === 0 && !loadError && (
-        <p className="text-[10px] text-muted leading-relaxed">
-          No separated stems found. Run stem separation on a track first (Stem Mixer → Enhance stems).
-        </p>
+        <div className="space-y-1.5">
+          <p className="text-[10px] text-muted leading-relaxed">
+            No separated stems yet for any track.
+          </p>
+          {currentTrack ? (
+            <button
+              onClick={runSeparate}
+              disabled={busy !== null}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100 disabled:opacity-40"
+            >
+              {busy === "separate" ? <Loader2 size={10} className="animate-spin" /> : <Scissors size={10} />}
+              Separate stems for the current track
+            </button>
+          ) : (
+            <p className="text-[10px] text-muted leading-relaxed">
+              Load a track, then this panel can separate its stems for you.
+            </p>
+          )}
+          {busy === "separate" && (
+            <p className="text-[10px] text-muted">Separating — demucs takes a minute or two per track…</p>
+          )}
+        </div>
       )}
 
       {sources.length > 0 && (
@@ -337,7 +417,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           <div className="flex items-center gap-1.5">
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameTouched(true);
+              }}
               placeholder="remix name"
               aria-label="Remix name"
               className="flex-1 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
@@ -352,6 +435,25 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               aria-label="Target BPM"
               className={NUM}
             />
+          </div>
+
+          {/* A5: replacing an existing remix is a visible, deliberate act.
+              The default is the next free name plus overwrite off. */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1 text-[10px] text-muted" title="Replace an existing remix of the same name instead of building under a new one">
+              <input
+                type="checkbox"
+                checked={overwrite}
+                onChange={(e) => setOverwrite(e.target.checked)}
+                className="accent-amber-400"
+              />
+              Overwrite if the name exists
+            </label>
+            {!overwrite && remixes.some((r) => r.name.toLowerCase() === name.trim().toLowerCase()) && (
+              <span className="text-[10px] text-amber-200/90" data-testid="remix-name-collision">
+                A remix named “{name.trim()}” already exists — enable overwrite to replace it.
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1">
