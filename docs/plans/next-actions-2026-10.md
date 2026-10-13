@@ -110,8 +110,9 @@ entry point and controls.
 ## 3. Decisions needed from the owner
 1. Approve this sequencing (Step 2 order) or reprioritize.
 2. Approve the remix/mashup plan for build, or defer it.
-3. Agent attribution: update the AGENTS.md table from Ling 3.1 Flash / Kilo
-   to Cline / Desktop? (`1bf5ca7` already uses `Co-authored-by: Cline`.)
+3. Agent attribution: **Resolved 2026-10-13** — no change to the AGENTS.md
+   table (correct as-is); the per-commit trailer always reflects the agent
+   actually used, which rotates between Cline and Kilo.
 4. Motion systems: leave `motion/` + `vizMotion.ts` coexisting, or log a
    decision to converge them?
 
