@@ -129,6 +129,7 @@ date: 2026-09-30
 - [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation
 - [[coding-benchmarks|🧪 Coding Model Benchmark]] — Python code, test generation, tool use, edge-case benchmarks for AI test harness selection
 - [[track-similarity-measurement-2026|🔎 Track Similarity Measurement 2026]] — measured on our own stems: librosa BPM is grid-quantised and octave-aliased, chroma fails a white-noise control; resolved via essentia in WSL as a 3-estimator gate
+- [[mashup-arrangement-theory-2026|🎼 Mashup Arrangement Theory 2026]] — arrangement theory that survives without key detection: stretch ratios, phrase alignment, frequency slotting, explicit shift ladder
 - [[video-model-test-protocol-2026|🧪 Video Model Test Protocol 2026]] — LTX/Mochi sweep protocol for 8GB VRAM video generation
 - [[visualizer-state-analysis-2026|🔍 Visualizer State Analysis 2026]] — Gemma 4 vision feedback on visualizer state, improvement report
 - [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
@@ -149,7 +150,7 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 20 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 12 documents |
-|| `#research/*` | Industry trends & analysis | 11 documents |
+|| `#research/*` | Industry trends & analysis | 12 documents |
 
 ### Cross-Cutting Tags
 
@@ -165,7 +166,7 @@ date: 2026-09-30
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 3 documents |
 || `#design` | Design systems & UX | 6 documents |
-|| `#audio` | Audio analysis & processing | 16 documents |
+|| `#audio` | Audio analysis & processing | 17 documents |
 || `#visualization` | Visualization techniques | 14 documents |
 || `#3d` | 3D generation & rendering | 13 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |

@@ -130,7 +130,9 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 
-### 📊 Research & Reference (12/12 completed)
+### 📊 Research & Reference (13/13 completed)
+
+- ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
 - ✅ `track-similarity-measurement-2026.md` → `#research`, `#audio`
 - ✅ `ai-video-trends-2026.md`  → `#research`, `#ai`
