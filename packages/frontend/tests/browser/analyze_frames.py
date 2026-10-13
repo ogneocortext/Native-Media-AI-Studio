@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-OUT_DIR = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\frontend\tests\browser\out")
+OUT_DIR = Path(__file__).resolve().parent / "out"
 frames = sorted(OUT_DIR.glob("frame_*.png"))
 
 diffs = []

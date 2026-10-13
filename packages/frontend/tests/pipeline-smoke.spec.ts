@@ -6,6 +6,7 @@ import {
   cleanupRoutes,
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
+  BACKEND_OFFLINE_FILTERS,
 } from './helpers';
 
 const PIPELINE_PAGES = [
@@ -29,7 +30,7 @@ test.describe('Pipeline smoke', () => {
       await mockApiQueueEmpty(page);
       await navigateWithWait(page, pageInfo.path);
       await expect(page.locator('main').first()).toContainText(pageInfo.label, { timeout: 10_000 });
-      expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+      expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
     });
   }
 
@@ -50,6 +51,6 @@ test.describe('Pipeline smoke', () => {
     await navigateWithWait(page, '/music-video-wizard');
     await expect(page.locator('main').first()).toContainText('Upload Your Track', { timeout: 10_000 });
 
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 });

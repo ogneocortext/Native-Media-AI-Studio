@@ -40,20 +40,41 @@ import * as url from "node:url";
  * Playwright's configured baseURL is automatically prepended when navigating
  * with a relative URL (e.g. page.goto('/health')).
  */
-/** Base URL used when a test has to build an absolute URL by hand. */
-const DEFAULT_TEST_BASE_URL = "http://localhost:5173";
+/**
+ * Read `frontend_port` from config/ports.json (the same single source of truth
+ * `playwright.config.ts` reads), falling back to 5173 if the file is missing.
+ *
+ * ports.json stores the URL as `127.0.0.1`; tests run against the same dev
+ * server the browser does, so normalise the host to `localhost`.
+ */
+function loadFrontendPort(): string {
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(
+        path.resolve(url.fileURLToPath(import.meta.url), "../../config/ports.json"),
+        "utf-8",
+      ),
+    );
+    return String(raw.frontend_port ?? 5173);
+  } catch {
+    return "5173";
+  }
+}
 
 /**
  * Base URL for manually constructed URLs.
  *
- * Playwright prepends `use.baseURL` to relative navigations, and 1.63 exposes no
- * runtime accessor for it — `BrowserContext.baseURL()` does not exist (calling
- * it throws `TypeError`), so it must not be used here. Prefer `page.goto('/path')`;
- * this helper only exists for the rare absolute-URL case and mirrors
- * `use.baseURL` from playwright.config.ts (override with `PW_BASE_URL`).
+ * Playwright prepends `use.baseURL` to relative navigations, and exposes no
+ * runtime accessor for it (`page.url()` is the current URL, not the base), so
+ * this helper mirrors `use.baseURL` from playwright.config.ts by reading the
+ * same ports.json. Prefer `page.goto('/path')`; use this only for the rare
+ * absolute-URL case. `PW_BASE_URL` overrides for a non-default environment.
+ *
+ * It used to hardcode 5173 while the config read ports.json, so a port change
+ * in ports.json silently split the two.
  */
-export function getBaseUrl(_page?: Page): string {
-  return (process.env.PW_BASE_URL ?? DEFAULT_TEST_BASE_URL).replace(/\/$/, "");
+export function getBaseUrl(): string {
+  return (process.env.PW_BASE_URL ?? `http://localhost:${loadFrontendPort()}`).replace(/\/$/, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +185,36 @@ export async function cleanupRoutes(page: Page): Promise<void> {
       await page.unroute("**", handler).catch(() => {});
     }
   }
+  await removeDevToolBlock(page);
   await removeDevToolOverlays(page);
+}
+
+/**
+ * Pages that already have the `/__devtools/**` block route registered.
+ *
+ * `page.route()` has no "replace" semantics: every call adds a handler that
+ * only `page.unroute()` removes. `removeDevToolOverlays` runs after every
+ * `navigateWithWait` (and in `cleanupRoutes`), so re-registering per call
+ * accumulated one dead handler per navigation for the life of the page.
+ */
+const pagesWithDevtoolsBlock = new WeakSet<Page>();
+
+/** Undo the dev-tools route + DOM removal for one page (used by cleanupRoutes). */
+async function removeDevToolBlock(page: Page): Promise<void> {
+  if (!pagesWithDevtoolsBlock.has(page)) return;
+  pagesWithDevtoolsBlock.delete(page);
+  await page
+    .unroute("**/__devtools/**", devtoolsRouteHandler)
+    .catch(() => {
+      // Page already closed; nothing to undo.
+    });
+}
+
+// Playwright invokes route handlers as handler(route, request) — the Route is
+// the first positional argument. Destructuring `({ route })` yields undefined
+// and throws inside the handler, which poisons every request on the page.
+function devtoolsRouteHandler(route: Route): Promise<void> {
+  return route.abort();
 }
 
 /**
@@ -183,6 +233,7 @@ export async function cleanupRoutes(page: Page): Promise<void> {
  *
  * These tags only exist in dev, so this is a no-op against a preview build.
  */
+
 export async function removeDevToolOverlays(page: Page): Promise<void> {
   // Block the overlay's script at the network level first.
   //
@@ -191,11 +242,15 @@ export async function removeDevToolOverlays(page: Page): Promise<void> {
   // cross-origin requests log CORS errors that `expectNoConsoleErrors` then
   // fails on. That is what made two `unity.spec.ts` tests fail — not the app.
   // Blocking the request keeps the CDN out of the test entirely.
-  await page
-    .route("**/__devtools/**", (route) => route.abort())
-    .catch(() => {
-      // Already routed by this page; ignore.
+  //
+  // Registered once per page (see pagesWithDevtoolsBlock) and removed in
+  // cleanupRoutes.
+  if (!pagesWithDevtoolsBlock.has(page)) {
+    pagesWithDevtoolsBlock.add(page);
+    await page.route("**/__devtools/**", devtoolsRouteHandler).catch(() => {
+      // Page already closed; the caller handles the failure.
     });
+  }
   await page
     .evaluate(() => {
       const DEV_TAGS = ["devframes-dock-embedded", "vite-error-overlay", "react-refresh"];
@@ -804,26 +859,96 @@ export async function mockHealthPage(
 }
 
 // ---------------------------------------------------------------------------
+// Dashboard drop zone
+// ---------------------------------------------------------------------------
+
+/**
+ * The dashboard's single audio drop zone (Dashboard.tsx: a `role="button"`
+ * div with a hidden `<input type="file" accept="audio/*,...">` behind it).
+ *
+ * Its accessible name is a full sentence, and it has changed before: dashboard
+ * and file-upload specs hardcoded the old sentence verbatim, so both suites'
+ * tests failed (element not found) the moment the copy was edited. A RegExp
+ * name matches by substring in Playwright, so the stable lead phrase is enough
+ * to identify the control without pinning the marketing copy.
+ */
+export function dashboardDropZone(page: Page) {
+  return page.getByRole("button", { name: /drop audio file here/i });
+}
+
+/**
+ * Click or key-activate the drop zone and assert the OS file picker opened
+ * with an audio-accepting input, replacing the old `waitForTimeout(300)` +
+ * "did not throw" pattern, which passed even if the picker never opened.
+ *
+ * Use this for the PRIMARY pointer path only: Chromium suppresses repeated
+ * programmatic file-chooser dialogs in one browser session, so after ~2 opens
+ * in a worker the `filechooser` event stops firing and the test would fail for
+ * an environment reason, not an app one. Keyboard activation is covered by
+ * {@link expectKeyOpensPicker}, which observes the picker invocation directly.
+ */
+export async function expectAudioPickerOpens(page: Page, open: () => Promise<void>): Promise<void> {
+  const chooserPromise = page.waitForEvent("filechooser");
+  await open();
+  const chooser = await chooserPromise;
+  // FileChooser.element() returns the ElementHandle synchronously in
+  // Playwright 1.64 (only its methods are async).
+  const fileInput = chooser.element();
+  const accept = await fileInput.getAttribute("accept");
+  expect(accept, "file picker input must accept audio").toMatch(/audio\//);
+}
+
+/**
+ * Press a key on the drop zone and assert it invoked the hidden file input's
+ * click (i.e. `openPicker()` ran). A capture-phase listener on the input
+ * catches the programmatic click, which works for every press in a session
+ * unlike the OS `filechooser` event.
+ */
+export async function expectKeyOpensPicker(page: Page, key: "Enter" | " "): Promise<void> {
+  const dropZone = dashboardDropZone(page);
+  await expect(dropZone).toBeVisible();
+  await page.evaluate(() => {
+    const input = document.querySelector('input[type="file"]');
+    if (!input) throw new Error("dashboard file input is missing");
+    const w = window as unknown as { __pickerOpens: number };
+    w.__pickerOpens = 0;
+    input.addEventListener("click", () => {
+      w.__pickerOpens += 1;
+    });
+  });
+  await dropZone.press(key);
+  const opens = await page.evaluate(
+    () => (window as unknown as { __pickerOpens: number }).__pickerOpens,
+  );
+  expect(opens, `key "${key}" on the drop zone must open the file picker`).toBe(1);
+}
+
+// ---------------------------------------------------------------------------
 // SSE mock dispatch
 // ---------------------------------------------------------------------------
 
 /**
  * Dispatch a synthetic SSE `message` event to the frontend `sseService`.
+ *
+ * The store lookup used to gate this function (`if (!store) return`), but the
+ * stores were then never read — so on any page that exposed `__sseService`
+ * without `__healthStore`/`__jobStore` the dispatch was a silent no-op and the
+ * test's poll assertion would fail for the wrong reason. Gate on the service
+ * that is actually invoked.
  */
 export async function dispatchSseEvent(page: Page, event: Record<string, unknown>): Promise<void> {
-  await page.evaluate((msg) => {
+  const dispatched = await page.evaluate((msg) => {
     const win = window as unknown as {
-      __healthStore?: { getState?: () => unknown };
-      __jobStore?: { getState?: () => unknown };
       __sseService?: { feedMessage?: (msg: unknown) => void };
     };
-    const store = win.__healthStore || win.__jobStore;
-    if (!store) return;
     const sse = win.__sseService;
-    if (sse?.feedMessage) {
-      sse.feedMessage(msg);
-    }
+    if (!sse?.feedMessage) return false;
+    sse.feedMessage(msg);
+    return true;
   }, event);
+  if (!dispatched) {
+    throw new Error("window.__sseService.feedMessage is not available on this page");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -839,6 +964,13 @@ export const consoleErrorFilters = {
   cdn: ["Failed to load resource", "script error"],
   vite: ["[vite]"],
 };
+
+/**
+ * The "backend (or a sidecar) is simply not running in this environment"
+ * noise. Every spec passed these three strings to expectNoConsoleErrors
+ * inline; they live here so the exclusion list is stated once.
+ */
+export const BACKEND_OFFLINE_FILTERS = ["502", "Bad Gateway", "ECONNREFUSED"];
 
 /**
  * Set up a console error capture and return the errors array.
@@ -867,19 +999,6 @@ export function expectNoConsoleErrors(errors: string[], customExclude: string[] 
   ];
   const filtered = errors.filter((e) => !allExcludes.some((ex) => e.includes(ex)));
   expect(filtered).toEqual([]);
-}
-
-/**
- * Check if an error is a known harmless error that should be filtered.
- */
-export function isFilteredError(error: string): boolean {
-  const allExcludes = [
-    ...consoleErrorFilters.connection,
-    ...consoleErrorFilters.network,
-    ...consoleErrorFilters.cdn,
-    ...consoleErrorFilters.vite,
-  ];
-  return allExcludes.some((ex) => error.includes(ex));
 }
 
 /**
@@ -986,59 +1105,9 @@ export async function mockGoServiceHealthDegraded(
 // Card and UI helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Wait for a card to be visible by checking its CSS class.
- */
-export async function waitForCard(page: Page, className: string, timeout = 10_000): Promise<void> {
-  await expect(page.locator(`.${className}`)).toBeVisible({ timeout });
-}
-
-/**
- * Get a card element by its CSS class.
- */
-export function getCard(page: Page, className: string) {
-  return page.locator(`.${className}`);
-}
-
-/**
- * Check if a card with the given class is visible.
- */
-export async function isCardVisible(page: Page, className: string): Promise<boolean> {
-  return page.locator(`.${className}`).isVisible();
-}
-
-/**
- * Wait for all resource cards to be rendered (used in health page tests).
- */
-export async function waitForResourceCards(page: Page, count = 3, timeout = 10_000): Promise<void> {
-  await expect(page.locator(".resource-card")).toHaveCount(count, { timeout });
-}
-
-/**
- * Wait for a card to have specific text content.
- */
-export async function expectCardToHaveText(
-  page: Page,
-  className: string,
-  text: string | RegExp,
-  timeout = 5_000,
-): Promise<void> {
-  const card = page.locator(`.${className}`);
-  await expect(card).toHaveText(text, { timeout });
-}
-
-/**
- * Assert that a numeric value is within an expected range.
- */
-export function expectInRange(actual: number, min: number, max: number): void {
-  expect(actual).toBeGreaterThanOrEqual(min);
-  expect(actual).toBeLessThanOrEqual(max);
-}
-
-/**
- * Round a number to a specific number of decimal places.
- */
-export function roundTo(value: number, decimals = 2): number {
-  const factor = Math.pow(10, decimals);
-  return Math.round(value * factor) / factor;
-}
+// NOTE: the waitForCard/getCard/isCardVisible/waitForResourceCards/
+// expectCardToHaveText/expectInRange/roundTo/isFilteredError helpers that used
+// to live here had zero call sites in any spec (the tests/browser/*.mjs
+// scripts are standalone and do not import this module) and mostly duplicated
+// Playwright built-ins, so they were removed rather than left as dead API
+// surface. Use expect(locator) and page.locator() directly.

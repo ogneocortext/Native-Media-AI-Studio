@@ -6,6 +6,7 @@ import {
   cleanupRoutes,
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
+  BACKEND_OFFLINE_FILTERS,
 } from './helpers';
 
 test.describe('Queue', () => {
@@ -19,7 +20,7 @@ test.describe('Queue', () => {
     await navigateWithWait(page, '/queue');
     await expect(page.locator('main h1').first()).toContainText('Job Queue');
     await expect(page.locator('main').locator('text=No jobs in queue')).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('queue page renders running job section when jobs exist', async ({ page }) => {
@@ -27,7 +28,7 @@ test.describe('Queue', () => {
     await mockApiQueueWithJobs(page, 3);
     await navigateWithWait(page, '/queue');
     await expect(page.locator('main').locator('text=Currently Running')).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('queue page renders pending, failed, and completed sections', async ({ page }) => {
@@ -39,7 +40,7 @@ test.describe('Queue', () => {
     await expect(page.locator('main h3:has-text("Queue")')).toBeVisible();
     await expect(page.locator('main h3:has-text("Failed")')).toBeVisible();
     await expect(page.locator('main h3:has-text("Completed")')).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('queue stats show correct counts', async ({ page }) => {
@@ -51,7 +52,7 @@ test.describe('Queue', () => {
     await expect(page.locator('main >> text=Total')).toBeVisible();
     await expect(page.locator('main >> text=Pending')).toBeVisible();
     await expect(page.locator('main .text-center:has-text("Running") >> text=Running')).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('SSE live indicator is visible on queue page', async ({ page }) => {
@@ -61,7 +62,7 @@ test.describe('Queue', () => {
     // Either "Live" or "Polling" indicator should be present
     const liveOrPolling = page.locator('main').locator('text=/Live|Polling/').first();
     await expect(liveOrPolling).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('job cards contain type and progress information', async ({ page }) => {
@@ -72,6 +73,6 @@ test.describe('Queue', () => {
     await expect(page.locator('main').locator('text=image generation').first()).toBeVisible();
     // Progress 0.45 renders as "45.0%" with one decimal place
     await expect(page.locator('main').locator('text=45.0%').first()).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 });

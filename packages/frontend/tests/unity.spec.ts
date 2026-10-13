@@ -6,6 +6,7 @@ import {
   expectNoConsoleErrors,
   mockApiHealth,
   mockApiSystemHealth,
+  BACKEND_OFFLINE_FILTERS,
 } from './helpers';
 import { buildUnityAudioFrameProperties } from '../src/services/api';
 
@@ -16,6 +17,13 @@ const UNITY_COMMANDS = [
   { name: 'capture_scene_view', description: 'Capture the Scene View', tags: ['capture'], package: 'UnityPipeline.Editor' },
 ];
 
+/** Per-test record of the requests the app made to the mocked Unity endpoints. */
+interface UnityCallRecord {
+  commandMethod?: string;
+  captureMethod?: string;
+  lastCommand?: Record<string, unknown>;
+}
+
 /**
  * Mock all `/api/unity/*` endpoints with their real response shapes.
  * Records request methods into `record` for assertions.
@@ -24,7 +32,7 @@ const UNITY_COMMANDS = [
  * a trailing wildcard, so the two never shadow each other regardless of the
  * order Playwright evaluates routes.
  */
-async function mockUnityApi(page: Page, record: { commandMethod?: string; captureMethod?: string; lastCommand?: Record<string, unknown> } = {}): Promise<void> {
+async function mockUnityApi(page: Page, record: UnityCallRecord): Promise<void> {
   await page.route('**/api/unity/status*', (route) =>
     route.fulfill({
       status: 200,
@@ -75,28 +83,38 @@ async function mockUnityApi(page: Page, record: { commandMethod?: string; captur
   });
 }
 
-test.describe('Unity Control', () => {
-  const record: { commandMethod?: string; captureMethod?: string; lastCommand?: Record<string, unknown> } = {};
+/**
+ * Wire every Unity mock and return the per-test call record.
+ *
+ * The record used to live at describe scope and be reset in `beforeEach`,
+ * which silently assumes serial execution — with `fullyParallel` or
+ * `workers > 1` one test's recorded calls would land in another's
+ * assertions. Each test now owns its record.
+ */
+async function setupUnityMocks(page: Page): Promise<UnityCallRecord> {
+  const record: UnityCallRecord = {};
+  await mockApiHealth(page, 200);
+  await mockApiSystemHealth(page);
+  await mockUnityApi(page, record);
+  return record;
+}
 
+test.describe('Unity Control', () => {
   test.beforeEach(async ({ page }) => {
     await cleanupRoutes(page);
-    record.commandMethod = undefined;
-    record.captureMethod = undefined;
-    record.lastCommand = undefined;
-    await mockApiHealth(page, 200);
-    await mockApiSystemHealth(page);
-    await mockUnityApi(page, record);
   });
 
   test('unity page loads with header and online status', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
+    await setupUnityMocks(page);
     await navigateWithWait(page, '/unity');
     await expect(page.locator('main h1').first()).toContainText('Unity Control');
     await expect(page.getByText('Unity Pipeline server is online')).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('tabs expose the ARIA tab pattern', async ({ page }) => {
+    await setupUnityMocks(page);
     await navigateWithWait(page, '/unity');
     const tablist = page.getByRole('tablist', { name: 'Unity control views' });
     await expect(tablist.getByRole('tab', { name: /Quick Actions/ })).toHaveAttribute('aria-selected', 'true');
@@ -108,6 +126,7 @@ test.describe('Unity Control', () => {
   });
 
   test('custom command dropdown lists real commands, not envelope keys', async ({ page }) => {
+    await setupUnityMocks(page);
     await navigateWithWait(page, '/unity');
     await page.getByRole('tab', { name: /Custom Command/ }).click();
 
@@ -128,6 +147,7 @@ test.describe('Unity Control', () => {
 
   test('preview capture issues POST /api/unity/command and renders image', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
+    const record = await setupUnityMocks(page);
     await navigateWithWait(page, '/unity');
     await expect(page.getByText('Unity Pipeline server is online')).toBeVisible();
 
@@ -137,31 +157,12 @@ test.describe('Unity Control', () => {
     expect(record.commandMethod).toBe('POST');
     expect(record.lastCommand).toMatchObject({ command: 'capture_game_view' });
     await expect(page.getByAltText('Latest Unity camera capture')).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
-  });
-
-  test('audio sync helper maps visualizer frame to Unity shader properties', async () => {
-    const properties = buildUnityAudioFrameProperties({
-      audioData: { bass: 0.8, mid: 0.5, treble: 0.3, beat: true, energy: 0.7, peak: 0.9, beatPhase: 0.25, analyzedEnergy: 0.84 },
-      audioTime: 8,
-      progress: 0.04,
-      intensity: 1.35,
-    });
-    expect(properties).toEqual({ _Bass: 0.8, _Mid: 0.5, _Treble: 0.3, _Beat: 1, _Energy: 0.84, _AudioTime: 8, _Progress: 0.04, _Intensity: 1.35 });
-  });
-
-  test('audio sync helper clamps noisy analyser values', async () => {
-    const properties = buildUnityAudioFrameProperties({
-      audioData: { bass: 1.4, mid: -0.2, treble: Number.NaN, beat: false, energy: Number.POSITIVE_INFINITY, peak: 1, beatPhase: 0.5 },
-      audioTime: -3,
-      progress: 1.8,
-      intensity: 9,
-    });
-    expect(properties).toMatchObject({ _Bass: 1, _Mid: 0, _Treble: 0, _Beat: 0, _Energy: 0, _AudioTime: 0, _Progress: 1, _Intensity: 4 });
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('quick action executes the command and records history', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
+    const record = await setupUnityMocks(page);
     await navigateWithWait(page, '/unity');
     await expect(page.getByText('Unity Pipeline server is online')).toBeVisible();
 
@@ -172,6 +173,33 @@ test.describe('Unity Control', () => {
 
     await page.getByRole('tab', { name: /^History/ }).click();
     await expect(page.locator('#unity-panel-history').getByText('create_gameobject').first()).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
+  });
+});
+
+/**
+ * Pure unit tests for the visualizer→Unity property mapper. These live in a
+ * describe with no `page` fixture and no mock setup: inside the UI describe
+ * they paid for route wiring and a browser page they never touched.
+ */
+test.describe('Unity audio sync helper', () => {
+  test('maps visualizer frame to Unity shader properties', async () => {
+    const properties = buildUnityAudioFrameProperties({
+      audioData: { bass: 0.8, mid: 0.5, treble: 0.3, beat: true, energy: 0.7, peak: 0.9, beatPhase: 0.25, analyzedEnergy: 0.84 },
+      audioTime: 8,
+      progress: 0.04,
+      intensity: 1.35,
+    });
+    expect(properties).toEqual({ _Bass: 0.8, _Mid: 0.5, _Treble: 0.3, _Beat: 1, _Energy: 0.84, _AudioTime: 8, _Progress: 0.04, _Intensity: 1.35 });
+  });
+
+  test('clamps noisy analyser values', async () => {
+    const properties = buildUnityAudioFrameProperties({
+      audioData: { bass: 1.4, mid: -0.2, treble: Number.NaN, beat: false, energy: Number.POSITIVE_INFINITY, peak: 1, beatPhase: 0.5 },
+      audioTime: -3,
+      progress: 1.8,
+      intensity: 9,
+    });
+    expect(properties).toMatchObject({ _Bass: 1, _Mid: 0, _Treble: 0, _Beat: 0, _Energy: 0, _AudioTime: 0, _Progress: 1, _Intensity: 4 });
   });
 });

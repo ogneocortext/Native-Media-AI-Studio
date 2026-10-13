@@ -8,7 +8,14 @@ import type { StemName } from "./components/StemMixer";
 import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionPreset } from "./sectionStateMachine";
 import { useSpectralTimeline } from "./useSpectralTimeline";
-import { AudioReactivityProcessor, type ReactivityConfig } from "./audioReactivityProcessor";
+import {
+  AudioReactivityProcessor,
+  composeReactivityConfig,
+  DEFAULT_REACTIVITY_CONFIG,
+  type FrequencyFocus,
+  type ReactivityConfig,
+  type ReactivityTriad,
+} from "./audioReactivityProcessor";
 import { useKeyPalette } from "./useKeyPalette";
 import { synthesizeLiveFrame } from "./liveSpectralFrame";
 import {
@@ -163,6 +170,18 @@ interface ShaderVisualizerProps {
    */
   analyserRef?: React.MutableRefObject<AnalyserNode | null>;
   /**
+   * Plan 2.2 — the user-facing reactivity controls (triad +
+   * boost + frequency focus), owned by `Visualizer`. Composed
+   * into the AudioReactivityProcessor's config each frame, so
+   * the HUD's sliders move the visuals, not just the meters.
+   * Null/undefined keeps the default config.
+   */
+  reactivity?: {
+    triad: ReactivityTriad;
+    gain: number;
+    focus: FrequencyFocus;
+  } | null;
+  /**
    * Plan 1.3 — the FX panel is one of three mutually exclusive floating
    * overlays (shortcuts / More / FX), so its open state is owned by
    * `Visualizer` (`openOverlay`), not by local state here. Opening FX closes
@@ -170,6 +189,9 @@ interface ShaderVisualizerProps {
    */
   fxOpen: boolean;
   onFxOpenChange: (open: boolean) => void;
+  /** Active shader preset controlled externally (e.g. from quick-bar) */
+  activePreset?: ShaderPresetName;
+  onPresetChange?: (preset: ShaderPresetName) => void;
 }
 
 /**
@@ -191,10 +213,22 @@ export function ShaderVisualizer({
   stemsProMeters,
   analysisData,
   analyserRef,
+  reactivity,
   fxOpen,
   onFxOpenChange,
+  activePreset,
+  onPresetChange,
 }: ShaderVisualizerProps) {
-  const [preset, setPreset] = useState<ShaderPresetName>(() => getShaderPresetForTrack(trackName));
+  const [preset, setPreset] = useState<ShaderPresetName>(
+    () => activePreset ?? getShaderPresetForTrack(trackName),
+  );
+
+  useEffect(() => {
+    if (activePreset && activePreset !== preset) {
+      setPreset(activePreset);
+      applyFxDefaults(activePreset);
+    }
+  }, [activePreset]);
   const [showSelector, setShowSelector] = useState(false);
   const showFx = fxOpen;
   const [fxSpeed, setFxSpeed] = useState(() => readFxNumber("fxSpeed", DEFAULT_FX.speed));
@@ -260,6 +294,13 @@ export function ShaderVisualizer({
   // the next re-render.
   const analyserRefProp = useRef(analyserRef);
   analyserRefProp.current = analyserRef;
+  // Plan 2.2 — the reactivity controls are read inside the
+  // rAF loop like every other per-frame input (D14 rule 2).
+  // The composed config is applied to the processor only when
+  // it actually changes, so slider drags don't allocate.
+  const reactivityPropRef = useRef(reactivity);
+  reactivityPropRef.current = reactivity;
+  const lastAppliedReactivityRef = useRef<string>("");
   // Motion-vocabulary state (plan 2.7): the history owns the
   // impulse envelopes, so it persists across frames and resets on
   // a backwards seek (resolveMotion does that itself).
@@ -271,14 +312,7 @@ export function ShaderVisualizer({
   const lastFrameTimeRef = useRef<number | null>(null);
 
   const reactivityProcessorRef = useRef<AudioReactivityProcessor | null>(null);
-  const reactivityConfigRef = useRef<ReactivityConfig>({
-    smoothing: 0.35,
-    gamma: 2.2,
-    transientSensitivity: 1.0,
-    bassSensitivity: 1.0,
-    midSensitivity: 1.0,
-    highSensitivity: 1.0,
-  });
+  const reactivityConfigRef = useRef<ReactivityConfig>(DEFAULT_REACTIVITY_CONFIG);
 
   // Keyed on the raw library reference, NOT the display name: the timeline
   // endpoint addresses files by their stored name, and every uploaded file is
@@ -417,6 +451,23 @@ export function ShaderVisualizer({
           ? analysis.tempo_bpm
           : 120;
       const beatTimes = analysis?.beat_times ?? [];
+      // Plan 2.2: map the reactivity triad (sensitivity /
+      // attack / release / beat response) plus the HUD's gain
+      // and frequency focus onto the processor — but only when
+      // the composed config actually changed, so a slider drag
+      // costs one merge instead of an allocation per frame.
+      const reactivityProp = reactivityPropRef.current;
+      if (processor && reactivityProp) {
+        const composed = composeReactivityConfig(reactivityProp.triad, {
+          gain: reactivityProp.gain,
+          focus: reactivityProp.focus,
+        });
+        const key = JSON.stringify(composed);
+        if (key !== lastAppliedReactivityRef.current) {
+          lastAppliedReactivityRef.current = key;
+          processor.updateConfig(composed);
+        }
+      }
       if (processor && spectral) {
         processor.update(spectral, beatTimes, bpm);
       }
@@ -512,12 +563,16 @@ export function ShaderVisualizer({
     }
   }, [trackName]);
 
-  const handlePresetChange = useCallback((newPreset: ShaderPresetName) => {
-    userSelectedPreset.current = true;
-    setPreset(newPreset);
-    setShowSelector(false);
-    applyFxDefaults(newPreset);
-  }, []);
+  const handlePresetChange = useCallback(
+    (newPreset: ShaderPresetName) => {
+      userSelectedPreset.current = true;
+      setPreset(newPreset);
+      onPresetChange?.(newPreset);
+      setShowSelector(false);
+      applyFxDefaults(newPreset);
+    },
+    [onPresetChange],
+  );
 
   const applyFxDefaults = useCallback((presetName: ShaderPresetName) => {
     const defaults = SHADER_PRESET_INFO[presetName]?.fxDefaults;

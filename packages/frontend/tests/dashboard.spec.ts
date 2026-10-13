@@ -7,6 +7,9 @@ import {
   cleanupRoutes,
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
+  dashboardDropZone,
+  expectKeyOpensPicker,
+  BACKEND_OFFLINE_FILTERS,
 } from './helpers';
 
 test.describe('Dashboard', () => {
@@ -20,22 +23,21 @@ test.describe('Dashboard', () => {
     // Scope to main content to avoid matching the sidebar's h1
     await expect(page.locator('main h1').first()).toContainText('Drop your song');
     await expect(page.locator('main h1').first()).toContainText('Get your video');
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('shows drop zone with accessible label', async ({ page }) => {
     await navigateWithWait(page, '/');
-    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
-    await expect(dropZone).toBeVisible();
+    await expect(dashboardDropZone(page)).toBeVisible();
   });
 
-  test('drop zone accepts keyboard activation', async ({ page }) => {
+  test('drop zone opens the audio picker on keyboard activation', async ({ page }) => {
     await navigateWithWait(page, '/');
-    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
-    await dropZone.focus();
-    await page.keyboard.press('Enter');
-    // Should not throw; Playwright auto-dismisses the file picker.
-    await page.waitForTimeout(300);
+    // A keyboard-operable button must actually reach the picker; the old
+    // version pressed a key, slept 300ms and asserted nothing. The OS
+    // filechooser event is asserted in file-upload.spec.ts (click path);
+    // keyboard paths observe the picker invocation directly.
+    await expectKeyOpensPicker(page, 'Enter');
   });
 
   test('shows 3-step instruction grid', async ({ page }) => {
@@ -62,27 +64,52 @@ test.describe('Dashboard', () => {
     await expect(page.locator('text=View Queue')).toBeVisible();
   });
 
-  test('drop zone accepts drag-and-drop', async ({ page }) => {
+  test('drop zone reflects drag state and rejects non-audio drops', async ({ page }) => {
     await navigateWithWait(page, '/');
-    const dropZone = page.getByRole('button', { name: 'Drop audio file here or click to browse. You can also paste an audio file.' });
+    const dropZone = dashboardDropZone(page);
     await expect(dropZone).toBeVisible();
-    // Simulate dragover event (the handler calls preventDefault + setDragOver)
-    await dropZone.evaluate((el) => {
-      const event = new DragEvent('dragover', { bubbles: true, cancelable: true });
-      el.dispatchEvent(event);
+
+    // The drag handlers drive a `dragOver` state whose tailwind class is
+    // border-violet-500. The old test dispatched bare DragEvents with no
+    // DataTransfer and asserted nothing at all; these events run the real
+    // handler code and check the visible result.
+    //
+    // The class pattern is anchored with (^|\s)…(\s|$): the idle class list
+    // contains `hover:border-violet-500/40`, which an unanchored
+    // /border-violet-500/ would match — so the negative assertion would fail
+    // while the zone is visibly idle (and the positive one could pass
+    // vacuously).
+    const DRAG_ON = /(^|\s)border-violet-500(\s|$)/;
+    const DRAG_OFF = /(^|\s)border-white\/10(\s|$)/;
+
+    const emptyTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await dropZone.dispatchEvent('dragenter', { dataTransfer: emptyTransfer, bubbles: true });
+    await expect(dropZone).toHaveClass(DRAG_ON);
+    await expect(dropZone).not.toHaveClass(DRAG_OFF);
+    await dropZone.dispatchEvent('dragover', { dataTransfer: emptyTransfer, bubbles: true });
+    await expect(dropZone).toHaveClass(DRAG_ON);
+
+    // A dropped non-audio file must surface the accessible error message.
+    // (Dropping a real audio file would start a GPU probe and network I/O.)
+    const rejectedTransfer = await page.evaluateHandle(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(['not audio'], 'notes.txt', { type: 'text/plain' }));
+      return dt;
     });
-    // Simulate drop event
-    await dropZone.evaluate((el) => {
-      const event = new DragEvent('drop', { bubbles: true, cancelable: true });
-      el.dispatchEvent(event);
-    });
-    // Should not throw; navigation may or may not occur depending on handler.
+    await dropZone.dispatchEvent('drop', { dataTransfer: rejectedTransfer, bubbles: true });
+    await expect(dropZone.locator('[role="alert"]')).toContainText('not an audio file');
+
+    // Dropping resets the drag state (counter -> 0, dragOver -> false).
+    await expect(dropZone).not.toHaveClass(DRAG_ON);
+    await expect(dropZone).toHaveClass(DRAG_OFF);
+    await dropZone.dispatchEvent('dragleave', { dataTransfer: emptyTransfer, bubbles: true });
+    await expect(dropZone).not.toHaveClass(DRAG_ON);
   });
 
   test('no console errors on initial load', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, '/');
     await page.waitForTimeout(1000);
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 });

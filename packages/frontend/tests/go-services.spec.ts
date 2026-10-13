@@ -7,6 +7,7 @@ import {
   mockHealthPage,
   navigateWithWait,
   setupConsoleErrorCapture,
+  BACKEND_OFFLINE_FILTERS,
 } from "./helpers";
 
 test.describe("GoServicesCard", () => {
@@ -29,7 +30,7 @@ test.describe("GoServicesCard", () => {
       await expect(page.getByText(svc)).toBeVisible();
     }
 
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test("shows degraded state when some Go services are offline", async ({ page }) => {
@@ -44,7 +45,7 @@ test.describe("GoServicesCard", () => {
 
     await expect(page.getByText("Offline").first()).toBeVisible();
 
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test("shows all offline when no Go services respond", async ({ page }) => {
@@ -63,7 +64,7 @@ test.describe("GoServicesCard", () => {
     await expect(card).toBeVisible({ timeout: 10_000 });
     await expect(card.locator("h3")).toContainText("0/5 online");
 
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test("GoServicesCard does not throw when backend health is failing", async ({ page }) => {

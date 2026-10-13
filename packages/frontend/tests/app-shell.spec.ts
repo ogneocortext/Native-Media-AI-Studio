@@ -5,6 +5,7 @@ import {
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
   expectRedirectedTo,
+  BACKEND_OFFLINE_FILTERS,
 } from "./helpers";
 // Single source of truth for the version, matching Layout.tsx. Hardcoding it
 // here made this test fail on every release bump. Read via fs rather than a
@@ -33,7 +34,7 @@ test.describe("App Shell", () => {
     await navigateWithWait(page, "/");
     // Scope to main content to avoid matching the sidebar's h1
     await expect(page.locator("main h1").first()).toContainText("Drop your song");
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test("sidebar navigation exists with key sections", async ({ page }) => {
@@ -45,7 +46,7 @@ test.describe("App Shell", () => {
     const sections = page.locator(".nav-section-title");
     const count = await sections.count();
     expect(count).toBeGreaterThanOrEqual(4);
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test("footer renders version and copyright", async ({ page }) => {

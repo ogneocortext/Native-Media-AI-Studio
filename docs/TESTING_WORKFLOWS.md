@@ -50,13 +50,13 @@ dev server on `127.0.0.1:5173`, assert zero console errors, and exit non-zero
 on failure:
 
 ```bash
-node packages/frontend/tests/browser/three-studio-audit-checks.mjs   # F2-F6/F9 — 10 checks
-node packages/frontend/tests/browser/three-studio-dispose-check.mjs  # F1 — geometry/textures dispose on removal
-node packages/frontend/tests/browser/polish-audit-shots.mjs           # screenshot all main routes → tests/browser/out/polish/
-node packages/frontend/tests/browser/polish-audit-av-shots.mjs        # visualizer idle/playing + kinetic + studio
-node packages/frontend/tests/browser/polish-audit-viz-modes.mjs       # visualizer FX/2D/3D modes
-node packages/frontend/tests/browser/polish-audit-viz-2d3d.mjs        # visualizer 2D + 3D with track
-node packages/frontend/tests/browser/polish-audit-viz-audio.mjs        # visualizer with audio playing (all modes)
+node packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs   # F2-F6/F9 — 10 checks
+node packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs  # F1 — geometry/textures dispose on removal
+node packages/frontend/tests/browser/audit/polish-audit-shots.mjs           # screenshot all main routes → tests/browser/out/polish/
+node packages/frontend/tests/browser/audit/polish-audit-av-shots.mjs        # visualizer idle/playing + kinetic + studio
+node packages/frontend/tests/browser/audit/polish-audit-viz-modes.mjs       # visualizer FX/2D/3D modes
+node packages/frontend/tests/browser/audit/polish-audit-viz-2d3d.mjs        # visualizer 2D + 3D with track
+node packages/frontend/tests/browser/audit/polish-audit-viz-audio.mjs        # visualizer with audio playing (all modes)
 ```
 
 ### SSE / Polling SPAs

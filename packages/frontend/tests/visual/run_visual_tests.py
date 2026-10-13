@@ -176,7 +176,7 @@ def analyze_screenshot(image_path: Path, model: str) -> dict[str, Any] | None:
 def compare_with_baseline(current_path: Path, baseline_path: Path) -> dict[str, Any]:
     """Simple pixel-diff comparison between current and baseline screenshots."""
     try:
-        from PIL import Image
+        from PIL import Image, ImageChops
     except ImportError:
         return {"status": "skip", "reason": "PIL not installed"}
 
@@ -188,18 +188,17 @@ def compare_with_baseline(current_path: Path, baseline_path: Path) -> dict[str, 
         baseline = Image.open(baseline_path).convert("RGB")
         if current.size != baseline.size:
             return {"status": "warn", "reason": f"Size mismatch: {current.size} vs {baseline.size}"}
-        diff = Image.new("RGB", current.size)
-        pixels_changed = 0
-        total = current.size[0] * current.size[1]
-        for x in range(current.size[0]):
-            for y in range(current.size[1]):
-                c = current.getpixel((x, y))
-                b = baseline.getpixel((x, y))
-                if c != b:
-                    diff.putpixel((x, y), (255, 0, 0))
-                    pixels_changed += 1
+        diff = ImageChops.difference(current, baseline)
         diff_path = REPORT_DIR / f"diff_{baseline_path.stem}.png"
         diff.save(diff_path)
+        bbox = diff.getbbox()
+        if bbox is None:
+            pixels_changed = 0
+        else:
+            diff_gray = diff.convert("L")
+            hist = diff_gray.histogram()
+            pixels_changed = sum(hist[1:])
+        total = current.size[0] * current.size[1]
         pct = (pixels_changed / total) * 100 if total > 0 else 0
         return {
             "status": "pass" if pct < 2.0 else "warn" if pct < 10.0 else "fail",
@@ -221,48 +220,49 @@ def run_visual_suite(model: str = DEFAULT_VISION_MODEL, update_baselines: bool =
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={"width": 1400, "height": 900})
-        page = context.new_page()
+        try:
+            context = browser.new_context(viewport={"width": 1400, "height": 900})
+            page = context.new_page()
 
-        for route, name, _ in PAGES:
-            print(f"\n[page] {name} ({route})")
-            screenshot_path = capture_screenshot(page, route, name)
-            if not screenshot_path:
-                results.append({"page": name, "route": route, "status": "error", "error": "capture failed"})
-                continue
+            for route, name, _ in PAGES:
+                print(f"\n[page] {name} ({route})")
+                screenshot_path = capture_screenshot(page, route, name)
+                if not screenshot_path:
+                    results.append({"page": name, "route": route, "status": "error", "error": "capture failed"})
+                    continue
 
-            page_result: dict[str, Any] = {
-                "page": name,
-                "route": route,
-                "screenshot": str(screenshot_path),
-            }
+                page_result: dict[str, Any] = {
+                    "page": name,
+                    "route": route,
+                    "screenshot": str(screenshot_path),
+                }
 
-            # Pixel diff against baseline
-            baseline_path = BASELINE_DIR / f"{name}.png"
-            diff_result = compare_with_baseline(screenshot_path, baseline_path)
-            page_result["pixel_diff"] = diff_result
+                # Pixel diff against baseline
+                baseline_path = BASELINE_DIR / f"{name}.png"
+                diff_result = compare_with_baseline(screenshot_path, baseline_path)
+                page_result["pixel_diff"] = diff_result
 
-            if update_baselines:
-                # Copy current to baseline
-                import shutil
-                shutil.copy2(screenshot_path, baseline_path)
-                page_result["status"] = "baseline_updated"
+                if update_baselines:
+                    # Copy current to baseline
+                    import shutil
+                    shutil.copy2(screenshot_path, baseline_path)
+                    page_result["status"] = "baseline_updated"
+                    results.append(page_result)
+                    continue
+
+                # Vision analysis
+                vision = analyze_screenshot(screenshot_path, model)
+                if vision:
+                    page_result["vision_analysis"] = vision
+                    page_result["status"] = vision.get("status", "warn")
+                    page_result["issues"] = vision.get("issues", [])
+                else:
+                    page_result["status"] = "error"
+                    page_result["error"] = "vision analysis failed"
+
                 results.append(page_result)
-                continue
-
-            # Vision analysis
-            vision = analyze_screenshot(screenshot_path, model)
-            if vision:
-                page_result["vision_analysis"] = vision
-                page_result["status"] = vision.get("status", "warn")
-                page_result["issues"] = vision.get("issues", [])
-            else:
-                page_result["status"] = "error"
-                page_result["error"] = "vision analysis failed"
-
-            results.append(page_result)
-
-        browser.close()
+        finally:
+            browser.close()
 
     # Write report
     report_path = REPORT_DIR / f"visual_report_{int(time.time())}.json"

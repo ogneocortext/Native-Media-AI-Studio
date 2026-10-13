@@ -818,10 +818,16 @@ const TOOL_IMPLEMENTATIONS = {
         "output",
         "vision-screenshot.png",
       );
-      await page.screenshot({
-        path: outPath,
-        fullPage: full_page === "true" || full_page === true,
-      });
+      const shouldFullPage = full_page === true || full_page === "true" || full_page === 1 || full_page === "1";
+      if (selector) {
+        const element = page.locator(selector).first();
+        await element.screenshot({ path: outPath });
+      } else {
+        await page.screenshot({
+          path: outPath,
+          fullPage: shouldFullPage,
+        });
+      }
       return { screenshot: outPath, url: target };
     } finally {
       await browser.close();

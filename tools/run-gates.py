@@ -10,7 +10,7 @@ Python decodes pipes with the ANSI code page otherwise and dies on em dashes).
 
 Gates, cheapest-first so a fast failure surfaces early:
 
-  docs      check-all.py (4 documentation/repo checkers)
+  docs      check-all.py (8 documentation/repo checkers)
   encoding  covered by the above
   ruff      repo lint                          repo
   arch      import cycles / layer inversions   repo

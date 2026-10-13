@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockLogAnalytics } from './helpers';
+import {
+  navigateWithWait,
+  cleanupRoutes,
+  setupConsoleErrorCapture,
+  expectNoConsoleErrors,
+  mockLogAnalytics,
+  BACKEND_OFFLINE_FILTERS,
+} from './helpers';
 
 test.describe('Logs', () => {
   test.beforeEach(async ({ page }) => {
@@ -11,16 +18,22 @@ test.describe('Logs', () => {
     await mockLogAnalytics(page);
     await navigateWithWait(page, '/logs');
     await expect(page.locator('main h1').first()).toContainText('Log Analytics');
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED', 'Failed to fetch']);
+    expectNoConsoleErrors(errors, [...BACKEND_OFFLINE_FILTERS, 'Failed to fetch']);
   });
 
-  test('logs viewer renders without crashing', async ({ page }) => {
+  test('log analytics summary renders the mocked counts', async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await mockLogAnalytics(page);
     await navigateWithWait(page, '/logs');
-    // The page should render something — either log entries or an empty state
-    const body = page.locator('body');
-    await expect(body).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED', 'Failed to fetch']);
+    // The old version of this test asserted only `expect(body).toBeVisible()`,
+    // which passes for an error state or an empty page as readily as for a
+    // working one. The helper mocks /api/logs/analytics/summary with exactly
+    // two ERROR and INFO-level events (LogAnalytics renders those levels as
+    // the Errors/Info stat cards), so assert those values are on screen.
+    const errorsCard = page.locator('main .card', { hasText: 'Errors' }).first();
+    const infoCard = page.locator('main .card', { hasText: 'Info' }).first();
+    await expect(errorsCard).toContainText('1', { timeout: 10_000 });
+    await expect(infoCard).toContainText('2', { timeout: 10_000 });
+    expectNoConsoleErrors(errors, [...BACKEND_OFFLINE_FILTERS, 'Failed to fetch']);
   });
 });

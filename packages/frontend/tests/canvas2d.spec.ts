@@ -4,6 +4,7 @@ import {
   expectNoConsoleErrors,
   navigateWithWait,
   setupConsoleErrorCapture,
+  BACKEND_OFFLINE_FILTERS,
 } from "./helpers";
 
 test.describe("Canvas2D Visualizer", () => {
@@ -19,11 +20,14 @@ test.describe("Canvas2D Visualizer", () => {
     const trackSelect = page.locator('[data-testid="viz-track-select"]');
     await expect(trackSelect).toBeVisible({ timeout: 15_000 });
 
-    // Pick the first available track if any
-    const optionCount = await trackSelect.locator("option").count();
-    if (optionCount > 1) {
-      await trackSelect.selectOption({ index: 1 });
-    }
+    // The select renders before the shared audio library store resolves, so a
+    // one-shot count() here reads the placeholder only (measured: 1 option at
+    // this instant, 62 once the store lands) and the selection silently never
+    // happens. Wait for the library to populate, then load the first track.
+    await expect
+      .poll(() => trackSelect.locator("option").count(), { timeout: 20_000 })
+      .toBeGreaterThan(1);
+    await trackSelect.selectOption({ index: 1 });
 
     // Use the test harness to switch to 2D mode reliably
     await page.evaluate(() => {
@@ -35,7 +39,10 @@ test.describe("Canvas2D Visualizer", () => {
     const canvas = page.locator("canvas");
     await expect(canvas.first()).toBeVisible({ timeout: 15_000 });
 
-    // Cycle through 2D sub-modes via the harness
+    // Cycle through 2D sub-modes via the harness. Each iteration used to
+    // assert only that *some* canvas stayed visible — true even if set2DMode
+    // silently failed — so a mode that threw on activation still passed. Poll
+    // the harness state so the mode is proven to actually change.
     const modes = [
       "bars",
       "waveform",
@@ -51,17 +58,31 @@ test.describe("Canvas2D Visualizer", () => {
           window as unknown as { __VIZ_TEST__?: { set2DMode?: (mode: string) => void } }
         ).__VIZ_TEST__?.set2DMode?.(m);
       }, mode);
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() => {
+              const win = window as unknown as {
+                __VIZ_TEST__?: { getState?: () => { canvas2DMode?: string } };
+              };
+              return win.__VIZ_TEST__?.getState?.()?.canvas2DMode;
+            }),
+          { timeout: 5_000 },
+        )
+        .toBe(mode);
       await expect(canvas.first()).toBeVisible({ timeout: 5_000 });
     }
 
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test("visualizer page loads without console errors", async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
     await navigateWithWait(page, "/visualizer");
-    await page.waitForTimeout(1000);
-    expectNoConsoleErrors(errors, ["502", "Bad Gateway", "ECONNREFUSED"]);
+    // Wait for a real render milestone instead of a fixed sleep: the track
+    // selector only appears once the visualizer feature mounted.
+    await expect(page.locator('[data-testid="viz-track-select"]')).toBeVisible({ timeout: 15_000 });
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   /**
@@ -79,8 +100,12 @@ test.describe("Canvas2D Visualizer", () => {
     await navigateWithWait(page, "/visualizer");
     const trackSelect = page.locator('[data-testid="viz-track-select"]');
     await expect(trackSelect).toBeVisible({ timeout: 15_000 });
-    const optionCount = await trackSelect.locator("option").count();
-    if (optionCount > 1) await trackSelect.selectOption({ index: 1 });
+    // Same async-store race as the first test: wait for the library options
+    // before selecting, or no track is ever chosen.
+    await expect
+      .poll(() => trackSelect.locator("option").count(), { timeout: 20_000 })
+      .toBeGreaterThan(1);
+    await trackSelect.selectOption({ index: 1 });
 
     await page.evaluate(() => {
       const win = window as unknown as { __VIZ_TEST__?: { setMode?: (mode: string) => void } };
@@ -134,13 +159,18 @@ test.describe("Canvas2D Visualizer", () => {
 
     // Selecting through the UI must actually change state (not just the <option>).
     await select.selectOption("aurora");
-    await page.waitForTimeout(500);
-    const mode = await page.evaluate(() => {
-      const win = window as unknown as {
-        __VIZ_TEST__?: { getState?: () => { canvas2DMode?: string } };
-      };
-      return win.__VIZ_TEST__?.getState?.()?.canvas2DMode;
-    });
-    expect(mode).toBe("aurora");
+    // Poll rather than one evaluate after a sleep: the state update lands on
+    // React's next tick, and a single read either races it or hangs the suite
+    // for the fixed wait.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const win = window as unknown as {
+            __VIZ_TEST__?: { getState?: () => { canvas2DMode?: string } };
+          };
+          return win.__VIZ_TEST__?.getState?.()?.canvas2DMode;
+        }),
+      )
+      .toBe("aurora");
   });
 });

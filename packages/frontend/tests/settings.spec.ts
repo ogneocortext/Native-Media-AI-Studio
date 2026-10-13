@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiSettings } from './helpers';
+import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiSettings, BACKEND_OFFLINE_FILTERS,
+} from './helpers';
 
 test.describe('Settings', () => {
   test.beforeEach(async ({ page }) => {
@@ -11,7 +12,7 @@ test.describe('Settings', () => {
     await mockApiSettings(page);
     await navigateWithWait(page, '/settings');
     await expect(page.locator('main h1').first()).toContainText('Settings');
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('settings form fields are present', async ({ page }) => {
@@ -23,7 +24,7 @@ test.describe('Settings', () => {
     const integrationCards = page.locator('main h3', { hasText: /ComfyUI|Ollama/i });
     await expect(integrationCards.first()).toBeVisible();
     expect(await integrationCards.count()).toBeGreaterThanOrEqual(2);
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('theme toggle is accessible', async ({ page }) => {

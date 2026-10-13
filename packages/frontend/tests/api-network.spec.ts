@@ -6,6 +6,7 @@ import {
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
   dispatchSseEvent,
+  BACKEND_OFFLINE_FILTERS,
 } from './helpers';
 
 test.describe('SSE & Realtime', () => {
@@ -28,7 +29,7 @@ test.describe('SSE & Realtime', () => {
       return typeof store?.getState?.()?.sseConnected === 'boolean';
     });
     expect(sseConnected).toBe(true);
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('health store reflects mocked API response', async ({ page }) => {
@@ -44,7 +45,7 @@ test.describe('SSE & Realtime', () => {
       return store?.getState?.()?.overall;
     });
     expect(['healthy', 'degraded', 'unhealthy']).toContain(overall);
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('no unhandled SSE errors on navigation and close', async ({ page }) => {

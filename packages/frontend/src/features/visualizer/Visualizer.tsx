@@ -60,6 +60,13 @@ import { EqualizerPanel } from "./components/EqualizerPanel";
 import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
 import type { ChannelMeters } from "./professionalMixer/types";
 import { StylePicker } from "./components/StylePicker";
+import { QuickPresetBar } from "./components/QuickPresetBar";
+import { ReactivityHUD } from "./components/ReactivityHUD";
+import {
+  DEFAULT_REACTIVITY_TRIAD,
+  type ReactivityTriad,
+} from "./audioReactivityProcessor";
+import type { ShaderPresetName } from "./shaders";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
 import { PresetFileUpload } from "./components/PresetFileUpload";
@@ -80,7 +87,7 @@ import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
 import { useVisualizerRecording } from "./useVisualizerRecording";
 import { useAudioGraph } from "./useAudioGraph";
-import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
+import { RenderStatsProbe, RenderStatsBadge, type RenderStats } from "./components/RenderStats";
 import {
   CANVAS_2D_MODES,
   CANVAS_2D_MODE_LABELS,
@@ -98,6 +105,9 @@ import {
   type Canvas2DMode,
   type LibraryFile,
 } from "./visualizerHelpers";
+
+/** localStorage key for the persisted reactivity triad (plan 2.2). */
+const REACTIVITY_STORAGE_KEY = "visualizerReactivity:triad";
 
 export function Visualizer() {
   const [bgColor, setBgColor] = useState("#050505");
@@ -184,11 +194,7 @@ export function Visualizer() {
   // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
   // down to 1x when fps regresses and restores the [1, 1.5] band on recovery.
   const [adaptiveDpr, setAdaptiveDpr] = useState<[number, number]>([1, 1.5]);
-  const [renderStats, setRenderStats] = useState<{
-    fps: number;
-    calls: number;
-    triangles: number;
-  } | null>(null);
+  const [renderStats, setRenderStats] = useState<RenderStats | null>(null);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   // Plan 1.3 — one floating overlay at a time. The shortcuts popover, the
   // More-controls menu and the FX panel are mutually exclusive: opening one
@@ -205,6 +211,39 @@ export function Visualizer() {
   // Single source of truth for which visual preset is currently active (fixes
   // "multiple presets appear selected" when they share visualizationStyle).
   const [activeVisualPresetId, setActiveVisualPresetId] = useState<string | null>(null);
+  const [activeShaderPreset, setActiveShaderPreset] = useState<ShaderPresetName | undefined>(undefined);
+  const [reactivityGain, setReactivityGain] = useState(1.0);
+  const [frequencyFocus, setFrequencyFocus] = useState<"balanced" | "bass" | "mid" | "treble">("balanced");
+  // Plan 2.2 — the reactivity triad (sensitivity / attack /
+  // release / beat response). Persisted so a reload keeps the
+  // user's tuning; the ShaderVisualizer rAF loop composes it
+  // onto the AudioReactivityProcessor only when it changes.
+  const [reactivityTriad, setReactivityTriad] = useState<ReactivityTriad>(() => {
+    try {
+      const raw = localStorage.getItem(REACTIVITY_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<ReactivityTriad>;
+        const num = (v: unknown, fallback: number): number =>
+          typeof v === "number" && Number.isFinite(v) ? v : fallback;
+        return {
+          sensitivity: num(parsed.sensitivity, DEFAULT_REACTIVITY_TRIAD.sensitivity),
+          attack: num(parsed.attack, DEFAULT_REACTIVITY_TRIAD.attack),
+          release: num(parsed.release, DEFAULT_REACTIVITY_TRIAD.release),
+          beatResponse: num(parsed.beatResponse, DEFAULT_REACTIVITY_TRIAD.beatResponse),
+        };
+      }
+    } catch {
+      // no-op — fall through to defaults
+    }
+    return DEFAULT_REACTIVITY_TRIAD;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(REACTIVITY_STORAGE_KEY, JSON.stringify(reactivityTriad));
+    } catch {
+      // no-op
+    }
+  }, [reactivityTriad]);
   // Monotonic lock so a manual preset click that happens while
   // handleSelectLibraryTrack is still awaiting ensureAnalysis() is not
   // clobbered by the pending auto-apply.
@@ -392,6 +431,9 @@ export function Visualizer() {
   // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio)
   const lastBeatIdxRef = useRef(-1);
   const lastBeatAtRef = useRef(0);
+  // Plan 2.5 — wall-clock of the freshest audio frame, read by
+  // RenderStatsProbe to report the audio→visual pipeline latency.
+  const lastAudioDataAtRef = useRef<number | null>(null);
   // Wall-clock of the last beat frame — latches `beat: true` for throttled
   // state consumers (see BEAT_LATCH_MS). Reset per track with the other detectors.
 
@@ -1498,6 +1540,25 @@ export function Visualizer() {
           </div>
           <div className="viz-btn-group">
             <button
+              onClick={captureFrame}
+              className="viz-icon-btn"
+              aria-label="Capture high-res frame snapshot (PNG)"
+              title="Quick Snapshot (PNG)"
+            >
+              <Camera size={14} />
+            </button>
+            <button
+              onClick={toggleFocusMode}
+              className={`viz-icon-btn ${focusMode ? "active" : ""}`}
+              aria-label={focusMode ? "Exit Stage Mode (F)" : "Enter Fullscreen Stage Mode (F)"}
+              aria-pressed={focusMode}
+              title={focusMode ? "Exit Stage Mode (F)" : "Stage / Focus Mode (F)"}
+            >
+              {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+          </div>
+          <div className="viz-btn-group">
+            <button
               onClick={() => toggleOverlay("shortcuts")}
               className={`viz-icon-btn viz-shortcuts-toggle ${showShortcuts ? "active" : ""}`}
               data-viz-overlay-toggle="shortcuts"
@@ -1922,6 +1983,11 @@ export function Visualizer() {
             <RenderStatsProbe
               enabled={visualsVisible && vizMode === "3d"}
               onStats={setRenderStats}
+              getAudioDataAgeMs={() =>
+                lastAudioDataAtRef.current !== null
+                  ? performance.now() - lastAudioDataAtRef.current
+                  : null
+              }
             />
             <color attach="background" args={[bgColor]} />
             <VisualizerScene
@@ -1933,6 +1999,7 @@ export function Visualizer() {
               onAudioData={(data) => {
                 liveAudioDataRef.current = data;
                 const now = performance.now();
+                lastAudioDataAtRef.current = now;
                 if (data.beat) lastBeatAtRef.current = now;
                 if (now - last3DUiUpdateRef.current > 100) {
                   last3DUiUpdateRef.current = now;
@@ -1976,8 +2043,15 @@ export function Visualizer() {
                   sampleAudio={sampleAudio}
                   analysisData={currentAnalysisData}
                   analyserRef={analyserRef}
+                  reactivity={{
+                    triad: reactivityTriad,
+                    gain: reactivityGain,
+                    focus: frequencyFocus,
+                  }}
                   fxOpen={openOverlay === "fx"}
                   onFxOpenChange={(open) => setOpenOverlay(open ? "fx" : null)}
+                  activePreset={activeShaderPreset}
+                  onPresetChange={setActiveShaderPreset}
                   className="absolute inset-0"
                 />
               )}
@@ -2068,6 +2142,34 @@ export function Visualizer() {
             visible={characterVisible}
             calm={prefersReducedMotion}
           />
+
+          {/* 1-Click Interactive Quick Preset & Vibe Bar */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+            <QuickPresetBar
+              vizMode={vizMode}
+              onVizModeChange={setVizMode}
+              active3DPresetId={activeVisualPresetId}
+              onSelect3DPreset={(id) => handleVisualPresetSelect(id)}
+              canvas2DMode={canvas2DMode}
+              onSelect2DMode={(m) => setCanvas2DMode(m)}
+              activeShaderPreset={activeShaderPreset}
+              onSelectShaderPreset={(sp) => setActiveShaderPreset(sp)}
+            />
+          </div>
+
+          {/* Live Audio Reactivity HUD & Focus Tuning */}
+          <div className="absolute bottom-12 left-3 z-20 pointer-events-auto max-w-xs">
+            <ReactivityHUD
+              audioData={liveAudioData}
+              isPlaying={isPlaying}
+              gain={reactivityGain}
+              onGainChange={setReactivityGain}
+              frequencyFocus={frequencyFocus}
+              onFrequencyFocusChange={setFrequencyFocus}
+              triad={reactivityTriad}
+              onTriadChange={setReactivityTriad}
+            />
+          </div>
         </div>
         {showSettings && (
           <SettingsPanel

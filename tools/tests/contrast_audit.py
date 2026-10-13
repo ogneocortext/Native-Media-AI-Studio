@@ -394,86 +394,88 @@ def main(argv: list[str]) -> int:
     advisories = 0
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        # --- desktop: contrast + axe, both themes ---
-        for theme in themes:
-            ctx = b.new_context(viewport={"width": 1440, "height": 900})
-            ctx.add_init_script(theme_init(theme))
-            pg = ctx.new_page()
-            for route in routes:
-                load(pg, base_url, route)
-                rows = pg.evaluate(TEXT_PROBE_JS)
-                accused = 0
-                unverifiable = 0
-                with open(RESULTS, "a", encoding="utf-8") as f:
-                    for r in rows:
-                        r["route"] = route
-                        r["theme"] = theme
-                        r["verdict"] = verdict(r)
-                        if r["verdict"] == "UNVERIFIABLE":
-                            unverifiable += 1
-                            continue
-                        if apca_advisory(r):
-                            r["apca"] = "CAUTION"
-                            advisories += 1
-                        if r["verdict"] in ("FAIL", "WEAK"):
-                            f.write(json.dumps(stamp(r)) + "\n")
-                            accused += 1
-                            failures += 1
-                n = len(rows)
-                print(f"[{theme}] {route}: {n} nodes, {accused} below AA, "
-                      f"{unverifiable} gradient-backed (axe+VLM covered)",
-                      flush=True)
-                if axe_src:
-                    pg.evaluate(axe_src)
-                    ax = pg.evaluate(AXE_RUN_JS)
-                    if "error" in ax:
-                        print(f"[{theme}] {route}: axe error: {ax['error']}")
-                    else:
-                        nv = len(ax["violations"])
-                        failures += nv
-                        for v in ax["violations"]:
-                            print(f"[{theme}] {route}: AXE {v['impact']} "
-                                  f"{v['id']}: {v['help'][:80]} "
-                                  f"x{v['count']} e.g. {v['nodes'][:2]}")
-                            with open(RESULTS, "a", encoding="utf-8") as f:
-                                f.write(json.dumps(stamp({
-                                    "kind": "axe", "route": route,
-                                    "theme": theme, **v,
-                                })) + "\n")
-                        if not nv:
-                            print(f"[{theme}] {route}: axe clean")
-            ctx.close()
-        # --- mobile 390px: overflow + targets (dark all routes, light /) ---
-        mob_themes: dict[str, list[str]] = {"dark": routes, "light": ["/"]}
-        if "light" not in themes:
-            mob_themes = {"dark": routes}
-        if "dark" not in themes:
-            mob_themes = {"light": ["/"]}
-        for theme, mroutes in mob_themes.items():
-            ctx = b.new_context(viewport={"width": 390, "height": 844},
-                                is_mobile=True, has_touch=True)
-            ctx.add_init_script(theme_init(theme))
-            pg = ctx.new_page()
-            for route in mroutes:
-                load(pg, base_url, route, mobile=True)
-                m = pg.evaluate(MOBILE_PROBE_JS)
-                if m["overflow"] or m["wide"] or m["small"]:
-                    # Bare overflow counts even when no offender element was
-                    # identified — previously that printed OVERFLOW but could
-                    # still exit 0.
-                    failures += (int(bool(m["overflow"]))
-                                 + len(m["wide"]) + len(m["small"]))
-                    print(f"[mob/{theme}] {route}: OVERFLOW vw={m['vw']} "
-                          f"wide={m['wide']} small_targets={m['small']}")
+        try:
+            # --- desktop: contrast + axe, both themes ---
+            for theme in themes:
+                ctx = b.new_context(viewport={"width": 1440, "height": 900})
+                ctx.add_init_script(theme_init(theme))
+                pg = ctx.new_page()
+                for route in routes:
+                    load(pg, base_url, route)
+                    rows = pg.evaluate(TEXT_PROBE_JS)
+                    accused = 0
+                    unverifiable = 0
                     with open(RESULTS, "a", encoding="utf-8") as f:
-                        f.write(json.dumps(stamp({
-                            "kind": "mobile", "route": route,
-                            "theme": theme, **m,
-                        })) + "\n")
-                else:
-                    print(f"[mob/{theme}] {route}: clean")
-            ctx.close()
-        b.close()
+                        for r in rows:
+                            r["route"] = route
+                            r["theme"] = theme
+                            r["verdict"] = verdict(r)
+                            if r["verdict"] == "UNVERIFIABLE":
+                                unverifiable += 1
+                                continue
+                            if apca_advisory(r):
+                                r["apca"] = "CAUTION"
+                                advisories += 1
+                            if r["verdict"] in ("FAIL", "WEAK"):
+                                f.write(json.dumps(stamp(r)) + "\n")
+                                accused += 1
+                                failures += 1
+                    n = len(rows)
+                    print(f"[{theme}] {route}: {n} nodes, {accused} below AA, "
+                          f"{unverifiable} gradient-backed (axe+VLM covered)",
+                          flush=True)
+                    if axe_src:
+                        pg.add_script_tag(content=axe_src)
+                        ax = pg.evaluate(AXE_RUN_JS)
+                        if "error" in ax:
+                            print(f"[{theme}] {route}: axe error: {ax['error']}")
+                        else:
+                            nv = len(ax["violations"])
+                            failures += nv
+                            for v in ax["violations"]:
+                                print(f"[{theme}] {route}: AXE {v['impact']} "
+                                      f"{v['id']}: {v['help'][:80]} "
+                                      f"x{v['count']} e.g. {v['nodes'][:2]}")
+                                with open(RESULTS, "a", encoding="utf-8") as f:
+                                    f.write(json.dumps(stamp({
+                                        "kind": "axe", "route": route,
+                                        "theme": theme, **v,
+                                    })) + "\n")
+                            if not nv:
+                                print(f"[{theme}] {route}: axe clean")
+                ctx.close()
+            # --- mobile 390px: overflow + targets (dark all routes, light /) ---
+            mob_themes: dict[str, list[str]] = {"dark": routes, "light": ["/"]}
+            if "light" not in themes:
+                mob_themes = {"dark": routes}
+            if "dark" not in themes:
+                mob_themes = {"light": ["/"]}
+            for theme, mroutes in mob_themes.items():
+                ctx = b.new_context(viewport={"width": 390, "height": 844},
+                                    is_mobile=True, has_touch=True)
+                ctx.add_init_script(theme_init(theme))
+                pg = ctx.new_page()
+                for route in mroutes:
+                    load(pg, base_url, route, mobile=True)
+                    m = pg.evaluate(MOBILE_PROBE_JS)
+                    if m["overflow"] or m["wide"] or m["small"]:
+                        # Bare overflow counts even when no offender element was
+                        # identified — previously that printed OVERFLOW but could
+                        # still exit 0.
+                        failures += (int(bool(m["overflow"]))
+                                     + len(m["wide"]) + len(m["small"]))
+                        print(f"[mob/{theme}] {route}: OVERFLOW vw={m['vw']} "
+                              f"wide={m['wide']} small_targets={m['small']}")
+                        with open(RESULTS, "a", encoding="utf-8") as f:
+                            f.write(json.dumps(stamp({
+                                "kind": "mobile", "route": route,
+                                "theme": theme, **m,
+                            })) + "\n")
+                    else:
+                        print(f"[mob/{theme}] {route}: clean")
+                ctx.close()
+        finally:
+            b.close()
 
     with open(RESULTS, "a", encoding="utf-8") as f:
         f.write(json.dumps(stamp({

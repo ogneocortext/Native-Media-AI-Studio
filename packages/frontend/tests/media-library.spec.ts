@@ -1,4 +1,4 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 import {
   navigateWithWait,
   mockApiHealth,
@@ -7,6 +7,7 @@ import {
   setupConsoleErrorCapture,
   expectNoConsoleErrors,
   registerRouteHandler,
+  BACKEND_OFFLINE_FILTERS,
 } from './helpers';
 
 const MOCK_OUTPUTS = {
@@ -73,7 +74,7 @@ const MOCK_OUTPUTS = {
 
 const MOCK_RECENT = MOCK_OUTPUTS.outputs.slice(0, 2);
 
-function mockOutputsApi(page: Parameters<typeof registerRouteHandler>[0]) {
+function mockOutputsApi(page: Page) {
   registerRouteHandler(page, async (route: Route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/api/outputs' || pathname.startsWith('/api/outputs?')) {
@@ -112,7 +113,7 @@ test.describe('Media Library', () => {
     mockOutputsApi(page);
     await navigateWithWait(page, '/library');
     await expect(page.locator('main h1').first()).toContainText('Media Library', { timeout: 10_000 });
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('category tabs are present and selectable', async ({ page }) => {
@@ -136,7 +137,7 @@ test.describe('Media Library', () => {
     await imagesTab.click();
     await expect(page.locator('main').first()).toContainText('Media Library', { timeout: 10_000 });
 
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('search input is present and keyboard shortcut hint exists', async ({ page }) => {
@@ -150,7 +151,7 @@ test.describe('Media Library', () => {
     const searchInput = page.locator('input[placeholder*="Search" i], input[placeholder*="Filter" i]').first();
     await expect(searchInput).toBeVisible();
 
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('send to wizard button is present on media items', async ({ page }) => {
@@ -164,6 +165,6 @@ test.describe('Media Library', () => {
     const sendToWizard = page.locator('button[title="Send to Music Video Wizard"]').first();
     await expect(sendToWizard).toBeVisible();
 
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 });

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiHealth } from './helpers';
+import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiHealth, BACKEND_OFFLINE_FILTERS,
+} from './helpers';
 
 test.describe('Sidebar', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,7 +13,7 @@ test.describe('Sidebar', () => {
     await navigateWithWait(page, '/');
     const sidebar = page.locator('aside.sidebar-container');
     await expect(sidebar).toBeVisible();
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('sidebar shows health status', async ({ page }) => {
@@ -26,7 +27,7 @@ test.describe('Sidebar', () => {
     }
     const healthSection = page.locator('aside.sidebar-container .system-status-summary');
     await expect(healthSection).toBeVisible({ timeout: 5_000 });
-    expectNoConsoleErrors(errors, ['502', 'Bad Gateway', 'ECONNREFUSED']);
+    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('sidebar collapse toggle is accessible on desktop', async ({ page }) => {
