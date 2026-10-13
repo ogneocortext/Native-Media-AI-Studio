@@ -47,7 +47,7 @@ export interface StemSeparationResponse {
 
 export interface SeparationQualityOptions {
   mode?: "single" | "hierarchical";
-  segment_size?: number;   // 128 or 256 for 8 GB VRAM
+  segment_size?: number;   // seconds; clamped to the model's trained max
   overlap?: number;        // 0.25–0.75
   denoise?: boolean;
 }

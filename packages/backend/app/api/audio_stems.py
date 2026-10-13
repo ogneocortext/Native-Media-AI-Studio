@@ -76,10 +76,12 @@ async def separate_audio(
 ) -> StemSeparationResponse:
     """Separate an uploaded audio file into isolated stems.
 
-    Quality knobs (Gemini UVR5 guidance, 1070 Ti):
-      - segment_size: 128 or 256 keeps VRAM under ~6.5 GB.
+    Quality knobs (1070 Ti):
+      - segment_size: demucs --segment, in SECONDS. Smaller = less
+        VRAM, more border artifacts. Clamped to the model's trained
+        max (HTDemucs 7.8 s, MDX bags 44 s).
       - overlap: 0.25–0.75 for quality vs speed.
-      - denoise: post-denoise pass.
+      - denoise: accepted but ignored — demucs has no --denoise flag.
       - mode: "single" (one-shot) or "hierarchical" (vocal MDX-Net first, then Demucs residual).
     """
     if not file.filename:

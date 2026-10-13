@@ -70,9 +70,10 @@ interface StemMixerProps {
   }) => void;
   /** Shared EQ presets (optional; defaults to module presets when omitted). */
   eqPresets?: Record<string, EQBand[]>;
-  /** Separation quality mode exposed to the UI (Gemini UVR5 guidance). */
+  /** Separation quality mode exposed to the UI. */
   separationMode?: "single" | "hierarchical";
   onSeparationModeChange?: (mode: "single" | "hierarchical") => void;
+  /** demucs --segment, in SECONDS (clamped to the model's trained max). */
   segmentSize?: number;
   onSegmentSizeChange?: (size: number) => void;
   /** KARRA enhancer knobs (optional; defaults baked into backend). */
@@ -508,7 +509,7 @@ export function StemMixerPanel({
   eqPresets,
   separationMode = "single",
   onSeparationModeChange,
-  segmentSize = 256,
+  segmentSize = 10,
   onSegmentSizeChange,
   vocalExpander = false,
   onVocalExpanderChange,
@@ -624,9 +625,9 @@ export function StemMixerPanel({
               onChange={(e) => onSegmentSizeChange?.(Number(e.target.value))}
               className="text-[11px] bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-white"
             >
-              <option value={128}>128 (fast, 8 GB)</option>
-              <option value={256}>256 (balanced)</option>
-              <option value={512}>512 (pristine)</option>
+              <option value={5}>5 s (fast, 8 GB)</option>
+              <option value={10}>10 s (balanced)</option>
+              <option value={20}>20 s (pristine)</option>
             </select>
           </div>
           <button

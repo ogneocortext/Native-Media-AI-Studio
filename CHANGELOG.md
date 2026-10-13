@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - Demucs 4.1.0 CLI flags (`--segment`, no `--denoise`)
+
+`_separate_demucs` and `_separate_mdx_net` passed `--segment_size` and
+`--denoise` to the demucs CLI. The installed demucs is 4.1.0
+(`requirements-experimental.txt` pins `demucs>=4.1.0`), whose parser
+renamed `--segment_size` to `--segment` and has no `--denoise` flag, so
+any separation request that set `segment_size` or `denoise` died at
+argparse — `demucs.separate: error: unrecognized arguments:
+--segment_size`, exit 2 — and the API surfaced it as
+`Demucs failed: usage: demucs.separate ...`. The Visualizer's Stem
+Mixer sends `segment_size` + `denoise: true` on every separation, so
+this was the common path, not an edge case.
+
+- `--segment_size` → `--segment` in both demucs call sites.
+- `--denoise` is no longer passed: demucs has no such flag in any 4.x
+  release. `SeparationOptions.denoise` stays in the API contract
+  (frontend sends it) and is now logged-and-ignored by the backend.
+- `test_demucs_argv_is_built_with_the_expected_flags` asserted
+  `"--denoise" in argv` — it pinned the broken contract; it now passes
+  `segment_size=256` and asserts `--segment 256` and the absence of
+  both old spellings.
+- Docs: `stem-system-evaluation-2026.md` implementation note and the
+  `/api/audio/separate` docstring updated to the 4.1.0 flag names.
+
+Verified by reproducing the failure (`unrecognized arguments:
+--segment_size`, exit 2) before the fix and a real demucs 4.1.0 run
+on the 10 s test fixture after it (4 stems, exit 0).
+
 ### Changed - Ollama 0.40.1 (Windows serving fixes, no surface change)
 
 The local server and CLI moved 0.40.0 → 0.40.1 (shipped 2026-10-07;
