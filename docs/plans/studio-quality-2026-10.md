@@ -254,8 +254,16 @@ Frequency→color verified, not built: `pulse.tsx`'s bars already implement
 the §2 convention (bass → warm red 0.02, mid → green 0.33, treble → blue
 0.58); the remaining styles key hue by *energy* (`energyHue`, the shipped
 Q5 Tier 1 axis), which is a different documented axis, not a violation.
-Still open per the Phase 2 exit rule: the before/after captures on a
-dense / sparse / acoustic track (browser vision work, not code).
+Phase 2 exit rule's before/after captures are done for 2.6: geometric
+style on the "The Last" track (intro 0–68 s, so a quiet verse moment),
+captured in-browser with the gamma change reverted vs applied
+(`packages/frontend/tests/browser/out/2.6-{before,after}-geometric-verse.png`,
+agent screenshots, gitignored). Measured luma over the canvas region:
+quiet-decile +2.01, median unchanged, mean +1.97, **clipped-white pixels
+identical (0.5281% — no new clipping)**, crushed-black pixels 55.2% →
+53.7%. Direction matches the design — quiet detail lifted, the loud half
+not clipped. Caveat: the two frames are 0.27 s apart in a live animated
+scene, so the deltas are directional evidence, not a pure A/B.
 
 ### 2.7 Wire the motion vocabulary (completes 2.4)
 

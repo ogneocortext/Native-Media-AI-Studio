@@ -130,19 +130,28 @@ frame index instead (the documented clock-hijack shim). Map beat events to
   clock is active the loop takes delta/elapsed from the frame index, live
   frames are quiesced, and per-frame randomness (handheld walk, beat shake,
   particle wrap) draws from a seeded PRNG instead of `Math.random`.
-  `resetDeterministicState()` restores shake, camera blend, section override,
-  light palette, character mixers and the authored particle layout, so frame
-  0 starts clean. `services/videoExport.ts` holds the pure pieces —
-  `planExport` (exactly `round(duration·fps)` frames, frame `i` at `i/fps`)
-  and `createSeededRandom` (mulberry32) — pinned by 10 unit tests. The mux
-  reuses the shader lane's `frameAccurateExport.ts` (generic canvas →
-  mediabunny) rather than a duplicate; UI is a "Export 10 s MP4" button in
-  `StudioHeader`. **Verified in-browser:** button renders, click runs the
-  plan, and a headless Chromium whose H.264 encoder rejects >640×360 gets
-  the honest "needs WebCodecs" toast (the shader-lane exporter carries the
-  identical constraint). The full 300-frame encode needs a non-headless
-  browser; byte-comparability is covered by the seeded-RNG + virtual-clock
-  contract, not yet measured end-to-end on the owner's machine.
+   `resetDeterministicState()` restores shake, camera blend, section override,
+   light palette, character mixers and the authored particle layout, so frame
+   0 starts clean. `services/videoExport.ts` holds the pure pieces —
+   `planExport` (exactly `round(duration·fps)` frames, frame `i` at `i/fps`)
+   and `createSeededRandom` (mulberry32) — pinned by 10 unit tests. The mux
+   reuses the shader lane's `frameAccurateExport.ts` (generic canvas →
+   mediabunny) rather than a duplicate; UI is a "Export 10 s MP4" button in
+   `StudioHeader`. **Verified in-browser 2026-10-13** at 480×360, the largest
+   size this headless Chromium's H.264 encoder accepts (it rejects >640×480 —
+   the same constraint the shader-lane exporter carries, and the reason the
+   first attempt reported the honest "needs WebCodecs" toast): `ffprobe` on
+   two runs — exactly **300 frames, duration 10.000000 s, 30/1 fps**; a
+   byte-diff of the two runs differs in **exactly 6 bytes**, the
+   `mvhd`/`tkhd`/`mdhd` creation-time fields (`0x5e`→`0x65`, the 7-second
+   wall-clock gap between the runs). Frame payloads are byte-identical, so
+   the accept criterion is met. Reaching it took one fix: the live rAF loop
+   originally quiesced only *per captured frame*, so `frameCountRef` (which
+   gates the particle update on its parity) advanced between captures and
+   made every other export frame's particles depend on how many live frames
+   interleaved — the quiesce is now per-export
+   (`beginDeterministicRun`/`endDeterministicRun`) and the reset pins the
+   counter to 0.
 
 ## Suggested order
 

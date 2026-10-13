@@ -177,11 +177,15 @@ playhead. Browser-verified: the HUD beat dot fires at the track's BPM.
 (`renderAtTime` + quiesced live frames + seeded PRNG for per-frame
 randomness), `services/videoExport.ts` (pure `planExport` + mulberry32,
 10 tests), and an "Export 10 s MP4" button in `StudioHeader`. The mux
-reuses the shader lane's `frameAccurateExport.ts`. Browser-verified: UI
-path + graceful "needs WebCodecs" fallback (this headless Chromium's H.264
-encoder rejects >640×360 — the shader exporter carries the same
-constraint). The full 300-frame encode and byte-comparability check need a
-non-headless browser.
+reuses the shader lane's `frameAccurateExport.ts`. **Verified in-browser
+at 480×360 (the largest size this headless Chromium's encoder accepts):**
+`ffprobe` on two runs — exactly 300 frames, 10.000000 s @ 30 fps; the two
+files differ in exactly **6 bytes** — the `mvhd`/`tkhd`/`mdhd`
+creation-time fields only. One determinism leak was found and fixed on
+the way: the live loop originally quiesced per captured frame, so
+`frameCountRef` (the particle-update parity gate) advanced between
+captures; it is now a per-export quiesce with the counter reset. **The
+F5 accept criterion is met and measured.**
 
 ### Step 4 — Remix / mashup (gated)
 Plan is **Proposed** and untouched — **do not build until the owner
@@ -242,7 +246,10 @@ entry point and controls.
   `cameraTransitions.beginCameraTransition`'s new `anchor` parameter. The
   studio audio fix is load-bearing, not incidental: without a real audio
   element the section playhead is null and the driver is inert by design.
-- Still open across both: the browser accept checks (≥3-section track in the
-  studio, three-track before/after captures for the visualizer styles) and the
-  F4 `getCurrentBeat` stub. — *F4's stub and the section-track check are now
-  closed (above); the visualizer three-track captures remain.*
+- Still open across both: ~~the browser accept checks~~ — **done for 2.6
+  (2026-10-13):** before/after captures of the geometric style on "The
+  Last"'s quiet verse, measured luma +2.01 at the quiet decile, median
+  unchanged, clipped-white identical (0.5281%), crushed blacks 55.2% →
+  53.7% (see studio-quality build notes). F4's stub and the section-track
+  check are closed (above); the D24 three-track sweep for the *other*
+  styles (sparse/acoustic tracks) remains browser work.
