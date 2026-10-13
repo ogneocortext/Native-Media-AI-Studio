@@ -66,6 +66,15 @@ export interface UseThreeSceneResult {
   setRenderPlaying: (v: boolean) => void;
   setBeatActive: (v: boolean) => void;
   setSceneLoading: (v: boolean) => void;
+  /** F5: render exactly one frame at virtual time `tSec` with
+   *  `dtSec` as its step. The canvas holds that frame when this
+   *  returns — no rAF, no wall clock. Null before the scene is
+   *  built (the call is a safe no-op until then). */
+  renderAtTime: (tSec: number, dtSec: number) => void;
+  /** F5: reset every stateful driver so a deterministic export
+   *  starts from a known state (seed, shake, camera blend, section
+   *  override, light palette, character mixers, particle layout). */
+  resetDeterministicState: () => void;
 }
 
 export interface UseObjectManagerOptions {

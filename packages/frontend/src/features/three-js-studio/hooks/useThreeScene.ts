@@ -19,6 +19,7 @@ import {
 } from "../services/cameraTransitions";
 import { beatPhraseScale } from "../services/beatPhrasing";
 import { SECTION_WIPE_SEC, type SectionMotionProfile } from "../services/sectionDriver";
+import { createSeededRandom } from "../services/videoExport";
 import type { SectionDriverHandle } from "./useTrackMetadata";
 import type { UseThreeSceneOptions, UseThreeSceneResult } from "./types";
 
@@ -124,6 +125,18 @@ export function useThreeScene({
   const sectionLightsRef = useRef<
     Array<{ light: THREE.Light; baseColor: THREE.Color }> | null
   >(null);
+  // F5: deterministic-export clock hijack. While `active`, the loop
+  // takes delta/elapsed from the export driver instead of the
+  // THREE.Timer; `quiesce` stops live rAF frames so no state mutates
+  // between two captured frames.
+  const exportClockRef = useRef({ active: false, t: 0, dt: 0 });
+  const exportQuiesceRef = useRef(false);
+  const frameRunnerRef = useRef<(() => void) | null>(null);
+  const renderAtTimeRef = useRef<(tSec: number, dtSec: number) => void>(() => {});
+  const resetDeterministicRef = useRef<() => void>(() => {});
+  // Particle layout at scene build, so an export can start from a
+  // known state instead of wherever the live drift left them.
+  const initialParticlePositionsRef = useRef<Float32Array | null>(null);
   const onSelectObjectRef = useRef(onSelectObject);
   const pointerHandlersRef = useRef<{
     down: (event: PointerEvent) => void;
@@ -458,6 +471,10 @@ export function useThreeScene({
       );
       scene.add(particles);
       particlesRef.current = particles;
+      // F5: snapshot the authored layout so a deterministic export can
+      // start from a known state rather than wherever live drift left
+      // the particles.
+      initialParticlePositionsRef.current = new Float32Array(pArr);
       for (const obj of objectsRef.current) {
         const mesh = await createMeshForObject(obj, THREE);
         scene.add(mesh);
@@ -466,15 +483,38 @@ export function useThreeScene({
       clockRef.current = new THREE.Timer();
       clockRef.current.connect(document);
 
-      const animate = () => {
-        animationRef.current = requestAnimationFrame(animate);
+      // F5: seeded PRNG for export frames. The handheld walk and the
+      // beat shake draw randomness per frame, so two exports of the
+      // same scene would differ frame-for-frame without this. Live
+      // frames keep Math.random; export frames advance a fixed seed
+      // (reset by `resetDeterministicRef`).
+      let exportRandom = createSeededRandom();
+      const nextRandom = () =>
+        exportQuiesceRef.current ? exportRandom() : Math.random();
+      // The frame body, shared by the live rAF driver and the export
+      // path's `renderAtTime`. When the export clock is active the
+      // body takes delta/elapsed from the driver, so a frame's
+      // content is a pure function of its index — never the wall
+      // clock.
+      const runFrame = () => {
         const clock = clockRef.current;
         if (!clock) return;
-        clock.update();
-        const delta = clock.getDelta();
-        const elapsed = clock.getElapsed();
+        const ec = exportClockRef.current;
+        let delta: number;
+        let elapsed: number;
+        if (ec.active) {
+          delta = ec.dt;
+          elapsed = ec.t;
+        } else {
+          clock.update();
+          delta = clock.getDelta();
+          elapsed = clock.getElapsed();
+        }
         controls.update();
-        if (document.hidden) {
+        // Live frames skip motion while the tab is hidden; an export
+        // frame must always render (and the export loop never waits
+        // on rAF, so backgrounding drops nothing).
+        if (document.hidden && !ec.active) {
           controls.update();
           (finalComposerRef.current || composerRef.current)?.render();
           return;
@@ -638,7 +678,7 @@ export function useThreeScene({
             (1 + audioBass * 1.5);
           for (let i = 1; i < pos.length; i += 3) {
             pos[i] += delta * spd * 0.8;
-            if (pos[i] > particleConfigRef.current.spread) pos[i] = Math.random() * 0.5;
+            if (pos[i] > particleConfigRef.current.spread) pos[i] = nextRandom() * 0.5;
           }
           (particlesRef.current.geometry.attributes.position as THREE.BufferAttribute).needsUpdate =
             true;
@@ -650,8 +690,8 @@ export function useThreeScene({
         // that section is active.
         const cm = sectionCameraModeRef.current ?? cameraModeRef.current;
         const ir = renderPlayingRef.current;
-        const sx = (Math.random() - 0.5) * shakeRef.current;
-        const sy = (Math.random() - 0.5) * shakeRef.current;
+        const sx = (nextRandom() - 0.5) * shakeRef.current;
+        const sy = (nextRandom() - 0.5) * shakeRef.current;
         if (ir && cm !== "static") {
           // F1: a mode switch begins an eased blend from
           // the live pose onto the new mode's trajectory
@@ -677,8 +717,8 @@ export function useThreeScene({
           // the live position before the pose is sampled,
           // so the walk persists across blends.
           if (cm === "handheld") {
-            camera.position.x += (Math.random() - 0.5) * 0.02;
-            camera.position.y += (Math.random() - 0.5) * 0.02;
+            camera.position.x += (nextRandom() - 0.5) * 0.02;
+            camera.position.y += (nextRandom() - 0.5) * 0.02;
           }
           const targetPose = computeModePose({
             mode: cm,
@@ -785,6 +825,61 @@ export function useThreeScene({
             }
           });
         }
+      };
+
+      // F5: expose the frame body to the export driver, the reset that
+      // makes an export a pure function of its frame indices, and the
+      // live rAF driver that quiesces while a manual frame renders.
+      frameRunnerRef.current = runFrame;
+      renderAtTimeRef.current = (tSec: number, dtSec: number) => {
+        const ec = exportClockRef.current;
+        exportQuiesceRef.current = true;
+        ec.active = true;
+        ec.t = tSec;
+        ec.dt = dtSec;
+        try {
+          runFrame();
+        } finally {
+          ec.active = false;
+          exportQuiesceRef.current = false;
+        }
+      };
+      resetDeterministicRef.current = () => {
+        exportRandom = createSeededRandom();
+        shakeRef.current = 0;
+        cameraTransitionRef.current = null;
+        sectionCameraModeRef.current = null;
+        if (sectionLightsRef.current) {
+          for (const { light, baseColor } of sectionLightsRef.current) {
+            light.color.copy(baseColor);
+          }
+        }
+        characterMixersRef.current.forEach((mixer: any) => {
+          try {
+            mixer.setTime?.(0);
+          } catch {
+            /* a mixer without a loaded clip is fine to leave alone */
+          }
+        });
+        const particles = particlesRef.current;
+        const pos = particles?.geometry.attributes.position.array as
+          | Float32Array
+          | undefined;
+        const init = initialParticlePositionsRef.current;
+        if (particles && pos && init && pos.length === init.length) {
+          pos.set(init);
+          (particles.geometry.attributes.position as THREE.BufferAttribute).needsUpdate =
+            true;
+        }
+      };
+
+      const animate = () => {
+        animationRef.current = requestAnimationFrame(animate);
+        // F5: while an export frame is rendered manually, live frames
+        // must not run — they would mutate state between two captured
+        // frames and break determinism.
+        if (exportQuiesceRef.current) return;
+        runFrame();
       };
       animate();
       window.addEventListener("resize", onResize);
@@ -1020,5 +1115,10 @@ export function useThreeScene({
     setRenderPlaying,
     setBeatActive,
     setSceneLoading,
+    // F5: the export entry points. Both are ref-backed, so they are
+    // safe no-ops before the scene effect runs.
+    renderAtTime: (tSec: number, dtSec: number) =>
+      renderAtTimeRef.current(tSec, dtSec),
+    resetDeterministicState: () => resetDeterministicRef.current(),
   };
 }

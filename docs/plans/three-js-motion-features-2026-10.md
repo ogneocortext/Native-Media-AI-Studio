@@ -1,8 +1,7 @@
 # Three.js Studio Motion Features Plan — Oct 2026
 
-**Status:** In progress 2026-10-13 — F1, F3, F4 (service), F2 landed;
-F5 (export) partially covered by the visualizer's `frameAccurateExport.ts`.
-Not every feature is browser-verified on Windows yet (see per-feature notes).
+**Status:** In progress 2026-10-13 — F1–F5 landed; F5's full-frame encode
+awaits a non-headless browser (see per-feature notes).
 **Owner:** repo owner (implementation: local coding agent)
 **Source research:** [[three-js-render-motion-2026]] (motion craft, export
 patterns), [[visualization-effects]] §11.7 (selective response)
@@ -93,6 +92,19 @@ spine from the research doc, replacing pure decay.
   downbeat and the landing holds still (no post-beat wobble); toggleable per
   template.
 - **Files:** `hooks/useThreeScene.ts` (L448–463), `sceneTemplates.ts`.
+- **Status: Done (2026-10-13, browser-verified).** `beatPhrasing.ts` +
+  `useThreeScene.ts` wiring + the per-template `beatPhrase` opt-in were
+  already merged; the missing piece was the beat *source* —
+  `ThreeJSStudio.tsx` passed a never-ready stub, so every beat-driven path
+  was dormant. It now passes the real beat getter (`useBeatTimeline`'s
+  `getCurrentBeat`, surfaced by `useTrackManager`) through a late-bound ref
+  (the scene engine is built before the track manager — hook order),
+  sampled at the audio playhead since beat times are track-relative, with
+  a not-ready fallback when no analysis exists. **Verified in-browser**
+  (`c0ac669c_…The Last-Original-V1.m4a`, 130 BPM): the HUD beat dot
+  fires ~10 edges over 5.6 s at the track's BPM — impossible with the
+  stub. The phrase-pullback visual check on a click track still needs a
+  dedicated run.
 
 ### F5 — Deterministic frame-accurate export
 
@@ -112,6 +124,25 @@ frame index instead (the documented clock-hijack shim). Map beat events to
 - **Files:** `hooks/useThreeScene.ts`, new `services/videoExport.ts`.
 - **Note:** this is the largest item; F1–F4 should land first so the export
   captures the improved motion.
+- **Status: Done (2026-10-13), studio lane.** `useThreeScene.ts` gained the
+  clock hijack: the frame body is extracted into `runFrame`, shared by the
+  live rAF driver and a new `renderAtTime(tSec, dtSec)` — while the export
+  clock is active the loop takes delta/elapsed from the frame index, live
+  frames are quiesced, and per-frame randomness (handheld walk, beat shake,
+  particle wrap) draws from a seeded PRNG instead of `Math.random`.
+  `resetDeterministicState()` restores shake, camera blend, section override,
+  light palette, character mixers and the authored particle layout, so frame
+  0 starts clean. `services/videoExport.ts` holds the pure pieces —
+  `planExport` (exactly `round(duration·fps)` frames, frame `i` at `i/fps`)
+  and `createSeededRandom` (mulberry32) — pinned by 10 unit tests. The mux
+  reuses the shader lane's `frameAccurateExport.ts` (generic canvas →
+  mediabunny) rather than a duplicate; UI is a "Export 10 s MP4" button in
+  `StudioHeader`. **Verified in-browser:** button renders, click runs the
+  plan, and a headless Chromium whose H.264 encoder rejects >640×360 gets
+  the honest "needs WebCodecs" toast (the shader-lane exporter carries the
+  identical constraint). The full 300-frame encode needs a non-headless
+  browser; byte-comparability is covered by the seeded-RNG + virtual-clock
+  contract, not yet measured end-to-end on the owner's machine.
 
 ## Suggested order
 

@@ -288,3 +288,16 @@ effect budget and its runtime cap), and `motion/` (the motion
   shared *read-only* config objects: `getAllSectionPresets` returns a fresh
   top-level map but shares the per-section values (as does `getSectionPreset`),
   so tests override a top-level key rather than mutate a value in place.
+
+  Also covered since (motion + reactivity lane, 2026-10-13):
+  `viz-styles/vizMotion.test.ts` (`gammaDrive`'s 2.2 curve — endpoints, the
+  quiet-lift > loud-lift asymmetry, monotonicity, NaN/out-of-range guards),
+  `audioReactivityProcessor.test.ts` (triad composition, asymmetric
+  attack/release smoothing, sensitivity scaling, plan 2.8's beat
+  anticipation), `reactivityGenrePresets.test.ts`, and in the three-js-studio:
+  `sectionDriver.test.ts` (section lookup, gap/boundary semantics, the
+  cut-vs-wipe decision by beat alignment), `videoExport.test.ts` (the exact
+  frame grid — `round(duration·fps)`, frame `i` at `i/fps` — and the seeded
+  PRNG's repeatability/uniformity), plus two new `cameraTransitions.test.ts`
+  cases pinning the default `travel-balanced` anchor and an explicit
+  `settle-soft` wipe.

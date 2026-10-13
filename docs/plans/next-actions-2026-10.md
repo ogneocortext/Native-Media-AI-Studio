@@ -162,10 +162,26 @@ particle speed, light-palette hue rotation), `sectionDriven` template opt-in.
 Wiring it also completed the studio's previously dead audio path: the engine
 owns real `audioElementRef`/`analyserRef` refs and `ThreeJSStudio.tsx` now
 renders a hidden `<audio>` for the selected track instead of passing dummy
-`{current: null}` refs. Browser verification of a ≥3-section track is the
-remaining accept item. F4/F5 unchanged: F4's `getCurrentBeat` is still
-stubbed in the studio (beat-phrased path dormant); F5's shader-lane
-`frameAccurateExport.ts` exists, studio-lane virtual-time export still open.
+`{current: null}` refs. **Browser-verified on Windows**: on
+`c0ac669c_…The Last-Original-V1.m4a` (130 BPM, 7 sections) the dolly camera's
+smooth z-glide stops and switches to the handheld random walk at exactly the
+68.61 s intro→chorus boundary.
+
+**F4 landed** — the studio's `getCurrentBeat` was a never-ready stub, so
+every beat-driven path (including `beatPhrasing.ts`'s anticipation → pop →
+hold) was dormant. `ThreeJSStudio.tsx` now passes the real
+`useBeatTimeline` getter through a late-bound ref, sampled at the audio
+playhead. Browser-verified: the HUD beat dot fires at the track's BPM.
+
+**F5 landed (studio lane)** — clock hijack in `useThreeScene.ts`
+(`renderAtTime` + quiesced live frames + seeded PRNG for per-frame
+randomness), `services/videoExport.ts` (pure `planExport` + mulberry32,
+10 tests), and an "Export 10 s MP4" button in `StudioHeader`. The mux
+reuses the shader lane's `frameAccurateExport.ts`. Browser-verified: UI
+path + graceful "needs WebCodecs" fallback (this headless Chromium's H.264
+encoder rejects >640×360 — the shader exporter carries the same
+constraint). The full 300-frame encode and byte-comparability check need a
+non-headless browser.
 
 ### Step 4 — Remix / mashup (gated)
 Plan is **Proposed** and untouched — **do not build until the owner
@@ -185,6 +201,30 @@ entry point and controls.
 
 ## Build notes
 
+**2026-10-13 (F4 + F5, Windows gates green: all nine; browser-verified):**
+
+- **F4** — the beat *source* was the gap, not the service. `useThreeScene`
+  received a never-ready `getCurrentBeat` stub from `ThreeJSStudio.tsx`
+  because the scene engine is built before `useTrackManager` (hook order).
+  Fixed with a late-bound ref: the engine samples the real
+  `useBeatTimeline` getter at the audio playhead (beat times are
+  track-relative), falling back to the render clock before an audio element
+  exists and to not-ready when the track has no analysis. Verified in the
+  browser: HUD beat dot edges at 130 BPM on a 7-section track.
+- **F5** — the loop body is now a shared `runFrame`; the live rAF driver
+  and the export's `renderAtTime` both call it, with the export clock
+  (index-driven delta/elapsed) winning while active and live frames
+  quiesced so nothing mutates between captures. Determinism has two more
+  enemies than the clock: per-frame `Math.random` (handheld walk, beat
+  shake, particle wrap) and accumulated state — both handled by the seeded
+  PRNG (`videoExport.ts`'s mulberry32) and `resetDeterministicState()`
+  (shake, camera blend, section override, light palette, mixers, authored
+  particle layout). The mux reuses the visualizer's
+  `frameAccurateExport.ts` instead of a second encoder. Browser-verified:
+  button + plan + graceful fallback; the >640×360 H.264 rejection in this
+  headless Chromium means the full 300-frame encode is still owed a
+  non-headless run.
+
 **2026-10-13 (2.6 remainder + F2, Windows gates green: type / lint / unit):**
 
 - **2.6** — `gammaDrive(x, γ=2.2)` in `viz-styles/vizMotion.ts` gamma-corrects
@@ -195,13 +235,14 @@ entry point and controls.
   implement §2's convention (bass warm / mid green / treble blue); other styles
   key hue by energy (`energyHue`), a different shipped axis. 9 new
   `vizMotion.test.ts` cases.
-- **F2** — as Step 3 above. `sectionDriver.ts` is pure (map, boundary scan,
-  cut-vs-wipe by beat alignment within 0.06 s), so the accept behavior is
-  unit-testable without a browser; the loop wiring (cut clears the F1
-  transition for a hard jump, wipe begins a 0.9 s `settle-soft` blend) reuses
+- **F2** — `sectionDriver.ts` is pure (map, boundary scan, cut-vs-wipe by
+  beat alignment within 0.06 s), so the accept behavior is unit-testable
+  without a browser; the loop wiring (cut clears the F1 transition for a
+  hard jump, wipe begins a 0.9 s `settle-soft` blend) reuses
   `cameraTransitions.beginCameraTransition`'s new `anchor` parameter. The
   studio audio fix is load-bearing, not incidental: without a real audio
   element the section playhead is null and the driver is inert by design.
 - Still open across both: the browser accept checks (≥3-section track in the
   studio, three-track before/after captures for the visualizer styles) and the
-  F4 `getCurrentBeat` stub.
+  F4 `getCurrentBeat` stub. — *F4's stub and the section-track check are now
+  closed (above); the visualizer three-track captures remain.*

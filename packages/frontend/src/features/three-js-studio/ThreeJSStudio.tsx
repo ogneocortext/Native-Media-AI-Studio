@@ -20,6 +20,8 @@ import { useThreeScene } from "./hooks/useThreeScene";
 import { useObjectManager } from "./hooks/useObjectManager";
 import { useTrackManager } from "./hooks/useTrackManager";
 import { useSectionDriver } from "./hooks/useTrackMetadata";
+import { planExport } from "./services/videoExport";
+import { exportFramesDeterministic } from "../visualizer/services/frameAccurateExport";
 
 export function ThreeJSStudio() {
   const [searchParams] = useSearchParams();
@@ -58,6 +60,8 @@ export function ThreeJSStudio() {
   >({});
   const [selectedTrack, setSelectedTrack] = useState<string>("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [videoExportBusy, setVideoExportBusy] = useState(false);
+  const [videoExportLabel, setVideoExportLabel] = useState("");
   const [beatActive, setBeatActive] = useState(false);
   const [animationTime, setAnimationTime] = useState(0);
   const [animationDuration, _setAnimationDuration] = useState(30);
@@ -85,6 +89,21 @@ export function ThreeJSStudio() {
   // beatAnalysis is read via ref (set by useTrackManager below) to avoid
   // hook-order conflict with useObjectManager which depends on useTrackManager.
   const beatAnalysisRef = useRef<any>(null);
+  // F4: the scene engine is built before useTrackManager (hook order),
+  // but its beat source is the track manager's `getCurrentBeat`. These
+  // late-bound refs let the scene read the real beat timeline — the
+  // previous never-ready stub left every beat-driven path (F4's
+  // beat-phrased pulse) dormant.
+  const sceneGetBeatRef = useRef<((elapsedSec: number) => any) | null>(null);
+  const scenePlayheadRef = useRef<(() => number | null) | null>(null);
+  // Set from useTrackManager's beat timeline below (hook order).
+  const beatTimelineRef = useRef<((elapsedSec: number) => any) | null>(null);
+  const BEAT_NOT_READY = {
+    ready: false,
+    isOnBeat: false,
+    timeSinceLastBeat: 0,
+    beatWindowSec: 0,
+  };
   // F2: section-aware motion driver. Reads the analysis through the ref
   // above (it lands after the scene engine is built) and is created here
   // so the scene engine can consume it on its first frame.
@@ -111,6 +130,8 @@ export function ThreeJSStudio() {
     analyserRef,
     audioSourceRef,
     audioElementRef,
+    renderAtTime,
+    resetDeterministicState,
   } = useThreeScene({
     canvasRef,
     containerRef,
@@ -130,15 +151,24 @@ export function ThreeJSStudio() {
     animationDuration,
     keyframeTracks,
     createMeshForObject,
-    getCurrentBeat: () => ({
-      ready: false,
-      isOnBeat: false,
-      timeSinceLastBeat: 0,
-      beatWindowSec: 0,
-    }),
     generatedSceneUpdateRef,
     onAnimationTimeChange: setAnimationTime,
     onSelectObject: setSelectedObject,
+    // F4: real beat timeline, sampled at the audio playhead (beat
+    // times are track-relative); falls back to the render clock
+    // before any audio element exists, and to not-ready when the
+    // track manager has no analysis yet.
+    getCurrentBeat: (elapsed: number) => {
+      const getBeat = sceneGetBeatRef.current;
+      if (!getBeat) return BEAT_NOT_READY;
+      const playhead = scenePlayheadRef.current?.();
+      const t = playhead ?? elapsed;
+      try {
+        return getBeat(t);
+      } catch {
+        return BEAT_NOT_READY;
+      }
+    },
     // F2: null while the active template opts out — the loop then
     // drives the template's cameraMode/beatPunch directly.
     sectionDriver: activeTemplate?.sectionDriven !== false ? sectionDriver : null,
@@ -146,6 +176,13 @@ export function ThreeJSStudio() {
     // (no element yet / not playing) keeps the driver inert.
     getPlayheadSec: () => audioElementRef.current?.currentTime ?? null,
   });
+
+  // F4: bind the scene's late-bound beat source + playhead to the
+  // real track timeline. The engine's audioElementRef is the same
+  // object the hidden <audio> binds to, so the playhead reads live.
+  scenePlayheadRef.current = () =>
+    audioElementRef.current ? audioElementRef.current.currentTime : null;
+  sceneGetBeatRef.current = beatTimelineRef.current;
 
   // Sync beatActive from scene engine
   useEffect(() => {
@@ -195,11 +232,59 @@ export function ThreeJSStudio() {
     [addObject],
   );
 
+  // F5: deterministic video export. The frame grid is planned up front
+  // (exactly round(duration*fps) frames, frame i at i/fps) and each
+  // frame is rendered through the engine's virtual clock — no rAF, no
+  // wall clock — so a backgrounded tab drops nothing and two exports
+  // of the same scene agree.
+  const handleExportVideo = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const plan = planExport(10, 30);
+    setVideoExportBusy(true);
+    setVideoExportLabel(`0/${plan.totalFrames}`);
+    try {
+      const buffer = await exportFramesDeterministic({
+        canvas,
+        fps: plan.fps,
+        durationSec: plan.durationSec,
+        renderAtTime: (t) => renderAtTime(t, plan.dtSec),
+        beginDeterministicRun: () => resetDeterministicState(),
+        onProgress: (done) => setVideoExportLabel(`${done}/${plan.totalFrames}`),
+      });
+      if (!buffer) {
+        showToast(
+          "Video export needs WebCodecs (Chrome/Edge). The frame PNG button still works.",
+          { type: "error", duration: 6000 },
+        );
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([buffer], { type: "video/mp4" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `three-studio-${plan.totalFrames}f-${plan.fps}fps.mp4`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${plan.totalFrames} frames (${plan.durationSec}s @ ${plan.fps} fps)`, {
+        type: "success",
+      });
+    } catch (err) {
+      showToast(`Video export failed: ${(err as Error).message}`, {
+        type: "error",
+        duration: 6000,
+      });
+    } finally {
+      setVideoExportBusy(false);
+      setVideoExportLabel("");
+    }
+  }, [renderAtTime, resetDeterministicState]);
+
   // ---- Track manager ----
   const {
     beatAnalysis: beatAnalysisValue,
     beatLoading,
     beatError,
+    getCurrentBeat: getCurrentBeatValue,
     handleSelectTrack,
     toggleAudio,
   } = useTrackManager({
@@ -227,6 +312,9 @@ export function ThreeJSStudio() {
 
   // Keep beatAnalysisRef in sync with latest value from useTrackManager
   beatAnalysisRef.current = beatAnalysisValue;
+  // F4: hand the real beat timeline to the scene engine (stable
+  // useCallback — safe to reassign each render).
+  beatTimelineRef.current = getCurrentBeatValue;
 
   // ---- Effects that stay in main component ----
 
@@ -308,6 +396,9 @@ export function ThreeJSStudio() {
         libraryTracks={libraryTracks}
         trackMetadata={trackMetadata}
         onExportFrame={exportFrame}
+        onExportVideo={handleExportVideo}
+        videoExportBusy={videoExportBusy}
+        videoExportLabel={videoExportLabel}
         onToggleCodePanel={() => setCodePanelOpen((v) => !v)}
         onTogglePerformanceMode={() => setPerformanceMode((v) => !v)}
         onToggleFocusMode={toggleFocusMode}

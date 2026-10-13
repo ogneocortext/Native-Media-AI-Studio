@@ -4,6 +4,7 @@ import {
   ChevronUp,
   Download,
   FileCode,
+  Film,
   Maximize2,
   Minimize2,
   Music,
@@ -24,6 +25,12 @@ interface StudioHeaderProps {
   libraryTracks: Array<{ filename: string; optionLabel: string }>;
   trackMetadata: Record<string, { bpm?: number; duration?: number }>;
   onExportFrame: () => void;
+  /** F5: deterministic MP4 export (exact frame grid, virtual clock). */
+  onExportVideo: () => void;
+  /** True while a video export is rendering its frames. */
+  videoExportBusy?: boolean;
+  /** Progress label, e.g. "120/300". */
+  videoExportLabel?: string;
   onToggleCodePanel: () => void;
   onTogglePerformanceMode: () => void;
   onToggleFocusMode: () => void;
@@ -45,6 +52,9 @@ export function StudioHeader({
   libraryTracks,
   trackMetadata,
   onExportFrame,
+  onExportVideo,
+  videoExportBusy = false,
+  videoExportLabel = "",
   onToggleCodePanel,
   onTogglePerformanceMode,
   onToggleFocusMode,
@@ -164,6 +174,23 @@ export function StudioHeader({
           aria-label="Export frame as PNG"
         >
           <Download size={14} />
+        </button>
+        <button
+          onClick={onExportVideo}
+          disabled={videoExportBusy}
+          className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${
+            videoExportBusy
+              ? "bg-purple-600/50 text-white/60 cursor-wait"
+              : "bg-white/5 hover:bg-white/10"
+          }`}
+          title={
+            videoExportBusy
+              ? `Exporting video — ${videoExportLabel}`
+              : "Export 10 s MP4 (deterministic, 300 frames @ 30 fps)"
+          }
+          aria-label="Export 10 second MP4 video"
+        >
+          <Film size={14} />
         </button>
         <button
           onClick={onToggleCodePanel}
