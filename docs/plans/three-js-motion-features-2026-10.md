@@ -1,6 +1,8 @@
 # Three.js Studio Motion Features Plan — Oct 2026
 
-**Status:** Proposed 2026-10-06 — not yet approved or started
+**Status:** In progress 2026-10-13 — F1, F3, F4 (service), F2 landed;
+F5 (export) partially covered by the visualizer's `frameAccurateExport.ts`.
+Not every feature is browser-verified on Windows yet (see per-feature notes).
 **Owner:** repo owner (implementation: local coding agent)
 **Source research:** [[three-js-render-motion-2026]] (motion craft, export
 patterns), [[visualization-effects]] §11.7 (selective response)
@@ -50,6 +52,22 @@ never a slow crossfade.
   0.9 s wipe); works with the templates' existing `cameraMode`/`beatPunch`.
 - **Files:** `hooks/useTrackMetadata.ts`, `sceneTemplates.ts`, new
   `services/sectionDriver.ts`.
+- **Status: Done (2026-10-13, `44b91e3` follow-up on Windows).** `sectionDriver.ts`
+  ships the §3 map + cut/wipe resolution (19 unit tests); `useSectionDriver`
+  (in `useTrackMetadata.ts`) subscribes per frame with zero re-renders;
+  `useThreeScene.ts` applies the profile — camera cut (transition cleared, hard
+  jump) or 0.9 s `settle-soft` wipe on boundary, scaled `beatPunch`, scaled
+  particle speed, and light-palette hue rotation against captured base colors;
+  `cameraTransitions.beginCameraTransition` gained an `anchor` parameter for the
+  wipe. `sceneTemplates.ts` gained `sectionDriven?: boolean` (opt-out; default
+  on). Wiring the driver also required the studio's audio path to exist:
+  `ThreeJSStudio.tsx` passed dummy `{current: null}` refs for the audio
+  element/context/analyser, so `toggleAudio` no-opped and the analyser fed
+  nothing — the scene engine's own refs plus a hidden `<audio>` element (src =
+  selected track) now complete the intended wiring.
+  Remaining: browser verification per the accept criterion (a ≥3-section track
+  on Windows) and D24's before/after captures; `getCurrentBeat` is still stubbed
+  in the studio, so F4's beat-phrased path stays dormant — a separate item.
 
 ### F3 — Render-loop easing utilities
 

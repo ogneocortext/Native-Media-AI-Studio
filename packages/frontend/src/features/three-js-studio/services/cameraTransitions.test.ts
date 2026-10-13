@@ -89,6 +89,29 @@ describe("camera transition blend", () => {
     expect(state.durationSec).toBe(CAMERA_TRANSITION_SEC);
   });
 
+  it("defaults to the travel-balanced anchor (F1)", () => {
+    const state = beginCameraTransition(FROM, 10);
+    // The default is written explicitly, and must sample identically
+    // to travel-balanced so F1's blend behavior is unchanged.
+    expect(state.anchor).toBe("travel-balanced");
+    const mid = 10 + CAMERA_TRANSITION_SEC / 2;
+    const pose = sampleCameraTransition(state, mid, TARGET);
+    const k = ease("travel-balanced", 0.5);
+    expect(pose!.position[0]).toBeCloseTo(8 * k, 10);
+  });
+
+  it("samples the given anchor (F2's 0.9 s wipe uses settle-soft)", () => {
+    const state = beginCameraTransition(FROM, 10, 0.9, "settle-soft");
+    expect(state.anchor).toBe("settle-soft");
+    const mid = 10 + 0.45;
+    const pose = sampleCameraTransition(state, mid, TARGET);
+    const k = ease("settle-soft", 0.5);
+    expect(pose!.position[0]).toBeCloseTo(8 * k, 10);
+    // The two anchors genuinely differ at the midpoint, so the
+    // assertion above could not pass by accident.
+    expect(k).not.toBeCloseTo(ease("travel-balanced", 0.5), 6);
+  });
+
   it("isTransitionActive tracks the blend window", () => {
     const state = beginCameraTransition(FROM, 10);
     expect(isTransitionActive(null, 10)).toBe(false);

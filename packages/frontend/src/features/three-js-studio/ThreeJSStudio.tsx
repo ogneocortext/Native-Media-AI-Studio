@@ -2,10 +2,12 @@ import { Minimize2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useUIStore } from "../../state/uiStore";
+import { getApiBase } from "../../services/api";
 import { showToast } from "../../utils/toast";
 import { AISceneGenerator } from "./components/AISceneGenerator";
 import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "./types";
 import { DEFAULT_OBJECTS, DEFAULT_PARTICLES, DEFAULT_SCENE } from "./threeStudioConfig";
+import { SCENE_TEMPLATES } from "./sceneTemplates";
 import { StudioHeader } from "./components/StudioHeader";
 import { TrackInfoBar } from "./components/TrackInfoBar";
 import { PlaybackControls } from "./components/PlaybackControls";
@@ -17,6 +19,7 @@ import { useCodeApplier } from "./hooks/useCodeApplier";
 import { useThreeScene } from "./hooks/useThreeScene";
 import { useObjectManager } from "./hooks/useObjectManager";
 import { useTrackManager } from "./hooks/useTrackManager";
+import { useSectionDriver } from "./hooks/useTrackMetadata";
 
 export function ThreeJSStudio() {
   const [searchParams] = useSearchParams();
@@ -82,6 +85,21 @@ export function ThreeJSStudio() {
   // beatAnalysis is read via ref (set by useTrackManager below) to avoid
   // hook-order conflict with useObjectManager which depends on useTrackManager.
   const beatAnalysisRef = useRef<any>(null);
+  // F2: section-aware motion driver. Reads the analysis through the ref
+  // above (it lands after the scene engine is built) and is created here
+  // so the scene engine can consume it on its first frame.
+  const sectionDriver = useSectionDriver(
+    () => (beatAnalysisRef.current?.sections ?? []) as Array<{
+      type: string;
+      start: number;
+      end: number;
+      energy: number;
+    }>,
+    () => (beatAnalysisRef.current?.beat_times ?? []) as readonly number[],
+  );
+  const activeTemplate = activeTemplateId
+    ? SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)
+    : undefined;
   const {
     sceneRef: _sceneRef,
     rendererRef,
@@ -89,6 +107,10 @@ export function ThreeJSStudio() {
     sceneLoading,
     beatActive: sceneBeatActive,
     renderPlaying: sceneRenderPlaying,
+    audioContextRef,
+    analyserRef,
+    audioSourceRef,
+    audioElementRef,
   } = useThreeScene({
     canvasRef,
     containerRef,
@@ -117,6 +139,12 @@ export function ThreeJSStudio() {
     generatedSceneUpdateRef,
     onAnimationTimeChange: setAnimationTime,
     onSelectObject: setSelectedObject,
+    // F2: null while the active template opts out — the loop then
+    // drives the template's cameraMode/beatPunch directly.
+    sectionDriver: activeTemplate?.sectionDriven !== false ? sectionDriver : null,
+    // The section playhead is the audio element's currentTime; null
+    // (no element yet / not playing) keeps the driver inert.
+    getPlayheadSec: () => audioElementRef.current?.currentTime ?? null,
   });
 
   // Sync beatActive from scene engine
@@ -188,10 +216,13 @@ export function ThreeJSStudio() {
     setTracksLoading,
     setTracksError,
     addObject,
-    audioElementRef: { current: null },
-    audioContextRef: { current: null },
-    analyserRef: { current: null },
-    audioSourceRef: { current: null },
+    // The scene engine owns the audio element and graph; these were
+    // dummy refs before F2, which made the studio's audio transport a
+    // no-op and left the analyser (audio-reactive motion) dead.
+    audioElementRef,
+    audioContextRef,
+    analyserRef,
+    audioSourceRef,
   });
 
   // Keep beatAnalysisRef in sync with latest value from useTrackManager
@@ -421,6 +452,20 @@ export function ThreeJSStudio() {
         onAnimationSeek={handleAnimSeek}
         onAnimationSelect={handleAnimSelect}
         onClose={() => setDrawerOpen(false)}
+      />
+
+      {/* Hidden playback element. The studio's transport, the analyser
+          (audio-reactive motion) and the F2 section playhead all read
+          through the scene engine's audioElementRef. */}
+      <audio
+        ref={audioElementRef}
+        src={
+          selectedTrack
+            ? `${getApiBase()}/api/audio/file/${encodeURIComponent(selectedTrack)}`
+            : undefined
+        }
+        preload="metadata"
+        hidden
       />
     </div>
   );

@@ -10,6 +10,7 @@ import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
 import { SCENE_TEMPLATES } from "../sceneTemplates";
 import { BLOOM_LAYER } from "../threeStudioConfig";
+import type { CameraMode } from "../types";
 import {
   beginCameraTransition,
   computeModePose,
@@ -17,6 +18,8 @@ import {
   type CameraTransitionState,
 } from "../services/cameraTransitions";
 import { beatPhraseScale } from "../services/beatPhrasing";
+import { SECTION_WIPE_SEC, type SectionMotionProfile } from "../services/sectionDriver";
+import type { SectionDriverHandle } from "./useTrackMetadata";
 import type { UseThreeSceneOptions, UseThreeSceneResult } from "./types";
 
 // Vignette that darkens towards black. three's stock VignetteShader mixes
@@ -71,6 +74,8 @@ export function useThreeScene({
   generatedSceneUpdateRef,
   onAnimationTimeChange,
   onSelectObject,
+  sectionDriver = null,
+  getPlayheadSec,
 }: UseThreeSceneOptions): UseThreeSceneResult {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -107,6 +112,18 @@ export function useThreeScene({
   // F4: whether the active template opts into beat-phrased
   // animation (anticipation → pop → hold).
   const beatPhraseRef = useRef(false);
+  // F2: the section-aware motion driver (null while the active
+  // template opts out or no track is loaded).
+  const sectionDriverRef = useRef<SectionDriverHandle | null>(null);
+  const getPlayheadSecRef = useRef<(() => number | null) | undefined>(undefined);
+  // Camera mode the current section asks for; null falls back to the
+  // template's cameraMode. Set on a boundary, cleared outside sections.
+  const sectionCameraModeRef = useRef<CameraMode | null>(null);
+  // Scene lights + their authored colors, captured at scene build so
+  // a section's palette shift can hue-rotate against the base.
+  const sectionLightsRef = useRef<
+    Array<{ light: THREE.Light; baseColor: THREE.Color }> | null
+  >(null);
   const onSelectObjectRef = useRef(onSelectObject);
   const pointerHandlersRef = useRef<{
     down: (event: PointerEvent) => void;
@@ -152,6 +169,15 @@ export function useThreeScene({
   useEffect(() => {
     cameraModeRef.current = cameraMode;
   }, [cameraMode]);
+  useEffect(() => {
+    sectionDriverRef.current = sectionDriver;
+    // A driver swap (template opt-in/out) drops any section camera
+    // override so the template's mode is authoritative again.
+    sectionCameraModeRef.current = null;
+  }, [sectionDriver]);
+  useEffect(() => {
+    getPlayheadSecRef.current = getPlayheadSec;
+  }, [getPlayheadSec]);
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -392,6 +418,11 @@ export function useThreeScene({
       const p2 = new THREE.PointLight(0x6b9dff, 8, 10);
       p2.position.set(4, 2, -3);
       scene.add(p2);
+      // F2: capture the lights' authored colors so a section's palette
+      // shift hue-rotates against the base instead of accumulating.
+      sectionLightsRef.current = scene.children
+        .filter((c): c is THREE.Light => (c as THREE.Light).isLight === true)
+        .map((light) => ({ light, baseColor: light.color.clone() }));
       const floor = new THREE.Mesh(
         new THREE.PlaneGeometry(50, 50),
         new THREE.MeshStandardMaterial({
@@ -475,7 +506,58 @@ export function useThreeScene({
           audioTreble = sum / ((arr.length - trebleBins) * 255 || 1);
         }
         const beatState = getCurrentBeatRef.current(elapsed);
-        const beatPunchAmp = sceneConfigRef.current.beatPunch;
+        // F2: advance the section-aware motion driver on the audio
+        // playhead. A boundary cuts (snare/downbeat, no blend) or wipes
+        // (0.9 s settle-soft) per the transitions guideline; the
+        // profile scales beatPunch, particles and light palette while
+        // the section lasts.
+        let sectionProfile: SectionMotionProfile | null = null;
+        const sectionDriver = sectionDriverRef.current;
+        const playhead = getPlayheadSecRef.current?.() ?? null;
+        if (sectionDriver && playhead !== null && Number.isFinite(playhead)) {
+          const sec = sectionDriver.step(playhead);
+          sectionProfile = sec.profile;
+          if (sec.boundary) {
+            sectionCameraModeRef.current = sec.profile.cameraMode;
+            // Claim the mode change so F1's 600 ms blend does not
+            // double-fire over the section's own transition.
+            lastCameraModeRef.current = sec.profile.cameraMode;
+            if (sec.boundary === "cut") {
+              cameraTransitionRef.current = null;
+            } else {
+              cameraTransitionRef.current = beginCameraTransition(
+                {
+                  position: [camera.position.x, camera.position.y, camera.position.z],
+                  target: [0, 0.5, 0],
+                },
+                elapsed,
+                SECTION_WIPE_SEC,
+                "settle-soft",
+              );
+            }
+            const lights = sectionLightsRef.current;
+            if (lights && sec.profile.paletteShift !== 0) {
+              const hueDelta = sec.profile.paletteShift / 360;
+              for (const { light, baseColor } of lights) {
+                light.color.copy(baseColor).offsetHSL(hueDelta, 0, 0);
+              }
+            }
+          } else if (sec.index < 0) {
+            sectionCameraModeRef.current = null;
+          } else if (sectionCameraModeRef.current !== sec.profile.cameraMode) {
+            // Track switch or late-arriving metadata: the section now
+            // under the playhead asks for a different mode than the
+            // one applied. Keep the override in sync; F1's blend covers
+            // the change — a mode switch, not a musical boundary, so
+            // the cut/wipe rules do not apply.
+            sectionCameraModeRef.current = sec.profile.cameraMode;
+          }
+        } else if (sectionCameraModeRef.current !== null) {
+          sectionCameraModeRef.current = null;
+        }
+        const beatPunchAmp =
+          sceneConfigRef.current.beatPunch *
+          (sectionProfile ? sectionProfile.beatPunchScale : 1);
         let beatSpike = 0;
         let newBeatActive = false;
         if (renderPlayingRef.current && beatState.ready && beatState.isOnBeat) {
@@ -548,7 +630,12 @@ export function useThreeScene({
           frameCountRef.current % 2 === 0
         ) {
           const pos = particlesRef.current.geometry.attributes.position.array as Float32Array;
-          const spd = particleConfigRef.current.speed * (1 + audioBass * 1.5);
+          // F2: the active section scales particle intensity (the §3
+          // map's energy column); 1 when no section drives.
+          const spd =
+            particleConfigRef.current.speed *
+            (sectionProfile ? sectionProfile.particleScale : 1) *
+            (1 + audioBass * 1.5);
           for (let i = 1; i < pos.length; i += 3) {
             pos[i] += delta * spd * 0.8;
             if (pos[i] > particleConfigRef.current.spread) pos[i] = Math.random() * 0.5;
@@ -559,7 +646,9 @@ export function useThreeScene({
         } else if (particlesRef.current && isPlay) {
           particlesRef.current.rotation.y += delta * 0.02;
         }
-        const cm = cameraModeRef.current;
+        // F2: a section's camera mode overrides the template's while
+        // that section is active.
+        const cm = sectionCameraModeRef.current ?? cameraModeRef.current;
         const ir = renderPlayingRef.current;
         const sx = (Math.random() - 0.5) * shakeRef.current;
         const sy = (Math.random() - 0.5) * shakeRef.current;

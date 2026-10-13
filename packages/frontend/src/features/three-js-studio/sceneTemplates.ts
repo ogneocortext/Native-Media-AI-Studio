@@ -41,6 +41,14 @@ export interface SceneTemplate {
    *  then a held value with no drift) instead of the decaying punch
    *  spike. Requires a beat timeline (track analysis) to be active. */
   beatPhrase?: boolean;
+  /** Optional: section-aware motion (F2). When true (the default —
+   *  set false to opt a template out), the track's analysis sections
+   *  drive camera mode, beatPunch scale, particle intensity and the
+   *  light palette per [[three-js-render-motion-2026]] §3, cutting on
+   *  snare/downbeat boundaries and wiping (0.9 s ease-out) otherwise.
+   *  The template's own `cameraMode`/`beatPunch` remain the fallback
+   *  whenever no section applies. */
+  sectionDriven?: boolean;
 }
 
 // ----------------------------------------------------------------------------

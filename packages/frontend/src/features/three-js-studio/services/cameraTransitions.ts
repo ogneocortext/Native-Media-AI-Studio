@@ -27,7 +27,7 @@
  * handing control back to the user.
  */
 
-import { ease } from "./easing";
+import { ease, type EasingAnchor } from "./easing";
 import type { CameraMode } from "../types";
 
 /** A camera pose: world position + look-target. */
@@ -43,6 +43,11 @@ export interface CameraTransitionState {
   from: CameraPose;
   startSec: number;
   durationSec: number;
+  /** Easing anchor for the blend. Defaults to `travel-balanced`
+   *  (the S-curve F1 specifies for user-driven mode switches);
+   *  the section driver's boundary wipe passes `settle-soft`
+   *  (deep ease-out, per the transitions guideline). */
+  anchor?: EasingAnchor;
 }
 
 /** Default blend duration (~600 ms, per the plan). */
@@ -58,6 +63,7 @@ export function beginCameraTransition(
   from: CameraPose,
   nowSec: number,
   durationSec = CAMERA_TRANSITION_SEC,
+  anchor: EasingAnchor = "travel-balanced",
 ): CameraTransitionState {
   return {
     from: {
@@ -66,6 +72,7 @@ export function beginCameraTransition(
     },
     startSec: nowSec,
     durationSec: durationSec > 0 ? durationSec : CAMERA_TRANSITION_SEC,
+    anchor,
   };
 }
 
@@ -86,7 +93,7 @@ export function sampleCameraTransition(
   const raw = (nowSec - state.startSec) / state.durationSec;
   if (raw >= 1) return null;
   const t = raw < 0 ? 0 : raw;
-  const k = ease("travel-balanced", t);
+  const k = ease(state.anchor ?? "travel-balanced", t);
   const fp = state.from.position;
   const tp = target.position;
   const ft = state.from.target;

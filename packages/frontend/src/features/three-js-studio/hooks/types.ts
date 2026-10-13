@@ -1,6 +1,7 @@
 import type React from "react";
 import * as THREE from "three";
 import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
+import type { SectionDriverHandle } from "./useTrackMetadata";
 
 export interface UseThreeSceneOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -25,6 +26,13 @@ export interface UseThreeSceneOptions {
   generatedSceneUpdateRef: React.RefObject<((time: number, delta: number) => void) | null>;
   onAnimationTimeChange: (time: number) => void;
   onSelectObject?: (id: string | null) => void;
+  /** F2: section-aware motion driver. Pass null while the active
+   *  template opts out (or no track is loaded) — the loop then drives
+   *  the template's cameraMode/beatPunch directly, unchanged. */
+  sectionDriver?: SectionDriverHandle | null;
+  /** Audio/track seconds getter for the section playhead (the audio
+   *  element's currentTime). Null or non-finite → the driver is inert. */
+  getPlayheadSec?: () => number | null;
 }
 
 export interface UseThreeSceneResult {

@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import type { AudioAnalysisResult } from "../../../services/api";
 import { getAnalysis } from "../../../services/api";
+import {
+  createSectionDriverState,
+  DEFAULT_SECTION_PROFILE,
+  stepSectionDriver,
+  type AnalysisSection,
+  type SectionMotionProfile,
+  type SectionStep,
+} from "../services/sectionDriver";
 
 export interface TrackMetadata {
   filename: string;
@@ -66,6 +75,51 @@ export function useTrackMetadata(selectedTrack: string | null) {
   }, [selectedTrack]);
 
   return { metadata, loading, error };
+}
+
+export interface SectionDriverHandle {
+  /** Motion profile currently applied (read per frame by the render
+   *  loop — a ref so a section change never re-renders React). */
+  profileRef: MutableRefObject<SectionMotionProfile>;
+  /** Advance the driver to `playheadSec` (audio/track seconds). Returns
+   *  the step; `boundary` is non-null only on the crossing frame. */
+  step: (playheadSec: number) => SectionStep;
+}
+
+/**
+ * Section-aware motion subscription (three-js-studio plan F2).
+ *
+ * Sections were detected but never used at runtime — they only fed the
+ * AI prompt context. This hook turns them into a per-frame motion
+ * decision: the render loop calls `step(playheadSec)` and applies the
+ * returned profile (camera mode, beatPunch scale, particle intensity,
+ * palette shift), reacting on `boundary` with a cut or a 0.9 s wipe.
+ *
+ * Sections and beat times arrive through getters (not values) so the
+ * caller can hand it a late-filled ref — the analysis lands in a ref
+ * owned by a hook that runs *after* the scene engine — and so a track
+ * change costs zero re-renders. `step`'s identity is stable, which is
+ * what lets the render loop cache it in its own ref-sync effect.
+ */
+export function useSectionDriver(
+  getSections: () => AnalysisSection[],
+  getBeatTimes: () => readonly number[],
+): SectionDriverHandle {
+  const stateRef = useRef(createSectionDriverState());
+  const profileRef = useRef<SectionMotionProfile>(DEFAULT_SECTION_PROFILE);
+
+  const step = useRef((playheadSec: number): SectionStep => {
+    const stepResult = stepSectionDriver(
+      stateRef.current,
+      getSections(),
+      playheadSec,
+      getBeatTimes(),
+    );
+    profileRef.current = stepResult.profile;
+    return stepResult;
+  }).current;
+
+  return { profileRef, step };
 }
 
 export interface PromptVariation {

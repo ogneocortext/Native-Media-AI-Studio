@@ -144,13 +144,28 @@ converge is a D-call, not a cleanup.
    virtual-time pattern to the 2D / 3D / LrcViz render paths.
 4. **2.10 / 2.11 real-time data correctness** — ✅ Already done
    (pre-existing).
-5. **2.6 color/feel polish (remainder)** — gamma-correct the brightness
-   drive where a linear map remains; verify frequency→color conventions
-   per the audio-reactive best-practices note.
+5. **2.6 color/feel polish (remainder)** — ✅ Done (2026-10-13):
+   `gammaDrive` in `viz-styles/vizMotion.ts` gamma-corrects the five
+   energy-driven HSL lightness sites; frequency→color convention verified
+   (already shipped in `pulse.tsx`'s bars). Windows gates green.
 
 ### Step 3 — Motion lane remainder
 F1 (eased camera transitions) → F2 (section-aware motion driver) →
 complete F4 / F5 (prediction + deterministic export).
+
+**2026-10-13 update:** F1 verified landed (`cameraTransitions.ts` →
+`useThreeScene.ts`). **F2 landed** — `services/sectionDriver.ts` (§3 map +
+cut/wipe resolution, 19 tests), `useSectionDriver` in
+`hooks/useTrackMetadata.ts`, `useThreeScene.ts` wiring (cut on
+snare/downbeat; 0.9 s `settle-soft` wipe otherwise; scaled `beatPunch`,
+particle speed, light-palette hue rotation), `sectionDriven` template opt-in.
+Wiring it also completed the studio's previously dead audio path: the engine
+owns real `audioElementRef`/`analyserRef` refs and `ThreeJSStudio.tsx` now
+renders a hidden `<audio>` for the selected track instead of passing dummy
+`{current: null}` refs. Browser verification of a ≥3-section track is the
+remaining accept item. F4/F5 unchanged: F4's `getCurrentBeat` is still
+stubbed in the studio (beat-phrased path dormant); F5's shader-lane
+`frameAccurateExport.ts` exists, studio-lane virtual-time export still open.
 
 ### Step 4 — Remix / mashup (gated)
 Plan is **Proposed** and untouched — **do not build until the owner
@@ -169,4 +184,24 @@ entry point and controls.
    decision to converge them?
 
 ## Build notes
-*(appended when implemented)*
+
+**2026-10-13 (2.6 remainder + F2, Windows gates green: type / lint / unit):**
+
+- **2.6** — `gammaDrive(x, γ=2.2)` in `viz-styles/vizMotion.ts` gamma-corrects
+  the five energy-driven HSL lightness sites (`geometric`, `neural`, `storm`,
+  `pulse`); envelope ramps (`beatPulse`, `beatSnap`, the processor's
+  `anticipation`) stay linear deliberately — the same rule the processor
+  documents. Frequency→color verified, not built: `pulse.tsx`'s bars already
+  implement §2's convention (bass warm / mid green / treble blue); other styles
+  key hue by energy (`energyHue`), a different shipped axis. 9 new
+  `vizMotion.test.ts` cases.
+- **F2** — as Step 3 above. `sectionDriver.ts` is pure (map, boundary scan,
+  cut-vs-wipe by beat alignment within 0.06 s), so the accept behavior is
+  unit-testable without a browser; the loop wiring (cut clears the F1
+  transition for a hard jump, wipe begins a 0.9 s `settle-soft` blend) reuses
+  `cameraTransitions.beginCameraTransition`'s new `anchor` parameter. The
+  studio audio fix is load-bearing, not incidental: without a real audio
+  element the section playhead is null and the driver is inert by design.
+- Still open across both: the browser accept checks (≥3-section track in the
+  studio, three-track before/after captures for the visualizer styles) and the
+  F4 `getCurrentBeat` stub.
