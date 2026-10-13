@@ -44,6 +44,10 @@ export interface RemixLayerSpec {
   gain_db: number;
   key_shift_semitones: number;
   source_start_bar: number;
+  // B4 tone shaping; omitted/None leaves the stem untouched, and the
+  // renderer treats them the same way.
+  lowpass_hz?: number | null;
+  brightness_db?: number | null;
 }
 
 export interface RemixSlotSpec {

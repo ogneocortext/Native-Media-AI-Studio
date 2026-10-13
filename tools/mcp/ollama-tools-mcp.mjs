@@ -289,7 +289,7 @@ server.setRequestHandler('tools/list', async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          recipe: { type: "object", description: "The build recipe: {name, target_bpm, slots:[{layers:[{track,stem,gain_db,key_shift_semitones,source_start_bar}], bars, crossfade_bars}], beats_per_bar?}" },
+          recipe: { type: "object", description: "The build recipe: {name, target_bpm, slots:[{layers:[{track,stem,gain_db,key_shift_semitones,source_start_bar,lowpass_hz?,brightness_db?}], bars, crossfade_bars}], beats_per_bar?}" },
         },
         required: ["recipe"],
       },

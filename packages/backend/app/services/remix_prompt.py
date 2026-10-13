@@ -25,12 +25,9 @@ adjective map below), so an agent always gets back a *valid* recipe plus
 a warning naming the fallback. A 503 would leave the caller with nothing
 to review, which is strictly worse.
 
-The adjective map is deliberately limited to the fields the recipe schema
-accepts today (gain, key shift, start bar, slot bars/crossfade). B4's
-tone shaping (``lowpass_hz`` / ``brightness_db``) is not landed yet, so
-"dark" here means "bass up, other down" — the honest reading of "darker"
-with the parameters that exist. Extend ``MOOD_ARRANGEMENTS`` when B4
-lands; nothing else changes.
+The adjective map lands on B4's tone-shaping fields as well as gain:
+"dark" is a 900 Hz lowpass plus a -4 dB/octave tilt, not merely quieter,
+because before B4 the word had no parameter to mean.
 """
 
 from __future__ import annotations
@@ -69,21 +66,29 @@ _STOP_TOKENS = {
     "feat", "ft", "explicit", "clean",
 }
 
-# Adjective -> arrangement, expressed only with today's fields (see the
-# module docstring: B4's tone shaping is not landed). Gains are in dB,
-# applied per stem on top of the model's own values.
+# Adjective -> arrangement. B4 gave the adjectives parameters to land on:
+# `stem_gain_db` adds per stem, `brightness_db` adds in dB/octave around
+# 1 kHz (positive = brighter), and `lowpass_hz` is taken from the
+# strongest matching adjective rather than summed — two cutoffs in series
+# would just be the lower one, so the map keeps the darker intent. The
+# gains are deliberately modest: the render sums layers, so a loud
+# adjective plus a loud layer clips.
 MOOD_ARRANGEMENTS: dict[str, dict[str, Any]] = {
     "dark": {
         "stem_gain_db": {"bass": 1.5, "drums": 0.0, "vocals": -1.0, "other": -3.0},
+        "lowpass_hz": 900.0,
+        "brightness_db": -4.0,
         "bars": 8,
         "crossfade_bars": 4.0,
-        "note": "dark: bass forward, everything bright pulled back (B4 tone shaping not landed yet)",
+        "note": "dark: bass forward, highs rolled off (900 Hz lowpass, -4 dB/oct tilt)",
     },
     "darker": {
         "stem_gain_db": {"bass": 2.5, "drums": -0.5, "vocals": -1.0, "other": -4.0},
+        "lowpass_hz": 600.0,
+        "brightness_db": -6.0,
         "bars": 8,
         "crossfade_bars": 4.0,
-        "note": "darker: stronger pull-back than 'dark'",
+        "note": "darker: stronger lowpass and tilt than 'dark'",
     },
     "punchy": {
         "stem_gain_db": {"drums": 3.0, "bass": 1.0},
@@ -99,33 +104,40 @@ MOOD_ARRANGEMENTS: dict[str, dict[str, Any]] = {
     },
     "smooth": {
         "stem_gain_db": {"drums": -1.5, "other": 1.0},
+        "brightness_db": -2.0,
         "bars": 16,
         "crossfade_bars": 4.0,
-        "note": "smooth: drums back, long blends",
+        "note": "smooth: drums back, gentle darkening, long blends",
     },
     "dreamy": {
         "stem_gain_db": {"drums": -2.0, "other": 1.5, "vocals": 0.5},
+        "lowpass_hz": 4000.0,
+        "brightness_db": -2.0,
         "bars": 16,
         "crossfade_bars": 6.0,
-        "note": "dreamy: drums well back, slow crossfades",
+        "note": "dreamy: softened highs, drums well back, slow crossfades",
     },
     "energetic": {
         "stem_gain_db": {"drums": 2.0, "other": 1.0},
+        "brightness_db": 2.0,
         "bars": 4,
         "crossfade_bars": 1.0,
-        "note": "energetic: driving, short slots",
+        "note": "energetic: driving, short slots, bright tilt",
     },
     "chill": {
         "stem_gain_db": {"drums": -1.0, "bass": 0.5},
+        "brightness_db": -1.0,
         "bars": 16,
         "crossfade_bars": 3.0,
-        "note": "chill: relaxed",
+        "note": "chill: relaxed, slightly warm",
     },
     "heavy": {
         "stem_gain_db": {"bass": 2.0, "drums": 2.0, "other": -2.0},
+        "lowpass_hz": 1200.0,
+        "brightness_db": -3.0,
         "bars": 4,
         "crossfade_bars": 2.0,
-        "note": "heavy: bass and drums forward",
+        "note": "heavy: bass and drums forward, dark",
     },
     "vocal": {"stem_gain_db": {"vocals": 2.5}, "bars": 8, "crossfade_bars": 2.0, "note": "vocal-forward"},
 }
@@ -456,14 +468,28 @@ def _stems_for(source: dict[str, Any], wanted: set[str]) -> tuple[list[str], str
 
 
 def apply_moods_to_layer(layer: RemixLayer, moods: list[str]) -> RemixLayer:
-    """Fold the detected adjectives into one layer's gain.
+    """Fold the detected adjectives into one layer.
 
-    Gains add, so two adjectives compose rather than the last winning.
+    Gains and tilts add, so two adjectives compose rather than the last
+    winning. The lowpass is the exception: it is taken from the *strongest*
+    mood (``detect_moods`` returns longest-first) because filtering 900 Hz
+    then 600 Hz is the 600 Hz filter, and summing cutoffs would silently
+    pick whichever happened to be lower.
     """
     gain = layer.gain_db
+    tilt = layer.brightness_db or 0.0
+    lowpass: float | None = None
     for mood in moods:
-        gain += float(MOOD_ARRANGEMENTS[mood].get("stem_gain_db", {}).get(layer.stem, 0.0))
+        shape = MOOD_ARRANGEMENTS[mood]
+        gain += float(shape.get("stem_gain_db", {}).get(layer.stem, 0.0))
+        tilt += float(shape.get("brightness_db", 0.0))
+        cutoff = shape.get("lowpass_hz")
+        if cutoff is not None and lowpass is None:
+            lowpass = float(cutoff)
     layer.gain_db = round(max(-24.0, min(12.0, gain)), 2)
+    layer.brightness_db = round(max(-12.0, min(12.0, tilt)), 2)
+    if lowpass is not None:
+        layer.lowpass_hz = lowpass
     return layer
 
 
@@ -549,24 +575,44 @@ def recipe_to_request(recipe: RemixRecipe, overwrite: bool = False) -> dict[str,
         "beats_per_bar": recipe.beats_per_bar,
         "key": recipe.key,
         "overwrite": overwrite,
-        "slots": [
-            {
-                "bars": slot.bars,
-                "crossfade_bars": slot.crossfade_bars,
-                "layers": [
-                    {
-                        "track": layer.track,
-                        "stem": layer.stem,
-                        "gain_db": layer.gain_db,
-                        "key_shift_semitones": layer.key_shift_semitones,
-                        "source_start_bar": layer.source_start_bar,
-                    }
-                    for layer in slot.layers
-                ],
-            }
-            for slot in recipe.slots
-        ],
+    "slots": [
+        {
+            "bars": slot.bars,
+            "crossfade_bars": slot.crossfade_bars,
+            "layers": [
+                {
+                    "track": layer.track,
+                    "stem": layer.stem,
+                    "gain_db": layer.gain_db,
+                    "key_shift_semitones": layer.key_shift_semitones,
+                    "source_start_bar": layer.source_start_bar,
+                    # B4: None (not 0) so a build request omits them and the
+                    # renderer takes the untouched path.
+                    "lowpass_hz": layer.lowpass_hz,
+                    "brightness_db": layer.brightness_db,
+                }
+                for layer in slot.layers
+            ],
+        }
+        for slot in recipe.slots
+    ],
     }
+
+
+def _tone_field(raw: Any, lo: float, hi: float, label: str, warnings: list[str], ref: str) -> float | None:
+    """Clamp one B4 tone field from model output, warning on any change."""
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        warnings.append(f"{ref}: {label} {raw!r} is not a number, ignored")
+        return None
+    if not lo <= value <= hi:
+        clamped = max(lo, min(hi, value))
+        warnings.append(f"{ref}: {label} {value:g} outside [{lo:g}, {hi:g}], clamped to {clamped:g}")
+        return clamped
+    return value
 
 
 def repair_recipe(data: dict[str, Any], sources: list[dict[str, Any]]) -> tuple[RemixRecipe, list[str]]:
@@ -626,6 +672,12 @@ def repair_recipe(data: dict[str, Any], sources: list[dict[str, Any]]) -> tuple[
                 gain_db=float(rl.get("gain_db", 0.0) or 0.0),
                 key_shift_semitones=float(rl.get("key_shift_semitones", 0.0) or 0.0),
                 source_start_bar=int(rl.get("source_start_bar", 0) or 0),
+                lowpass_hz=_tone_field(
+                    rl.get("lowpass_hz"), 200.0, 20000.0, "lowpass_hz", warnings, f"slot {i} layer {j}"
+                ),
+                brightness_db=_tone_field(
+                    rl.get("brightness_db"), -12.0, 12.0, "brightness_db", warnings, f"slot {i} layer {j}"
+                ),
             )
             layers.append(apply_moods_to_layer(layer, moods))
         if layers:
@@ -685,7 +737,11 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
         "layers per slot are 1-8 (a slot may stack the same stem at different",
         "source_start_bar values); gains within -24..+12 dB; key_shift_semitones stays 0",
         "unless the prompt names a key; source_start_bar is 0 unless the prompt names a",
-        "start. Explain the arrangement in one sentence per slot.",
+        "start. Optional tone shaping per layer: lowpass_hz (200-20000 Hz, removes",
+        "highs above it) and brightness_db (-12..+12 dB/octave around 1 kHz, positive",
+        "= brighter). Use them for mood words — 'dark' means lowpass plus a negative",
+        "tilt, never just quieter.",
+        "Explain the arrangement in one sentence per slot.",
     ]
     return "\n".join(lines)
 

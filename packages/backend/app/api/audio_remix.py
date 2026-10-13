@@ -44,6 +44,12 @@ class RemixLayerRequest(BaseModel):
     # service module docstring for the measurements.
     key_shift_semitones: float = 0.0
     source_start_bar: int = Field(default=0, ge=0)
+    # B4 tone shaping. None (the default) leaves the stem untouched, so
+    # every existing recipe renders identically. lowpass_hz zeroes spectrum
+    # above the cutoff; brightness_db tilts in dB/octave around 1 kHz
+    # (positive = brighter). These are what "darker" finally lands on.
+    lowpass_hz: float | None = Field(default=None, ge=200.0, le=20000.0)
+    brightness_db: float | None = Field(default=None, ge=-12.0, le=12.0)
 
 
 class RemixSlotRequest(BaseModel):
@@ -147,6 +153,8 @@ def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
                         gain_db=layer.gain_db,
                         key_shift_semitones=layer.key_shift_semitones,
                         source_start_bar=layer.source_start_bar,
+                        lowpass_hz=layer.lowpass_hz,
+                        brightness_db=layer.brightness_db,
                     )
                     for layer in slot.layers
                 ],

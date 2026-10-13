@@ -1,7 +1,7 @@
 # Remix / Mashup Plan — Oct 2026
 
-**Status:** Phase 1 complete (2026-10-13) — B5, B3, B7, B2, B1 landed;
-Phase 2 (B4 tone shaping, B6) next
+**Status:** Phase 1+2 in progress (2026-10-13) — B5, B3, B7, B2, B1, B4
+landed; B6 next, then Phase 3 frontend
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** read-only audit of `RemixPanel.tsx`, `remixRecipe.ts`,
 `services/api/remix.ts`, `app/api/audio_remix.py`, `services/stem_remixer.py`,
@@ -176,13 +176,41 @@ of the probe cache — so a probed source lists `bpm`/`duration_sec`/
 sources carry the join). Frontend `RemixSource` gained the three optional
 fields.
 
-### B4. Mood adjectives need parameters to land on
+### B4. Mood adjectives need parameters to land on — DONE 2026-10-13
 
 "Darker" is inexpressible: `RemixLayer` supports only `gain_db`,
 `key_shift_semitones`, `source_start_bar`. Add optional per-layer tone shaping
 (`lowpass_hz` and/or a `brightness_db` tilt) plus a documented
 adjective→parameter map for the NL endpoint's system prompt (`dark` → lowpass
 + reduced highs; `punchier` → drums +3 dB, …).
+
+Landed. `RemixLayer` carries `lowpass_hz` (200–20000 Hz, STFT-domain zeroing
+above the cutoff, the same construction as the enhancer's `_high_pass`) and
+`brightness_db` (±12 dB/octave, a **shelf above a 1 kHz pivot** — a true
+constant slope would also boost the lows by 6 dB under a "darker" command,
+which fights the layer's own bass gain). Both default to none, so every
+existing recipe and manifest renders bit-identically; the manifest round-trip
+carries them so "reopen & rearrange" preserves tone. The API request gained
+the two optional fields (Pydantic-validated, same ranges), and the MCP recipe
+shape documents them.
+
+`MOOD_ARRANGEMENTS` in `remix_prompt.py` now lands the adjectives on tone as
+well as gain — "dark" is a 900 Hz lowpass plus −4 dB/oct, "darker" 600 Hz /
+−6 dB/oct — and the B2 system prompt tells the model that dark means lowpass
+plus a negative tilt, never just quieter. One composition rule: gains and
+tilts **add** across adjectives, the lowpass is the **strongest** mood's
+(filtering 900 then 600 is the 600 filter, so summing cutoffs would silently
+pick the lower one).
+
+Verified on real audio, not just synthetics: a build of Ad Nauseam's bass at
+`lowpass_hz=800` measured against the source stem — sub-bass ratio 1.001,
+bass band 1.02, 800 Hz–3 kHz **0.043 (−27 dB)**, 3–10 kHz 0.087; a
+tilt-only build (`brightness_db=-6`) held sub-pivot energy flat (−0.0 /
++0.1 dB) while cutting the top band −7.3 dB, which is the shelf signature.
+Live through the NL endpoint, the model now asks for tone when told "darker"
+(lowpass 200–3200 Hz with negative tilts), and two out-of-range requests
+(180/150 Hz) came back clamped to 200 with warnings. 6 new drafter tests + 6
+new DSP/validation tests; 102 backend remix tests green.
 
 ### B5. Job tracking on build/enhance — DONE 2026-10-06
 

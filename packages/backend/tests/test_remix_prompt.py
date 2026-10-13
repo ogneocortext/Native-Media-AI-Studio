@@ -425,7 +425,111 @@ def test_recipe_to_request_shape_and_safe_overwrite_default():
     assert body["slots"][0]["layers"][0]["track"] == "SunoV6Mini-The Last-Original-V1"
     assert set(body["slots"][0]["layers"][0]) == {
         "track", "stem", "gain_db", "key_shift_semitones", "source_start_bar",
+        "lowpass_hz", "brightness_db",
     }
+
+
+# ── B4 tone shaping ───────────────────────────────────────────────────
+
+
+def test_moods_apply_lowpass_and_tilt():
+    layer = remix_prompt.apply_moods_to_layer(
+        remix_prompt.RemixLayer(track="t", stem="bass"), ["dark"]
+    )
+    assert layer.lowpass_hz == 900.0
+    assert layer.brightness_db == -4.0
+
+
+def test_stronger_mood_wins_the_lowpass_while_tilts_add():
+    # "darker" and "punchy" together: the lowpass is the stronger mood's
+    # (600 Hz), the tilts sum (-6 + 0), the gains sum.
+    layer = remix_prompt.apply_moods_to_layer(
+        remix_prompt.RemixLayer(track="t", stem="drums"), ["darker", "punchy"]
+    )
+    assert layer.lowpass_hz == 600.0
+    assert layer.brightness_db == -6.0
+    assert layer.gain_db == 2.5  # punchy +3.0, darker -0.5
+
+
+def test_tone_is_none_or_zero_by_default():
+    layer = remix_prompt.apply_moods_to_layer(
+        remix_prompt.RemixLayer(track="t", stem="other"), ["punchy"]  # no tone in punchy
+    )
+    assert layer.lowpass_hz is None
+    assert layer.brightness_db == 0.0  # tilt defaults to 0, not None
+
+
+def test_heuristic_draft_carries_tone_fields():
+    recipe, _warnings, _explanation = remix_prompt.build_heuristic_recipe(
+        "darker version of The Last", SOURCES
+    )
+    layer = recipe.slots[0].layers[0]
+    assert layer.lowpass_hz == 600.0
+    assert layer.brightness_db == -6.0
+    body = remix_prompt.recipe_to_request(recipe)
+    assert body["slots"][0]["layers"][0]["lowpass_hz"] == 600.0
+
+
+def test_recipe_to_request_omits_tone_when_unset():
+    recipe, _w, _e = remix_prompt.build_heuristic_recipe("mash up The Last", SOURCES)
+    body = remix_prompt.recipe_to_request(recipe)
+    assert body["slots"][0]["layers"][0]["lowpass_hz"] is None
+    # 0.0 is a no-op in the renderer (`if layer.brightness_db`), so an
+    # un-tilted layer serialises as zero rather than null.
+    assert body["slots"][0]["layers"][0]["brightness_db"] == 0.0
+
+
+def test_repair_carries_model_tone_fields():
+    payload = _model_payload(
+        slots=[
+            {
+                "bars": 8,
+                "layers": [
+                    {
+                        "track": "SunoV6Mini-The Last-Original-V1",
+                        "stem": "bass",
+                        "lowpass_hz": 800.0,
+                        "brightness_db": -5.0,
+                    }
+                ],
+            }
+        ]
+    )
+    recipe, warnings = remix_prompt.repair_recipe(payload, SOURCES)
+    layer = recipe.slots[0].layers[0]
+    assert layer.lowpass_hz == 800.0
+    assert layer.brightness_db == -5.0
+    assert warnings == []
+
+
+def test_repair_clamps_out_of_range_tone_with_warnings():
+    payload = _model_payload(
+        slots=[
+            {
+                "bars": 8,
+                "layers": [
+                    {
+                        "track": "SunoV6Mini-The Last-Original-V1",
+                        "stem": "bass",
+                        "lowpass_hz": 99999.0,
+                        "brightness_db": 40.0,
+                    }
+                ],
+            }
+        ]
+    )
+    recipe, warnings = remix_prompt.repair_recipe(payload, SOURCES)
+    layer = recipe.slots[0].layers[0]
+    assert layer.lowpass_hz == 20000.0
+    assert layer.brightness_db == 12.0
+    assert sum("clamped" in w for w in warnings) == 2
+
+
+def test_system_prompt_documents_the_tone_fields():
+    system = remix_prompt.build_system_prompt(SOURCES)
+    assert "lowpass_hz" in system
+    assert "brightness_db" in system
+    assert "'dark' means lowpass plus a negative" in system
 
 
 # ── prompt construction ────────────────────────────────────────────────

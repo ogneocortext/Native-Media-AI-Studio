@@ -21,9 +21,11 @@ from app.services.stem_remixer import (
     RemixLayer,
     RemixRecipe,
     RemixSlot,
+    _brightness_tilt,
     _db_to_linear,
     _equal_power_ramp,
     _loop_to_length,
+    _low_pass,
     _safe_remix_name,
     _safe_track_name,
     plan_timeline,
@@ -587,3 +589,74 @@ def test_preview_audible_layers_warn_about_nothing(tmp_path, monkeypatch):
     data = stem_remixer.preview_recipe(_one_slot_recipe("loud"))
     assert data["warnings"] == []
     assert data["warnings_detail"] == []
+
+# ─── B4 tone shaping ─────────────────────────────────────────────────────────
+
+
+def _band_energy(y: np.ndarray, lo: float, hi: float, sr: int = REMIX_SR) -> float:
+    """Energy of the signal inside [lo, hi] Hz, via one STFT frame sum."""
+    import librosa
+
+    stft = librosa.stft(y.astype(np.float32), n_fft=4096, hop_length=1024)
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=4096)
+    band = (freqs >= lo) & (freqs < hi)
+    return float(np.sum(np.abs(stft[band, :]) ** 2))
+
+
+def test_low_pass_keeps_low_band_and_removes_high():
+    y = _sine(300.0, 8192) + _sine(6000.0, 8192)
+    filtered = _low_pass(y, REMIX_SR, 1000.0)
+    low_before = _band_energy(y, 100, 500)
+    high_before = _band_energy(y, 4000, 8000)
+    low_after = _band_energy(filtered, 100, 500)
+    high_after = _band_energy(filtered, 4000, 8000)
+    # The low band survives (within STFT reconstruction loss); the high band
+    # is essentially gone.
+    assert low_after > 0.5 * low_before
+    assert high_after < 0.01 * high_before
+
+
+def test_low_pass_is_a_noop_when_the_cutoff_is_above_nyquist():
+    y = _sine(1000.0, 4096)
+    assert np.allclose(_low_pass(y, REMIX_SR, 20000.0), y, atol=1e-3)
+
+
+def test_brightness_tilt_darkens_and_brightens():
+    y = _sine(4000.0, 8192) + _sine(500.0, 8192)
+    darker = _brightness_tilt(y, REMIX_SR, -6.0)
+    brighter = _brightness_tilt(y, REMIX_SR, 6.0)
+    high_ref = _band_energy(y, 2000, 8000)
+    low_ref = _band_energy(y, 100, 1000)
+    # A negative shelf cuts the 4 kHz band well below reference (2 octaves
+    # above the pivot at -6 dB/oct is ~-12 dB); a positive one lifts it.
+    assert _band_energy(darker, 2000, 8000) < 0.4 * high_ref
+    assert _band_energy(brighter, 2000, 8000) > 2.0 * high_ref
+    # The shelf leaves the sub-pivot band alone in both directions — a
+    # constant slope would have boosted it on the darkening pass, fighting
+    # the layer's own bass gain.
+    assert 0.85 * low_ref < _band_energy(darker, 100, 1000) < 1.15 * low_ref
+    assert 0.85 * low_ref < _band_energy(brighter, 100, 1000) < 1.15 * low_ref
+
+
+def test_brightness_tilt_zero_is_the_identity():
+    y = _sine(2000.0, 2048)
+    assert np.array_equal(_brightness_tilt(y, REMIX_SR, 0.0), y)
+
+
+def test_layer_tone_fields_validate():
+    base = {"track": "t", "stem": "drums"}
+    assert RemixLayer(**base, lowpass_hz=900.0, brightness_db=-4.0).validate() is None
+    assert RemixLayer(**base).lowpass_hz is None  # default leaves audio untouched
+    with pytest.raises(ValueError, match="lowpass_hz out of range"):
+        RemixLayer(**base, lowpass_hz=50.0).validate()
+    with pytest.raises(ValueError, match="brightness_db out of range"):
+        RemixLayer(**base, brightness_db=20.0).validate()
+
+
+def test_recipe_with_tone_fields_round_trips_through_validate():
+    recipe = RemixRecipe(
+        name="r",
+        target_bpm=120.0,
+        slots=[RemixSlot(layers=[RemixLayer(track="t", stem="bass", lowpass_hz=600.0, brightness_db=-6.0)])],
+    )
+    recipe.validate()  # must not raise

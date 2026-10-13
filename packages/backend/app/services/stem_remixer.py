@@ -338,7 +338,15 @@ class RemixLayer:
     `key_shift_semitones` is explicit because detection cannot be trusted on this
     material (see the module docstring). `gain_db` is relative to the stem's own
     level, so two layers of the same stem at 0 dB sum to unity.
+
+    `lowpass_hz` / `brightness_db` are the tone-shaping pair the remix plan's
+    B4 added, because "darker" was previously inexpressible — the only lever
+    was gain. `lowpass_hz` zeroes spectrum above the cutoff (same STFT trick as
+    the enhancer's `_high_pass`), and `brightness_db` tilts the spectrum in
+    dB/octave around a 1 kHz pivot (positive = brighter). Both default to
+    none, so every existing recipe renders bit-identically.
     """
+
     track: str
     stem: str
     gain_db: float = 0.0
@@ -346,12 +354,25 @@ class RemixLayer:
     # Offset into the source in *bars*, so a layer can enter partway through its
     # own song rather than always replaying from bar 0.
     source_start_bar: int = 0
+    lowpass_hz: float | None = None
+    brightness_db: float | None = None
 
     def validate(self) -> None:
         if self.stem not in STEM_NAMES:
             raise ValueError(f"stem must be one of {', '.join(STEM_NAMES)}")
         if not math.isfinite(self.gain_db) or not -60.0 <= self.gain_db <= 12.0:
             raise ValueError(f"gain_db out of range: {self.gain_db}")
+        if self.lowpass_hz is not None and not (
+            math.isfinite(self.lowpass_hz) and 200.0 <= self.lowpass_hz <= 20000.0
+        ):
+            # 200 Hz keeps the kick; 20 kHz is a no-op at REMIX_SR. B4.
+            raise ValueError(f"lowpass_hz out of range: {self.lowpass_hz}")
+        if self.brightness_db is not None and not (
+            math.isfinite(self.brightness_db) and -12.0 <= self.brightness_db <= 12.0
+        ):
+            # ±12 dB/octave is the range where a tilt reads as tone rather
+            # than as a broken signal. B4.
+            raise ValueError(f"brightness_db out of range: {self.brightness_db}")
         if (
             not math.isfinite(self.key_shift_semitones)
             or abs(self.key_shift_semitones) > 12.0
@@ -459,6 +480,68 @@ def _tempo_align(y: np.ndarray, source_bpm: float, target_bpm: float) -> np.ndar
     return librosa.effects.time_stretch(y=y.astype(np.float32), rate=float(rate))
 
 
+def _stft_filter(
+    y: np.ndarray,
+    sr: int,
+    gain_by_bin: callable,
+) -> np.ndarray:
+    """Apply a per-bin magnitude gain in the STFT domain.
+
+    Same construction as the enhancer's `_high_pass` (FFT magnitude shaping
+    with librosa's stft/istft and length restoration) — no scipy in this
+    dependency set, and one implementation is easier to reason about than
+    two. `gain_by_bin` maps the bin-frequency array to a linear gain array.
+    """
+    if y.size == 0 or not LIBROSA_AVAILABLE:
+        return y
+    n_fft = 2048
+    hop = 512
+    stft = librosa.stft(y.astype(np.float32), n_fft=n_fft, hop_length=hop)
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    stft *= gain_by_bin(freqs).astype(np.float32)[:, np.newaxis]
+    out = librosa.istft(stft, hop_length=hop)
+    target_len = y.shape[-1]
+    if out.shape[0] < target_len:
+        out = np.pad(out, (0, target_len - out.shape[0]), mode="constant")
+    elif out.shape[0] > target_len:
+        out = out[:target_len]
+    return out.astype(np.float32)
+
+
+def _low_pass(y: np.ndarray, sr: int, cutoff_hz: float) -> np.ndarray:
+    """Keep spectrum at or below `cutoff_hz`, zero above. The B4 "dark" half."""
+    return _stft_filter(y, sr, lambda freqs: (freqs <= cutoff_hz).astype(np.float32))
+
+
+_TILT_PIVOT_HZ = 1000.0
+
+
+def _brightness_tilt(y: np.ndarray, sr: int, db_per_octave: float) -> np.ndarray:
+    """Shelf the spectrum above a 1 kHz pivot by `db_per_octave` dB/octave.
+
+    The B4 "bright/dark" control that gain cannot express: positive lifts
+    highs, negative cuts them. It is a *shelf*, not a constant slope —
+    a true tilt would also boost the lows by 6 dB under a "darker"
+    command, which fights the layer's own bass gain and reads as mud.
+
+    In the STFT domain the gain is naturally a per-bin power ratio:
+    the octave count above the pivot is log2(f/pivot), and 20*log10 of
+    one octave is 6.02 dB, so the linear gain is 10**(db*octaves/20).
+    Below the pivot the gain is unity.
+    """
+    if not db_per_octave:
+        return y
+    return _stft_filter(
+        y,
+        sr,
+        lambda freqs: np.where(
+            freqs <= _TILT_PIVOT_HZ,
+            1.0,
+            np.power(10.0, (db_per_octave * np.log2(np.maximum(freqs, 1.0) / _TILT_PIVOT_HZ)) / 20.0),
+        ).astype(np.float32),
+    )
+
+
 def _equal_power_ramp(n: int) -> tuple[np.ndarray, np.ndarray]:
     """Cosine/sine pair for a constant-power crossfade.
 
@@ -508,6 +591,11 @@ class _SourceCache:
             layer.stem,
             round(self.target_bpm, 3),
             round(layer.key_shift_semitones, 2),
+            # B4: tone shaping is per-layer like the rest of the key, so two
+            # layers of the same stem with different lowpass settings do not
+            # share a cache entry.
+            round(layer.lowpass_hz or 0.0, 1),
+            round(layer.brightness_db or 0.0, 2),
         )
         cached = self._audio.get(key)
         if cached is not None:
@@ -534,6 +622,20 @@ class _SourceCache:
                     )
                     for c in range(y.shape[0])
                 ],
+                axis=0,
+            ).astype(np.float32)
+
+        # B4 tone shaping, cheap enough to sit after the cache-able steps.
+        # Lowpass first, then tilt: filtering highs before tilting them means
+        # the tilt cannot resurrect energy the lowpass removed.
+        if layer.lowpass_hz is not None:
+            y = np.stack(
+                [_low_pass(y[c], REMIX_SR, float(layer.lowpass_hz)) for c in range(y.shape[0])],
+                axis=0,
+            ).astype(np.float32)
+        if layer.brightness_db:
+            y = np.stack(
+                [_brightness_tilt(y[c], REMIX_SR, float(layer.brightness_db)) for c in range(y.shape[0])],
                 axis=0,
             ).astype(np.float32)
 
@@ -878,6 +980,16 @@ def _manifest_recipe(manifest: dict[str, Any]) -> dict[str, Any] | None:
                     "gain_db": float(layer.get("gain_db", 0.0)),
                     "key_shift_semitones": float(layer.get("key_shift_semitones", 0.0)),
                     "source_start_bar": int(layer.get("source_start_bar", 0)),
+                    # B4: None when absent so an older manifest reads back as
+                    # the no-tone-shaping recipe it rendered.
+                    "lowpass_hz": (
+                        float(layer["lowpass_hz"]) if layer.get("lowpass_hz") is not None else None
+                    ),
+                    "brightness_db": (
+                        float(layer["brightness_db"])
+                        if layer.get("brightness_db") is not None
+                        else None
+                    ),
                 }
             )
         clean_slots.append(
