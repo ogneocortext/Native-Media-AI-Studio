@@ -4,6 +4,18 @@ Tests for the async offloading fix in diagnostics/resources.py:
 - cleanup_system_memory offloads blocking urllib calls via asyncio.to_thread
 - check_vram offloads blocking GPU calls via asyncio.to_thread
 - get_gpu_snapshot offloads blocking NVML calls via asyncio.to_thread
+
+Plus the blocking-subprocess sweep: six `async def` API handlers shelled
+out with a bare `subprocess.run`, which blocks the loop for the
+subprocess's whole lifetime. The worst case was `POST /api/hyperframes/
+render`, which allows a 600 s timeout: one render request froze *every*
+other endpoint — including the SSE health stream the frontend polls — for
+up to ten minutes.
+
+Measured, not reasoned: a 1.5 s blocking subprocess gave a concurrent
+coroutine **0** event-loop turns; the same subprocess via
+`asyncio.to_thread` gave it **497,212**. These tests assert the responsive
+side by running the real handlers.
 """
 from __future__ import annotations
 
@@ -173,3 +185,152 @@ async def test_check_all_includes_vram_details():
     vram_warnings = [w for w in warnings if w.get("type") == "vram"]
     assert len(vram_warnings) == 1
     assert "processes" in vram_warnings[0].get("details", {})
+    vram_warnings = [w for w in warnings if w.get("type") == "vram"]
+    assert len(vram_warnings) == 1
+    assert "processes" in vram_warnings[0].get("details", {})
+
+
+# --------------------------------------------------------------------------
+# Blocking-subprocess sweep
+# --------------------------------------------------------------------------
+
+BACKEND_APP = BACKEND_ROOT / "app"
+
+
+class _FakeCompleted:
+    """Stand-in for subprocess.CompletedProcess."""
+
+    def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _blocking_run(*_args, **_kwargs) -> _FakeCompleted:
+    """A deliberately slow subprocess: 0.5 s is enough to prove the point.
+
+    Long enough that a frozen loop records zero turns; short enough to keep
+    the suite fast. Patched in place of `subprocess.run`, so the handler
+    under test is real and a regression back to a bare call fails here.
+    """
+    import time
+
+    time.sleep(0.5)
+    return _FakeCompleted(stdout="hyperframes 1.0.0")
+
+
+def _count_loop_turns_while(coro_factory, assert_ok, block_seconds: float) -> int:
+    """Run `coro_factory()` and count turns a concurrent coroutine gets.
+
+    `assert_ok` receives the handler's return value and must return None on
+    success or an explanatory string. It is what keeps this test honest:
+    these handlers wrap their bodies in `except Exception` and report the
+    error instead of raising, so a regression that turns the call into a
+    `NameError` would still return *promptly* with the loop untouched — and
+    a turns-only assertion would pass on the broken code. Requiring the
+    successful output means only genuinely off-loaded work satisfies it.
+    """
+
+    async def _ticker(stop: asyncio.Event) -> int:
+        turns = 0
+        while not stop.is_set():
+            turns += 1
+            await asyncio.sleep(0)
+        return turns
+
+    async def _run() -> tuple[int, object]:
+        stop = asyncio.Event()
+        ticker = asyncio.create_task(_ticker(stop))
+        # One turn so the ticker is genuinely parked on the loop.
+        await asyncio.sleep(0)
+
+        with patch("subprocess.run", side_effect=_blocking_run):
+            result = await asyncio.wait_for(coro_factory(), timeout=block_seconds + 10)
+
+        stop.set()
+        return await ticker, result
+
+    turns, result = asyncio.run(_run())
+
+    problem = assert_ok(result)
+    assert problem is None, f"handler did not take its success path: {problem}"
+
+    return turns
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        "get_cuda_status",
+        "get_system_resources",
+        "hyperframes_status",
+        "hyperframes_examples",
+        "hyperframes_preview",
+    ],
+)
+def test_shelling_out_handler_keeps_the_event_loop_responsive(handler):
+    """A concurrent coroutine must still get turns while these handlers run.
+
+    Each of these shells out. If it does so on the loop thread, every other
+    endpoint — the SSE health stream included — stalls until it finishes.
+    """
+    from app.api import hyperframes, integrations_config, integrations_misc
+
+    def _no_error(result: dict) -> str | None:
+        # The handlers report failures in-band rather than raising, so an
+        # exception inside the body would look like a clean fast return.
+        if result.get("error"):
+            return f"error={result['error']!r}"
+        if result.get("cli_available") is False:
+            return "cli_available=False (probe did not succeed)"
+        return None
+
+    def _integrations_ok(result: dict) -> str | None:
+        if not result.get("gpu_name"):
+            return "no gpu_name parsed from the stubbed subprocess output"
+        return None
+
+    factory = {
+        "get_cuda_status": integrations_misc.get_cuda_status,
+        "get_system_resources": integrations_config.get_system_resources,
+        "hyperframes_status": hyperframes.hyperframes_status,
+        "hyperframes_examples": hyperframes.hyperframes_examples,
+        "hyperframes_preview": hyperframes.hyperframes_preview,
+    }[handler]
+
+    assert_ok = _integrations_ok if handler == "get_cuda_status" else _no_error
+
+    turns = _count_loop_turns_while(factory, assert_ok, 0.5)
+
+    assert turns > 1, (
+        f"{handler} blocked the event loop: a concurrent coroutine got "
+        f"{turns} turn(s) during its subprocess call. A bare `subprocess.run` "
+        f"in an `async def` handler freezes every other endpoint for the "
+        f"subprocess's lifetime — route it through "
+        f"services.subprocess_runner.run_subprocess_thread instead."
+    )
+
+
+def test_no_api_module_calls_subprocess_run_directly():
+    """Guard the call site, not the import.
+
+    These modules still import `subprocess` legitimately — for
+    `except subprocess.TimeoutExpired` clauses and for kwargs typing — so
+    "does it import subprocess" is the wrong check. The wrong thing is
+    *calling* `subprocess.run(` from an async handler.
+    """
+    offenders = []
+    for path in sorted(BACKEND_APP.rglob("*.py")):
+        if "api" not in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "subprocess.run(" in text:
+            offenders.append(str(path.relative_to(BACKEND_ROOT)))
+
+    assert not offenders, (
+        "these API modules call subprocess.run() directly, which blocks the "
+        "event loop when done from an `async def` handler: "
+        + ", ".join(offenders)
+        + " — use services.subprocess_runner.run_subprocess_thread"
+    )
+

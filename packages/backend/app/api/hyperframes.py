@@ -12,6 +12,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from ..services.subprocess_runner import run_subprocess_thread
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/hyperframes", tags=["HyperFrames"])
@@ -35,10 +37,21 @@ def _ensure_npx_on_path(env: dict[str, str] | None = None) -> dict[str, str]:
     return _env
 
 
-def _run_hyperframes(args: list[str], cwd: Path | None = None) -> dict[str, Any]:
+async def _run_hyperframes_async(args: list[str], cwd: Path | None = None) -> dict[str, Any]:
+    """Run the hyperframes CLI off the event loop.
+
+    These endpoints are ``async def``, so a bare ``subprocess.run`` blocks
+    the loop for the subprocess's whole lifetime: ``npx hyperframes`` cold
+    start is seconds and ``render`` is allowed up to ``timeout`` seconds,
+    and while it runs *every* other request starves — including the SSE
+    health stream the frontend polls. Measured: a blocking 1.5 s
+    subprocess gave a concurrent coroutine 0 event-loop turns versus
+    497,212 with ``asyncio.to_thread``. ``run_subprocess_thread`` is the
+    leaf helper for exactly this (services/subprocess_runner.py).
+    """
     cmd = [NPX_CMD, "hyperframes"] + args
     try:
-        proc = subprocess.run(
+        proc = await run_subprocess_thread(
             cmd,
             encoding="utf-8", errors="replace",
             cwd=str(cwd or HYPERFRAMES_PROJECT),
@@ -103,7 +116,7 @@ async def hyperframes_status() -> dict[str, Any]:
     cli_exists = True
     version = "unknown"
     try:
-        proc = subprocess.run(
+        proc = await run_subprocess_thread(
             [NPX_CMD, "hyperframes", "--version"],
             encoding="utf-8", errors="replace",
             capture_output=True,
@@ -130,7 +143,7 @@ async def hyperframes_status() -> dict[str, Any]:
 
 @router.get("/examples")
 async def hyperframes_examples() -> dict[str, Any]:
-    result = _run_hyperframes(["compositions"])
+    result = await _run_hyperframes_async(["compositions"])
     examples: list[dict[str, Any]] = []
     if result.get("returncode") == 0:
         for line in (result.get("stdout") or "").splitlines():
@@ -149,7 +162,7 @@ async def hyperframes_preview() -> dict[str, Any]:
     env = _ensure_npx_on_path(os.environ.copy())
     env["HYPERFRAMES_EXTRACT_CACHE_DIR"] = str(HYPERFRAMES_CACHE_DIR)
     try:
-        proc = subprocess.run(
+        proc = await run_subprocess_thread(
             [NPX_CMD, "hyperframes", "preview"],
             encoding="utf-8", errors="replace",
             cwd=str(HYPERFRAMES_PROJECT),
@@ -202,4 +215,4 @@ async def hyperframes_render(
     ]
     env = _ensure_npx_on_path(os.environ.copy())
     env["HYPERFRAMES_EXTRACT_CACHE_DIR"] = str(HYPERFRAMES_CACHE_DIR)
-    return _run_hyperframes(args, cwd=HYPERFRAMES_PROJECT)
+    return await _run_hyperframes_async(args, cwd=HYPERFRAMES_PROJECT)

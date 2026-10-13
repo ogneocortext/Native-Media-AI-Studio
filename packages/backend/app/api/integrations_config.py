@@ -2,6 +2,7 @@
 Integrations API - for external service integration.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -52,9 +53,9 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
 @router.get("/system-resources")
 async def get_system_resources() -> dict:
     """Get current system resources including GPU, CPU, RAM, and Ollama status."""
-    import subprocess
-
     import psutil
+
+    from ..services.subprocess_runner import run_subprocess_thread
 
     resources = {
         "gpu_name": "",
@@ -71,7 +72,10 @@ async def get_system_resources() -> dict:
     }
 
     try:
-        result = subprocess.run(
+        # nvidia-smi is a blocking external call and this endpoint is polled
+        # by the dashboard — run it in a thread so the event loop (and the
+        # SSE health stream) stays responsive.
+        result = await run_subprocess_thread(
             ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu", "--format=csv,noheader,nounits"],
             encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=10
@@ -87,7 +91,9 @@ async def get_system_resources() -> dict:
         pass
 
     try:
-        resources["cpu_percent"] = int(psutil.cpu_percent(interval=0.1))
+        # psutil.cpu_percent(interval=...) blocks for the interval — this
+        # endpoint is polled, so keep it off the loop too.
+        resources["cpu_percent"] = int(await asyncio.to_thread(psutil.cpu_percent, 0.1))
         ram = psutil.virtual_memory()
         resources["ram_total"] = ram.total // (1024 * 1024)
         resources["ram_used"] = ram.used // (1024 * 1024)

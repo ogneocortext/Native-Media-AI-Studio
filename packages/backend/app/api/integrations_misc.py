@@ -23,7 +23,7 @@ router = APIRouter(tags=["Integrations-Misc"])
 @router.get("/cuda/status")
 async def get_cuda_status() -> dict:
     """Get CUDA toolkit status and capabilities"""
-    import subprocess
+    from ..services.subprocess_runner import run_subprocess_thread
 
     cuda_available = False
     cuda_version = ""
@@ -31,8 +31,12 @@ async def get_cuda_status() -> dict:
     error = ""
 
     try:
+        # Check nvidia-smi for GPU info. Both probes run in a thread: this
+        # handler is `async def` and the frontend polls it, so a blocking
+        # subprocess.run would freeze the whole event loop (and the SSE
+        # health stream with it) for up to the timeout on every poll.
         # Check nvidia-smi for GPU info
-        result = subprocess.run(
+        result = await run_subprocess_thread(
             ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
             encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=10
@@ -43,7 +47,7 @@ async def get_cuda_status() -> dict:
             cuda_available = True
 
         # Check CUDA toolkit version
-        result = subprocess.run(
+        result = await run_subprocess_thread(
             ["nvcc", "--version"],
             encoding="utf-8", errors="replace",
             capture_output=True, text=True, timeout=10
