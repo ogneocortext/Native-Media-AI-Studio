@@ -142,6 +142,46 @@ MOOD_ARRANGEMENTS: dict[str, dict[str, Any]] = {
     "vocal": {"stem_gain_db": {"vocals": 2.5}, "bars": 8, "crossfade_bars": 2.0, "note": "vocal-forward"},
 }
 
+# Genre -> starting balance. Same philosophy as MOOD_ARRANGEMENTS: modest
+# per-stem offsets (the render sums layers, so big numbers clip), keyed by
+# the genre ids the visualizer's reactivity presets already use. A genre
+# word in the prompt ("make it phonk") sets the balance; adjectives and
+# explicit gains still compose on top.
+GENRE_GAIN_PROFILES: dict[str, dict[str, float]] = {
+    "phonk": {"drums": 2.0, "bass": 1.5, "vocals": -1.0, "other": -0.5},
+    "synthwave": {"drums": 1.0, "bass": 1.0, "other": 1.0, "vocals": -0.5},
+    "ambient": {"drums": -2.0, "bass": -1.0, "other": 1.5, "vocals": 0.0},
+    "gfunk": {"bass": 2.0, "drums": 1.0, "other": 0.5, "vocals": 0.0},
+    "grime": {"drums": 2.5, "bass": 1.5, "vocals": 0.5, "other": -0.5},
+    "dubstep": {"bass": 2.5, "drums": 2.0, "vocals": -1.5, "other": -0.5},
+    "lofi": {"drums": -1.0, "bass": 0.5, "other": 1.0, "vocals": -0.5},
+    "cinematic": {"other": 2.0, "bass": 1.0, "drums": 0.5, "vocals": -0.5},
+    "rb": {"vocals": 2.0, "bass": 1.0, "drums": -0.5, "other": 0.0},
+    "pop": {"vocals": 1.5, "drums": 1.0, "other": 0.5, "bass": 0.0},
+    "indie": {"other": 1.5, "drums": 0.5, "vocals": 0.5, "bass": 0.0},
+    "trapmetal": {"drums": 2.5, "bass": 2.0, "vocals": 1.0, "other": -1.0},
+    "balanced": {},
+}
+
+# Matchable prompt words per genre id. Kept local (not imported from
+# visual_fallback) — the matching semantics differ (prompt text vs track
+# metadata) and the modules should not couple over a word list.
+GENRE_TAGS: dict[str, list[str]] = {
+    "phonk": ["phonk", "drift phonk"],
+    "synthwave": ["synthwave", "outrun", "retrowave"],
+    "ambient": ["ambient", "ethereal", "space ambient"],
+    "gfunk": ["g-funk", "g funk", "west coast"],
+    "grime": ["grime", "uk garage"],
+    "dubstep": ["dubstep", "brostep", "riddim"],
+    "lofi": ["lo-fi", "lofi", "chillhop"],
+    "cinematic": ["cinematic", "orchestral", "epic", "trailer"],
+    "rb": ["r&b", "rnb", "neo-soul", "neo soul"],
+    "pop": ["pop", "dance-pop", "dance pop", "electropop"],
+    "indie": ["indie", "indie rock"],
+    "trapmetal": ["trap metal", "trapmetal"],
+    "balanced": ["balanced"],
+}
+
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
 _BPM_RE = re.compile(r"(\d{2,3})\s*bpm", re.IGNORECASE)
 
@@ -426,6 +466,37 @@ def detect_moods(text: str) -> list[str]:
     return sorted(hits, key=len, reverse=True)
 
 
+def detect_genres(text: str) -> list[str]:
+    """Which genre-profile ids this text names, longest tag first.
+
+    Same contract as detect_moods: word-boundary match so "pop" does not
+    fire inside "popular", longest tag first so "drift phonk" beats "phonk".
+    """
+    lowered = (text or "").lower()
+    hits: list[str] = []
+    for gid, tags in GENRE_TAGS.items():
+        for tag in sorted(tags, key=len, reverse=True):
+            if re.search(rf"\b{re.escape(tag)}\b", lowered):
+                hits.append(gid)
+                break
+    return sorted(hits, key=lambda g: max(len(t) for t in GENRE_TAGS[g]), reverse=True)
+
+
+def apply_genre_gains(layer: RemixLayer, genres: list[str]) -> RemixLayer:
+    """Fold genre starting-balance offsets into one layer's gain.
+
+    Gains add and clamp like moods; the first (strongest-match) genre wins
+    when several hit, so "drift phonk trap metal" does not stack two bass
+    boosts into clipping.
+    """
+    if not genres:
+        return layer
+    profile = GENRE_GAIN_PROFILES.get(genres[0], {})
+    gain = layer.gain_db + float(profile.get(layer.stem, 0.0))
+    layer.gain_db = round(max(-24.0, min(12.0, gain)), 2)
+    return layer
+
+
 def _clamp_bpm(value: Any, default: float = 120.0) -> float:
     try:
         bpm = float(value)
@@ -523,6 +594,7 @@ def build_heuristic_recipe(prompt: str, sources: list[dict[str, Any]]) -> tuple[
             "or call GET /api/audio/remix/sources for the available tracks."
         )
     moods = detect_moods(text)
+    genres = detect_genres(text)
     # Per-source stems: the prompt's own assignment ("drums and bass from
     # X, vocals from Y"), falling back to the global scan when it names
     # stems outside any corridor.
@@ -542,7 +614,7 @@ def build_heuristic_recipe(prompt: str, sources: list[dict[str, Any]]) -> tuple[
             RemixSlot(
                 bars=bars,
                 crossfade_bars=xfade,
-                layers=[apply_moods_to_layer(RemixLayer(track=source["track"], stem=s), moods) for s in stems],
+                layers=[apply_genre_gains(apply_moods_to_layer(RemixLayer(track=source["track"], stem=s), moods), genres) for s in stems],
             )
         )
     if not slots:
@@ -1003,11 +1075,16 @@ def revise_heuristic_recipe(
 
     if not deltas and not drops and not bars_changes:
         moods = detect_moods(text)
-        if moods:
+        genres = detect_genres(text)
+        if moods or genres:
             for slot in revised.slots:
                 for k, layer in enumerate(slot.layers):
-                    slot.layers[k] = apply_moods_to_layer(copy.copy(layer), moods)
-            warnings.append(f"Applied mood(s): {', '.join(moods)}.")
+                    layer = apply_moods_to_layer(copy.copy(layer), moods)
+                    slot.layers[k] = apply_genre_gains(layer, genres)
+            applied = [f"mood(s): {', '.join(moods)}"] if moods else []
+            if genres:
+                applied.append(f"genre(s): {', '.join(genres)}")
+            warnings.append(f"Applied {'; '.join(applied)}.")
         else:
             warnings.append("No revision understood; recipe unchanged.")
         return revised, warnings
@@ -1224,6 +1301,9 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
         "Structure: source_start_bar on multiples of 4 bars (prefer 8); when skipping a",
         "silent intro, round up past first_audible to the next 4-bar boundary. Match",
         "energy across layers: chorus vocals over a chorus instrumental, not a verse.",
+        "Genre words set the starting balance — 'phonk' means drums and bass",
+        "forward, 'r&b' means vocals forward, 'ambient' means drums back and",
+        "pads forward. Adjectives and explicit gains compose on top.",
         "Slotting: never stack two \u2018other\u2019 stems at similar gain in one slot (midrange",
         "masking) and never two bass layers \u2014 pick one, cut the other 3-6 dB, or lowpass it.",
         "Explain the arrangement in one sentence per slot.",

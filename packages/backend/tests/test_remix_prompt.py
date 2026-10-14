@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 from app.services import remix_prompt
-from app.services.stem_remixer import RemixRecipe
+from app.services.stem_remixer import RemixLayer, RemixRecipe
 
 SOURCES = [
     {
@@ -125,6 +125,36 @@ def test_detect_stems_words_and_aliases():
 def test_detect_stems_respects_word_boundaries():
     # "drum" must not fire inside an unrelated word.
     assert remix_prompt.detect_stems("drumstick soup") == set()
+
+
+def test_detect_genres_longest_tag_wins():
+    assert remix_prompt.detect_genres("make it drift phonk") == ["phonk"]
+    assert remix_prompt.detect_genres("phonk") == ["phonk"]
+    assert remix_prompt.detect_genres("r&b slow jam") == ["rb"]
+
+
+def test_detect_genres_word_boundaries():
+    assert remix_prompt.detect_genres("popular song") == []
+    assert remix_prompt.detect_genres("nothing special") == []
+
+
+def test_apply_genre_gains_sets_starting_balance():
+    layer = remix_prompt.apply_genre_gains(RemixLayer(track="t", stem="drums"), ["phonk"])
+    assert layer.gain_db == pytest.approx(2.0)
+    layer = remix_prompt.apply_genre_gains(RemixLayer(track="t", stem="vocals"), ["phonk"])
+    assert layer.gain_db == pytest.approx(-1.0)
+
+
+def test_apply_genre_gains_first_genre_wins_and_clamps():
+    layer = remix_prompt.apply_genre_gains(
+        RemixLayer(track="t", stem="bass", gain_db=11.0), ["dubstep", "grime"])
+    # dubstep bass +2.5 on top of 11.0 -> clamped to 12.0; grime not stacked.
+    assert layer.gain_db == pytest.approx(12.0)
+
+
+def test_system_prompt_mentions_genre_balance():
+    system = remix_prompt.build_system_prompt(SOURCES)
+    assert "Genre words set the starting balance" in system
 
 
 def test_detect_moods_longest_match_wins():
