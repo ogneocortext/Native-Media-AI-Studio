@@ -1,6 +1,6 @@
 # Remix Iteration Plan — Oct 2026
 
-**Status:** Proposed 2026-10-13 — awaiting owner approval
+**Status:** Implemented 2026-10-13 — R1+R2 landed in `48869fb` (`fef1250` carries the rebase's lint fix)
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** UX review of the completed remix/mashup plan (2026-10-13)
 
@@ -8,6 +8,39 @@
 > covers what that plan left out: the plan got agents and users *to* a first
 > render, but real mashup work is iterative — nobody's first render is final.
 > These two items close the loop.
+
+## Closure notes (2026-10-13)
+
+Both items landed with their acceptance checks, verified on Windows:
+
+- R1: `base_recipe` on `from-prompt`, revision system prompt, `changes` diff,
+  MCP `base_recipe`, panel "Revise" input. Unit tests cover gain delta, layer
+  removal, slot length, empty revision, and the unknown-track case.
+- R2: `slot_index` on `preview-audio` (out of range → 400, no render),
+  click-to-audition, drag + arrow-key reorder off the slots array.
+
+Two defects the acceptance list exposed, both fixed rather than tested around:
+
+1. The unknown-track guard could never fire — it iterated
+   `mentioned_sources()`, which only returns sources that already matched —
+   so "vocals from The Vow up 2 dB" silently boosted *every* vocals layer.
+   Replaced with a deterministic reference check (connector grammar + a
+   capitalisation bias that keeps "from the top" from warning) that refuses
+   before the model call and in the heuristic path.
+2. The Revise button's `aria-label` overrode its visible text, so its
+   accessible name disagreed with the label (WCAG 2.5.3) and
+   `getByRole("button", { name: "Revise" })` could not find it.
+
+Two measured facts worth keeping:
+
+- A cold `qwen3.5:9b` under VRAM contention answered `from-prompt` in
+  **167 s** (backend log: `-> 200 (167473.6ms)`) while the frontend fetch
+  budget was 180 s — the client aborted a request the backend was about to
+  answer. The draft fetch budget is now 300 s.
+- `run-gates.py`'s e2e gate runs only `app-shell`, `canvas2d` and
+  `lrc-visualizer` — `remix-panel.spec.ts` is **not** in it, so a green e2e
+  gate says nothing about this panel. Run the spec directly (8/8, ~2 min
+  warm).
 
 ## What already exists (don't rebuild)
 
