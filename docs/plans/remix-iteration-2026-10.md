@@ -1,6 +1,6 @@
 # Remix Iteration Plan — Oct 2026
 
-**Status:** Implemented 2026-10-13 — R1+R2 landed in `48869fb` (`fef1250` carries the rebase's lint fix)
+**Status:** Implemented 2026-10-13 — R1+R2 in `48869fb`, the parked items in the follow-ups; the wizard stays parked
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** UX review of the completed remix/mashup plan (2026-10-13)
 
@@ -145,12 +145,41 @@ UI work is in flight.
 
 ## Deliberately parked (not this plan)
 
-- **A/B compare** (pin two variants, flip between them) — wants the variant
-  generation that R1's revision loop makes natural; revisit after R1.
-- **Version history** (`mashup-1`, `mashup-2` lineage) — real, but it's
-  bookkeeping, not interaction; lower value than the loop itself.
-- **Guided wizard mode** — the panel's presets already lower the floor; a
-  wizard is a bigger design commitment than the evidence demands.
-- **Cancel for long builds** — flagged in review; B5's job IDs make it a
-  small endpoint + button, but nobody has asked for it yet. Don't build on
-  speculation.
+> **Update 2026-10-13:** the owner asked for these to be built. Three of the
+> four landed (R1/R2 first, then the parked items); the wizard stays parked,
+> with the plan's own reasoning intact below.
+
+- **A/B compare** (pin two variants, flip between them) — **Landed.**
+  `abCompare.ts` holds the pure pin/match logic (a pin is a structural
+  snapshot of the whole form, so flipping is a context switch and the "which
+  am I looking at" marker is equality with the pin, not a last-loaded flag).
+  Panel: Pin as A / A / Pin as B / B; flipping also clears the preview and
+  audition so stale audio can't play under the new form. 7 unit tests, one
+  e2e (pin, edit, pin, flip, flip back, edit clears both markers, pins
+  survive the edit).
+- **Version history** (`mashup-1`, `mashup-2` lineage) — **Landed.** A rebuild
+  archives the render it replaces under `<name>/.versions/vNNN/` (stems,
+  manifest and its own `enhanced/` master — a version is a complete render),
+  the manifest records its version, `GET /{name}/versions` lists the lineage
+  and `GET /{name}/file/{which}?version=N` plays an archived one (404 for an
+  unknown version, never a silent fallback). Panel: a Render picker in the
+  Hear card; Mastering stays on the current render and says why. 5 unit
+  tests, one e2e (two builds under one name, play v1).
+- **Guided wizard mode** — **Still parked.** The panel's presets already lower
+  the floor; a wizard is a bigger design commitment than the evidence
+  demands. Nothing changed that.
+- **Cancel for long builds** — **Landed.** B5's job ids did make it a small
+  endpoint plus a button. The render polls a cancel token between slots
+  (a slot's time-stretch can't be aborted mid-flight), and because the mix is
+  in memory until it completes, a cancelled build writes nothing and leaves
+  any previous render untouched — cancel is never destructive. An enhance is
+  refused (409, not a lie): the Suno chain is one call with no safe point.
+  8 unit tests, a live API check (cancel -> cancelled in 10.7 s, nothing on
+  disk, second cancel 409, unknown 404), one e2e (the button appears and the
+  panel returns to idle).
+
+  Original reasoning kept: A/B wanted the variant generation R1's revision
+  loop makes natural; version history is bookkeeping, not interaction; the
+  wizard's presets already lower the floor; cancel was "flagged in review;
+  B5's job IDs make it a small endpoint + button, but nobody has asked for it
+  yet".

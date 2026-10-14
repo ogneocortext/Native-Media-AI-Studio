@@ -472,10 +472,13 @@ async def remix_enhance(name: str, body: RemixEnhanceRequest | None = None) -> R
 
     output_dir = directory / "enhanced"
 
-    def work() -> dict[str, object]:
+    def work(_should_cancel) -> dict[str, object]:
         # `enhance_stems` is a coroutine that offloads its own per-stem
         # DSP with asyncio.to_thread internally, so it needs an event
         # loop; the job runs in a plain thread, hence asyncio.run here.
+        # The cancel token is ignored deliberately: the Suno chain is one
+        # call with no safe point inside it, so `/jobs/{id}/cancel`
+        # refuses an enhance rather than pretending to stop one.
         result = asyncio.run(run_chain(directory, output_dir, config))
         # EnhanceResult carries no duration (success/output_dir/wav_path/
         # mp3_path/steps/error), so take it from the remix manifest
@@ -496,7 +499,7 @@ async def remix_enhance(name: str, body: RemixEnhanceRequest | None = None) -> R
             error=result.error,
         ).model_dump()
 
-    job = remix_jobs.start_job("enhance", name, work)
+    job = remix_jobs.start_job("enhance", name, work, cancellable=False)
     return RemixJobAccepted(
         job_id=job["job_id"],
         kind=job["kind"],
@@ -519,18 +522,56 @@ async def remix_jobs_list() -> dict:
 async def remix_job(job_id: str) -> dict:
     """Status of one build/enhance job, including its result.
 
-    `state` is queued | running | done | failed. On `done`,
-    `result` holds the response the synchronous endpoint used
-    to return (the build payload or the enhance payload); on
-    `failed`, `error` carries the exception. A job past
-    `JOB_TIMEOUT_SEC` is reported as failed with `timed_out`
-    set even though its thread may still be running, so a
-    poller always gets a terminal answer.
+    `state` is queued | running | cancelling | done | failed | cancelled.
+    On `done`, `result` holds the response the synchronous endpoint used
+    to return (the build payload or the enhance payload); on `failed`,
+    `error` carries the exception. A job past `JOB_TIMEOUT_SEC` is
+    reported as failed with `timed_out` set even though its thread may
+    still be running, so a poller always gets a terminal answer.
     """
     job = remix_jobs.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Unknown remix job: {job_id}")
     return job
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def remix_job_cancel(job_id: str) -> dict:
+    """Ask a running build to stop.
+
+    Cooperative: the render polls the token between slots, so the job
+    reaches `cancelled` within one slot's render time (seconds) rather
+    than instantly - a slot's time-stretch cannot be aborted mid-flight.
+    Poll `GET /jobs/{job_id}` for the terminal state.
+
+    Cancel is never destructive. The mix is in memory until it is
+    complete, so a cancelled build writes nothing at all and any
+    previous render under the same name survives untouched - unlike
+    the overwrite path, which replaces it.
+
+    Refusals are honest 409s, not silent no-ops: an enhance runs inside
+    the Suno chain as a single call with no polling point, and a job
+    that already finished cannot be un-finished.
+    """
+    status = remix_jobs.request_cancel(job_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Unknown remix job: {job_id}")
+    if not status["cancel_accepted"]:
+        if status["state"] == "cancelling":
+            detail = "Job is already being cancelled"
+        elif not status["cancellable"]:
+            detail = (
+                f"A {status['kind']} job cannot be cancelled - it runs inside one "
+                "call with no safe point to stop at"
+            )
+        else:
+            detail = f"Job already {status['state']} - nothing to cancel"
+        raise HTTPException(status_code=409, detail=detail)
+    # `cancel_accepted` stays in the payload: it is the one field that
+    # distinguishes "your cancel will be honoured" from "the job had
+    # already finished", and a caller that dropped it would have to
+    # infer that from the state alone.
+    return status
 
 
 @router.post("/build", response_model=RemixJobAccepted)
@@ -570,8 +611,11 @@ async def remix_build(body: RemixRecipeRequest) -> RemixJobAccepted:
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    def work() -> dict[str, object]:
-        result = stem_remixer.render_remix(recipe, body.overwrite)
+    def work(should_cancel) -> dict[str, object]:
+        # The render polls the token between slots, so a cancel lands
+        # within one slot's render time and writes nothing - see
+        # `RemixCancelled` and `render_remix`.
+        result = stem_remixer.render_remix(recipe, body.overwrite, should_cancel=should_cancel)
         # Constructed through the response model so the payload a
         # client reads from the job is the same shape the endpoint
         # used to enforce, validated rather than assumed.
@@ -593,8 +637,28 @@ async def remix_build(body: RemixRecipeRequest) -> RemixJobAccepted:
     )
 
 
+@router.get("/{name}/versions")
+async def remix_versions(name: str) -> dict:
+    """Every render of one remix, newest first.
+
+    A rebuild archives the render it replaces under `<name>/.versions/`,
+    so this is the lineage of a name: the current render plus each
+    earlier one, each with the stem files that exist and its own master.
+    Play any of them with `GET /{name}/file/{which}?version=N`.
+
+    An unknown name returns an empty list rather than a 404: "no
+    history" and "no such remix" are the same answer to a caller that
+    just wants something to play.
+    """
+    try:
+        versions = await asyncio.to_thread(stem_remixer.list_remix_versions, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"name": name, "versions": versions}
+
+
 @router.get("/{name}/file/{which}")
-async def remix_file(name: str, which: str):
+async def remix_file(name: str, which: str, version: int | None = None):
     """Stream a rendered remix so it can actually be listened to.
 
     Without this the whole feature is silent: a remix lands in
@@ -602,6 +666,10 @@ async def remix_file(name: str, which: str):
     `/api/audio/file/...` resolves under `output/audio/`. `which` is one of the
     four stem names or `master`, which returns the enhanced mix when one has
     been rendered and explains how to make it otherwise.
+
+    `version` selects an archived render from `GET /{name}/versions`;
+    omitted (or 0) means the current one. A version that does not exist is
+    a 404, not a silent fallback to the current render.
 
     Range requests are left to Starlette's FileResponse, so the browser can
     seek instead of buffering the whole file.
@@ -612,9 +680,16 @@ async def remix_file(name: str, which: str):
             detail="which must be vocals|drums|bass|other|master",
         )
     try:
-        directory = stem_remixer.remix_dir(name)
+        if version is None or version <= 0:
+            directory = stem_remixer.remix_dir(name)
+        else:
+            directory = await asyncio.to_thread(
+                stem_remixer.remix_version_dir, name, version
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not directory.is_dir():
         raise HTTPException(status_code=404, detail=f"Remix not found: {name}")
 

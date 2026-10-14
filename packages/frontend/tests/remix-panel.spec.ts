@@ -420,4 +420,162 @@ test.describe("Remix / Mashup panel", () => {
     await expect(page.getByText("will mask each other")).toBeVisible({ timeout: 150_000 });
     await expect(page.getByText("midrange masking")).toBeVisible({ timeout: 150_000 });
   });
+
+  test("keeps every render of a name and plays the archived one", async ({ page }) => {
+    // The parked plan item: version history. A rebuild used to delete the
+    // previous render - the mix you were A/B-ing against, gone on a
+    // mis-click. Verified in the browser: the second build archives the
+    // first, the picker offers it, and playing it hands the archived URL to
+    // the player.
+    test.setTimeout(300_000);
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    // A fixed name, so the second build replaces the first rather than
+    // getting a fresh one - which is the case the archive exists for.
+    const name = `verify-versions-${Date.now() % 100000}`;
+    await page.getByLabel("Remix name").fill(name);
+    await page.getByRole("checkbox").check();
+
+    await page.getByRole("button", { name: "Blend A + B" }).click();
+    await page.getByRole("button", { name: "Build", exact: true }).click();
+    await expect(page.getByText(`Hear “${name}”`)).toBeVisible({ timeout: 180_000 });
+
+    // Rebuild the same name with a different arrangement: v1 is what this
+    // archives.
+    await page.getByRole("button", { name: "Drums A + Vocals B" }).click();
+    await page.getByRole("button", { name: "Build", exact: true }).click();
+    await expect(page.getByText(`Hear “${name}” v2`)).toBeVisible({ timeout: 180_000 });
+
+    const versionSelect = page.getByLabel("Version");
+    await expect(versionSelect).toBeVisible();
+    await expect(versionSelect.locator("option", { hasText: "v1" })).toHaveCount(1);
+
+    // The stem buttons play through a detached <audio> (A3's design), which
+    // leaves no DOM trace and whose load Playwright's request events do not
+    // surface - so the URL the player was handed is the assertion. Spying on
+    // play() also proves the click reached the handler, which a locator
+    // match alone does not.
+    await page.evaluate(() => {
+      const w = window as unknown as { __plays: string[] };
+      w.__plays = [];
+      const original = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function patched(this: HTMLMediaElement) {
+        w.__plays.push(this.src);
+        return original.call(this);
+      };
+    });
+
+    await versionSelect.selectOption("1");
+    // Exact: the timeline segments are buttons too, and their accessible
+    // names ("drums x2 ...") would match a loose regex.
+    await page.getByRole("button", { name: "drums", exact: true }).click();
+
+    const played = () =>
+      page.evaluate(() => (window as unknown as { __plays: string[] }).__plays);
+    await expect
+      .poll(
+        async () =>
+          (await played()).some((url) =>
+            url.includes(`/api/audio/remix/${name}/file/drums?version=1`),
+          ),
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+  });
+
+  test("pins two arrangements and flips between them (A/B)", async ({ page }) => {
+    // The parked plan item: A/B compare, which the plan said wanted R1's
+    // revision loop first. Verified in the browser: a pin captures the whole
+    // form, flipping restores it, and what the form shows is what a preview
+    // would render - the pins are snapshots, not decorations.
+    test.setTimeout(180_000);
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    // Variant A: the intro shape, with slot 2 marked 16 bars so the flip is
+    // visible in the form's own values.
+    await page.getByRole("button", { name: "Intro → swap" }).click();
+    const slot2bars = page.getByLabel("Slot 2 bars");
+    await expect(slot2bars).toBeVisible();
+    await slot2bars.fill("16");
+    await page.getByRole("button", { name: /^Pin as A/ }).click();
+
+    // Variant B: a different arrangement and a different name.
+    await page.getByRole("button", { name: "Blend A + B" }).click();
+    await page.getByLabel("Slot 1 bars").fill("8");
+    await page.getByLabel("Remix name").fill("ab-variant-b");
+    await page.getByRole("button", { name: /^Pin as B/ }).click();
+
+    // The form is B, so only B's marker shows: the marker is equality with
+    // the pin, not a "last loaded" flag.
+    await expect(page.getByRole("button", { name: "Pin as B •" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pin as A •" })).toHaveCount(0);
+
+    // Flip to A: the name, the bars and the slot count all come back.
+    await page.getByRole("button", { name: "A", exact: true }).click();
+    await expect(page.getByLabel("Remix name")).not.toHaveValue("ab-variant-b");
+    await expect(page.getByLabel("Slot 2 bars")).toHaveValue("16");
+    await expect(timeline.getByRole("option")).toHaveCount(2);
+
+    // Flip back to B: A's edits are gone, B is back, and editing A's form
+    // afterwards does not corrupt either pin.
+    await page.getByRole("button", { name: "B", exact: true }).click();
+    await expect(page.getByLabel("Remix name")).toHaveValue("ab-variant-b");
+    await expect(page.getByLabel("Slot 1 bars")).toHaveValue("8");
+    await expect(timeline.getByRole("option")).toHaveCount(1);
+
+    // An edit makes the form neither pin, so both markers clear.
+    await page.getByLabel("Slot 1 bars").fill("12");
+    await expect(page.getByRole("button", { name: "Pin as B •" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Pin as A •" })).toHaveCount(0);
+
+    // And the pins still flip after that edit.
+    await page.getByRole("button", { name: "A", exact: true }).click();
+    await expect(page.getByLabel("Slot 2 bars")).toHaveValue("16");
+  });
+
+  test("offers a cancel for a running build and recovers after it", async ({ page }) => {
+    // The parked plan item: B5's job ids make cancel a small endpoint plus
+    // a button. This covers the browser half - the affordance exists while
+    // a build runs, and the panel returns to idle after it - because the
+    // render is 7-23 s and a click is not racing it to a draw: a cancelled
+    // build says so, a finished one plays, and both leave the panel usable.
+    // The cancel semantics themselves (cooperative between slots, nothing
+    // written, honest 409/404) are covered by unit tests and a live API
+    // check, where they can be measured rather than raced.
+    test.setTimeout(180_000);
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole("button", { name: "Blend A + B" }).click();
+    await page.getByRole("button", { name: "Build", exact: true }).click();
+
+    const cancel = page.getByRole("button", { name: "Cancel" });
+    await expect(cancel).toBeVisible({ timeout: 30_000 });
+    await cancel.click();
+
+    // The button belongs to a live job, so it disappears once the job is
+    // terminal - cancelled by the click or finished before it.
+    await expect(cancel).toBeHidden({ timeout: 150_000 });
+    await expect(page.getByRole("button", { name: "Build", exact: true })).toBeEnabled();
+  });
 });

@@ -41,6 +41,7 @@ import math
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -72,6 +73,12 @@ REMIX_DIR.mkdir(parents=True, exist_ok=True)
 # <track>/` is written by `source_separation` and holds nothing but stem WAVs.
 PROBE_CACHE_DIR = REMIX_DIR / ".probes"
 PROBE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Archived renders of a remix, inside the remix directory: `<name>/.versions/
+# vNNN/` is the Nth previous render of that name, stems and manifest included.
+# A leading dot keeps `list_remixes` (which skips dot-directories) from ever
+# reporting a history entry as a remix of its own.
+VERSIONS_DIRNAME = ".versions"
 
 # Below this chroma correlation a detected key is reported as unreliable and is
 # never used to derive a shift. See the module docstring for the measurements.
@@ -904,6 +911,18 @@ class _SourceCache:
 # ─── rendering ───────────────────────────────────────────────────────────────
 
 
+class RemixCancelledError(Exception):
+    """A render was cancelled between slots.
+
+    Cooperative by construction: `_mix_recipe` calls the caller's cancel
+    token at each slot boundary and raises before the next slot renders.
+    Nothing is destructive, because the whole mix is in memory until it
+    completes - see `render_remix`, which writes nothing until
+    `_mix_recipe` returns. A cancelled build therefore leaves the
+    previous render, if any, exactly as it was.
+    """
+
+
 def plan_timeline(recipe: RemixRecipe) -> dict[str, Any]:
     """Resolve a recipe into exact sample counts, without rendering audio.
 
@@ -949,6 +968,7 @@ def _render_slot(
 def _mix_recipe(
     recipe: RemixRecipe,
     cache: _SourceCache | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, np.ndarray], dict[str, int], list[str], dict[str, float]]:
     """Render a recipe's slots into per-stem buffers, in memory.
 
@@ -957,8 +977,14 @@ def _mix_recipe(
     crossfades and per-layer gains as the build it previews — a preview
     that mixed differently would misrepresent the thing it previews.
 
-    Returns (stems, plan, warnings, stretch_ratios); the ratios are part of
-    the manifest's provenance, so they come back with the audio.
+    `should_cancel` is polled at each slot boundary and raises
+    `RemixCancelledError` when it returns True. The check sits between slots
+    rather than inside them, so cancellation is bounded by one slot's
+    render time (seconds) while a slot itself always completes - there
+    is no clean way to abort a time-stretch mid-flight.
+
+    Returns (stems, plan, warnings, stretch_ratios); the ratios are part
+    of the manifest's provenance, so they come back with the audio.
     """
     plan = plan_timeline(recipe)
     bar_n, seg_ns, xf_ns, total_n = (plan["bar_n"], plan["seg_ns"], plan["xf_ns"], plan["total_n"])
@@ -969,6 +995,8 @@ def _mix_recipe(
     previous: dict[str, np.ndarray] | None = None
     previous_n = 0
     for index, slot in enumerate(recipe.slots):
+        if should_cancel is not None and should_cancel():
+            raise RemixCancelledError(f"cancelled after {index} of {len(recipe.slots)} slots")
         seg_n = seg_ns[index]
         segment = _render_slot(slot, cache, seg_n, bar_n)
         xf = xf_ns[index]
@@ -1013,17 +1041,71 @@ def _mix_recipe(
     return mixed, int_plan, warnings, dict(cache.stretch_ratios)
 
 
-def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
+def _version_dir(name: str, version: int) -> Path:
+    """One archived render: `<name>/.versions/vNNN/`."""
+    return REMIX_DIR / name / VERSIONS_DIRNAME / f"v{version:03d}"
+
+
+def _archive_previous_render(out_dir: Path) -> int | None:
+    """Move the current render aside as the next archived version.
+
+    Everything except `.versions/` moves, so a version carries its own
+    stems, manifest and `enhanced/` master - an archived version is a
+    complete render, not a half-reference. The directory itself is
+    recreated by the caller, which then writes the new render into it.
+
+    Returns the version number the previous render was archived as, or
+    None when there was nothing to archive (an empty directory) or the
+    move failed. A failure to archive must not fail the render: the new
+    mix is already in memory, and losing a stale archive is a smaller
+    loss than losing the build the user asked for. The caller records
+    the number in the manifest, so a missing version is visible rather
+    than silent.
+    """
+    entries = [p for p in out_dir.iterdir() if p.name != VERSIONS_DIRNAME]
+    if not entries:
+        return None  # an empty directory is not a render; nothing to keep
+    versions_root = out_dir / VERSIONS_DIRNAME
+    versions_root.mkdir(parents=True, exist_ok=True)
+    existing = sorted(p.name for p in versions_root.glob("v*") if p.is_dir())
+    # Step over any number already taken, so a hand-created directory or
+    # a partially failed archive cannot make two renders claim one slot.
+    version = len(existing) + 1
+    while f"v{version:03d}" in existing:
+        version += 1
+    destination = versions_root / f"v{version:03d}"
+    destination.mkdir(parents=True, exist_ok=True)
+    try:
+        for entry in out_dir.iterdir():
+            if entry.name == VERSIONS_DIRNAME:
+                continue
+            shutil.move(str(entry), str(destination / entry.name))
+    except OSError:
+        logger.exception("could not archive the previous render in %s", out_dir)
+        return None
+    return version
+
+
+def render_remix(
+    recipe: RemixRecipe,
+    overwrite: bool = True,
+    should_cancel: Callable[[], bool] | None = None,
+) -> RemixResult:
     """Render a recipe to a four-stem directory under `output/remixes/`.
 
     The output is a plain stem set, so it feeds the existing enhancer chain,
     `/api/audio/stem-file` playback and the visualizer with no special casing.
+
+    Writing happens only after `_mix_recipe` returns, which is what makes
+    cancellation non-destructive: `should_cancel` raises `RemixCancelledError`
+    during the mix, before this function touches the output directory, so a
+    cancelled build leaves any previous render exactly as it was.
     """
     if not LIBROSA_AVAILABLE:
         raise RuntimeError("librosa is required to render remixes")
     name = _safe_remix_name(recipe.name)
     cache = _SourceCache(recipe.target_bpm)
-    mixed, plan, warnings, stretch_ratios = _mix_recipe(recipe, cache)
+    mixed, plan, warnings, stretch_ratios = _mix_recipe(recipe, cache, should_cancel)
     calibration = cache.calibration_report()
     for ref, rec in calibration.items():
         if rec["measured_lufs"] is None:
@@ -1038,11 +1120,17 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
         raise RuntimeError("soundfile is required to write remixes") from exc
 
     out_dir = REMIX_DIR / name
+    version = 1
     if out_dir.exists():
         if not overwrite:
             raise FileExistsError(f"Remix already exists: {out_dir}")
-        for old in out_dir.glob("*.wav"):
-            old.unlink()
+        # A rebuild used to delete the previous render: one mis-click on
+        # Build and the mix you were A/B-ing against was gone. The prior
+        # render is archived under `.versions/` first, so the lineage
+        # survives and the current directory stays the live one.
+        archived_as = _archive_previous_render(out_dir)
+        if archived_as is not None:
+            version = archived_as + 1
     out_dir.mkdir(parents=True, exist_ok=True)
 
     stems_out: dict[str, str] = {}
@@ -1053,6 +1141,7 @@ def render_remix(recipe: RemixRecipe, overwrite: bool = True) -> RemixResult:
 
     manifest = {
         "name": name,
+        "version": version,
         "target_bpm": round(recipe.target_bpm, 3),
         "beats_per_bar": recipe.beats_per_bar,
         "total_bars": sum(slot.bars for slot in recipe.slots),
@@ -1447,6 +1536,87 @@ def list_remixes() -> list[dict[str, Any]]:
             }
         )
     return sorted(out, key=lambda d: d["name"].lower())
+
+
+def list_remix_versions(name: str) -> list[dict[str, Any]]:
+    """Every render of one remix, newest first: the current one and its archive.
+
+    Each entry carries the facts the listing shows and the stem files that
+    exist, so playing an earlier version needs no second call. A version
+    is a complete render (stems + manifest + its own `enhanced/` master),
+    which is what "archive the whole directory" was chosen for over
+    copying just the stems.
+
+    Returns [] for an unknown name, so a caller can treat "no history"
+    and "no such remix" the same way - neither has anything to play.
+    """
+    out_dir = remix_dir(name)
+    if not out_dir.is_dir():
+        return []
+    versions_root = out_dir / VERSIONS_DIRNAME
+
+    entries: list[tuple[int, Path]] = []
+    for directory in versions_root.glob("v*") if versions_root.is_dir() else []:
+        if directory.is_dir() and directory.name[1:].isdigit():
+            entries.append((int(directory.name[1:]), directory))
+    # The live render is the newest version; its own number comes from
+    # its manifest so a hand-edited history cannot renumber it. A render
+    # from before manifests carried versions is numbered after whatever
+    # is archived, which is where the next rebuild would put it.
+    live_version = _live_version(out_dir)
+    if (out_dir / "remix.json").exists():
+        if live_version <= 0:
+            live_version = max((n for n, _ in entries), default=0) + 1
+        entries.append((live_version, out_dir))
+
+    out: list[dict[str, Any]] = []
+    for number, directory in sorted(entries, key=lambda pair: pair[0], reverse=True):
+        manifest = {}
+        try:
+            manifest = json.loads((directory / "remix.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            logger.debug("unreadable manifest for %s v%d", name, number)
+        out.append(
+            {
+                "version": number,
+                "current": directory == out_dir,
+                "duration_sec": manifest.get("duration_sec"),
+                "target_bpm": manifest.get("target_bpm"),
+                "total_bars": manifest.get("total_bars"),
+                "source_tracks": manifest.get("source_tracks", []),
+                "stems": sorted(p.stem for p in directory.glob("*.wav")),
+                "has_enhanced": (directory / "enhanced").is_dir(),
+            }
+        )
+    return out
+
+
+def remix_version_dir(name: str, version: int) -> Path:
+    """Resolve one render of a remix: the live directory or an archived one.
+
+    The live render is whatever `version` its manifest claims, so an
+    archived number that is not in `.versions/` is refused rather than
+    silently falling back to the current render - a request for v3 that
+    answers with v4 is a wrong answer, not a default.
+    """
+    out_dir = remix_dir(name)
+    if version <= 0:
+        raise ValueError("version must be positive")
+    if version == _live_version(out_dir):
+        return out_dir
+    candidate = out_dir / VERSIONS_DIRNAME / f"v{version:03d}"
+    if not candidate.is_dir():
+        raise FileNotFoundError(f"No version {version} of remix {name!r}")
+    return candidate
+
+
+def _live_version(out_dir: Path) -> int:
+    """The version number the live render claims, or 0 when it says nothing."""
+    try:
+        manifest = json.loads((out_dir / "remix.json").read_text(encoding="utf-8"))
+        return int(manifest.get("version", 0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return 0
 
 
 # ─── provenance: which mashups used a track, and how ──────────────────────────

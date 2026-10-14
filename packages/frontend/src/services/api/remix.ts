@@ -140,7 +140,13 @@ export interface RemixJobStatus {
   job_id: string;
   kind: "build" | "enhance";
   label: string;
-  state: "queued" | "running" | "done" | "failed";
+  /**
+   * False for work with no safe point to stop at (an enhance runs
+   * inside one call), so the client can hide Cancel rather than
+   * offer a button that would only earn a 409.
+   */
+  cancellable?: boolean;
+  state: "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
   /** Set when the backend capped a wedged job and reported it failed. */
   timed_out?: boolean;
   progress?: string | null;
@@ -278,8 +284,9 @@ export async function draftRemixFromPrompt(
  *
  * The backend validates the recipe and checks the source stems
  * synchronously (so a bad recipe or a missing stem still throws
- * here), then renders in a background job. Poll `getRemixJob`
- * for the result, or use `buildRemix` to await it.
+ * here), then renders in a background job. Await the terminal state
+ * with `awaitRemixJob`, or cancel it with `cancelRemixJob` - the job
+ * id is what makes a 7-23 s render stoppable.
  */
 export async function startBuildRemix(
   recipe: RemixRecipeSpec,
@@ -346,37 +353,71 @@ export async function listRemixJobs(): Promise<RemixJobStatus[]> {
   return body.jobs;
 }
 
+/**
+ * Ask a running build to stop.
+ *
+ * Cooperative: the render polls the token between slots, so the job
+ * reaches `cancelled` within one slot's render time (seconds), not
+ * instantly. Rejects with a 409 message for an enhance (which runs
+ * inside one call with no safe point) and for a job that already
+ * finished - the refusals are honest rather than silent no-ops.
+ *
+ * Cancel is never destructive: a cancelled build writes nothing, so a
+ * previous render under the same name survives untouched.
+ */
+export async function cancelRemixJob(jobId: string): Promise<RemixJobStatus> {
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/api/audio/remix/jobs/${encodeURIComponent(jobId)}/cancel`,
+    { method: "POST", timeout: 15000 },
+  );
+  return unwrap<RemixJobStatus>(res, "Remix cancel failed");
+}
+
 const JOB_POLL_INTERVAL_MS = 1000;
 
-async function awaitJob<T>(jobId: string, failure: string): Promise<T> {
-  // The backend caps a wedged job and reports it failed, and a
-  // server restart makes the job vanish (an error, not an
-  // infinite wait), so this loop always terminates.
-  for (;;) {
-    const status = await getRemixJob(jobId);
-    if (status.state === "done") {
-      if (!status.result) throw new Error(failure);
-      return status.result as T;
-    }
-    if (status.state === "failed") {
-      throw new Error(status.error || failure);
-    }
-    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+/** Thrown when a job the caller was awaiting is cancelled. */
+export class RemixCancelledError extends Error {
+  constructor(message = "Cancelled") {
+    super(message);
+    this.name = "RemixCancelledError";
   }
 }
 
 /**
- * Render a recipe, waiting for the background job to finish.
+ * Await a terminal job state.
  *
- * Same contract as before the job split: resolves with the build
- * result or rejects with the failure. The difference is on the
- * wire - no single request is held open for the render, so the
- * 300 s fetch timeout the synchronous call needed is gone, and
- * the job can be polled for progress by anyone who wants it.
+ * Resolves with the final status (done | failed | cancelled) rather
+ * than throwing, so a caller that offers a Cancel button can tell
+ * "the user stopped this" from "this broke" - the backend reports
+ * both as terminal states, and only one of them is an error.
+ * Rejects only on transport errors.
  */
-export async function buildRemix(recipe: RemixRecipeSpec): Promise<RemixBuildResult> {
-  const { job_id } = await startBuildRemix(recipe);
-  return awaitJob<RemixBuildResult>(job_id, "Remix render failed");
+export async function awaitRemixJob(jobId: string): Promise<RemixJobStatus> {
+  for (;;) {
+    const status = await getRemixJob(jobId);
+    if (
+      status.state !== "queued" &&
+      status.state !== "running" &&
+      status.state !== "cancelling"
+    ) {
+      return status;
+    }
+    // The backend caps a wedged job and reports it failed, and a
+    // server restart makes the job vanish (an error, not an
+    // infinite wait), so this loop always terminates.
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+  }
+}
+
+async function awaitJob<T>(jobId: string, failure: string): Promise<T> {
+  const status = await awaitRemixJob(jobId);
+  if (status.state === "done" && status.result) {
+    return status.result as T;
+  }
+  if (status.state === "cancelled") {
+    throw new RemixCancelledError("Cancelled");
+  }
+  throw new Error(status.error || failure);
 }
 
 export async function listRemixes(): Promise<RemixSummary[]> {
@@ -402,6 +443,38 @@ export async function getTrackLineage(track: string): Promise<RemixTrackLineage>
   return unwrap<RemixTrackLineage>(res, `Failed to load lineage for ${track}`);
 }
 
+/** One render in a remix's lineage: the current one or an archived version. */
+export interface RemixVersion {
+  version: number;
+  /** True for the live render, false for an archived one. */
+  current: boolean;
+  duration_sec?: number | null;
+  target_bpm?: number | null;
+  total_bars?: number | null;
+  source_tracks?: string[];
+  stems: string[];
+  has_enhanced: boolean;
+}
+
+/**
+ * Every render of one remix, newest first.
+ *
+ * A rebuild archives the render it replaces (stems, manifest and master),
+ * so this is the lineage of a name. Play any entry with
+ * `remixFileUrl(name, which, version)`.
+ */
+export async function listRemixVersions(name: string): Promise<RemixVersion[]> {
+  const res = await fetchWithTimeout(
+    `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/versions`,
+    { timeout: 15000 },
+  );
+  const body = await unwrap<{ versions: RemixVersion[] }>(
+    res,
+    `Failed to load versions for ${name}`,
+  );
+  return body.versions;
+}
+
 /**
  * Master a rendered remix, waiting for the background job to finish.
  *
@@ -418,7 +491,18 @@ export async function enhanceRemix(
   return awaitJob<RemixEnhanceResult>(job_id, `Failed to master remix ${name}`);
 }
 
-/** URL for an `<audio src>`; resolves same-origin, so no fetch wrapper. */
-export function remixFileUrl(name: string, which: StemName | "master"): string {
-  return `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/file/${which}`;
+/**
+ * URL for an `<audio src>`; resolves same-origin, so no fetch wrapper.
+ *
+ * `version` selects an archived render from `listRemixVersions`; omitted
+ * means the current one. The backend 404s an unknown version rather than
+ * answering with the current render, so a stale button fails loudly.
+ */
+export function remixFileUrl(
+  name: string,
+  which: StemName | "master",
+  version?: number,
+): string {
+  const base = `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/file/${which}`;
+  return version ? `${base}?version=${version}` : base;
 }

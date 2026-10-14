@@ -277,6 +277,86 @@ def test_list_remixes_reads_manifests_and_skips_cache(tmp_path, monkeypatch):
     assert found[0]["has_enhanced"] is False
 
 
+# ─── version history ────────────────────────────────────────────────────────
+
+
+def test_a_rebuild_archives_the_render_it_replaces(remix_dir):
+    """A rebuild used to delete the previous render; now it keeps it.
+
+    The archive holds every file the live render had (stems, manifest,
+    the enhanced master) because a version is a complete render, not a
+    half-reference.
+    """
+    first = remix_dir / "mashup-1"
+    _write_manifest(first, _minimal_manifest("mashup-1", ["Track A"]))
+    (first / "enhanced").mkdir()
+    (first / "enhanced" / "master_enhanced.wav").write_bytes(b"master")
+
+    result = stem_remixer._archive_previous_render(first)
+
+    assert result == 1
+    archived = first / stem_remixer.VERSIONS_DIRNAME / "v001"
+    assert (archived / "drums.wav").exists()
+    assert (archived / "remix.json").exists()
+    assert (archived / "enhanced" / "master_enhanced.wav").read_bytes() == b"master"
+    # The live directory is emptied for the new render, and the history is
+    # not mistaken for a remix of its own: an emptied directory has no
+    # manifest, so the listing skips it until the new render writes one.
+    assert sorted(p.name for p in first.iterdir()) == [stem_remixer.VERSIONS_DIRNAME]
+    assert [r["name"] for r in stem_remixer.list_remixes()] == []
+
+
+def test_versions_are_listed_newest_first_with_the_current_flagged(remix_dir):
+    _write_manifest(remix_dir / "mashup-1", {**_minimal_manifest("mashup-1", ["A"]), "version": 2})
+    _write_manifest(
+        remix_dir / "mashup-1" / stem_remixer.VERSIONS_DIRNAME / "v001",
+        {**_minimal_manifest("mashup-1", ["A"]), "version": 1},
+    )
+
+    versions = stem_remixer.list_remix_versions("mashup-1")
+
+    assert [v["version"] for v in versions] == [2, 1]
+    assert [v["current"] for v in versions] == [True, False]
+    assert versions[0]["stems"] == ["bass", "drums", "other", "vocals"]
+    assert versions[1]["has_enhanced"] is False
+
+
+def test_a_legacy_render_without_a_version_is_numbered_after_the_archive(remix_dir):
+    """Renders from before manifests carried versions stay playable."""
+    _write_manifest(remix_dir / "mashup-1", _minimal_manifest("mashup-1", ["A"]))
+    _write_manifest(
+        remix_dir / "mashup-1" / stem_remixer.VERSIONS_DIRNAME / "v001",
+        _minimal_manifest("mashup-1", ["A"]),
+    )
+
+    versions = stem_remixer.list_remix_versions("mashup-1")
+
+    assert [(v["version"], v["current"]) for v in versions] == [(2, True), (1, False)]
+
+
+def test_version_dir_resolves_the_live_render_and_the_archive(remix_dir):
+    _write_manifest(remix_dir / "mashup-1", {**_minimal_manifest("mashup-1", ["A"]), "version": 2})
+    _write_manifest(
+        remix_dir / "mashup-1" / stem_remixer.VERSIONS_DIRNAME / "v001",
+        _minimal_manifest("mashup-1", ["A"]),
+    )
+
+    live = stem_remixer.remix_version_dir("mashup-1", 2)
+    archived = stem_remixer.remix_version_dir("mashup-1", 1)
+    assert live == remix_dir / "mashup-1"
+    assert archived == remix_dir / "mashup-1" / stem_remixer.VERSIONS_DIRNAME / "v001"
+
+    # An unknown version must be a 404, not a silent answer with v2.
+    with pytest.raises(FileNotFoundError):
+        stem_remixer.remix_version_dir("mashup-1", 3)
+    with pytest.raises(ValueError):
+        stem_remixer.remix_version_dir("mashup-1", 0)
+
+
+def test_versions_of_an_unknown_remix_is_empty(remix_dir):
+    assert stem_remixer.list_remix_versions("nope") == []
+
+
 # ─── provenance ───────────────────────────────────────────────────────────────
 
 
@@ -739,6 +819,92 @@ def test_preview_audible_layers_warn_about_nothing(tmp_path, monkeypatch):
     assert data["warnings_detail"] == []
 
 # ─── loudness staging ────────────────────────────────────────────────────────
+
+
+class _StubCountingCache:
+    """Cache for a multi-slot mix that counts the slots it rendered.
+
+    `get` is where a real render spends its time (time-stretching a
+    source), so counting its calls is how the cancellation test proves
+    a slot was never rendered rather than merely mixed to silence.
+    """
+
+    def __init__(self, target_bpm: float) -> None:
+        self.target_bpm = target_bpm
+        self.stretch_ratios: dict[str, float] = {}
+        self.rendered: list[str] = []
+
+    def get(self, layer: RemixLayer) -> np.ndarray:
+        self.rendered.append(layer.track)
+        return np.full((2, 22050), 0.25, dtype=np.float32)
+
+    def calibration_db(self, track: str, stem: str) -> float:
+        return 0.0
+
+
+def test_mix_recipe_cancels_between_slots(monkeypatch):
+    """Cancel lands at a slot boundary and stops the slots after it.
+
+    The check sits between slots because a slot's time-stretch cannot
+    be aborted mid-flight, so the guarantee is "at most one more slot
+    than the one you cancelled during" - here, the first slot renders
+    and the second never starts.
+    """
+    cache = _StubCountingCache(target_bpm=120.0)
+    recipe = RemixRecipe(
+        name="t",
+        target_bpm=120.0,
+        slots=[
+            RemixSlot(bars=1, layers=[RemixLayer(track="a", stem="drums")]),
+            RemixSlot(bars=1, layers=[RemixLayer(track="b", stem="drums")]),
+        ],
+    )
+
+    def cancel_after_first() -> bool:
+        return len(cache.rendered) >= 1
+
+    with pytest.raises(stem_remixer.RemixCancelledError):
+        stem_remixer._mix_recipe(recipe, cache, cancel_after_first)
+
+    assert cache.rendered == ["a"]  # slot 2 never rendered
+
+
+def test_cancelled_build_writes_nothing_and_keeps_the_previous_render(
+    tmp_path, monkeypatch
+):
+    """Cancel is never destructive: the mix is in memory until it is done.
+
+    A prior render under the same name must survive a cancelled rebuild
+    byte for byte - unlike the overwrite path, which replaces it. This
+    is the ordering guarantee `render_remix` depends on: nothing touches
+    the output directory until `_mix_recipe` has returned.
+    """
+    monkeypatch.setattr(stem_remixer, "REMIX_DIR", tmp_path / "remixes")
+    monkeypatch.setattr(
+        stem_remixer, "_SourceCache", lambda target_bpm: _StubCountingCache(target_bpm)
+    )
+    previous = tmp_path / "remixes" / "mashup-1"
+    previous.mkdir(parents=True)
+    (previous / "drums.wav").write_bytes(b"previous render")
+    (previous / "remix.json").write_text('{"name": "mashup-1"}', encoding="utf-8")
+
+    def cancelled_mix(*args, **kwargs):
+        raise stem_remixer.RemixCancelledError("cancelled")
+
+    monkeypatch.setattr(stem_remixer, "_mix_recipe", cancelled_mix)
+
+    with pytest.raises(stem_remixer.RemixCancelledError):
+        stem_remixer.render_remix(
+            RemixRecipe(
+                name="mashup-1",
+                target_bpm=120.0,
+                slots=[RemixSlot(bars=1, layers=[RemixLayer(track="a", stem="drums")])],
+            ),
+            overwrite=True,
+        )
+
+    assert (previous / "drums.wav").read_bytes() == b"previous render"
+    assert json.loads((previous / "remix.json").read_text(encoding="utf-8"))["name"] == "mashup-1"
 
 
 class _StubCalLibrosa:

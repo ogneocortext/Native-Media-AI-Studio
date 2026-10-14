@@ -20,7 +20,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ChevronDown, Loader2, Play, Plus, Scissors, Trash2, Wand2 } from "lucide-react";
 import {
   STEM_NAMES,
-  buildRemix,
+  RemixCancelledError,
+  awaitRemixJob,
+  cancelRemixJob,
   draftRemixFromPrompt,
   enhanceRemix,
   getAudioStems,
@@ -32,14 +34,19 @@ import {
   probeRemixTrack,
   remixFileUrl,
   separateAudioFile,
+  startBuildRemix,
+  listRemixVersions,
+  type RemixBuildResult,
   type RemixPreview,
   type RemixRecipeSpec,
   type RemixSlotSpec,
   type RemixSource,
   type RemixSummary,
+  type RemixVersion,
   type StemName,
 } from "../../../services/api";
 import { usePanelCollapsed } from "../usePanelCollapsed";
+import { abInitial, abPin, abShowing, type AbState } from "./abCompare";
 import { consumePendingRemixOpen, consumePendingRemixRecipe } from "../../../utils/pendingTrack";
 
 export interface RemixPanelProps {
@@ -97,6 +104,46 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   // A3: the last rendered audition, played through a hidden <audio>.
   const [listen, setListen] = useState<{ url: string; duration_sec: number; truncated: boolean } | null>(null);
   const [built, setBuilt] = useState<RemixSummary | null>(null);
+  // The lineage of the built remix: the current render plus every render a
+  // rebuild archived. A rebuild used to delete the previous mix, so the
+  // render you were comparing against was one click from gone; now it is
+  // playable from here.
+  const [versions, setVersions] = useState<RemixVersion[]>([]);
+  // null plays the current render; a number plays that archived version.
+  const [versionPick, setVersionPick] = useState<number | null>(null);
+  // A/B pins: snapshots of the whole form, so flipping is a context switch.
+  const [ab, setAb] = useState<AbState>(abInitial);
+  const currentVersion = useMemo(
+    () => versions.find((v) => v.current)?.version ?? null,
+    [versions],
+  );
+
+  const loadVersions = useCallback(async (name: string) => {
+    setVersionPick(null);
+    try {
+      setVersions(await listRemixVersions(name));
+    } catch {
+      // An older backend has no versions route; the panel still works,
+      // it just has no lineage to offer.
+      setVersions([]);
+    }
+  }, []);
+
+  /** Load a pinned arrangement into the form: a full context switch. */
+  const loadVariant = useCallback((which: "a" | "b") => {
+    const variant = which === "a" ? ab.a : ab.b;
+    if (!variant) return;
+    setName(variant.name);
+    setBpm(variant.bpm);
+    setSlots(variant.slots);
+    // The preview and any audition belong to the arrangement they were
+    // rendered from; keeping them would play the other variant's audio
+    // under the new form and read as a bug.
+    setPreview(null);
+    setListen(null);
+    setReviseChanges(null);
+    setReviseWarnings([]);
+  }, [ab]);
   const [remixes, setRemixes] = useState<RemixSummary[]>([]);
   // A5: replacing an existing remix is an explicit choice, not the default.
   const [overwrite, setOverwrite] = useState(false);
@@ -416,6 +463,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
 
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
+  // The running build's job id, so Cancel has something to cancel. State,
+  // not a ref: the Cancel button renders from it, and a value nothing
+  // re-renders for is a button that never appears.
+  const [buildJobId, setBuildJobId] = useState<string | null>(null);
 
   const runBuild = useCallback(async () => {
     // A5: refuse the one case that used to be silent. A colliding name with
@@ -428,8 +479,26 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     }
     setBusy("build");
     setError(null);
+    // The job id is what Cancel cancels, so the build is started and
+    // awaited as a job rather than through the awaiting wrapper: a
+    // render measured 7-23 s, and a wait with no way out is the
+    // reason this panel now owns the poll loop.
+    setBuildJobId(null);
     try {
-      const r = await buildRemix(recipe());
+      const accepted = await startBuildRemix(recipe());
+      setBuildJobId(accepted.job_id);
+      const status = await awaitRemixJob(accepted.job_id);
+      if (status.state === "cancelled") {
+        // Nothing was written: the mix is in memory until it is
+        // complete, so an earlier render under this name survives.
+        setError("Build cancelled — any earlier render is untouched.");
+        return;
+      }
+      if (status.state === "failed" || !status.result) {
+        setError(status.error ?? "Build failed");
+        return;
+      }
+      const r = status.result as RemixBuildResult;
       // Only the stems this recipe referenced. Offering all four put a
       // play button on `other` that returned digital silence (-240 dBFS),
       // because no slot used it - which reads as a broken player.
@@ -441,12 +510,29 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
       setBuilt({ name: r.name, duration_sec: r.duration_sec, target_bpm: bpm, source_tracks: r.manifest.source_tracks as string[], stems: used.length ? used : Object.keys(r.stems), has_enhanced: false });
       setPreview((p) => (p ? { ...p, warnings: r.warnings } : p));
       listRemixes().then(setRemixes).catch(() => {});
+      void loadVersions(r.name);
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof RemixCancelledError) {
+        setError("Build cancelled — any earlier render is untouched.");
+      } else {
+        setError((e as Error).message);
+      }
     } finally {
+      setBuildJobId(null);
       setBusy(null);
     }
   }, [recipe, bpm, slots, overwrite, remixes, name]);
+
+  const cancelBuild = useCallback(async () => {
+    if (!buildJobId) return;
+    try {
+      await cancelRemixJob(buildJobId);
+      // The poll loop above observes the terminal state and reports
+      // it; this only has to survive the click.
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [buildJobId]);
 
   const runMaster = useCallback(async () => {
     if (!built) return;
@@ -614,6 +700,36 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
                 {p === "swap" ? "Drums A + Vocals B" : p === "intro" ? "Intro → swap" : "Blend A + B"}
               </button>
             ))}
+          </div>
+
+          {/* A/B: pin two arrangements and flip between them. A pin is a
+              snapshot of the whole form, so flipping is a full context
+              switch - what the form shows is what a preview or build
+              renders, which is the iteration loop's actual question
+              ("is the revision better than what I had?"). */}
+          <div className="flex flex-wrap gap-1 items-center">
+            <button
+              onClick={() => setAb((s) => abPin(s, "a", { name, bpm, slots }))}
+              className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white"
+            >
+              Pin as A{abShowing(ab, { name, bpm, slots }) === "a" ? " •" : ""}
+            </button>
+            {ab.a && (
+              <button onClick={() => loadVariant("a")} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
+                A
+              </button>
+            )}
+            <button
+              onClick={() => setAb((s) => abPin(s, "b", { name, bpm, slots }))}
+              className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white"
+            >
+              Pin as B{abShowing(ab, { name, bpm, slots }) === "b" ? " •" : ""}
+            </button>
+            {ab.b && (
+              <button onClick={() => loadVariant("b")} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
+                B
+              </button>
+            )}
           </div>
 
           {/* R1: revise the live arrangement with one sentence. The panel's
@@ -876,6 +992,14 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
             <button onClick={runBuild} disabled={busy !== null} className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100 disabled:opacity-40">
               {busy === "build" ? <Loader2 size={10} className="animate-spin" /> : null} Build
             </button>
+            {/* Cancelling is cooperative - the render stops between slots -
+                so this only disappears when the job reaches a terminal
+                state, which the poll loop reports. */}
+            {busy === "build" && buildJobId && (
+              <button onClick={() => void cancelBuild()} className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-red-500/20 text-[10px] text-white/80 hover:text-red-200">
+                Cancel
+              </button>
+            )}
           </div>
 
           {listen && (
@@ -930,15 +1054,42 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           {built && (
             <div className="space-y-1 pt-1 border-t border-white/10">
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-white flex-1">Hear “{built.name}”</span>
-                <button onClick={runMaster} disabled={busy !== null || built.has_enhanced} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white disabled:opacity-40">
+                <span className="text-[10px] text-white flex-1">
+                  Hear “{built.name}”
+                  {currentVersion !== null ? ` v${currentVersion}` : ""}
+                </span>
+                <button onClick={runMaster} disabled={busy !== null || built.has_enhanced || versionPick !== null} title={versionPick !== null ? "Mastering renders a new current mix - it does not master an archived version" : undefined} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white disabled:opacity-40">
                   {busy === "master" ? "Mastering…" : built.has_enhanced ? "Mastered ✓" : "Master it"}
                 </button>
               </div>
 
+              {/* Only shown when a rebuild has archived something: the current
+                  render plus at least one earlier one. */}
+              {versions.length > 1 && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-muted">Render</span>
+                  <select
+                    aria-label="Version"
+                    value={versionPick ?? ""}
+                    onChange={(e) => setVersionPick(e.target.value ? Number(e.target.value) : null)}
+                    className="bg-white/5 text-[10px] text-white rounded px-1 py-0.5"
+                  >
+                    <option value="">current</option>
+                    {versions.filter((v) => !v.current).map((v) => (
+                      <option key={v.version} value={v.version}>
+                        v{v.version} · {v.total_bars ?? "?"} bars · {typeof v.duration_sec === "number" ? `${v.duration_sec.toFixed(1)}s` : "?"}
+                      </option>
+                    ))}
+                  </select>
+                  {versionPick !== null && (
+                    <span className="text-[10px] text-muted">archived</span>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-1">
-                {(built.has_enhanced ? [...built.stems, "master" as const] : built.stems).map((which) => (
-                  <button key={which} onClick={() => play(remixFileUrl(built.name, which as StemName | "master"))} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
+                {(built.has_enhanced && versionPick === null ? [...built.stems, "master" as const] : built.stems).map((which) => (
+                  <button key={which} onClick={() => play(remixFileUrl(built.name, which as StemName | "master", versionPick ?? undefined))} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
                     <Play size={9} /> {which}
                   </button>
                 ))}
@@ -951,7 +1102,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               <summary className="cursor-pointer hover:text-white">Earlier remixes ({remixes.filter((r) => !built || r.name !== built.name).length})</summary>
               <div className="flex flex-wrap gap-1 mt-1">
                 {remixes.filter((r) => !built || r.name !== built.name).map((r) => (
-                  <button key={r.name} onClick={() => setBuilt(r)} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white">
+                  <button key={r.name} onClick={() => { setBuilt(r); void loadVersions(r.name); }} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white">
                     {r.name}{r.has_enhanced ? " ★" : ""}
                   </button>
                 ))}
