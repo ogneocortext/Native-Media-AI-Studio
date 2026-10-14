@@ -721,7 +721,7 @@ LOUDNESS_ANCHOR_LUFS = -20.0
 CALIBRATION_MAX_DB = 12.0
 
 
-def _ebur128_integrated_lufs(y: "np.ndarray", sr: int) -> float | None:
+def _ebur128_integrated_lufs(y: np.ndarray, sr: int) -> float | None:
     """Integrated LUFS of a (2, N) float32 buffer via ffmpeg's ebur128.
 
     Piped through stdin — no temp files. This is the same measurement
@@ -1269,7 +1269,7 @@ def _near_silent_detail(layer: RemixLayer, rms: float, bar_seconds: float) -> di
     }
 
 
-def _masking_warnings(slot_index: int, layers: list["RemixLayer"]) -> tuple[list[str], list[dict[str, Any]]]:
+def _masking_warnings(slot_index: int, layers: list[RemixLayer]) -> tuple[list[str], list[dict[str, Any]]]:
     """Frequency-slotting warnings (knowledge: mashup-arrangement-theory §4).
 
     Two layers in the same band mask each other: louder but muddier, not
@@ -1278,7 +1278,7 @@ def _masking_warnings(slot_index: int, layers: list["RemixLayer"]) -> tuple[list
     """
     warnings: list[str] = []
     details: list[dict[str, Any]] = []
-    by_stem: dict[str, list["RemixLayer"]] = {}
+    by_stem: dict[str, list[RemixLayer]] = {}
     for layer in layers:
         by_stem.setdefault(layer.stem, []).append(layer)
     bass = by_stem.get("bass", [])
