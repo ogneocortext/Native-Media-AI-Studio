@@ -410,6 +410,10 @@ class RemixEnhanceRequest(BaseModel):
     pre_highpass_hz: float | None = None
     vocal_balance_db: float = 0.0
     output_format: str = "wav"
+    # Opt-in reference tonal match: an audio-library path whose spectral
+    # balance the master bus leans toward. Validated synchronously (404)
+    # so a typo fails fast instead of inside the 60 s enhance job.
+    reference_track: str | None = None
 
 
 class RemixEnhanceResponse(BaseModel):
@@ -463,12 +467,20 @@ async def remix_enhance(name: str, body: RemixEnhanceRequest | None = None) -> R
 
     from ..services.suno_enhancer import EnhanceConfig
     from ..services.suno_enhancer import enhance_stems as run_chain
+    from ..services.reference_match import resolve_reference
+
+    if opts.reference_track:
+        try:
+            resolve_reference(opts.reference_track)
+        except (ValueError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     kwargs: dict[str, object] = {
         "target_peak_dbfs": opts.target_peak_dbfs,
         "master_ceiling_dbfs": opts.master_ceiling_dbfs,
         "vocal_balance_db": opts.vocal_balance_db,
         "output_format": opts.output_format,
+        "reference_track": opts.reference_track,
     }
     if opts.pre_highpass_hz is not None:
         # None means "use the chain's default". Passing the 120 Hz the frontend

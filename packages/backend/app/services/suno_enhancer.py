@@ -120,6 +120,11 @@ class EnhanceConfig:
     air_boost_gain_db: float = 2.5 # +2.5 dB air boost at 10 kHz
     air_boost_freq_hz: float = 10000.0
     vocal_balance_db: float = 0.0  # ±3 dB macro slider for vocal level
+    # Reference tonal match (opt-in): lean the master bus toward a reference
+    # track's spectral balance. The reference is an audio-library path; the
+    # profile is cached in memory. None (default) skips the step entirely.
+    reference_track: str | None = None
+    reference_match_strength: float = 0.5  # 0..1, 0.5 = halfway there
     # In The Mix upgrades
     parallel_weight_bus_db: float = -15.0  # -12 to -18 dB parallel weight
     sidechain_pocket_eq_enabled: bool = False  # duck 2.5–3.5 kHz on Other when vocals present
@@ -1077,14 +1082,31 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"drift_correction failed: {exc}")
 
-# ── Step 16: Master bus true-peak limiter (-1.0 dB) ─────────────────
+# ── Step 16: Reference tonal match (opt-in) ─────────────────────────
+        # EQ before limiting: the limiter then sees the final spectrum.
+        try:
+            if self.config.reference_track:
+                from .reference_match import describe_profile, match_to_reference, profile_for_reference
+                ref_profile = profile_for_reference(self.config.reference_track)
+                mixed = match_to_reference(
+                    mixed, sr, ref_profile,
+                    strength=self.config.reference_match_strength,
+                )
+                steps.append({"step": 16, "name": "reference_match",
+                              "reference": self.config.reference_track,
+                              "strength": self.config.reference_match_strength,
+                              "profile": describe_profile(ref_profile)})
+        except Exception as exc:
+            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"reference_match failed: {exc}")
+
+# ── Step 17: Master bus true-peak limiter (-1.0 dB) ─────────────────
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
-            steps.append({"step": 16, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
+            steps.append({"step": 17, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"limiter failed: {exc}")
 
-        # ── Step 17: Export ────────────────────────────────────────────────
+        # ── Step 18/19: Export ──────────────────────────────────────────────
         wav_path = None
         mp3_path = None
         try:
@@ -1092,11 +1114,11 @@ class SunoEnhancer:
             if self.config.output_format in ("wav", "both"):
                 wav_path = output_dir / f"{base_name}_enhanced.wav"
                 await asyncio.to_thread(self._write_wav, wav_path, mixed, sr)
-                steps.append({"step": 17, "name": "export_wav", "path": str(wav_path)})
+                steps.append({"step": 18, "name": "export_wav", "path": str(wav_path)})
             if self.config.output_format in ("mp3", "both"):
                 mp3_path = output_dir / f"{base_name}_enhanced.mp3"
                 await asyncio.to_thread(self._encode_mp3, wav_path or output_dir / f"{base_name}_enhanced.wav", mp3_path, mixed, sr)
-                steps.append({"step": 18, "name": "export_mp3", "path": str(mp3_path)})
+                steps.append({"step": 19, "name": "export_mp3", "path": str(mp3_path)})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), wav_path, mp3_path, steps=steps, error=f"export failed: {exc}")
 
