@@ -880,6 +880,26 @@ class _SourceCache:
         rms = float(np.sqrt(np.mean(y.astype(np.float64) ** 2)))
         return 20.0 * math.log10(rms + 1e-12)
 
+    def window_rms_db(self, layer: RemixLayer, n_samples: int, bar_n: int) -> float:
+        """RMS of the exact slice the slot renders - not the whole source.
+
+        A stem that opens silently breaks the whole-file reading: Ad
+        Nauseam's bass is digital silence for its first 26.5 s while the
+        stem as a whole measures a healthy -19.9 LUFS, so a layer at
+        `source_start_bar=0` renders four bars of nothing and a
+        whole-file RMS reports no problem. That is the "looks like a
+        broken mixer" case the near-silent warning exists for, so the
+        warning slices where `_render_slot` slices - from the layer's
+        own `source_start_bar`, with the same loop semantics, so a
+        window past the end of a short stem is judged on the audio the
+        render would actually play.
+        """
+        source = self.get(layer)
+        offset = layer.source_start_bar * bar_n
+        window = _loop_to_length(source, offset + n_samples)[:, offset:]
+        rms = float(np.sqrt(np.mean(window.astype(np.float64) ** 2)))
+        return 20.0 * math.log10(rms + 1e-12)
+
 
 # ─── rendering ───────────────────────────────────────────────────────────────
 
@@ -1329,11 +1349,16 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
     `warnings` stays a list of human-readable strings (existing callers), and
     `warnings_detail` carries the same facts structured as
     `{code, layer_ref, field, measured_rms_db, suggestion}` so an agent
-    does not have to parse prose.
+    does not have to parse prose. Two RMS values appear in the response and
+    they mean different things: `layers[].measured_rms_db` is the whole
+    aligned source (a gain-suggestion reference), while the near-silent
+    detail's `measured_rms_db` is the slice the slot renders from the
+    layer's own `source_start_bar` - the one a listener actually hears.
     """
     recipe.validate()
     plan = plan_timeline(recipe)
     cache = _SourceCache(recipe.target_bpm)
+    bar_n = plan["bar_n"]
     layers: list[dict[str, Any]] = []
     warnings: list[str] = []
     warnings_detail: list[dict[str, Any]] = []
@@ -1351,11 +1376,16 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
                     "source_start_bar": layer.source_start_bar,
                 }
             )
-            if rms < -50.0:
-                warnings_detail.append(_near_silent_detail(layer, rms, recipe.bar_seconds))
+            # The near-silent check reads the slice the slot renders, not the
+            # whole source: a stem that opens silently has a healthy
+            # whole-file RMS and would otherwise render four bars of nothing
+            # with no warning at all.
+            window_rms = cache.window_rms_db(layer, slot.bars * bar_n, bar_n)
+            if window_rms < -50.0:
+                warnings_detail.append(_near_silent_detail(layer, window_rms, recipe.bar_seconds))
                 warnings.append(
                     f"{layer.track}/{layer.stem} is near-silent at this offset "
-                    f"({rms:.0f} dBFS) - check source_start_bar"
+                    f"({window_rms:.0f} dBFS) - check source_start_bar"
                 )
         mw, md = _masking_warnings(si, slot.layers)
         warnings.extend(mw)

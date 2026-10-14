@@ -396,4 +396,28 @@ test.describe("Remix / Mashup panel", () => {
       "the dragged slot did not reach position 1 in the posted recipe",
     ).toBeGreaterThan(body!.slots![1].layers!.length);
   });
+
+  test("surfaces arrangement-theory masking warnings in the panel", async ({ page }) => {
+    // Orion's 9270193: preview_recipe warns when two layers occupy the same
+    // frequency slot. The Blend preset puts A/bass + B/bass and A/other +
+    // B/other into one slot at equal gain - exactly both rules - so the
+    // browser path is verified without hand-assembling the collision, and
+    // the assertions do not care which source seeds as A.
+    test.setTimeout(180_000);
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole("button", { name: "Blend A + B" }).click();
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+
+    // Preview loads and time-stretches every source, so it is the slow path.
+    await expect(page.getByText("will mask each other")).toBeVisible({ timeout: 150_000 });
+    await expect(page.getByText("midrange masking")).toBeVisible({ timeout: 150_000 });
+  });
 });

@@ -483,10 +483,12 @@ def test_list_stem_sources_survives_a_corrupt_probe_cache(
 class _StubSourceCache:
     """Stands in for `_SourceCache` so no audio is loaded.
 
-    `measured_rms_db` is the only input the warning logic reads,
-    and the point under test is what the warning *says*, not how
-    RMS is measured - so a fixed level per track is the honest
-    stub. `bpm_for` feeds the stretch-ratio report.
+    `measured_rms_db` is the whole-source level the layer listing
+    reports; `window_rms_db` is the level of the slice the slot
+    renders, which is what the near-silent warning reads. The point
+    under test is what the warning *says*, not how either RMS is
+    measured - so a fixed level per track is the honest stub.
+    `bpm_for` feeds the stretch-ratio report.
     """
 
     def __init__(self, target_bpm: float) -> None:
@@ -494,6 +496,9 @@ class _StubSourceCache:
         self.stretch_ratios: dict[str, float] = {}
 
     def measured_rms_db(self, layer: RemixLayer) -> float:
+        return -60.0 if layer.track == "quiet" else -20.0
+
+    def window_rms_db(self, layer: RemixLayer, n_samples: int, bar_n: int) -> float:
         return -60.0 if layer.track == "quiet" else -20.0
 
     def bpm_for(self, track: str) -> float:
@@ -580,6 +585,74 @@ def test_preview_near_silent_without_probe_gets_generic_suggestion(
 
     data = stem_remixer.preview_recipe(_one_slot_recipe("quiet"))
     assert data["warnings_detail"][0]["suggestion"] == "check source_start_bar"
+
+
+class _StubOpeningSilenceLibrosa:
+    """librosa.load stand-in: the first `silent_sec` seconds are digital silence."""
+
+    def __init__(self, silent_sec: float) -> None:
+        self.silent_sec = silent_sec
+
+    def load(self, path, sr=None, mono=False):
+        sr = sr or stem_remixer.REMIX_SR
+        y = np.full((2, int(sr * 40)), 0.5, dtype=np.float32)
+        y[:, : int(self.silent_sec * sr)] = 0.0
+        return y, sr
+
+
+def test_window_rms_measures_the_offset_window_not_the_whole_file(monkeypatch):
+    """The near-silent warning must judge the slice the slot renders.
+
+    Measured on this library: Ad Nauseam's bass is digital silence for
+    its first 26.5 s while the stem as a whole measures -19.9 LUFS. A
+    whole-file RMS reports no problem for a layer that renders four
+    bars of nothing - the "looks like a broken mixer" case the warning
+    exists to catch - so the warning reads the window instead.
+    """
+    monkeypatch.setattr(stem_remixer, "resolve_stem_path", _stub_resolve)
+    monkeypatch.setattr(
+        stem_remixer, "librosa", _StubOpeningSilenceLibrosa(silent_sec=20.0), raising=False
+    )
+    cache = stem_remixer._SourceCache(target_bpm=120.0)  # 4/4 at 120 -> 2 s bars
+    cache.bpm_for = lambda track: 120.0  # a probe would need a file on disk
+    bar_n = 2 * stem_remixer.REMIX_SR
+
+    from_bar_zero = RemixLayer(track="t", stem="vocals", source_start_bar=0)
+    from_bar_eleven = RemixLayer(track="t", stem="vocals", source_start_bar=11)
+
+    # Whole-source RMS sits far above the threshold...
+    assert cache.measured_rms_db(from_bar_zero) > -50.0
+    # ...while the first four bars are inside the silent half.
+    assert cache.window_rms_db(from_bar_zero, 4 * bar_n, bar_n) < -50.0
+    # Eleven bars in (22 s) lands in the loud half: no warning warranted.
+    assert cache.window_rms_db(from_bar_eleven, 4 * bar_n, bar_n) > -50.0
+
+
+def test_preview_warns_when_the_offset_window_is_silent_but_the_file_is_not(
+    tmp_path, monkeypatch
+):
+    """End to end through preview_recipe: the warning fires on the window.
+
+    The stub cache keeps the whole file loud and the window silent, so a
+    regression to whole-file measurement makes this test fail rather
+    than letting a four-bar-silent layer through unwarned.
+    """
+
+    class _WindowSilentCache(_StubSourceCache):
+        def window_rms_db(self, layer: RemixLayer, n_samples: int, bar_n: int) -> float:
+            return -81.0
+
+        def measured_rms_db(self, layer: RemixLayer) -> float:
+            return -20.0
+
+    monkeypatch.setattr(stem_remixer, "PROBE_CACHE_DIR", tmp_path / "no-probes")
+    monkeypatch.setattr(stem_remixer, "_SourceCache", _WindowSilentCache)
+
+    data = stem_remixer.preview_recipe(_one_slot_recipe("loud"))
+    assert data["warnings"] and "near-silent" in data["warnings"][0]
+    detail = data["warnings_detail"][0]
+    assert detail["code"] == "near_silent"
+    assert detail["measured_rms_db"] == -81.0
 
 
 def test_preview_warns_on_two_bass_layers(tmp_path, monkeypatch):
