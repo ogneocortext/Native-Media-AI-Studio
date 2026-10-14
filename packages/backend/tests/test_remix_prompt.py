@@ -555,3 +555,156 @@ def test_system_prompt_carries_the_source_table():
 
 def test_user_prompt_wraps_the_request():
     assert "drums from X" in remix_prompt.build_user_prompt("drums from X")
+
+
+# ── R1 revision loop ─────────────────────────────────────────────────
+
+
+def _base_recipe(**overrides):
+    recipe = {
+        "name": "rev-base",
+        "target_bpm": 130.0,
+        "beats_per_bar": 4,
+        "key": None,
+        "overwrite": False,
+        "slots": [
+            {
+                "bars": 8,
+                "crossfade_bars": 2.0,
+                "layers": [
+                    {"track": "SunoV6Mini-The Last-Original-V1", "stem": "drums", "gain_db": 0.0, "key_shift_semitones": 0.0, "source_start_bar": 0, "lowpass_hz": None, "brightness_db": 0.0},
+                    {"track": "SunoV6Mini-The Last-Original-V1", "stem": "bass", "gain_db": 1.5, "key_shift_semitones": 0.0, "source_start_bar": 0, "lowpass_hz": None, "brightness_db": 0.0},
+                ],
+            },
+            {
+                "bars": 4,
+                "crossfade_bars": 1.0,
+                "layers": [
+                    {"track": "SunoV6Mini-Ad-Nauseam", "stem": "vocals", "gain_db": -1.0, "key_shift_semitones": 0.0, "source_start_bar": 0, "lowpass_hz": None, "brightness_db": 0.0},
+                ],
+            },
+        ],
+    }
+    recipe.update(overrides)
+    return recipe
+
+
+def test_parse_gain_deltas_signed_and_bare():
+    assert remix_prompt.parse_gain_deltas("vocals up 2 dB") == [("vocals", 2.0)]
+    assert remix_prompt.parse_gain_deltas("drums down 3") == [("drums", -3.0)]
+    assert remix_prompt.parse_gain_deltas("bass +1.5db") == [("bass", 1.5)]
+    assert remix_prompt.parse_gain_deltas("vocals up") == [("vocals", 1.0)]
+    assert remix_prompt.parse_gain_deltas("make the vocal louder") == [("vocals", 2.0)]
+    assert remix_prompt.parse_gain_deltas("drums a bit quieter please") == [("drums", -2.0)]
+    assert remix_prompt.parse_gain_deltas("make it darker") == []
+
+
+def test_parse_drop_stems_scoped_and_global():
+    assert remix_prompt.parse_drop_stems("drop the bass in slot 2") == [("bass", 1)]
+    assert remix_prompt.parse_drop_stems("remove vocals from slot 1") == [("vocals", 0)]
+    assert remix_prompt.parse_drop_stems("cut drums") == [("drums", None)]
+
+
+def test_parse_slot_bars_absolute_and_relative():
+    assert remix_prompt.parse_slot_bars("slot 2: 16 bars") == [(1, 16, True)]
+    assert remix_prompt.parse_slot_bars("make slot 1 twice as long") == [(0, 2, False)]
+    assert remix_prompt.parse_slot_bars("halve slot 2") == [(1, 0, False)]
+
+
+def test_request_to_recipe_round_trips():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    assert base.name == "rev-base"
+    assert base.target_bpm == 130.0
+    assert len(base.slots) == 2
+    assert [layer.stem for layer in base.slots[0].layers] == ["drums", "bass"]
+    assert base.slots[0].layers[1].gain_db == 1.5
+    base.validate()
+
+
+def test_heuristic_gain_delta_changes_only_that_layer():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    revised, _warnings = remix_prompt.revise_heuristic_recipe("vocals up 2 dB", base, SOURCES)
+    by_stem = {layer.stem: layer.gain_db for slot in revised.slots for layer in slot.layers}
+    assert by_stem["vocals"] == 1.0  # -1.0 + 2.0
+    assert by_stem["drums"] == 0.0
+    assert by_stem["bass"] == 1.5
+    changes = remix_prompt.diff_recipes(base, revised)
+    assert changes == ["slot 2: vocals gain -1 -> 1 dB"]
+
+
+def test_heuristic_gain_delta_scoped_to_named_track():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    revised, _warnings = remix_prompt.revise_heuristic_recipe(
+        "vocals from Ad Nauseam up 2 dB", base, SOURCES
+    )
+    assert revised.slots[1].layers[0].gain_db == 1.0
+
+
+def test_heuristic_drop_removes_only_that_layer():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    revised, _warnings = remix_prompt.revise_heuristic_recipe("drop the bass in slot 1", base, SOURCES)
+    assert [layer.stem for layer in revised.slots[0].layers] == ["drums"]
+    assert [layer.stem for layer in revised.slots[1].layers] == ["vocals"]
+    changes = remix_prompt.diff_recipes(base, revised)
+    assert any("removed bass" in c for c in changes)
+
+
+def test_heuristic_slot_length_change():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    revised, _warnings = remix_prompt.revise_heuristic_recipe("make slot 1 twice as long", base, SOURCES)
+    assert revised.slots[0].bars == 16
+    assert revised.slots[1].bars == 4
+    revised2, _w2 = remix_prompt.revise_heuristic_recipe("slot 2: 16 bars", base, SOURCES)
+    assert revised2.slots[1].bars == 16
+
+
+def test_heuristic_empty_revision_returns_base_unchanged():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    revised, warnings = remix_prompt.revise_heuristic_recipe("looks good", base, SOURCES)
+    assert remix_prompt.diff_recipes(base, revised) == []
+    assert any("unchanged" in w for w in warnings)
+
+
+def test_unknown_track_revision_leaves_recipe_unchanged():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    revised, warnings = remix_prompt.revise_heuristic_recipe(
+        "vocals from The Vow up 2 dB", base, SOURCES
+    )
+    # Repair-before-return: the delta is NOT applied to every vocals layer
+    # just because the named track is missing.
+    assert remix_prompt.diff_recipes(base, revised) == []
+    assert any("unknown track" in w for w in warnings)
+
+
+def test_unknown_track_references_resolution_rules():
+    # A name no source resolves to is a claim; library abbreviations are not.
+    assert remix_prompt.unknown_track_references("vocals from The Vow up 2 dB", SOURCES) == ["The Vow"]
+    assert remix_prompt.unknown_track_references("vocals from Ad Nauseam up 2 dB", SOURCES) == []
+    assert (
+        remix_prompt.unknown_track_references(
+            "vocals from SunoV6Mini-The Last-Original-V1 up 2 dB", SOURCES
+        )
+        == []
+    )
+    # Lowercase filler is ordinary language, not a track claim.
+    assert remix_prompt.unknown_track_references("vocals from the top up 2 dB", SOURCES) == []
+    assert remix_prompt.unknown_track_references("drop the bass on slot 2", SOURCES) == []
+    # Operand words around the name are trimmed off it.
+    assert remix_prompt.unknown_track_references("vocals from The Vow", SOURCES) == ["The Vow"]
+    assert remix_prompt.unknown_track_references("vocals from The Vow's intro", SOURCES) == ["The Vow's"]
+
+
+def test_diff_names_tempo_change():
+    base = remix_prompt.request_to_recipe(_base_recipe())
+    import copy as _copy
+
+    other = _copy.deepcopy(base)
+    other.target_bpm = 140.0
+    assert remix_prompt.diff_recipes(base, other) == ["target tempo 130 -> 140 BPM"]
+
+
+def test_revision_system_prompt_carries_recipe_and_sources():
+    system = remix_prompt.build_revision_system_prompt(SOURCES, _base_recipe())
+    assert "rev-base" in system  # recipe verbatim
+    assert "SunoV6Mini-Ad-Nauseam" in system  # source table
+    assert "FULL revised recipe, not a diff" in system

@@ -212,12 +212,18 @@ export async function previewRemix(recipe: RemixRecipeSpec): Promise<RemixPrevie
  * Render a bounded, playable excerpt of a recipe (A3). Same mix core as
  * the build, truncated to ~30 s and cached by recipe hash, so hearing the
  * arrangement costs one short render rather than a full build.
+ *
+ * R2: pass slotIndex (0-based) to audition one slot alone — the backend
+ * renders that slot through the same path. Out of range is a 400.
  */
-export async function previewRemixAudio(recipe: RemixRecipeSpec): Promise<RemixPreviewAudio> {
+export async function previewRemixAudio(
+  recipe: RemixRecipeSpec,
+  slotIndex?: number,
+): Promise<RemixPreviewAudio> {
   const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/preview-audio`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(recipe),
+    body: JSON.stringify(slotIndex === undefined ? recipe : { ...recipe, slot_index: slotIndex }),
     // A preview is one truncated render: a few seconds per source stretch.
     timeout: 240000,
   });
@@ -231,6 +237,40 @@ export interface RemixPreviewAudio {
   /** True when the excerpt is shorter than the arrangement. */
   truncated: boolean;
   warnings: string[];
+}
+
+export interface RemixDraft {
+  /** The exact /build request shape, ready for review then render. */
+  recipe: RemixRecipeSpec;
+  explanation: string;
+  warnings: string[];
+  model_used: string | null;
+  source: "ollama" | "heuristic";
+  /** R1: human-readable diff of base vs revised; [] for fresh drafts. */
+  changes: string[];
+}
+
+/**
+ * Draft a mashup from one sentence, or revise a recipe with one sentence
+ * (R1: pass the panel's live recipe as baseRecipe — "vocals up 2 dB").
+ * Draft-only in both modes: the caller reviews before spending a render.
+ */
+export async function draftRemixFromPrompt(
+  prompt: string,
+  baseRecipe?: RemixRecipeSpec,
+): Promise<RemixDraft> {
+  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/from-prompt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(baseRecipe ? { prompt, base_recipe: baseRecipe } : { prompt }),
+    // The local model drafts; the deterministic fallback is fast, the
+    // model is not. Measured on this box: a COLD qwen3.5:9b under VRAM
+    // contention answered from-prompt in 167 s, so a 180 s budget aborted
+    // a request the backend was about to answer 200 on. 300 s covers the
+    // cold load with margin; the button spinner covers the wait.
+    timeout: 300000,
+  });
+  return unwrap<RemixDraft>(res, "Remix draft failed");
 }
 
 /**

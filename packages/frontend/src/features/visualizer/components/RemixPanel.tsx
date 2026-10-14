@@ -21,6 +21,7 @@ import { AlertCircle, ChevronDown, Loader2, Play, Plus, Scissors, Trash2, Wand2 
 import {
   STEM_NAMES,
   buildRemix,
+  draftRemixFromPrompt,
   enhanceRemix,
   getAudioStems,
   getApiBase,
@@ -86,9 +87,13 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   const [nameTouched, setNameTouched] = useState(false);
   const [bpm, setBpm] = useState(120);
   const [slots, setSlots] = useState<UISlot[]>([]);
-  const [busy, setBusy] = useState<null | "preview" | "build" | "master" | "separate" | "listen" | "audition">(null);
+  const [busy, setBusy] = useState<null | "preview" | "build" | "master" | "separate" | "listen" | "audition" | "revise">(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RemixPreview | null>(null);
+  // R1: the last revision sentence's human-readable diff, shown for review.
+  const [reviseChanges, setReviseChanges] = useState<string[] | null>(null);
+  const [reviseWarnings, setReviseWarnings] = useState<string[]>([]);
+  const [reviseInput, setReviseInput] = useState("");
   // A3: the last rendered audition, played through a hidden <audio>.
   const [listen, setListen] = useState<{ url: string; duration_sec: number; truncated: boolean } | null>(null);
   const [built, setBuilt] = useState<RemixSummary | null>(null);
@@ -339,6 +344,79 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     }
   }, [recipe]);
 
+  // R1: revise the live recipe with one sentence ("vocals up 2 dB"). The
+  // panel's current recipe goes as base_recipe; the returned recipe is
+  // applied to the form for review — rendering stays an explicit /build.
+  const runRevise = useCallback(async () => {
+    const sentence = reviseInput.trim();
+    if (!sentence) {
+      setError("Type a revision first — e.g. “vocals up 2 dB”.");
+      return;
+    }
+    setBusy("revise");
+    setError(null);
+    try {
+      const draft = await draftRemixFromPrompt(sentence, recipe());
+      setSlots(recipeToEditableSlots(draft.recipe));
+      setBpm(Math.round(draft.recipe.target_bpm));
+      setReviseChanges(draft.changes);
+      setReviseWarnings(draft.warnings);
+    } catch (e) {
+      setError((e as Error).message);
+      setReviseChanges(null);
+      setReviseWarnings([]);
+    } finally {
+      setBusy(null);
+    }
+  }, [reviseInput, recipe]);
+
+  // R2: audition one slot alone through the timeline. The backend renders
+  // just that slot through the same mix path; the panel plays it like any
+  // other audition. seg.slotIndex is the true slots-array index, but the
+  // wire recipe filters empty slots — resolve the nth playable slot's
+  // position in the built recipe rather than assuming the index survived.
+  const auditionSlot = useCallback(
+    async (slotIndex: number) => {
+      setBusy("listen");
+      setError(null);
+      try {
+        const built = recipe();
+        const playable = slots
+          .map((s, i) => ({ s, i }))
+          .filter(({ s }) => s.layers.length > 0);
+        const position = playable.findIndex(({ i }) => i === slotIndex);
+        if (position < 0 || position >= built.slots.length) {
+          throw new Error(`Slot ${slotIndex + 1} has no layers to audition.`);
+        }
+        const result = await previewRemixAudio(built, position);
+        setListen({ url: result.url, duration_sec: result.duration_sec, truncated: result.truncated });
+      } catch (e) {
+        setError((e as Error).message);
+        setListen(null);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [recipe, slots],
+  );
+
+  // R2: reorder slots by drag. The form sections render from the same array,
+  // so they follow with no extra wiring — single source of truth.
+  const moveSlot = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    setSlots((prev) => {
+      if (from < 0 || from >= prev.length || to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setPreview(null);
+  }, []);
+
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<number | null>(null);
+
   const runBuild = useCallback(async () => {
     // A5: refuse the one case that used to be silent. A colliding name with
     // overwrite off would have rendered to a directory that already exists;
@@ -538,18 +616,106 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
             ))}
           </div>
 
+          {/* R1: revise the live arrangement with one sentence. The panel's
+              current recipe goes as base_recipe; the returned recipe lands
+              back in the form for review — rendering stays an explicit build. */}
+          <div className="flex items-center gap-1">
+            <input
+              value={reviseInput}
+              onChange={(e) => setReviseInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void runRevise();
+              }}
+              placeholder="Revise: vocals up 2 dB…"
+              aria-label="Revise arrangement with a sentence"
+              className="flex-1 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white placeholder:text-muted"
+            />
+            <button
+              onClick={() => void runRevise()}
+              disabled={busy !== null}
+              // No aria-label: the visible text is the accessible name.
+              // "Apply revision" made the name disagree with the label,
+              // which fails WCAG 2.5.3 and hides the button from
+              // getByRole("button", { name: "Revise" }).
+              className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white disabled:opacity-40"
+            >
+              {busy === "revise" ? <Loader2 size={10} className="animate-spin" /> : "Revise"}
+            </button>
+          </div>
+          {(reviseChanges !== null || reviseWarnings.length > 0) && (
+            <div className="space-y-0.5" data-testid="remix-revise-result">
+              {(reviseChanges ?? []).map((c) => (
+                <p key={c} className="text-[10px] text-emerald-200/90">✓ {c}</p>
+              ))}
+              {reviseChanges !== null && reviseChanges.length === 0 && (
+                <p className="text-[10px] text-muted">No changes — recipe already matches.</p>
+              )}
+              {reviseWarnings.map((w) => (
+                <p key={w} className="flex items-start gap-1 text-[10px] text-amber-300/90">
+                  <AlertCircle size={10} className="mt-0.5 shrink-0" />
+                  <span>{w}</span>
+                </p>
+              ))}
+            </div>
+          )}
+
           {/* A6: the arrangement at a glance. Widths are shares of total
               bars — the relationship the render uses — so a 4-bar slot and a
-              32-bar slot finally look different. */}
+              32-bar slot finally look different.
+              R2: the timeline also edits. Click a segment to audition that
+              slot alone; drag to reorder (arrow keys nudge when focused).
+              Scope guard per the plan: no resize handles, no solo/mute. */}
           {timelineSegments(slots).length > 0 && (
             <div className="space-y-1" data-testid="remix-timeline">
-              <div className="flex h-6 rounded overflow-hidden border border-white/10">
+              <div
+                className="flex h-6 rounded overflow-hidden border border-white/10"
+                role="listbox"
+                aria-label="Arrangement timeline: click a slot to audition it, drag to reorder"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (dragFrom !== null && dropAt !== null) moveSlot(dragFrom, dropAt);
+                  setDragFrom(null);
+                  setDropAt(null);
+                }}
+                onDragLeave={() => setDropAt(null)}
+              >
                 {timelineSegments(slots).map((seg) => (
                   <div
                     key={seg.slotIndex}
-                    className="relative flex flex-col justify-center gap-0.5 px-1 bg-white/[0.04] border-r border-white/10 last:border-r-0"
+                    role="option"
+                    aria-selected={false}
+                    aria-label={`Slot ${seg.slotIndex + 1}: ${seg.bars} bars. Activate to audition; arrow keys reorder.`}
+                    tabIndex={0}
+                    draggable
+                    onClick={() => void auditionSlot(seg.slotIndex)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        void auditionSlot(seg.slotIndex);
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        moveSlot(seg.slotIndex, seg.slotIndex - 1);
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
+                        moveSlot(seg.slotIndex, seg.slotIndex + 1);
+                      }
+                    }}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      setDragFrom(seg.slotIndex);
+                    }}
+                    onDragEnd={() => {
+                      setDragFrom(null);
+                      setDropAt(null);
+                    }}
+                    onDragEnter={() => {
+                      if (dragFrom !== null && dragFrom !== seg.slotIndex) setDropAt(seg.slotIndex);
+                    }}
+                    className={`relative flex flex-col justify-center gap-0.5 px-1 bg-white/[0.04] border-r border-white/10 last:border-r-0 cursor-pointer hover:bg-white/[0.08] focus:outline-none focus:ring-1 focus:ring-amber-300/60${
+                      dragFrom === seg.slotIndex ? " opacity-40" : ""
+                    }${dropAt === seg.slotIndex ? " ring-1 ring-emerald-300/70" : ""}`}
                     style={{ width: `${seg.pct}%` }}
-                    title={`Slot ${seg.slotIndex + 1}: ${seg.bars} bars${seg.crossfadePct > 0 ? `, ${seg.crossfadeBars}-bar crossfade` : ""}`}
+                    title={`Slot ${seg.slotIndex + 1}: ${seg.bars} bars${seg.crossfadePct > 0 ? `, ${seg.crossfadeBars}-bar crossfade` : ""} — click to audition, drag to reorder`}
                   >
                     <span className="text-[9px] text-muted truncate">
                       {seg.bars}b{seg.crossfadeBars > 0 ? ` ×${seg.crossfadeBars}` : ""}

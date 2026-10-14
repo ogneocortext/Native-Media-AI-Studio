@@ -274,11 +274,12 @@ server.setRequestHandler('tools/list', async () => ({
     },
     {
       name: "remix_from_prompt",
-      description: "Draft a mashup recipe from one natural-language sentence (e.g. 'make a darker version of X using its drums and bass plus the vocals from Y'). Returns {recipe, explanation, warnings} for review — it never renders; call remix_preview then remix_build with the returned recipe.",
+      description: "Draft a mashup recipe from one natural-language sentence (e.g. 'make a darker version of X using its drums and bass plus the vocals from Y'). Returns {recipe, explanation, warnings} for review — it never renders; call remix_preview then remix_build with the returned recipe. Pass base_recipe (a recipe object) to revise it with one sentence ('vocals up 2 dB'); the response then also carries changes, the human-readable diff.",
       inputSchema: {
         type: "object",
         properties: {
-          prompt: { type: "string", description: "Natural-language mashup request" },
+          prompt: { type: "string", description: "Natural-language mashup request, or a revision sentence when base_recipe is present" },
+          base_recipe: { type: "object", description: "Optional recipe to revise (the exact /build request shape); when present the prompt is interpreted as deltas against it" },
         },
         required: ["prompt"],
       },
@@ -825,13 +826,13 @@ async function remixProbe(reqId, args) {
 
 async function remixFromPrompt(reqId, args) {
   if (!args.prompt) return textResponse("Missing required arg: prompt", true);
-  logRequest(reqId, "remix_from_prompt", `prompt=${String(args.prompt).slice(0, 80)}`);
+  logRequest(reqId, "remix_from_prompt", `prompt=${String(args.prompt).slice(0, 80)}${args.base_recipe ? " (revision)" : ""}`);
   const res = await fetchWithTimeout(
     `${BACKEND_URL}/api/audio/remix/from-prompt`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: args.prompt }),
+      body: JSON.stringify({ prompt: args.prompt, ...(args.base_recipe ? { base_recipe: args.base_recipe } : {}) }),
     },
     180000, // the local model drafts; the deterministic fallback is fast, the model is not
   );

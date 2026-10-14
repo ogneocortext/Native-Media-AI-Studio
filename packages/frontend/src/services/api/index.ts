@@ -108,6 +108,7 @@ export type {
 export {
   getRemixSources,
   probeRemixTrack,
+  draftRemixFromPrompt,
   previewRemix,
   previewRemixAudio,
   startBuildRemix,
@@ -129,6 +130,8 @@ export type {
   RemixRecipeSpec,
   RemixRecipeRoundTrip,
   RemixPreview,
+  RemixPreviewAudio,
+  RemixDraft,
   RemixBuildResult,
   RemixSummary,
   RemixLineageEntry,

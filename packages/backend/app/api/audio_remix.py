@@ -116,9 +116,14 @@ class TempoRefreshRequest(BaseModel):
 
 
 class RemixPromptRequest(BaseModel):
-    """Natural-language mashup request (plan B2)."""
+    """Natural-language mashup request (plan B2; revision mode in R1)."""
 
     prompt: str = Field(min_length=1, max_length=2000)
+    # R1: when present, the prompt is interpreted as *deltas* against this
+    # recipe ("vocals up 2 dB") rather than a fresh draft. The shape is the
+    # exact `/build` request shape, so a panel sends its live recipe verbatim.
+    base_recipe: dict | None = None
+    model: str | None = None
 
 
 class RemixDraftResponse(BaseModel):
@@ -127,7 +132,8 @@ class RemixDraftResponse(BaseModel):
     `recipe` is the exact `/build` request shape, so reviewing means one
     call, not a translation step. `source` names the drafter — `ollama` or
     `heuristic` (the deterministic fallback when no model answered) — so a
-    caller can tell a modelled arrangement from a parsed one.
+    caller can tell a modelled arrangement from a parsed one. `changes` is
+    the R1 human-readable diff of base vs revised; drafts carry [].
     """
 
     recipe: dict
@@ -135,6 +141,7 @@ class RemixDraftResponse(BaseModel):
     warnings: list[str] = []
     model_used: str | None = None
     source: str
+    changes: list[str] = []
 
 
 def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
@@ -263,7 +270,7 @@ async def remix_by_track(track: str) -> dict:
 
 @router.post("/from-prompt", response_model=RemixDraftResponse)
 async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
-    """Draft a mashup recipe from natural language (plan B2).
+    """Draft a mashup recipe from natural language (plan B2; R1 revisions).
 
     Deliberately draft-only: the plan's non-goals forbid prompt → audio in
     one shot, so this returns `{recipe, explanation, warnings}` and the
@@ -271,15 +278,22 @@ async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
     exact `/build` request shape, so review is one call, not a
     translation step.
 
-    The local model (qwen3.5:9b, falling back to 4b, then to a
-    deterministic parse of the same prompt) never invents sources: every
-    layer is re-resolved against `list_stem_sources()` and an
+    R1: when `base_recipe` is present, the prompt is interpreted as deltas
+    against it ("vocals up 2 dB") and the response gains `changes`, the
+    human-readable diff. The local model (qwen3.5:9b, falling back to 4b,
+    then to a deterministic parse of the same prompt) never invents sources:
+    every layer is re-resolved against `list_stem_sources()` and an
     unresolvable track or missing stem is dropped with a warning rather
     than failing the request. A prompt naming no library track is a 400 —
     that is a caller error worth reporting, not something to paper over.
     """
     try:
-        draft = await remix_prompt.draft_recipe_from_prompt(body.prompt)
+        if body.base_recipe is not None:
+            draft = await remix_prompt.revise_recipe_from_prompt(
+                body.prompt, body.base_recipe, model=body.model
+            )
+        else:
+            draft = await remix_prompt.draft_recipe_from_prompt(body.prompt, model=body.model)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RemixDraftResponse(**draft)
@@ -294,16 +308,43 @@ class RemixPreviewAudioResponse(BaseModel):
     warnings: list[str] = []
 
 
+class RemixPreviewAudioRequest(RemixRecipeRequest):
+    """A preview request, optionally scoped to one slot (R2).
+
+    Inherits the full recipe shape so a panel sends its live recipe
+    verbatim; `slot_index` (0-based, optional) auditions that slot alone.
+    """
+
+    slot_index: int | None = None
+
+
 @router.post("/preview-audio", response_model=RemixPreviewAudioResponse)
-async def remix_preview_audio(body: RemixRecipeRequest) -> RemixPreviewAudioResponse:
-    """Render a bounded, playable excerpt of a recipe (A3).
+async def remix_preview_audio(body: RemixPreviewAudioRequest) -> RemixPreviewAudioResponse:
+    """Render a bounded, playable excerpt of a recipe (A3; R2 slot audition).
 
     Same mix core as `/build` — tempo alignment, key shift, tone shaping,
     crossfades and gains — truncated to ~30 s so an audition costs one
     render rather than a full build. Cached by recipe hash, so re-clicking
     after a tweak replays only the changed part.
+
+    R2: `slot_index` (0-based) auditions one slot alone — the backend
+    builds a single-slot recipe from the posted recipe and renders it
+    through the same path, so no new DSP. Out of range is a 400, no render.
     """
     recipe = _to_recipe(body)
+    if body.slot_index is not None:
+        if not 0 <= body.slot_index < len(recipe.slots):
+            raise HTTPException(
+                status_code=400,
+                detail=f"slot_index {body.slot_index} out of range for {len(recipe.slots)} slot(s)",
+            )
+        recipe = stem_remixer.RemixRecipe(
+            name=recipe.name,
+            target_bpm=recipe.target_bpm,
+            beats_per_bar=recipe.beats_per_bar,
+            key=recipe.key,
+            slots=[recipe.slots[body.slot_index]],
+        )
     preview = await asyncio.to_thread(stem_remixer.render_preview_audio, recipe)
     name = Path(preview["path"]).stem
     return RemixPreviewAudioResponse(

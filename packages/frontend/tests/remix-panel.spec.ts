@@ -234,4 +234,166 @@ test.describe("Remix / Mashup panel", () => {
 
     expect(requests.length, "the audition button never called the preview endpoint").toBeGreaterThan(0);
   });
+
+  test("revises the live arrangement with one sentence (R1)", async ({ page }) => {
+    // The model path is slow; the deterministic fallback is fast. Either way
+    // the contract is the same: the recipe lands back in the form and the
+    // human-readable diff names the change. Budgeted for the COLD model:
+    // measured at 167 s for from-prompt with qwen3.5:9b under VRAM
+    // contention, so both the test and the fetch must outlast that.
+    test.setTimeout(300_000);
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
+
+    const gainInputs = page.locator('input[aria-label="Gain dB"]');
+    const readGains = () =>
+      gainInputs.evaluateAll((els) => els.map((el) => Number((el as HTMLInputElement).value)));
+    const before = await readGains();
+    await page.getByLabel("Revise arrangement with a sentence").fill("drums up 2 dB");
+    await page.getByRole("button", { name: "Revise", exact: true }).click();
+
+    const result = page.locator('[data-testid="remix-revise-result"]');
+    await expect(result).toBeVisible({ timeout: 240_000 });
+    await expect(result).toContainText("gain");
+
+    // The revised recipe lands back in the form: only drums gains moved, and
+    // they moved up. (Exact +2 assumes the deterministic fallback; the model
+    // path applies the same delta but is not pinned to its arithmetic.)
+    const after = await readGains();
+    expect(after).toHaveLength(before.length);
+    const stems = await page
+      .locator('select[aria-label="Stem"]')
+      .evaluateAll((els) => els.map((el) => (el as HTMLSelectElement).value));
+    expect(stems).toHaveLength(before.length);
+    let drumsMoved = 0;
+    after.forEach((v, i) => {
+      const delta = v - before[i];
+      if (stems[i] === "drums") {
+        expect(delta).toBeGreaterThan(0);
+        drumsMoved += 1;
+      } else {
+        expect(Math.abs(delta)).toBeLessThan(1e-6);
+      }
+    });
+    expect(drumsMoved).toBeGreaterThan(0);
+  });
+
+  test("auditions one slot alone from the timeline (R2 click)", async ({ page }) => {
+    test.setTimeout(180_000);
+
+    const payloads: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/audio/remix/preview-audio")) {
+        payloads.push(request.postData() ?? "");
+      }
+    });
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    await timeline.getByRole("option").first().click();
+
+    const player = page.locator('[data-testid="remix-listen"] audio');
+    await expect(player).toBeVisible({ timeout: 150_000 });
+    const src = await player.getAttribute("src");
+    expect(src).toContain("/api/audio/remix/preview-file/");
+    await expect
+      .poll(() => player.evaluate((el) => (el as HTMLAudioElement).error?.code ?? 0))
+      .toBe(0);
+
+    // The click scoped the render to one slot: the request carried slot_index.
+    expect(payloads.length, "clicking a timeline segment never called the preview endpoint").toBeGreaterThan(0);
+    expect(payloads.some((body) => body.includes('"slot_index"'))).toBe(true);
+  });
+
+  test("reorders slots from the timeline keyboard path (R2 drag)", async ({ page }) => {
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    // Build a two-slot arrangement with distinguishable lengths via the
+    // presets (Intro → swap), then mark slot 2's length.
+    await page.getByRole("button", { name: "Intro → swap" }).click();
+    const slot2bars = page.getByLabel("Slot 2 bars");
+    await expect(slot2bars).toBeVisible();
+    await slot2bars.fill("16");
+    await expect(slot2bars).toHaveValue("16");
+
+    // Nudge the second segment left: the form sections follow the same array.
+    const segments = timeline.getByRole("option");
+    await expect(segments).toHaveCount(2);
+    await segments.nth(1).focus();
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(page.getByLabel("Slot 1 bars")).toHaveValue("16");
+    await expect(page.getByLabel("Slot 2 bars")).toHaveValue("4");
+  });
+
+  test("reorders slots by dragging a timeline segment (R2 drag)", async ({ page }) => {
+    // The pointer path of the same moveSlot the keyboard test exercises:
+    // this proves the HTML5 drag handlers fire and the reorder persists
+    // into the recipe the panel would send, not just into the DOM.
+    test.setTimeout(180_000);
+
+    const payloads: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/audio/remix/preview-audio")) {
+        payloads.push(request.postData() ?? "");
+      }
+    });
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    const timeline = page.locator('[data-testid="remix-timeline"]');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    // The intro preset's second slot carries the vocals the first omits,
+    // so the layer counts name the order after the drag; its length is
+    // marked too, so a no-op drag cannot pass on matching values.
+    await page.getByRole("button", { name: "Intro → swap" }).click();
+    const slot2bars = page.getByLabel("Slot 2 bars");
+    await expect(slot2bars).toBeVisible();
+    await slot2bars.fill("16");
+    await expect(slot2bars).toHaveValue("16");
+    const segments = timeline.getByRole("option");
+    await expect(segments).toHaveCount(2);
+
+    await segments.nth(1).dragTo(segments.nth(0));
+
+    // The form sections render from the same slots array: the 16-bar slot
+    // travels with the drag to position 1.
+    await expect(page.getByLabel("Slot 1 bars")).toHaveValue("16");
+    await expect(page.getByLabel("Slot 2 bars")).toHaveValue("4");
+
+    // And the reordered recipe is what a render would receive: the
+    // vocals-carrying slot is now first.
+    await page.getByRole("button", { name: "Audition", exact: true }).click();
+    const player = page.locator('[data-testid="remix-listen"] audio');
+    await expect(player).toBeVisible({ timeout: 150_000 });
+
+    const body = payloads.map((p) => JSON.parse(p) as { slots?: Array<{ layers?: unknown[] }> }).at(-1);
+    expect(body?.slots, "the audition posted no recipe").toBeTruthy();
+    expect(body!.slots!.length).toBe(2);
+    expect(
+      body!.slots![0].layers!.length,
+      "the dragged slot did not reach position 1 in the posted recipe",
+    ).toBeGreaterThan(body!.slots![1].layers!.length);
+  });
 });

@@ -194,6 +194,17 @@ describe("timelineSegments", () => {
     expect(segs[0].pct).toBeCloseTo(100, 6);
   });
 
+  it("carries the true slots-array index, not the filtered position (R2)", () => {
+    // An empty slot between two playable ones: the second segment is slots[2],
+    // so click-to-audition and drag-reorder hit the right slot.
+    const segs = timelineSegments([
+      slotOf(8, 0, ["drums"]),
+      { bars: 4, crossfade_bars: 0, layers: [] },
+      slotOf(4, 0, ["bass"]),
+    ]);
+    expect(segs.map((s) => s.slotIndex)).toEqual([0, 2]);
+  });
+
   it("returns nothing for an empty or bar-less arrangement", () => {
     expect(timelineSegments([])).toEqual([]);
     expect(timelineSegments([{ bars: 0, crossfade_bars: 0, layers: [] }])).toEqual([]);

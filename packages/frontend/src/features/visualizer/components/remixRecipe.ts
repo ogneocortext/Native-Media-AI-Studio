@@ -122,16 +122,21 @@ export interface TimelineSegment {
 const TIMELINE_STEM_ORDER = ["drums", "bass", "vocals", "other"] as const;
 
 export function timelineSegments(slots: EditableSlot[]): TimelineSegment[] {
-  const playable = slots.filter((s) => s.layers.length > 0 && s.bars > 0);
-  const totalBars = playable.reduce((n, s) => n + s.bars, 0);
+  const indexed = slots
+    .map((slot, slotIndex) => ({ slot, slotIndex }))
+    .filter(({ slot }) => slot.layers.length > 0 && slot.bars > 0);
+  const totalBars = indexed.reduce((n, { slot }) => n + slot.bars, 0);
   if (totalBars <= 0) return [];
-  return playable.map((slot, i) => {
+  return indexed.map(({ slot, slotIndex }) => {
     // Canonical order, not insertion order: the chips read the same way
     // whichever order the layers happen to be listed in.
     const present = new Set(slot.layers.map((l) => l.stem));
     const stems = TIMELINE_STEM_ORDER.filter((s) => present.has(s)) as EditableLayer["stem"][];
     return {
-      slotIndex: i,
+      // R2: the true slots-array index, not the filtered position — click
+      // and drag handlers operate on the slots array, so a filtered index
+      // would audition/reorder the wrong slot once an empty slot exists.
+      slotIndex,
       bars: slot.bars,
       pct: (slot.bars / totalBars) * 100,
       crossfadeBars: slot.crossfade_bars,
