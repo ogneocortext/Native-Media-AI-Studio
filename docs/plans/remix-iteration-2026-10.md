@@ -1,6 +1,6 @@
 # Remix Iteration Plan — Oct 2026
 
-**Status:** Implemented 2026-10-13 — R1+R2 in `48869fb`, the parked items in the follow-ups; the wizard stays parked
+**Status:** Implemented 2026-10-13/14 — R1+R2 in `48869fb`, the parked items in the follow-ups; all four landed, the wizard last
 **Owner:** repo owner (implementation: local coding agent)
 **Evaluation:** UX review of the completed remix/mashup plan (2026-10-13)
 
@@ -145,9 +145,9 @@ UI work is in flight.
 
 ## Deliberately parked (not this plan)
 
-> **Update 2026-10-13:** the owner asked for these to be built. Three of the
-> four landed (R1/R2 first, then the parked items); the wizard stays parked,
-> with the plan's own reasoning intact below.
+> **Update 2026-10-13:** the owner asked for these to be built. All four items
+> landed — R1/R2 first, then the parked items across two follow-ups, the
+> wizard last (`remixWizard.ts`). Nothing is parked any more.
 
 - **A/B compare** (pin two variants, flip between them) — **Landed.**
   `abCompare.ts` holds the pure pin/match logic (a pin is a structural
@@ -165,9 +165,22 @@ UI work is in flight.
   unknown version, never a silent fallback). Panel: a Render picker in the
   Hear card; Mastering stays on the current render and says why. 5 unit
   tests, one e2e (two builds under one name, play v1).
-- **Guided wizard mode** — **Still parked.** The panel's presets already lower
-  the floor; a wizard is a bigger design commitment than the evidence
-  demands. Nothing changed that.
+- **Guided wizard mode** — **Landed.** `remixWizard.ts` holds the pure logic
+  (structure builders for the three preset shapes, the silent-intro offset,
+  duration, naming, summary lines); the panel renders four steps — the two
+  songs, the shape, the length, a summary — and ends by loading the
+  arrangement into the same form the presets fill, so the user keeps the
+  editor they would have used by hand. It deliberately builds nothing:
+  rendering stays an explicit act, as everywhere else in the panel. The
+  silent-intro trap is handled here rather than left to a warning after the
+  render — a vocals entry lands on the first audible 4-bar boundary, so
+  Ad-Nauseam's 7.06 s of silence puts the entry at bar 8, not bar 0. 13 unit
+  tests, one e2e.
+
+  The plan's parking reasoning is recorded because it shaped the build: the
+  presets already lower the floor, so the wizard adds order and completeness
+  (the two songs and the length set once, in the open) rather than new
+  concepts — no structure the presets do not already build.
 - **Cancel for long builds** — **Landed.** B5's job ids did make it a small
   endpoint plus a button. The render polls a cancel token between slots
   (a slot's time-stretch can't be aborted mid-flight), and because the mix is

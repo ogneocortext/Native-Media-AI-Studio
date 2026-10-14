@@ -547,6 +547,65 @@ test.describe("Remix / Mashup panel", () => {
     await expect(page.getByLabel("Slot 2 bars")).toHaveValue("16");
   });
 
+  test("walks the guided wizard into an arrangement (wizard)", async ({ page }) => {
+    // The last parked item, which the plan parked because the presets already
+    // lower the floor. Verified in the browser: the wizard's three questions
+    // and its summary, and that it ends by loading the arrangement into the
+    // form - the same form the presets fill, with every choice asked for in
+    // order instead of inferred.
+    test.setTimeout(180_000);
+
+    await page.goto(getBaseUrl() + "/");
+    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
+    await navigateWithWait(page, "/visualizer");
+    const target = await selectSourcedTrack(page);
+    expect(target).not.toBeNull();
+    await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole("button", { name: "Guided wizard" }).click();
+    await expect(page.getByText("Mashup wizard")).toBeVisible();
+    await expect(page.getByText("step 1 of 4")).toBeVisible();
+
+    // Step 1: the songs. Both selects are seeded from the same defaults the
+    // presets use, so a fixture never appears as a song.
+    const songA = await page.getByLabel("Wizard song A").inputValue();
+    expect(songA).not.toBe("");
+    expect(songA.startsWith("demucs_test_input")).toBe(false);
+    const songB = await page.getByLabel("Wizard song B").inputValue();
+    expect(songB).not.toBe("");
+    expect(songB).not.toBe(songA);
+
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 2: the shape. Song B has vocals here, so the vocal goals are on.
+    await expect(page.getByText("What should the arrangement do?")).toBeVisible();
+    await page.getByRole("button", { name: /Drums under vocals/ }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 3: the length. Four sections of eight bars.
+    await expect(page.getByText("How long should it run?")).toBeVisible();
+    await page.getByRole("button", { name: "4 sections" }).click();
+    await page.getByRole("button", { name: "8 bars each" }).click();
+    await expect(page.getByText(/32 bars in total/)).toBeVisible();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    // Step 4: the summary names the decisions in the order they were made.
+    await expect(page.getByText("Here is what will be built")).toBeVisible();
+    await expect(page.getByText(songA, { exact: false }).first()).toBeVisible();
+    await expect(page.getByText("4 x 8 bars")).toBeVisible();
+    await expect(page.getByText(/Drums and bass under vocals/)).toBeVisible();
+
+    // Applying loads the arrangement into the form and closes the wizard.
+    await page.getByRole("button", { name: "Use this arrangement" }).click();
+    await expect(page.getByText("Mashup wizard")).toHaveCount(0);
+    await expect(page.locator('[data-testid="remix-timeline"]').getByRole("option")).toHaveCount(4);
+    // The wizard named the arrangement after both songs.
+    await expect(page.getByLabel("Remix name")).toHaveValue(/^mashup-/);
+    // And the form carries what the summary promised: four 8-bar slots.
+    await expect(page.getByLabel("Slot 1 bars")).toHaveValue("8");
+    await expect(page.getByLabel("Slot 4 bars")).toHaveValue("8");
+  });
+
   test("offers a cancel for a running build and recovers after it", async ({ page }) => {
     // The parked plan item: B5's job ids make cancel a small endpoint plus
     // a button. This covers the browser half - the affordance exists while
