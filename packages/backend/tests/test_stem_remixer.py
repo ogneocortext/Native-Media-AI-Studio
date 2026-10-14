@@ -12,6 +12,7 @@ does the summed power stay flat through the transition?
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 
@@ -984,6 +985,45 @@ def test_render_slot_applies_calibration_on_top_of_recipe_gain():
     # vocals: 3 dB recipe - 10 dB calibration = -7 dB; drums: 0 + 2 = +2 dB.
     assert float(out["vocals"][0, 0]) == pytest.approx(10 ** (-7 / 20))
     assert float(out["drums"][0, 0]) == pytest.approx(10 ** (2 / 20))
+
+
+# ─── mix report ────────────────────────────────────────────────────────────
+
+
+def _stub_ebur128_stats(y, sr):
+    peak = float(np.max(np.abs(y))) if y.size else 0.0
+    return {"integrated_lufs": 20.0 * math.log10(peak + 1e-12) - 3.0,
+            "true_peak_dbfs": 20.0 * math.log10(peak + 1e-12)}
+
+
+def test_mix_report_reports_levels_and_flags_clipping(monkeypatch):
+    """Per-stem LUFS/true-peak pass through; pre-limiter peak drives clipping."""
+    monkeypatch.setattr(stem_remixer, "_ebur128_stats", _stub_ebur128_stats)
+    mixed = {
+        "vocals": np.full((2, 22050), 0.5, dtype=np.float32),
+        "drums": np.full((2, 22050), 0.1, dtype=np.float32),
+        "bass": np.zeros((2, 22050), dtype=np.float32),
+        "other": np.full((2, 22050), 1.5, dtype=np.float32),  # over 0 dBFS
+    }
+    report = stem_remixer.build_mix_report(mixed)
+    assert set(report["stems"]) == {"vocals", "drums", "bass", "other"}
+    assert report["stems"]["other"]["clipping"] is True
+    assert report["stems"]["vocals"]["clipping"] is False
+    assert report["stems"]["vocals"]["peak_dbfs"] == pytest.approx(-6.02, abs=0.01)
+    # Vocals 14 dB hotter than drums in LUFS, matching the amplitude ratio.
+    assert report["stems"]["vocals"]["integrated_lufs"] - report["stems"]["drums"]["integrated_lufs"] == pytest.approx(14.0, abs=0.1)
+    assert "mix" in report and report["mix"]["clipping"] is True
+
+
+def test_mix_report_fail_open_without_ffmpeg(monkeypatch):
+    """No ffmpeg means None LUFS fields, but peak/clipping still reported."""
+    monkeypatch.setattr(stem_remixer, "_ebur128_stats",
+                        lambda y, sr: {"integrated_lufs": None, "true_peak_dbfs": None})
+    mixed = {"vocals": np.full((2, 22050), 0.5, dtype=np.float32)}
+    report = stem_remixer.build_mix_report(mixed)
+    assert report["stems"]["vocals"]["integrated_lufs"] is None
+    assert report["stems"]["vocals"]["peak_dbfs"] == pytest.approx(-6.02, abs=0.01)
+    assert report["stems"]["vocals"]["clipping"] is False
 
 
 # ─── B4 tone shaping ─────────────────────────────────────────────────────────

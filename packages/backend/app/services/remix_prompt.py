@@ -919,8 +919,19 @@ def diff_recipes(base: RemixRecipe, revised: RemixRecipe) -> list[str]:
     return changes
 
 
-def build_revision_system_prompt(sources: list[dict[str, Any]], base_recipe: dict[str, Any]) -> str:
-    """System prompt for revision mode: the recipe verbatim, deltas only."""
+def build_revision_system_prompt(
+    sources: list[dict[str, Any]],
+    base_recipe: dict[str, Any],
+    mix_report: dict[str, Any] | None = None,
+) -> str:
+    """System prompt for revision mode: the recipe verbatim, deltas only.
+
+    `mix_report` is the last build's measured levels (per-stem LUFS, true
+    peak, clipping). When present the model revises against what was
+    actually rendered, not just the recipe's gain numbers — e.g. a
+    "vocals up 2 dB" on a vocal stem already clipping is better answered
+    by pulling the other stems down.
+    """
     import json
 
     lines = [
@@ -949,6 +960,15 @@ def build_revision_system_prompt(sources: list[dict[str, Any]], base_recipe: dic
         "revision explicitly removes it; use only tracks and stems from the list",
         "above; gains within -24..+12 dB. Explain the revision in one sentence.",
     ]
+    if mix_report:
+        lines += [
+            "",
+            "Last build's measured mix report (per-stem integrated LUFS, true",
+            "peak, pre-limiter peak, clipping flag):",
+            json.dumps(mix_report),
+            "If the revision raises a gain, check this report first: a stem",
+            "already near clipping is better balanced by lowering the others.",
+        ]
     return "\n".join(lines)
 
 
@@ -1364,6 +1384,7 @@ async def revise_recipe_from_prompt(
     base_recipe: dict[str, Any],
     sources: list[dict[str, Any]] | None = None,
     model: str | None = None,
+    mix_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Revise a base recipe from one natural-language sentence (R1).
 
@@ -1410,7 +1431,7 @@ async def revise_recipe_from_prompt(
 
     chosen = (model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     adapter = OllamaAdapter(mock_mode=False)
-    system = build_revision_system_prompt(sources, recipe_to_request(base))
+    system = build_revision_system_prompt(sources, recipe_to_request(base), mix_report)
     user = f"Revise the current recipe as follows:\n\n{prompt.strip()}"
 
     async def _call(model_name: str) -> dict[str, Any]:

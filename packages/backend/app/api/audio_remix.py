@@ -91,6 +91,7 @@ class RemixBuildResponse(BaseModel):
     duration_sec: float
     manifest: dict
     warnings: list[str] = []
+    mix_report: dict = {}
 
 
 class RemixJobAccepted(BaseModel):
@@ -124,6 +125,10 @@ class RemixPromptRequest(BaseModel):
     # exact `/build` request shape, so a panel sends its live recipe verbatim.
     base_recipe: dict | None = None
     model: str | None = None
+    # R1: the last build's mix report, when the caller has one. Injected
+    # into the revision system prompt so the model revises against measured
+    # levels, not just the recipe's gain numbers.
+    mix_report: dict | None = None
 
 
 class RemixDraftResponse(BaseModel):
@@ -290,7 +295,8 @@ async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
     try:
         if body.base_recipe is not None:
             draft = await remix_prompt.revise_recipe_from_prompt(
-                body.prompt, body.base_recipe, model=body.model
+                body.prompt, body.base_recipe, model=body.model,
+                mix_report=body.mix_report,
             )
         else:
             draft = await remix_prompt.draft_recipe_from_prompt(body.prompt, model=body.model)
@@ -626,6 +632,7 @@ async def remix_build(body: RemixRecipeRequest) -> RemixJobAccepted:
             duration_sec=result.duration_sec,
             manifest=result.manifest,
             warnings=result.warnings,
+            mix_report=result.mix_report,
         ).model_dump()
 
     job = remix_jobs.start_job("build", body.name, work)

@@ -525,6 +525,20 @@ def test_repair_clamps_out_of_range_tone_with_warnings():
     assert sum("clamped" in w for w in warnings) == 2
 
 
+def test_revision_prompt_includes_mix_report_when_given():
+    """The last build's measured levels reach the revision model."""
+    report = {"stems": {"vocals": {"integrated_lufs": -14.0, "clipping": True}},
+              "mix": {"integrated_lufs": -12.0, "clipping": True}}
+    system = remix_prompt.build_revision_system_prompt(SOURCES, {}, report)
+    assert "-14.0" in system
+    assert "already near clipping" in system
+
+
+def test_revision_prompt_omits_mix_report_when_absent():
+    system = remix_prompt.build_revision_system_prompt(SOURCES, {})
+    assert "mix report" not in system.lower()
+
+
 def test_system_prompt_carries_arrangement_theory():
     """Stretch-ratio, phrase-alignment and slotting rules (knowledge article)."""
     system = remix_prompt.build_system_prompt(SOURCES)

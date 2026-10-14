@@ -593,6 +593,7 @@ class RemixResult:
     manifest: dict[str, Any] = field(default_factory=dict)
     duration_sec: float = 0.0
     warnings: list[str] = field(default_factory=list)
+    mix_report: dict[str, Any] = field(default_factory=dict)
 
 
 # ─── DSP ─────────────────────────────────────────────────────────────────────
@@ -728,13 +729,14 @@ LOUDNESS_ANCHOR_LUFS = -20.0
 CALIBRATION_MAX_DB = 12.0
 
 
-def _ebur128_integrated_lufs(y: np.ndarray, sr: int) -> float | None:
-    """Integrated LUFS of a (2, N) float32 buffer via ffmpeg's ebur128.
+def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
+    """Integrated LUFS and true peak of a (2, N) float32 buffer.
 
-    Piped through stdin — no temp files. This is the same measurement
-    ffmpeg_tools.compute_loudness uses (and the repo's +157 LUFS lesson is
-    why it is not reimplemented in numpy here). Returns None when ffmpeg
-    is missing or the measurement fails.
+    One ffmpeg ebur128 run, piped through stdin — no temp files. This is
+    the same measurement ffmpeg_tools.compute_loudness uses (and the
+    repo's +157 LUFS lesson is why it is not reimplemented in numpy
+    here). Fields are None when ffmpeg is missing or the measurement
+    fails; callers treat None as "unmeasured", never as 0.
     """
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
@@ -746,15 +748,27 @@ def _ebur128_integrated_lufs(y: np.ndarray, sr: int) -> float | None:
         proc = subprocess.run(
             [ffmpeg, "-hide_banner", "-loglevel", "info",
              "-f", "f32le", "-ac", "2", "-ar", str(sr), "-i", "pipe:0",
-             "-af", "ebur128=framelog=verbose", "-f", "null", "-"],
+             "-af", "ebur128=framelog=verbose:peak=true", "-f", "null", "-"],
             input=np.ascontiguousarray(buf.T).tobytes(),
             capture_output=True, timeout=120,
         )
     except Exception:
         return None
     stderr = proc.stderr.decode("utf-8", "replace") if isinstance(proc.stderr, bytes) else (proc.stderr or "")
+    out: dict[str, float | None] = {"integrated_lufs": None, "true_peak_dbfs": None}
     m = re.search(r"Integrated loudness:\s*\n\s*I:\s*([+-]?\d+(?:\.\d+)?)\s*LUFS", stderr, re.IGNORECASE)
-    return float(m.group(1)) if m else None
+    if m:
+        out["integrated_lufs"] = float(m.group(1))
+    # The summary prints "True peak:" on its own line, then "Peak: -x.x dBFS".
+    m = re.search(r"^\s*Peak:\s*([+-]?\d+(?:\.\d+)?)\s*dBFS", stderr, re.M)
+    if m:
+        out["true_peak_dbfs"] = float(m.group(1))
+    return out
+
+
+def _ebur128_integrated_lufs(y: np.ndarray, sr: int) -> float | None:
+    """Integrated LUFS only — the loudness-staging calibration path."""
+    return _ebur128_stats(y, sr)["integrated_lufs"]
 
 
 class _SourceCache:
@@ -1086,6 +1100,43 @@ def _archive_previous_render(out_dir: Path) -> int | None:
     return version
 
 
+def build_mix_report(mixed: dict[str, np.ndarray]) -> dict[str, Any]:
+    """Post-build mix report: per-stem and summed-mix loudness facts.
+
+    For the R1 revision loop: an agent reads this instead of listening —
+    per-stem integrated LUFS shows the balance ("vocals 8 dB hotter than
+    drums"), true peak and the clipping flag show whether the limiter
+    engaged. Measured from the clipped buffers (what is on disk); the
+    clipping flag comes from the pre-clip peak (anything over 0 dBFS hit
+    the limiter at write). LUFS fields are None when ffmpeg is missing;
+    peak_dbfs is always measured (pure numpy).
+    """
+    stems: dict[str, dict[str, Any]] = {}
+    mix_buf = None
+    for stem, buf in mixed.items():
+        peak = float(np.max(np.abs(buf))) if buf.size else 0.0
+        clipped = np.clip(buf, -1.0, 1.0)
+        stats = _ebur128_stats(clipped, REMIX_SR)
+        stems[stem] = {
+            "integrated_lufs": stats["integrated_lufs"],
+            "true_peak_dbfs": stats["true_peak_dbfs"],
+            "peak_dbfs": round(20.0 * math.log10(peak + 1e-12), 2),
+            "clipping": bool(peak > 1.0),
+        }
+        mix_buf = clipped if mix_buf is None else mix_buf + clipped
+    mix_peak = float(np.max(np.abs(mix_buf))) if mix_buf is not None and mix_buf.size else 0.0
+    mix_stats = _ebur128_stats(np.clip(mix_buf, -1.0, 1.0), REMIX_SR) if mix_buf is not None else {"integrated_lufs": None, "true_peak_dbfs": None}
+    return {
+        "stems": stems,
+        "mix": {
+            "integrated_lufs": mix_stats["integrated_lufs"],
+            "true_peak_dbfs": mix_stats["true_peak_dbfs"],
+            "peak_dbfs": round(20.0 * math.log10(mix_peak + 1e-12), 2),
+            "clipping": bool(mix_peak > 1.0),
+        },
+    }
+
+
 def render_remix(
     recipe: RemixRecipe,
     overwrite: bool = True,
@@ -1161,6 +1212,17 @@ def render_remix(
             for slot in recipe.slots
         ],
     }
+    mix_report = build_mix_report(mixed)
+    manifest["mix_report"] = mix_report
+    for stem, entry in mix_report["stems"].items():
+        if entry["clipping"]:
+            warnings.append(
+                f"{stem} hits {entry['peak_dbfs']:+.1f} dBFS — the limiter engaged; pull its layers down"
+            )
+    if mix_report["mix"]["clipping"]:
+        warnings.append(
+            f"summed mix hits {mix_report['mix']['peak_dbfs']:+.1f} dBFS — the limiter engaged on the master"
+        )
     (out_dir / "remix.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     return RemixResult(
@@ -1170,6 +1232,7 @@ def render_remix(
         manifest=manifest,
         duration_sec=manifest["duration_sec"],
         warnings=warnings,
+        mix_report=mix_report,
     )
 
 
