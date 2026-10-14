@@ -760,7 +760,7 @@ def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
     if m:
         out["integrated_lufs"] = float(m.group(1))
     # The summary prints "True peak:" on its own line, then "Peak: -x.x dBFS".
-    m = re.search(r"^\s*Peak:\s*([+-]?\d+(?:\.\d+)?)\s*dBFS", stderr, re.M)
+    m = re.search(r"^\s*Peak:\s*([+-]?\d+(?:\.\d+)?)\s*dBFS", stderr, re.MULTILINE)
     if m:
         out["true_peak_dbfs"] = float(m.group(1))
     return out

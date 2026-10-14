@@ -1086,7 +1086,11 @@ class SunoEnhancer:
         # EQ before limiting: the limiter then sees the final spectrum.
         try:
             if self.config.reference_track:
-                from .reference_match import describe_profile, match_to_reference, profile_for_reference
+                from .reference_match import (
+                    describe_profile,
+                    match_to_reference,
+                    profile_for_reference,
+                )
                 ref_profile = profile_for_reference(self.config.reference_track)
                 mixed = match_to_reference(
                     mixed, sr, ref_profile,

@@ -465,9 +465,9 @@ async def remix_enhance(name: str, body: RemixEnhanceRequest | None = None) -> R
             detail=f"Remix {name} is missing stems: {', '.join(missing)}",
         )
 
+    from ..services.reference_match import resolve_reference
     from ..services.suno_enhancer import EnhanceConfig
     from ..services.suno_enhancer import enhance_stems as run_chain
-    from ..services.reference_match import resolve_reference
 
     if opts.reference_track:
         try:

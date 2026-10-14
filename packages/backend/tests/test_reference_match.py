@@ -10,7 +10,6 @@ import wave
 
 import numpy as np
 import pytest
-
 from app.services import reference_match
 
 
