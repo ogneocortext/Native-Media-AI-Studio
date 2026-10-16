@@ -742,23 +742,7 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
                 + " — see config/lipsync.json"
             )
 
-        # Resolve audio_path from audio_filename, mirroring generate-section
-        audio_path = request.audio_path
-        if not audio_path:
-            from ..core.config import PROJECT_ROOT as _PR
-            audio_dir = _PR / "output" / "audio"
-            if request.audio_filename and audio_dir.exists():
-                for match in audio_dir.rglob(request.audio_filename):
-                    if match.is_file():
-                        audio_path = str(match)
-                        break
-            if not audio_path:
-                raise ValueError(
-                    "audio_path is required — pass the isolated vocals stem "
-                    "(POST /api/audio/separate) for best results"
-                )
-        if not Path(audio_path).is_file():
-            raise FileNotFoundError(f"Audio not found: {audio_path}")
+        audio_path = _resolve_lipsync_audio(request.audio_path, request.audio_filename)
 
         params = {
             "video_path": request.video_path,
@@ -786,4 +770,309 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Lip-sync endpoint error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+# ---------------------------------------------------------------------------
+# Lip-sync batch (D42 extension) — long audio -> chunks -> LIPSYNC jobs -> stitch
+# ---------------------------------------------------------------------------
+
+def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -> str:
+    """Resolve an audio path from a direct path or a library filename."""
+    if audio_path:
+        if not Path(audio_path).is_file():
+            raise FileNotFoundError(f"Audio not found: {audio_path}")
+        return audio_path
+    from ..core.config import PROJECT_ROOT as _PR
+
+    audio_dir = _PR / "output" / "audio"
+    if audio_filename and audio_dir.exists():
+        for match in audio_dir.rglob(audio_filename):
+            if match.is_file():
+                return str(match)
+    raise ValueError(
+        "audio_path is required — pass the isolated vocals stem "
+        "(POST /api/audio/separate) for best results"
+    )
+
+
+async def _run_cmd(cmd: list[str], timeout: int) -> None:
+    """Run a subprocess in a worker thread; raise RuntimeError on failure."""
+    def _do() -> None:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if proc.returncode != 0:
+            raise RuntimeError(f"Command failed (rc={proc.returncode}): {(proc.stderr or '')[-500:]}")
+
+    await asyncio.to_thread(_do)
+
+
+async def _probe_duration(ffprobe: str, media_path: str) -> float:
+    """Return media duration in seconds via ffprobe."""
+    from ..services.lipsync import batch as lipbatch
+
+    def _do() -> float:
+        proc = subprocess.run(
+            lipbatch.probe_duration_cmd(ffprobe, media_path),
+            capture_output=True, text=True, timeout=60,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffprobe failed: {(proc.stderr or '')[-300:]}")
+        return float((proc.stdout or "0").strip())
+
+    return await asyncio.to_thread(_do)
+
+
+class LipSyncBatchRequest(BaseModel):
+    """Request model for a batch lip-sync run.
+
+    Exactly one of video_path / image_path is required. The audio is split
+    into chunk_seconds pieces; each chunk becomes one queued LIPSYNC job
+    (flat VRAM per chunk), then POST .../stitch concatenates the results.
+    """
+    video_path: str | None = None
+    image_path: str | None = None
+    audio_path: str | None = None
+    audio_filename: str | None = None
+    chunk_seconds: float = Field(default=20.0, gt=0, le=120)
+    section: str = "full"
+    output_path: str | None = None
+
+
+class LipSyncBatchResponse(BaseModel):
+    success: bool
+    batch_id: str | None = None
+    job_ids: list[str] = []
+    chunk_count: int | None = None
+    final_output: str | None = None
+    error: str | None = None
+    message: str | None = None
+
+
+class LipSyncBatchStatusResponse(BaseModel):
+    batch_id: str
+    total: int
+    completed: int
+    failed: int
+    stitched: bool
+    final_output: str | None = None
+    chunks: list[dict[str, Any]] = []
+
+
+@router.post("/lipsync-batch", response_model=LipSyncBatchResponse)
+async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
+    """Split long audio into chunks and queue one LIPSYNC job per chunk.
+
+    Each chunk keeps VRAM flat (default 20s, mirroring the FreeLipSync-style
+    workflow). Poll per-chunk jobs via GET /api/jobs/{id} or the batch status
+    endpoint, then POST .../stitch to concatenate.
+    """
+    try:
+        from ..core.config import PROJECT_ROOT as _PR
+        from ..models.job import JobCreateRequest, JobType
+        from ..queue.manager import queue_manager
+        from ..services.lipsync import MuseTalkAdapter
+        from ..services.lipsync import batch as lipbatch
+
+        source = request.video_path or request.image_path
+        if not source:
+            raise ValueError("video_path or image_path is required")
+        if not Path(source).is_file():
+            raise FileNotFoundError(f"Source not found: {source}")
+        source_kind = "video" if request.video_path else "image"
+
+        status = MuseTalkAdapter().check_installation()
+        if not status["installed"]:
+            raise RuntimeError(
+                "MuseTalk is not ready on this machine: " + status["message"]
+                + " — see config/lipsync.json"
+            )
+
+        audio_path = _resolve_lipsync_audio(request.audio_path, request.audio_filename)
+        ffmpeg, ffprobe = lipbatch.find_ffmpeg()
+        duration = await _probe_duration(ffprobe, audio_path)
+        if duration <= 0:
+            raise ValueError(f"Could not determine audio duration for {audio_path}")
+
+        chunks = lipbatch.plan_chunks(duration, request.chunk_seconds)
+        batch_id = lipbatch.new_batch_id()
+        bdir = lipbatch.batch_dir(_PR, batch_id)
+        bdir.mkdir(parents=True, exist_ok=True)
+
+        job_ids: list[str] = []
+        for chunk in chunks:
+            audio_chunk = lipbatch.chunk_audio_path(bdir, chunk.index)
+            await _run_cmd(
+                lipbatch.split_audio_cmd(ffmpeg, audio_path, chunk.start, chunk.length, str(audio_chunk)),
+                timeout=300,
+            )
+            video_chunk: str | None = None
+            if source_kind == "video":
+                video_chunk = str(lipbatch.chunk_video_path(bdir, chunk.index))
+                await _run_cmd(
+                    lipbatch.split_video_cmd(ffmpeg, source, chunk.start, chunk.length, video_chunk),
+                    timeout=600,
+                )
+            params = {
+                "video_path": video_chunk,
+                "image_path": request.image_path,
+                "audio_path": str(audio_chunk),
+                "section": f"{request.section}-chunk-{chunk.index:03d}",
+                "output_path": str(lipbatch.chunk_output_path(bdir, chunk.index)),
+                "batch_id": batch_id,
+                "chunk_index": chunk.index,
+            }
+            jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
+            job = await queue_manager.enqueue(jcr)
+            job_ids.append(job.id)
+
+        final_output = request.output_path or str(
+            _PR / "output" / "video" / f"lipsync_batch_{batch_id}.mp4"
+        )
+        manifest = lipbatch.build_manifest(
+            batch_id=batch_id,
+            source_kind=source_kind,
+            source_path=source,
+            audio_path=audio_path,
+            chunk_seconds=request.chunk_seconds,
+            duration_s=duration,
+            chunks=chunks,
+            job_ids=job_ids,
+            final_output=final_output,
+        )
+        manifest = lipbatch.resolve_manifest_paths(manifest, bdir)
+        lipbatch.write_manifest(lipbatch.manifest_path(_PR, batch_id), manifest)
+
+        return LipSyncBatchResponse(
+            success=True,
+            batch_id=batch_id,
+            job_ids=job_ids,
+            chunk_count=len(chunks),
+            final_output=final_output,
+            message=f"Queued {len(chunks)} lip-sync chunk(s) as batch {batch_id}",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lip-sync batch endpoint error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/lipsync-batch/{batch_id}", response_model=LipSyncBatchStatusResponse)
+async def lipsync_batch_status(batch_id: str) -> LipSyncBatchStatusResponse:
+    """Report per-chunk job status for a lip-sync batch."""
+    try:
+        from ..core.config import PROJECT_ROOT as _PR
+        from ..queue.manager import queue_manager
+        from ..services.lipsync import batch as lipbatch
+
+        mpath = lipbatch.manifest_path(_PR, batch_id)
+        if not mpath.is_file():
+            raise FileNotFoundError(f"Batch not found: {batch_id}")
+        manifest = lipbatch.resolve_manifest_paths(
+            lipbatch.read_manifest(mpath), lipbatch.batch_dir(_PR, batch_id)
+        )
+        chunks: list[dict[str, Any]] = []
+        completed = 0
+        failed = 0
+        for chunk in manifest["chunks"]:
+            job = await queue_manager.get_job(chunk["job_id"])
+            st = job.status if job is not None else "unknown"
+            st = getattr(st, "value", st)
+            if st == "completed":
+                completed += 1
+            elif st == "failed":
+                failed += 1
+            chunks.append({
+                "index": chunk["index"],
+                "job_id": chunk["job_id"],
+                "status": st,
+                "output_path": chunk["output_path"],
+            })
+        return LipSyncBatchStatusResponse(
+            batch_id=batch_id,
+            total=len(chunks),
+            completed=completed,
+            failed=failed,
+            stitched=bool(manifest.get("stitched")),
+            final_output=manifest.get("final_output"),
+            chunks=chunks,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lip-sync batch status error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/lipsync-batch/{batch_id}/stitch")
+async def lipsync_batch_stitch(batch_id: str) -> dict:
+    """Concatenate completed chunk outputs into the final video.
+
+    Refuses with 409 while any chunk is incomplete or failed, naming the
+    unfinished chunks. Idempotent: an already-stitched batch returns its
+    final output without re-running ffmpeg.
+    """
+    try:
+        from ..core.config import PROJECT_ROOT as _PR
+        from ..queue.manager import queue_manager
+        from ..services.lipsync import batch as lipbatch
+
+        mpath = lipbatch.manifest_path(_PR, batch_id)
+        if not mpath.is_file():
+            raise FileNotFoundError(f"Batch not found: {batch_id}")
+        bdir = lipbatch.batch_dir(_PR, batch_id)
+        manifest = lipbatch.resolve_manifest_paths(lipbatch.read_manifest(mpath), bdir)
+
+        if manifest.get("stitched") and Path(str(manifest["final_output"])).is_file():
+            return {
+                "success": True,
+                "batch_id": batch_id,
+                "final_output": manifest["final_output"],
+                "message": "Batch already stitched",
+            }
+
+        pending: list[dict[str, Any]] = []
+        outputs: list[str] = []
+        for chunk in manifest["chunks"]:
+            job = await queue_manager.get_job(chunk["job_id"])
+            st = getattr(job.status if job is not None else "unknown", "value", "unknown")
+            if st != "completed":
+                pending.append({"index": chunk["index"], "job_id": chunk["job_id"], "status": st})
+            elif not Path(chunk["output_path"]).is_file():
+                pending.append({"index": chunk["index"], "job_id": chunk["job_id"], "status": "missing_output"})
+            else:
+                outputs.append(chunk["output_path"])
+        if pending:
+            raise RuntimeError(
+                f"{len(pending)} chunk(s) not ready: "
+                + ", ".join(f"#{p['index']} ({p['status']})" for p in pending)
+            )
+
+        ffmpeg, _ = lipbatch.find_ffmpeg()
+        list_file = bdir / "concat.txt"
+        list_file.write_text(lipbatch.concat_list_content(outputs), encoding="utf-8")
+        final = Path(str(manifest["final_output"]))
+        final.parent.mkdir(parents=True, exist_ok=True)
+        await _run_cmd(lipbatch.stitch_cmd(ffmpeg, str(list_file), str(final)), timeout=600)
+        if not final.is_file() or final.stat().st_size == 0:
+            raise RuntimeError(f"Stitch produced no output at {final}")
+
+        manifest["stitched"] = True
+        lipbatch.write_manifest(mpath, manifest)
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "final_output": str(final),
+            "chunks": len(outputs),
+            "message": f"Stitched {len(outputs)} chunk(s) into {final.name}",
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lip-sync batch stitch error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

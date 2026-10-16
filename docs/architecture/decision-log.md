@@ -1503,3 +1503,13 @@
   handler, routes and VRAM handshake are unit-tested here, the model call is
   not. If MuseTalk's flags change under a future version, only
   `config/lipsync.json` changes.
+- **Batch extension (2026-10-16):** `POST /api/video/lipsync-batch` splits
+  long audio into `chunk_seconds` pieces (default 20s, mirroring the
+  FreeLipSync-style workflow), queues one LIPSYNC job per chunk (flat VRAM
+  per chunk), and `POST /api/video/lipsync-batch/{id}/stitch`
+  concatenates the results with the ffmpeg concat demuxer once every chunk
+  is complete (409 while any chunk is pending/failed; idempotent).
+  Batch state is a JSON manifest under `output/video/.lipsync_batches/`
+  (D21: file-based state), not queue-local memory. Chunk planning and
+  ffmpeg command construction are pure functions in
+  `services/lipsync/batch.py` (D23 precedent), unit-tested without a GPU.
