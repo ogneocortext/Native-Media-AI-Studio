@@ -265,9 +265,16 @@ rejection, `found:false` shape, `stems_mp3` URL presence, and the single-source
   additionally asserted by calling the handler coroutine directly, which is the only
   way to reach it.
 
-**Not covered:** `stem_visualization` curve normalisation, actual Demucs separation,
-and MP3 lazy encoding. These are left deliberately — they need real audio fixtures,
-and a lazy-MP3 test in particular would encode WAV on a test machine.
+**Not covered:** `stem_visualization` curve normalisation, actual Demucs separation.
+**[RESOLVED 2026-10-16] MP3 lazy encoding.** `serve_stem_file` previously served WAV with
+`media_type="audio/mpeg"` whenever only a WAV existed and `?format=mp3` was requested —
+the condition `not stem_path.exists()` was False (the WAV exists), so the encode block
+was skipped and a WAV was delivered with the wrong content type. The condition is now
+`stem_path.suffix.lower() != ".mp3"`, so a real MP3 is encoded on first request and
+served as `audio/mpeg`. Also **[RESOLVED 2026-10-16] library pollution:**
+`separate_audio` saved raw uploads into `AUDIO_DIR` (`output/audio/`) with random UUID
+names, so they appeared in `GET /api/audio/stems-status` library listings. Uploads now
+go to the system temp dir and are removed in a `finally` block after separation.
 
 **Fix:** Add at least 6 tests:
 1. `test_separate_library_file_skips_existing_stems` (once 3.3 is fixed)

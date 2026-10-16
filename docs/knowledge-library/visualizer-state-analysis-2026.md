@@ -27,6 +27,11 @@ date: 2026-09-29
 ---
 
 > **2026-09-26 Worker lifecycle hardening:** The audio-analysis worker is now enabled only while real audio is playing, returns `null` when disabled, and terminates/marks itself unavailable on runtime errors so the main-thread analyser fallback is used instead of stale worker data. The worker watchdog, message backpressure guard, cleanup, and feature detection remain active.
+>
+> **2026-10-16 Worker correctness fixes:**
+> - Peak hold now returns the actual peak instead of always `0`: `peakHold`/`peakDecay` were `const 0` primitives passed by value into `updatePeakHold()`; they are now a mutable `peakState` object passed by reference.
+> - Worker `energy` now blends live frequency energy with the backend `analyzedEnergy` curve (60% live + 40% analyzed), matching the main-thread path in `audioHooks.ts` — previously the worker returned raw frequency average, diverging from the inline path for the same audio.
+> - Added a `"reset"` message type so module-level state (smoothing, peak hold, beat grid, cooldown) can be cleared when switching tracks, preventing state bleed between tracks. `useAudioAnalysisWorker` exposes `reset()` and `failedRef` was moved before its first use in `onerror`.
 
 ## Captured States
 | # | Mode | Screenshot | Vision Rating | Key Finding |

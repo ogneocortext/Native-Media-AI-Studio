@@ -537,7 +537,7 @@ GET  /api/audio/analysis/by-filename/{filename} → cached result by original fi
 GET  /api/audio/file/{filename:path}  → serve raw audio file
 POST /api/audio/separate              → stem separation (vocals/drums/bass/other → stems/, auto-encodes MP3 copies)
 GET  /api/audio/stems/{filename:path} → stems (WAV URLs) + stems_mp3 (MP3 URLs)
-GET  /api/audio/stem-file/{track}/{stem}?format=wav|mp3 → serve stem; mp3 lazy-encoded from WAV on first request
+GET  /api/audio/stem-file/{track}/{stem}?format=wav|mp3 → serve stem; mp3 lazily encoded from WAV on first request (a WAV-only stem is never served as `audio/mpeg`)
 POST /api/audio/analyze               → {tempo_bpm, duration_seconds, beat_count, beat_times[≤4000],
                                          downbeat_times, onset_times[≤800], energy_curve[100],
                                          amplitude_envelope[≤1024], spectral, sections, confidence, timing_contract}

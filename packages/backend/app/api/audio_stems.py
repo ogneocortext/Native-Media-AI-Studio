@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import tempfile
 import urllib.parse
 import uuid
 from pathlib import Path
@@ -94,8 +95,10 @@ async def separate_audio(
             detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
 
+    # Save upload to a temp location outside AUDIO_DIR so it does not pollute
+    # the audio library listing (/stems-status iterates AUDIO_DIR recursively).
     saved_name = f"{uuid.uuid4().hex}{ext}"
-    saved_path = AUDIO_DIR / saved_name
+    saved_path = Path(tempfile.gettempdir()) / saved_name
     size = 0
     with open(saved_path, "wb") as buffer:
         while chunk := await file.read(8192):
@@ -134,6 +137,8 @@ async def separate_audio(
     except Exception as e:
         logger.exception("Stem separation failed")
         raise HTTPException(status_code=500, detail=f"Separation failed: {e}") from e
+    finally:
+        saved_path.unlink(missing_ok=True)
 
 
 @router.get("/stems/{filename:path}")
@@ -348,7 +353,7 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     if not stem_path:
         raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first")
 
-    if format == "mp3" and not stem_path.exists():
+    if format == "mp3" and stem_path.suffix.lower() != ".mp3":
         # Lazy encode: stems separated before MP3 support have WAV only.
         from ..services.source_separation import encode_wav_to_mp3
         if wav_path is None:

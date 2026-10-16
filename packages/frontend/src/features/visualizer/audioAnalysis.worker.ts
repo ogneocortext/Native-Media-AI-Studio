@@ -6,7 +6,9 @@
  * frequency data and returns a compact AudioData-shaped payload.
  *
  * Message protocol (main → worker):
- *   { type: "analyze", payload: { freq: Uint8Array, sampleRate: number, elapsed: number, duration: number, beatTimes?: number[], downbeatTimes?: number[], energyCurve?: Array<{t:number,e:number}>, perceptualScale?: PerceptualScale, numPerceptualBands?: number } }
+ *   { type: "analyze", payload: { freq: Uint8Array, sampleRate: number, elapsed: number, duration: number, beatTimes?: number[], downbeatTimes?: number[], energyCurve?: number[], perceptualScale?: PerceptualScale, numPerceptualBands?: number } }
+ *   { type: "reset" }  — clears all module-level analysis state (smoothing,
+ *     peak hold, beat grid) so the next track starts clean.
  *
  * Message protocol (worker → main):
  *   { type: "result", data: AudioData }
@@ -58,12 +60,16 @@ export interface AnalyzeMessage {
   };
 }
 
+export interface ResetMessage {
+  type: "reset";
+}
+
 export interface ResultMessage {
   type: "result";
   data: WorkerAudioData;
 }
 
-export type WorkerMessage = AnalyzeMessage | ResultMessage;
+export type WorkerMessage = AnalyzeMessage | ResetMessage | ResultMessage;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 //
@@ -76,18 +82,38 @@ export type WorkerMessage = AnalyzeMessage | ResultMessage;
 // ─ main loop ────────────────────────────────────────────────────────────────
 // ATTACK/RELEASE come from audioTiming.ts (shared with the inline path);
 // the previous local ATTACK = 0.35 smoothed 2.5× slower than the main thread.
+//
+// All per-analysis-pipeline state is grouped into resetState() so it can be
+// re-initialised when the track changes (via the "reset" message). Without
+// this, smoothing / peak-hold / beat-cooldown state from the previous track
+// bleeds into the next one.
+function resetState() {
+  smoothedBass = 0;
+  smoothedMid = 0;
+  smoothedTreble = 0;
+  peakState.peak = 0;
+  peakState.decayFrames = 0;
+  smoothedPhase = 0;
+  lastBass = 0;
+  beatCooldown = 0;
+  recentBeatIntervals.length = 0;
+  lastBeatTime = 0;
+  nextBeatIn = 0;
+}
 
 let smoothedBass = 0;
 let smoothedMid = 0;
 let smoothedTreble = 0;
-const peakHold = 0;
-const peakDecay = 0;
+const peakState = { peak: 0, decayFrames: 0 } as { peak: number; decayFrames: number };
 let smoothedPhase = 0;
 let lastBass = 0;
 let beatCooldown = 0;
 const recentBeatIntervals: number[] = [];
 let lastBeatTime = 0;
 let nextBeatIn = 0;
+
+// Initialise on module load.
+resetState();
 
 function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const {
@@ -114,7 +140,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const overallSmoothed = bassSmoothed * 0.4 + midSmoothed * 0.35 + trebleSmoothed * 0.25;
 
   updatePeakHold(
-    { peak: peakHold, decayFrames: peakDecay },
+    peakState,
     Math.max(bassSmoothed, midSmoothed, trebleSmoothed),
   );
 
@@ -196,14 +222,21 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
 
   const bands = mapToPerceptualBands(freq, sampleRate, perceptualScale, numPerceptualBands);
 
+  // Blend live energy with analyzed energy curve, matching the main-thread
+  // path in audioHooks.ts (60% live keeps transients; 40% anchors to track
+  // structure). Without this, worker and inline paths produce different
+  // energy values for the same audio.
+  const rawEnergy = (bassSmoothed + midSmoothed + trebleSmoothed) / 3;
+  const energy = analyzedEnergy > 0 ? rawEnergy * 0.6 + analyzedEnergy * 0.4 : rawEnergy;
+
   return {
     bass: bassSmoothed,
     mid: midSmoothed,
     treble: trebleSmoothed,
     overall: overallSmoothed,
     beat: isBeat,
-    peak: peakHold,
-    energy: (bassSmoothed + midSmoothed + trebleSmoothed) / 3,
+    peak: peakState.peak,
+    energy,
     drumType,
     nextBeatIn,
     beatPhase,
@@ -216,10 +249,12 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
 
 // ── worker entry ─────────────────────────────────────────────────────────────
 
-self.onmessage = (ev: MessageEvent<AnalyzeMessage>) => {
+self.onmessage = (ev: MessageEvent<AnalyzeMessage | ResetMessage>) => {
   if (ev.data.type === "analyze") {
     const data = analyze(ev.data);
     const out: ResultMessage = { type: "result", data };
     self.postMessage(out);
+  } else if (ev.data.type === "reset") {
+    resetState();
   }
 };

@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import type { AudioData, PerceptualScale } from "./types";
-import type { WorkerAudioData, AnalyzeMessage } from "./audioAnalysis.worker";
+import type { WorkerAudioData, AnalyzeMessage, ResetMessage } from "./audioAnalysis.worker";
 
 export interface UseAudioAnalysisWorkerOptions {
   enabled?: boolean;
@@ -28,6 +28,8 @@ export interface UseAudioAnalysisWorkerResult {
     downbeatTimes?: number[],
     energyCurve?: number[],
   ) => void;
+  /** Reset all worker analysis state (smoothing, peak hold, beat grid) — call when switching tracks. */
+  reset: () => void;
   destroy: () => void;
   /** False after a worker failure so callers can use the inline fallback. */
   isAvailable: () => boolean;
@@ -60,6 +62,9 @@ export function useAudioAnalysisWorker({
   // froze silently — the 3D scene kept rendering against a stale AudioData.
   const watchdogRef = useRef<number | null>(null);
   const RESULT_TIMEOUT_MS = 500;
+  // Set before useEffect so the onerror handler (which references it) always
+  // has a defined ref object by the time it can fire.
+  const failedRef = useRef(false);
 
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current !== null) {
@@ -168,7 +173,6 @@ export function useAudioAnalysisWorker({
     [perceptualScale, numPerceptualBands, clearWatchdog],
   );
 
-  const failedRef = useRef(false);
   const destroy = useCallback(() => {
     clearWatchdog();
     if (workerRef.current) {
@@ -178,11 +182,17 @@ export function useAudioAnalysisWorker({
     pendingRef.current = false;
   }, [clearWatchdog]);
 
+  const reset = useCallback(() => {
+    const worker = workerRef.current;
+    if (!worker) return;
+    worker.postMessage({ type: "reset" } as ResetMessage);
+  }, []);
+
   // Return null when disabled so callers fall back to the inline analyser path
   // instead of reading a worker ref that has no active worker.
   const isAvailable = useCallback(
     () => Boolean(enabled && workerRef.current && !failedRef.current),
     [enabled],
   );
-  return enabled && !failedRef.current ? { data: dataRef, send, destroy, isAvailable } : null;
+  return enabled && !failedRef.current ? { data: dataRef, send, reset, destroy, isAvailable } : null;
 }
