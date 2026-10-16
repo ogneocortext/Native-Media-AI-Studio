@@ -8,6 +8,9 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import shutil
+import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -68,9 +71,7 @@ def _find_by_content_id(audio_dir: Path, content_id: str) -> Path | None:
     if not audio_dir.exists():
         return None
     prefix = f"{content_id}_"
-    matches = sorted(
-        p for p in audio_dir.iterdir() if p.is_file() and p.name.startswith(prefix)
-    )
+    matches = sorted(p for p in audio_dir.iterdir() if p.is_file() and p.name.startswith(prefix))
     return matches[0] if matches else None
 
 
@@ -96,7 +97,11 @@ async def _store_upload(file: UploadFile) -> str:
 
     digest = hashlib.sha256()
     size = 0
-    tmp_path = AUDIO_DIR / (uuid.uuid4().hex + ".upload")
+    # Write to the system temp dir, not inside AUDIO_DIR: a crashed upload
+    # leaves an orphan .upload in output/audio/ otherwise, and system temp
+    # is cleaned by the OS on reboot. audio_stems.py already uses this same
+    # pattern for its uploads.
+    tmp_path = Path(tempfile.gettempdir()) / (uuid.uuid4().hex + ".upload")
     try:
         with open(tmp_path, "wb") as buffer:
             while chunk := await file.read(8192):
@@ -104,7 +109,7 @@ async def _store_upload(file: UploadFile) -> str:
                 if size > MAX_FILE_SIZE:
                     raise HTTPException(
                         status_code=413,
-                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
+                        detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)} MB",
                     )
                 digest.update(chunk)
                 buffer.write(chunk)
@@ -130,10 +135,12 @@ async def _store_upload(file: UploadFile) -> str:
 
     final_path = AUDIO_DIR / f"{unique_id}_{file.filename}"
     try:
-        tmp_path.replace(final_path)   # atomic within the same volume
-    except Exception as e:
-        tmp_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
+        tmp_path.replace(final_path)  # atomic within the same volume
+    except OSError:
+        # Cross-volume move (e.g. system temp on C:, repo on D:) — fall back
+        # to copy + delete. Not atomic, but the unique temp name means a crash
+        # still leaves nothing under a real filename.
+        shutil.move(str(tmp_path), str(final_path))
     return final_path.name
 
 
@@ -179,6 +186,7 @@ def _stamp_analysis(data: dict) -> dict:
         data["schema_version"] = ANALYSIS_SCHEMA_VERSION
     return data
 
+
 # In-memory cache for analysis data (avoids DB hits on every frontend poll).
 # Keys are ``filename:backend`` so different analysis backends do not clobber
 # each other's results.
@@ -214,6 +222,7 @@ MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 class AudioUploadResponse(BaseModel):
     """Response model for audio upload"""
+
     success: bool
     filename: str
     stored_path: str
@@ -234,6 +243,7 @@ class AudioUploadResponse(BaseModel):
 
 class AudioAnalysisResponse(BaseModel):
     """Response model for audio analysis request"""
+
     job_id: str
     status: str
     message: str
@@ -241,6 +251,7 @@ class AudioAnalysisResponse(BaseModel):
 
 class AudioAnalysisResult(BaseModel):
     """Response model for completed audio analysis — now energy-aware (2026)"""
+
     tempo_bpm: float
     duration_seconds: float
     beat_count: int
@@ -288,6 +299,7 @@ class AudioAnalysisResult(BaseModel):
 
 class EnsureAnalysisRequest(BaseModel):
     """Request model for ensuring cached analysis exists for an audio file."""
+
     filename: str
     backend: str = "sonara"
 
@@ -300,12 +312,17 @@ async def list_audio_backends():
         MADMOM_AVAILABLE,
         SONARA_AVAILABLE,
     )
+
     return {
-        "available": [b for b, avail in [
-            ("sonara", SONARA_AVAILABLE),
-            ("madmom", MADMOM_AVAILABLE),
-            ("librosa", LIBROSA_AVAILABLE),
-        ] if avail],
+        "available": [
+            b
+            for b, avail in [
+                ("sonara", SONARA_AVAILABLE),
+                ("madmom", MADMOM_AVAILABLE),
+                ("librosa", LIBROSA_AVAILABLE),
+            ]
+            if avail
+        ],
         "default": "sonara" if SONARA_AVAILABLE else "librosa",
     }
 
@@ -319,6 +336,7 @@ async def get_analysis_summary(filename: str):
     - whether spectral/onset data is present
     """
     import urllib.parse
+
     filename = urllib.parse.unquote(filename)
     if ".." in filename or filename.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -341,7 +359,9 @@ async def get_analysis_summary(filename: str):
         "has_energy_curve": bool(data.get("energy_curve")),
         # Legacy key: older summaries advertised raw spectral curve arrays that
         # this payload never carried, so it always reported false.
-        "has_spectral": bool(data.get("spectral") or data.get("spectral_centroid") or data.get("spectral_rolloff")),
+        "has_spectral": bool(
+            data.get("spectral") or data.get("spectral_centroid") or data.get("spectral_rolloff")
+        ),
         "job_id": data.get("job_id"),
         "stored_path": data.get("stored_path"),
     }
@@ -381,9 +401,7 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
         filename=file_path.name,
         stored_path=str(file_path),
         size_bytes=size,
-        message=(
-            f"{verb}: {file.filename} -> {file_path.name} ({how}, {size // 1024} KB)"
-        ),
+        message=(f"{verb}: {file.filename} -> {file_path.name} ({how}, {size // 1024} KB)"),
         converted=True,
         source_filename=file.filename,
         lossless=bool(extraction and extraction.lossless),
@@ -451,6 +469,14 @@ async def _store_video_as_audio(file: UploadFile) -> tuple[str, ExtractionResult
         src.unlink(missing_ok=True)
         if converted is not None:
             converted.unlink(missing_ok=True)
+        # Remove the temp directory itself so a conversion leaves no empty
+        # _import_tmp dir behind in output/. The directory may still hold
+        # files if something went wrong mid-conversion; ignore errors on
+        # removal so a leftover file never masks the real result.
+        try:
+            tmp_dir.rmdir()
+        except OSError:
+            pass
 
 
 async def _store_track(file: UploadFile) -> tuple[str, bool, ExtractionResult | None, bool]:
@@ -550,6 +576,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             SONARA_AVAILABLE,
             AudioAnalyzer,
         )
+
         if not LIBROSA_AVAILABLE:
             raise HTTPException(status_code=503, detail="librosa not installed")
 
@@ -559,6 +586,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         # this used to decode + beat-track the whole file twice per request.
         try:
             from tools.lib.audio import load_audio as _load_audio
+
             y, sr = _load_audio(str(file_path), sr=None)
         except Exception:
             y, sr = None, None
@@ -582,6 +610,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         cuda_error = None
         try:
             from ..services.audio_analyzer import analyze_with_cuda
+
             if y is not None:
                 # CUDA spectral pass on the already-decoded audio; skip its beat
                 # tracking since analyze_from_audio does that below.
@@ -598,9 +627,9 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         # simply reported no computed_on and ran CPU-bound with no explanation.
         if cuda_error is not None:
             logger.warning(
-                "CUDA analysis failed, falling back to CPU (~300x slower on "
-                "this hardware): %s: %s",
-                type(cuda_error).__name__, cuda_error,
+                "CUDA analysis failed, falling back to CPU (~300x slower on this hardware): %s: %s",
+                type(cuda_error).__name__,
+                cuda_error,
             )
         elif cuda_result is None:
             logger.warning(
@@ -617,8 +646,13 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             # sonara is a Rust extension and does the same job in well under a
             # second on the buffer already decoded here.
             result = analyzer.analyze_from_audio(
-                y, sr, job_id=unique_id, audio_file=str(file_path),
-                backend="cuda" if cuda_result and cuda_result.get("computed_on") == "GPU" else "librosa",
+                y,
+                sr,
+                job_id=unique_id,
+                audio_file=str(file_path),
+                backend="cuda"
+                if cuda_result and cuda_result.get("computed_on") == "GPU"
+                else "librosa",
                 beat_backend="sonara" if SONARA_AVAILABLE else None,
             )
         else:
@@ -634,7 +668,9 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             if cuda_result.get("amplitude_envelope"):
                 analysis_result["energy_curve"] = [
                     round(float(v), 4)
-                    for v in _downsample_curve(cuda_result["amplitude_envelope"], _ENERGY_CURVE_POINTS)
+                    for v in _downsample_curve(
+                        cuda_result["amplitude_envelope"], _ENERGY_CURVE_POINTS
+                    )
                 ]
                 analysis_result["amplitude_envelope"] = [
                     round(float(v), 4)
@@ -642,12 +678,19 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
                 ]
                 analysis_result["timing_contract"]["energyCurve"] = [
                     {
-                        "time": round(float(i) * analysis_result["duration_seconds"] / max(len(analysis_result["energy_curve"]) - 1, 1), 3),
+                        "time": round(
+                            float(i)
+                            * analysis_result["duration_seconds"]
+                            / max(len(analysis_result["energy_curve"]) - 1, 1),
+                            3,
+                        ),
                         "value": v,
                     }
                     for i, v in enumerate(analysis_result["energy_curve"])
                 ]
-                analysis_result["timing_contract"]["amplitudeEnvelope"] = analysis_result["amplitude_envelope"]
+                analysis_result["timing_contract"]["amplitudeEnvelope"] = analysis_result[
+                    "amplitude_envelope"
+                ]
         else:
             analysis_result["computed_on"] = "CPU"
 
@@ -655,7 +698,9 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             analysis_result,
             result,
             (cuda_result or {}).get("rms_energy")
-            or (result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []),
+            or (
+                result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+            ),
         )
 
         # Save full analysis (see the note in analyze_audio: index.json is not written)
@@ -690,6 +735,7 @@ async def get_timing_metadata(filename: str):
     agents and Remotion renderers.
     """
     import urllib.parse
+
     filename = urllib.parse.unquote(filename)
 
     if ".." in filename or filename.startswith("/"):
@@ -698,7 +744,9 @@ async def get_timing_metadata(filename: str):
     data = await get_analysis_by_filename(filename)
     tc = data.get("timing_contract")
     if not tc:
-        raise HTTPException(status_code=404, detail="No timing metadata found — run audio analysis first")
+        raise HTTPException(
+            status_code=404, detail="No timing metadata found — run audio analysis first"
+        )
     return tc
 
 
@@ -734,6 +782,7 @@ async def get_spectral_timeline(
     Deterministic per-frame, no real-time analysis bottleneck.
     """
     import urllib.parse
+
     filename = urllib.parse.unquote(filename)
 
     if ".." in filename or filename.startswith("/"):
@@ -775,6 +824,7 @@ async def get_spectral_timeline(
 async def get_analysis_by_filename(filename: str):
     """Get cached analysis for an audio file by filename."""
     import urllib.parse
+
     filename = urllib.parse.unquote(filename)
 
     if ".." in filename or filename.startswith("/"):
@@ -800,6 +850,7 @@ async def get_analysis_by_filename(filename: str):
 
     # Check database second
     from ..core import database
+
     db_analysis = database.get_audio_analysis(normalized)
     if db_analysis and not _analysis_is_stale(db_analysis):
         # Populate cache
@@ -826,14 +877,10 @@ async def get_analysis_by_filename(filename: str):
     # regex passes plus a glob to work around it. Scanning the directory and
     # applying the explicit policy in `analysis_resolver` is deterministic, has
     # a single defined order, and can explain a miss instead of guessing.
-    resolution = resolve_analysis(
-        normalized, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION
-    )
+    resolution = resolve_analysis(normalized, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION)
     if resolution.match is None:
         logger.warning(f"No cached analysis for '{normalized}': {resolution.reason}")
-        raise HTTPException(
-            status_code=404, detail="No cached analysis found for this file"
-        )
+        raise HTTPException(status_code=404, detail="No cached analysis found for this file")
 
     with open(resolution.match.path, encoding="utf-8") as f:
         data = json.load(f)
@@ -868,23 +915,30 @@ async def list_uploaded_audio():
     if AUDIO_DIR.exists():
         seen_names = set()
         for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
-            if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith("."):
+            if (
+                f.is_file()
+                and f.suffix.lower() in ALLOWED_EXTENSIONS
+                and not f.name.startswith(".")
+            ):
                 # Deduplicate by display name — strip ALL 8-hex hash prefixes (files may have 2-3)
                 import re
-                display_name = re.sub(r'^([0-9a-f]{8}_)+', '', f.name, flags=re.IGNORECASE)
+
+                display_name = re.sub(r"^([0-9a-f]{8}_)+", "", f.name, flags=re.IGNORECASE)
                 if display_name in seen_names:
                     continue
                 seen_names.add(display_name)
                 stat = f.stat()
                 relative = f.relative_to(AUDIO_DIR).as_posix()
                 parent = str(Path(relative).parent) if Path(relative).parent != Path(".") else ""
-                files.append({
-                    "filename": f.name,
-                    "relative_path": relative,
-                    "size_bytes": stat.st_size,
-                    "modified": stat.st_mtime,
-                    "folder": parent,
-                })
+                files.append(
+                    {
+                        "filename": f.name,
+                        "relative_path": relative,
+                        "size_bytes": stat.st_size,
+                        "modified": stat.st_mtime,
+                        "folder": parent,
+                    }
+                )
     return {"files": files}
 
 
@@ -909,6 +963,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
     # Only accept a cached entry if it was computed with the same backend,
     # otherwise silently re-analyze so backend choice is respected.
     from ..core import database
+
     db_analysis = database.get_audio_analysis(normalized)
     if db_analysis:
         cached_backend = (
@@ -941,18 +996,14 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
     # served, it was persisted and became the sticky answer for every later
     # request, including the by-filename route. The resolver refuses unstamped
     # files, so a stale entry now falls through to a real analysis.
-    resolution = resolve_analysis(
-        normalized, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION
-    )
+    resolution = resolve_analysis(normalized, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION)
     if resolution.match is not None:
         with open(resolution.match.path, encoding="utf-8") as f:
             data = json.load(f)
             # Also save to database for future requests
             database.update_audio_analysis(normalized, data)
             return {"status": "cached", "analysis": data}
-    logger.info(
-        f"Re-analyzing '{normalized}': {resolution.reason}"
-    )
+    logger.info(f"Re-analyzing '{normalized}': {resolution.reason}")
 
     # Find the audio file
     file_path = AUDIO_DIR / normalized
@@ -972,7 +1023,9 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
 
         # Best-effort LLM section refinement
         try:
-            rms_for_llm = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+            rms_for_llm = (
+                result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+            )
             await _apply_llm_sections(analysis_result, result, rms_for_llm)
         except Exception as e:
             logger.debug("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
@@ -982,10 +1035,13 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         with open(analysis_file, "w", encoding="utf-8") as f:
             json.dump(analysis_result, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Analysis completed for '{normalized}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats")
+        logger.info(
+            f"Analysis completed for '{normalized}': {analysis_result['tempo_bpm']} BPM, {analysis_result['beat_count']} beats"
+        )
 
         # Save to database for persistence between server restarts
         from ..core import database
+
         database.update_audio_analysis(normalized, analysis_result)
         # Populate in-memory cache
         _cache_set(normalized, analysis_result, backend)
@@ -1017,7 +1073,8 @@ async def analyze_all_pending(backend: str = "sonara"):
 
     # Get all audio files recursively (matches list_uploaded_audio behavior)
     audio_files = [
-        f for f in AUDIO_DIR.rglob("*")
+        f
+        for f in AUDIO_DIR.rglob("*")
         if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith(".")
     ]
 
@@ -1040,7 +1097,11 @@ async def analyze_all_pending(backend: str = "sonara"):
 
             # Best-effort LLM section refinement
             try:
-                rms_for_llm = result.waveform.rms_energy if result.waveform and result.waveform.rms_energy else []
+                rms_for_llm = (
+                    result.waveform.rms_energy
+                    if result.waveform and result.waveform.rms_energy
+                    else []
+                )
                 await _apply_llm_sections(analysis_result, result, rms_for_llm)
             except Exception as e:
                 logger.debug("LLM section refinement failed for analyze-all: %s", e, exc_info=True)
@@ -1053,12 +1114,14 @@ async def analyze_all_pending(backend: str = "sonara"):
             with open(analysis_file, "w", encoding="utf-8") as f:
                 json.dump(analysis_result, f, indent=2, ensure_ascii=False)
 
-            analyzed_files.append({
-                "filename": filename,
-                "bpm": analysis_result["tempo_bpm"],
-                "beats": analysis_result["beat_count"],
-                "confidence": analysis_result["confidence"],
-            })
+            analyzed_files.append(
+                {
+                    "filename": filename,
+                    "bpm": analysis_result["tempo_bpm"],
+                    "beats": analysis_result["beat_count"],
+                    "confidence": analysis_result["confidence"],
+                }
+            )
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
             logger.warning(f"Failed to analyze '{filename}': {e}")
@@ -1070,8 +1133,6 @@ async def analyze_all_pending(backend: str = "sonara"):
         "files": analyzed_files,
         "errors": errors,
     }
-
-
 
 
 def _agent_profile_from_cached(data: dict) -> dict:
@@ -1144,7 +1205,9 @@ def _agent_profile_from_cached(data: dict) -> dict:
     elif energy_level == "low":
         eq_preset = "bright"
 
-    cut_points = [s["end"] for s in timing_sections if s.get("type") in ("verse", "pre-chorus", "chorus")]
+    cut_points = [
+        s["end"] for s in timing_sections if s.get("type") in ("verse", "pre-chorus", "chorus")
+    ]
     loop_candidates = [s["start"] for s in timing_sections if s.get("type") == "chorus"]
     best_loop = loop_candidates[0] if loop_candidates else beat_times[0] if beat_times else 0.0
 
@@ -1180,7 +1243,9 @@ def _agent_profile_from_cached(data: dict) -> dict:
             "editing": {
                 "cut_points_s": cut_points[:10],
                 "best_loop_start_s": round(best_loop, 2),
-                "estimated_best_intro_s": round(timing_sections[0]["end"], 2) if timing_sections else 0.0,
+                "estimated_best_intro_s": round(timing_sections[0]["end"], 2)
+                if timing_sections
+                else 0.0,
             },
             "description": (
                 f"{tempo:.1f} BPM track, {duration:.1f}s, {energy_level} energy, "
@@ -1201,6 +1266,7 @@ async def get_agent_profile(filename: str):
     AI agents that cannot process raw audio themselves.
     """
     import urllib.parse
+
     filename = urllib.parse.unquote(filename)
 
     if ".." in filename or filename.startswith("/"):
@@ -1216,9 +1282,69 @@ async def get_agent_profile(filename: str):
         if stored_path.exists():
             try:
                 from tools.audio_agent_profile import profile_for_file
+
                 return profile_for_file(str(stored_path))
             except Exception as exc:
                 logger.debug("agent-profile re-analysis failed for %s: %s", stored, exc)
     return _agent_profile_from_cached(data)
 
 
+class CleanupRequest(BaseModel):
+    """Request for cleaning up orphaned analysis files."""
+
+    keep_days: int = 30
+    remove_orphans: bool = True
+
+
+@router.post("/cleanup")
+async def cleanup_audio_files(body: CleanupRequest | None = None) -> dict:
+    """Remove orphaned and aged analysis cache files.
+
+    Analysis JSONs in ``output/audio_analysis/`` accumulate with no expiry:
+    every /analyze, /analyze-cuda and /ensure-analysis writes a new
+    ``{id}_analysis.json`` and nothing ever removes it. This endpoint removes:
+
+    1. Analysis files whose source audio no longer exists in ``output/audio/``
+       (orphans from deleted or renamed tracks).
+    2. Analysis files older than ``keep_days``.
+
+    Returns the count and names of removed files plus any errors.
+    """
+    opts = body or CleanupRequest()
+    removed: list[dict] = []
+    errors: list[dict] = []
+
+    if not ANALYSIS_DIR.exists():
+        return {"removed": 0, "files": [], "errors": []}
+
+    cutoff = time.time() - (opts.keep_days * 86400)
+
+    for analysis_file in sorted(ANALYSIS_DIR.glob("*_analysis.json")):
+        try:
+            should_remove = False
+            reason = ""
+
+            if opts.remove_orphans:
+                unique_id = analysis_file.stem.removesuffix("_analysis")
+                matching_audio = _find_by_content_id(AUDIO_DIR, unique_id)
+                if matching_audio is None:
+                    should_remove = True
+                    reason = "orphaned (source audio missing)"
+
+            if not should_remove and analysis_file.stat().st_mtime < cutoff:
+                should_remove = True
+                reason = f"older than {opts.keep_days} days"
+
+            if should_remove:
+                analysis_file.unlink()
+                removed.append({"filename": analysis_file.name, "reason": reason})
+                # Evict from the in-memory cache so stale entries stop being served
+                _cache_delete(unique_id, "")
+        except Exception as e:
+            errors.append({"filename": analysis_file.name, "error": str(e)})
+
+    return {
+        "removed": len(removed),
+        "files": removed,
+        "errors": errors,
+    }

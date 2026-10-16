@@ -60,9 +60,10 @@ def _sidecar_rename_pairs(full_path: Path, new_path: Path) -> list[tuple[Path, P
     for old_cand in _sidecar_candidates(full_path):
         if not old_cand.name.startswith(old_stem):
             continue
-        new_cand = new_path.with_name(new_stem + old_cand.name[len(old_stem):])
+        new_cand = new_path.with_name(new_stem + old_cand.name[len(old_stem) :])
         pairs.append((old_cand, new_cand))
     return pairs
+
 
 # =============================================================================
 # In-memory cache for output directory listing
@@ -114,8 +115,21 @@ def _get_dir_mtime() -> float:
 def _build_media_stem_set(dir_path: Path) -> dict[Path, set[str]]:
     """Pre-compute {parent_dir: set_of_media_stems} for O(1) sidecar lookups."""
     media_exts = {
-        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac",
-        ".wma", ".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".oga",
+        ".opus",
+        ".m4a",
+        ".aac",
+        ".wma",
+        ".mp4",
+        ".webm",
+        ".mov",
+        ".mkv",
+        ".m4v",
+        ".avi",
     }
     stems_by_dir: dict[Path, set[str]] = {}
     try:
@@ -152,9 +166,23 @@ def _is_cover_sidecar(file_path: Path, media_stems: set[str] | None = None) -> b
                 if (
                     sibling.is_file()
                     and sibling.stem == stem
-                    and sibling.suffix.lower() in {
-                        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac",
-                        ".wma", ".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi",
+                    and sibling.suffix.lower()
+                    in {
+                        ".mp3",
+                        ".wav",
+                        ".flac",
+                        ".ogg",
+                        ".oga",
+                        ".opus",
+                        ".m4a",
+                        ".aac",
+                        ".wma",
+                        ".mp4",
+                        ".webm",
+                        ".mov",
+                        ".mkv",
+                        ".m4v",
+                        ".avi",
                     }
                 ):
                     return True
@@ -214,7 +242,9 @@ def _scan_with_cache() -> list[dict]:
                 continue
             # Skip cover/thumbnail sidecars in audio/video folders (they share
             # a stem with a sibling media file). Standalone artwork is kept.
-            if subdir in ("audio", "video") and _is_cover_sidecar(file_path, media_stems.get(file_path.parent)):
+            if subdir in ("audio", "video") and _is_cover_sidecar(
+                file_path, media_stems.get(file_path.parent)
+            ):
                 continue
 
             try:
@@ -224,9 +254,19 @@ def _scan_with_cache() -> list[dict]:
 
             # Skip broken renders: 1x1 placeholder PNGs (70 bytes) and tiny files
             # These are failed ComfyUI outputs that clutter the library with red thumbnails
-            if stat.st_size < 1024 and file_path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
+            if stat.st_size < 1024 and file_path.suffix.lower() in (
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+            ):
                 continue
-            if stat.st_size < 10240 and file_path.suffix.lower() in (".gif", ".mp4", ".webm", ".mov"):
+            if stat.st_size < 10240 and file_path.suffix.lower() in (
+                ".gif",
+                ".mp4",
+                ".webm",
+                ".mov",
+            ):
                 continue
 
             # Fast metadata load (no FFmpeg)
@@ -234,19 +274,21 @@ def _scan_with_cache() -> list[dict]:
             file_type = get_file_type(file_path.name)
             rel_path = file_path.relative_to(output_base).as_posix()
 
-            all_outputs.append(OutputFile(
-                filename=file_path.name,
-                path=str(file_path),
-                relative_path=rel_path,
-                file_type=file_type,
-                size_bytes=stat.st_size,
-                created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                cover_image=None,
-                has_cover=_has_cover_cached(file_path, subdir),
-                metadata=metadata,
-                job_id=metadata.get("job_id") if metadata else None,
-            ))
+            all_outputs.append(
+                OutputFile(
+                    filename=file_path.name,
+                    path=str(file_path),
+                    relative_path=rel_path,
+                    file_type=file_type,
+                    size_bytes=stat.st_size,
+                    created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    cover_image=None,
+                    has_cover=_has_cover_cached(file_path, subdir),
+                    metadata=metadata,
+                    job_id=metadata.get("job_id") if metadata else None,
+                )
+            )
 
     # Scan ComfyUI output directory for 3D assets
     comfyui_output = comfyui_output_dir()
@@ -255,19 +297,21 @@ def _scan_with_cache() -> list[dict]:
             try:
                 stat = glb_file.stat()
                 rel_path = f"comfyui/{glb_file.relative_to(comfyui_output).as_posix()}"
-                all_outputs.append(OutputFile(
-                    filename=glb_file.name,
-                    path=str(glb_file),
-                    relative_path=rel_path,
-                    file_type="3d",
-                    size_bytes=stat.st_size,
-                    created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                    modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    cover_image=None,
-                    has_cover=False,
-                    metadata={},
-                    job_id=None,
-                ))
+                all_outputs.append(
+                    OutputFile(
+                        filename=glb_file.name,
+                        path=str(glb_file),
+                        relative_path=rel_path,
+                        file_type="3d",
+                        size_bytes=stat.st_size,
+                        created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                        modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        cover_image=None,
+                        has_cover=False,
+                        metadata={},
+                        job_id=None,
+                    )
+                )
             except OSError:
                 continue
 
@@ -344,9 +388,36 @@ class OutputsResponse(BaseModel):
 def get_file_type(filename: str) -> str:
     """Determine file type from extension"""
     ext = Path(filename).suffix.lower()
-    image_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".tiff", ".tif", ".avif", ".heic", ".heif"}
+    image_exts = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".svg",
+        ".tiff",
+        ".tif",
+        ".avif",
+        ".heic",
+        ".heif",
+    }
     video_exts = {".mp4", ".webm", ".avi", ".mov", ".mkv", ".m4v", ".ogv"}
-    audio_exts = {".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus", ".m4a", ".aac", ".wma", ".aiff", ".aif", ".alac", ".amr"}
+    audio_exts = {
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".oga",
+        ".opus",
+        ".m4a",
+        ".aac",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".alac",
+        ".amr",
+    }
     model_exts = {".glb", ".gltf", ".obj", ".fbx", ".ply", ".stl"}
 
     if ext in image_exts:
@@ -401,7 +472,9 @@ async def _is_video_corrupted(video_path: Path) -> bool:
     try:
         probe = await _run_subprocess_thread(
             [ffmpeg, "-hide_banner", "-i", str(video_path)],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         stderr = (probe.stderr or "") + (probe.stdout or "")
         error_indicators = [
@@ -450,7 +523,9 @@ async def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str 
         # Probe duration first to pick a good frame time
         probe = await _run_subprocess_thread(
             [ffmpeg, "-hide_banner", "-i", str(video_path)],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         stderr = (probe.stderr or "") + (probe.stdout or "")
 
@@ -468,14 +543,27 @@ async def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str 
         seek_time = max(1.0, duration_sec * 0.1) if duration_sec > 0 else 1.0
 
         result = await _run_subprocess_thread(
-            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-             "-ss", f"{seek_time:.1f}",
-             "-i", str(video_path),
-             "-frames:v", "1",
-             "-q:v", "3",
-             "-vf", "scale=480:-2",
-             str(cover_path)],
-            capture_output=True, text=True, timeout=30,
+            [
+                ffmpeg,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-ss",
+                f"{seek_time:.1f}",
+                "-i",
+                str(video_path),
+                "-frames:v",
+                "1",
+                "-q:v",
+                "3",
+                "-vf",
+                "scale=480:-2",
+                str(cover_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0 and cover_path.exists() and cover_path.stat().st_size > 1024:
             try:
@@ -493,8 +581,6 @@ async def extract_video_thumbnail(video_path: Path, relative_base: Path) -> str 
     return None
 
 
-
-
 async def scan_output_directory(subdir: str, relative_base: Path) -> list[OutputFile]:
     """Scan a subdirectory for output files (recursive)."""
     outputs = []
@@ -507,14 +593,15 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
     media_stems = _build_media_stem_set(dir_path)
 
     for file_path in _iter_media_files(dir_path):
-
         # Skip JSON sidecars in listing (they're metadata only)
         if file_path.suffix.lower() == ".json":
             continue
 
         # Skip cover sidecars in audio/video folders only when they share a
         # stem with a sibling media file (standalone artwork is listed).
-        if subdir in ("audio", "video") and _is_cover_sidecar(file_path, media_stems.get(file_path.parent)):
+        if subdir in ("audio", "video") and _is_cover_sidecar(
+            file_path, media_stems.get(file_path.parent)
+        ):
             continue
 
         # Get file stats
@@ -527,11 +614,17 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
         # scan_output_directories): tiny images are failed ComfyUI outputs,
         # tiny videos never produced a playable file.
         if stat.st_size < 1024 and file_path.suffix.lower() in (
-            ".png", ".jpg", ".jpeg", ".webp",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
         ):
             continue
         if stat.st_size < 10240 and file_path.suffix.lower() in (
-            ".gif", ".mp4", ".webm", ".mov",
+            ".gif",
+            ".mp4",
+            ".webm",
+            ".mov",
         ):
             continue
 
@@ -553,7 +646,11 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
 
         # Build relative path for frontend (normalize to forward slashes for web URLs)
         rel_path = file_path.relative_to(relative_base)
-        normalized_rel_path = rel_path.as_posix() if hasattr(rel_path, 'as_posix') else str(rel_path).replace('\\', '/')
+        normalized_rel_path = (
+            rel_path.as_posix()
+            if hasattr(rel_path, "as_posix")
+            else str(rel_path).replace("\\", "/")
+        )
 
         output_file = OutputFile(
             filename=file_path.name,
@@ -574,18 +671,10 @@ async def scan_output_directory(subdir: str, relative_base: Path) -> list[Output
 
 @router.get("", response_model=OutputsResponse)
 async def list_outputs(
-    file_type: str | None = Query(
-        None, description="Filter by file type (image, video, audio)"
-    ),
-    search: str | None = Query(
-        None, description="Search in filename and metadata"
-    ),
-    date_from: str | None = Query(
-        None, description="Filter by creation date from (ISO format)"
-    ),
-    date_to: str | None = Query(
-        None, description="Filter by creation date to (ISO format)"
-    ),
+    file_type: str | None = Query(None, description="Filter by file type (image, video, audio)"),
+    search: str | None = Query(None, description="Search in filename and metadata"),
+    date_from: str | None = Query(None, description="Filter by creation date from (ISO format)"),
+    date_to: str | None = Query(None, description="Filter by creation date to (ISO format)"),
     limit: int = Query(200, ge=1, le=500, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     refresh: bool = Query(False, description="Bypass the in-memory list cache"),
@@ -602,30 +691,39 @@ async def list_outputs(
 
     if file_type and file_type != "all":
         # Accept both singular ("image") and plural ("images") spellings.
-        plural_map = {"images": "image", "videos": "video", "audios": "audio", "models": "3d", "model": "3d"}
+        plural_map = {
+            "images": "image",
+            "videos": "video",
+            "audios": "audio",
+            "models": "3d",
+            "model": "3d",
+        }
         canonical = plural_map.get(file_type, file_type)
         all_outputs = [o for o in all_outputs if o.file_type == canonical]
 
     if search:
         search_lower = search.lower()
         all_outputs = [
-            o for o in all_outputs
+            o
+            for o in all_outputs
             if search_lower in o.filename.lower()
             or search_lower in o.relative_path.lower()
             or (o.job_id and search_lower in o.job_id.lower())
-            or (o.metadata and any(
-                search_lower in str(v).lower()
-                for v in o.metadata.values()
-                if isinstance(v, (str, int, float))
-            ))
+            or (
+                o.metadata
+                and any(
+                    search_lower in str(v).lower()
+                    for v in o.metadata.values()
+                    if isinstance(v, (str, int, float))
+                )
+            )
         ]
 
     if date_from:
         try:
             from_date = datetime.fromisoformat(date_from)
             all_outputs = [
-                o for o in all_outputs
-                if datetime.fromisoformat(o.modified_at) >= from_date
+                o for o in all_outputs if datetime.fromisoformat(o.modified_at) >= from_date
             ]
         except ValueError:
             pass
@@ -634,8 +732,7 @@ async def list_outputs(
         try:
             to_date = datetime.fromisoformat(date_to)
             all_outputs = [
-                o for o in all_outputs
-                if datetime.fromisoformat(o.modified_at) <= to_date
+                o for o in all_outputs if datetime.fromisoformat(o.modified_at) <= to_date
             ]
         except ValueError:
             pass
@@ -663,20 +760,15 @@ async def list_outputs(
 
 @router.get("/recent", response_model=list[OutputFile])
 async def get_recent_outputs(
-    limit: int = Query(
-        10, ge=1, le=50, description="Number of recent outputs to return"
-    ),
+    limit: int = Query(10, ge=1, le=50, description="Number of recent outputs to return"),
 ) -> list[OutputFile]:
-    """Get the most recent output files."""
-    all_outputs: list[OutputFile] = []
+    """Get the most recent output files.
 
-    output_base = Path(config.output_dir)
-    for subdir in ["images", "video", "audio", "previews", "generated_3d"]:
-        outputs = await scan_output_directory(subdir, output_base)
-        all_outputs.extend(outputs)
-
-    # Sort by creation time (newest first) and limit
-    all_outputs.sort(key=lambda x: x.created_at, reverse=True)
+    Uses the same cached scan as list_outputs (30s TTL) instead of doing a
+    fresh recursive directory scan on every call.
+    """
+    all_outputs = _scan_with_cache()
+    # _scan_with_cache already returns newest-first by created_at
     return all_outputs[:limit]
 
 
@@ -703,7 +795,9 @@ async def find_duplicate_groups(
                 if p.suffix.lower() == ".json":
                     continue
                 # Skip cover sidecars; keep standalone artwork.
-                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and _is_cover_sidecar(p, media_stems_all.get(p.parent)):
+                if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and _is_cover_sidecar(
+                    p, media_stems_all.get(p.parent)
+                ):
                     continue
                 all_files.append(p)
 
@@ -756,14 +850,23 @@ async def find_duplicate_groups(
                 rel = p.relative_to(output_base).as_posix()
             except Exception:
                 rel = str(p)
-            rels.append({"filename": p.name, "relative_path": rel, "size_bytes": p.stat().st_size, "created_at": datetime.fromtimestamp(p.stat().st_ctime).isoformat()})
-        dup_groups.append({
-            "hash": h[:16],
-            "count": len(paths),
-            "size_bytes": size,
-            "wasted_bytes": size * (len(paths) - 1),
-            "files": rels,
-        })
+            rels.append(
+                {
+                    "filename": p.name,
+                    "relative_path": rel,
+                    "size_bytes": p.stat().st_size,
+                    "created_at": datetime.fromtimestamp(p.stat().st_ctime).isoformat(),
+                }
+            )
+        dup_groups.append(
+            {
+                "hash": h[:16],
+                "count": len(paths),
+                "size_bytes": size,
+                "wasted_bytes": size * (len(paths) - 1),
+                "files": rels,
+            }
+        )
 
     dup_groups.sort(key=lambda g: g["wasted_bytes"], reverse=True)
     return dup_groups[:limit]
@@ -822,6 +925,7 @@ async def list_outputs_by_type(
 
 class BulkDeleteRequest(BaseModel):
     paths: list[str]
+
 
 @router.post("/bulk-delete")
 async def bulk_delete(body: BulkDeleteRequest) -> dict:
@@ -893,6 +997,7 @@ async def delete_output(file_path: str) -> dict:
 class RenameRequest(BaseModel):
     new_name: str  # new filename only, no path
 
+
 @router.post("/{file_path:path}/rename")
 async def rename_output(file_path: str, body: RenameRequest) -> dict:
     """Rename an output file (and its sidecars: .json, cover .jpg)."""
@@ -900,7 +1005,9 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
     try:
         new_name = sanitize_filename(body.new_name.strip())
     except ValueError:
-        raise HTTPException(status_code=400, detail="new_name must be a plain filename, no path separators") from None
+        raise HTTPException(
+            status_code=400, detail="new_name must be a plain filename, no path separators"
+        ) from None
     if len(new_name) > 200:
         raise HTTPException(status_code=400, detail="Filename too long")
     # Basic extension check: keep same extension or allow common media exts
@@ -935,7 +1042,12 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
                         pass
 
         new_rel = new_path.relative_to(output_base).as_posix()
-        return {"success": True, "message": f"Renamed to {new_name}", "new_path": new_rel, "new_name": new_name}
+        return {
+            "success": True,
+            "message": f"Renamed to {new_name}",
+            "new_path": new_rel,
+            "new_name": new_name,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -1016,13 +1128,23 @@ async def get_3d_thumbnail(filename: str):
     # Generate thumbnail using Blender
     try:
         import subprocess
+
         script_path = Path(__file__).parent.parent / "services" / "generate_thumbnail.py"
         blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
         result = await _run_subprocess_thread(
-            [blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(thumb_path), "256"],
+            [
+                blender_exe,
+                "--background",
+                "--python",
+                str(script_path),
+                "--",
+                str(glb_path),
+                str(thumb_path),
+                "256",
+            ],
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=120,
         )
 
         if result.returncode == 0 and thumb_path.exists():

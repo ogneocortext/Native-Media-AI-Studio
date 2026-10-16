@@ -31,6 +31,7 @@
   "POST   /api/audio/analyze  ->  analyze_audio_api_audio_analyze_post",
   "POST   /api/audio/analyze-all  ->  analyze_all_pending_api_audio_analyze_all_post",
   "POST   /api/audio/analyze-cuda  ->  analyze_audio_cuda_api_audio_analyze_cuda_post",
+  "POST   /api/audio/cleanup  ->  cleanup_audio_files_api_audio_cleanup_post",
   "POST   /api/audio/enhance-stems  ->  enhance_stems_api_audio_enhance_stems_post",
   "POST   /api/audio/ensure-analysis  ->  ensure_analysis_api_audio_ensure_analysis_post",
   "POST   /api/audio/extract  ->  extract_audio_from_video_api_audio_extract_post",
