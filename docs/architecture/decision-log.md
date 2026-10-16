@@ -1513,3 +1513,11 @@
   (D21: file-based state), not queue-local memory. Chunk planning and
   ffmpeg command construction are pure functions in
   `services/lipsync/batch.py` (D23 precedent), unit-tested without a GPU.
+- **Mock mode (2026-10-16):** `config/lipsync.json` gains a dev-only
+  `mock.enabled` flag. When true, the adapter reports ready without
+  weights, skips the VRAM handshake (no GPU to manage), and copies the
+  input video to the output instead of running the model — so the full
+  batch workflow (chunk -> queue -> stitch) can be exercised end-to-end
+  with no GPU. The 16kHz audio prep and output validation still run for
+  real. NEVER true for real output; the result dict reports
+  `backend: musetalk-mock`.

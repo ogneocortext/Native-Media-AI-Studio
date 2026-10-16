@@ -45,6 +45,14 @@ class LipSyncNotConfiguredError(LipSyncError):
     """
 
 
+def _read_mock_flag(raw: dict[str, Any]) -> bool:
+    """Read the dev-only mock flag; accepts {"mock": {"enabled": bool}} or a bare bool."""
+    mock_cfg = raw.get("mock", False)
+    if isinstance(mock_cfg, dict):
+        return bool(mock_cfg.get("enabled", False))
+    return bool(mock_cfg)
+
+
 @dataclass
 class MuseTalkConfig:
     """Resolved configuration for the adapter."""
@@ -54,6 +62,10 @@ class MuseTalkConfig:
     inference_command: str = ""  # template with {video} {audio} {output} {weights_dir}
     inference_timeout_s: int = 3600
     audio_sample_rate: int = 16000
+    # mock: dev-only pipeline test. Copies the input video to the output instead
+    # of running the model, so the full batch workflow (chunk -> queue -> stitch)
+    # can be exercised with no GPU and no weights. NEVER for real output.
+    mock: bool = False
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> "MuseTalkConfig":
@@ -80,6 +92,7 @@ class MuseTalkConfig:
             inference_command=str(inference.get("command", "")),
             inference_timeout_s=int(inference.get("timeout_seconds", 3600)),
             audio_sample_rate=int(raw.get("audio", {}).get("sample_rate", 16000)),
+            mock=_read_mock_flag(raw),
         )
 
 
@@ -102,6 +115,18 @@ class MuseTalkAdapter:
     # ------------------------------------------------------------------
     def check_installation(self) -> dict[str, Any]:
         """Report what is present and what is missing. Never raises."""
+        if self.config.mock:
+            return {
+                "installed": True,
+                "mock": True,
+                "weights_found": False,
+                "weights_dir": str(self.config.weights_dir),
+                "ffmpeg_found": shutil.which("ffmpeg") is not None,
+                "command_configured": False,
+                "vram_budget_mb": self.config.vram_budget_mb,
+                "missing": [],
+                "message": "mock mode (dev-only: copies input video, no GPU, no weights)",
+            }
         weights = self.config.weights_dir
         weights_found = weights.is_dir() and any(weights.iterdir())
         ffmpeg_found = shutil.which("ffmpeg") is not None
@@ -159,8 +184,7 @@ class MuseTalkAdapter:
             raise FileNotFoundError(f"Audio not found: {audio}")
         out.parent.mkdir(parents=True, exist_ok=True)
 
-        # VRAM handshake (D7) — deferred import keeps the module graph clean.
-        from ..vram_manager import vram_manager
+        mock = self.config.mock
 
         def _note(p: float, m: str) -> None:
             if progress_cb:
@@ -171,19 +195,26 @@ class MuseTalkAdapter:
         workdir.mkdir(parents=True, exist_ok=True)
         try:
             wav = await asyncio.to_thread(self._prepare_audio, audio, workdir)
-            _note(0.15, "VRAM preflight")
-            begin = await vram_manager.begin_lipsync_generation(
-                vram_budget_mb=self.config.vram_budget_mb
-            )
-            if not begin.get("success"):
-                raise RuntimeError(
-                    "Insufficient VRAM for lip-sync: " + str(begin.get("error", "unknown"))
+            # VRAM handshake (D7) — deferred import keeps the module graph clean.
+            # Skipped in mock mode: there is no GPU to manage.
+            vram_manager = None
+            if not mock:
+                from ..vram_manager import vram_manager
+
+                _note(0.15, "VRAM preflight")
+                begin = await vram_manager.begin_lipsync_generation(
+                    vram_budget_mb=self.config.vram_budget_mb
                 )
+                if not begin.get("success"):
+                    raise RuntimeError(
+                        "Insufficient VRAM for lip-sync: " + str(begin.get("error", "unknown"))
+                    )
             try:
-                _note(0.25, "running MuseTalk")
+                _note(0.25, "running MuseTalk" if not mock else "mock inference")
                 await asyncio.to_thread(self._run_inference, video, wav, out)
             finally:
-                await vram_manager.end_lipsync_generation()
+                if vram_manager is not None:
+                    await vram_manager.end_lipsync_generation()
             _note(0.95, "verifying output")
             if not out.is_file() or out.stat().st_size == 0:
                 raise RuntimeError(f"MuseTalk produced no output at {out}")
@@ -195,7 +226,7 @@ class MuseTalkAdapter:
             "output_path": str(out),
             "video_path": str(video),
             "audio_path": str(audio),
-            "backend": "musetalk",
+            "backend": "musetalk-mock" if self.config.mock else "musetalk",
         }
 
     # ------------------------------------------------------------------
@@ -234,6 +265,10 @@ class MuseTalkAdapter:
         pinned to the installed MuseTalk version without code changes.
         Placeholders: {video} {audio} {output} {weights_dir}.
         """
+        if self.config.mock:
+            logger.warning("MuseTalk mock mode: copying input video to output (no model run)")
+            shutil.copyfile(video, out)
+            return
         template = self.config.inference_command.strip()
         if not template:
             raise LipSyncNotConfiguredError(
