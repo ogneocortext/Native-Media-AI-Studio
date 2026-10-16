@@ -60,6 +60,8 @@ export interface GenerationConfig {
   };
   verticalFirst: boolean;
   sectionOverrides: Record<string, string>;
+  /** Opt-in: run local lip-sync (MuseTalk, D42) on rendered chorus sections. */
+  lipSyncChorus: boolean;
 }
 
 export const PROMPT_SUGGESTIONS: Record<string, string[]> = {

@@ -22,6 +22,7 @@ from ..queue.manager import queue_manager
 from ..services.audio_analysis_handler import AudioAnalysisHandler
 from ..services.comfyui_workflow_handler import ComfyUIWorkflowHandler
 from ..services.image_generator import ImageGenerationHandler
+from ..services.lipsync_handler import LipSyncHandler
 from ..services.music_video_handler import MusicVideoHandler, MusicVideoPreviewHandler
 from ..services.storyboard_generator import StoryboardGeneratorHandler
 from ..sse.handler import sse_manager
@@ -260,6 +261,11 @@ class JobProcessor:
         # Register music video preview handler (short draft)
         self.register_handler(
             JobType.MUSIC_VIDEO_PREVIEW, MusicVideoPreviewHandler().process_job
+        )
+
+        # Register lip-sync handler (local MuseTalk, D42)
+        self.register_handler(
+            JobType.LIPSYNC, LipSyncHandler().process_job
         )
 
     def register_handler(self, job_type: JobType, handler: Callable[[Job], Any]):

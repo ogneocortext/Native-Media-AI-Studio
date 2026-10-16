@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D41 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D42 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ---
 
@@ -1465,3 +1465,41 @@
   mutation-checked against the old line. Two new routes
   (`preview-audio`, `preview-file/{key}`) are in the route baseline alongside
   B2's `/from-prompt`, which was never added to it.
+### D42 — Local lip-sync via MuseTalk; no lip-sync APIs, ever (2026-10-16)
+
+- **Status:** Decided
+- **Context:** A lip-sync research pass (Oct 2026) compared one-off services
+  (Hedra Character-3, Sync Labs, Runway) against local models (MuseTalk,
+  LatentSync, Wav2Lip, Hallo3/Sonic/Loopy) for a 4-minute music video. The
+  owner's hard boundary rules out every API option: no third-party
+  runtime/generation calls in the app, full stop. Wav2Lip's research-only
+  license rules it out for a commercial codebase; LatentSync 1.5 is borderline
+  on the 8 GB card (WDDM overhead) and ~20x slower than realtime; Hallo3/Sonic/
+  Loopy do not fit 8 GB at all. The knowledge library already scopes the
+  feature: "lip-sync only where it matters — close-ups/chorus, not
+  wides/action/profile".
+- **Decision:** MuseTalk v1.5 (MIT) is the lip-sync backend, local-only.
+  `services/lipsync/musetalk_adapter.py` wraps it with: lazy invocation
+  through a command template in `config/lipsync.json` (the exact flags must be
+  confirmed against the installed MuseTalk version — CLI drift between
+  releases is the known risk, so the template is data, not code); audio
+  normalized to 16 kHz mono WAV via ffmpeg; weights in gitignored
+  `models/musetalk/` (never committed); fail-open `check_installation()` so a
+  missing install names the missing step instead of crashing. VRAM: new
+  `GPUWorkload.LIPSYNC`, `MIN_VRAM_FOR_LIPSYNC = 4096`, and
+  `begin/end_lipsync_generation` mirroring the music-gen handshake (D7).
+  Queue: new `JobType.LIPSYNC` with `LipSyncHandler` (D8), `POST
+  /api/video/lipsync` preflights the install and enqueues, status via the
+  existing `GET /api/jobs/{job_id}`. The music-video wizard gains an opt-in
+  "Lip-sync chorus close-ups" checkbox (Configure step); when set, rendered
+  chorus sections get a best-effort lip-sync pass and the original clip is
+  kept if it fails.
+- **Consequences:** For songs, feed the isolated vocals stem
+  (`POST /api/audio/separate`) — the full mix syncs markedly worse, and the
+  endpoint docs say so. Singing remains harder than speech (sustained vowels,
+  vibrato); expect close-up/medium shots, not extreme close-ups (256px face
+  crop). The Windows-GPU verification (weights install, template flags, timed
+  run on the GTX 1070 Ti) is an open gate for the local agent — the adapter,
+  handler, routes and VRAM handshake are unit-tested here, the model call is
+  not. If MuseTalk's flags change under a future version, only
+  `config/lipsync.json` changes.

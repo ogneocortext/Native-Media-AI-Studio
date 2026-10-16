@@ -36,6 +36,7 @@ class JobType(str, Enum):
     STORYBOARD_GENERATION = "storyboard_generation"
     COMFYUI_WORKFLOW = "comfyui_workflow"
     AUDIO_FEATURE_EXTRACTION = "audio_feature_extraction"
+    LIPSYNC = "lipsync"
 
 
 class Job(BaseModel):

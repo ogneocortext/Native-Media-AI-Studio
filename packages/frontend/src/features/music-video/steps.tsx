@@ -431,6 +431,26 @@ export function ConfigureStep({
                 Use composed → prompt
               </button>
             </div>
+            <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.lipSyncChorus}
+                  onChange={(e) => onConfigChange({ ...config, lipSyncChorus: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-violet-500"
+                />
+                <span>
+                  <span className="text-xs font-bold text-violet-300">
+                    Lip-sync chorus close-ups
+                  </span>
+                  <span className="block text-[11px] text-gray-400 mt-0.5">
+                    Runs local MuseTalk (no cloud) on rendered chorus sections after
+                    generation. Needs model weights + vocals stem; fails safe when
+                    unconfigured.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
           <div>
             <label className="text-sm font-semibold text-white">Style palette</label>

@@ -35,6 +35,7 @@ class GPUWorkload(str, Enum):
     IMAGE_GENERATION = "image_generation"
     MUSIC_GENERATION = "music_generation"
     AUDIO_ANALYSIS = "audio_analysis"
+    LIPSYNC = "lipsync"
 
 
 class GPUState(str, Enum):
@@ -96,6 +97,7 @@ class VRAMManager:
         self._comfyui_models_loaded: bool = True
         self._music_gen_running: bool = False
         self._audio_analysis_running: bool = False
+        self._lipsync_running: bool = False
         self._lock = asyncio.Lock()
         self._nvml_available = False
         self._gpustat_available = False
@@ -142,6 +144,9 @@ class VRAMManager:
         # stack on a full track, with headroom; Ollama holds ~1573 MB, which is
         # what pushes an 8 GB card over without this.
         self.MIN_VRAM_FOR_AUDIO = 1200
+        # Minimum free VRAM for local lip-sync (MuseTalk v1.5, D42).
+        # Official 4GB minimum; 256px face crop keeps it well under 8GB.
+        self.MIN_VRAM_FOR_LIPSYNC = 4096
 
         # Safety margins for system stability
         # Don't offload to CPU if system RAM is below this threshold
@@ -639,6 +644,95 @@ class VRAMManager:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_MUSIC:
                     logger.info("VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb)
+                    from ..core.config import config as _cfg2
+                    last_model = _resolve_last_model(_cfg2.default_model)
+                    if "llama" in last_model.lower() and last_model != _cfg2.default_model:
+                        last_model = _cfg2.default_model
+                    reload_ok = await _reload_ollama_models(last_model)
+                    self._ollama_loaded = reload_ok
+                    actions.append({"action": "reload_ollama", "success": reload_ok, "model": last_model})
+
+            return {
+                "success": True,
+                "vram_after": vram,
+                "actions": actions,
+                "ollama_loaded": self._ollama_loaded,
+            }
+
+    async def begin_lipsync_generation(self,
+                                       vram_budget_mb: int = 4096) -> dict[str, Any]:
+        """
+        Signal that local lip-sync (MuseTalk, D42) is starting.
+        Offloads Ollama if VRAM is tight, mirroring begin_music_generation.
+
+        Args:
+            vram_budget_mb: Required VRAM in MB (default 4096, MuseTalk v1.5)
+
+        Returns:
+            Dict with status and actions taken
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Lip-sync starting (need=%dMB)", vram_budget_mb)
+            self._current_workload = GPUWorkload.LIPSYNC
+            self._lipsync_running = True
+
+            vram = await self.get_vram_status()
+            actions = []
+
+            free_mb = vram.get("free_mb", 0)
+            if free_mb >= vram_budget_mb:
+                logger.info("VRAM Manager: Sufficient VRAM for lip-sync (%dMB free)", free_mb)
+                return {
+                    "success": True,
+                    "vram_before": vram,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                }
+
+            if self._ollama_loaded and self._can_safely_offload():
+                logger.info("VRAM Manager: Offloading Ollama for lip-sync")
+                unloaded = await _unload_ollama_models()
+                self._ollama_loaded = False
+                actions.append({"action": "offload_ollama", "success": True, "models": unloaded})
+                vram = await self.get_vram_status()
+                free_mb = vram.get("free_mb", 0)
+                if free_mb >= vram_budget_mb:
+                    return {
+                        "success": True,
+                        "vram_before": vram,
+                        "actions": actions,
+                        "ollama_loaded": False,
+                    }
+
+            self._current_workload = GPUWorkload.IDLE
+            self._lipsync_running = False
+            return {
+                "success": False,
+                "error": f"Insufficient VRAM for lip-sync ({free_mb}MB free, {vram_budget_mb}MB required)",
+                "vram": vram,
+                "actions": actions,
+                "guidance": "Close other GPU applications or reduce VRAM budget",
+            }
+
+    async def end_lipsync_generation(self) -> dict[str, Any]:
+        """
+        Signal that lip-sync is complete. Reloads Ollama if it was offloaded.
+
+        Returns:
+            Dict with status and actions taken
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Lip-sync complete")
+            self._current_workload = GPUWorkload.IDLE
+            self._lipsync_running = False
+
+            vram = await self.get_vram_status()
+            actions = []
+
+            if not self._ollama_loaded:
+                free_mb = vram.get("free_mb", 0)
+                if free_mb > self.MIN_VRAM_FOR_LIPSYNC:
+                    logger.info("VRAM Manager: Reloading Ollama after lip-sync (free=%dMB)", free_mb)
                     from ..core.config import config as _cfg2
                     last_model = _resolve_last_model(_cfg2.default_model)
                     if "llama" in last_model.lower() and last_model != _cfg2.default_model:

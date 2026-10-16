@@ -684,3 +684,106 @@ async def assemble_beat_quantized(request: AssembleRequest) -> AssembleResponse:
         logger.exception("Beat assembly endpoint error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+
+# ---------------------------------------------------------------------------
+# Lip-sync (D42) — local MuseTalk only. No API calls anywhere in this path.
+# ---------------------------------------------------------------------------
+
+class LipSyncRequest(BaseModel):
+    """Request model for lip-syncing a clip to an audio track.
+
+    Exactly one of video_path / image_path is required. For songs, pass the
+    isolated vocals stem as audio_path (POST /api/audio/separate) — the full
+    mix syncs markedly worse. Scoped to close-ups/chorus per the knowledge
+    library ("lip-sync only where it matters").
+    """
+    video_path: str | None = Field(default=None, description="Existing clip to lip-sync")
+    image_path: str | None = Field(default=None, description="Still portrait to animate + lip-sync")
+    audio_path: str | None = None
+    audio_filename: str | None = None
+    section: str = Field(default="chorus", description="Song section being synced")
+    output_path: str | None = None
+
+
+class LipSyncResponse(BaseModel):
+    """Response model for lip-sync — returns the queued job for polling."""
+    success: bool
+    job_id: str | None = None
+    output_path: str | None = None
+    section: str | None = None
+    error: str | None = None
+    message: str | None = None
+
+
+@router.post("/lipsync", response_model=LipSyncResponse)
+async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
+    """Enqueue a local lip-sync job (MuseTalk, D42).
+
+    Fails fast with 503 + guidance when the local MuseTalk install is
+    incomplete (weights missing or inference.command unset) — the job never
+    enters the queue in that state. Poll the job via GET /api/jobs/{job_id}.
+    """
+    try:
+        from ..models.job import JobCreateRequest, JobType
+        from ..queue.manager import queue_manager
+        from ..services.lipsync import MuseTalkAdapter
+
+        source = request.video_path or request.image_path
+        if not source:
+            raise ValueError("video_path or image_path is required")
+        if not Path(source).is_file():
+            raise FileNotFoundError(f"Source not found: {source}")
+
+        # Preflight the local install before queueing (fail-open with guidance)
+        status = MuseTalkAdapter().check_installation()
+        if not status["installed"]:
+            raise RuntimeError(
+                "MuseTalk is not ready on this machine: " + status["message"]
+                + " — see config/lipsync.json"
+            )
+
+        # Resolve audio_path from audio_filename, mirroring generate-section
+        audio_path = request.audio_path
+        if not audio_path:
+            from ..core.config import PROJECT_ROOT as _PR
+            audio_dir = _PR / "output" / "audio"
+            if request.audio_filename and audio_dir.exists():
+                for match in audio_dir.rglob(request.audio_filename):
+                    if match.is_file():
+                        audio_path = str(match)
+                        break
+            if not audio_path:
+                raise ValueError(
+                    "audio_path is required — pass the isolated vocals stem "
+                    "(POST /api/audio/separate) for best results"
+                )
+        if not Path(audio_path).is_file():
+            raise FileNotFoundError(f"Audio not found: {audio_path}")
+
+        params = {
+            "video_path": request.video_path,
+            "image_path": request.image_path,
+            "audio_path": audio_path,
+            "section": request.section,
+            "output_path": request.output_path,
+        }
+        jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
+        job = await queue_manager.enqueue(jcr)
+
+        return LipSyncResponse(
+            success=True,
+            job_id=job.id,
+            output_path=f"output/video/lipsync_{request.section}_{job.id[:8]}.mp4",
+            section=request.section,
+            message=f"Queued lip-sync for section '{request.section}' as job {job.id[:8]}",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        # Not-configured and VRAM-shortfall both surface here as 503
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lip-sync endpoint error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

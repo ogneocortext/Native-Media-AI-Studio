@@ -28,6 +28,7 @@ const DEFAULT_CONFIG: GenerationConfig = {
   },
   verticalFirst: false,
   sectionOverrides: {},
+  lipSyncChorus: false,
 };
 
 export function MusicVideoWizard() {
@@ -207,7 +208,37 @@ export function MusicVideoWizard() {
         const jobId: string | undefined = data.job_id;
         if (!jobId) throw new Error(`No job_id for ${section.type}`);
         const out = await pollJob(jobId, section.type);
-        results.push(out);
+        // Opt-in lip-sync pass on chorus sections (D42) — local MuseTalk only.
+        // Best-effort: if it fails, the rendered section is kept as-is.
+        let finalOut = out;
+        if (
+          config.lipSyncChorus &&
+          section.type.toLowerCase().includes("chorus") &&
+          !out.startsWith("FAILED")
+        ) {
+          try {
+            const lsRes = await fetch("/api/video/lipsync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                video_path: out,
+                audio_path: analysis?.stored_path || undefined,
+                audio_filename: audioFile?.name,
+                section: section.type,
+              }),
+            });
+            if (!lsRes.ok) {
+              const detail = await lsRes.json().catch(() => ({ detail: lsRes.statusText }));
+              throw new Error(detail.detail || "Lip-sync queue failed");
+            }
+            const lsData = await lsRes.json();
+            if (!lsData.job_id) throw new Error("No job_id for lip-sync");
+            finalOut = await pollJob(lsData.job_id, `${section.type}-lipsync`);
+          } catch (lsErr) {
+            console.warn("Lip-sync pass failed, keeping original section:", lsErr);
+          }
+        }
+        results.push(finalOut);
         // Auto-log the successful generation — versioned per track+section
         void savePromptVersion({
           track_filename: audioFile?.name || undefined,
