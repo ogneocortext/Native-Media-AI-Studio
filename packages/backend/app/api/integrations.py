@@ -14,6 +14,6 @@ from .integrations_music_video import router as music_video_router
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
 
 router.include_router(config_router)
-router.include_router(generation_router)
 router.include_router(music_video_router)
+router.include_router(generation_router)
 router.include_router(misc_router)
