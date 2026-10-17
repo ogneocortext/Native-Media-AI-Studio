@@ -116,44 +116,49 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                   <Download size={14} />
                   Download .glb
                 </a>
-                {glbFilename && (
-                  <>
-                    <button
-                      onClick={handleOpenBlender}
-                      disabled={opening === "blender"}
-                      className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
-                      title="Open this GLB in Blender (launches Blender with auto-import)"
-                    >
-                      {opening === "blender" ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Box size={14} />
-                      )}
-                      Open in Blender
-                    </button>
-                    <button
-                      onClick={handleOpenUnity}
-                      disabled={opening === "unity"}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
-                      title="Copy to Unity project Assets/GeneratedModels and trigger import"
-                    >
-                      {opening === "unity" ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Layers size={14} />
-                      )}
-                      Open in Unity
-                    </button>
-                    <button
-                      onClick={() => sendToStudio(glbFilename)}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-white text-sm flex items-center gap-2"
-                      title="Open in Three.js Studio with this model loaded as a character + bible"
-                    >
+              {glbFilename && (
+                <>
+                  {/* Q1 (resolved): Three.js Studio is the primary 3D path — tested,
+                   * beat-synced, no external editor. Unity is the fallback for hero
+                   * renders when the Unity Editor is reachable; Blender is asset
+                   * processing (decimation / chrome / thumbnails), not a viz path.
+                   * Button order reflects the primary → fallback hierarchy. */}
+                  <button
+                    onClick={() => sendToStudio(glbFilename)}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-white text-sm flex items-center gap-2"
+                    title="Open in Three.js Studio with this model loaded as a character + bible (primary 3D path)"
+                  >
+                    <Box size={14} />
+                    Send to Studio
+                  </button>
+                  <button
+                    onClick={handleOpenBlender}
+                    disabled={opening === "blender"}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
+                    title="Open this GLB in Blender (launches Blender with auto-import)"
+                  >
+                    {opening === "blender" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
                       <Box size={14} />
-                      Send to Studio
-                    </button>
-                  </>
-                )}
+                    )}
+                    Open in Blender
+                  </button>
+                  <button
+                    onClick={handleOpenUnity}
+                    disabled={opening === "unity"}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
+                    title="Copy to Unity project Assets/GeneratedModels and trigger import (fallback, requires Unity Editor)"
+                  >
+                    {opening === "unity" ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Layers size={14} />
+                    )}
+                    Open in Unity
+                  </button>
+                </>
+              )}
                 <button
                   onClick={() => navigate("/music-video-wizard")}
                   className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm flex items-center gap-2"

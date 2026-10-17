@@ -719,7 +719,7 @@
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
 
-- **Status:** Open
+- **Status:** Resolved 2026-10-17 — converged on Three.js Studio as primary, Unity MCP as fallback for hero renders, Blender MCP as asset processing (not a competing viz path).
 - **Context:** Three parallel 3D tracks exist: Unity MCP (`unity-project-mcp/`
   - standalone `unity-visualizer/`), Blender MCP, and the Three.js Studio
     (6 templates: Concert Stage, Cosmic Void, Equalizer Wall, Geometric City,
@@ -729,6 +729,12 @@
   (no external editor version to chase) and already beat-synced; keep Unity
   for hero renders only if it's earning its complexity. **Do not delete
   `unity-visualizer/` in any cleanup** — protected directory per AGENTS.md.
+- **Measurement:**
+  - **Three.js Studio + viz-styles:** routed at `/three-js-studio` (6 scene templates), 15 audio-reactive Three.js/R3F styles in `viz-styles/` consumed by `VisualizerScene.tsx`, shared motion primitives in `vizMotion.ts` (unit tested), 5 three-js-studio service tests, beat-synced via `beatPhrasing`/`sectionDriver`/`audioDriven` templates, zero external editor dependency, covered by frontend gates (tsc/eslint/vitest). → **PRIMARY**
+  - **Unity MCP:** backend router `app/api/unity_control.py` (`/api/unity/status,/commands,/command,/capture`), frontend `UnityControlPage.tsx`, 17-tool MCP bridge `tools/mcp/unity-mcp-bridge.mjs`, but **zero tests**, disabled by default in Kilo/Cline configs, requires Unity Editor running, port file outlives crashes. → **Fallback (hero renders/capture only, when Unity is reachable)**
+  - **Unity Visualizer (`unity-visualizer/`):** standalone Unity 6000.6.0f1 project, protected per AGENTS.md — unchanged.
+  - **Blender MCP (`tools/blender/`):** `builder.py` + `lyrics_sync.py` (no `.blend` files), invoked via `blender --background --python` from `gen3d_service.py`/`outputs.py`/`native_open.py` for GLB decimation, chrome materials, thumbnails — **asset processing, not a competing viz path**; zero tests.
+- **Code change:** `ResultPanel.tsx` reorders the three post-generation action buttons to "Send to Studio" (primary) → "Open in Blender" → "Open in Unity" (fallback), with a comment documenting the hierarchy.
 
 ### Q2 — Automatic AI → shader fallback in the music video wizard
 
