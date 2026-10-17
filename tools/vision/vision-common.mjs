@@ -4,6 +4,11 @@
  * place prevents the two implementations from drifting apart.
  */
 
+// Vision detection relies on Ollama's top-level `capabilities: ["vision",...]`
+// field (documented API shape, stable 0.34.x → 0.40.x+) reported per model in
+// `/api/tags`. No hardcoded family list needed. See residentVisionModels().
+
+
 export const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 export const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1280');
 export const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
@@ -12,11 +17,10 @@ export const VISION_NUM_CTX = parseInt(process.env.VISION_NUM_CTX || '8192');
 export const DEFAULT_VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-qat';
 // Must NOT equal DEFAULT_VISION_MODEL. It used to, which made the fallback a no-op
 // retry of the model that had just failed and reported itself as a second backend.
-// Measured on an 8 GB card with the desktop holding ~5 GB, gemma4:e2b-it-qat was
-// the fastest model that terminated cleanly (41 s, done_reason "stop"); qwen3-vl:4b
-// returned empty content at 121 s and minicpm-v:8b did not finish inside 150 s.
+// gemma4:e2b-it-qat is the vision primary; minicpm-v:8b is the only other surviving
+// vision model on this workstation (qwen3-vl family pruned 2026-10-10).
 // Override with VISION_FALLBACK_MODEL if your machine has more VRAM.
-export const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'gemma4:e2b-it-qat';
+export const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'minicpm-v:8b';
 
 function baseName(name) {
   return String(name || '').split(':')[0].toLowerCase();
@@ -25,37 +29,41 @@ function baseName(name) {
 export { baseName };
 
 /**
- * Return the names of currently-resident Ollama models that advertise
- * `vision` capability (or have a vision-like basename as fallback).
+ * Return the names of currently-resident Ollama models that advertise vision
+ * capability.
+ *
+ * Ollama v0.40.5 reports vision on each `/api/tags` model via a top-level
+ * `capabilities: ["vision", ...]` array (the documented API shape; `details.families`
+ * only carries family names like `["gemma4"]`). We read `/api/tags` once and match
+ * against that authoritative field, with the basename heuristic kept as a small
+ * safety net for any edge case where capabilities were not populated. `/api/show`
+ * still returns malformed JSON for some models, and `/api/ps` returns an empty
+ * `models` array in v0.40.5+, so neither is used here.
  */
 export async function residentVisionModels() {
-  let names = [];
+  let out = [];
   try {
-    const r = await fetch(`${OLLAMA_URL}/api/ps`, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) return [];
-    const d = await r.json();
-    names = (d.models || []).map((m) => m.name);
-  } catch {
-    return [];
-  }
-  const out = [];
-  for (const n of names) {
-    try {
-      const r = await fetch(`${OLLAMA_URL}/api/show`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!r.ok) continue;
-      const d = await r.json();
-      if ((d.capabilities || []).includes('vision')) out.push(n);
-    } catch {
-      const b = baseName(n);
-      if (b.includes('vl') || b.includes('vision') || b.includes('minicpm') || b.includes('gemma')) {
-        out.push(n);
+    const tr = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(10000) });
+    if (!tr.ok) return [];
+    const td = await tr.json();
+    const models = Array.isArray(td.models) ? td.models : [];
+    for (const m of models) {
+      // Primary: Ollama reports vision via a top-level `capabilities: ["vision",...]`
+      // array on each /api/tags entry (documented API shape, stable 0.34.x → 0.40.x+).
+      // A bare basename check stays as a safety net for any edge case where
+      // capabilities were not populated by this server build.
+      const caps = Array.isArray(m.capabilities) ? m.capabilities : null;
+      if (caps && caps.includes('vision')) {
+        out.push(m.name);
+      } else {
+        const b = baseName(m.name);
+        if (b.includes('vl') || b.includes('vision') || b.includes('minicpm') || b.includes('gemma')) {
+          out.push(m.name);
+        }
       }
     }
+  } catch (e) {
+    console.error(`[vision] /api/tags failed: ${e.message}`);
   }
   return out;
 }

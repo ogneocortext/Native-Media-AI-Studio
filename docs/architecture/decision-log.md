@@ -9,9 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D42 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
-
----
+> Current scope: D1–D43 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ## Decided
 
@@ -1301,7 +1299,12 @@
   were corrected in place. A future agent tempted to re-pull
   qwen3-vl should read that article first: the family's
   thinking loop is a client-visible defect, not a prompt
-  problem.
+  problem. Resident vision model detection (`residentVisionModels()`
+  in `tools/vision/vision-common.mjs`) now correctly reads Ollama's
+  top-level `capabilities` field from `GET /api/tags` (the documented API
+  shape, stable 0.34.x → 0.40.x+) instead of `details.families`, which only
+  carries family names like `["gemma4"]`; `/api/ps` returns an empty `models`
+  array on v0.40.5+ so it is not used here.
 
 ### D38 — 3D visualizations share one 2026-grade motion vocabulary (2026-10-11)
 
@@ -1471,6 +1474,58 @@
   mutation-checked against the old line. Two new routes
   (`preview-audio`, `preview-file/{key}`) are in the route baseline alongside
   B2's `/from-prompt`, which was never added to it.
+### D43 — Ollama 0.40.5: catalog-drift pass, no API change (2026-10-17)
+
+- **Status:** Decided
+- **Context:** The local server is on Ollama
+  0.40.5 (verified live: `GET /api/version` →
+  `{"version": "0.40.5"}`, 11 models in `/api/tags`).
+  The 0.40.5 changelog is Windows serving fixes only — NVIDIA Nemotron
+  3.5 support, cloud decision models, clearer cloud error messages, an
+  OpenAI-compatible Responses tool-call fix, updated llama.cpp/MLX. **None
+  of it changes an endpoint this repo calls or a field it reads**, so D35's
+  capability surface and D36's "no surface change" both stand. What was
+  actually stale was not the Ollama integration but the *record of what is
+  installed*: every inventory in the repo still described the pre-2026-10-10
+  10-model catalog.
+- **Decision:** Treat 0.40.5 as a doc-measurement pass, not a code change.
+  Re-probe live and correct the record; touch no adapter, route, or option.
+- **Findings (all measured, not read):**
+  - `GET /api/tags` returns 7 local + 3 cloud models. New since the last
+    inventory: `glm-4.7-flash:latest` (18.14 GB, `completion,tools,thinking`,
+    runner `ggml`). Cloud entries are `glm-5.3:cloud`,
+    `deepseek-v4-flash:cloud`, `deepseek-v4.1-flash:cloud` — all return
+    HTTP 402 without a paid key.
+  - Cold-chat latencies ("Reply exactly: OK", `think=false`,
+    `num_predict=16`): `llama3.2:3b` 0.2 s (resident) → `gemma4:e2b-it-qat`
+    16.2 s → `qwen3.5:4b` 22.6 s → `minicpm-v:8b` 91.3 s → `qwen3.5:9b`
+    97.2 s → `glm-4.7-flash:latest` 173.6 s.
+  - `qwen3.5:9b` and `minicpm-v:8b` both answer cleanly. The
+    `api/integrations_config.py` verification table still marked them
+    broken on the strength of a 180 s / 254 s timeout — that timeout was
+    raised to 300 s on 2026-10-11, and neither model hits it. The claim
+    was wrong; corrected.
+  - `output/ollama-benchmarks.json` still scores five deleted models
+    (`qwen3-vl:2b`, `qwen3-vl:4b`, `qwen3-vl-optimized:latest`,
+    `ornith-1.5:9b`, `deepseek-r1:7b`). The cache keys by model name, so
+    it keeps "benchmarking" models nothing has; flagged as drift rather
+    than silently fixed, since re-running is a real cost.
+- **Consequences:** Corrected in place: `config/settings.json`
+  (`_ollama_notes.recommended_models` + new `live_catalog_2026_10_17`),
+  `config/hardware-profile.json` (`_ollama_0.40_notes.live_catalog_2026_10_17`),
+  `docs/knowledge-library/ollama-utilization-2026.md` §2.1 registry + §3.2
+  routing + measured latencies, `docs/knowledge-library/integration-ollama.md`
+  model profile + routing policy, `docs/knowledge-library/ollama-benchmarks.md`
+  drift note, `docs/knowledge-library/ollama-thinking-structured-outputs.md`
+  per-model cost table, `docs/architecture/provider-notes.md` Ollama section,
+  `packages/backend/app/api/integrations_config.py` `VERIFIED_WORKING_MODELS` +
+  `BROKEN_MODELS`, and this entry. The `is_model_verified` partial-match
+  branch still carries the historical `llamacpp:94c2d4e5` row — kept because
+  removing it would be a behavior change for a key no current model hits,
+  and it is now documented as historical.
+  No adapter, route, or option changed. `tools/probe-ollama.py` output is the
+  authoritative record; re-run it after any future Ollama upgrade.
+
 ### D42 — Local lip-sync via MuseTalk; no lip-sync APIs, ever (2026-10-16)
 
 - **Status:** Decided
