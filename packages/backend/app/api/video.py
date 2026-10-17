@@ -798,7 +798,7 @@ def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -
 async def _run_cmd(cmd: list[str], timeout: int) -> None:
     """Run a subprocess in a worker thread; raise RuntimeError on failure."""
     def _do() -> None:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
         if proc.returncode != 0:
             raise RuntimeError(f"Command failed (rc={proc.returncode}): {(proc.stderr or '')[-500:]}")
 
@@ -812,7 +812,7 @@ async def _probe_duration(ffprobe: str, media_path: str) -> float:
     def _do() -> float:
         proc = subprocess.run(
             lipbatch.probe_duration_cmd(ffprobe, media_path),
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, encoding="utf-8", timeout=60,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"ffprobe failed: {(proc.stderr or '')[-300:]}")

@@ -253,7 +253,7 @@ class MuseTalkAdapter:
             "pcm_s16le",
             str(wav),
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=600)
         if proc.returncode != 0 or not wav.is_file():
             raise RuntimeError(f"Audio normalization failed: {proc.stderr[-500:]}")
         return wav
@@ -292,6 +292,7 @@ class MuseTalkAdapter:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=self.config.inference_timeout_s,
                 cwd=str(self.config.weights_dir.parent),
             )
