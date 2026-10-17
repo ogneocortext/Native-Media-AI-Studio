@@ -1190,97 +1190,124 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
                 </button>
               </div>
 
-              {slot.layers.map((layer, li) => (
-                <div key={layer.__id} className="space-y-1 rounded bg-white/[0.03] p-1.5">
-                  <div className="flex items-center gap-1">
-                    <select
-                      value={layer.track}
-                      onChange={(e) => updateLayer(si, li, { track: e.target.value })}
-                      aria-label="Source track"
-                      className="flex-1 min-w-0 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
-                    >
-                      {tracks.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={layer.stem}
-                      onChange={(e) => updateLayer(si, li, { stem: e.target.value as StemName })}
-                      aria-label="Stem"
-                      className="px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
-                    >
-                      {stemsFor(layer.track).map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                    {/* A4: audition this layer's source stem before it is
-                        committed to the arrangement. */}
-                    <button
-                      onClick={() => void auditionLayer(layer)}
-                      disabled={busy !== null}
-                      aria-label={`Audition ${layer.stem} from ${layer.track}`}
-                      title={`Play ${layer.track}'s ${layer.stem}`}
-                      className="p-1 rounded bg-white/5 hover:bg-white/10 text-white disabled:opacity-40"
-                    >
-                      {busy === "audition" ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
-                    </button>
-                    <button onClick={() => setSlots((p) => p.map((s, i) => (i === si ? { ...s, layers: s.layers.filter((_, j) => j !== li) } : s)))} aria-label="Remove layer" className="text-muted hover:text-red-300">
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-
-                  {/* A4: labelled sliders with readouts instead of dB/st/@bar
-                      micro-inputs, which read as noise rather than as
-                      controls. */}
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <label className="space-y-0.5">
-                      <span className="flex justify-between text-[9px] text-muted">
-                        gain <span className="text-white/80">{layer.gain_db > 0 ? "+" : ""}{layer.gain_db} dB</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={-24}
-                        max={12}
-                        step={0.5}
-                        value={layer.gain_db}
-                        onChange={(e) => updateLayer(si, li, { gain_db: Number(e.target.value) })}
-                        aria-label="Gain dB"
-                        className="w-full accent-amber-400"
-                      />
-                    </label>
-                    <label className="space-y-0.5">
-                      <span className="flex justify-between text-[9px] text-muted">
-                        key <span className="text-white/80">{layer.key_shift_semitones > 0 ? "+" : ""}{layer.key_shift_semitones} st</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={-12}
-                        max={12}
-                        step={1}
-                        value={layer.key_shift_semitones}
-                        onChange={(e) => updateLayer(si, li, { key_shift_semitones: Number(e.target.value) })}
-                        aria-label="Key shift semitones"
-                        className="w-full accent-amber-400"
-                      />
-                    </label>
-                    <label className="space-y-0.5">
-                      <span className="flex justify-between text-[9px] text-muted">
-                        start <span className="text-white/80">bar {layer.source_start_bar}</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={32}
-                        step={1}
-                        value={Math.min(layer.source_start_bar, 32)}
-                        onChange={(e) => updateLayer(si, li, { source_start_bar: Number(e.target.value) })}
-                        aria-label="Source start bar"
-                        className="w-full accent-amber-400"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
+              {/* Group layers by source track so stems from the same song
+                  sit together under a track header instead of a flat list. */}
+              {(() => {
+                const byTrack = new Map<string, { layer: EditableLayer; li: number }[]>();
+                slot.layers.forEach((layer, li) => {
+                  const group = byTrack.get(layer.track) ?? [];
+                  group.push({ layer, li });
+                  byTrack.set(layer.track, group);
+                });
+                return (
+                  <>
+                    {Array.from(byTrack.entries()).map(([track, group]) => (
+                      <div key={track} className="mb-1">
+                        <h4
+                          className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-muted mb-1"
+                          aria-label={`Source: ${track}`}
+                          data-remix-track={track}
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full border border-white/20 bg-sky-400/60 border-sky-400"
+                            aria-hidden="true"
+                          />
+                          {track}
+                        </h4>
+                        {group.map(({ layer, li }) => (
+                          <div key={layer.__id} className="space-y-1 rounded bg-white/[0.03] p-1.5 ml-3">
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={layer.track}
+                                onChange={(e) => updateLayer(si, li, { track: e.target.value })}
+                                aria-label="Source track"
+                                className="flex-1 min-w-0 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
+                              >
+                                {tracks.map((t) => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={layer.stem}
+                                onChange={(e) => updateLayer(si, li, { stem: e.target.value as StemName })}
+                                aria-label="Stem"
+                                className="px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
+                              >
+                                {stemsFor(layer.track).map((n) => (
+                                  <option key={n} value={n}>{n}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => void auditionLayer(layer)}
+                                disabled={busy !== null}
+                                aria-label={`Audition ${layer.stem} from ${layer.track}`}
+                                title={`Play ${layer.track}'s ${layer.stem}`}
+                                className="p-1 rounded bg-white/5 hover:bg-white/10 text-white disabled:opacity-40"
+                              >
+                                {busy === "audition" ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
+                              </button>
+                              <button
+                                onClick={() => setSlots((p) => p.map((s, i) => (i === si ? { ...s, layers: s.layers.filter((_, j) => j !== li) } : s)))}
+                                aria-label="Remove layer"
+                                className="text-muted hover:text-red-300"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              <label className="space-y-0.5">
+                                <span className="flex justify-between text-[9px] text-muted">
+                                  gain <span className="text-white/80">{layer.gain_db > 0 ? "+" : ""}{layer.gain_db} dB</span>
+                                </span>
+                                <input
+                                  type="range"
+                                  min={-24}
+                                  max={12}
+                                  step={0.5}
+                                  value={layer.gain_db}
+                                  onChange={(e) => updateLayer(si, li, { gain_db: Number(e.target.value) })}
+                                  aria-label="Gain dB"
+                                  className="w-full accent-amber-400"
+                                />
+                              </label>
+                              <label className="space-y-0.5">
+                                <span className="flex justify-between text-[9px] text-muted">
+                                  key <span className="text-white/80">{layer.key_shift_semitones > 0 ? "+" : ""}{layer.key_shift_semitones} st</span>
+                                </span>
+                                <input
+                                  type="range"
+                                  min={-12}
+                                  max={12}
+                                  step={1}
+                                  value={layer.key_shift_semitones}
+                                  onChange={(e) => updateLayer(si, li, { key_shift_semitones: Number(e.target.value) })}
+                                  aria-label="Key shift semitones"
+                                  className="w-full accent-amber-400"
+                                />
+                              </label>
+                              <label className="space-y-0.5">
+                                <span className="flex justify-between text-[9px] text-muted">
+                                  start <span className="text-white/80">bar {layer.source_start_bar}</span>
+                                </span>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={32}
+                                  step={1}
+                                  value={Math.min(layer.source_start_bar, 32)}
+                                  onChange={(e) => updateLayer(si, li, { source_start_bar: Number(e.target.value) })}
+                                  aria-label="Source start bar"
+                                  className="w-full accent-amber-400"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
 
               <button onClick={() => setSlots((p) => p.map((s, i) => (i === si ? { ...s, layers: [...s.layers, newLayer(s.layers[0]?.track ?? tracks[0], "drums")] } : s)))} className="flex items-center gap-1 text-[10px] text-muted hover:text-white">
                 <Plus size={10} /> layer

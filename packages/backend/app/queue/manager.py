@@ -679,15 +679,27 @@ class QueueManager:
         dead.sort(key=lambda j: j.completed_at or j.created_at, reverse=True)
         return dead[: max(1, limit)]
 
-    async def retry_job(self, job_id: str) -> Job | None:
-        """Retry a failed or dead-lettered job"""
+    async def retry_job(self, job_id: str, manual: bool = False) -> Job | None:
+        """Retry a failed or dead-lettered job.
+
+        With ``manual=True`` (the user pressed Retry) an exhausted job's
+        budget is reset instead of rejected: automatic retries stop at
+        ``max_retries`` because the same job will probably fail again, but an
+        explicit operator retry declares the fault fixed and must be honored.
+        The reset restarts the automatic budget for the new attempt.
+        """
         async with self._lock:
             job = self._jobs.get(job_id)
             if not job or job.status not in (JobStatus.FAILED, JobStatus.DEAD):
                 return None
 
-            if job.retry_count >= job.max_retries:
+            if job.retry_count >= job.max_retries and not manual:
                 return None
+            if job.retry_count >= job.max_retries:
+                job.retry_count = 0
+                logger.info(
+                    "Job %s exhausted its retry budget; manual retry requested, resetting budget", job_id
+                )
 
             job.retry_count += 1
             job.status = JobStatus.QUEUED
