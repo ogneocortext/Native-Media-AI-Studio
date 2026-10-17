@@ -150,7 +150,16 @@ def test_split_video_cmd_drops_audio():
 def test_stitch_cmd_uses_concat_demuxer():
     cmd = stitch_cmd("ffmpeg", "list.txt", "final.mp4")
     assert "-f" in cmd and "concat" in cmd
-    assert "-c" in cmd and "copy" in cmd  # same codec from one inference run
+    assert "-c" in cmd and "copy" in cmd
+
+
+def test_stitch_cmd_muxes_audio():
+    # Chunks are video-only by design; the master must get the track back.
+    cmd = stitch_cmd("ffmpeg", "list.txt", "final.mp4", audio_in="song.wav")
+    assert "song.wav" in cmd
+    assert "-shortest" in cmd
+    assert cmd[cmd.index("-c:v") + 1] == "copy"
+    assert cmd[cmd.index("-c:a") + 1] == "aac"  # same codec from one inference run
 
 
 def test_probe_duration_cmd():

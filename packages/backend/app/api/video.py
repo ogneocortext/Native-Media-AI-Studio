@@ -1056,7 +1056,12 @@ async def lipsync_batch_stitch(batch_id: str) -> dict:
         list_file.write_text(lipbatch.concat_list_content(outputs), encoding="utf-8")
         final = Path(str(manifest["final_output"]))
         final.parent.mkdir(parents=True, exist_ok=True)
-        await _run_cmd(lipbatch.stitch_cmd(ffmpeg, str(list_file), str(final)), timeout=600)
+        # Mux the source audio back: chunks are video-only by design.
+        await _run_cmd(
+            lipbatch.stitch_cmd(ffmpeg, str(list_file), str(final),
+                              audio_in=str(manifest["audio_path"])),
+            timeout=600,
+        )
         if not final.is_file() or final.stat().st_size == 0:
             raise RuntimeError(f"Stitch produced no output at {final}")
 
