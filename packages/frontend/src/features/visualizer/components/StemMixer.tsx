@@ -33,6 +33,7 @@ import {
   type MixPresetId,
   type StemName,
 } from "../stemMixPresets";
+import { STEM_BY_KEY, STEM_CATEGORIES } from "../stemConfig";
 
 // Re-exported so existing importers (viz-styles/helpers.ts, the Visualizer) keep
 // working against the single canonical list. This array was previously declared
@@ -40,20 +41,13 @@ import {
 export { STEM_NAMES } from "../stemMixPresets";
 export type { StemName } from "../stemMixPresets";
 
-/** Documented visual channel per stem (Trend 2 mapping). */
-export const STEM_VISUAL_ROLE: Record<StemName, string> = {
-  drums: "scale/pulse",
-  bass: "camera shake",
-  vocals: "lyric kinetic",
-  other: "palette shift",
-};
+/** Documented visual channel per stem (Trend 2 mapping), derived from the
+ *  shared stem config so the role text stays in sync with the stem definitions. */
+export const STEM_VISUAL_ROLE: Record<StemName, string> = Object.fromEntries(
+  STEM_NAMES.map((n) => [n, STEM_BY_KEY[n].role]),
+) as Record<StemName, string>;
 
-export interface StemLevels {
-  vocals: number;
-  drums: number;
-  bass: number;
-  other: number;
-}
+export type StemLevels = Record<StemName, number>;
 
 interface StemMixerProps {
   audioFilename: string | null;
@@ -743,70 +737,97 @@ export function StemMixerPanel({
               );
             })}
           </div>
-          {STEM_NAMES.map((name) => {
-            const bands = eqBands[name] || [];
-            return (
-              <div key={name} className="flex flex-col gap-1" data-stem={name}>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleMute(name)}
-                    className={`w-16 text-left text-[11px] px-1.5 py-1 rounded-md border transition-colors ${
-                      muted[name]
-                        ? "bg-red-500/20 border-red-500/40 text-red-300 line-through"
-                        : "bg-white/5 border-white/10 text-white hover:bg-white/10"
-                    }`}
-                    title={`Mute ${name} — visual: ${STEM_VISUAL_ROLE[name]}`}
-                  >
-                    {name}
-                  </button>
-                  <input
-                    type="range"
-                    min={FADER_MIN_DB}
-                    max={FADER_MAX_DB}
-                    step={0.1}
-                    value={gainsDb[name]}
-                    onChange={(e) => setVolumeDb(name, parseFloat(e.target.value))}
-                    onDoubleClick={() => resetStem(name)}
-                    className="flex-1 h-1 accent-violet-500"
-                    aria-label={`${name} volume`}
-                  />
-                  {/* dB readout: a linear 0-1 fader gives the user no way to
-                      judge a level, and the offsets here are small enough that
-                      "slightly louder" needs a number to be actionable. */}
-                  <span className="w-14 text-right text-[9px] text-muted tabular-nums">
-                    {formatDb(gainsDb[name])}
-                  </span>
-                </div>
-                {bands.length > 0 && (
-                  <div className="grid grid-cols-5 gap-1 pl-[4.5rem]">
-                    {bands.map((band, idx) => (
-                      <div key={band.id ?? idx} className="flex flex-col items-center gap-0.5">
-                        <input
-                          type="range"
-                          min={-12}
-                          max={12}
-                          step={0.5}
-                          value={band.gain}
-                          onChange={(e) => {
-                            const next = [...bands];
-                            next[idx] = { ...band, gain: parseFloat(e.target.value) };
-                            setStemEQ(name, next);
-                          }}
-                          className="w-full h-1 accent-emerald-400"
-                          aria-label={`${name} ${band.type} ${band.frequency}Hz`}
-                        />
-                        <span className="text-[9px] text-muted leading-none">
-                          {band.frequency >= 1000
-                            ? `${(band.frequency / 1000).toFixed(band.frequency >= 10000 ? 0 : 1)}k`
-                            : band.frequency}
-                        </span>
+          {STEM_CATEGORIES.map((category) => (
+            <div key={category.id} className="mb-2">
+              <h4
+                className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-muted mb-1"
+                aria-label={category.label}
+                data-stem-category={category.id}
+              >
+                <span
+                  className={`w-2.5 h-2.5 rounded-full border border-white/20 ${
+                    category.id === "rhythm"
+                      ? "bg-amber-400/60 border-amber-400"
+                      : category.id === "lead"
+                      ? "bg-rose-400/60 border-rose-400"
+                      : "bg-sky-400/60 border-sky-400"
+                  }`}
+                  aria-hidden="true"
+                />
+                {category.label}
+              </h4>
+              {category.keys.map((name: StemName) => {
+                const def = STEM_BY_KEY[name];
+                const bands = eqBands[name] || [];
+                const stemColor = def.color.replace("bg-", "text-").replace("/70", "/90");
+                return (
+                  <div key={name} className="flex flex-col gap-1" data-stem={name}>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleMute(name)}
+                        className={`w-16 text-left text-[11px] px-1.5 py-1 rounded-md border transition-colors ${
+                          muted[name]
+                            ? "bg-red-500/20 border-red-500/40 text-red-300 line-through"
+                            : `bg-white/5 border-white/20 ${stemColor}/60 text-white hover:bg-white/10`
+                        }`}
+                        title={`Mute ${def.label} — visual: ${def.role}`}
+                      >
+                        {def.label}
+                      </button>
+                      <input
+                        type="range"
+                        min={FADER_MIN_DB}
+                        max={FADER_MAX_DB}
+                        step={0.1}
+                        value={gainsDb[name]}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setVolumeDb(name, parseFloat(e.target.value))
+                        }
+                        onDoubleClick={() => resetStem(name)}
+                        className="flex-1 h-1 accent-violet-500"
+                        aria-label={`${def.label} volume`}
+                      />
+                      {/* dB readout: a linear 0-1 fader gives the user no way to
+                          judge a level, and the offsets here are small enough that
+                          "slightly louder" needs a number to be actionable. */}
+                      <span className="w-14 text-right text-[9px] text-muted tabular-nums">
+                        {formatDb(gainsDb[name])}
+                      </span>
+                    </div>
+                    {bands.length > 0 && (
+                      <div className="grid grid-cols-5 gap-1 pl-[4.5rem]">
+                        {bands.map((band, idx: number) => (
+                          <div key={band.id ?? idx} className="flex flex-col items-center gap-0.5">
+                            <input
+                              type="range"
+                              min={-12}
+                              max={12}
+                              step={0.5}
+                              value={band.gain}
+                              onChange={(e) => {
+                                const next = [...bands];
+                                next[idx] = { ...band, gain: parseFloat(e.target.value) };
+                                setStemEQ(name, next);
+                              }}
+                              className="w-full h-1 accent-emerald-400"
+                              aria-label={`${def.label} ${band.type} ${band.frequency}Hz`}
+                            />
+                            <span className="text-[9px] text-muted leading-none">
+                              {band.frequency >= 1000
+                                ? `${(band.frequency / 1000).toFixed(
+                                    band.frequency >= 10000 ? 0 : 1
+                                  )}k`
+                                : band.frequency}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
           <p className="col-span-2 text-[10px] text-muted leading-relaxed">
             drums→pulse · bass→camera shake · vocals→lyric glow · other→palette
           </p>

@@ -8,6 +8,7 @@
  * reason, so the logic is here and the component consumes it.
  */
 import type { RemixRecipeSpec, RemixSlotSpec } from "../../../services/api/remix";
+import { STEM_KEYS } from "../stemConfig";
 
 /** A layer with the UI-only identity field attached. */
 export type EditableLayer = RemixSlotSpec["layers"][number] & { __id: string };
@@ -118,8 +119,9 @@ export interface TimelineSegment {
  * relationship the render uses, so what the bar shows is what the mix does.
  * Degenerate input (no bars) yields no segments rather than NaN widths.
  */
-/** Canonical stem order for the timeline chips (A6). */
-const TIMELINE_STEM_ORDER = ["drums", "bass", "vocals", "other"] as const;
+/** Canonical stem order for the timeline chips (A6) — imported from the shared
+ *  config so the timeline and the mixer always render stems in the same order. */
+const TIMELINE_STEM_ORDER = STEM_KEYS as readonly EditableLayer["stem"][];
 
 export function timelineSegments(slots: EditableSlot[]): TimelineSegment[] {
   const indexed = slots

@@ -12,14 +12,16 @@
  *   dB (perceptually meaningful, matches the brief) while the audio graph stays in
  *   linear amplitude.
  *
- * Pure module: no React, no WebAudio, no imports. That is deliberate - it is the
- * part most likely to be tuned, and it should be testable without a browser.
+ * Pure module apart from importing the canonical stem list from `./stemConfig`,
+ * so the order, labels and colours match the backend and every other consumer.
  */
 
-/** Mirrors the backend's `STEM_NAMES` in `services/source_separation.py`. */
-export type StemName = "vocals" | "drums" | "bass" | "other";
+import { STEM_KEYS, type StemKey as StemName } from "./stemConfig";
 
-export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
+export type { StemName };
+
+/** Canonical stem keys in backend order (vocals, drums, bass, other). */
+export const STEM_NAMES = STEM_KEYS;
 
 /** Fader travel per the brief: -24 dB to +6 dB. */
 export const FADER_MIN_DB = -24;
