@@ -1618,6 +1618,7 @@ export function AudioAnalysisPage() {
                   loadAudioFiles();
                 }}
                 className={DS.btnSecondary}
+                aria-label="Refresh library"
               >
                 <RefreshCw size={14} />
               </button>
@@ -1640,6 +1641,7 @@ export function AudioAnalysisPage() {
                 />
                 <select
                   value={sortBy}
+                  aria-label="Sort library files"
                   onChange={(e) => {
                     setSortBy(e.target.value as "name" | "size" | "date");
                     setCurrentPage(1);
