@@ -23,7 +23,13 @@ const MAX_HISTORY = 100;
 // Group rules: events matching the same base key are collapsed into one
 // notification. The first matching rule wins; later updates replace the
 // earlier item rather than appending a new one.
-const GROUP_RULES: Array<{ match: RegExp; key: (name: string) => string }> = [
+// Rules receive the event payload too, so a grouping key can keep distinct
+// variants alive (e.g. health stays collapsed per level, so a critical
+// alert is never silently replaced by a later "healthy" event).
+const GROUP_RULES: Array<{
+  match: RegExp;
+  key: (name: string, data: Record<string, unknown> | null) => string;
+}> = [
   {
     match: /^job\.progress\.\d+$/,
     key: (name) => name.replace(/\.\d+$/, ""),
@@ -32,12 +38,20 @@ const GROUP_RULES: Array<{ match: RegExp; key: (name: string) => string }> = [
     match: /^job\.(queued|started|completed|failed|dead|cancelled)/,
     key: (name) => name.replace(/\.\d+$/, ""),
   },
+  {
+    match: /^(system\.)?health_changed$/,
+    key: (name, data) =>
+      `${name}:${String(data?.level ?? data?.status ?? "unknown")}`,
+  },
 ];
 
-function groupKeyFor(name: string): string | null {
+function groupKeyFor(
+  name: string,
+  data: Record<string, unknown> | null,
+): string | null {
   for (const rule of GROUP_RULES) {
     if (rule.match.test(name)) {
-      return rule.key(name);
+      return rule.key(name, data);
     }
   }
   return null;
@@ -45,6 +59,9 @@ function groupKeyFor(name: string): string | null {
 
 interface NotificationState {
   items: NotificationItem[];
+  /** Ids the user has read. Note: countUnread recomputes on every mutation,
+   * so "mark all read" survives subsequent SSE items. */
+  readIds: string[];
   unreadCount: number;
   preferences: NotificationPreferences;
   isPanelOpen: boolean;
@@ -54,6 +71,7 @@ interface NotificationState {
   addItems: (items: NotificationItem[]) => void;
   markAllRead: () => void;
   markRead: (id: string) => void;
+  clearAll: () => void;
   setPreferences: (prefs: NotificationPreferences) => void;
   setPanelOpen: (open: boolean) => void;
   loadHistory: () => Promise<void>;
@@ -61,53 +79,110 @@ interface NotificationState {
   flushOfflineQueue: () => void;
 }
 
+function countUnread(items: NotificationItem[], readIds: string[]): number {
+  const read = new Set(readIds);
+  return items.reduce(
+    (count, item) => count + (item.id && !read.has(item.id) ? 1 : 0),
+    0,
+  );
+}
+
+/** Trim readIds so it never outgrows the items it refers to. */
+function pruneReadIds(readIds: string[], items: NotificationItem[]): string[] {
+  const present = new Set(items.map((item) => item.id).filter(Boolean) as string[]);
+  return readIds.filter((id) => present.has(id));
+}
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   items: [],
+  readIds: [],
   unreadCount: 0,
   preferences: getNotificationPreferences(),
   isPanelOpen: false,
 
   addItem: (item) => {
     set((state) => {
-      const gkey = groupKeyFor(item.type || "");
+      const gkey = groupKeyFor(item.type || "", item.data);
       let items = state.items;
       if (gkey) {
-        const replaced = items.map((existing) =>
-          existing.type === gkey ? { ...existing, ...item, id: existing.id } : existing,
+        // Replace the most recent item of the same group in place (keeping
+        // its id, so an already-read notification stays read), drop any
+        // older ones of the same group, and keep nothing pre-existing
+        // matching the incoming id.
+        const replacedIdx = items.findIndex(
+          (existing) => groupKeyFor(existing.type || "", existing.data) === gkey,
         );
-        const deduped = replaced.filter((existing) => existing.id !== item.id);
-        items = [item, ...deduped];
+        if (replacedIdx >= 0) {
+          const updated = { ...item, id: items[replacedIdx].id };
+          items = [
+            updated,
+            ...items.filter(
+              (existing, index) =>
+                index !== replacedIdx &&
+                groupKeyFor(existing.type || "", existing.data) !== gkey &&
+                existing.id !== item.id,
+            ),
+          ];
+        } else {
+          items = [item, ...items.filter((existing) => existing.id !== item.id)];
+        }
       } else {
-        items = [item, ...state.items];
+        // Same id arriving again (reconnect replay, history reload) must
+        // update the existing row, never append a duplicate key.
+        const idx = items.findIndex((existing) => existing.id === item.id);
+        if (idx >= 0) {
+          const updated = { ...item, id: items[idx].id };
+          items = [updated, ...items.filter((_, i) => i !== idx)];
+        } else {
+          items = [item, ...items];
+        }
       }
-      const sliced = items.slice(0, MAX_HISTORY);
-      const unreadCount = sliced.reduce((count, current) => count + (current.id ? 1 : 0), 0);
-      return { items: sliced, unreadCount };
+      items = items.slice(0, MAX_HISTORY);
+      const readIds = pruneReadIds(state.readIds, items);
+      return { items, readIds, unreadCount: countUnread(items, readIds) };
     });
   },
 
-  addItems: (items) => {
+  addItems: (incoming) => {
     set((state) => {
-      const merged = [...items, ...state.items];
-      const deduped = merged.filter((item, index, array) => {
-        const gkey = groupKeyFor(item.type || "");
-        if (!gkey) return true;
-        const first = array.findIndex((candidate) => groupKeyFor(candidate.type || "") === gkey);
-        return index === first;
+      const merged = [...incoming, ...state.items];
+      // Exact-id dedupe first (history + live SSE races produce copies).
+      const seenIds = new Set<string>();
+      const byId = merged.filter((item) => {
+        if (item.id && seenIds.has(item.id)) return false;
+        if (item.id) seenIds.add(item.id);
+        return true;
       });
-      return { items: deduped.slice(0, MAX_HISTORY) };
+      // Then group-collapse: newest wins, only the first per group survives.
+      const seenGroups = new Set<string>();
+      const items = byId
+        .filter((item) => {
+          const gkey = groupKeyFor(item.type || "", item.data);
+          if (!gkey) return true;
+          if (seenGroups.has(gkey)) return false;
+          seenGroups.add(gkey);
+          return true;
+        })
+        .slice(0, MAX_HISTORY);
+      const readIds = pruneReadIds(state.readIds, items);
+      return { items, readIds, unreadCount: countUnread(items, readIds) };
     });
   },
 
-  markAllRead: () => set({ unreadCount: 0 }),
+  markAllRead: () =>
+    set((state) => ({
+      readIds: state.items.map((item) => item.id).filter(Boolean) as string[],
+      unreadCount: 0,
+    })),
 
   markRead: (id) =>
     set((state) => {
-      const unreadCount = state.items.some((i) => i.id === id)
-        ? Math.max(0, state.unreadCount - 1)
-        : state.unreadCount;
-      return { unreadCount };
+      if (!state.items.some((item) => item.id === id)) return state;
+      const readIds = [...new Set([...state.readIds, id])];
+      return { readIds, unreadCount: countUnread(state.items, readIds) };
     }),
+
+  clearAll: () => set({ items: [], readIds: [], unreadCount: 0 }),
 
   setPreferences: (prefs) => {
     saveNotificationPreferences(prefs);

@@ -797,28 +797,27 @@ def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -
 
 async def _run_cmd(cmd: list[str], timeout: int) -> None:
     """Run a subprocess in a worker thread; raise RuntimeError on failure."""
-    def _do() -> None:
-        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
-        if proc.returncode != 0:
-            raise RuntimeError(f"Command failed (rc={proc.returncode}): {(proc.stderr or '')[-500:]}")
+    from ..services.subprocess_runner import run_subprocess_thread
 
-    await asyncio.to_thread(_do)
+    proc = await run_subprocess_thread(
+        cmd, capture_output=True, text=True, encoding="utf-8", timeout=timeout
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Command failed (rc={proc.returncode}): {(proc.stderr or '')[-500:]}")
 
 
 async def _probe_duration(ffprobe: str, media_path: str) -> float:
     """Return media duration in seconds via ffprobe."""
     from ..services.lipsync import batch as lipbatch
+    from ..services.subprocess_runner import run_subprocess_thread
 
-    def _do() -> float:
-        proc = subprocess.run(
-            lipbatch.probe_duration_cmd(ffprobe, media_path),
-            capture_output=True, text=True, encoding="utf-8", timeout=60,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"ffprobe failed: {(proc.stderr or '')[-300:]}")
-        return float((proc.stdout or "0").strip())
-
-    return await asyncio.to_thread(_do)
+    proc = await run_subprocess_thread(
+        lipbatch.probe_duration_cmd(ffprobe, media_path),
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {(proc.stderr or '')[-300:]}")
+    return float((proc.stdout or "0").strip())
 
 
 class LipSyncBatchRequest(BaseModel):

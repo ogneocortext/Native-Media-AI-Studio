@@ -129,3 +129,43 @@ async def test_stats_counts_queued_and_retrying(queue: QueueManager):
     assert stats.queued == 1
     assert stats.retrying == 1
     assert stats.active_jobs == 2
+
+
+@pytest.mark.asyncio
+async def test_auto_retry_rejects_exhausted_job(queue: QueueManager):
+    """An automatic retry of an exhausted job must be refused (budget is bounded)."""
+    job = _make_job(status=JobStatus.FAILED, retry_count=job_max_retries())
+    queue._jobs[job.id] = job
+
+    result = await queue.retry_job(job.id)
+
+    assert result is None
+    assert job.status == JobStatus.FAILED
+
+
+@pytest.mark.asyncio
+async def test_manual_retry_resets_exhausted_budget(queue: QueueManager):
+    """A user-requested retry always runs: the budget is reset and the job re-queues."""
+    from app.queue.db_manager import JobDatabaseManager
+
+    max_retries = 1
+    job = _make_job(status=JobStatus.FAILED, retry_count=max_retries, max_retries=max_retries)
+    queue._jobs[job.id] = job
+
+    result = await queue.retry_job(job.id, manual=True)
+
+    assert result is not None
+    assert result is job
+    assert job.status == JobStatus.QUEUED
+    assert job.retry_count == 1
+    assert job.error is None
+    stored = JobDatabaseManager.get_job(job.id)
+    assert stored is not None
+    assert stored.status == JobStatus.QUEUED
+    assert stored.retry_count == 1
+
+
+def job_max_retries() -> int:
+    """Default max_retries as declared on the Job model (kept as an accessor so
+    the test follows the model rather than a copied constant)."""
+    return Job.model_fields["max_retries"].default

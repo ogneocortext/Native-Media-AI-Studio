@@ -360,12 +360,16 @@
 
 /* Native dropdowns need explicit theme colors: the OS popup ignores
    inherited page styles, so unstyled selects render unreadable
-   dark-on-dark (or light-on-light) text. No !important: these live in the
-   components layer and must stay overridable by utilities. */
+   dark-on-dark (or light-on-light) text.
+   color-scheme stays INHERITED here. Setting `light dark` on the element
+   itself was measured (2026-10-17) to break light-dark() token resolution
+   on OS-light machines: --text-primary resolved to the light value
+   (near-black) inside fixed-dark toolbars like the Media Library sort
+   table, rendering the selected label invisible. Inhheriting the app's
+   data-theme scheme also colors the native popup to match the theme. */
 select {
   background-color: var(--bg-elevated);
   color: var(--text-primary);
-  color-scheme: light dark;
   font-weight: 500;
   font-size: 15px;
 }

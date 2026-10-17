@@ -60,9 +60,11 @@ export function JobRow({
   const loading = actionLoading === job.id;
   const isPending = job.status === "pending" || job.status === "queued";
   const isFailed = job.status === "failed";
-  const canRetry = isFailed && job.retry_count < job.max_retries;
+  // Manual retries always run: the backend resets an exhausted budget, because
+  // the user pressing Retry declares the fault fixed. Automatic retries stay
+  // bounded by max_retries.
+  const showRetry = isFailed;
   const showCancel = isPending;
-  const showRetry = canRetry;
   const showDelete = !isPending;
   const isCompleted = job.status === "completed";
   const tsLabel = isCompleted ? "Completed" : "Created";

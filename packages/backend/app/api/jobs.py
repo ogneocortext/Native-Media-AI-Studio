@@ -131,7 +131,9 @@ async def cancel_job(job_id: str) -> dict:
 async def retry_job(job_id: str) -> Job:
     """Retry a failed or dead-lettered job.
     Requeues the job for processing. Returns the updated job.
-    Raises 404 if job not found, 400 if job is not failed/dead or max retries exceeded.
+    A user-requested retry always runs: an exhausted budget is reset, because
+    the operator pressing Retry declares the cause fixed.
+    Raises 404 if job not found, 400 if job is not failed/dead.
     """
     existing_job = await queue_manager.get_job(job_id)
     if not existing_job:
@@ -143,11 +145,11 @@ async def retry_job(job_id: str) -> Job:
             detail=f"Cannot retry job with status: {existing_job.status}"
         )
 
-    job = await queue_manager.retry_job(job_id)
+    job = await queue_manager.retry_job(job_id, manual=True)
     if not job:
         raise HTTPException(
             status_code=400,
-            detail="Maximum retry attempts exceeded"
+            detail=f"Cannot retry job with status: {existing_job.status}"
         )
 
     # queue_manager.retry_job already broadcast the "job.queued" event

@@ -23,6 +23,8 @@ hygiene rather than a repair. Run it when a gate has finished.
 Usage:
   python tools/clean-caches.py --dry-run   # report sizes, delete nothing
   python tools/clean-caches.py             # delete the caches
+  python tools/clean-caches.py --out-age 7 # prune browser screenshots
+                                           # (>7 days old) too; default 14
 
 Exit 0 = done (including "nothing to do"), 1 = a removal failed.
 """
@@ -30,12 +32,35 @@ Exit 0 = done (including "nothing to do"), 1 = a removal failed.
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import git_lines  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Agent screenshot scratch (AGENTS.md "Critical Directories"): every screenshot
+# here proved something about a UI state at a moment in time. Left alone it
+# accrued 382 MB / 538 files in six weeks because nothing ever removed it --
+# Old evidence goes stale the moment the UI moves on, so files are pruned by
+# AGE, mirroring tools/prune-checkpoint-refs.py. Default 14 days keeps recent
+# sessions reviewable while bounding the size.  The only exempt file is
+# README.md, which documents the scratch conventions for future agents.
+SCREENSHOT_OUT = "packages/frontend/tests/browser/out"
+OUT_PRUNE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",  # screenshots
+    ".mjs",
+    ".json",
+    ".txt",  # scratch scripts and dumps
+    ".md",
+    ".webm",
+    ".mp4",  # scratch reports and recordings
+}
 
 
 def tracked_files():
@@ -54,9 +79,33 @@ def dir_size(path):
     return total
 
 
+def out_scratch_files():
+    """Files under SCREENSHOT_OUT eligible for age-based pruning."""
+    out_root = os.path.join(ROOT, SCREENSHOT_OUT.replace("/", os.sep))
+    if not os.path.isdir(out_root):
+        return []
+    found = []
+    for root, _dirs, names in os.walk(out_root):
+        for name in names:
+            if name == "README.md":
+                continue
+            rel = os.path.relpath(os.path.join(root, name), ROOT)
+            found.append(rel.replace(os.sep, "/"))
+    return [r for r in found if Path(r).suffix.lower() in OUT_PRUNE_EXTENSIONS]
+
+
 def main():
     # True means "report only, delete nothing".
     dry_run = "--dry-run" in sys.argv
+
+    out_age_days = 14
+    for i, arg in enumerate(sys.argv[1:]):
+        if arg == "--out-age" and i + 2 < len(sys.argv):
+            try:
+                out_age_days = int(sys.argv[i + 2])
+            except ValueError:
+                print(f"--out-age expects a number of days, got {sys.argv[i + 2]!r}")
+                return 1
 
     # Targets are git-ignored by definition: anything tracked is source, and
     # deleting it is never what a caller of this script means.
@@ -93,36 +142,69 @@ def main():
     tracked = set(tracked_files())
     victims = [(r, n) for r, n in victims if r not in tracked]
 
-    if not victims:
-        print("nothing to clean (no ignored test/build caches present)")
+    # Age-based screenshot scratch prune. The directory is expected to be
+    # gitignored (AGENTS.md); a tracked file under it is still skipped.
+    cutoff = time.time() - out_age_days * 86400
+    stale_out = [
+        (rel, os.path.getsize(os.path.join(ROOT, rel.replace("/", os.sep))))
+        for rel in out_scratch_files()
+        if os.path.getmtime(os.path.join(ROOT, rel.replace("/", os.sep))) < cutoff
+        and rel not in tracked
+    ]
+
+    if not victims and not stale_out:
+        print(
+            f"nothing to clean (no ignored test/build caches, no screenshots older than {out_age_days} days)"
+        )
         return 0
 
+    if stale_out:
+        total_out = sum(n for _, n in stale_out)
+        print(
+            f"browser screenshot scratch older than {out_age_days} days ({len(stale_out)} file(s)):"
+        )
+        for rel, size in sorted(stale_out, key=lambda x: -x[1])[:12]:
+            print(f"  {rel.replace(os.sep, '/'):<72} {size / 1048576.0:8.1f} MB")
+        if len(stale_out) > 12:
+            print(f"  ... and {len(stale_out) - 12} more file(s)")
+        print(f"  {'TOTAL':<72} {total_out / 1048576.0:8.1f} MB")
+        print("")
+
     total = sum(n for _, n in victims)
-    print("ignored test/build caches found:")
-    for rel, size in sorted(victims, key=lambda x: -x[1]):
-        print(f"  {rel.replace(os.sep, '/'):<40} {size / 1048576.0:8.1f} MB")
-    print(f"  {'TOTAL':<40} {total / 1048576.0:8.1f} MB")
-    print("")
+    if victims:
+        print("ignored test/build caches found:")
+        for rel, size in sorted(victims, key=lambda x: -x[1]):
+            print(f"  {rel.replace(os.sep, '/'):<40} {size / 1048576.0:8.1f} MB")
+        print(f"  {'TOTAL':<40} {total / 1048576.0:8.1f} MB")
+        print("")
 
     if dry_run:
         print("re-run without --dry-run to delete these")
         return 0
 
-    removed = []
-    for rel, _ in victims:
+    removed_count = 0
+    removed_bytes = 0
+    for rel, size in stale_out:
+        try:
+            os.remove(os.path.join(ROOT, rel.replace("/", os.sep)))
+            removed_count += 1
+            removed_bytes += size
+        except OSError as e:
+            print(f"  could not remove {rel}: {e}")
+    for rel, size in victims:
         p = os.path.join(ROOT, rel.replace("/", os.sep))
         try:
             if os.path.isdir(p):
                 shutil.rmtree(p)
             else:
                 os.remove(p)
-            removed.append(rel)
+            removed_count += 1
+            removed_bytes += size
         except OSError as e:
             print(f"  could not remove {rel}: {e}")
 
-    print(f"removed {len(removed):d} item(s), freeing {sum(n for r, n in victims if r in removed) / 1048576.0:.1f} MB")
-    print("note: caches regenerate on the next test run - this is disk hygiene, "
-          "not a repair.")
+    print(f"removed {removed_count:d} item(s), freeing {removed_bytes / 1048576.0:.1f} MB")
+    print("note: caches regenerate on the next test run - this is disk hygiene, not a repair.")
     return 0
 
 

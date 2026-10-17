@@ -366,6 +366,7 @@
 }
 
 /* ===== NOTIFICATION ITEM ===== */
+/* NOTE: --bg-secondary does not exist in the token set; use --bg-surface. */
 .notification-item {
   display: flex;
   align-items: flex-start;
@@ -373,7 +374,7 @@
   padding: 0.5rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-subtle);
-  background: var(--bg-secondary);
+  background: var(--bg-surface);
   cursor: pointer;
 }
 .notification-item-icon {
@@ -443,19 +444,86 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  /* The layout topbar is an absolutely-positioned overlay (z-20) in the
+     top-right corner with no background; without inline-end padding the
+     page action buttons slide underneath the bell badge. */
+  padding-inline-end: 6rem;
+  flex-wrap: wrap;
+}
+.notifications-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .notifications-page-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
+.notification-item--full {
+  cursor: default;
+}
+/* Full-page variant: stacked card layout instead of the panel's row. */
+.notification-item--full {
+  align-items: stretch;
+  padding: 0.75rem 1rem;
+  border-radius: 0.65rem;
+}
+.notification-item-full-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block-end: 0.35rem;
+}
+.notification-item-type-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-hover);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+.notification-item-summary {
+  margin-block-start: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+.notification-item-details {
+  margin-block-start: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.notification-item-details summary {
+  cursor: pointer;
+  inline-size: fit-content;
+  user-select: none;
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.35rem;
+}
+.notification-item-details summary:hover {
+  color: var(--text-primary);
+  background: color-mix(in oklch, var(--text-primary) 8%, transparent);
+}
+.notification-item-details[open] summary {
+  margin-block-end: 0.35rem;
+}
 .notifications-page-empty {
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 2rem;
   text-align: center;
   color: var(--text-secondary);
 }
-.notification-item--full {
-  cursor: default;
+.notifications-page-empty p:first-of-type {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 .notification-item-data {
   margin-block-start: 0.5rem;

@@ -690,6 +690,10 @@ export function AudioAnalysisPage() {
   };
   const formatFileSize = (b: number) =>
     b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
+  const formatDate = (ms: number | undefined) =>
+    ms
+      ? new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      : "—";
 
   const exportAnalysis = () => {
     if (!analysis) return;
@@ -846,8 +850,8 @@ export function AudioAnalysisPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-5">
+      <div className="grid grid-cols-1 gap-6">
+        <div className="min-w-0 space-y-5">
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -1622,10 +1626,11 @@ export function AudioAnalysisPage() {
           </div>
           {showLibrary && (
             <div className="mt-3">
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2 mb-3 max-w-md">
                 <input
                   type="text"
                   placeholder="Filter files..."
+                  aria-label="Filter library files"
                   value={filterText}
                   onChange={(e) => {
                     setFilterText(e.target.value);
@@ -1691,11 +1696,12 @@ export function AudioAnalysisPage() {
                   );
                 return filtered.length > 0 ? (
                   <>
-                    <p className={DS.textXs + " mb-2"}>
-                      {filtered.length} file{filtered.length !== 1 ? "s" : ""}{" "}
-                      {filterText ? "matching filter" : "in library"}
-                    </p>
-                    <div className="space-y-1" role="list" aria-label="Audio files">
+                    {filterText && (
+                      <p className={DS.textXs + " mb-2"}>
+                        {filtered.length} file{filtered.length !== 1 ? "s" : ""} matching filter
+                      </p>
+                    )}
+                    <div className="space-y-1.5" role="list" aria-label="Audio files">
                       {paged.map((f) => {
                         const normalizedStored = (analysis?.stored_path ?? "").replace(/\\/g, "/");
                         // Prefer exact stored-path match (handles duplicate
@@ -1719,7 +1725,7 @@ export function AudioAnalysisPage() {
                                 ? `${display} — currently analyzed`
                                 : `Analyze ${display} (cached when available)`
                             }
-                            className={`p-2.5 rounded-lg cursor-pointer transition-all ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
+                            className={`group p-2.5 rounded-lg cursor-pointer transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-violet-500/70 ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
                             onClick={() => handleAnalyzeLibraryFile(f.relative_path)}
                             onKeyDown={(e) => {
                               if (
@@ -1776,24 +1782,24 @@ export function AudioAnalysisPage() {
                                       ) : null}
                                       {display}
                                     </span>
-                                    {editingFile !== f.relative_path &&
-                                      (isAnalyzed ? (
-                                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">
-                                          ✓ analyzed
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-gray-700/40 text-gray-400 shrink-0"
-                                          title="No analysis loaded — click Analyze (cached results load instantly)"
-                                        >
-                                          —
-                                        </span>
-                                      ))}
+                                    {editingFile !== f.relative_path && isAnalyzed && (
+                                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">
+                                        ✓ analyzed
+                                      </span>
+                                    )}
                                   </>
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                <span className={DS.textXs + " tabular-nums text-gray-500"}>
+                                <span
+                                  className={DS.textXs + " tabular-nums text-gray-500 whitespace-nowrap"}
+                                  title={`Modified ${formatDate(f.modified)}`}
+                                >
+                                  {formatDate(f.modified)}
+                                </span>
+                                <span
+                                  className={DS.textXs + " tabular-nums text-gray-500 whitespace-nowrap"}
+                                >
                                   {formatFileSize(f.size_bytes)}
                                 </span>
                                 <button
@@ -1813,7 +1819,7 @@ export function AudioAnalysisPage() {
                                     e.stopPropagation();
                                     startEditing(f.relative_path, f.filename);
                                   }}
-                                  className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10 transition-colors"
+                                  className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
                                   title={`Rename ${f.filename}`}
                                   aria-label={`Rename ${f.filename}`}
                                 >

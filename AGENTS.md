@@ -518,6 +518,10 @@ Individual gates, for iterating on one area:
   the flag to delete. Deliberately **not** `git clean -xdf`, which would also
   remove `output/` and the generated waveform cache. It only ever deletes
   regenerable test/build caches and refuses to touch anything git tracks.
+  It also prunes `packages/frontend/tests/browser/out` (agent screenshot
+  scratch) by age — default 14 days, `--out-age N` to change; the dir's
+  README.md documents the dated-name convention (`ux-2026-10-16-queue.png`)
+  and is exempt from pruning.
 - **Checkpoint refs / local repo size:** Cline writes restore points to
   `refs/cline/checkpoints/*`, which keeps their history alive in the object
   store even though nothing published depends on it. That made this checkout
