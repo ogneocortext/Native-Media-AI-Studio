@@ -5,7 +5,6 @@ let _noiseTex: THREE.Texture | null = null;
 
 export function getParticleTex(): THREE.Texture {
   if (_particleTex) return _particleTex;
-  console.log("[VizStyles] Creating particle texture");
   const s = 64;
   const cv = document.createElement("canvas");
   cv.width = s;

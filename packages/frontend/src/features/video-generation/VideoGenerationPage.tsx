@@ -606,15 +606,6 @@ export function VideoGenerationPage() {
       setError("ComfyUI is offline — start it from Health or via the backend before generating.");
       return;
     }
-    console.log("[VideoGen] Starting generation...", {
-      prompt,
-      selectedModel,
-      selectedMotionLora,
-      selectedStyle,
-      steps,
-      cfgScale,
-      duration,
-    });
 
     // Abort any in-flight requests from a previous generation
     if (abortControllerRef.current) {
@@ -675,7 +666,6 @@ export function VideoGenerationPage() {
         baseBody.motion_lora_strength = 0.8;
       }
       const count = Math.max(1, Math.min(10, batchCount));
-      console.log(`[VideoGen] Queueing ${count} clip(s):`, baseBody);
       const jobIds: string[] = [];
       for (let i = 0; i < count; i++) {
         const body = { ...baseBody, batch_index: i, batch_total: count };
@@ -686,7 +676,6 @@ export function VideoGenerationPage() {
           timeout: 30000,
           signal: abortController.signal,
         });
-        console.log(`[VideoGen] Clip ${i + 1}/${count} status:`, res.status);
         if (!res.ok) {
           const err = await res
             .json()
@@ -700,7 +689,6 @@ export function VideoGenerationPage() {
           throw new Error(detail);
         }
         const data = await res.json();
-        console.log("[VideoGen] Success:", data);
         if (data.job_id) {
           jobIds.push(data.job_id);
           trackedJobIdsRef.current.add(data.job_id);

@@ -568,14 +568,6 @@ export function ShaderCanvas({
               idx += 4;
             }
           }
-          let totalDiff = 0;
-          for (let i = 0; i < sample.length; i++) {
-            totalDiff += Math.abs(sample[i] - lastSample[i]);
-          }
-          const avgDiff = (totalDiff / (sample.length / 4)).toFixed(1);
-          console.log(
-            `[ShaderCanvas debug] frame=${frameCount} time=${time.toFixed(1)}s avgPixelDiff=${avgDiff}`,
-          );
           lastSample.set(sample);
         }
       }

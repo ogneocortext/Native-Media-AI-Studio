@@ -313,7 +313,7 @@ export function GenerativeReactiveVisualizer({
       <Audio src={audioSrc} />
 
       {/* Intro fade */}
-      <Sequence from={0} durationInFrames={Math.floor(fps * 0.8)}>
+      <Sequence durationInFrames={Math.floor(fps * 0.8)}>
         <AbsoluteFill
           style={{
             background: `linear-gradient(to top, ${effectiveColors.primary}22, transparent)`,

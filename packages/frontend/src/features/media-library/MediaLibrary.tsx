@@ -1061,9 +1061,8 @@ export function MediaLibrary() {
   const handleOpenBlender = async (output: OutputFile) => {
     setOpeningApp("blender");
     try {
-      const res = await openInBlender(output.relative_path);
+      await openInBlender(output.relative_path);
       // brief toast via alert — keep local-first simple
-      console.log("Blender open:", res);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to open in Blender");
     } finally {
@@ -1073,8 +1072,7 @@ export function MediaLibrary() {
   const handleOpenUnity = async (output: OutputFile) => {
     setOpeningApp("unity");
     try {
-      const res = await openInUnity(output.relative_path);
-      console.log("Unity open:", res);
+      await openInUnity(output.relative_path);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to open in Unity");
     } finally {
