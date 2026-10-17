@@ -634,7 +634,7 @@ export const visualPresetList = Object.values(visualPresets);
  * underscores, slashes) to spaces, squeeze whitespace. Keeps `&` and `+`
  * so tokens like "r&b" and "k-pop"→"k pop" stay matchable on both sides.
  */
-function normalizeSearchText(s: string): string {
+export function normalizeSearchText(s: string): string {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9&+]+/g, " ")
@@ -643,7 +643,7 @@ function normalizeSearchText(s: string): string {
 }
 
 /** Padded-substring check on already-normalized text (no "rap"⊂"grape" bugs). */
-function includesToken(haystackNormalized: string, tokenNormalized: string): boolean {
+export function includesToken(haystackNormalized: string, tokenNormalized: string): boolean {
   if (!tokenNormalized) return false;
   return ` ${haystackNormalized} `.includes(` ${tokenNormalized} `);
 }

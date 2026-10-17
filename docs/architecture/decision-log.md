@@ -783,12 +783,14 @@
 
 ### Q4 — Visualizer mode consolidation (3D / FX / 2D)
 
-- **Status:** Open
-- **Context:** `Visualizer.tsx` toggles 3D / FX(shader) / 2D canvas as separate
-  manual modes with separate preset systems (`shaderPresets.ts`,
-  `AIPresetGallery`, `Canvas2DVisualizer` modes).
-- **Recommendation:** Unify behind the Q2 fallback model — modes become a
-  priority list, not a toggle.
+- **Status:** Resolved — modes are now a priority list (`VIZ_MODE_PRIORITY` =
+  `["3d", "shader", "2d"]`), auto-selected on track load via `selectVizMode()`
+  in `visualizerHelpers.ts` based on track energy, BPM and genre, falling back
+  down `VIZ_MODE_PRIORITY` if the top choice isn't suitable. Manual toggle /
+  keyboard shortcuts / toolbar button / test-panel dropdown remain as overrides,
+  guarded by `userPickedVizModeRef` (mirrors `userPickedGenrePresetRef`) and
+  reset on each new track so auto-selection runs again. 10 unit tests in
+  `selectVizMode.test.ts` pin the selection rules and boundary behavior.
 
 ### Q5 — Chroma→hue palette mapping for the shader visualizer (2026-10-01)
 

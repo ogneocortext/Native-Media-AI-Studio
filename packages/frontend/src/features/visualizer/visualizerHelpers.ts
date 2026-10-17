@@ -7,6 +7,10 @@
 import type { AudioAnalysisData } from "./types";
 import type { VisualPreset } from "./visualPreset";
 import {
+  normalizeSearchText,
+  includesToken,
+} from "./visualPresets";
+import {
   isUnnamedFile,
   stripAudioExtension,
   stripHashPrefixes,
@@ -162,6 +166,56 @@ export function shortModeLabel(mode: Canvas2DMode): string {
 
 /** Stage mode cycle order for the ←/→ keyboard shortcuts. */
 export const VIZ_MODE_ORDER = ["3d", "shader", "2d"] as const;
+
+/** Canonical viz mode fallback order — top choice first. */
+export const VIZ_MODE_PRIORITY = ["3d", "shader", "2d"] as const;
+export type VizMode = (typeof VIZ_MODE_PRIORITY)[number];
+
+/**
+ * Auto-select the best viz mode for a track, following the Q2 fallback model:
+ * modes are a priority list, not a manual toggle. Returns the highest-priority
+ * mode that suits the track's characteristics; callers fall back down
+ * `VIZ_MODE_PRIORITY` if the chosen mode can't initialize.
+ */
+export function selectVizMode(
+  trackName: string,
+  genre?: string,
+  energy?: number,
+  bpm?: number,
+): VizMode {
+  const haystack = normalizeSearchText(`${genre || ""} ${trackName}`);
+  const has = (...tokens: string[]) =>
+    tokens.some((t) => includesToken(haystack, normalizeSearchText(t)));
+
+  // High energy / fast → immersive 3D stage
+  if (energy !== undefined && energy > 0.75) return "3d";
+  if (bpm !== undefined && bpm > 140) return "3d";
+
+  // FX-heavy stylized genres → shader post-processing
+  if (
+    has(
+      "synthwave",
+      "retro",
+      "neon",
+      "outrun",
+      "cyberpunk",
+      "phonk",
+      "drift",
+      "trap metal",
+      "trap-metal",
+      "grime",
+    )
+  )
+    return "shader";
+
+  // Low energy / chill → 2D data-driven canvas
+  if (energy !== undefined && energy < 0.4) return "2d";
+  if (bpm !== undefined && bpm < 90) return "2d";
+  if (has("lo fi", "lofi", "chill", "jazz", "ambient")) return "2d";
+
+  // Default: first in priority order
+  return VIZ_MODE_PRIORITY[0];
+}
 
 /** Narrow an unknown backend payload to AudioAnalysisData; null when unusable. */
 export function toAnalysisData(raw: unknown): AudioAnalysisData | null {

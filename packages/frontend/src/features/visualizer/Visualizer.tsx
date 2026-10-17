@@ -111,6 +111,8 @@ import {
   toVisualPreset,
   type Canvas2DMode,
   type LibraryFile,
+  selectVizMode,
+  type VizMode,
 } from "./visualizerHelpers";
 
 /** localStorage key for the persisted reactivity triad (plan 2.2). */
@@ -189,7 +191,7 @@ export function Visualizer() {
   const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [vizMode, setVizMode] = useState<"3d" | "shader" | "2d">("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
+  const [vizMode, setVizMode] = useState<VizMode>("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
   const [modeFade, setModeFade] = useState(0);
   const prevModeRef = useRef(vizMode);
   // One definition of the mode list, in visualizerHelpers.ts. This used to be an
@@ -256,6 +258,9 @@ export function Visualizer() {
   // picks by hand while a track is loading wins over auto-apply.
   const [activeGenrePresetId, setActiveGenrePresetId] = useState<string | null>(null);
   const userPickedGenrePresetRef = useRef(false);
+  // Q4 — guard ref so a manual viz-mode pick mid-load is never clobbered by
+  // auto-apply on the next track. Mirrors userPickedGenrePresetRef.
+  const userPickedVizModeRef = useRef(false);
   const handleGenrePresetSelect = useCallback((preset: ReactivityGenrePreset) => {
     userPickedGenrePresetRef.current = true;
     setReactivityTriad(preset.triad);
@@ -888,6 +893,10 @@ export function Visualizer() {
       // New track: the manual genre-preset guard resets so auto-apply
       // may run again (a pick made mid-load still wins — see below).
       userPickedGenrePresetRef.current = false;
+      // Q4 — reset the manual-viz-mode guard so auto-selection can run
+      // for the new track (a manual pick on the previous track doesn't
+      // carry over).
+      userPickedVizModeRef.current = false;
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
@@ -1010,6 +1019,15 @@ export function Visualizer() {
             "info",
           );
         }
+      }
+
+      // Q4 — auto-select the viz mode from the track's characteristics,
+      // falling back down VIZ_MODE_PRIORITY if the top choice isn't suitable.
+      // A manual pick made while loading wins (guard ref). Only set when it
+      // differs, to avoid a needless re-render / crossfade.
+      if (!userPickedVizModeRef.current && !isStale()) {
+        const autoMode = selectVizMode(cleanName, undefined, energy, realBpm);
+        if (vizMode !== autoMode) setVizMode(autoMode);
       }
 
       // Store analysis for manual AI enrichment — user explicitly clicks "Enhance with AI"
@@ -1224,6 +1242,7 @@ export function Visualizer() {
   }, []);
 
   const cycleVizMode = useCallback((dir: 1 | -1) => {
+    userPickedVizModeRef.current = true;
     setVizMode((m) => {
       const i = VIZ_MODE_ORDER.indexOf(m);
       return VIZ_MODE_ORDER[(i + dir + VIZ_MODE_ORDER.length) % VIZ_MODE_ORDER.length];
@@ -1413,7 +1432,13 @@ export function Visualizer() {
             </label>
             <label>
               Mode
-              <select value={vizMode} onChange={(e) => setVizMode(e.target.value as any)}>
+              <select
+                value={vizMode}
+                onChange={(e) => {
+                  userPickedVizModeRef.current = true;
+                  setVizMode(e.target.value as any);
+                }}
+              >
                 <option value="shader">FX</option>
                 <option value="2d">2D</option>
                 <option value="3d">3D</option>
@@ -1543,9 +1568,10 @@ export function Visualizer() {
           />
           <div className="viz-btn-group">
             <button
-              onClick={() =>
-                setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d")
-              }
+              onClick={() => {
+                userPickedVizModeRef.current = true;
+                setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d");
+              }}
               className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`}
               title={`Mode: ${vizMode}`}
               aria-label={`Visualization mode: ${vizMode}. Activate to switch mode.`}
