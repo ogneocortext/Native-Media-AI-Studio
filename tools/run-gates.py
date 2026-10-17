@@ -160,28 +160,39 @@ def _candidate_list():
     return candidates
 
 
-def _probe_ok(python, argv, cwd, timeout=30):
+def _probe_ok(python, argv, cwd, timeout=15):
     """True if argv runs clean under this interpreter.
 
     Bounded: a candidate that hangs (a wedged interpreter, a prompt
-    waiting on stdin) must not hang resolution with it.
+    waiting on stdin) must not hang resolution with it. On timeout the
+    whole process tree is killed so a wedged ruff/pytest worker cannot
+    hold a file lock and hang the next candidate's probe.
     """
     try:
-        p = subprocess.run([python] + argv, cwd=str(cwd),
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           timeout=timeout)
-        return p.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
+        proc = subprocess.Popen(
+            [python] + argv, cwd=str(cwd),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        try:
+            proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_tree(proc)
+            return False
+        return proc.returncode == 0
+    except OSError:
         return False
 
 
 def _probe_argv():
     """The gate used to decide whether an interpreter is usable.
 
-    ruff on a clean tree is the cheapest honest test available: it exits 0 only
-    if the interpreter starts and can import its own tooling.
+    ruff on a single small file is the cheapest honest test available: it exits
+    0 only if the interpreter starts and can import its own tooling. Checking
+    the whole tree here is unnecessary (the ruff gate does that separately) and
+    on a large tree can eat most of the probe timeout per candidate, making
+    interpreter selection look like a hang.
     """
-    return ["-m", "ruff", "check", ".", "--output-format=concise"]
+    return ["-m", "ruff", "check", "app/__init__.py", "--output-format=concise"]
 
 
 def _pytest_probe_argv():
@@ -218,14 +229,18 @@ def _probes():
 
 
 def _describe(python):
-    """Short 'path (3.11.9)' label for log lines."""
+    """Short 'path (3.11.9)' label for log lines.
+
+    Bounded with a timeout: a wedged interpreter must not hang
+    interpreter resolution here.
+    """
     try:
         p = subprocess.run(
             [python, "-c", "import sys;print('.'.join(map(str,sys.version_info[:3])))"],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
         ver = p.stdout.decode("utf-8", "replace").strip()
         return f"{python} ({ver})" if ver else python
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return python
 
 
