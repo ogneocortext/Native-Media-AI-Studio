@@ -16,7 +16,7 @@
  * (chroma flatness makes a detected key noise), and the recipe model has no
  * key field, so there is nothing in the form to restore.
  */
-import type { EditableSlot } from "./remixRecipe";
+import type { EditableSlot } from "../remix/remixRecipe";
 
 /** Everything the form holds that a variant must carry to be restorable. */
 export interface AbVariant {

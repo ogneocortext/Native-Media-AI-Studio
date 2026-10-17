@@ -32,14 +32,14 @@ import {
   snapDb,
   type MixPresetId,
   type StemName,
-} from "../stemMixPresets";
-import { STEM_BY_KEY, STEM_CATEGORIES } from "../stemConfig";
+} from "../stems/stemMixPresets";
+import { STEM_BY_KEY, STEM_CATEGORIES } from "../stems/stemConfig";
 
 // Re-exported so existing importers (viz-styles/helpers.ts, the Visualizer) keep
 // working against the single canonical list. This array was previously declared
 // here and duplicated from the backend's STEM_NAMES.
-export { STEM_NAMES } from "../stemMixPresets";
-export type { StemName } from "../stemMixPresets";
+export { STEM_NAMES } from "../stems/stemMixPresets";
+export type { StemName } from "../stems/stemMixPresets";
 
 /** Documented visual channel per stem (Trend 2 mapping), derived from the
  *  shared stem config so the role text stays in sync with the stem definitions. */

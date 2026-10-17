@@ -8,7 +8,7 @@
  * reason, so the logic is here and the component consumes it.
  */
 import type { RemixRecipeSpec, RemixSlotSpec } from "../../../services/api/remix";
-import { STEM_KEYS } from "../stemConfig";
+import { STEM_KEYS } from "../stems/stemConfig";
 
 /** A layer with the UI-only identity field attached. */
 export type EditableLayer = RemixSlotSpec["layers"][number] & { __id: string };

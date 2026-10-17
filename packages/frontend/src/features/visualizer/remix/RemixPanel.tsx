@@ -46,7 +46,7 @@ import {
   type StemName,
 } from "../../../services/api";
 import { usePanelCollapsed } from "../usePanelCollapsed";
-import { abInitial, abPin, abShowing, type AbState } from "./abCompare";
+import { abInitial, abPin, abShowing, type AbState } from "../components/abCompare";
 import {
   buildWizardSlots,
   wizardDurationSec,
