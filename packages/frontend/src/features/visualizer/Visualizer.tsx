@@ -2255,7 +2255,7 @@ export function Visualizer() {
           />
 
           {/* 1-Click Interactive Quick Preset & Vibe Bar */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
             <QuickPresetBar
               vizMode={vizMode}
               onVizModeChange={setVizMode}
@@ -2269,7 +2269,7 @@ export function Visualizer() {
           </div>
 
           {/* Live Audio Reactivity HUD & Focus Tuning */}
-          <div className="absolute bottom-12 left-3 z-20 pointer-events-auto max-w-xs">
+          <div className="absolute bottom-12 left-3 z-40 pointer-events-auto max-w-xs">
             <ReactivityHUD
               audioData={liveAudioData}
               isPlaying={isPlaying}
@@ -2281,6 +2281,7 @@ export function Visualizer() {
               onTriadChange={setReactivityTriad}
               activeGenrePresetId={activeGenrePresetId}
               onGenrePresetSelect={handleGenrePresetSelect}
+              vizMode={vizMode}
             />
           </div>
         </div>

@@ -30,6 +30,14 @@ interface ReactivityHUDProps {
    */
   activeGenrePresetId?: string | null;
   onGenrePresetSelect?: (preset: ReactivityGenrePreset) => void;
+  /**
+   * Which visualization mode the parent is in. The reactivity
+   * controls (focus emphasis, boost, triad, genre presets) are
+   * consumed only by the shader renderer, so the HUD says so
+   * when the parent is in another mode instead of leaving the
+   * user with buttons that visibly change nothing.
+   */
+  vizMode?: "3d" | "2d" | "shader";
   className?: string;
 }
 
@@ -83,6 +91,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
   onTriadChange,
   activeGenrePresetId = null,
   onGenrePresetSelect,
+  vizMode,
   className = "",
 }: ReactivityHUDProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -129,6 +138,12 @@ export const ReactivityHUD = memo(function ReactivityHUD({
 
       {!collapsed && (
         <div className="space-y-2 pt-1 border-t border-white/10">
+          {vizMode && vizMode !== "shader" && (
+            <p className="text-[9px] leading-tight px-1.5 py-1 rounded bg-amber-500/10 text-amber-300/80 border border-amber-500/20">
+              Tuning applies to Shader mode only — switch modes in the
+              preset bar above to hear/see it take effect.
+            </p>
+          )}
           {/* Energy meters */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[10px] text-white/60">

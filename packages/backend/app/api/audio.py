@@ -965,7 +965,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
     from ..core import database
 
     db_analysis = database.get_audio_analysis(normalized)
-    if db_analysis:
+    if db_analysis and not _analysis_is_stale(db_analysis):
         cached_backend = (
             db_analysis.get("timing_contract", {}).get("backend")
             or (db_analysis.get("metadata") or {}).get("backend")
@@ -973,14 +973,20 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         )
         if cached_backend == backend:
             _cache_set(normalized, db_analysis, backend)
+            _cache_set(normalized, db_analysis, "")
             return {"status": "cached", "analysis": db_analysis}
+    elif db_analysis:
+        logger.info(
+            f"Stored analysis for '{normalized}' is stale "
+            f"(schema < {ANALYSIS_SCHEMA_VERSION}); treating as missing."
+        )
 
     # Backward compatibility: try basename for old entries
     if "/" in normalized:
         basename = Path(normalized).name
         if basename != normalized:
             db_analysis = database.get_audio_analysis(basename)
-            if db_analysis:
+            if db_analysis and not _analysis_is_stale(db_analysis):
                 cached_backend = (
                     db_analysis.get("timing_contract", {}).get("backend")
                     or (db_analysis.get("metadata") or {}).get("backend")
@@ -988,6 +994,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
                 )
                 if cached_backend == backend:
                     _cache_set(normalized, db_analysis, backend)
+                    _cache_set(normalized, db_analysis, "")
                     return {"status": "cached", "analysis": db_analysis}
 
     # Check if already cached on disk. This used to read `index.json` and serve
@@ -1002,6 +1009,9 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
             data = json.load(f)
             # Also save to database for future requests
             database.update_audio_analysis(normalized, data)
+            # Populate in-memory cache so subsequent GET requests hit memory
+            _cache_set(normalized, data, backend)
+            _cache_set(normalized, data, "")
             return {"status": "cached", "analysis": data}
     logger.info(f"Re-analyzing '{normalized}': {resolution.reason}")
 
@@ -1045,6 +1055,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         database.update_audio_analysis(normalized, analysis_result)
         # Populate in-memory cache
         _cache_set(normalized, analysis_result, backend)
+        _cache_set(normalized, analysis_result, "")
 
         return {"status": "analyzed", "analysis": analysis_result}
     except HTTPException:
