@@ -732,7 +732,7 @@
 
 ### Q2 — Automatic AI → shader fallback in the music video wizard
 
-- **Status:** In evaluation (option (a) implemented 2026-10-06; plan-level verification outstanding)
+- **Status:** Resolved 2026-10-17 — ComfyUI live verification complete: POST /api/integrations/music-video/generate with on_source_failure:"auto" returns HTTP 200 (not 503) with degraded:true when ComfyUI is down, and degraded:false when ComfyUI is healthy. Also fixed job.status.value → str(job.status) 500 in the generate/preview responses, and added adapter.get_status() == CONNECTED check so a registered-but-disconnected adapter degrades like a missing one.
 - **Context:** The wizard's per-section generation targets ComfyUI; if ComfyUI
   is down it returns 503 and the job dies. Shader presets (genre-mapped, e.g.
   `fireCrown` → Drift Phonk) and the Canvas2D visualizer exist as _manual_
@@ -750,9 +750,7 @@
   `on_source_failure` (`auto`|`fail`), missing-adapter and VRAM-shortfall
   queue a degraded visualization job instead of 503, and the handler degrades
   a failed AI render mid-flight with `degraded` / `visual_source_used` /
-  `fallback_reason` on the result. `fail` preserves the old hard-fail.
-  Unverified: the plan's own `Verification` (degraded + healthy path against
-  real ComfyUI) has not been run, so this stays In evaluation, not Resolved.
+  `fallback_reason` on the result. `fail` preserves the old hard-fail. Live-verified 2026-10-17 against real ComfyUI (degraded + healthy paths both return HTTP 200).
 
 ### Q3 — ComfyUI Wan smoke test (red-pattern output)
 

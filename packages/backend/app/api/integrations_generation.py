@@ -1132,7 +1132,7 @@ async def create_audio_analysis_job(request: AudioAnalysisJobRequest):
             max_retries=request.max_retries,
         )
     )
-    return {"job_id": job.id, "status": job.status.value}
+    return {"job_id": job.id, "status": str(job.status)}
 
 
 # ============== Music Video Generation ==============

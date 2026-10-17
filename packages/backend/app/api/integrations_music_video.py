@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..adapters.base import AdapterStatus
 from ..adapters.registry import adapter_registry
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
@@ -140,7 +141,11 @@ async def generate_music_video(request: MusicVideoRequest):
 
     adapter = adapter_registry.get("comfyui")
     fail_fast = request.on_source_failure == "fail"
-    if not adapter:
+    # The adapter counts as available only when it is registered AND connected.
+    # A registered-but-disconnected adapter (ComfyUI stopped) must degrade the
+    # same way a missing adapter does (Q2 plan §4, acceptance criterion 1).
+    adapter_available = adapter is not None and adapter.get_status() == AdapterStatus.CONNECTED
+    if not adapter_available:
         if fail_fast:
             logger.error("Video generation failed: ComfyUI adapter not available")
             raise HTTPException(status_code=503, detail="ComfyUI adapter not available")
@@ -235,7 +240,7 @@ async def generate_music_video(request: MusicVideoRequest):
 
     response = {
         "job_id": job.id,
-        "status": job.status.value,
+        "status": str(job.status),
         "message": f"Music video job queued with {len(request.beat_markers)} beat markers",
         "estimated_duration": target_duration,
         "estimated_seconds": time_estimate["estimated_seconds"],
@@ -326,7 +331,7 @@ async def get_job_progress(job_id: str) -> dict:
 
         return {
             "job_id": job_id,
-            "status": job.status.value,
+            "status": str(job.status),
             "progress": progress,
             "current_step": job.params.get("current_step", 0),
             "total_steps": job.params.get("steps", 20),
@@ -501,7 +506,7 @@ async def generate_preview(request: PreviewGenerationRequest):
 
     return {
         "job_id": job.id,
-        "status": job.status.value,
+        "status": str(job.status),
         "message": "Preview generation queued (5-second draft)",
         "preview_duration": request.duration_seconds,
     }
