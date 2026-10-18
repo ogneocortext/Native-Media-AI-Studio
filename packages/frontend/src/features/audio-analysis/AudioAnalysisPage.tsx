@@ -33,6 +33,7 @@ import {
   getStemsStatus,
 } from "../../services/api";
 import { isAudioFile } from "../../utils/audioProbe";
+import { formatTime } from "../../utils/format";
 import {
   SEPARATION_FAILED_HEADLINE,
   friendlyPipelineError,
@@ -682,12 +683,6 @@ export function AudioAnalysisPage() {
     }
   };
 
-  const formatTime = (s: number) => {
-    if (!Number.isFinite(s) || s <= 0) return "0:00";
-    return `${Math.floor(s / 60)}:${Math.floor(s % 60)
-      .toString()
-      .padStart(2, "0")}`;
-  };
   const formatFileSize = (b: number) =>
     b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
   const formatDate = (ms: number | undefined) =>

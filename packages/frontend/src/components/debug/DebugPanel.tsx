@@ -1,13 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { formatBytes } from "../../utils/format";
 import { clearApiLogs, onApiLogsChange, type ApiLogEntry } from "../../services/debugApi";
-
-function formatBytes(bytes?: number): string {
-  if (bytes == null) return "-";
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return (bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + units[i];
-}
 
 function statusColor(status?: number): string {
   if (status == null) return "text-gray-400";
@@ -151,7 +144,7 @@ export function DebugPanel() {
                 {entry.durationMs ? `${entry.durationMs}ms` : "-"}
               </span>
               <span className="text-gray-500 w-20 text-right font-mono">
-                {formatBytes(entry.requestSize)} &rarr; {formatBytes(entry.responseSize)}
+                {entry.requestSize != null ? formatBytes(entry.requestSize) : "-"} &rarr; {entry.responseSize != null ? formatBytes(entry.responseSize) : "-"}
               </span>
             </div>
           ))}
