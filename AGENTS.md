@@ -419,14 +419,19 @@ also returns `D:\conda-envs\comfyui-cuda\Scripts\python.exe`, which is never
 valid for backend work.
 
 A PowerShell 7 profile exists at
-`C:\Users\Aomega Imaging\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
-(5.1 uses `Documents\WindowsPowerShell\`, which is empty). It prepends Ollama,
-VS Code, npm, Git and Zed to `PATH`, runs `fnm env --use-on-cd` and `conda init`.
-It was fixed on 2026-10-01 to stop writing to stderr in non-interactive sessions;
-if spurious `NativeCommandError` appears from a command that succeeded, check
-whether that is back. It does **not** fix the `python` trap - `python` resolves
-to `C:\Python314` in both shells.
-`C:\Python314` in both pwsh 7 and a 5.1 session.
+`C:\Users\Aomega Imaging\Documents\PowerShell\profile.ps1` (AllHosts) plus
+`…\Microsoft.PowerShell_profile.ps1` (CurrentHost), sharing `…\profile-common.ps1`.
+**PowerShell 5.1 is retired** — its profiles under `Documents\WindowsPowerShell\`
+were deleted, so there is no 5.1 profile to keep in sync. The profile prepends
+Ollama, VS Code, npm, Git and Zed to `PATH`, and resolves `fnm` through its alias
+directory on non-interactive (agent) shells, running `fnm env --use-on-cd` only
+for a real console — which is what keeps shell startup fast. It does **not** run
+`conda init`, because conda is not installed (see Python Environments).
+Interactive-only work (PSReadLine setup, ~170 KB of OpenClaw tab-completion,
+startup warnings) is gated behind `Test-InteractiveShell`, which requires a
+console: a tool-launched `pwsh -Command` reports
+`[Console]::IsInputRedirected = True` and skips it. It does **not** fix the
+`python` trap — `python` resolves to `C:\Python314`.
 
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
 they are not part of this project and should never be invoked for repo tasks.
@@ -452,16 +457,29 @@ they are not part of this project and should never be invoked for repo tasks.
 
 ## Python Environments
 
-| Task                        | Interpreter                                        |
-| --------------------------- | -------------------------------------------------- |
-| Backend / audio / ML / CUDA | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` |
-| ComfyUI service only        | `D:\conda-envs\comfyui-cuda\Scripts\python.exe`    |
-| Fallback / CPU-only         | `venv\Scripts\python.exe`                          |
+`D:\conda-envs\` is a **misnomer**: it holds venvs, not conda envs. Measured
+2026-10-18: `nma-studio-cuda`, `comfyui-cuda` and `studio-tools` have
+`pyvenv.cfg` and no `conda-meta`; only `space-analyzer-cuda` is a genuine conda
+env (`conda-meta`, 108 pkgs, `python.exe` at the env root rather than `Scripts\`)
+and it **belongs to a different project — never delete or modify it**. There is
+**no conda installation** on this machine, so it cannot be launched here and no
+`conda` command exists (`conda`/`mamba` are not on `PATH`; the env is absent from
+`~\.conda\environments.txt`). See `docs/setup/python-environments.md`.
+
+| Task                        | Interpreter                                        | Kind                |
+| --------------------------- | -------------------------------------------------- | ------------------- |
+| Backend / audio / ML / CUDA | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` | venv, Python 3.11.9 |
+| ComfyUI service only        | `D:\conda-envs\comfyui-cuda\Scripts\python.exe`    | venv, Python 3.11.9 |
+| Fallback / CPU-only         | `venv\Scripts\python.exe`                          | repo-local venv     |
 
 Rules:
 
-- Default to `nma-studio-cuda` for backend + GPU work.
+- Default to `nma-studio-cuda` for backend + GPU work — it has fastapi, uvicorn
+  and watchfiles installed.
 - Never use `comfyui-cuda` for backend work.
+- `D:\conda-envs\studio-tools` is a venv on **Python 3.14.7**, the same version
+  as the `C:\Python314` interpreter that passes `ruff` and fails pytest (see the
+  PATH-traps table above) — treat it as equally unsuitable for backend work.
 - Selection is verified, not path-based (D33): `tools/run-gates.py`
   probes every candidate with a real ruff run **and** a real pytest
   run (a Python 3.14 interpreter passes `ruff` and `pytest --version`
