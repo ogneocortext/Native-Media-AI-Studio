@@ -284,6 +284,7 @@ trailer naming the authoring agent. This is how the user tracks who did what.
 |---|---|
 | Orion (research/handoff agent) | `Co-authored-by: Orion <orion@hatch.local>` |
 | Ling 3.1 Flash (local coding agent, Kilo Desktop; by InclusionAI) | `Co-authored-by: Ling 3.1 Flash` |
+| opencode (terminal coding agent; runs deepseek-v4.1-flash-free) | `Co-authored-by: opencode` |
 
 The trailer is a commit-message convention only -- it says nothing about a
 model's provenance. Do not rewrite published history to backfill it; it
