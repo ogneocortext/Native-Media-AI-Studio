@@ -19,8 +19,8 @@ import {
  * inverse or a NaN band center does not throw, it just renders the visualizer's
  * frequency bands at the wrong pitch (or collapses them to zero), which reads
  * as "the viz feels off" rather than as a bug. These pin the exact inverses
- * (mel/erb), the approximate one (bark), the single-band divide-by-zero guard,
- * and the two-pointer band sweep that turns raw bins into band energies.
+ * (mel/erb/bark), the single-band divide-by-zero guard, and the two-pointer band
+ * sweep that turns raw bins into band energies.
  */
 
 describe("scale conversions", () => {
@@ -41,22 +41,28 @@ describe("scale conversions", () => {
     expect(hzToMel(0)).toBeCloseTo(0, 6);
   });
 
-  it("bark round-trips at mid frequencies and is monotonic", () => {
-    // The bark inverse is a closed-form approximation, so it is tight around
-    // 1 kHz (the classic anchor) but drifts at the extremes. Assert the anchor
-    // tightly and monotonicity broadly rather than an exact inverse everywhere.
-    // The bark inverse is closed-form and only approximate; allow 2% rather
-    // than the sub-Hz tolerance the exact (mel/erb) inverses enjoy.
-    expect(barkToHz(hzToBark(1000))).toBeCloseTo(1000, -1);
+  it("bark is an exact inverse of hzToBark (bisection, not an approximation)", () => {
+    // Traunmuller's closed form used to sit here. It is the inverse of a
+    // *different* curve: measured -26% at 20 Hz, +46% at 22.05 kHz, and a 26.5%
+    // jump across its own `z < 2` branch seam (161.5 -> 204.2 Hz). The bisection
+    // inverse round-trips to double precision, so bark is pinned like mel/erb.
+    for (const hz of [20, 100, 440, 1000, 8000, 12000, 22050]) {
+      expect(barkToHz(hzToBark(hz))).toBeCloseTo(hz, 6);
+    }
+    expect(barkToHz(0)).toBe(0);
     expect(hzToBark(0)).toBeCloseTo(0, 6);
+
     const freqs = [50, 200, 1000, 4000, 12000];
     const barks = freqs.map(hzToBark);
     for (let i = 1; i < barks.length; i++) {
       expect(barks[i]).toBeGreaterThan(barks[i - 1]);
     }
-    // barkToHz uses a distinct branch below bark=2; both must stay positive.
-    expect(barkToHz(1)).toBeGreaterThan(0);
-    expect(barkToHz(10)).toBeGreaterThan(barkToHz(1));
+    // Monotonic straight through the old branch seam at bark = 2.
+    expect(barkToHz(1.999)).toBeLessThan(barkToHz(2));
+    expect(barkToHz(2)).toBeLessThan(barkToHz(2.001));
+    // Past hzToBark's asymptote (~25.918 Bark) it saturates, never Infinity/NaN.
+    expect(Number.isFinite(barkToHz(26))).toBe(true);
+    expect(barkToHz(26)).toBe(barkToHz(40));
   });
 
   it("dB and linear amplitude are inverses with a clamped floor", () => {
@@ -86,18 +92,14 @@ describe("generatePerceptualBands", () => {
   });
 
   it("exact-inverse scales span min..max at the endpoints", () => {
-    // mel/erb/log/linear invert exactly, so band[0] is minHz and band[last] is
-    // maxHz. bark's approximate inverse does not (barkToHz(hzToBark(20))?14.8),
-    // so it is deliberately excluded from the tight endpoint assertion.
-    for (const scale of ["erb", "mel", "log", "linear"] as const) {
+    // Every inverse is exact now, so each scale's band[0] is minHz and its last
+    // is maxHz. Bark used to be excluded from this loop because its approximate
+    // inverse returned 14.85 Hz for 20 and 32.2 kHz (past Nyquist) for 22050.
+    for (const scale of ["bark", "erb", "mel", "log", "linear"] as const) {
       const bands = generatePerceptualBands(scale, 16, 20, 22050);
       expect(bands[0], scale).toBeCloseTo(20, 3);
       expect(bands[bands.length - 1], scale).toBeCloseTo(22050, 3);
     }
-    // bark still starts low and reaches high, just not exactly at the bounds.
-    const bark = generatePerceptualBands("bark", 16, 20, 22050);
-    expect(bark[0]).toBeLessThan(30);
-    expect(bark[bark.length - 1]).toBeGreaterThan(10000);
   });
 
   it("guards the single-band divide-by-zero (never yields NaN centers)", () => {
@@ -142,6 +144,30 @@ describe("mapToPerceptualBands", () => {
     expect(mapToPerceptualBands(data, 44100, "mel", 12)).toHaveLength(12);
   });
 
+  it("derives monotonic band boundaries for every scale (sweep precondition)", () => {
+    // The two-pointer sweep below only advances bandIdx while boundaries are
+    // sorted, so a non-monotonic list silently misassigns bins at the top of the
+    // spectrum. The bark scale did exactly that until barkToHz became an exact
+    // inverse: its last boundary (23375 Hz) exceeded the 22050 Hz value appended
+    // after it, because the band centers overshot Nyquist by 46%.
+    for (const scale of ["bark", "erb", "mel", "log", "linear"] as const) {
+      const bands = 16;
+      const sampleRate = 48000;
+      const maxHz = sampleRate / 2;
+      const centers = generatePerceptualBands(scale, bands, 20, maxHz);
+
+      const boundaries = [20];
+      for (let i = 0; i < centers.length - 1; i++) {
+        boundaries.push((centers[i] + centers[i + 1]) / 2);
+      }
+      boundaries.push(maxHz);
+
+      for (let i = 1; i < boundaries.length; i++) {
+        expect(boundaries[i], `${scale} boundary ${i}`).toBeGreaterThan(boundaries[i - 1]);
+      }
+    }
+  });
+
   it("getBandCenterHz returns the band's center and 0 when out of range", () => {
     expect(getBandCenterHz(0, 5, "linear", 20, 100)).toBeCloseTo(20, 6);
     expect(getBandCenterHz(4, 5, "linear", 20, 100)).toBeCloseTo(100, 6);
@@ -167,5 +193,22 @@ describe("applyHammingWindow", () => {
     const quiet = new Uint8Array([128, 128, 128, 128, 128]);
     const windowed = applyHammingWindow(quiet);
     expect(windowed[0]).toBeCloseTo((128 / 255) * 0.08, 6);
+  });
+
+  it("windows Float32 input as amplitude, without the byte /255 shrink", () => {
+    // Regression: the /255 normalization was applied to every input, so a
+    // time-domain Float32Array came back at ~0.4% of its value — muted.
+    const full = new Float32Array(5).fill(1);
+    const windowed = applyHammingWindow(full);
+    expect(windowed[0]).toBeCloseTo(0.08, 6);
+    expect(windowed[2]).toBeCloseTo(1.0, 6);
+    expect(applyHammingWindow(new Float32Array(5).fill(0.5))[2]).toBeCloseTo(0.5, 6);
+  });
+
+  it("handles a single sample without dividing by zero", () => {
+    // (N - 1) is 0 for N = 1, so the window factor was 0/0 = NaN.
+    const one = applyHammingWindow(new Uint8Array([255]));
+    expect(Number.isNaN(one[0])).toBe(false);
+    expect(one[0]).toBeCloseTo(1, 6);
   });
 });

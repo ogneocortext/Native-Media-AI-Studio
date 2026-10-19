@@ -22,15 +22,43 @@ export function hzToBark(hz: number): number {
 }
 
 /**
- * Convert Bark to Hz (inverse of hzToBark)
- * Approximate formula: hz = 1960 * (f / (26.28 - f)) for f < 2
+ * Search ceiling for {@link barkToHz}. `hzToBark` asymptotes at
+ * 13π/2 + 3.5π/2 ≈ 25.918 Bark, so the inverse is only defined up to there and
+ * no real sample rate needs a bound this high (96 kHz Nyquist is 48 kHz).
+ */
+const BARK_MAX_HZ = 96000;
+
+/** The Bark value `hzToBark` approaches as f → ∞ (13π/2 + 3.5π/2). */
+const BARK_SATURATION = (13 * Math.PI) / 2 + (3.5 * Math.PI) / 2;
+
+/**
+ * Convert Bark to Hz (exact inverse of {@link hzToBark})
+ *
+ * `hzToBark` is Terhardt's closed form and has no algebraic inverse, so this is
+ * a bracketed bisection on that (strictly increasing) function: exact to double
+ * precision, monotonic, and saturating where the forward function saturates.
+ *
+ * This replaces Traunmuller's `1960*(z+0.53)/(26.28-z)`, which is the inverse of
+ * a *different* curve. Measured against `hzToBark` it read 14.85 Hz where 20 Hz
+ * was asked for (−26%), 32.2 kHz where Nyquist 22.05 kHz was asked for (+46%),
+ * and jumped 26.5% (161.5 → 204.2 Hz) across its own `z < 2` branch seam.
+ * `mapToPerceptualBands` derives band boundaries from band centers, so that
+ * overshoot made the boundary list non-monotonic — the exact precondition the
+ * two-pointer sweep below documents as required — and the Bark bands were
+ * silently misassigned at the top of the spectrum.
  */
 export function barkToHz(bark: number): number {
-  if (bark < 2) {
-    return 1960 * (bark / (26.28 - bark));
+  if (!(bark > 0)) return 0; // bark <= 0 or NaN: a band center, not a NaN prop
+  if (bark >= BARK_SATURATION) return BARK_MAX_HZ;
+
+  let lo = 0;
+  let hi = BARK_MAX_HZ;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (hzToBark(mid) < bark) lo = mid;
+    else hi = mid;
   }
-  // For higher bark values, use approximation
-  return (1960 * (bark + 0.53)) / (26.28 - bark);
+  return (lo + hi) / 2;
 }
 
 /**
@@ -233,16 +261,23 @@ export function linearToDb(linear: number): number {
 /**
  * Apply Hamming window to frequency data for improved frequency resolution
  *
- * @param data - Input frequency or time-domain data
- * @returns Windowed data
+ * Byte input (0..255, as `getByteFrequencyData` returns) is normalized to full
+ * scale first; Float32 input is already an amplitude, so it is windowed as-is.
+ * Dividing a Float32Array by 255 — which this used to do unconditionally —
+ * shrank real samples to ~0.4% of their value, i.e. a muted buffer.
+ *
+ * @param data - Input frequency (byte) or time-domain (float) data
+ * @returns Windowed data as Float32
  */
 export function applyHammingWindow(data: Float32Array | Uint8Array): Float32Array {
   const N = data.length;
   const windowed = new Float32Array(N);
+  const isByte = data instanceof Uint8Array;
 
   for (let i = 0; i < N; i++) {
-    const hamming = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1));
-    windowed[i] = (data[i] / 255) * hamming;
+    // N === 1 divides by zero (0/0 → NaN); a one-sample window is the identity.
+    const hamming = N > 1 ? 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1)) : 1;
+    windowed[i] = (isByte ? data[i] / 255 : data[i]) * hamming;
   }
 
   return windowed;

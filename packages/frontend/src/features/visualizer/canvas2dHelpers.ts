@@ -2,8 +2,16 @@
  * Pure math/color helpers for the Canvas2D visualizer.
  *
  * Extracted from Canvas2DVisualizer.tsx (was 1560 lines) — no logic changed.
- * No dependencies: plain Canvas2D arithmetic, no React.
+ * No React: plain Canvas2D arithmetic. The perceptual-scale conversions are the
+ * one import — they live in ./perceptualScales (one tested implementation per
+ * scale) and are re-exported below so existing importers keep working.
  */
+
+import { barkToHz, hzToBark, hzToMel, melToHz } from "./perceptualScales";
+
+export { barkToHz, hzToBark, hzToMel };
+/** Alias for the historical `hzToERB` spelling used by this module. */
+export { hzToErb as hzToERB } from "./perceptualScales";
 
 /** Normalize a CSS color to 6-digit hex so an alpha suffix can be appended.
  *  Preset bgColors are usually `#rrggbb`, but `#rgb` (or a non-hex value) would
@@ -106,18 +114,24 @@ export type PerceptualScale = "linear" | "log" | "bark" | "mel";
  * One factory, called once per frame per mode.
  *
  * Returned values are float bin indices; callers floor and clamp them.
+ *
+ * `sampleRate` is the live `AudioContext` rate and is forwarded to the Bark and
+ * Mel mappers, whose Hz → bin conversion divides by Nyquist. `log` and `linear`
+ * work in bin-index space and are rate-independent. It defaults to 44100 only
+ * so a virtual/demo buffer (no analyser) still renders.
  */
 export function makeFreqMapper(
   scale: PerceptualScale | undefined,
   barCount: number,
   freqLength: number,
+  sampleRate = 44100,
 ): (barIndex: number) => number {
   const chosen = scale ?? "log";
   switch (chosen) {
     case "bark":
-      return (idx: number) => barkFreqMap(idx, barCount, freqLength);
+      return (idx: number) => barkFreqMap(idx, barCount, freqLength, sampleRate);
     case "mel":
-      return (idx: number) => melFreqMap(idx, barCount, freqLength);
+      return (idx: number) => melFreqMap(idx, barCount, freqLength, sampleRate);
     case "linear":
       return (idx: number) => (idx / barCount) * freqLength;
     case "log":
@@ -273,35 +287,21 @@ export function clamp(v: number, min: number, max: number): number {
 // ============================================================================
 // Perceptual frequency scales (2026 research additions)
 // ============================================================================
-
-/** Convert Hz to Bark scale (critical bands for masking/loudness). */
-export function hzToBark(hz: number): number {
-  return 13 * Math.atan(0.00076 * hz) + 3.5 * Math.atan(Math.pow(hz / 7500, 2));
-}
-
-/** Convert Bark back to Hz (Traunmüller's inverse of {@link hzToBark}).
- *
- *  Lives here, next to the forward conversion, because the only reason it was
- *  ever needed is `barkFreqMap` — and a scale with no inverse is a scale that
- *  gets inverted with the wrong formula (which is exactly what happened). */
-export function barkToHz(bark: number): number {
-  return bark < 2
-    ? 1960 * (bark / (26.28 - bark))
-    : 1960 * ((bark + 0.53) / (26.28 - bark));
-}
-
-/** Convert Hz to ERB scale (equivalent rectangular bandwidth). */
-export function hzToERB(hz: number): number {
-  return 21.4 * Math.log10(1 + 0.00437 * hz);
-}
-
-/** Convert Hz to Mel scale (pitch perception for speech recognition). */
-export function hzToMel(hz: number): number {
-  return 2595 * Math.log10(1 + hz / 700);
-}
+//
+// `hzToBark`/`barkToHz`/`hzToERB`/`hzToMel` used to be defined here *and* in
+// ./perceptualScales — two copies, and both carried the same wrong Bark inverse
+// (Traunmuller's, which is not the inverse of Terhardt's forward function), so
+// the defect existed twice and either copy could drift. They are now imported
+// from ./perceptualScales and re-exported above: one implementation, under test.
 
 /** Map a bar index to an FFT bin using Bark scale (critical bands).
- *  Better for masking-aware visualization than linear or simple log. */
+ *  Better for masking-aware visualization than linear or simple log.
+ *
+ *  `sampleRate` matters: the mapper converts Hz → bin via Nyquist, so a 44.1 kHz
+ *  assumption on a 48 kHz context (the Windows default device rate) stretches the
+ *  whole frequency axis by 8.8%. Callers should pass the live `AudioContext`
+ *  rate; the default is a fallback for a virtual/demo buffer with no analyser.
+ */
 export function barkFreqMap(
   barIndex: number,
   barCount: number,
@@ -312,27 +312,30 @@ export function barkFreqMap(
   const nyquist = sampleRate / 2;
   const t = barCount > 1 ? barIndex / (barCount - 1) : 0;
 
-  // Map to Bark range: ~1 Bark (20 Hz) to ~24 Bark (Nyquist)
+  // Map to Bark range: ~1 Bark (20 Hz) to ~24.7 Bark (Nyquist at 44.1 kHz)
   const minBark = hzToBark(20);
   const maxBark = hzToBark(nyquist);
   const bark = minBark + t * (maxBark - minBark);
 
   // Convert back to Hz with the **Bark** inverse, then to an FFT bin index.
   //
-  // This previously used the ERB inverse, `(10^(x/21.4) - 1) / 0.00437`, which is
-  // the inverse of a different scale entirely. Because Bark grows more slowly
-  // than ERB, every band landed ~3.4x too low: the top bar sampled ~1.2 kHz
-  // instead of Nyquist, so the "Bark" mode never displayed the top two octaves.
+  // Two bugs lived here. First it used the ERB inverse, `(10^(x/21.4) - 1) /
+  // 0.00437` — a different scale entirely, so every band landed ~3.4x too low
+  // and the top bar sampled ~1.2 kHz instead of Nyquist. Then it used
+  // Traunmuller's Bark inverse, which is not the inverse of the Terhardt
+  // forward: it overshot Nyquist by 46% and put intermediate bars at the wrong
+  // pitch. `barkToHz` is now an exact numeric inverse, so this lands where the
+  // Bark interpolation says it should.
   //
-  // The existing tests missed it because they only asserted range and
-  // monotonicity, and a uniformly squashed mapping satisfies both. See the
-  // round-trip test, which is what actually pins this.
+  // The old tests missed both because they only asserted range and monotonicity,
+  // and a uniformly squashed (or overshooting) mapping satisfies both.
   const hz = barkToHz(bark);
   return Math.min(len, Math.max(0, (hz / nyquist) * len));
 }
 
 /** Map a bar index to an FFT bin using Mel scale (pitch perception).
- *  Best for vocal-heavy content and speech recognition applications. */
+ *  Best for vocal-heavy content and speech recognition applications.
+ *  See {@link barkFreqMap} for why `sampleRate` must be the live context rate. */
 export function melFreqMap(
   barIndex: number,
   barCount: number,
@@ -349,6 +352,6 @@ export function melFreqMap(
   const mel = minMel + t * (maxMel - minMel);
 
   // Convert back to Hz, then to FFT bin index
-  const hz = 700 * (Math.pow(10, mel / 2595) - 1);
+  const hz = melToHz(mel);
   return Math.min(len, Math.max(0, (hz / nyquist) * len));
 }

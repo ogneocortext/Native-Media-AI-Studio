@@ -474,25 +474,23 @@ describe("perceptual scales", () => {
     }
   });
 
-  it("barkToHz inverts hzToBark over the range the formula is valid for", () => {
-    // Capped at 8 kHz deliberately. Traunmueller's inverse is an approximation
-    // that degrades badly above it - measured 6.7% at 8 kHz but 26% at 12 kHz and
-    // 38% at 16 kHz - so a test spanning the full range would be asserting a
-    // property the Bark inverse does not have. The same formula is in
-    // perceptualScales.ts, so this is a property of the scale, not of our code.
-    for (const hz of [500, 1000, 2000, 4000, 8000]) {
-      const roundTripped = barkToHz(hzToBark(hz));
-      expect(Math.abs(roundTripped - hz) / hz).toBeLessThan(0.1);
+  it("barkToHz is an exact inverse of hzToBark across the audible range", () => {
+    // Traunmuller's closed form used to be asserted here, and it is the inverse
+    // of a different curve — it drifted -26% at 20 Hz and +46% at Nyquist — so
+    // this test was capped at 8 kHz with a 10% tolerance. Both are now exact.
+    for (const hz of [20, 100, 500, 1000, 2000, 4000, 8000, 12000, 22050]) {
+      expect(barkToHz(hzToBark(hz))).toBeCloseTo(hz, 6);
     }
   });
 
   /**
-   * Documents the ceiling rather than hiding it: past ~8 kHz the approximation
-   * drifts, which is why barkFreqMap's top bars overshoot Nyquist. Worth
-   * knowing before anyone "fixes" the clamping.
+   * The exactness the old approximation lacked, asserted where it was worst:
+   * the top end. The overshoot there is what made mapToPerceptualBands' band
+   * boundaries non-monotonic and broke its sorted-input sweep.
    */
-  it("barkToHz is a low-frequency approximation, not exact at the top end", () => {
-    expect(Math.abs(barkToHz(hzToBark(20000)) - 20000) / 20000).toBeGreaterThan(0.2);
+  it("barkToHz is exact at the top end, not only at low frequency", () => {
+    expect(Math.abs(barkToHz(hzToBark(20000)) - 20000) / 20000).toBeLessThan(1e-6);
+    expect(barkToHz(30)).toBe(barkToHz(40)); // saturates, never Infinity
   });
 
   /**
@@ -557,10 +555,12 @@ describe("perceptual scales", () => {
    * actually separates them is *scale fidelity*: does a known frequency land
    * near where it should?
    *
-   * Tolerance is 12%, not one bin. Traunmueller's Bark inverse is itself only
-   * approximate, and with freqLength=1024 one bin is already 21.5 Hz - so a
-   * tight tolerance fails at 8 kHz for reasons unrelated to the bug. 12% is
-   * ~0.05 octaves: the broken inverse misses by 50-300%, so it cannot pass.
+   * Tolerance is 15%, but that is now purely *quantization*, not inverse error:
+   * 128 bars over the Bark range is a ~0.19 Bark step, which is ~10% of 100 Hz,
+   * so the low-frequency cases are coarse by construction and the search can
+   * only land within half a step. The 12 kHz case is included because there the
+   * old approximation missed by 25% — well outside quantization — which is what
+   * makes this a regression test rather than a restatement of the mapper.
    */
   it("barkFreqMap maps known frequencies to near their true position", () => {
     const barCount = 128;
@@ -585,9 +585,9 @@ describe("perceptual scales", () => {
       return Math.floor(barkFreqMap(best, barCount, freqLen)) * binHz;
     };
 
-    // With 128 bars a Bark step is ~0.17 Bark, so allow 15%. The broken ERB
-    // inverse misses by 50-300% and cannot pass this.
-    for (const hz of [100, 250, 1000, 4000, 8000]) {
+    // With 128 bars a Bark step is ~0.19 Bark, so allow the quantization bound.
+    // The old approximation misses 12 kHz by 25% and cannot pass.
+    for (const hz of [100, 250, 1000, 4000, 8000, 12000]) {
       expect(Math.abs(hzAt(hz) - hz) / hz).toBeLessThan(0.15);
     }
   });
@@ -602,6 +602,43 @@ describe("perceptual scales", () => {
     const nyquist = 44100 / 2;
     const topBarHz = (Math.floor(barkFreqMap(barCount - 1, barCount, freqLen)) / freqLen) * nyquist;
     expect(topBarHz).toBeGreaterThan(nyquist * 0.8);
+  });
+
+  /**
+   * The Hz -> bin conversion divides by Nyquist, so the live AudioContext rate
+   * must be passed through. It was not: both callers omitted it, so every render
+   * assumed 44.1 kHz — an 8.8% frequency error on a 48 kHz device (the Windows
+   * default), which is the difference between bar 32 showing 1.75 kHz and 1.9 kHz.
+   */
+  it("honours the supplied sample rate when placing bars", () => {
+    const barCount = 64;
+    const freqLen = 1024;
+
+    // Bar 0 is the same 20 Hz, but on a wider axis 20 Hz is a smaller fraction
+    // of it, so the bin index must shrink; the top bar is Nyquist for either rate.
+    expect(barkFreqMap(0, barCount, freqLen, 48000)).toBeLessThan(
+      barkFreqMap(0, barCount, freqLen, 44100),
+    );
+    expect(barkFreqMap(barCount - 1, barCount, freqLen, 44100)).toBeCloseTo(freqLen, 6);
+    expect(barkFreqMap(barCount - 1, barCount, freqLen, 48000)).toBeCloseTo(freqLen, 6);
+
+    let lower = 0;
+    for (let i = 1; i < barCount - 1; i++) {
+      if (barkFreqMap(i, barCount, freqLen, 48000) < barkFreqMap(i, barCount, freqLen, 44100)) {
+        lower++;
+      }
+    }
+    expect(lower).toBeGreaterThan(barCount / 2);
+
+    // makeFreqMapper forwards the rate rather than re-defaulting it.
+    expect(makeFreqMapper("bark", barCount, freqLen, 48000)(0)).toBeCloseTo(
+      barkFreqMap(0, barCount, freqLen, 48000),
+      12,
+    );
+    expect(makeFreqMapper("mel", barCount, freqLen, 48000)(5)).toBeCloseTo(
+      melFreqMap(5, barCount, freqLen, 48000),
+      12,
+    );
   });
 
   /**

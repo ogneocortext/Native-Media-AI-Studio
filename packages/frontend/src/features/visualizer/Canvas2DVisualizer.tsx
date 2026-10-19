@@ -1,3 +1,26 @@
+/**
+ * Canvas2DVisualizer — Canvas2D lane of the visualizer (bars / waveform / radial).
+ *
+ * Purpose: the 2D half of the visualizer. Renders audio-reactive bars,
+ * waveform, and radial visuals from analyzed audio data (energy curve,
+ * spectral centroid/rolloff/bandwidth, zero-crossing rate), driven frame by
+ * frame via an rAF loop. Exposes Canvas2DFrameAccurateApi (Plan 2.9) so the
+ * frame-accurate exporter can drive time synchronously — each call renders
+ * exactly one frame, and readiness() tells the exporter whether there is
+ * analyzed data to render from (a 300-frame MP4 of a blank canvas would look
+ * like a successful export otherwise).
+ *
+ * Module split (AGENTS.md D14): Canvas2DVisualizer.tsx used to be a 1,560-line
+ * monolith. Pure helpers (easing, color math, frequency mapping) were extracted
+ * to canvas2dHelpers; per-mode effect budgets live in canvas2dModeBudget;
+ * audio-frame derivation lives in services/analysisAudioFrame; the
+ * frame-accurate render API surface lives in services/frameAccurateExport.
+ * Keep new helpers in the matching module rather than here.
+ *
+ * Audio-library rule (D16): this component receives its audio data as props;
+ * it does not read the library itself. The caller (Visualizer) uses
+ * useAudioLibrary() only — not listAudioFiles().
+ */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   asymmetricSmoothStep,
@@ -762,7 +785,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const baseY = Math.round(h * 0.88);
           // Perceptual frequency scale selection (2026 research)
           const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
           for (let i = 0; i < barCount; i++) {
             const rawV = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
@@ -885,7 +908,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const centerY = Math.round(h * 0.5);
           const maxBarH = h * 0.38;
           const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
           for (let i = 0; i < barCount; i++) {
             const v = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
@@ -968,7 +991,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
           for (let i = 0; i < barCount; i++) {
             const v = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
@@ -1031,7 +1054,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
           for (const band of bands) {
             ctx.fillStyle = band.color + "18";
             ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
@@ -1106,7 +1129,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             smoothedStack = new Array(barCount * layers.length).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
           for (let i = 0; i < barCount; i++) {
             const x = Math.round(i * barW);
             const bw = Math.round(barW) - 2;
@@ -1193,7 +1216,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             barVelocities = new Array(barCount).fill(0);
           }
           const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen);
+          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
           for (let i = 0; i < cols; i++) {
             const v = sampleMappedBand(freq, freqMap, i) / 255;
             const boosted =
