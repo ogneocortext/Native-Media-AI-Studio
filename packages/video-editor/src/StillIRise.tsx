@@ -196,37 +196,9 @@ const getSectionPalette = (section: string) => {
   return PALETTE.verse;
 };
 
+import { getVisualMode, seededRandom } from "./lib/lyricHelpers";
+
 const EASE_ENTER = Easing.bezier(0, 0, 0.2, 1);
-
-const LYRIC_KEYWORDS = {
-  rain: ["rain", "rain."],
-  fog: ["fog", "fog,"],
-  fire: ["fire", "fire,"],
-  match: ["match", "match,"],
-  rise: ["rise", "rise.", "rise —"],
-  map: ["map", "map,"],
-  footprints: ["footprints", "footprints,"],
-  river: ["river", "river,"],
-  horizon: ["horizon", "horizon,"],
-  wind: ["wind", "wind."],
-  swim: ["swim", "swim."],
-  dawn: ["dawn", "dawn,"],
-  cold: ["cold", "cold."],
-};
-const getVisualMode = (text: string): string[] => {
-  const words = text.toLowerCase().split(/\s+/);
-  const modes: string[] = [];
-  for (const [mode, triggers] of Object.entries(LYRIC_KEYWORDS)) {
-    if (words.some((w) => triggers.includes(w))) modes.push(mode);
-  }
-  return modes;
-};
-
-/* ── Seeded pseudo-random for consistent particle positions ── */
-const seededRandom = (seed: number) => {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
 
 export const StillIRiseComposition: React.FC = () => {
   const frame = useCurrentFrame();

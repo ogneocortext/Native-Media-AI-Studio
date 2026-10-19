@@ -35,7 +35,7 @@ def query_vram_used_mb() -> int | None:
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=10,
         )
         if result.returncode != 0:

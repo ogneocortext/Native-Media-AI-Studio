@@ -40,6 +40,33 @@ __all__ = [
 _CLOUD_PRICING: dict[str, Any] | None = None
 
 
+def _model_factor_for_tier(tier: str, model_name: str) -> float:
+    """Return the time-model factor for a given model tier/name.
+
+    Lower = faster. Baseline SD1.5 = 1.0.
+    """
+    if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
+        # 1.3B is ~2x smaller than 5B — faster per step, fits 8GB at 832×480
+        return 1.6
+    if tier in ("wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5"):
+        # GGUF is quantized — ~2x slower than SD1.5 baseline but fits 8GB
+        return 2.2
+    if tier == "wan_ti2v_5b_fp16":
+        # FP16 needs 16-24GB VRAM
+        return 3.0
+    if tier == "ltx_2_3":
+        # LTX 2.3 distilled is ~4x faster than Wan 2.2 Q4 (measured:
+        # 210s for 25f at 768x512 on GTX 1070 Ti, ~4.46 GB peak VRAM).
+        return 0.55
+    if "kandinsky" in model_name.lower():
+        return 2.0
+    if "sd" in model_name.lower() or "v1-5" in model_name.lower():
+        return 1.0
+    if "hunyuan" in model_name.lower():
+        return 1.5
+    return 1.0
+
+
 def estimate_generation_time(
     steps: int,
     width: int,
@@ -59,27 +86,8 @@ def estimate_generation_time(
     # Scale by steps (log-transform because doubling steps does not double time linearly)
     step_factor = max(0.5, (steps / 20) ** 0.85)
     # Scale by model size (larger models are slower)
-    model_factor = 1.0
     tier = classify_model_variant(model_name)
-    if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
-        # 1.3B is ~2x smaller than 5B — faster per step, fits 8GB at 832×480
-        model_factor = 1.6
-    elif tier in ("wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5"):
-        # GGUF is quantized — ~2x slower than SD1.5 baseline but fits 8GB
-        model_factor = 2.2
-    elif tier == "wan_ti2v_5b_fp16":
-        model_factor = 3.0  # FP16 needs 16-24GB VRAM
-    elif tier == "ltx_2_3":
-        # LTX 2.3 distilled is ~4x faster than Wan 2.2 Q4 (measured:
-        # 210s for 25f at 768x512 on GTX 1070 Ti, ~4.46 GB peak VRAM).
-        model_factor = 0.55
-    elif "kandinsky" in model_name.lower():
-        model_factor = 2.0
-    elif "sd" in model_name.lower() or "v1-5" in model_name.lower():
-        model_factor = 1.0
-    elif "hunyuan" in model_name.lower():
-        model_factor = 1.5
-
+    model_factor = _model_factor_for_tier(tier, model_name)
     sec_per_frame = base_sec_per_frame * resolution_factor * step_factor * model_factor
     total_frames = num_frames if num_frames > 0 else int(fps * 5)
     estimated_seconds = sec_per_frame * total_frames

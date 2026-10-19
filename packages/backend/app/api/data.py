@@ -200,6 +200,29 @@ def delete_prompt_history_entry(entry_id: str):
     return {"success": True}
 
 
+# Literal path registered before the /{prompt_id} catch-all below: that
+# route matches any single segment and would otherwise shadow this one.
+@router.get("/saved-scenes")
+def list_saved_scenes():
+    """List all saved generated scenes."""
+    output_dir = PROJECT_ROOT / "output" / "generated-scenes"
+    if not output_dir.exists():
+        return {"scenes": []}
+
+    scenes = []
+    for filename in sorted((p.name for p in output_dir.iterdir()), reverse=True):
+        if filename.endswith(".js"):
+            filepath = output_dir / filename
+            stat = filepath.stat()
+            scenes.append({
+                "filename": filename,
+                "path": str(filepath),
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            })
+    return {"scenes": scenes}
+
+
 @router.get("/{prompt_id}")
 def get_prompt(prompt_id: str):
     """Get a prompt by ID."""
@@ -566,26 +589,6 @@ def save_generated_scene(body: SaveGeneratedSceneRequest):
 
     return {"success": True, "filename": filename, "path": filepath}
 
-
-@router.get("/saved-scenes")
-def list_saved_scenes():
-    """List all saved generated scenes."""
-    output_dir = PROJECT_ROOT / "output" / "generated-scenes"
-    if not output_dir.exists():
-        return {"scenes": []}
-
-    scenes = []
-    for filename in sorted((p.name for p in output_dir.iterdir()), reverse=True):
-        if filename.endswith(".js"):
-            filepath = output_dir / filename
-            stat = filepath.stat()
-            scenes.append({
-                "filename": filename,
-                "path": str(filepath),
-                "size": stat.st_size,
-                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            })
-    return {"scenes": scenes}
 
 
 @router.post("/saved-scenes/cleanup")

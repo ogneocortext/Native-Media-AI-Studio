@@ -12,6 +12,8 @@
  * the other half.
  */
 
+import { clamp01 } from "../../../shared/math";
+
 export type EasingFn = (t: number) => number;
 
 /** Clamp to [0,1]. Easing curves are only defined on that interval; feeding
@@ -22,10 +24,7 @@ export type EasingFn = (t: number) => number;
  *  (NaN fails every subsequent comparison, so settle logic never recovers).
  *  Infinities clamp to the nearer bound instead of taking the NaN path: an
  *  over-driven value should saturate, not snap to silence. */
-export function clamp01(t: number): number {
-  if (Number.isNaN(t)) return 0;
-  return t < 0 ? 0 : t > 1 ? 1 : t;
-}
+export { clamp01 };
 
 /** Linear interpolation. */
 export function lerp(a: number, b: number, t: number): number {

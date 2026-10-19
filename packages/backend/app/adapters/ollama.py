@@ -81,7 +81,6 @@ Generate 3-8 scenes based on the input theme or concept."""
         self._default_model: str = _def
         self._last_model: str = self._default_model
         self._last_health_log: str | None = None
-        self._session: aiohttp.ClientSession | None = None
         self._active_tasks: dict[str, dict[str, Any]] = {}
         self._scene_state: dict[str, Any] = {
             "objects": [],
@@ -93,15 +92,6 @@ Generate 3-8 scenes based on the input theme or concept."""
             "keyframes": [],
         }
         self._atomic_chat_url = atomic_chat_url
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create a shared aiohttp session for this adapter."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
-                timeout=aiohttp.ClientTimeout(total=30),
-            )
-        return self._session
 
     def set_activity(self, model: str, task: str = "generate", description: str = "", timeout: float = 180) -> None:
         """Register that a model is actively processing a task.
@@ -139,12 +129,6 @@ Generate 3-8 scenes based on the input theme or concept."""
         for model in stale:
             self._active_tasks.pop(model, None)
         return result
-
-    async def close(self):
-        """Close the shared session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Get JSON schema definitions for all built-in tools (OpenAI-compatible)."""

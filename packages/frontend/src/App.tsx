@@ -39,6 +39,10 @@ const DataManagementPage = lazyNamed(
   () => import("./features/data-management/DataManagementPage"),
   "DataManagementPage",
 );
+const DatabasePage = lazyNamed(
+  () => import("./features/database/DatabasePage"),
+  "DatabasePage",
+);
 const ImageGeneration = lazyNamed(
   () => import("./features/image-generation/ImageGeneration"),
   "ImageGeneration",
@@ -128,7 +132,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/settings": "Settings",
   "/log-analytics": "Log Analytics",
   "/health": "Health",
-  "/data-management": "Database",
+  "/data-management": "Data Management",
+  "/database": "Database",
   "/kinetic-typography": "Kinetic Typography",
   "/gpu": "GPU Monitor",
   "/unity": "Unity Control",
@@ -191,6 +196,7 @@ function App() {
               <Route path="/log-analytics" element={withErrorBoundary(<LogAnalyticsPage />)} />
               <Route path="/health" element={withErrorBoundary(<HealthPage />)} />
               <Route path="/data-management" element={withErrorBoundary(<DataManagementPage />)} />
+              <Route path="/database" element={withErrorBoundary(<DatabasePage />)} />
               <Route
                 path="/kinetic-typography"
                 element={withErrorBoundary(<KineticTypographyPage />)}

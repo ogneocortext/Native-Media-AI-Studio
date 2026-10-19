@@ -19,13 +19,7 @@
  * function of t (no double-valued curves).
  */
 
-/** Clamp to [0, 1]; NaN maps to 0 so one poisoned frame
- *  cannot stick a channel (same rule as the visualizer's
- *  motionEasing.clamp01). */
-function clamp01(t: number): number {
-  if (Number.isNaN(t)) return 0;
-  return t < 0 ? 0 : t > 1 ? 1 : t;
-}
+import { clamp01 } from "../../../shared/math";
 
 export type EasingAnchor =
   | "entrance-sharp"

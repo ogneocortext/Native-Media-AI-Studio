@@ -200,6 +200,29 @@ export type {
   PromptHistoryEntry,
 } from "./data";
 
+// Database admin (inventory, health, maintenance)
+export {
+  getDatabaseOverview,
+  getDatabaseTable,
+  getDatabaseSchema,
+  checkDatabaseIntegrity,
+  runDatabaseMaintenance,
+  maintenanceDetailNumber,
+  DEFAULT_KEEP_DAYS,
+} from "./database";
+export type {
+  DatabaseOverview,
+  DatabaseTableSummary,
+  DatabaseTableDetail,
+  DatabaseColumnInfo,
+  DatabaseIndexInfo,
+  DatabaseSchema,
+  DatabaseMigrationInfo,
+  DatabaseIntegrityResult,
+  DatabaseMaintenanceResult,
+  DatabaseMaintenanceAction,
+} from "./database";
+
 // GPU / 3D
 export {
   getGPUSnapshot,

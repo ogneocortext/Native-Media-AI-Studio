@@ -131,6 +131,39 @@ def test_cleanup_old_gpu_telemetry_vacuums_in_place(tmp_path, monkeypatch):
     assert after <= before
 
 
+def test_cleanup_old_log_events_commits_when_it_owns_the_connection(tmp_path, monkeypatch):
+    """The reported `deleted` count must survive the function's own `close()`.
+
+    `cleanup_old_log_events` opens an unpooled connection when it is handed no
+    `conn`, and closes it in `finally`. Python's sqlite3 is not autocommit, so
+    without an explicit commit the DELETE - and the last-cleanup marker written
+    on the same connection - were rolled back on close while the return value
+    still claimed a deletion. The earlier VACUUM fix stopped this path raising;
+    it left it silent instead.
+    """
+    database, db_file = _fresh_db(tmp_path, monkeypatch)
+    before_marker = database.get_log_analytics_last_cleanup()
+
+    with database.get_db() as conn:
+        conn.execute(
+            "INSERT INTO log_events (ts_iso, ts_ms, level, logger, message, source) "
+            "VALUES ('1970-01-01T00:00:00', 0, 'INFO', 'test', 'ancient', 'test')"
+        )
+
+    assert database.cleanup_old_log_events(keep_days=1) == 1
+
+    # A separate connection: nothing here can be an artefact of the writer's
+    # own transaction.
+    check = sqlite3.connect(db_file)
+    try:
+        assert check.execute("SELECT COUNT(*) FROM log_events").fetchone()[0] == 0
+    finally:
+        check.close()
+
+    # And the marker must move, or the startup cleanup re-runs forever.
+    assert database.get_log_analytics_last_cleanup() != before_marker
+
+
 def test_init_db_enables_wal(tmp_path, monkeypatch):
     """WAL is a persistent property; init_db must establish it exactly once."""
     database, db_file = _fresh_db(tmp_path, monkeypatch)

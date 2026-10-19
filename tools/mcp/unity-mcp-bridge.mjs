@@ -9,6 +9,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { z } from "zod";
+import { BACKEND_URL, validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Use environment variable or derive from repo root (tools/mcp -> ../../)
@@ -21,7 +22,6 @@ if (!PROJECT_PATH.includes(":") && !PROJECT_PATH.startsWith("/")) {
 }
 
 const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 let cachedPortInfo = null;
 let cacheAge = 0;
@@ -70,25 +70,6 @@ function unityUnavailableReason() {
     );
   }
   return "Unity MCP server not running (no port file)";
-}
-
-async function validateMcpToolCall(toolName, args) {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/mcp/validate-tool`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tool_name: toolName, arguments: args }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.valid) {
-      throw new Error(`Invalid tool args for ${toolName}: ${data.error}`);
-    }
-    return data.arguments;
-  } catch (err) {
-    console.error(`[mcp-validate] ${toolName}: ${err.message}`);
-    return null;
-  }
 }
 
 function getPortInfo() {

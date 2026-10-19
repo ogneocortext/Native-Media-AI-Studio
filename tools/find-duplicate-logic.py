@@ -88,9 +88,116 @@ _JS_FN = re.compile(
     re.M,
 )
 _JS_ARROW = re.compile(
-    r"^\s*(?:export\s+)?const\s+(\w+)\s*(?:=\s*)?(?:async\s*)?\([^)]*\)\s*(?::[^=]+)?=>",
+    r"^\s*(?:export\s+)?const\s+(\w+)\s*(?::[^=]+?)?=\s*(?:async\s+)?"
+    r"(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*(?::[^=]+?)?=>",
     re.M,
 )
+
+
+def _skip_js_string(source: str, i: int) -> int:
+    """Return the index just past the string/template literal starting at `i`."""
+    quote = source[i]
+    j = i + 1
+    while j < len(source):
+        c = source[j]
+        if c == "\\":
+            j += 2
+            continue
+        if quote == "`" and c == "$" and j + 1 < len(source) and source[j + 1] == "{":
+            j = _skip_js_block(source, j + 1)
+            continue
+        if c == quote:
+            return j + 1
+        j += 1
+    return j
+
+
+def _skip_js_comment(source: str, i: int) -> int:
+    """Return the index just past the comment starting at `i`."""
+    if source[i + 1] == "/":
+        nl = source.find("\n", i)
+        return len(source) if nl == -1 else nl
+    end = source.find("*/", i + 2)
+    return len(source) if end == -1 else end + 2
+
+
+def _skip_js_block(source: str, i: int) -> int:
+    """`i` points at `{`; return the index just past the matching `}`.
+
+    Braces inside string literals and comments do not count, which a plain
+    character scan gets wrong: a body containing `"}"` would close early and
+    the tool would then compare two unrelated fragments.
+    """
+    depth = 0
+    j = i
+    while j < len(source):
+        c = source[j]
+        if c in "'\"`":
+            j = _skip_js_string(source, j)
+            continue
+        if c == "/" and j + 1 < len(source) and source[j + 1] in "/*":
+            j = _skip_js_comment(source, j)
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return j
+
+
+def _skip_js_paren(source: str, i: int) -> int:
+    """`i` points at `(`; return the index just past the matching `)`."""
+    depth = 0
+    j = i
+    while j < len(source):
+        c = source[j]
+        if c in "'\"`":
+            j = _skip_js_string(source, j)
+            continue
+        if c == "/" and j + 1 < len(source) and source[j + 1] in "/*":
+            j = _skip_js_comment(source, j)
+            continue
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return j
+
+
+def _js_expression_end(source: str, i: int) -> int:
+    """Return the end index of an expression-bodied arrow's expression."""
+    depth = 0
+    j = i
+    while j < len(source):
+        c = source[j]
+        if c in "'\"`":
+            j = _skip_js_string(source, j)
+            continue
+        if c == "/" and j + 1 < len(source) and source[j + 1] in "/*":
+            j = _skip_js_comment(source, j)
+            continue
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                return j
+            depth -= 1
+        elif c == ";" and depth == 0:
+            return j
+        elif c == "\n" and depth == 0:
+            nxt = j + 1
+            while nxt < len(source) and source[nxt] in " \t":
+                nxt += 1
+            if nxt >= len(source) or source[nxt] not in "+-*/%?:&|,.":
+                return j
+        j += 1
+    return j
 
 
 def _js_functions(path: Path) -> list[tuple[str, str, int]]:
@@ -99,26 +206,38 @@ def _js_functions(path: Path) -> list[tuple[str, str, int]]:
     except OSError:
         return []
     out = []
-    for pattern in (_JS_FN, _JS_ARROW):
-        for match in pattern.finditer(source):
-            name = match.group(1)
-            start = match.end()
-            # Balance braces from the function body.
-            i = source.find("{", start)
-            if i == -1:
-                continue
-            depth, j = 0, i
-            while j < len(source):
-                if source[j] == "{":
-                    depth += 1
-                elif source[j] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        break
-                j += 1
-            body = source[i:j + 1]
-            line = source[:match.start()].count("\n") + 1
-            out.append((name, _normalise_js(body), line))
+    for match in _JS_FN.finditer(source):
+        name = match.group(1)
+        # `match.end()` sits just past the parameter list's `(`.
+        after_params = _skip_js_paren(source, match.end() - 1)
+        j = after_params
+        while j < len(source) and source[j] in " \t\r\n":
+            j += 1
+        if j >= len(source) or source[j] != "{":
+            continue
+        end = _skip_js_block(source, j)
+        body = source[j:end]
+        line = source[:match.start()].count("\n") + 1
+        out.append((name, _normalise_js(body), line))
+
+    for match in _JS_ARROW.finditer(source):
+        name = match.group(1)
+        j = match.end()
+        while j < len(source) and source[j] in " \t\r\n":
+            j += 1
+        if j >= len(source):
+            continue
+        if source[j] == "{":
+            end = _skip_js_block(source, j)
+            body = source[j:end]
+        else:
+            # Expression body: `=> x * y;`. An earlier version searched for the
+            # next `{` and so handed this function the *following* function's
+            # body, which made two different functions look byte-identical.
+            end = _js_expression_end(source, j)
+            body = source[j:end]
+        line = source[:match.start()].count("\n") + 1
+        out.append((name, _normalise_js(body), line))
     return out
 
 

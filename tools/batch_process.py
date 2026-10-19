@@ -34,20 +34,9 @@ import json
 import sys
 from pathlib import Path
 
-from tools.lib.paths import backend_dir, project_root
+from tools.lib.paths import add_backend_to_path
 
-
-def _add_backend_to_path() -> None:
-    """Ensure backend package and tools namespace are importable without a package install."""
-    backend = str(backend_dir())
-    if backend not in sys.path:
-        sys.path.insert(0, backend)
-    tools_root = str(project_root())
-    if tools_root not in sys.path:
-        sys.path.insert(0, tools_root)
-
-
-_add_backend_to_path()
+add_backend_to_path()
 
 
 def find_audio_files(pattern: str) -> list[str]:

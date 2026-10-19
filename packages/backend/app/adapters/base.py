@@ -8,6 +8,8 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, TypeVar
 
+import aiohttp
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,6 +73,7 @@ class BaseAdapter(ABC):
         self.name = name
         self._status = AdapterStatus.DISCONNECTED
         self._mock_mode = mock_mode
+        self._session: aiohttp.ClientSession | None = None
 
     @abstractmethod
     async def health_check(self) -> bool:
@@ -152,3 +155,18 @@ class BaseAdapter(ABC):
     def is_mock_mode(self) -> bool:
         """Check if running in mock mode"""
         return self._mock_mode
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a shared aiohttp session for this adapter."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
+                timeout=aiohttp.ClientTimeout(total=30),
+            )
+        return self._session
+
+    async def close(self) -> None:
+        """Close the shared session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None

@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus, Trash2, Settings, Wrench, Sparkles, Cpu, MessageSquare } from "lucide-react";
 import { DS } from "../../styles/designSystem";
+import { formatSize } from "../../utils/format";
 import type { Tool, HistoryEntry } from "./types";
 import type { OllamaModel } from "../../services/api";
 
@@ -61,13 +62,7 @@ export function Sidebar({
   history,
   setResponse,
 }: SidebarProps) {
-  const formatSize = (bytes: number) => {
-    if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
-    if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
-    return `${(bytes / 1e3).toFixed(0)} KB`;
-  };
-
-  const timeAgo = (d: Date) => {
+const timeAgo = (d: Date) => {
     const secs = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
     if (secs < 60) return "just now";
     const mins = Math.floor(secs / 60);

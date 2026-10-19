@@ -1198,6 +1198,10 @@ def set_log_analytics_last_cleanup(ts_iso: str, conn: sqlite3.Connection | None 
             "INSERT OR REPLACE INTO user_preferences (key, value, category, updated_at) VALUES (?, ?, 'logs', ?)",
             (LOG_ANALYTICS_LAST_CLEANUP_KEY, json.dumps(ts_iso), ts_iso),
         )
+        # Same trap as `cleanup_old_log_events`: an uncommitted write on a
+        # connection we then close is rolled back, so the marker never moved.
+        if close_after:
+            conn.commit()
     finally:
         if close_after:
             conn.close()
@@ -1241,6 +1245,12 @@ def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None 
                 safe_vacuum(conn)
         else:
             logger.debug("Log analytics cleanup ran at %s; no events older than %d days", ts_iso, keep_days)
+        # `get_connection_unpooled()` is not autocommit (isolation_level is ""),
+        # so closing without committing here would discard both the DELETE and
+        # the last-cleanup marker while still reporting them as done. The
+        # caller-owned `conn` path must not commit: init_db owns that transaction.
+        if close_after:
+            conn.commit()
         return deleted
     finally:
         if close_after:

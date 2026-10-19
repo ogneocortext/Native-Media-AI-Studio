@@ -4,6 +4,7 @@ Eliminates hard-coded absolute paths by deriving all paths from this module's
 location. Import this in any tool script instead of computing paths manually.
 """
 
+import sys
 from pathlib import Path
 
 # tools/lib/paths.py -> tools/ -> repo root
@@ -51,3 +52,18 @@ def storage_dir() -> Path:
 def tools_lib_dir() -> Path:
     """Return this tools/lib directory (for sibling helper modules)."""
     return Path(__file__).resolve().parent
+
+
+def add_backend_to_path() -> None:
+    """Ensure the backend package and tools root are importable from a tools script.
+
+    Tools are run as standalone scripts (``python tools/foo.py``), so the
+    backend package is not automatically on ``sys.path``. Call this once at
+    module top level to import ``app.*`` modules without a package install.
+    """
+    backend = str(backend_dir())
+    if backend not in sys.path:
+        sys.path.insert(0, backend)
+    tools_root = str(project_root())
+    if tools_root not in sys.path:
+        sys.path.insert(0, tools_root)

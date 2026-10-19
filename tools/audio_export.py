@@ -32,19 +32,20 @@ import sys
 import time
 from pathlib import Path
 
-from tools.lib.paths import backend_dir, output_dir
+from tools.lib.paths import output_dir
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _add_backend_to_path() -> None:
-    backend = str(backend_dir())
-    if backend not in sys.path:
-        sys.path.insert(0, backend)
+def _clamp_cc(energy: float) -> int:
+    """Map a normalised energy value to a MIDI control-change byte in [0, 127].
 
-
-_add_backend_to_path()
+    ``int(energy * 127)`` alone overflows to 128 once numerical drift pushes
+    energy past 1.0, and goes negative for a negative sample. A CC value is an
+    unsigned byte, so either would write an invalid message to the file.
+    """
+    return max(0, min(127, int(energy * 127)))
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +155,7 @@ def export_midi_energy_cc(
         ticks = int(time_pos * ticks_per_second)
         delta = max(0, ticks - prev_ticks)
 
-        cc_value = int(energy * 127)
+        cc_value = _clamp_cc(energy)
         track.append(mido.Message("control_change", control=cc_number, value=cc_value, time=delta))
         prev_ticks = ticks
 

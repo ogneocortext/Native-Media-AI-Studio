@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   Clapperboard,
+  Database,
   FileText,
   FolderOpen,
   Home,
@@ -171,6 +172,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <BookOpen size={18} />,
         keywords: "storyboard plan scenes",
       },
+      {
+        path: "/data-management",
+        label: "Data Management",
+        icon: <FileText size={18} />,
+        keywords: "data management saved prompts visuals history",
+      },
     ],
   },
   {
@@ -183,6 +190,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Health",
         icon: <Activity size={18} />,
         keywords: "health status diagnostics adapters",
+      },
+      {
+        path: "/database",
+        label: "Database",
+        icon: <Database size={18} />,
+        keywords: "database sqlite tables schema vacuum integrity storage",
       },
       {
         path: "/gpu",

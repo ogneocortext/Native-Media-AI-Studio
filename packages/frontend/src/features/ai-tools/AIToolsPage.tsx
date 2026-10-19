@@ -28,6 +28,7 @@ import {
   type OllamaBenchmarkResult,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
+import { formatSize } from "../../utils/format";
 import { VisualizationCanvas } from "./VisualizationCanvas";
 import { Sidebar } from "./Sidebar";
 import { ToolEditor } from "./ToolEditor";
@@ -259,12 +260,6 @@ export function AIToolsPage() {
     if (abortRef.current) {
       abortRef.current.abort();
     }
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
-    if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
-    return `${(bytes / 1e3).toFixed(0)} KB`;
   };
 
   const saveTool = (tool: Tool) => {

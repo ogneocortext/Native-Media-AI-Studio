@@ -8,16 +8,9 @@ from __future__ import annotations
 import sys
 
 from tools.lib.audio import analyze_audio, save_beat_data
-from tools.lib.paths import backend_dir, output_dir
+from tools.lib.paths import add_backend_to_path, output_dir
 
-
-def _add_backend_to_path() -> None:
-    backend = str(backend_dir())
-    if backend not in sys.path:
-        sys.path.insert(0, backend)
-
-
-_add_backend_to_path()
+add_backend_to_path()
 
 
 def analyze_audio_file(audio_path, output_path=None):

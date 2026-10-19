@@ -167,22 +167,6 @@ class ComfyUIAdapter(BaseAdapter):
         self._last_health_log: str | None = None
         self._available_checkpoints: list[str] = []
         self._available_motion_modules: list[str] = []
-        self._session: aiohttp.ClientSession | None = None
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create a shared aiohttp session for this adapter."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
-                timeout=aiohttp.ClientTimeout(total=30),
-            )
-        return self._session
-
-    async def close(self):
-        """Close the shared session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
 
     async def _fetch_available_checkpoints(self) -> list[str]:
         """Fetch available checkpoints from ComfyUI"""

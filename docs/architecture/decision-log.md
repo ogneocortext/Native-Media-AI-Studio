@@ -1582,3 +1582,39 @@
   with no GPU. The 16kHz audio prep and output validation still run for
   real. NEVER true for real output; the result dict reports
   `backend: musetalk-mock`.
+
+### D44 - One target engine: modern Chromium (2026-10-18)
+
+- **Context:** Every browser that opens this studio on this machine is
+  Chromium: Comet, Google Chrome, and the agent's own BrowserOS Neo, plus
+  Playwright's `chromium` project. Nothing else is exercised, and the app is a
+  local workstation tool rather than a deployed product, so "which browsers do
+  we support?" had no written answer while the code already behaved as if it
+  had one. The measured state (2026-10-18): `tsconfig.json` targets `ES2022`
+  with `DOM`/`DOM.Iterable` libs, `vite.config.ts:180` builds `target: "es2022"`
+  ("Target modern browsers for smaller bundles"), `index.html` loads a single
+  `<script type="module">`, `playwright.config.ts:45` declares one project
+  (`chromium`, `devices["Desktop Chrome"]`), and there is no `.browserslistrc`,
+  no `browserslist` key and no `@vitejs/plugin-legacy`/`core-js`.
+- **Decision:** Support exactly one engine - **modern Chromium (current
+  stable)** - and write it down rather than leave it implied.
+  `docs/architecture/browser-support.md` is the record; the ES2022 build target
+  is what enforces the floor (modern syntax reaches the browser verbatim, with
+  no downleveling and no polyfills, and the ESM-only entry means an engine that
+  cannot run module scripts never boots). Firefox and Safari are **unsupported,
+  not blocked**: untested, unpromised, and a failure there is not a defect this
+  repo accepts. Because the target is stated, new feature code should use
+  current platform APIs directly (preferring the platform over a dependency or
+  shim) while still handling runtime failure - a permission denial or a missing
+  codec - since "modern Chromium" says nothing about this workstation's GPU or
+  the user's permission state.
+- **Consequences:** The media stack that motivates the decision (`WebCodecs`,
+  `MediaRecorder`, Web Audio, `EventSource`) is also the part most sensitive to
+  engine differences, so it is what a second engine would break first - a
+  futurescape that is now explicit. Re-opening D44 is a checklist, not a config
+  line: add `@vitejs/plugin-legacy` (or `browserslist` + polyfills) and accept
+  the bundle cost, add Firefox/WebKit projects to `playwright.config.ts`,
+  re-verify the media paths per engine, then update the doc and log.
+  `type` is the gate that catches a new API used past the configured lib - it
+  fails there rather than in the browser at runtime.
+
