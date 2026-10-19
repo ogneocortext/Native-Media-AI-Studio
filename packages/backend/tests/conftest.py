@@ -226,8 +226,27 @@ def mock_adapter_offline(monkeypatch):
 # ===========================================================================
 
 @pytest.fixture
-def make_job():
-    """Factory fixture to create jobs in the database."""
+def make_job(temp_db):
+    """Factory fixture to create jobs visible to the queue API.
+
+    The job must be registered in BOTH places it can live:
+
+    - The **global** ``queue_manager`` singleton — the in-memory queue.
+      ``GET /api/jobs`` reads this instance, because
+      ``app/api/jobs.py`` does ``from ..queue.manager import queue_manager``
+      and calls ``await queue_manager.get_all_jobs()``, which sorts
+      ``self._jobs``. Registering into some *other* QueueManager instance
+      (for example the one built by the ``queue_manager_instance``
+      fixture) puts the job in a queue nobody reads, and the endpoint
+      then reports an empty list.
+    - SQLite — so persistence, recovery and the DB-backed tests still see
+      it. ``temp_db`` redirects ``DB_PATH`` to a throwaway file, so the
+      suite stops writing rows into the real ``storage/studio.db``.
+
+    Cleanup removes it from both.
+    """
+    from app.queue.manager import queue_manager
+
     created: list[Job] = []
 
     def _make(
@@ -238,6 +257,7 @@ def make_job():
         job = Job(job_type=job_type, status=status, **overrides)
         from app.queue.db_manager import JobDatabaseManager
         JobDatabaseManager.create_job(job)
+        queue_manager._jobs[job.id] = job
         created.append(job)
         return job
 
@@ -250,3 +270,4 @@ def make_job():
             JobDatabaseManager.delete_job(job.id)
         except Exception:
             pass
+        queue_manager._jobs.pop(job.id, None)
