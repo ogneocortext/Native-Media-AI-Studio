@@ -1,12 +1,12 @@
-import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, useEffect } from "react";
-import { Layout } from "./components/layout/Layout";
-import { Dashboard } from "./features/dashboard/Dashboard";
-import { Queue } from "./features/queue/Queue";
-import { Settings } from "./features/settings/Settings";
-import { NotFound } from "./features/not-found/NotFound";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ErrorBoundary, PageLoader } from "./components/common";
 import { DebugPanel } from "./components/debug/DebugPanel";
+import { Layout } from "./components/layout/Layout";
+import { Dashboard } from "./features/dashboard/Dashboard";
+import { NotFound } from "./features/not-found/NotFound";
+import { Queue } from "./features/queue/Queue";
+import { Settings } from "./features/settings/Settings";
 
 // Helper for lazy loading modules with named exports.
 // Retries once on transient network/HMR failures. A rejected import promise is
@@ -35,6 +35,10 @@ const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: str
 
 // Heavy pages loaded on-demand
 const HealthPage = lazyNamed(() => import("./features/health/HealthPage"), "HealthPage");
+const DataManagementPage = lazyNamed(
+  () => import("./features/data-management/DataManagementPage"),
+  "DataManagementPage",
+);
 const ImageGeneration = lazyNamed(
   () => import("./features/image-generation/ImageGeneration"),
   "ImageGeneration",
@@ -124,6 +128,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/settings": "Settings",
   "/log-analytics": "Log Analytics",
   "/health": "Health",
+  "/data-management": "Database",
   "/kinetic-typography": "Kinetic Typography",
   "/gpu": "GPU Monitor",
   "/unity": "Unity Control",
@@ -185,6 +190,7 @@ function App() {
               <Route path="/logs" element={<Navigate to="/log-analytics" replace />} />
               <Route path="/log-analytics" element={withErrorBoundary(<LogAnalyticsPage />)} />
               <Route path="/health" element={withErrorBoundary(<HealthPage />)} />
+              <Route path="/data-management" element={withErrorBoundary(<DataManagementPage />)} />
               <Route
                 path="/kinetic-typography"
                 element={withErrorBoundary(<KineticTypographyPage />)}
