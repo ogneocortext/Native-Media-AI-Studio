@@ -69,6 +69,10 @@ def estimate_generation_time(
         model_factor = 2.2
     elif tier == "wan_ti2v_5b_fp16":
         model_factor = 3.0  # FP16 needs 16-24GB VRAM
+    elif tier == "ltx_2_3":
+        # LTX 2.3 distilled is ~4x faster than Wan 2.2 Q4 (measured:
+        # 210s for 25f at 768x512 on GTX 1070 Ti, ~4.46 GB peak VRAM).
+        model_factor = 0.55
     elif "kandinsky" in model_name.lower():
         model_factor = 2.0
     elif "sd" in model_name.lower() or "v1-5" in model_name.lower():

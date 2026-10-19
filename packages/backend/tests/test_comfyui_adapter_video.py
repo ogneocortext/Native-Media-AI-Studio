@@ -109,3 +109,84 @@ async def test_wan_ckpt_is_resolved_when_the_caller_omits_it(
     assert result["ckpt_name"] == "wan2.1_t2v_1.3B-Q4_K_M.gguf"
     # Wan 2.1 1.3B pairs with wan_2.1_vae.
     assert result["vae_name"] == "wan_2.1_vae.safetensors"
+
+
+@pytest.mark.asyncio
+async def test_ltx_video_route_builds_ltx_workflow(
+    adapter: ComfyUIAdapter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LTX model_variant routes to the LTX workflow builder and reports LTX assets."""
+    _stub_network(adapter, monkeypatch)
+
+    result = await adapter._generate_video(
+        {
+            "prompt": "a lighthouse at dusk",
+            "model_variant": "ltxv-2b-0.9.8-distilled-fp8",
+            "num_frames": 25,
+            "fps": 25,
+        }
+    )
+
+    assert result["video_path"] == "output/video/clip.mp4"
+    assert result["model_label"] == "LTX 2.3 distilled"
+    assert result["ckpt_name"] == "ltxv-2b-0.9.8-distilled-fp8.safetensors"
+    assert result["t5_name"] == "t5-xxl-fp8.safetensors"
+    assert result["vae_name"] == "LTX23_video_vae.safetensors"
+    assert result["model_variant"] == "ltxv-2b-0.9.8-distilled-fp8"
+
+    # Verify the submitted workflow contains LTX node types.
+    workflow = result["workflow"]
+    node_types = {node["class_type"] for node in workflow["prompt"].values()}
+    assert "LTXVideoModelLoader" in node_types
+    assert "LTXVConditioning" in node_types
+    assert "LTXVSampler" in node_types
+    assert "LTXVAELoader" in node_types
+    assert "VAEDecode" in node_types
+    assert "VHS_VideoCombine" in node_types
+    # Wan nodes must NOT appear in an LTX workflow.
+    assert "WanVideoModelLoader" not in node_types
+    assert "WanVideoSampler" not in node_types
+
+
+@pytest.mark.asyncio
+async def test_ltx_resolution_clamped_to_768x512(
+    adapter: ComfyUIAdapter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LTX enforces the 768x512 max-resolution 8GB envelope."""
+    _stub_network(adapter, monkeypatch)
+
+    result = await adapter._generate_video(
+        {
+            "prompt": "a lighthouse at dusk",
+            "model_variant": "ltxv-2b-0.9.8-distilled-fp8",
+            "width": 1920,
+            "height": 1080,
+            "num_frames": 25,
+            "fps": 25,
+        }
+    )
+
+    # Clamped to 768x512 (16-aligned, aspect preserved).
+    assert result["workflow"]["prompt"]["8"]["inputs"]["width"] <= 768
+    assert result["workflow"]["prompt"]["8"]["inputs"]["height"] <= 512
+
+
+@pytest.mark.asyncio
+async def test_ltx_frames_snap_to_4n_plus_1(
+    adapter: ComfyUIAdapter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LTX VAE patch grid requires 4n+1 frames."""
+    _stub_network(adapter, monkeypatch)
+
+    result = await adapter._generate_video(
+        {
+            "prompt": "a lighthouse at dusk",
+            "model_variant": "ltx",
+            "num_frames": 30,
+            "fps": 25,
+        }
+    )
+
+    frames = result["workflow"]["prompt"]["8"]["inputs"]["num_frames"]
+    assert frames <= 30
+    assert (frames - 1) % 4 == 0  # 4n+1
