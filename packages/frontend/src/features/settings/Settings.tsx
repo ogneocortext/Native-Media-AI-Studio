@@ -1,3 +1,18 @@
+/**
+ * Settings — application settings page.
+ *
+ * Purpose: configure the studio — theme (light/dark), health-check hooks, and
+ * service-related preferences. Reads health state through the useHealth hook
+ * and persists theme via utils/theme.
+ *
+ * This page is read-only with respect to the backend: it does not call audio
+ * or video endpoints. It surfaces service status (backend, ComfyUI, Ollama,
+ * Go sidecars on ports 3847–3851) rather than mutating it.
+ *
+ * Ports note: backend and frontend ports are dynamic (config/ports.json,
+ * decision-log D6); the frontend falls back to 5174 when 5173 is occupied, the
+ * backend to 8001 when 8000 is occupied. Do not hardcode ports in this page.
+ */
 import { Check, FolderOpen, Link2, Save, Server, Workflow, Moon, Sun, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge } from "../../components/common";

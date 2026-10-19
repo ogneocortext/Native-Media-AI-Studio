@@ -1,3 +1,23 @@
+/**
+ * DocsPage — in-app documentation browser.
+ *
+ * Purpose: render the project's documentation tree (docs/*.md) inside the app.
+ * docs.py serves DOCS_ROOT.rglob("*.md") across all of docs/, and this page
+ * parses and displays each document's frontmatter tags. Documents without
+ * frontmatter render with an empty tag list and cannot be found by tag search
+ * — that is a real user-visible cost, which is why app-served documents under
+ * docs/knowledge/ are tagged per-document rather than bulk-tagged (see
+ * decision-log D12).
+ *
+ * Docs map note: docs/README.md is the authoritative directory index and is
+ * verified by tools/check-docs-map.py (pre-commit hook). Do not restructure the
+ * docs tree without updating that map — docs.py, the Docs page, and every
+ * [[wiki-link]] resolve by path.
+ *
+ * Non-authoritative dirs: docs/notes/ and docs/scratch/ are not authoritative
+ * (D12). The knowledge library (docs/knowledge-library/) is tag-validated by
+ * tools/validate-knowledge-tags.py.
+ */
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Search,

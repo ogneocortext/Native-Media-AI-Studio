@@ -1,3 +1,18 @@
+/**
+ * AnimationStudio — animation timeline and playback control.
+ *
+ * Purpose: the animation studio. Lets the user build, preview, and export
+ * animations (keyframes, camera moves, Ken Burns, GSAP/CSS/WAAPI-driven
+ * motion) synced to an audio track. The timeline is the source of truth for
+ * clip timing and track layout.
+ *
+ * Audio sync: animations are driven by the track's analysis (beats, downbeats,
+ * energy curve). When reading the track list this page uses useAudioLibrary()
+ * only — not listAudioFiles() (AGENTS.md D16).
+ *
+ * Export path: finished animations can be exported as video frames and fed
+ * into the Remotion composite step of the music-video pipeline.
+ */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Play,

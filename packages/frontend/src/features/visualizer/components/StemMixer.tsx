@@ -108,6 +108,104 @@ function gainMapToLinear(dbMap: Record<StemName, number>): Record<StemName, numb
   };
 }
 
+/** Per-stem honesty metrics computed from a short audio sample.
+ *
+ * Bleed = energy in a stem's "wrong" frequency bands (e.g. bass rumble in the
+ * vocals stem means the vocal MDX-Net didn't fully remove the low end).
+ * Frequency purity = how much energy sits in the stem's expected band.
+ * Mono-compatible = waveform is roughly symmetric (no extreme phase offset).
+ *
+ * Computed once when each stem loads; cheap enough to run on the AnalyserNode's
+ * time-domain buffer without blocking the render thread.
+ */
+export interface StemQuality {
+  bleedScore: number;        // 0-1, higher = more cross-stem bleed
+  frequencyPurity: number;   // 0-1, how much energy is in expected band
+  monoCompatible: boolean;   // false = likely phase/mono problem
+  warning: string | null;    // human-readable warning, null when clean
+}
+
+/** Expected frequency band (Hz) for each stem — where most of its energy
+ *  should live. Energy outside these bands suggests bleed from other stems. */
+const STEM_EXPECTED_BAND: Record<StemName, [number, number]> = {
+  vocals: [300, 3000],   // voice fundamental + formants
+  drums:  [60, 250],     // kick + snare body
+  bass:   [40, 200],     // bass guitar / synth fundamental
+  other:  [200, 4000],   // guitars, keys, pads
+};
+
+/** FFT bin index for a frequency, given the analyser's sample rate and fftSize. */
+function freqToBin(freq: number, sampleRate: number, fftSize: number): number {
+  const nyq = sampleRate / 2;
+  return Math.min(Math.floor((freq / nyq) * (fftSize / 2)), fftSize / 2 - 1);
+}
+
+/** Sum analyser frequency-bin energy within [loHz, hiHz], normalized 0-1. */
+function bandEnergy(
+  freqs: Uint8Array,
+  sampleRate: number,
+  fftSize: number,
+  loHz: number,
+  hiHz: number,
+): number {
+  const lo = freqToBin(loHz, sampleRate, fftSize);
+  const hi = freqToBin(hiHz, sampleRate, fftSize);
+  let sum = 0;
+  let count = 0;
+  for (let i = lo; i <= hi; i++) {
+    sum += freqs[i] / 255;
+    count++;
+  }
+  return count > 0 ? sum / count : 0;
+}
+
+/** Compute stem quality metrics from one snapshot of analyser data.
+ *
+ * Called once per stem after load. Not frame-accurate (we only need a
+ * directional honesty signal), so a single buffer is enough.
+ */
+export function computeStemQuality(
+  name: StemName,
+  timeDomain: Uint8Array,
+  freqDomain: Uint8Array,
+  sampleRate: number,
+  fftSize: number,
+): StemQuality {
+  const [lo, hi] = STEM_EXPECTED_BAND[name];
+  const inBand = bandEnergy(freqDomain, sampleRate, fftSize, lo, hi);
+  const outOfBand = Math.max(
+    bandEnergy(freqDomain, sampleRate, fftSize, 20, lo),
+    bandEnergy(freqDomain, sampleRate, fftSize, hi, 20000),
+  );
+  const frequencyPurity = inBand + outOfBand > 0 ? inBand / (inBand + outOfBand) : 0;
+  const bleedScore = Math.min(1, outOfBand / Math.max(inBand, 0.01));
+
+  // Mono-compatible: waveform roughly centered (no huge DC offset / asymmetry).
+  let sum = 0;
+  let absSum = 0;
+  for (let i = 0; i < timeDomain.length; i++) {
+    const v = (timeDomain[i] - 128) / 128;
+    sum += v;
+    absSum += Math.abs(v);
+  }
+  const dcOffset = Math.abs(sum / timeDomain.length);
+  const monoCompatible = dcOffset < 0.05 && absSum > 0.001;
+
+  let warning: string | null = null;
+  if (bleedScore > 0.4) {
+    warning = `Stem "${name}" has significant bleed from other instruments — try the hierarchical mode or a different model.`;
+  } else if (bleedScore > 0.25) {
+    warning = `Stem "${name}" shows minor bleed — usable but not pristine.`;
+  }
+  if (!monoCompatible && !warning) {
+    warning = `Stem "${name}" may have phase/mono-compatibility issues.`;
+  } else if (!monoCompatible && warning) {
+    warning += " It may also have phase/mono issues.";
+  }
+
+  return { bleedScore, frequencyPurity, monoCompatible, warning };
+}
+
 export function useStemMixer({
   audioFilename,
   sharedAudioContext,
@@ -115,7 +213,6 @@ export function useStemMixer({
   mainGainRef,
   onLevels,
   onStateChange: _onStateChange,
-  eqPresets,
   separationMode = "single",
   segmentSize,
   vocalExpander: _vocalExpander = false,
@@ -163,6 +260,9 @@ export function useStemMixer({
   const rafRef = useRef<number>(0);
   const startedRef = useRef(false);
   const trackRef = useRef<string | null>(null);
+  const stemQualityRef = useRef<Record<StemName, StemQuality> | undefined>(
+    undefined,
+  );
 
   // New track → drop previous stems/graph so nothing stale survives a switch.
   useEffect(() => {
@@ -330,9 +430,11 @@ export function useStemMixer({
   // never restarts when the parent re-renders with a new arrow function.
   const onLevelsRef = useRef(onLevels);
   onLevelsRef.current = onLevels;
+  const qualityComputedRef = useRef(false);
   useEffect(() => {
     const tick = () => {
       const levels: StemLevels = { vocals: 0, drums: 0, bass: 0, other: 0 };
+      const ctx = ctxRef.current;
       for (const stem of loadedRef.current) {
         stem.analyser.getByteTimeDomainData(stem.buf);
         let sum = 0;
@@ -340,7 +442,26 @@ export function useStemMixer({
           const v = (stem.buf[i] - 128) / 128;
           sum += v * v;
         }
-        levels[stem.name] = Math.min(1, Math.sqrt(sum / stem.buf.length) * 2.5);
+        const rms = Math.sqrt(sum / stem.buf.length);
+        levels[stem.name] = Math.min(1, rms * 2.5);
+        // Compute honesty metrics once, on the first tick with real audio.
+        if (!qualityComputedRef.current && ctx && rms > 0.005) {
+          if (!stemQualityRef.current) {
+            stemQualityRef.current = {} as Record<StemName, StemQuality>;
+          }
+          const freqs = new Uint8Array(stem.analyser.frequencyBinCount);
+          stem.analyser.getByteFrequencyData(freqs);
+          stemQualityRef.current[stem.name] = computeStemQuality(
+            stem.name,
+            stem.buf,
+            freqs,
+            ctx.sampleRate,
+            stem.analyser.fftSize,
+          );
+        }
+      }
+      if (!qualityComputedRef.current && loadedRef.current.length > 0) {
+        qualityComputedRef.current = true;
       }
       if (onLevelsRef.current) onLevelsRef.current(levels);
       rafRef.current = requestAnimationFrame(tick);
@@ -459,18 +580,6 @@ export function useStemMixer({
     [],
   );
 
-  const applyStemEQPreset = useCallback(
-    (name: StemName, presetName: string) => {
-      const preset = eqPresets?.[presetName] || DEFAULT_EQ_PRESETS[presetName];
-      if (!preset) return;
-      setStemEQ(
-        name,
-        preset.map((b) => ({ ...b })),
-      );
-    },
-    [eqPresets, setStemEQ],
-  );
-
   // Expose per-stem EQ presets through the hook return.
   return {
     stems,
@@ -481,13 +590,13 @@ export function useStemMixer({
     mixPreset,
     muted,
     eqBands,
+    stemQuality: (stemQualityRef.current || {}) as Record<StemName, StemQuality>,
     setVolumeDb,
     resetStem,
     applyPreset,
     resetGains,
     toggleMute,
     setStemEQ,
-    applyStemEQPreset,
     ensureStems,
     syncTransport,
   };
@@ -518,6 +627,7 @@ export function StemMixerPanel({
     mixPreset,
     muted,
     eqBands,
+    stemQuality,
     setVolumeDb,
     resetStem,
     applyPreset,
@@ -598,6 +708,11 @@ export function StemMixerPanel({
             unavailable
           </span>
         ) : null}
+        {Object.values(stemQuality).some((q) => q.warning) && (
+          <span className="text-[10px] text-amber-300 ml-2" title={Object.values(stemQuality).map((q) => q.warning).filter(Boolean).join(" • ")}>
+            ⚠ stem bleed
+          </span>
+        )}
       </div>
 
       <div id="stem-mixer-body" hidden={!bodyOpen} className="mt-2">

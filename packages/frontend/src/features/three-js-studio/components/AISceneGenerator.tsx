@@ -1,3 +1,20 @@
+/**
+ * AISceneGenerator — AI-driven 3D scene generation for the Three.js studio.
+ *
+ * Purpose: generate a 3D scene from a text prompt within the Three.js studio.
+ * The user describes a scene (character, environment, lighting), the backend
+ * produces a scene description / GLTF reference, and this component renders it
+ * in the Three.js canvas (@react-three/fiber). Used by the music-video
+ * pipeline to place generated geometry into a shot.
+ *
+ * Three.js stack (Guidelines.md v3 §2.2): @react-three/fiber +
+ * @react-three/drei, WebGPU accelerated with TSL (Three Shading Language),
+ * WebGL2 fallback via WebGLNodesHandler.
+ *
+ * Backend endpoints used (see services/api): image/3D generation endpoints.
+ * A field rename on the backend request/response models shows up as a type
+ * error here rather than undefined at runtime.
+ */
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Sparkles,

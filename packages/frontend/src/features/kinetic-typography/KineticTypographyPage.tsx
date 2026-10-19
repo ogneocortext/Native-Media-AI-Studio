@@ -1,3 +1,24 @@
+/**
+ * KineticTypographyPage — kinetic-typography lyric video builder.
+ *
+ * Purpose: build a lyric/kinetic-typography video from an audio track. Picks a
+ * song from the shared media library, loads its separated stems and analysis
+ * (beats/sections), chooses a kinetic preset, edits the lyric lines, and
+ * renders through the video backend.
+ *
+ * Audio-library rule (AGENTS.md D16): this page reads the track list from
+ * useAudioLibrary() only. Do NOT call listAudioFiles() from this component —
+ * that function has exactly one caller (the store). Six pages used to each call
+ * listAudioFiles() with their own hash-stripping regex; two regexes leaked a
+ * raw sha256[:8] prefix into 12 of 58 rows, so names rendered with a visible
+ * hash. Render optionLabel and never re-derive a track name with a local regex.
+ *
+ * Backend endpoints used (see services/api): audio file listing, stem
+ * separation, analysis lookup, and /api/video/generate-section for rendering.
+ * Audio analysis results carry ANALYSIS_SCHEMA_VERSION (currently 2 in
+ * backend app/api/audio_analysis.py); treat results below the current schema
+ * as stale rather than serving them forever.
+ */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Play,

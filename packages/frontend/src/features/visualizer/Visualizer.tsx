@@ -1,3 +1,34 @@
+/**
+ * Visualizer — main 2D/3D audio-reactive visualizer page.
+ *
+ * Purpose: the studio's visualizer. Renders an audio-reactive scene (Three.js
+ * @react-three/fiber 3D lane plus a Canvas2D 2D lane) driven by the track's
+ * analysis (beats, downbeats, energy curve, spectral curves, sections) and LRC
+ * lyrics sync. Owns the track picker, playback transport, style presets, EQ
+ * bands, and capture/export controls.
+ *
+ * Module split (AGENTS.md D14): Visualizer.tsx used to be a 2,318-line
+ * monolith mixing pure helpers, canvas capture, the Web Audio graph, track
+ * selection, preset application, and JSX. Pure helpers now live in sibling
+ * modules (canvas2dHelpers, canvas2dModeBudget, audioEQ, trackConceptAnalyzer,
+ * useLrcSync, useSpectralTimeline, services/analysisAudioFrame,
+ * services/frameAccurateExport). Capture and audio-graph lifecycles live in
+ * hooks that own their own teardown. New visualizer work should go in the
+ * matching module rather than growing this file.
+ *
+ * Audio-context rule (D4/D14): only one AudioContext may exist per visualizer
+ * page. useAudioGraph.ensureAudioContext is the single creation site within
+ * the visualizer. BeatTimeline and the StemMixer fallback still construct
+ * their own outside the visualizer — app-wide consolidation is open (D14).
+ *
+ * Audio-library rule (D16): the track list comes from useAudioLibrary() only.
+ * Do NOT call listAudioFiles() from this component.
+ *
+ * Backend endpoints used: ensureAnalysis, getStemsAnalysis (services/api).
+ * Analysis results carry ANALYSIS_SCHEMA_VERSION (currently 2 in
+ * backend app/api/audio_analysis.py); treat results below the current schema
+ * as stale.
+ */
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";

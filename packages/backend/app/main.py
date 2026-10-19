@@ -529,10 +529,12 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 from .api import (  # noqa: E402
     audio,
     audio_edit,
+    audio_mastering,
     audio_remix,
     audio_stems,
     comfyui,
     data,
+    database_admin,
     docs,
     gen3d,
     hardware,
@@ -578,12 +580,17 @@ app.include_router(audio_edit.router)
 # Same trap - an unregistered router loses every route silently, because
 # OpenAPI is built from decorators and never runs a handler body.
 app.include_router(audio_remix.router)
+# Mastering (/api/audio/master, /api/audio/master/measure/{filename}) is its
+# own module for the same reason as audio_stems/audio_edit: same /api/audio
+# prefix, unregistered router = silently dropped routes.
+app.include_router(audio_mastering.router)
 app.include_router(transcription.router)
 app.include_router(lyrics.router)
 app.include_router(comfyui.router)
 app.include_router(logs.router)
 app.include_router(log_analytics.router)
 app.include_router(data.router)
+app.include_router(database_admin.router)
 app.include_router(video.router)
 app.include_router(vision.router)
 app.include_router(native_open.router)

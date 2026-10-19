@@ -20,6 +20,7 @@ generated from decorators and never executes the handler body. Importing the
 module is not enough either - py_compile does not resolve names. Exercise the
 endpoints.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -56,6 +57,7 @@ router = APIRouter(prefix="/api/audio", tags=["Audio"])
 
 class StemSeparationResponse(BaseModel):
     """Response model for audio stem separation."""
+
     success: bool
     audio_file: str
     model: str
@@ -74,6 +76,7 @@ async def separate_audio(
     segment_size: int | None = None,
     overlap: float | None = None,
     denoise: bool | None = None,
+    preset: str | None = None,
 ) -> StemSeparationResponse:
     """Separate an uploaded audio file into isolated stems.
 
@@ -107,17 +110,19 @@ async def separate_audio(
                 saved_path.unlink(missing_ok=True)
                 raise HTTPException(
                     status_code=413,
-                    detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)} MB",
+                    detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)} MB",
                 )
             buffer.write(chunk)
 
     try:
         from ..services.source_separation import SeparationOptions, source_separator
+
         opts = SeparationOptions(
             model=model,
             segment_size=segment_size,
             overlap=overlap,
             denoise=denoise,
+            preset=preset,
         )
         result = await source_separator.separate(
             audio_path=str(saved_path),
@@ -145,6 +150,7 @@ async def separate_audio(
 async def get_stems(filename: str) -> dict:
     """Get previously separated stems for an audio file, if available."""
     import urllib.parse
+
     filename = urllib.parse.unquote(filename)
     stem_dir = find_stem_dir(filename)
     stems = {}
@@ -200,7 +206,11 @@ async def get_stems_status() -> dict:
         return {"tracks": tracks}
     try:
         for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
-            if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith("."):
+            if (
+                f.is_file()
+                and f.suffix.lower() in ALLOWED_EXTENSIONS
+                and not f.name.startswith(".")
+            ):
                 relative = f.relative_to(AUDIO_DIR).as_posix()
                 stem_dir = find_stem_dir(relative)
                 stems: list[str] = []
@@ -216,12 +226,14 @@ async def get_stems_status() -> dict:
 
 class SeparateFileRequest(BaseModel):
     """Separate an existing library file (no re-upload)."""
+
     filename: str
     model: str = "mdx_extra_q"
     mode: str = "single"  # "single" | "hierarchical"
     segment_size: int | None = None
     overlap: float | None = None
     denoise: bool | None = None
+    preset: str | None = None
 
 
 @router.post("/separate-file", response_model=StemSeparationResponse)
@@ -237,10 +249,15 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
         raise HTTPException(status_code=400, detail="Invalid filename")
     if body.model not in SourceSeparator.SUPPORTED_MODELS:
         raise HTTPException(
-            status_code=400, detail=f"Unknown model: {body.model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}"
+            status_code=400,
+            detail=f"Unknown model: {body.model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}",
         )
     path = (AUDIO_DIR / body.filename).resolve()
-    if not str(path).startswith(str(AUDIO_DIR.resolve())) or not path.exists() or not path.is_file():
+    if (
+        not str(path).startswith(str(AUDIO_DIR.resolve()))
+        or not path.exists()
+        or not path.is_file()
+    ):
         raise HTTPException(status_code=404, detail=f"Audio file not found: {body.filename}")
     if path.suffix.lower() not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Invalid file type: {path.suffix}")
@@ -269,6 +286,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
             segment_size=body.segment_size,
             overlap=body.overlap,
             denoise=body.denoise,
+            preset=body.preset,
         )
         result = await source_separator.separate(
             audio_path=str(path),
@@ -306,7 +324,9 @@ async def get_separation_job(job_id: str):
             "stems": job.result.stems if job.result else {},
             "stems_mp3": job.result.stems_mp3 if job.result else {},
             "duration": job.result.duration if job.result else 0.0,
-        } if job.result else None,
+        }
+        if job.result
+        else None,
     }
 
 
@@ -351,11 +371,15 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
             break
 
     if not stem_path:
-        raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first",
+        )
 
     if format == "mp3" and stem_path.suffix.lower() != ".mp3":
         # Lazy encode: stems separated before MP3 support have WAV only.
         from ..services.source_separation import encode_wav_to_mp3
+
         if wav_path is None:
             for model_dir in sorted(SEPARATION_DIR.iterdir()):
                 if not model_dir.is_dir():
@@ -370,19 +394,26 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
                 stem_path = encoded
 
     if not stem_path.exists():
-        raise HTTPException(status_code=404, detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first",
+        )
 
     media_type = "audio/mpeg" if format == "mp3" else "audio/wav"
-    return FileResponse(str(stem_path), media_type=media_type, filename=f"{safe_track}_{stem_name}.{format}")
+    return FileResponse(
+        str(stem_path), media_type=media_type, filename=f"{safe_track}_{stem_name}.{format}"
+    )
 
 
 class StemVisualizationRequest(BaseModel):
     """Request model for stem-reactive visualization data (A5)."""
+
     filename: str
 
 
 class StemVisualizationResponse(BaseModel):
     """Response model for stem-reactive visualization data."""
+
     stems: dict[str, Any]
     separated: bool
     uniforms: dict[str, Any]
@@ -399,11 +430,13 @@ async def stem_visualization(body: StemVisualizationRequest) -> StemVisualizatio
     """
     try:
         from urllib.parse import unquote
+
         filename = unquote(body.filename)
         if ".." in filename or filename.startswith("/"):
             raise HTTPException(status_code=400, detail="Invalid filename")
 
         from ..services.stem_visualization import get_stem_visualization_uniforms
+
         data = await get_stem_visualization_uniforms(filename)
         return StemVisualizationResponse(**data)
     except HTTPException:
@@ -415,6 +448,7 @@ async def stem_visualization(body: StemVisualizationRequest) -> StemVisualizatio
 
 class EnhanceStemsRequest(BaseModel):
     """Request model for enhancing separated stems."""
+
     filename: str
     model: str = "mdx_extra_q"
     target_peak_dbfs: float = -1.0
@@ -445,6 +479,7 @@ class EnhanceStemsRequest(BaseModel):
 
 class EnhanceStemsResponse(BaseModel):
     """Response model for stem enhancement."""
+
     success: bool
     input_filename: str
     model: str
@@ -476,8 +511,12 @@ async def enhance_stems(body: EnhanceStemsRequest) -> EnhanceStemsResponse:
 
     model = body.model or "mdx_extra_q"
     from ..services.source_separation import SourceSeparator
+
     if model not in SourceSeparator.SUPPORTED_MODELS:
-        raise HTTPException(status_code=400, detail=f"Unknown model: {model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown model: {model}. Choose: {', '.join(SourceSeparator.SUPPORTED_MODELS)}",
+        )
 
     stem_info = await get_stems(filename)
     stems_dir: Path | None = None
@@ -496,6 +535,7 @@ async def enhance_stems(body: EnhanceStemsRequest) -> EnhanceStemsResponse:
 
     from app.services.suno_enhancer import EnhanceConfig
     from app.services.suno_enhancer import enhance_stems as _enhance
+
     cfg = EnhanceConfig(
         target_peak_dbfs=body.target_peak_dbfs,
         attack_ms=body.attack_ms,
@@ -532,6 +572,7 @@ async def enhance_stems(body: EnhanceStemsRequest) -> EnhanceStemsResponse:
     try:
         if wav_path and wav_path.exists():
             import wave
+
             with wave.open(str(wav_path), "rb") as wf:
                 duration = round(wf.getnframes() / max(wf.getframerate(), 1), 3)
     except Exception:

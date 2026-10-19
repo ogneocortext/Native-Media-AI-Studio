@@ -1,3 +1,21 @@
+/**
+ * VideoGenerationPage — render a video section from audio + prompt.
+ *
+ * Purpose: generate a video section (or full kinetic-typography video) for a
+ * track. The user supplies a prompt, picks audio, chooses backend
+ * (comfyui / visualization), steps, cfg, seed, duration, and section, then
+ * submits to /api/video/generate-section and polls the job queue for the
+ * result.
+ *
+ * Backend endpoint: POST /api/video/generate-section (see
+ * services/api/audio.ts:generateVideoSection). Returns a job_id; the client
+ * polls the queue/SSE for completion. The request body mirrors
+ * VideoGenerateRequest exactly, so a field rename on the backend shows up as a
+ * type error here rather than undefined at runtime.
+ *
+ * Audio-library rule (AGENTS.md D16): when picking a track this page reads the
+ * list through useAudioLibrary() only — not listAudioFiles().
+ */
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Film,

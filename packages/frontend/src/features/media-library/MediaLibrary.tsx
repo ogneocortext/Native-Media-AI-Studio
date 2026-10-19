@@ -1,3 +1,22 @@
+/**
+ * MediaLibrary — browser for generated/output files in output/.
+ *
+ * Purpose: the media-library page. Lists files under output/ (audio, video,
+ * images, 3D models), shows per-file metadata (size, modified time), and lets
+ * the user open a file in Blender or Unity, probe it, extract its audio,
+ * regenerate its cover, or ensure an analysis exists. Driven by outputStore
+ * plus the media backend endpoints (probeMedia, getMediaLoudness,
+ * getMediaWaveform, extractThumbnailAtTime, regenerateAudioCover,
+ * ensureAnalysis).
+ *
+ * Audio-library rule (AGENTS.md D16): when this page needs the track list it
+ * reads it through useAudioLibrary() only. Do NOT call listAudioFiles() from
+ * this component — that function has exactly one caller (the store). Six pages
+ * used to each call listAudioFiles() with their own hash-stripping regex;
+ * two regexes leaked a raw sha256[:8] prefix into 12 of 58 rows, so names
+ * rendered with a visible hash. Render optionLabel and never re-derive a track
+ * name with a local regex.
+ */
 import React, { useState, useEffect, useMemo, useDeferredValue, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOutputStore, OutputFile } from "../../state/outputStore";

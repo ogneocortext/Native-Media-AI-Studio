@@ -1,3 +1,22 @@
+/**
+ * ShaderVisualizer — shader lane of the visualizer (WebGPU/TSL shaders).
+ *
+ * Purpose: the WebGL2/WebGPU shader half of the visualizer. Applies shader
+ * presets (per shaderPresets) to an audio-reactive canvas, driven by the
+ * track's analysis. Exports a ShaderFrameAccurateApi so the frame-accurate
+ * exporter can drive shader time synchronously.
+ *
+ * Module split (AGENTS.md D14): shader presets live in ./shaders and
+ * ./shaderPresets; preferences (getPreferences/setPreference) live in
+ * services/api. Keep new shader logic in those modules rather than here.
+ *
+ * Three.js stack (Guidelines.md v3 §2.2): WebGPU accelerated with TSL,
+ * WebGL2 fallback via WebGLNodesHandler.
+ *
+ * Audio-library rule (D16): this component receives its audio data as props;
+ * it does not read the library itself. The caller (Visualizer) uses
+ * useAudioLibrary() only — not listAudioFiles().
+ */
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { ShaderCanvas } from "./components/ShaderCanvas";
 import { SHADER_PRESETS, type ShaderPresetName } from "./shaders";

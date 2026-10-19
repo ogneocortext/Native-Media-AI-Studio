@@ -1,3 +1,31 @@
+/**
+ * Frontend client for /api/audio — upload, analysis, stems, editing, file serving.
+ *
+ * Backend mapping (per AGENTS.md D15: /api/audio is four peer modules, not one):
+ *   audio.py          uploadAudioFile, separateAudioStems, getAnalysis,
+ *                     ensureAnalysis, analyzeAudio, analyzeAudioCuda,
+ *                     getAnalysisResult, getTimingMetadata, getAnalysisSummary,
+ *                     analyzeAllPending, getAvailableAudioBackends
+ *   audio_stems.py    getAudioStems, enhanceStems
+ *   audio_edit.py     renameAudioFile, trimAudioFile, extractVideoAudio
+ *   audio_remix.py    (see services/api/remix.ts — separate module)
+ *
+ * Endpoint traps an agent should know before adding or changing a call here:
+ *   - listAudioFiles() is intentionally thin. Components must NOT call it
+ *     directly — read the library through useAudioLibrary() instead
+ *     (hooks/useAudioLibrary + state/audioLibraryStore). Six pages used to
+ *     each call listAudioFiles() with their own hash-stripping regex; two
+ *     regexes leaked a raw sha256 prefix into 12 of 58 rows.
+ *   - enhanceStems() hits /api/audio/enhance-stems, which resolves a library
+ *     filename under output/audio/ and 404s for a remix. To master a remix use
+ *     POST /api/audio/remix/{name}/enhance via remix.ts instead.
+ *   - Analysis results carry ANALYSIS_SCHEMA_VERSION (currently 2 in
+ *     audio_analysis.py). A stale cached result can be served forever unless
+ *     the caller treats results below the current schema as stale.
+ *
+ * Shape mirrors the backend request/response models exactly, so a field rename
+ * on either side shows up as a type error rather than as undefined at runtime.
+ */
 import { getApiBase, withDirectBackendFallback } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
 

@@ -1,3 +1,29 @@
+/**
+ * AudioAnalysisPage — upload, analyze, and visualize a single audio track.
+ *
+ * Purpose: the analysis dashboard. Lets the user upload a track (or pick one
+ * from the shared media library), run analysis through a backend backend
+ * (sonara / librosa / madmom / essentia / CUDA), then inspect the result:
+ * tempo, beats, downbeats, energy curve, spectral curves, detected sections,
+ * and visualization/kinetic-preset suggestions.
+ *
+ * Audio-library rule (AGENTS.md D16): this page must read the track list from
+ * useAudioLibrary() only. Do NOT call listAudioFiles() from this component —
+ * that function has exactly one caller (the store). Six pages used to each call
+ * listAudioFiles() with their own hash-stripping regex; two regexes leaked a
+ * raw sha256[:8] prefix into 12 of 58 rows, so names rendered with a visible
+ * hash. Render optionLabel and never re-derive a track name with a local regex.
+ *
+ * Backend endpoints used (see services/api/audio.ts for the full client):
+ *   POST /api/audio/upload, POST /api/audio/analyze, POST /api/audio/analyze-cuda,
+ *   POST /api/audio/ensure-analysis, POST /api/audio/separate,
+ *   GET  /api/audio/stems-status, GET /api/audio/video/generate-section
+ *
+ * CUDA note: analyzeAudioCuda() routes to the CUDA-accelerated backend. When
+ * CUDA is unavailable the backend falls back to CPU (~300x slower on the same
+ * file), so the UI gates the CUDA toggle behind getCudaStatus() rather than
+ * assuming GPU is present.
+ */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AudioTransport } from "../../components/audio";
 import {

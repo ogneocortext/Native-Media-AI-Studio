@@ -1,3 +1,22 @@
+/**
+ * StoryboardPage — storyboard creation from audio sections.
+ *
+ * Purpose: build a storyboard for a music video. Picks a track from the shared
+ * media library, loads its analysis (sections, beats, energy curve), and lays
+ * out section cards the user can edit, reorder, and export as a storyboard JSON
+ * consumed by the Unity/Blender render steps.
+ *
+ * Audio-library rule (AGENTS.md D16): this page reads the track list from
+ * useAudioLibrary() only. Do NOT call listAudioFiles() from this component —
+ * that function has exactly one caller (the store). Six pages used to each call
+ * listAudioFiles() with their own hash-stripping regex; two regexes leaked a
+ * raw sha256[:8] prefix into 12 of 58 rows, so names rendered with a visible
+ * hash. Render optionLabel and never re-derive a track name with a local regex.
+ *
+ * Backend endpoints used (see services/api): audio file listing, analysis
+ * lookup (GET /api/audio/analysis/by-filename and the summary endpoint), and
+ * the video/estimate-cost endpoint for render cost preview.
+ */
 import React, { useState, useEffect, useCallback } from "react";
 import {
   BookOpen,

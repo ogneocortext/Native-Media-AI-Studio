@@ -1,3 +1,20 @@
+/**
+ * MusicPromptGenerator — generate music prompts for generation workflows.
+ *
+ * Purpose: help the user write prompts for music/audio generation (ACE Step,
+ * Stable Audio, etc.). Takes a rough idea and expands it into a structured
+ * prompt with style, mood, instrumentation, and section hints, then can send it
+ * to a music-generation backend.
+ *
+ * Backend endpoint used: getApiBase + music-generation endpoints (services/api).
+ * The request/response shape mirrors the backend models exactly, so a field
+ * rename on either side shows up as a type error rather than undefined at
+ * runtime.
+ *
+ * Ollama note: text drafting may route through the local Ollama stack
+ * (gemma4/qwen3.5). The VRAM budget is 8 GB (GTX 1070 Ti, decision-log D7) —
+ * only one model task at a time; do not assume a GPU model is resident.
+ */
 import { useEffect, useId, useState } from "react";
 import { Loader2, Music4, Copy, Check, Sparkles } from "lucide-react";
 import { Card } from "../../components/common";

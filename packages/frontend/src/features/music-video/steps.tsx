@@ -1,3 +1,18 @@
+/**
+ * steps.tsx — music-video wizard step components.
+ *
+ * Purpose: the multi-step wizard that walks a user through creating a music
+ * video (pick track → choose style → plan scenes → generate → review). Each
+ * step is a self-contained form; the wizard state is held by MusicVideoWizard
+ * and the steps only read/write that shared state.
+ *
+ * Audio-library rule (AGENTS.md D16): when a step needs the track list it
+ * reads useAudioLibrary() only — not listAudioFiles().
+ *
+ * Backend endpoints used (see services/api): audio file listing, analysis
+ * lookup, and the video-generation endpoints. The request/response shapes
+ * mirror the backend models exactly.
+ */
 import React, { useState, useRef, useMemo } from "react";
 import { AudioTransport } from "../../components/audio";
 import { lintVideoPrompt } from "../../utils/promptLint";

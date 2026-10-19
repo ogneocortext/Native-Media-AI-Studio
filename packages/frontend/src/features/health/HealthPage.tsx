@@ -1,3 +1,21 @@
+/**
+ * HealthPage — service health dashboard.
+ *
+ * Purpose: show the health of every service in the studio — backend, ComfyUI,
+ * Ollama, and the Go sidecars (go-dashboard :3847, go-gateway :3850,
+ * go-worker :3849, go-media :3848, go-ports :3851). Surface GPU/VRAM status,
+ * recent logs, and service uptime so an operator can tell at a glance whether
+ * a render failure is a backend issue, a GPU issue, or a downstream adapter
+ * issue.
+ *
+ * Ports note (decision-log D6): service ports are fixed (3847–3851) while the
+ * backend/frontend resolve dynamically via config/ports.json. Do not hardcode
+ * ports here.
+ *
+ * ComfyUI debugging: a deep ComfyUI queue plus a 300s timeout looks like
+ * "ComfyUI is broken" but usually is not. Check ComfyUI's /history durations
+ * (tools/comfyui-queue-report.py) before concluding ComfyUI is wedged.
+ */
 import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge, LoadingSpinner } from "../../components/common";
 import {

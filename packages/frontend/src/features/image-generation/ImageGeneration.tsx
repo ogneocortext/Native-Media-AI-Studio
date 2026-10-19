@@ -1,3 +1,18 @@
+/**
+ * ImageGeneration — generate images from prompts.
+ *
+ * Purpose: the image-generation page. The user supplies a prompt, optional
+ * negative prompt, steps, cfg, seed, and dimensions, then submits to the
+ * image-generation backend and polls for the result image.
+ *
+ * Backend endpoint used (see services/api): image-generation endpoints. The
+ * request/response shape mirrors the backend models exactly, so a field rename
+ * on either side shows up as a type error rather than undefined at runtime.
+ *
+ * Ollama/ComfyUI note: image generation may route through the local ComfyUI
+ * (port 8188) or Ollama stack. VRAM budget is 8 GB (GTX 1070 Ti, decision-log
+ * D7) — only one model task at a time; do not assume a model is resident.
+ */
 import React, { useState, useCallback, useEffect } from "react";
 import {
   Image,

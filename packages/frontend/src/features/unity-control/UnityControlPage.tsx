@@ -1,3 +1,21 @@
+/**
+ * UnityControlPage — Unity Editor control surface via MCP.
+ *
+ * Purpose: control the Unity Editor (unity-project-mcp) from the studio. Scene
+ * creation, GameObject management, animation, and rendering go through the
+ * Unity MCP bridge (node tools/mcp/unity-mcp-bridge.mjs, REST on port 7800).
+ * The bridge is disabled in the Kilo/Cline MCP configs until Unity Editor is
+ * running with the project open (scripts/start-unity-headless.ps1); it becomes
+ * usable once Unity is up — the port file it reads outlives a crash, so a
+ * crashed Unity can leave a stale port file.
+ *
+ * This page does not start Unity itself; it assumes an Editor session is
+ * already reachable. Calls that fail because Unity is not running should be
+ * surfaced as "start Unity first" rather than silent failures.
+ *
+ * Backend/integration: Unity MCP bridge over HTTP (localhost:7800). The
+ * comfyui-mcp sidebar panel is a separate concern — do not confuse the two.
+ */
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,

@@ -8,11 +8,14 @@ Or for lighter weight: pip install spleeter
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,6 +27,29 @@ logger = logging.getLogger(__name__)
 
 SEPARATION_DIR = PROJECT_ROOT / "output" / "stems"
 SEPARATION_DIR.mkdir(parents=True, exist_ok=True)
+
+# Idempotency cache: identical (audio content + model + params) skips GPU.
+# Cache key = sha256 of file bytes + model + shifts + segment_size + overlap.
+CACHE_DIR = SEPARATION_DIR / ".cache"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Telemetry: one JSONL record per separation job for "why is this slow"
+# debugging (extends D8 metrics path).
+TELEMETRY_DIR = PROJECT_ROOT / "output" / "logs"
+TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
+TELEMETRY_PATH = TELEMETRY_DIR / "stem-telemetry.json"
+
+# Draft/deliverable presets: (model, shifts). Draft = fast, deliverable = high
+# quality (~4x time). Make the cost visible in the UI like D9's estimator.
+PRESETS: dict[str, tuple[str, int]] = {
+    "draft": ("htdemucs", 1),
+    "deliverable": ("htdemucs_ft", 2),
+}
+
+# Pre-separation normalization target (LUFS). Research shows quiet inputs
+# underperform Demucs; normalizing to ~-14 LUFS before separation improves
+# stem quality without changing the separation algorithm.
+NORMALIZE_TARGET_LUFS = -14.0
 
 STEM_NAMES = ("vocals", "drums", "bass", "other")
 
@@ -67,11 +93,210 @@ def clamp_segment_seconds(model: str, segment_size: int | None) -> int | None:
     clamped = int(min(segment_size, max_segment))
     if clamped != segment_size:
         logger.warning(
-            "segment_size=%d s exceeds what %s was trained for "
-            "(max %s s) — capping to %d s",
-            segment_size, model, max_segment, clamped,
+            "segment_size=%d s exceeds what %s was trained for (max %s s) — capping to %d s",
+            segment_size,
+            model,
+            max_segment,
+            clamped,
         )
     return clamped
+
+
+def compute_cache_key(
+    audio_path: str, model: str, shifts: int, segment_size: int | None, overlap: float | None
+) -> str:
+    """Idempotency key for a separation request.
+
+    Hash of the audio file bytes plus all separation parameters. Identical
+    inputs always map to the same key, so a cache hit skips GPU entirely.
+    Changing any parameter (model, shifts, segment_size, overlap) produces
+    a different key and triggers a fresh separation.
+    """
+    h = hashlib.sha256()
+    h.update(Path(audio_path).read_bytes())
+    h.update(model.encode())
+    h.update(str(shifts).encode())
+    h.update(str(segment_size).encode())
+    h.update(str(overlap).encode())
+    return h.hexdigest()
+
+
+def cache_dir_for_key(cache_key: str) -> Path:
+    """Return the cache directory for a given idempotency key."""
+    return CACHE_DIR / cache_key
+
+
+def cached_stems_exist(cache_key: str) -> dict[str, str] | None:
+    """Return cached stem paths if a complete cache entry exists, else None.
+
+    A cache entry is complete when all four stems (vocals, drums, bass,
+    other) exist as WAV files and a manifest.json is present.
+    """
+    d = cache_dir_for_key(cache_key)
+    manifest = d / "manifest.json"
+    if not manifest.exists():
+        return None
+    try:
+        _ = json.loads(manifest.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    stems: dict[str, str] = {}
+    for name in STEM_NAMES:
+        p = d / f"{name}.wav"
+        if not p.exists():
+            return None
+        stems[name] = str(p)
+    return stems
+
+
+def write_cache_entry(
+    cache_key: str,
+    stems: dict[str, str],
+    model: str,
+    shifts: int,
+    duration: float,
+    seconds: float,
+    device: str,
+    normalized: bool,
+) -> None:
+    """Write a complete cache entry: stem WAVs + manifest.json."""
+    d = cache_dir_for_key(cache_key)
+    d.mkdir(parents=True, exist_ok=True)
+    for name, path in stems.items():
+        src = Path(path)
+        dst = d / f"{name}.wav"
+        if not dst.exists() and src.exists():
+            import shutil as _shutil
+
+            _shutil.copy2(src, dst)
+    manifest = {
+        "cache_key": cache_key,
+        "model": model,
+        "shifts": shifts,
+        "duration": duration,
+        "seconds": seconds,
+        "device": device,
+        "normalized": normalized,
+        "stems": {name: str(d / f"{name}.wav") for name in STEM_NAMES},
+    }
+    (d / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+
+def log_telemetry(
+    cache_key: str,
+    filename: str,
+    model: str,
+    shifts: int,
+    seconds: float,
+    device: str,
+    cache_hit: bool,
+    normalized: bool,
+    error: str | None = None,
+) -> None:
+    """Append one JSON record to the stem telemetry log.
+
+    Extends D8's metrics path so "why is this slow" is answerable from
+    structured data: model, shifts, seconds, device, cache hit/miss.
+    """
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "cache_key": cache_key,
+        "filename": Path(filename).name,
+        "model": model,
+        "shifts": shifts,
+        "seconds": round(seconds, 2),
+        "device": device,
+        "cache_hit": cache_hit,
+        "normalized": normalized,
+        "error": error,
+    }
+    try:
+        # Read existing, append, write back (JSON array, not JSONL, for
+        # easy grep/gate consumption).
+        existing: list[dict] = []
+        if TELEMETRY_PATH.exists():
+            try:
+                existing = json.loads(TELEMETRY_PATH.read_text())
+                if not isinstance(existing, list):
+                    existing = []
+            except (json.JSONDecodeError, OSError):
+                existing = []
+        existing.append(record)
+        TELEMETRY_PATH.write_text(json.dumps(existing, indent=2))
+    except OSError as exc:
+        logger.debug("telemetry write failed: %s", exc)
+
+
+async def normalize_audio_lufs(
+    audio_path: str, target_lufs: float = NORMALIZE_TARGET_LUFS
+) -> tuple[str, bool]:
+    """Normalize *audio_path* to *target_lufs* using FFmpeg ebur128 + gain.
+
+    Returns (normalized_path, did_normalize). On any failure returns the
+    original path with did_normalize=False — separation proceeds on the
+    unnormalized input rather than failing.
+
+    Quiet inputs underperform Demucs (research in the mastering doc), so a
+    pre-separation normalize to ~-14 LUFS improves stem quality without
+    changing the separation algorithm. The gain is computed from measured
+    loudness (never asserted) and applied with ffmpeg -af volume.
+    """
+    import asyncio as _asyncio
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        logger.warning("ffmpeg not on PATH — skipping pre-separation normalize")
+        return audio_path, False
+
+    from .ffmpeg_tools import compute_loudness
+
+    loudness = await compute_loudness(audio_path)
+    current_lufs = loudness.get("integrated_lufs")
+    if current_lufs is None:
+        logger.debug("could not measure loudness for %s — skipping normalize", audio_path)
+        return audio_path, False
+
+    gain_db = target_lufs - current_lufs
+    # Clamp to ±12 dB to avoid runaway gain on silent or extreme tracks.
+    gain_db = max(-12.0, min(12.0, gain_db))
+    if abs(gain_db) < 0.25:
+        # Within a quarter-LU of target — no normalize needed.
+        return audio_path, False
+
+    out_path = Path(tempfile.gettempdir()) / (
+        f"norm_{Path(audio_path).stem}_{abs(gain_db):.1f}dB.wav"
+    )
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(audio_path),
+        "-af",
+        f"volume={gain_db}dB",
+        "-c:a",
+        "pcm_f32le",
+        str(out_path),
+    ]
+    try:
+        proc = await _asyncio.to_thread(
+            subprocess.run,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if proc.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0:
+            logger.info(
+                "Pre-separation normalize: %.1f dB -> target %.1f LUFS", gain_db, target_lufs
+            )
+            return str(out_path), True
+        logger.warning("Normalize ffmpeg failed for %s: %s", audio_path, proc.stderr[-200:])
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.warning("Normalize failed for %s: %s", audio_path, exc)
+    return audio_path, False
 
 
 def find_stem_dir(filename: str) -> Path | None:
@@ -136,8 +361,17 @@ def encode_wav_to_mp3(wav_path: Path, mp3_path: Path | None = None) -> Path | No
     mp3_path = mp3_path or wav_path.with_suffix(".mp3")
     try:
         result = subprocess.run(
-            [ffmpeg, "-y", "-i", str(wav_path),
-             "-codec:a", "libmp3lame", "-q:a", "2", str(mp3_path)],
+            [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(wav_path),
+                "-codec:a",
+                "libmp3lame",
+                "-q:a",
+                "2",
+                str(mp3_path),
+            ],
             capture_output=True,
             timeout=300,
         )
@@ -146,14 +380,18 @@ def encode_wav_to_mp3(wav_path: Path, mp3_path: Path | None = None) -> Path | No
         return None
     if result.returncode == 0 and mp3_path.exists():
         return mp3_path
-    logger.warning("MP3 encode failed for %s: %s", wav_path,
-                   result.stderr.decode("utf-8", errors="replace")[-300:])
+    logger.warning(
+        "MP3 encode failed for %s: %s",
+        wav_path,
+        result.stderr.decode("utf-8", errors="replace")[-300:],
+    )
     return None
 
 
 @dataclass
 class SeparationResult:
     """Result of source separation."""
+
     audio_file: str
     model: str
     stems: dict[str, str]
@@ -166,17 +404,21 @@ class SeparationResult:
 @dataclass
 class SeparationOptions:
     """Quality/performance tuning knobs for separation."""
+
     model: str = "mdx_extra_q"
     # demucs --segment, in SECONDS; clamped to the model's
     # trained max by clamp_segment_seconds.
     segment_size: int | None = None
-    overlap: float | None = None      # 0..0.75, higher = slower/better
-    denoise: bool | None = None       # accepted for API compat; demucs has no --denoise flag
+    overlap: float | None = None  # 0..0.75, higher = slower/better
+    denoise: bool | None = None  # accepted for API compat; demucs has no --denoise flag
+    preset: str | None = None  # "draft" | "deliverable" overrides model+shifts
+    shifts: int = 0  # demucs --shifts (0=draft-speed, 2=deliverable-quality)
 
 
 @dataclass
 class SeparationJob:
     """Async separation job (for queue)."""
+
     job_id: str
     audio_path: str
     options: SeparationOptions
@@ -212,10 +454,14 @@ class SourceSeparator:
     # `self.SUPPORTED_MODELS.append(...)` would mutate it for the whole process,
     # since class attributes are shared rather than per-instance.
     SUPPORTED_MODELS: ClassVar[list[str]] = [
-        "htdemucs", "htdemucs_ft", "htdemucs_6s",
-        "mdx_extra", "mdx_extra_q",
+        "htdemucs",
+        "htdemucs_ft",
+        "htdemucs_6s",
+        "mdx_extra",
+        "mdx_extra_q",
         # MDX-Net vocal models (UVR5-style) — lightweight on 8 GB VRAM
-        "UVR-MDX-NET-Voc_FT", "Kim_Vocal_2",
+        "UVR-MDX-NET-Voc_FT",
+        "Kim_Vocal_2",
     ]
 
     def __init__(
@@ -276,11 +522,16 @@ class SourceSeparator:
         if opts.model in ("UVR-MDX-NET-Voc_FT", "Kim_Vocal_2"):
             # MDX-Net vocal-only models: single stem (vocals / instrumental)
             return await self._separate_mdx_net(
-                job.audio_path, opts.model, opts,
+                job.audio_path,
+                opts.model,
+                opts,
             )
         # Default: standard Demucs
         return await self._separate_demucs(
-            job.audio_path, opts.model, self._detect_device(), SEPARATION_DIR,
+            job.audio_path,
+            opts.model,
+            self._detect_device(),
+            SEPARATION_DIR,
             self._find_demucs() or ["demucs"],
             opts,
         )
@@ -336,6 +587,7 @@ class SourceSeparator:
             return self._device
         try:
             import torch
+
             if torch.cuda.is_available():
                 return "cuda"
         except ImportError:
@@ -353,6 +605,7 @@ class SourceSeparator:
             return
         try:
             import torchaudio
+
             backends = torchaudio.list_audio_backends()
             if "soundfile" not in backends:
                 logger.warning(
@@ -381,6 +634,7 @@ class SourceSeparator:
 
     async def _encode_mp3_stems(self, stems: dict[str, str]) -> dict[str, str]:
         """Encode all WAV stems to MP3 in parallel. Best-effort: failures are skipped."""
+
         async def _one(name: str, wav: str) -> tuple[str, Path | None]:
             return name, await asyncio.to_thread(encode_wav_to_mp3, Path(wav))
 
@@ -403,24 +657,124 @@ class SourceSeparator:
             output_dir: Custom output directory.
             mode: "single" (one-shot 4-stem) or "hierarchical" (vocal MDX-Net first,
                   then Demucs on instrumental residual). Hierarchical kills vocal bleed.
-            options: Quality knobs (segment_size, overlap, denoise).
+            options: Quality knobs (segment_size, overlap, denoise, preset, shifts).
 
         Returns:
             SeparationResult with paths to separated stems.
+
+        M2 hardening:
+          - ``preset`` ("draft"/"deliverable") overrides model+shifts.
+          - Idempotency cache: identical (audio + model + params) skips GPU.
+          - Pre-separation normalize to ~-14 LUFS improves Demucs on quiet inputs.
+          - Telemetry logged per job (model/shifts/seconds/device/cache_hit).
         """
         options = options or SeparationOptions(model=model or self._model)
         model = options.model
+        shifts = options.shifts
 
+        # --- M2: preset mapping (draft/deliverable overrides model+shifts) ---
+        if options.preset:
+            if options.preset not in PRESETS:
+                return SeparationResult(
+                    audio_file=audio_path,
+                    model=model,
+                    stems={},
+                    duration=0.0,
+                    computed_at="",
+                    error=f"Unknown preset: {options.preset}. Choose: {', '.join(sorted(PRESETS))}",
+                )
+            preset_model, preset_shifts = PRESETS[options.preset]
+            model = preset_model
+            shifts = preset_shifts
+            options.model = model
+            options.shifts = shifts
+
+        # --- M2: idempotency cache check ---
+        cache_key = compute_cache_key(
+            audio_path,
+            model,
+            shifts,
+            options.segment_size,
+            options.overlap,
+        )
+        cached = cached_stems_exist(cache_key)
+        if cached is not None:
+            log_telemetry(
+                cache_key,
+                audio_path,
+                model,
+                shifts,
+                0.0,
+                self._detect_device(),
+                cache_hit=True,
+                normalized=False,
+            )
+            try:
+                import librosa
+
+                duration = librosa.get_duration(path=audio_path)
+            except Exception:
+                duration = 0.0
+            logger.info(
+                "Cache hit for %s (key=%s) — skipping GPU", Path(audio_path).name, cache_key[:12]
+            )
+            stems_mp3 = await self._encode_mp3_stems(cached)
+            return SeparationResult(
+                audio_file=audio_path,
+                model=model,
+                stems=cached,
+                duration=duration,
+                computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                stems_mp3=stems_mp3,
+            )
+
+        # --- M2: pre-separation normalize to ~-14 LUFS ---
+        normalize_start = time.perf_counter()
+        norm_path, did_normalize = await normalize_audio_lufs(audio_path)
+        normalize_seconds = time.perf_counter() - normalize_start
+
+        # --- Run separation (through the serializing queue) ---
+        start = time.perf_counter()
         if mode == "hierarchical":
-            # Hierarchical runs two models (MDX-Net vocals, then Demucs on the
-            # residual), so it needs MORE of the GPU than single-pass - and it was
-            # previously called directly, outside the queue that exists to serialise
-            # GPU work. Two concurrent hierarchical separations would hold two Demucs
-            # models on an 8 GB card, which is the CUDA OOM the queue prevents.
-            # Enqueue it like any other job rather than adding a second guard.
-            return await self._run_through_queue(audio_path, options, mode="hierarchical")
+            result = await self._run_through_queue(norm_path, options, mode="hierarchical")
+        else:
+            result = await self._run_through_queue(norm_path, options, mode="single")
+        total_seconds = time.perf_counter() - start
 
-        return await self._run_through_queue(audio_path, options, mode="single")
+        # --- M2: write cache entry on success ---
+        if result.stems and not result.error:
+            write_cache_entry(
+                cache_key,
+                result.stems,
+                model,
+                shifts,
+                result.duration,
+                total_seconds,
+                self._detect_device(),
+                normalized=did_normalize,
+            )
+
+        # --- M2: telemetry ---
+        log_telemetry(
+            cache_key,
+            audio_path,
+            model,
+            shifts,
+            total_seconds + normalize_seconds,
+            self._detect_device(),
+            cache_hit=False,
+            normalized=did_normalize,
+            error=result.error,
+        )
+
+        # Clean up the normalized temp file (cache entry already copied stems).
+        if norm_path != audio_path:
+            try:
+                Path(norm_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        return result
 
     async def _run_through_queue(
         self,
@@ -440,10 +794,22 @@ class SourceSeparator:
         while job.status not in ("done", "error") and not job.result:
             await asyncio.sleep(0.5)
         if job.error:
-            return SeparationResult(audio_file=audio_path, model=options.model, stems={},
-                                    duration=0.0, computed_at="", error=job.error)
-        return job.result or SeparationResult(audio_file=audio_path, model=options.model, stems={},
-                                              duration=0.0, computed_at="", error="job returned no result")
+            return SeparationResult(
+                audio_file=audio_path,
+                model=options.model,
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error=job.error,
+            )
+        return job.result or SeparationResult(
+            audio_file=audio_path,
+            model=options.model,
+            stems={},
+            duration=0.0,
+            computed_at="",
+            error="job returned no result",
+        )
 
     async def _separate_hierarchical(
         self,
@@ -457,27 +823,41 @@ class SourceSeparator:
           - segment_size=128 or 256 keeps VRAM under ~6.5 GB.
         """
         vocal_model = "UVR-MDX-NET-Voc_FT"
-        logger.info("Hierarchical separation: step 1 vocal model=%s on %s", vocal_model, Path(audio_path).name)
+        logger.info(
+            "Hierarchical separation: step 1 vocal model=%s on %s",
+            vocal_model,
+            Path(audio_path).name,
+        )
 
         # Step 1: extract vocals + instrumental with MDX-Net
         vocal_result = await self._separate_mdx_net(audio_path, vocal_model, opts)
         if vocal_result.error or not vocal_result.stems:
             return SeparationResult(
-                audio_file=audio_path, model="hierarchical", stems={}, duration=0.0,
-                computed_at="", error=f"vocal extraction failed: {vocal_result.error}",
+                audio_file=audio_path,
+                model="hierarchical",
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error=f"vocal extraction failed: {vocal_result.error}",
             )
 
         instrumental = vocal_result.stems.get("instrumental")
         vocals = vocal_result.stems.get("vocals")
         if not instrumental:
             return SeparationResult(
-                audio_file=audio_path, model="hierarchical", stems={}, duration=0.0,
-                computed_at="", error="MDX-Net did not produce instrumental stem",
+                audio_file=audio_path,
+                model="hierarchical",
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error="MDX-Net did not produce instrumental stem",
             )
 
         # Step 2: run Demucs on the instrumental residual for drums/bass/other
         logger.info("Hierarchical separation: step 2 Demucs on instrumental residual")
-        demucs_model = opts.model if opts.model not in ("UVR-MDX-NET-Voc_FT", "Kim_Vocal_2") else "mdx_extra_q"
+        demucs_model = (
+            opts.model if opts.model not in ("UVR-MDX-NET-Voc_FT", "Kim_Vocal_2") else "mdx_extra_q"
+        )
         residual_result = await self._separate_demucs(
             audio_path=audio_path,
             model=demucs_model,
@@ -499,17 +879,23 @@ class SourceSeparator:
         duration = 0.0
         try:
             import librosa
+
             duration = librosa.get_duration(path=audio_path)
         except Exception:
             pass
 
         return SeparationResult(
-            audio_file=audio_path, model="hierarchical", stems=stems, duration=duration,
+            audio_file=audio_path,
+            model="hierarchical",
+            stems=stems,
+            duration=duration,
             computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
             stems_mp3={},
         )
 
-    async def _run_subprocess_async(self, cmd: list[str], timeout_s: int = 600) -> tuple[int, bytes, bytes]:
+    async def _run_subprocess_async(
+        self, cmd: list[str], timeout_s: int = 600
+    ) -> tuple[int, bytes, bytes]:
         """Run a subprocess, falling back to a thread on Windows SelectorEventLoop.
 
         The fallback is required because ``asyncio.create_subprocess_exec`` raises
@@ -526,9 +912,11 @@ class SourceSeparator:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_s)
             return process.returncode, stdout, stderr
         except NotImplementedError:
+
             def _run() -> tuple[int, bytes, bytes]:
                 completed = subprocess.run(cmd, capture_output=True)
                 return completed.returncode, completed.stdout, completed.stderr
+
             return await asyncio.to_thread(_run)
 
     async def _separate_mdx_net(
@@ -541,8 +929,12 @@ class SourceSeparator:
         demucs = self._find_demucs()
         if not demucs:
             return SeparationResult(
-                audio_file=audio_path, model=model, stems={}, duration=0.0,
-                computed_at="", error="demucs not found (required for MDX-Net models)",
+                audio_file=audio_path,
+                model=model,
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error="demucs not found (required for MDX-Net models)",
             )
         device = self._detect_device()
         out_dir = SEPARATION_DIR / "mdx_net"
@@ -550,34 +942,49 @@ class SourceSeparator:
 
         cmd = [
             *demucs,
-            "-n", model,
-            "-d", device,
-            "-o", str(out_dir),
+            "-n",
+            model,
+            "-d",
+            device,
+            "-o",
+            str(out_dir),
             audio_path,
         ]
         if opts.segment_size is not None:
             # demucs 4.1.0 renamed --segment_size to --segment;
             # clamp to the model's trained max (see
             # clamp_segment_seconds).
-            cmd.extend([
-                "--segment",
-                str(clamp_segment_seconds(model, opts.segment_size)),
-            ])
+            cmd.extend(
+                [
+                    "--segment",
+                    str(clamp_segment_seconds(model, opts.segment_size)),
+                ]
+            )
         if opts.denoise:
             # demucs has no --denoise flag in any 4.x release.
-            logger.warning(
-                "denoise requested but demucs has no --denoise flag — ignoring"
-            )
+            logger.warning("denoise requested but demucs has no --denoise flag — ignoring")
 
         try:
             returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
         except asyncio.TimeoutError:
-            return SeparationResult(audio_file=audio_path, model=model, stems={}, duration=0.0,
-                                    computed_at="", error="MDX-Net timed out (10 min limit)")
+            return SeparationResult(
+                audio_file=audio_path,
+                model=model,
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error="MDX-Net timed out (10 min limit)",
+            )
 
         if returncode != 0:
-            return SeparationResult(audio_file=audio_path, model=model, stems={}, duration=0.0,
-                                    computed_at="", error=f"MDX-Net failed: {stderr.decode('utf-8', errors='replace')[:300]}")
+            return SeparationResult(
+                audio_file=audio_path,
+                model=model,
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error=f"MDX-Net failed: {stderr.decode('utf-8', errors='replace')[:300]}",
+            )
 
         stem_dir = out_dir / model / Path(audio_path).stem
         stems: dict[str, str] = {}
@@ -587,8 +994,12 @@ class SourceSeparator:
                 stems[name] = str(p)
         stems_mp3 = await self._encode_mp3_stems(stems)
         return SeparationResult(
-            audio_file=audio_path, model=model, stems=stems, duration=0.0,
-            computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"), stems_mp3=stems_mp3,
+            audio_file=audio_path,
+            model=model,
+            stems=stems,
+            duration=0.0,
+            computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+            stems_mp3=stems_mp3,
         )
 
     async def _separate_demucs(
@@ -625,7 +1036,9 @@ class SourceSeparator:
             if self._detect_suno_track(audio_path):
                 logger.info(
                     "Suno track detected (%s) — model=%s shifts=%d",
-                    Path(audio_path).name, model, self._shifts,
+                    Path(audio_path).name,
+                    model,
+                    self._shifts,
                 )
 
             # Source for hierarchical mode: the instrumental residual from
@@ -634,9 +1047,12 @@ class SourceSeparator:
             source = source_path or audio_path
             cmd = [
                 *demucs_cmd,
-                "-n", model,
-                "-d", device,
-                "-o", str(output_dir),
+                "-n",
+                model,
+                "-d",
+                device,
+                "-o",
+                str(output_dir),
                 source,
             ]
             if self._shifts:
@@ -649,29 +1065,38 @@ class SourceSeparator:
                 # segment it was trained with, so clamp (a UVR5-style
                 # 256 would otherwise be 256 seconds and trip the
                 # HTDemucs 7.8 s cap).
-                cmd.extend([
-                    "--segment",
-                    str(clamp_segment_seconds(model, opts.segment_size)),
-                ])
+                cmd.extend(
+                    [
+                        "--segment",
+                        str(clamp_segment_seconds(model, opts.segment_size)),
+                    ]
+                )
             if opts.overlap is not None:
                 cmd.extend(["--overlap", str(opts.overlap)])
             if opts.denoise:
                 # demucs has no --denoise flag in any 4.x release; the
                 # knob is accepted by the API but this backend cannot
                 # honor it.
-                logger.warning(
-                    "denoise requested but demucs has no --denoise flag — ignoring"
-                )
+                logger.warning("denoise requested but demucs has no --denoise flag — ignoring")
 
             try:
                 returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
             except asyncio.TimeoutError:
-                return SeparationResult(audio_file=audio_path, model=model, stems={}, duration=0.0,
-                                        computed_at="", error="Demucs timed out (10 min limit)")
+                return SeparationResult(
+                    audio_file=audio_path,
+                    model=model,
+                    stems={},
+                    duration=0.0,
+                    computed_at="",
+                    error="Demucs timed out (10 min limit)",
+                )
 
             if returncode != 0:
                 return SeparationResult(
-                    audio_file=audio_path, model=model, stems={}, duration=0.0,
+                    audio_file=audio_path,
+                    model=model,
+                    stems={},
+                    duration=0.0,
                     computed_at="",
                     error=f"Demucs failed: {stderr.decode('utf-8', errors='replace').strip()[:500]}",
                 )
@@ -686,21 +1111,38 @@ class SourceSeparator:
             duration = 0.0
             try:
                 import librosa
+
                 duration = librosa.get_duration(path=audio_path)
             except Exception:
                 pass
 
             stems_mp3 = await self._encode_mp3_stems(stems)
             return SeparationResult(
-                audio_file=audio_path, model=model, stems=stems, duration=duration,
-                computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"), stems_mp3=stems_mp3,
+                audio_file=audio_path,
+                model=model,
+                stems=stems,
+                duration=duration,
+                computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                stems_mp3=stems_mp3,
             )
         except asyncio.TimeoutError:
-            return SeparationResult(audio_file=audio_path, model=model, stems={}, duration=0.0,
-                                    computed_at="", error="Demucs timed out (10 min limit)")
+            return SeparationResult(
+                audio_file=audio_path,
+                model=model,
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error="Demucs timed out (10 min limit)",
+            )
         except Exception as e:
-            return SeparationResult(audio_file=audio_path, model=model, stems={}, duration=0.0,
-                                    computed_at="", error=str(e))
+            return SeparationResult(
+                audio_file=audio_path,
+                model=model,
+                stems={},
+                duration=0.0,
+                computed_at="",
+                error=str(e),
+            )
 
     async def _separate_spleeter(
         self,
@@ -712,8 +1154,10 @@ class SourceSeparator:
             cmd = [
                 "spleeter",
                 "separate",
-                "-p", "spleeter:4stems",
-                "-o", str(output_dir),
+                "-p",
+                "spleeter:4stems",
+                "-o",
+                str(output_dir),
                 audio_path,
             ]
 
@@ -745,6 +1189,7 @@ class SourceSeparator:
             duration = 0.0
             try:
                 import librosa
+
                 duration = librosa.get_duration(path=audio_path)
             except Exception:
                 pass
