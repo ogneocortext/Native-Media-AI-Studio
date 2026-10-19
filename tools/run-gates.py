@@ -54,6 +54,8 @@ import functools
 import glob
 import json
 import os
+import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -364,9 +366,18 @@ def gates():
         Gate("routes", [python, "tools/check-duplicate-routes.py"], ROOT),
         Gate("type", [pnpm, "type-check"], FRONTEND),
         Gate("lint", [pnpm, "lint"], FRONTEND),
-        Gate("unit", [pnpm, "test:unit"], FRONTEND),
-        Gate("pytest", [python, "-m", "pytest", "-q", "-p", "no:cacheprovider"], BACKEND),
+        # `-v --durations=10` rather than `-q`: the runner streams each line as
+        # it is produced, so a verbose reporter is what makes "which test is
+        # running right now" visible. `--durations=10` then names the ten
+        # slowest tests, which is where optimization effort is most valuable.
+        Gate("pytest", [python, "-m", "pytest", "-v", "--durations=10",
+                        "-p", "no:cacheprovider"], BACKEND),
         Gate("build", [pnpm, "build"], FRONTEND, timeout=600),
+        # `--reporter=verbose` names every test file as it runs. The vitest
+        # config's default reporter is "dot" under CI, which prints one
+        # character per file and no names at all.
+        Gate("unit", [pnpm, "exec", "vitest", "run", "--reporter=verbose"],
+             FRONTEND),
         Gate("e2e", [pnpm, "exec", "playwright", "test",
                      "app-shell.spec.ts", "canvas2d.spec.ts",
                      "lrc-visualizer.spec.ts", "--reporter=list"],
@@ -374,28 +385,58 @@ def gates():
     ]
 
 
-def _heartbeat(stop_event: threading.Event, interval: float = 5.0):
-    """Print a dot to stderr every `interval` seconds while a gate runs.
+# ANSI escape sequences (SGR colours, cursor moves) as emitted by vitest and
+# pytest. Stripped from the streamed copy only: the raw text is kept for the
+# JSON report, where escape codes would just be noise for a JSON consumer.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from `text`."""
+    return _ANSI_RE.sub("", text)
+
+
+def _heartbeat(stop_event: threading.Event, label: str, interval: float = 10.0):
+    """Print a heartbeat to stderr every `interval` seconds while a gate runs.
 
     Gives operators feedback that a long gate (e.g. pytest at ~60s) is still
     alive and not wedged. Runs on a daemon thread so it never blocks exit.
+
+    The message names the gate and the elapsed time, because "a dot appeared"
+    does not say *which* gate is stuck. With several gates in a row that
+    distinction is the difference between a 10-second wait and a diagnosis.
     """
+    start = time.time()
     while not stop_event.is_set():
         stop_event.wait(interval)
         if not stop_event.is_set():
-            print(".", end="", file=sys.stderr)
-            sys.stderr.flush()
+            elapsed = int(time.time() - start)
+            print(f"[{label} {elapsed}s] still running...",
+                  file=sys.stderr, flush=True)
 
 
-def run_gate(gate, timeout, heartbeat=True):
+def run_gate(gate, timeout, heartbeat=True, stream=True, out_file=None):
     """Run one gate. Never raises: a hung gate is reported, not inherited.
 
     The timeout matters more than it looks. A gate that hangs (pytest blocking
     on a locked %TEMP% pointer, a browser that never exits) otherwise hangs the
     agent too, with no output and no way to tell a slow gate from a dead one.
 
-    When heartbeat is True, a dot is printed to stderr every 5 seconds while
-    the gate runs, so a long gate doesn't look hung in CI logs.
+    Output is streamed line by line while the gate runs, so the caller can see
+    *which* test is executing at the moment it is executing. The previous
+    implementation used proc.communicate(), which buffers the entire output
+    and returns it only at the end - for a 90-second pytest run that means
+    zero visibility for 90 seconds, which is exactly when you want to know
+    whether the suite is progressing or wedged on one test.
+
+    Streaming needs a reader thread plus a deadline-aware queue: reading
+    `for line in proc.stdout` on the main thread blocks forever if the child
+    goes silent, which would defeat the timeout entirely (proc.wait() would
+    never be reached). The queue wakes the main loop on the deadline so the
+    process tree can be killed instead.
+
+    When `stream` is False the output is buffered and returned as before, and
+    `out_file` diverts the streamed lines to a file instead of stdout.
     """
     start = time.time()
     try:
@@ -409,25 +450,90 @@ def run_gate(gate, timeout, heartbeat=True):
     stop_event = threading.Event()
     hb_thread = None
     if heartbeat:
-        hb_thread = threading.Thread(target=_heartbeat, args=(stop_event,), daemon=True)
+        hb_thread = threading.Thread(
+            target=_heartbeat, args=(stop_event, gate.name), daemon=True
+        )
         hb_thread.start()
 
-    try:
-        out, _ = proc.communicate(timeout=timeout)
-        code = proc.returncode
-    except subprocess.TimeoutExpired:
+    # A reader thread + queue with deadline: `for line in proc.stdout` blocks
+    # forever if the child goes silent, which would defeat the timeout
+    # (proc.wait would never be reached). The queue wakes us on the deadline
+    # so we kill the tree instead.
+    chunks: queue.Queue[bytes | None] = queue.Queue()
+
+    def _reader() -> None:
+        try:
+            assert proc.stdout is not None
+            for raw in iter(proc.stdout.readline, b""):
+                chunks.put(raw)
+        finally:
+            chunks.put(None)  # EOF sentinel
+
+    reader = threading.Thread(target=_reader, daemon=True)
+    reader.start()
+
+    dest = out_file or sys.stdout
+    deadline = start + timeout
+    lines: list[str] = []
+    code = 1
+    timed_out = False
+
+    while True:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            timed_out = True
+            break
+        try:
+            raw = chunks.get(timeout=min(remaining, 1.0))
+        except queue.Empty:
+            continue  # loop re-checks the deadline
+        if raw is None:
+            break  # EOF
+        text = raw.decode("utf-8", "replace").rstrip("\r\n")
+        if not text:
+            continue
+        lines.append(text)
+        if stream:
+            # Print the ANSI-stripped copy. Vitest/pytest emit colour codes,
+            # and the raw text can contain characters the console's code page
+            # cannot encode (e.g. the U+2713 check mark) - which raises
+            # UnicodeEncodeError mid-stream and kills the whole run. The
+            # `errors="replace"` reconfigure below is the belt to this
+            # braces: the strip keeps the common case clean, and the
+            # reconfigure stops an unusual character from aborting the run.
+            print(f"[{gate.name}] {_strip_ansi(text)}", file=dest, flush=True)
+
+    if timed_out:
         _kill_tree(proc)
-        return 124, time.time() - start, (
+        # Drain whatever the child managed to emit before it was killed; that
+        # output is usually the most useful part of a timeout diagnosis.
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        stop_event.set()
+        if hb_thread is not None:
+            hb_thread.join(timeout=1)
+        body = "\n".join(lines)
+        msg = (
             f"TIMED OUT after {timeout:d}s. Gate: {' '.join(gate.argv[1:3])}\n"
             "  If this is a first run, the next one may be warm and pass.\n"
             "  If it repeats, a stale lock is likely: check %TEMP%\\pytest-of-*."
         )
-    finally:
-        stop_event.set()
-        if hb_thread is not None:
-            hb_thread.join(timeout=1)
+        return 124, time.time() - start, (body + "\n" + msg) if body else msg
+
+    # EOF reached: wait for the exit code.
+    try:
+        code = proc.wait(timeout=max(1.0, deadline - time.time()))
+    except subprocess.TimeoutExpired:
+        _kill_tree(proc)
+        code = 124
+
+    stop_event.set()
+    if hb_thread is not None:
+        hb_thread.join(timeout=1)
     # Decode as UTF-8, not the ANSI code page: gate output contains em dashes.
-    return code, time.time() - start, out.decode("utf-8", "replace")
+    return code, time.time() - start, "\n".join(lines)
 
 
 def _kill_tree(proc):
@@ -510,10 +616,25 @@ def _build_parser():
                    help="retry each failed gate up to N extra times")
     p.add_argument("-v", "--verbose", action="store_true",
                    help="also show the last lines of output for passing gates")
+    p.add_argument("--no-stream", action="store_true",
+                   help="buffer each gate's output and print it at the end "
+                        "instead of streaming it line by line")
     return p
 
 
 def main(argv=None):
+    # The console's code page on this machine is cp1252, which cannot encode
+    # the U+2713 check mark that vitest prints for every passing test. Without
+    # this, streaming the unit gate dies with UnicodeEncodeError the moment
+    # the first test passes - the exact failure the streaming feature exists
+    # to prevent. errors="replace" degrades an unencodable character instead
+    # of aborting the run.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass  # not a real file object (e.g. captured by a test harness)
+
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.retry < 0:
@@ -559,6 +680,10 @@ def main(argv=None):
     print("=" * 68)
     sys.stdout.flush()
 
+    # In JSON mode stdout must stay pure JSON, so the streamed lines go to
+    # stderr instead. The report itself is still written to stdout/file.
+    json_mode = bool(args.json or args.save_json)
+    stream_to = sys.stderr if json_mode else None
     results, failed, failed_output = [], [], {}
     for g in selected:
         code = 1
@@ -568,7 +693,11 @@ def main(argv=None):
         max_attempts = 1 + args.retry
         while attempts < max_attempts:
             attempts += 1
-            code, elapsed, out = run_gate(g, g.timeout)
+            code, elapsed, out = run_gate(
+                g, g.timeout,
+                stream=not args.no_stream,
+                out_file=stream_to,
+            )
             spent += elapsed
             if code == 0:
                 break
