@@ -1,4 +1,5 @@
 ﻿#!/usr/bin/env python3
+# ruff: noqa: N999
 """Shrink storage/studio.db by applying its own retention policy, then VACUUM.
 
 gpu_telemetry accumulates a full JSON process list per snapshot (~3.5 KB) every

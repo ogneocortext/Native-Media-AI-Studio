@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """Reject subprocess calls that decode output with the Windows locale codec.
 
 Three separate bugs during the checkpoint work had the same root cause: reading

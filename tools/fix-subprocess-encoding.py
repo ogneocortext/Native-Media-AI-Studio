@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """Auto-fix subprocess calls that decode with the Windows locale codec.
 
 Adds ``encoding="utf-8", errors="replace"`` to any ``subprocess.run`` /

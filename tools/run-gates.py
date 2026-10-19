@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """Run every quality gate for the repository in one command.
 
 Each gate is a separate tool with a separate working directory, and on Windows

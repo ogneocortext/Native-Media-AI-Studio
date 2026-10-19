@@ -1,4 +1,5 @@
 ﻿#!/usr/bin/env python3
+# ruff: noqa: N999
 """Read-only health audit for storage/studio.db.
 
 Answers the questions that decide whether the library is trustworthy: is the

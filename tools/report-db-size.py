@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: N999
 """Report which tables/indexes account for storage/studio.db's size.
 
 Answers "why is the database so large?" without needing SQLITE_ENABLE_DBSTAT_VTAB,
