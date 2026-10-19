@@ -55,10 +55,14 @@ async def test_check_service_with_timing_success():
 
 @pytest.mark.asyncio
 async def test_check_service_with_timing_timeout():
-    """Adapter that hangs past 8s should be marked offline."""
+    """Adapter that hangs past the timeout should be marked offline."""
     monitor = HealthMonitor()
-    # 20 seconds > 8s timeout
-    adapter = _make_adapter("slow", healthy=True, delay=20.0)
+    # Shrink the timeout so the test proves the timeout path in ~50 ms
+    # instead of burning the real 8 s wall-clock. Same code path:
+    # asyncio.wait_for still fires, still returns OFFLINE + timed-out error.
+    monitor.default_timeout = 0.05
+    # 20x the timeout: guaranteed to still be hanging when wait_for fires.
+    adapter = _make_adapter("slow", healthy=True, delay=1.0)
 
     fake_registry = MagicMock()
     fake_registry.get.return_value = adapter
@@ -68,17 +72,21 @@ async def test_check_service_with_timing_timeout():
 
     assert result["status"] == ServiceHealth.OFFLINE.value
     assert result["error"] == "Health check timed out"
-    # Should return within ~8s, not 20s
+    # Should return in ~timeout, not after the adapter's delay
     assert result["response_time_ms"] is not None
+    assert result["response_time_ms"] < 1000
 
 
 @pytest.mark.asyncio
 async def test_check_all_services_does_not_stall_on_one_hung_adapter():
     """check_all_services must complete even if one adapter never responds."""
     monitor = HealthMonitor()
+    # Same shrink as above: the hung adapter outlives the timeout by 20x,
+    # so the "does not stall" property holds at any scale.
+    monitor.default_timeout = 0.05
 
     fast_ok = _make_adapter("fast_ok", healthy=True, delay=0.01)
-    hung = _make_adapter("hung", healthy=True, delay=30.0)
+    hung = _make_adapter("hung", healthy=True, delay=1.0)
     fast_fail = _make_adapter("fast_fail", healthy=False, delay=0.01)
 
     adapter_map = {

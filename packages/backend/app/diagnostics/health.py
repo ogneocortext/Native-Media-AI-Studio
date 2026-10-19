@@ -80,6 +80,13 @@ class HealthMonitor:
         self._cache: dict[str, Any] = {}
         self._cached_health: dict[str, Any] | None = None
         self._cache_ttl_seconds: float = 2.0  # Cache health for 2 seconds to avoid excessive checks
+        # Per-adapter health-check timeouts. Instance attributes (not class
+        # constants) so tests can shrink them to milliseconds instead of
+        # burning the real 8/15 s wall-clock on a hung-adapter fixture.
+        # Production values unchanged: 8 s default, 15 s for ComfyUI which
+        # can be slow to respond when rendering at 100% GPU.
+        self.default_timeout: float = 8.0
+        self.comfyui_timeout: float = 15.0
 
     async def get_system_health(self) -> dict[str, Any]:
         """Get overall system health"""
@@ -172,7 +179,7 @@ class HealthMonitor:
             }
 
         # ComfyUI can be slow to respond when rendering at 100% GPU — give it more time
-        timeout = 15.0 if name == "comfyui" else 8.0
+        timeout = self.comfyui_timeout if name == "comfyui" else self.default_timeout
         start_time = time.perf_counter()
         try:
             # Use asyncio.wait_for to enforce a per-adapter timeout
