@@ -181,19 +181,42 @@ def find_related_docs(category: str, ptype: str, cross_tags: list[str],
         # Suggest relation based on page type.
         mtype = re.search(r"^type:\s*(\S+)", text, re.M)
         doc_type = mtype.group(1) if mtype else "concept"
-        relation = ":see-also"
-        if doc_type == "source" and ptype in ("concept", "synthesis"):
-            relation = ":cites"
-        elif doc_type == "concept" and ptype == "synthesis":
-            relation = ":extends"
-        elif doc_type == "entity" and ptype in ("concept", "comparison"):
-            relation = ":implements"
-        # Get display alias.
+        relation = _infer_relation(doc_type, ptype)
         display = name.removesuffix(".md")
         related.append((score, name, display, relation))
     related.sort(key=lambda x: (-x[0], x[1]))
     return [(name.removesuffix(".md"), display, relation) for _, name, display, relation
             in related[:limit]]
+
+
+def _infer_relation(doc_type: str, ptype: str) -> str:
+    """Infer the wiki-link relation type between a new doc (ptype) and an
+    existing doc (doc_type), per _schema.md §3.
+
+    Returns a typed relation (:cites, :extends, :implements, :compares-to,
+    :part-of) when the combination is semantically clear, otherwise
+    :see-also.
+    """
+    # New doc cites an existing source.
+    if doc_type == "source" and ptype in ("concept", "synthesis", "comparison"):
+        return ":cites"
+    # New synthesis extends an existing concept.
+    if doc_type == "concept" and ptype == "synthesis":
+        return ":extends"
+    # New concept is implemented by an existing entity.
+    if doc_type == "entity" and ptype == "concept":
+        return ":implements"
+    # New comparison contrasts existing entities/comparisons.
+    if ptype == "comparison" and doc_type in ("entity", "comparison", "source"):
+        return ":compares-to"
+    # New tracker/ index is part of a larger effort.
+    if ptype in ("tracker", "index") and doc_type in ("tracker", "index", "synthesis"):
+        return ":part-of"
+    # Existing entity is part of a new synthesis.
+    if doc_type == "entity" and ptype == "synthesis":
+        return ":part-of"
+    # Default fallback.
+    return ":see-also"
 
 
 def choose_type(category: str, title: str = "") -> str:

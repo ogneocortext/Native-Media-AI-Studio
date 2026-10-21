@@ -403,12 +403,38 @@ def print_apply(docs, outgoing, inbound, dangling, orphans) -> int:
     return fixed
 
 
+def print_untyped(docs, outgoing):
+    """List documents that have no typed wiki-link relations.
+
+    A document is "untyped" if it has outgoing wiki-links but none use a
+    typed relation (:cites, :extends, :implements, :compares-to, :part-of),
+    or if it has no outgoing links at all. These are candidates for adding
+    typed relations per _schema.md §3.
+    """
+    untyped = []
+    for name in sorted(docs):
+        outs = outgoing.get(name, [])
+        typed = [r for _, _, r in outs if r]
+        if not outs:
+            untyped.append((name, "no links", 0))
+        elif not typed:
+            untyped.append((name, f"{len(outs)} link(s), all :see-also", len(outs)))
+
+    print("[UNTYPED] Documents with no typed wiki-link relations:\n")
+    if not untyped:
+        print("  (none — every document with links uses at least one typed relation)")
+    for name, detail, _count in untyped:
+        print(f"  - [[{name}]] ({detail})")
+    print(f"\nTotal untyped: {len(untyped)} of {len(docs)} document(s).")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Render the knowledge-library wiki-link graph.",
     )
     parser.add_argument("--mode", choices=["outline", "graph", "orphans",
-                        "dangling", "typed", "suggest", "apply"], default="outline",
+                        "dangling", "typed", "suggest", "apply", "untyped"],
+                        default="outline",
                         help="Output mode (default: outline)")
     args = parser.parse_args(argv)
 
@@ -429,6 +455,8 @@ def main(argv: list[str] | None = None) -> int:
         print_suggest(docs, outgoing, inbound, dangling, orphans)
     elif args.mode == "apply":
         print_apply(docs, outgoing, inbound, dangling, orphans)
+    elif args.mode == "untyped":
+        print_untyped(docs, outgoing)
     return 0
 
 
