@@ -167,6 +167,13 @@ def print_outline(docs, outgoing, inbound, dangling, orphans):
     print(f"Documents: {len(docs)}  |  Orphans: {len(orphans)}  |  "
           f"Dangling links: {sum(len(v) for v in dangling.values())}\n")
 
+    typed_count = sum(1 for outs in outgoing.values()
+                      for _, _, r in outs if r)
+    if typed_count == 0:
+        print("[WARN] No typed wiki-link relations found — all links are "
+              "untyped :see-also. Consider adding :cites/:extends/:implements/"
+              ":compares-to/:part-of relations per _schema.md §3.\n")
+
     for cat in ("production", "technical", "platform", "creative",
                 "performance", "ai", "research", "uncategorized"):
         names = sorted(by_cat.get(cat, []))
@@ -250,9 +257,68 @@ def print_typed(outgoing):
             if relation:
                 rows.append((weight_of(relation), src, target, relation))
     rows.sort(reverse=True)
+    if not rows:
+        print("  (none — all links are untyped :see-also)")
     for w, src, target, relation in rows:
         print(f"  [[{src}]] :{relation} -> [[{target}]]  (w={w})")
     print(f"\nTotal typed relations: {len(rows)}")
+
+
+def print_suggest(docs, outgoing, inbound, dangling, orphans):
+    """Suggest link targets for orphan pages based on shared tags/category.
+
+    For each orphan, score every other document by:
+      +2 if same primary category
+      +1 per shared cross-cutting tag
+    Prints the top 3 candidates per orphan.
+    """
+    # Pre-compute category and tag sets per doc.
+    meta: dict[str, tuple[str, set[str]]] = {}
+    for name, path in docs.items():
+        text = read_text(path)
+        category = frontmatter_category(text) or ""
+        tags: set[str] = set()
+        in_tags = False
+        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+        if m:
+            for line in m.group(1).split("\n"):
+                if line.startswith("tags:"):
+                    in_tags = True
+                    continue
+                if in_tags:
+                    t = re.match(r"^\s*-\s*(\S+)\s*$", line)
+                    if t:
+                        tags.add(t.group(1))
+                        continue
+                    if line.strip() and not line.startswith(" "):
+                        break
+        meta[name] = (category, tags)
+
+    print("[SUGGEST] Link targets for orphan pages (top 3 per orphan, by shared "
+          "category/tags):\n")
+    total_suggestions = 0
+    for orphan in sorted(orphans):
+        o_cat, o_tags = meta[orphan]
+        scores = []
+        for candidate in docs:
+            if candidate == orphan or candidate in inbound.get(orphan, []):
+                continue
+            c_cat, c_tags = meta[candidate]
+            score = (2 if o_cat == c_cat else 0) + len(o_tags & c_tags)
+            if score > 0:
+                scores.append((score, candidate))
+        scores.sort(reverse=True)
+        top = scores[:3]
+        if top:
+            total_suggestions += len(top)
+            cand_str = "; ".join(
+                f"[[{c}]] (score={s}, same-cat={o_cat == meta[c][0]})"
+                for s, c in top
+            )
+            print(f"  [[{orphan}]] -> {cand_str}")
+        else:
+            print(f"  [[{orphan}]] -> (no scored candidates)")
+    print(f"\nTotal suggestions: {total_suggestions} for {len(orphans)} orphan(s).")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -260,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Render the knowledge-library wiki-link graph.",
     )
     parser.add_argument("--mode", choices=["outline", "graph", "orphans",
-                        "dangling", "typed"], default="outline",
+                        "dangling", "typed", "suggest"], default="outline",
                         help="Output mode (default: outline)")
     args = parser.parse_args(argv)
 
@@ -277,6 +343,8 @@ def main(argv: list[str] | None = None) -> int:
         print_dangling(dangling)
     elif args.mode == "typed":
         print_typed(outgoing)
+    elif args.mode == "suggest":
+        print_suggest(docs, outgoing, inbound, dangling, orphans)
     return 0
 
 

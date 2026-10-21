@@ -113,12 +113,40 @@ def choose_category() -> str:
         print(f"  Invalid — pick 1-{len(CATEGORIES)}")
 
 
-def choose_type(category: str) -> str:
+TYPE_KEYWORD_MAP = [
+    (("index", "catalog"), "index"),
+    (("progress", "status", "plan", "updates", "milestone"), "tracker"),
+    (("research", "study", "survey", "landscape", "review"), "source"),
+    (("comparison", "-vs-", "audit", "evaluation", "benchmark"), "comparison"),
+    (("synthesis", "summary", "overview", "analysis"), "synthesis"),
+    (("guide", "handbook", "manual", "tutorial", "runbook"), "entity"),
+]
+
+
+def suggest_type_from_title(title: str) -> str | None:
+    """Guess a page type from filename/title keywords.
+
+    Returns None when no keyword matches (caller falls back to interactive pick).
+    """
+    lower = title.lower()
+    for keywords, ptype in TYPE_KEYWORD_MAP:
+        if any(k in lower for k in keywords):
+            return ptype
+    return None
+
+
+def choose_type(category: str, title: str = "") -> str:
+    suggested = suggest_type_from_title(title)
+    default_idx = 1
+    if suggested and suggested in PAGE_TYPES:
+        default_idx = PAGE_TYPES.index(suggested) + 1
     print("\nPage type (pick a number):")
     for i, t in enumerate(PAGE_TYPES, 1):
-        print(f"  {i}. {t}")
+        marker = " (suggested)" if t == suggested else ""
+        print(f"  {i}. {t}{marker}")
     while True:
-        choice = prompt("Choice", default="1").strip()
+        prompt_text = f"Choice [{default_idx}]" if suggested else f"Choice [{default_idx}]"
+        choice = prompt(prompt_text, default=str(default_idx)).strip()
         if choice.isdigit() and 1 <= int(choice) <= len(PAGE_TYPES):
             return PAGE_TYPES[int(choice) - 1]
         print(f"  Invalid — pick 1-{len(PAGE_TYPES)}")
@@ -310,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.type:
         ptype = args.type
     else:
-        ptype = choose_type(category)
+        ptype = choose_type(category, title)
 
     # Aliases.
     aliases = list(args.alias) or [title]

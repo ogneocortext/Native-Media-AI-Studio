@@ -49,9 +49,28 @@ except ImportError:  # pragma: no cover
 BASE = REPO / "docs" / "knowledge-library"
 SKIP = ("index.md", "README.md", "_schema.md", "log.md")
 
+# Wiki-link pattern: [[slug|label]] or [[slug]]:relation.
+WIKI_LINK_RE = re.compile(r"\[\[([^|\]\]]+)(?:\|[^\]]*)?\]\](?::\w+)?")
+
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
+
+
+def extract_links(text: str) -> set[str]:
+    """Return the set of wiki-link slugs referenced in document text.
+
+    Strips inline code spans so syntax examples are not treated as links.
+    Strips anchors and skips cross-directory references.
+    """
+    text = re.sub(r"`[^`]*`", "", text)
+    slugs = set()
+    for m in WIKI_LINK_RE.finditer(text):
+        slug = m.group(1).strip().split("#")[0]
+        if "/" in slug or ".." in slug:
+            continue
+        slugs.add(slug)
+    return slugs
 
 
 def collect() -> list[Path]:
@@ -155,11 +174,51 @@ def main(argv: list[str] | None = None) -> int:
                         help="Include a specific filename (can repeat)")
     parser.add_argument("--format", choices=["text", "json", "paths"],
                         default="text", help="Output format (default: text)")
+    parser.add_argument("--neighborhood", action="store_true",
+                        help="Include documents that link to or from matched docs")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="Maximum number of documents to export (0 = no limit)")
     args = parser.parse_args(argv)
 
     docs = [parse_doc(p) for p in collect()]
     matched = [d for d in docs
                if matches(d, args.category, args.type, args.tag, args.file)]
+
+    if not matched:
+        print("No documents matched the given filters.", file=sys.stderr)
+        return 1
+
+    # Optional neighborhood expansion: add docs that link to/from matched docs.
+    if args.neighborhood:
+        name_to_doc = {d["name"]: d for d in docs}
+        slug_to_name = {}
+        for d in docs:
+            slug_to_name[d["name"].removesuffix(".md")] = d["name"]
+        # Also index special files as link targets.
+        for special in SKIP:
+            slug_to_name[special.removesuffix(".md")] = special
+
+        matched_names = {d["name"] for d in matched}
+        expanded = set(matched_names)
+        # Forward links: docs that matched docs link to.
+        for d in matched:
+            for slug in extract_links(d["body"]):
+                target = slug_to_name.get(slug)
+                if target and target in name_to_doc:
+                    expanded.add(target)
+        # Reverse links: docs that link to matched docs.
+        for d in docs:
+            if d["name"] in expanded:
+                continue
+            for slug in extract_links(d["body"]):
+                if slug in matched_names:
+                    expanded.add(d["name"])
+                    break
+        matched = [name_to_doc[n] for n in sorted(expanded)]
+
+    # Apply limit.
+    if args.limit and args.limit > 0:
+        matched = matched[: args.limit]
 
     if not matched:
         print("No documents matched the given filters.", file=sys.stderr)
