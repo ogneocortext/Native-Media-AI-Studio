@@ -180,6 +180,22 @@ function getVideoModelInfo(modelName: string, meta?: Partial<VideoModel>): Video
       path: meta?.path,
     };
   }
+  if (base.includes("ltx")) {
+    const vramNote = vramMb ? ` — ~${vramMb} MB VRAM` : "";
+    return {
+      name: modelName,
+      description: `LTX 2.3 distilled — ~4× faster than Wan 2.2 Q4${vramNote}`,
+      type: "Text-to-Video (LTX)",
+      bestFor: supports8gb
+        ? "Fast text-to-video on 8GB — 768×512, 25 frames at ~210s"
+        : "Fast text-to-video (needs ~5GB VRAM)",
+      variant: variant ?? "ltx_2_3",
+      size_mb: meta?.size_mb,
+      path: meta?.path,
+      supports_8gb: true,
+      vram_mb: vramMb ?? 4460,
+    };
+  }
   return {
     name: modelName,
     description: `Video model: ${modelName}`,
