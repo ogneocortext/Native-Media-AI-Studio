@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - documentation-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🏷️ Knowledge Library Tagging Guide
@@ -97,6 +98,7 @@ does not require a tag to appear in this table.
 | `#dark-mode` | Dark theme support |
 | `#contrast` | Color contrast and accessibility ratios |
 | `#accessibility` | A11y concerns beyond color |
+| `#creative-guide` | Creative guides & arrangement theory | Documents about creative techniques and arrangement (e.g. mashup theory) |
 | `#motion-design` | Motion craft - timing, easing, camera/object movement |
 
 ---

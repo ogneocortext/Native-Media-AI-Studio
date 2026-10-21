@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-09-29
+type: entity
 ---
 
 # Hardware Profile and Benchmark Harness

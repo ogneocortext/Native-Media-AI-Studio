@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - production
 date: 2026-09-29
+type: entity
 ---
 
 # 🧰 A1–A6 Media-Pipeline Tooling Map

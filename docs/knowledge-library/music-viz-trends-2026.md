@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - research-report
 date: 2026-09-29
+type: source
 ---
 
 # Music Visualizer Design Trends 2025-2026

@@ -12,6 +12,7 @@ aliases:
 cssclasses:
   - research
 date: 2026-09-24
+type: synthesis
 ---
 
 # 🎯 Feature Utilization & Gap Analysis 2026

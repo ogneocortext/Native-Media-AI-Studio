@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - research
 date: 2026-09-29
+type: comparison
 ---
 
 # 🏟️ AI Music-Video Platforms — Competitive Landscape 2026

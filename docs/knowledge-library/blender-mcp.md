@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - platform-guide
 date: 2026-09-29
+type: entity
 ---
 
 # 🖥️ Blender MCP Integration

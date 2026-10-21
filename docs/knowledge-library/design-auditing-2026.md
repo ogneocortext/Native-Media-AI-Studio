@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # 🔍 Design Auditing 2026 — Contrast, axe-core, Visual Review

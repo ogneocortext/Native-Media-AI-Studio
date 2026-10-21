@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-29
+type: entity
 ---
 
 # Gemma 4 ComfyUI MCP Fine-Tune — September 2026 (8GB-Capped)

@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-29
+type: concept
 ---
 
 # Small LLM Fine-Tuning Best Practices — September 2026

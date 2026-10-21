@@ -13,6 +13,7 @@ cssclasses:
   - analysis
   - research
 date: 2026-09-23
+type: concept
 ---
 
 # 🎨 Shader Color Science — Perceptual Palettes, Tonemapping, Dithering

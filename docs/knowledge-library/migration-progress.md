@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - documentation-status
 date: 2026-09-30
+type: tracker
 ---
 
 # 📋 Tag Migration Progress (2026-09-29)

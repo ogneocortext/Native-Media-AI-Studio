@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: source
 ---
 
 # JavaScript / TypeScript Upgrade Research — Native Media AI Studio (2026)

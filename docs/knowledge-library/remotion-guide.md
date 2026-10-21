@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🎬 Remotion Video Compositing Guide

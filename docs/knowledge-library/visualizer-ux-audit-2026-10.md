@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-10-02
+type: tracker
 ---
 
 # Visualizer UX Audit — October 2026 (Screenshot-Driven)

@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: tracker
 ---
 
 # 🧪 E2E Test Plan 2026 — Full Pipeline

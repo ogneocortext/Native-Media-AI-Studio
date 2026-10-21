@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # CUDA / PyTorch / DirectX Tech Stack Upgrade Research (2026)

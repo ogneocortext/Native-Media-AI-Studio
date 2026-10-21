@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: entity
 ---
 
 # 3D Rendering Pipeline - Technical Knowledge Library

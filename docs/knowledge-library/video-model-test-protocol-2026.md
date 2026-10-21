@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-09-29
+type: entity
 ---
 
 # 🧪 LTX / Mochi 8GB Viability Test Protocol

@@ -346,9 +346,13 @@ def extract_links(path):
     and relation suffixes (`[[slug]]:relation`). Returns only bare slugs
     that look like internal knowledge-library references (no path separators,
     no `../`) — cross-references to other doc directories are intentional
-    and not flagged.
+    and not flagged. Wiki-links inside inline code (backticks) are treated
+    as syntax examples, not real links.
     """
     data = read(path)
+    # Remove inline code spans so wiki-links used as syntax examples
+    # (`` `[[slug]]` ``) are not treated as real links.
+    data = re.sub(r"`[^`]*`", "", data)
     slugs = set()
     for m in WIKI_LINK_RE.finditer(data):
         slug = m.group(1).strip()
@@ -363,17 +367,32 @@ def extract_links(path):
 
 def check_links(docs):
     """Warn about orphan pages (no inbound wiki-links) and dangling links
-    (links to slugs with no matching document basename).
+    (links to slugs with no matching document).
 
-    index.md is exempt from the orphan rule (it's the entry point).
+    index.md, README.md, _schema.md and log.md are scanned as link *sources*
+    (their [[links]] count as inbound to targets) but are not themselves
+    flagged as orphans — index.md is the vault entry point.
     """
     # Map basename-without-extension -> doc name for link resolution.
     basename_to_doc = {}
     for name in docs:
         basename_to_doc[os.path.splitext(name)[0]] = name
+    # The special meta-files are also valid link targets even though they are
+    # excluded from the per-document checks.
+    for name in ("index.md", "README.md", "_schema.md", "log.md"):
+        basename_to_doc[os.path.splitext(name)[0]] = name
+
+    # All library markdown files count as link sources, including the special
+    # meta-files that are excluded from the per-document checks.
+    source_paths = {}
+    for name in ("index.md", "README.md", "_schema.md", "log.md"):
+        p = os.path.join(BASE, name)
+        if os.path.exists(p):
+            source_paths[name] = p
+    source_paths.update(docs)
 
     inbound = Counter()
-    for name, path in docs.items():
+    for name, path in source_paths.items():
         for slug in extract_links(path):
             target = basename_to_doc.get(slug)
             if target is None:

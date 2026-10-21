@@ -7,6 +7,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🤖 Ollama Prompting 2026 — Vision Grounding & Structured Output

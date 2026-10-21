@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # 🧊 3D Generation Options for Pascal / 8GB VRAM (PyTorch 2.14)

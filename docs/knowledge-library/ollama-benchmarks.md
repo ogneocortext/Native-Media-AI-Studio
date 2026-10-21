@@ -12,6 +12,7 @@ aliases:
 cssclasses:
   - benchmark
 date: 2026-09-04
+type: comparison
 ---
 
 # 🏁 Ollama Three.js Scene Benchmark

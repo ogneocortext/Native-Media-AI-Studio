@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - research
 date: 2026-10-13
+type: source
 ---
 
 # Arrangement Theory for Stem Mashups — What Survives Without Key Detection
@@ -24,7 +25,7 @@ date: 2026-10-13
 
 > [!tip] Companion docs
 > [[track-similarity-measurement-2026]] (why key-based theory is out),
-> [[remix-mashup-2026|remix-mashup plan]] (the tool this serves),
+> remix-mashup plan (the tool this serves),
 > `services/stem_remixer.py` (`probe_track`, `first_audible_sec`),
 > `services/remix_prompt.py` (adjective map, system prompt).
 

@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-08-29
+type: concept
 ---
 
 # 🧊 3D Rendering

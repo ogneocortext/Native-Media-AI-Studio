@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-24
+type: entity
 ---
 
 # 🧠 Ollama Model Utilization 2026 — Native Media AI Studio

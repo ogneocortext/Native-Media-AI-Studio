@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-10-10
+type: comparison
 ---
 
 # 🖼️ Vision Model Reliability 2026 — qwen3-vl Reasoning Loop & the gemma4 Primary

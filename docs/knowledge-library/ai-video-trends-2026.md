@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - research-report
 date: 2026-09-29
+type: source
 ---
 
 # 📈 AI Video Generation Trends 2026

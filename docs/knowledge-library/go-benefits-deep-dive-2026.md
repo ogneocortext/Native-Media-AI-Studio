@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - platform-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # Go Benefits Deep Dive — Native Media AI Studio (2026)

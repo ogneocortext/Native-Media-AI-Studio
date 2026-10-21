@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - platform-guide
 date: 2026-08-27
+type: concept
 ---
 
 # 🤖 Kilo Code Subagent Orchestration & Provider Error Analysis

@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🎨 Color Strategy 2026 — Contrast That Survives Dark Mode

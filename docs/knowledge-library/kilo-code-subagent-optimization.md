@@ -9,6 +9,7 @@ cssclasses:
   - platform-guide
   - optimization
 date: 2026-09-03
+type: concept
 ---
 
 # 🚀 Kilo Code Subagent Optimization Implementation

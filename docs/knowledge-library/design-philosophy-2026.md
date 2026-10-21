@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🎛️ Design Philosophy — Native Media AI Studio

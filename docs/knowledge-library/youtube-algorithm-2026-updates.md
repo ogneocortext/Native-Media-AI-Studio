@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - research-report
 date: 2026-09-29
+type: source
 ---
 
 # 📺 YouTube Algorithm Updates for 2026

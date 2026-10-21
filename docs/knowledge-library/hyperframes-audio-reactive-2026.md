@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: synthesis
 ---
 
 # 🎬 HyperFrames Audio-Reactive Visualizations — 2026 Guide

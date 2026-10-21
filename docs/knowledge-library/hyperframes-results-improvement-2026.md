@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-10-06
+type: synthesis
 ---
 
 # HyperFrames Results Improvement — Audit Findings & Fix Specs

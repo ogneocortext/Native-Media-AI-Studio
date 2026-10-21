@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: concept
 ---
 
 # Backend Debugging & ComfyUI Integration Findings

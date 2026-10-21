@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🐍 Python Environment Management & Pascal GPU Support

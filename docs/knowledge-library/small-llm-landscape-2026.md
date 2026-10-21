@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # Small Language Models for Fine-Tuning — September 2026

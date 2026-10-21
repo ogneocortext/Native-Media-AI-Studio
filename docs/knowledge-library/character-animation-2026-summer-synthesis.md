@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - production-guide
 date: 2026-09-29
+type: synthesis
 ---
 
 # Character Animation 2026 — Summer Synthesis for Story-Driven Visuals

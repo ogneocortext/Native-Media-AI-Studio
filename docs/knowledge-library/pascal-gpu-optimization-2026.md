@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-10-19
+type: concept
 ---
 
 # Pascal GPU Optimization Guide — GTX 1070 Ti / sm_61
@@ -244,7 +245,7 @@ cmake --build build --config Release -j
 - `-c 4096` (context size — Pascal memory bandwidth makes long context slow)
 - `--main-gpu 0`
 
-**Ollama note:** Ollama wraps llama.cpp but hides KV-cache/batch knobs. For Pascal, prefer direct llama.cpp or build Ollama from source with flash attention disabled (see [[ollama-model-ops]]).
+**Ollama note:** Ollama wraps llama.cpp but hides KV-cache/batch knobs. For Pascal, prefer direct llama.cpp or build Ollama from source with flash attention disabled (see [[ollama-utilization-2026|ollama model utilization]]).
 
 ---
 
@@ -316,7 +317,7 @@ cmake --build build --config Release -j
 - insiderllm.com — Local AI video generation guide (2026)
 - [[python-environment-management]] — PyTorch wheel matrix and environment decoupling
 - [[video-generation-vram-2026]] — 8GB video model feasibility
-- [[ollama-model-ops]] — Ollama model selection and VRAM management
+- [[ollama-utilization-2026|ollama model selection]] — Ollama model selection and VRAM management
 - [[hardware-verified-models]] — 8GB VRAM model matrix
 
 ---
@@ -324,6 +325,6 @@ cmake --build build --config Release -j
 ## See Also
 
 - [[video-generation-vram-2026]] — Video model VRAM requirements for 8GB
-- [[ollama-model-ops]] — Ollama model selection, VRAM budgets, timeout budgets
+- [[ollama-utilization-2026|ollama model utilization]] — Ollama model selection, VRAM budgets, timeout budgets
 - [[python-environment-management]] — Python environment selection for Pascal
 - [[hardware-verified-models]] — 8GB VRAM model compatibility matrix

@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 2D Visualization Options — 2026 Open Source Research

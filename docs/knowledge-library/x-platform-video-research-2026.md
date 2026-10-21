@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - research-note
 date: 2026-10-06
+type: source
 ---
 
 # X-Platform Video Research — Findings & HyperFrames Studio Eval (2026-10-06)

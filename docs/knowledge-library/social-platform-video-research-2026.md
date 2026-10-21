@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - research-note
 date: 2026-10-06
+type: source
 ---
 
 # Social-Platform Video Research — LinkedIn / Substack / Medium (2026-10-06)

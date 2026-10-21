@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-10-06
+type: concept
 ---
 
 # Three.js Studio: Render Pipeline + Motion Craft (2026-10-06)

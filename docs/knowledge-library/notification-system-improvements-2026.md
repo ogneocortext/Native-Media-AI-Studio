@@ -10,6 +10,7 @@ cssclasses:
   - technical-guide
   - research
 date: 2026-09-29
+type: tracker
 ---
 
 # 🔔 Notification System Improvements 2026

@@ -14,6 +14,7 @@ cssclasses:
   - analysis
   - research
 date: 2026-09-23
+type: concept
 ---
 
 # 🌑 Dark UI Color System — Token Ladder, Contrast, and a Syntax Bug

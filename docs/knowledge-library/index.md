@@ -205,6 +205,10 @@ graph LR
   health rules. Read this before adding new documents.
 - [[log]] — append-only operations log; every structural change is recorded
   here with an ISO 8601 date heading.
+- [[tagging-guide|Tagging Guide]] — hierarchical tag taxonomy and selection
+  rules for the knowledge library.
+- [[migration-progress|Tag Migration Progress]] — migration tracker and
+  per-category completion status for the tagging system.
 
 ### For Creators
 

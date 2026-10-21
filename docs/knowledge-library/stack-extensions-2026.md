@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # Stack Extensions: Languages & Python Tools (2026)

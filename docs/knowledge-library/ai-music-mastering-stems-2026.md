@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - production-guide
 date: 2026-10-02
+type: synthesis
 ---
 
 # Mastering & Stem Splitting for AI-Generated Music — 2026 Practices

@@ -11,6 +11,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-20
+type: entity
 consolidated_into: visualization-effects
 consolidated_date: 2026-10-06
 ---

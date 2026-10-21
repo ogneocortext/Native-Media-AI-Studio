@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - research
 date: 2026-10-02
+type: concept
 ---
 
 # Measuring Similarity Between Tracks (for mashups) - What Actually Works

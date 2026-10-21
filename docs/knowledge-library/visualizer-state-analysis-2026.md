@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: synthesis
 ---
 
 # 🎬 Visualizer State Analysis — FX Visualizer Feedback

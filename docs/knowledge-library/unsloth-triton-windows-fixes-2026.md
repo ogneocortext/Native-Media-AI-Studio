@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # Unsloth Triton Windows Fixes & Cross-Entropy Replacement

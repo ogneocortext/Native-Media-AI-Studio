@@ -13,6 +13,7 @@ cssclasses:
   - creative-guide
   - effects-library
 date: 2026-09-29
+type: entity
 research_date: 2026-08-29
 sources: 15
 ---

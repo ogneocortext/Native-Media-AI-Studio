@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🔍 MiniCPM-V 2.6 (`minicpm-v:8b`) — Best Practices for Native Media AI Studio

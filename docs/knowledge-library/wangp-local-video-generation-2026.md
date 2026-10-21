@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-10-06
+type: entity
 ---
 
 # WanGP — Local Video Generation on Consumer GPUs (Evaluation 2026-10-06)

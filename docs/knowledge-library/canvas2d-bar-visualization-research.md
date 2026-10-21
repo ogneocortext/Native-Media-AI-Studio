@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: source
 ---
 
 # Canvas2D Bar Visualization — Research Findings

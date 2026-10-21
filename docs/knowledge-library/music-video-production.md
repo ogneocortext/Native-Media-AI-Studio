@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - production-guide
 date: 2026-09-29
+type: synthesis
 ---
 
 # 3D Rendering & Music Video Production Knowledge Library

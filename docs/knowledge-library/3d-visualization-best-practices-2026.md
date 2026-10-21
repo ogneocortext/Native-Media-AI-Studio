@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🎛️ 3D Visualization Best Practices (September 2026)

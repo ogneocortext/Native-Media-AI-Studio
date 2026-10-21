@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 🎨 Modern CSS 2026 — Frontend Styling Guide

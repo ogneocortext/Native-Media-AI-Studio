@@ -11,6 +11,7 @@ cssclasses:
   - production-guide
   - technical-audit
 date: 2026-09-30
+type: comparison
 ---
 
 # 🎛️ Stem System Evaluation — Fall 2026

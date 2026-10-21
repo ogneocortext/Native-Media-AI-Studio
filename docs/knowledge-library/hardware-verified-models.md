@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-09-29
+type: entity
 ---
 
 # Hardware-Vetted Model Inventory & Expansion Guide

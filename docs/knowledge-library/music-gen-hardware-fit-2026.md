@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-09-29
+type: comparison
 ---
 
 # ACE-Step 1.5 — Hardware-Fit Analysis for GTX 1070 Ti

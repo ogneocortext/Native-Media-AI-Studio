@@ -10,6 +10,7 @@ aliases:
 cssclasses:
   - creative-guide
 date: 2026-10-02
+type: concept
 ---
 
 # Audio-Reactive Visuals — 2026 Best Practices

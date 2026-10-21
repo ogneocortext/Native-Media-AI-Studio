@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-20
+type: tracker
 ---
 
 # 🧊 3D Generation Updates for 8GB VRAM (September 2026)

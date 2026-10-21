@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - production-guide
 date: 2026-09-29
+type: concept
 ---
 
 # 📺 YouTube Optimization

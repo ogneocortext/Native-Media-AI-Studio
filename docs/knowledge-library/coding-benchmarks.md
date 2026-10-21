@@ -8,6 +8,7 @@ aliases:
 cssclasses:
   - research-report
 date: 2026-09-29
+type: comparison
 ---
 
 # Coding Model Benchmark

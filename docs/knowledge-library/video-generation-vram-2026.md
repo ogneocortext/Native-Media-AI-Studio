@@ -9,6 +9,7 @@ aliases:
 cssclasses:
   - ai-guide
 date: 2026-09-20
+type: comparison
 ---
 
 # 🎬 Video Generation VRAM Requirements for 8GB GPUs (September 2026)
