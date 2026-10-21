@@ -21,7 +21,7 @@ date: 2026-09-30
 
 ## Migration Summary
 
-**Documents in library:** 88 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Documents in library:** 89 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
 **Migrated:** 88 (100%)
 **Remaining:** 0
 
@@ -130,7 +130,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 
-### 📊 Research & Reference (13/13 completed)
+### 📊 Research & Reference (14/14 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -138,6 +138,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `ai-video-trends-2026.md`  → `#research`, `#ai`
 - ✅ `youtube-algorithm-2026-updates.md`  → `#research`, `#platform-youtube`
 - ✅ `music-viz-trends-2026.md`  → `#research`, `#visualization`
+- ✅ `tempo-estimation-octave-errors-2026.md` → `⌘research`, `⌘audio`, `⌘beat-tracking`, `⌘octave-errors`, `⌘tempo-estimation`
 - ✅ `ai-music-video-platforms-2026.md`  → `#research`, `#platform-youtube`, `#ai`
 - ✅ `app-research-gaps-2026.md`  → `#research`
 - ✅ `feature-utilization-audit-2026.md`  → `#research`, `#features`

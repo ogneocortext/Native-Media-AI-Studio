@@ -73,6 +73,9 @@ does not require a tag to appear in this table.
 | `#tagging` | The tagging system itself |
 | `#migration` | A migration or restructuring effort |
 | `#index` | Index or hub documents |
+| `#beat-tracking` | Beat tracking and tempo estimation analysis |
+| `#octave-errors` | Tempo octave error diagnosis and correction |
+| `#tempo-estimation` | Tempo estimation algorithm research |
 | `#python` | Python-specific tooling |
 | `#tooling` | Build, packaging, or developer tooling |
 | `#benchmark` | A benchmark result, harness, or methodology |
