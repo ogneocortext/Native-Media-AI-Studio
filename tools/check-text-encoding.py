@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """
 Reject text files that are not UTF-8.
 

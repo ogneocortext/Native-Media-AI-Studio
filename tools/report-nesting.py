@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 #!/usr/bin/env python3
 """Report control-flow nesting depth per function.
 

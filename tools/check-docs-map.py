@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """Check that docs/README.md stays an accurate map of docs/.
 
 The map is how an agent discovers documentation, but nothing kept it honest: it
@@ -101,8 +102,8 @@ def fix_map(claimed, actual, errors, notes):
     for name in to_remove:
         # Remove the line for this directory
         lines = text.split("\n")
-        new_lines = [l for l in lines
-                     if not re.match(rf"^\|\s*`{re.escape(name)}/?`\s*\|", l)]
+        new_lines = [line for line in lines
+                     if not re.match(rf"^\|\s*`{re.escape(name)}/?`\s*\|", line)]
         if len(new_lines) < len(lines):
             text = "\n".join(new_lines)
             edits.append(f"removed map entry for '{name}/' (directory does not exist)")
@@ -141,7 +142,7 @@ def fix_map(claimed, actual, errors, notes):
                 break
         text = "\n".join(lines)
         edits.append(f"added mention of {len(data)} JSON data files to knowledge-library/ row")
-        errors.append(f"docs/README.md does not mention JSON data files - FIXED: added to knowledge-library/ row")
+        errors.append("docs/README.md does not mention JSON data files - FIXED: added to knowledge-library/ row")
 
     # Fix AGENTS.md reference
     if "docs/README.md" not in read(AGENTS):

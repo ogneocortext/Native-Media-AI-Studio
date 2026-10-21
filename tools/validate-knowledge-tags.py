@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """Validate knowledge-library frontmatter, the tag taxonomy, and doc hygiene.
 
 Library checks (errors fail the pre-commit hook):

@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 """Check repository organisation: what has drifted and should not be tracked.
 
 These are the classes of problem that accumulate quietly - a generated artifact

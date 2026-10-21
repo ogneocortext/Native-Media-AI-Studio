@@ -82,7 +82,7 @@ Add a Playwright test that drives the complete music video generation workflow:
 6. Verify output duration matches input (within 0.5s tolerance)
 7. Verify output is valid MP4 (ffprobe check via backend endpoint or file existence)
 
-**Test file:** `packages/frontend/tests/e2e/music-video-generation.spec.ts`
+**Test file:** Not implemented — see `tests/test_vram_leak.py` for backend VRAM test (V3).
 
 **Test fixture requirements:**
 
@@ -100,7 +100,6 @@ Add a Playwright test that drives the complete music video generation workflow:
 
 **Files:**
 
-- Frontend: `packages/frontend/tests/e2e/music-video-generation.spec.ts` (new)
 - Fixture: test audio file (short WAV/MP3)
 - Helper: backend route for ffprobe check if needed
 

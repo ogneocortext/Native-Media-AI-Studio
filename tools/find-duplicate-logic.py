@@ -1,3 +1,4 @@
+# ruff: noqa: N999
 #!/usr/bin/env python
 """Report duplicated *logic*: functions that are the same or near-identical.
 
