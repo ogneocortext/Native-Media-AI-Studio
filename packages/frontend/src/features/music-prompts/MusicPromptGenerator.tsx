@@ -136,6 +136,7 @@ export function MusicPromptGenerator({
 
   const [platform, setPlatform] = useState<PlatformId>("suno_v6");
   const [specs, setSpecs] = useState<Record<string, PlatformSpec> | null>(null);
+  const [creditNotes, setCreditNotes] = useState<Record<string, any> | null>(null);
   const [lyricTechniques, setLyricTechniques] = useState<Record<
     string,
     { techniques: string[]; vocal_delivery?: string }
@@ -219,6 +220,7 @@ export function MusicPromptGenerator({
         if (d?.default_model) setModel(d.default_model);
         if (d?.platforms) setSpecs(d.platforms);
         if (d?.lyric_techniques) setLyricTechniques(d.lyric_techniques);
+        if (d?.credit_notes) setCreditNotes(d.credit_notes);
       })
       .catch(() => {});
     fetch(`${getApiBase()}/api/music-prompts/presets`)
@@ -349,6 +351,29 @@ export function MusicPromptGenerator({
               ))}
             </div>
           </fieldset>
+          {creditNotes && creditNotes[platform] && (
+            <div className="mb-4 rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
+              <div className="flex items-start gap-2 mb-1">
+                <span className="text-xs font-bold text-violet-400">
+                  Credit notes — {creditNotes[platform].label || platform}
+                </span>
+                {creditNotes[platform].balance_visible !== undefined && (
+                  <span className={`ml-auto text-[10px] ${creditNotes[platform].balance_visible ? "text-emerald-400" : "text-gray-500"}`}>
+                    {creditNotes[platform].balance_visible ? "Balance visible" : "No balance display"}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-white/80 leading-relaxed">
+                {creditNotes[platform].strategy}
+              </p>
+              {creditNotes[platform].daily_credits !== null && creditNotes[platform].daily_credits !== undefined && (
+                <p className="text-[10px] text-white/50 mt-1">
+                  Daily credits: {creditNotes[platform].daily_credits}{" "}
+                  {creditNotes[platform].rollover ? "• Rollover" : "• No rollover"}
+                </p>
+              )}
+            </div>
+          )}
           {presets && (
             <div className="mb-4">
               <label htmlFor={`${formId}-preset`} className="block text-xs text-white/50 mb-1">

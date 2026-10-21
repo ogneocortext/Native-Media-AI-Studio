@@ -29,6 +29,8 @@ from ..services.music_prompt_generator import (
 
 logger = logging.getLogger(__name__)
 
+CREDIT_ECONOMICS_PATH = PROJECT_ROOT / "docs" / "knowledge-library" / "credit-economics-2026.json"
+
 MAX_ANALYZE_FILE_SIZE = 100 * 1024 * 1024  # 100 MB upload cap
 ANALYZE_SCRIPT = PROJECT_ROOT / "tools" / "audio-analysis" / "analyze.py"
 
@@ -83,12 +85,36 @@ class AnalyzeReferenceResponse(BaseModel):
 
 @router.get("/templates")
 async def get_templates() -> dict[str, Any]:
-    """Return per-platform prompt specs + output sections + lyric technique reference for the frontend form."""
+    """Return per-platform prompt specs + output sections + lyric technique reference for the frontend form.
+
+    Includes credit notes per platform (from credit-economics-2026.json) so the
+    frontend can surface scarcity/budget guidance when an engine is selected.
+    """
+    credit_notes: dict[str, Any] = {}
+    try:
+        with open(CREDIT_ECONOMICS_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        providers = data.get("providers", {})
+        credit_notes = {
+            pid: {
+                "label": prov.get("label", pid),
+                "daily_credits": prov.get("daily_credits"),
+                "balance_visible": prov.get("balance_visible"),
+                "rollover": prov.get("rollover"),
+                "strategy": prov.get("strategy"),
+                "observed_cost": prov.get("observed_cost"),
+            }
+            for pid, prov in providers.items()
+        }
+    except (OSError, json.JSONDecodeError):
+        credit_notes = {}
+
     return {
         "platforms": PLATFORM_SPECS,
         "outputs": PLATFORM_OUTPUTS,
         "default_model": DEFAULT_MODEL,
         "lyric_techniques": LYRIC_TECHNIQUES,
+        "credit_notes": credit_notes,
     }
 
 
