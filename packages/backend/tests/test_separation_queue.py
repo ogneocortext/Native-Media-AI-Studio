@@ -12,7 +12,29 @@ stubs so no Demucs/model download is involved.
 import asyncio
 
 import pytest
+from app.services import source_separation as ss
 from app.services.source_separation import SeparationOptions, SourceSeparator
+
+_AUDIO_LIBRARY_DIR = ss.PROJECT_ROOT / "output" / "audio"
+
+
+def _real_library_track(min_bytes: int = 1_000_000) -> str:
+    """Newest real track from the media library, or None when there is none.
+
+    The idempotency-cache keys hash actual audio bytes, so these queue-routing
+    tests run against a real library file (several MB) instead of fixture bytes.
+    Skips cleanly on machines without a populated media library.
+    """
+    if not _AUDIO_LIBRARY_DIR.is_dir():
+        return None
+    candidates: list = []
+    for ext in ("*.wav", "*.mp3", "*.m4a", "*.flac"):
+        for p in _AUDIO_LIBRARY_DIR.glob(ext):
+            if p.is_file() and p.stat().st_size >= min_bytes:
+                candidates.append(p)
+    if not candidates:
+        return None
+    return str(max(candidates, key=lambda p: p.stat().st_mtime))
 
 
 class _Recorder:
@@ -34,8 +56,12 @@ class _Recorder:
 
 
 @pytest.mark.asyncio
-async def test_single_and_hierarchical_both_go_through_the_queue(monkeypatch):
+async def test_single_and_hierarchical_both_go_through_the_queue(monkeypatch, tmp_path):
     """Both modes must serialise: max concurrent backend calls == 1."""
+    track = _real_library_track()
+    if track is None:
+        pytest.skip("no populated media library under output/audio")
+
     sep = SourceSeparator(model="mdx_extra_q")
     rec = _Recorder()
 
@@ -47,14 +73,21 @@ async def test_single_and_hierarchical_both_go_through_the_queue(monkeypatch):
 
     monkeypatch.setattr(sep, "_separate_demucs", fake_demucs)
     monkeypatch.setattr(sep, "_separate_hierarchical", fake_hier)
+    # This is a routing test; skip the incidental ffmpeg loudness probe on the fake wavs.
+    async def fake_normalize(path):
+        return path, False
+
+    monkeypatch.setattr(ss, "normalize_audio_lufs", fake_normalize)
 
     await sep.start_worker()
     try:
+        monkeypatch.setattr(ss, "CACHE_DIR", tmp_path / "stems-cache")
+        monkeypatch.setattr(ss, "TELEMETRY_PATH", tmp_path / "stem-telemetry.json")
         opts = SeparationOptions(model="mdx_extra_q")
         await asyncio.gather(
-            sep.separate("a.wav", options=opts, mode="single"),
-            sep.separate("b.wav", options=opts, mode="hierarchical"),
-            sep.separate("c.wav", options=opts, mode="hierarchical"),
+            sep.separate(track, options=opts, mode="single"),
+            sep.separate(track, options=opts, mode="hierarchical"),
+            sep.separate(track, options=opts, mode="hierarchical"),
         )
     finally:
         sep._worker_task.cancel()
@@ -70,8 +103,12 @@ async def test_single_and_hierarchical_both_go_through_the_queue(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_hierarchical_reaches_the_hierarchical_backend(monkeypatch):
+async def test_hierarchical_reaches_the_hierarchical_backend(monkeypatch, tmp_path):
     """Routing is preserved: mode= still selects the hierarchical backend."""
+    track = _real_library_track()
+    if track is None:
+        pytest.skip("no populated media library under output/audio")
+
     from app.services.source_separation import SeparationResult
 
     sep = SourceSeparator(model="mdx_extra_q")
@@ -89,8 +126,10 @@ async def test_hierarchical_reaches_the_hierarchical_backend(monkeypatch):
 
     await sep.start_worker()
     try:
+        monkeypatch.setattr(ss, "CACHE_DIR", tmp_path / "stems-cache")
+        monkeypatch.setattr(ss, "TELEMETRY_PATH", tmp_path / "stem-telemetry.json")
         result = await sep.separate(
-            "x.wav", options=SeparationOptions(model="mdx_extra_q"), mode="hierarchical"
+            track, options=SeparationOptions(model="mdx_extra_q"), mode="hierarchical"
         )
     finally:
         sep._worker_task.cancel()
