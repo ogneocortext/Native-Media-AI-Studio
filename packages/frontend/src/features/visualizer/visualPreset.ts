@@ -1080,19 +1080,47 @@ export function exportPresetToString(preset: VisualPreset): string {
 
 export function importPresetFromString(json: string): VisualPreset | null {
   try {
-    const parsed = JSON.parse(json) as Partial<VisualPreset>;
-    // Minimal shape validation — previously any JSON object was accepted and
-    // could crash consumers expecting theme/visualizer/camera/postfx/lyrics.
+    const parsed = JSON.parse(json) as unknown;
     if (!parsed || typeof parsed !== "object") return null;
-    if (typeof parsed.id !== "string" || typeof parsed.name !== "string") return null;
-    if (!parsed.theme || !parsed.visualizer || !parsed.camera) return null;
-    if (!parsed.postfx || !parsed.lyrics || !parsed.audioReactivity) return null;
-    if (!Array.isArray(parsed.camera.keyframes) || parsed.camera.keyframes.length === 0)
-      return null;
-    return parsed as VisualPreset;
+
+    const p = parsed as Record<string, unknown>;
+
+    // Top-level required scalar fields
+    if (typeof p.id !== "string" || typeof p.name !== "string") return null;
+
+    // Required sub-objects
+    if (!isObject(p.theme)) return null;
+    if (!isObject(p.visualizer)) return null;
+    if (!isObject(p.camera)) return null;
+    if (!isObject(p.postfx)) return null;
+    if (!isObject(p.lyrics)) return null;
+    if (!isObject(p.audioReactivity)) return null;
+
+    // Camera keyframes must be a non-empty array of CameraKeyframe-shaped objects
+    const keyframes = p.camera.keyframes;
+    if (!Array.isArray(keyframes) || keyframes.length === 0) return null;
+    for (const kf of keyframes) {
+      if (!isObject(kf)) return null;
+      if (typeof (kf as Record<string, unknown>).at !== "number") return null;
+      if (!isNumberTuple((kf as Record<string, unknown>).position)) return null;
+      if (!isNumberTuple((kf as Record<string, unknown>).target)) return null;
+    }
+
+    return p as unknown as VisualPreset;
   } catch {
     return null;
   }
+}
+
+/** True when value is a non-null object (not an array). */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** True when value is a [number, number, number] tuple. */
+function isNumberTuple(value: unknown): value is [number, number, number] {
+  if (!Array.isArray(value) || value.length !== 3) return false;
+  return value.every((v) => typeof v === "number" && Number.isFinite(v));
 }
 
 /** Apply a camera easing curve to a [0, 1] interpolation factor. */

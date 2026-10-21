@@ -301,3 +301,31 @@ effect budget and its runtime cap), and `motion/` (the motion
   PRNG's repeatability/uniformity), plus two new `cameraTransitions.test.ts`
   cases pinning the default `travel-balanced` anchor and an explicit
   `settle-soft` wipe.
+
+  Also covered since (2026-10-21):
+  `shared/timing.ts` (`timing.test.ts`) — `getBeatNearTimeFromArray` now checks both
+  adjacent beats after the binary-search loop (previously missed `beats[lo]` when
+  `mid==hi` at exit, e.g. beats=[1,4,5], elapsed=3), pins the equidistant tie-break
+  (later index wins), the in-window/out-of-window boundary, and `getBeatPhase`
+  next-beat-in rounding at exact beats; `trackFeatures.ts` null-safety fix exercised
+  through visualizer integration (removed `cachedData!`/etc. non-null assertions that
+  crashed when no track was loaded).
+  `features/visualizer/visualPreset.ts` (`visualPreset.test.ts`) —
+  `importPresetFromString` rejects non-objects, missing scalar/top-level fields, and
+  malformed keyframes (non-numeric `at`, non-triple `position`/`target`); export/import
+  round-trip, `getConfigAtTime`, preset CRUD.
+  `utils/promptLint.ts` (`promptLint.test.ts`) — `countWords` and `lintVideoPrompt`
+  shot/angle/light/length/specific/filler checks, case-insensitivity, hint output.
+  `utils/url.ts` (`url.test.ts`) — `getOutputUrl` empty path, absolute http/https
+  passthrough, ComfyUI/output URL building from cached backend config and relative fallback.
+  `utils/audioProbe.ts` (`audioProbe.test.ts`) — `getFileExtension` (dotfiles,
+  no-extension, multi-dot), `isAudioFile` accept-list ordering, `formatDuration`
+  (sub-minute, hour boundary, negative).
+  `features/visualizer/professionalMixer/stemBus.ts` (`stemBus.test.ts`) — routing
+  preset lookup, solo/mute helpers, bus gain clamping.
+  `features/visualizer/sectionHelpers.ts` (`sectionHelpers.test.ts`) — section
+  color/intensity/preset lookups, unknown-section fallback.
+  `state/audioLibraryStore.ts` (`audioLibraryStore.test.ts`) — Zustand store add/remove/
+  set-active/refresh and API failure handling (mocks `services/api`).
+
+  Total: 870 tests across 41 files, all passing (vitest, explicit imports, no globals).

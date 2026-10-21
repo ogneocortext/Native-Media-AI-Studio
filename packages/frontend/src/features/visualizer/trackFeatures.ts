@@ -101,22 +101,26 @@ export function updateTrackFeatures(
   if (elapsedRounded === lastUpdateTime) return cachedFeatures;
   lastUpdateTime = elapsedRounded;
 
-  const duration = cachedData!.duration_seconds;
+  const data = cachedData;
+  if (!data) return DEFAULT_FEATURES;
+  const duration = data.duration_seconds;
   if (!(duration > 0)) return DEFAULT_FEATURES;
   const t = Math.max(0, Math.min(elapsed, duration));
   const progress = t / duration;
 
   // Energy from curve
-  const energyIdx = Math.min(Math.floor(progress * cachedEnergy!.length), cachedEnergy!.length - 1);
-  const energy = energyIdx >= 0 ? cachedEnergy![energyIdx] : 0.5;
+  const energy = cachedEnergy ? cachedEnergy[Math.min(Math.floor(progress * cachedEnergy.length), cachedEnergy.length - 1)] : 0.5;
 
   // Onset detection (within 80ms window)
   const onsetT = Math.round(t * 100);
   let onset = 0;
-  for (let delta = 0; delta <= 8; delta++) {
-    if (cachedOnsetSet!.has(onsetT - delta) || cachedOnsetSet!.has(onsetT + delta)) {
-      onset = Math.max(onset, 1 - delta / 8);
-      if (onset >= 1) break;
+  const onsetSet = cachedOnsetSet;
+  if (onsetSet) {
+    for (let delta = 0; delta <= 8; delta++) {
+      if (onsetSet.has(onsetT - delta) || onsetSet.has(onsetT + delta)) {
+        onset = Math.max(onset, 1 - delta / 8);
+        if (onset >= 1) break;
+      }
     }
   }
 
@@ -124,7 +128,7 @@ export function updateTrackFeatures(
   let section = "unknown";
   let sectionProgress = 0;
   let sectionIndex = 0;
-  const sections = cachedData!.sections;
+  const sections = data.sections;
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i];
     if (t >= s.start && t < s.end) {
@@ -137,31 +141,38 @@ export function updateTrackFeatures(
 
   // Spectral features
   const specIdx = Math.min(
-    Math.floor(progress * cachedCentroid!.length),
-    cachedCentroid!.length - 1,
+    Math.floor(progress * (cachedCentroid?.length ?? 0)),
+    Math.max(0, (cachedCentroid?.length ?? 1) - 1),
   );
+  const centroidVal = cachedCentroid?.[specIdx];
+  const rolloffVal = cachedRolloff?.[specIdx];
+  const bandwidthVal = cachedBandwidth?.[specIdx];
+  const zcrVal = cachedZCR?.[specIdx];
   const brightness =
-    specIdx >= 0 && cachedCentroid![specIdx] ? Math.min(1, cachedCentroid![specIdx] / 8000) : 0.5;
+    specIdx >= 0 && centroidVal ? Math.min(1, centroidVal / 8000) : 0.5;
   const rolloff =
-    specIdx >= 0 && cachedRolloff![specIdx] ? Math.min(1, cachedRolloff![specIdx] / 12000) : 0.5;
+    specIdx >= 0 && rolloffVal ? Math.min(1, rolloffVal / 12000) : 0.5;
   const bandwidth =
-    specIdx >= 0 && cachedBandwidth![specIdx] ? Math.min(1, cachedBandwidth![specIdx] / 4000) : 0.5;
+    specIdx >= 0 && bandwidthVal ? Math.min(1, bandwidthVal / 4000) : 0.5;
   const noisiness =
-    specIdx >= 0 && cachedZCR![specIdx] ? Math.min(1, cachedZCR![specIdx] / 0.5) : 0.5;
+    specIdx >= 0 && zcrVal ? Math.min(1, zcrVal / 0.5) : 0.5;
 
   // Downbeat detection (within 150ms window of backend downbeat times)
   const downbeatT = Math.round(t * 100);
   let isDownbeat = false;
-  for (let delta = 0; delta <= 15; delta++) {
-    if (cachedDownbeatSet!.has(downbeatT - delta) || cachedDownbeatSet!.has(downbeatT + delta)) {
-      isDownbeat = true;
-      break;
+  const downbeatSet = cachedDownbeatSet;
+  if (downbeatSet) {
+    for (let delta = 0; delta <= 15; delta++) {
+      if (downbeatSet.has(downbeatT - delta) || downbeatSet.has(downbeatT + delta)) {
+        isDownbeat = true;
+        break;
+      }
     }
   }
 
   // Beat phase using binary search
   let beatPhase = 0.5;
-  const beatTimes = cachedData!.beat_times;
+  const beatTimes = data.beat_times;
   if (beatTimes.length > 1) {
     const idx = findBeatIndex(beatTimes, t);
     if (idx > 0 && idx < beatTimes.length) {

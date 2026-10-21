@@ -77,6 +77,12 @@ PRESENCE_GAIN_DB = 2.0  # presence shelf boost (conservative)
 LOUDNESS_TOLERANCE_LU = 0.5
 MAX_GAIN_PASSES = 3
 
+# Manual trim: a user offset applied *after* normalization and *before* the
+# limiter. It deliberately does not participate in the target-matching loop —
+# otherwise the loop would measure the trimmed file and gain it straight back,
+# making the control a no-op. Clamped to the same +/-12 dB as the auto gain.
+MAX_TRIM_DB = 12.0
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -372,6 +378,7 @@ async def master_file(
     target_lufs: float = -14.0,
     ceiling_dbtp: float = DEFAULT_CEILING_DBTP,
     tone_fixes: bool = True,
+    gain_trim_db: float = 0.0,
 ) -> dict[str, Any]:
     """Master *filename* (AUDIO_DIR-relative) and write a mastered copy.
 
@@ -380,6 +387,10 @@ async def master_file(
     — the report numbers are re-measured from the written file, not asserted
     from the intent.
 
+    ``gain_trim_db`` is a manual offset (clamped to +/-MAX_TRIM_DB) applied
+    after the loudness match and before limiting, so it is audible in the
+    written file and visible in ``applied.gain_trim_db``.
+
     Steps:
       1. Measure the source (LUFS / true peak / LRA).
       2. Iteratively apply gain to hit *target_lufs*: measure → gain → encode
@@ -387,11 +398,12 @@ async def master_file(
          shift ebur128's K-weighted measurement, so one pass can land off
          target; we correct until within LOUDNESS_TOLERANCE_LU or
          MAX_GAIN_PASSES is reached.
-      3. Apply true-peak limiting to *ceiling_dbtp*.
+      3. Apply the manual trim, then true-peak limit to *ceiling_dbtp*.
       4. Encode to output/audio/mastered/<stem>_mastered.mp3.
       5. Final re-measure of the written file for the QC report.
     """
     src = AUDIO_DIR / filename
+    trim_db = max(-MAX_TRIM_DB, min(MAX_TRIM_DB, float(gain_trim_db or 0.0)))
     if not src.exists() or not src.is_file():
         return {
             "filename": filename,
@@ -473,6 +485,11 @@ async def master_file(
     if tone_fixes:
         samples = _apply_demud(samples, pcm.sample_rate)
         samples = _apply_presence(samples, pcm.sample_rate)
+    if trim_db:
+        # Multiply rather than `_apply_gain_db`: that helper clips to [-1, 1],
+        # and clipping before the limiter is unrecoverable distortion. The
+        # limiter below is what pulls the result back under the ceiling.
+        samples = (samples * _db_to_linear(trim_db)).astype(np.float32)
     samples = _true_peak_limit(samples, pcm.sample_rate, ceiling_dbtp)
 
     stem = src.stem
@@ -498,6 +515,7 @@ async def master_file(
         "after": after,
         "applied": {
             "gain_db": round(applied_gain_db, 2),
+            "gain_trim_db": round(trim_db, 2),
             "target_lufs": target_lufs,
             "ceiling_dbtp": ceiling_dbtp,
             "tone_fixes": tone_fixes,

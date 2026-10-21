@@ -251,6 +251,7 @@ describe("shortHashOf", () => {
   it("returns empty when there is no hash", () => {
     expect(shortHashOf("Song.mp3")).toBe("");
   });
+});
 
 describe("preset variants", () => {
   it("builds a filename that leaves the source name intact and readable", () => {
@@ -333,7 +334,6 @@ describe("preset variants", () => {
     expect(audioDisplayName(f)).toBe("Still I Rise");
     expect(audioOptionLabel(f, [f])).toBe("Still I Rise");
   });
-});
 });
 
 describe("grouping", () => {

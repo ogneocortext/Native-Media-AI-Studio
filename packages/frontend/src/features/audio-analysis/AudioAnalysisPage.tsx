@@ -25,6 +25,7 @@
  * assuming GPU is present.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AudioTransport } from "../../components/audio";
 import {
   Upload,
@@ -85,16 +86,6 @@ import {
   Cell,
 } from "recharts";
 
-interface AudioFile {
-  filename: string;
-  optionLabel?: string;
-  path?: string;
-  relative_path: string;
-  folder: string;
-  size_bytes: number;
-  modified?: number;
-}
-
 interface BeatDensityPoint {
   bar: number;
   time: number;
@@ -116,6 +107,9 @@ const SECTION_HEX: Record<string, string> = {
   solo: "#f59e0b",
 };
 
+/** A bar is 4 beats (4/4 assumption — the backend does not report a meter). */
+const BEATS_PER_BAR = 4;
+
 function buildBeatDensity(
   beats: number[],
   sections: { type: string; start: number; end: number; energy: number }[],
@@ -123,17 +117,18 @@ function buildBeatDensity(
   duration: number,
   bpm: number,
 ): BeatDensityPoint[] {
-  const barInterval = bpm > 0 ? 60 / bpm : 0;
-  if (!beats.length || !duration || barInterval <= 0) return [];
+  const beatInterval = bpm > 0 ? 60 / bpm : 0;
+  if (!beats.length || !duration || beatInterval <= 0) return [];
+  // Bucket by BAR, not by beat: one beat per beat-sized bucket would make
+  // "beats per bar" a flat chart of ≈1 everywhere. 60/bpm is a beat; a bar
+  // is BEATS_PER_BAR of those.
+  const barInterval = beatInterval * BEATS_PER_BAR;
+  if (barInterval <= 0) return [];
   const totalBars = Math.max(1, Math.floor(duration / barInterval));
-  const bars = new Map<number, { count: number; beatTimes: number[] }>();
+  const bars = new Map<number, number>();
   for (const bt of beats) {
     const b = Math.max(0, Math.min(Math.floor(bt / barInterval), totalBars - 1));
-    const prev = bars.get(b);
-    if (prev) {
-      prev.count++;
-      prev.beatTimes.push(bt);
-    } else bars.set(b, { count: 1, beatTimes: [bt] });
+    bars.set(b, (bars.get(b) ?? 0) + 1);
   }
   function getSection(t: number) {
     const s = sections.find((s) => t >= s.start && t <= s.end);
@@ -144,7 +139,7 @@ function buildBeatDensity(
     const idx = Math.round((t / duration) * (energyCurve.length - 1));
     return energyCurve[Math.max(0, Math.min(idx, energyCurve.length - 1))];
   }
-  return Array.from(bars.entries()).map(([barIdx, { count, beatTimes: _beatTimes }]) => ({
+  return Array.from(bars.entries()).map(([barIdx, count]) => ({
     bar: barIdx,
     time: barIdx * barInterval,
     count,
@@ -229,7 +224,7 @@ const EnergyBeatTooltip = ({
       <div className={DS.cardTight}>
         <p className="text-xs text-white font-medium">Energy: {payload[0]?.value?.toFixed(0)}%</p>
         <p className={DS.textXs}>
-          Time: {label}
+          Time: {formatTime(Number(label))}
           {payload[1] ? ` · Beat at ${payload[1].value?.toFixed(1)}s` : ""}
         </p>
       </div>
@@ -248,23 +243,20 @@ export function AudioAnalysisPage() {
   // Plan 0.1 UI: raw exception text for the current separation error, shown
   // behind a disclosure under SEPARATION_FAILED_HEADLINE — never as state.
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
-  // Shared media-library source. Kept as a derived list rather than component
-  // state so every selector in the app reads the same deduplicated entries.
+  // Shared media-library source. Read directly from the store — every selector
+  // in the app consumes the same deduplicated entries (D16), so no local copy
+  // or re-typing is needed.
   const {
-    entries: sharedAudioEntries,
+    entries: audioFiles,
     isLoading: libraryLoading,
     error: libraryError,
     refresh: loadAudioFiles,
   } = useAudioLibrary();
-  const audioFiles = useMemo<AudioFile[]>(
-    () => sharedAudioEntries.map((f) => ({ ...f })),
-    [sharedAudioEntries],
-  );
   const [dragOver, setDragOver] = useState(false);
-  // Transient: row currently being analyzed (spinner). Persisted: last library
-  // file successfully analyzed — keeps the inline player + row highlight alive
-  // after analysis finishes (previously the player unmounted on completion).
-  const [selectedLibraryFile, setSelectedLibraryFile] = useState<string | null>(null);
+  // Transient: library relative_path currently being analyzed (row spinner).
+  // Persisted: last library file successfully analyzed — keeps the inline
+  // player + row highlight alive after analysis finishes.
+  const [analyzingLibraryPath, setAnalyzingLibraryPath] = useState<string | null>(null);
   const [analyzedLibraryPath, setAnalyzedLibraryPath] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
@@ -304,7 +296,9 @@ export function AudioAnalysisPage() {
   const analyzing = audio.analyzing;
   const analysis = audio.analysis;
   const error = audio.error;
-  const { setAnalysis, setError, backends, lastBackend } = audio;
+  // `ensure`/`setAnalysis`/`setError` are stable callbacks or setState fns, so
+  // memoized callbacks below may close over them without re-creating.
+  const { ensure: ensureAnalysisFor, setAnalysis, setError, backends, lastBackend } = audio;
   const navigate = useNavigate();
 
   // Sync local backend selector with the hook's available/default list once loaded.
@@ -454,6 +448,16 @@ export function AudioAnalysisPage() {
   };
 
   const [jobDoneNote, setJobDoneNote] = useState<string | null>(null);
+  // Tracked so the success-flash timer can be revoked if the component
+  // unmounts before the 5 s flash elapses.
+  const jobDoneNoteTimerRef = useRef<number | null>(null);
+  const clearJobDoneNoteTimer = () => {
+    if (jobDoneNoteTimerRef.current != null) {
+      window.clearTimeout(jobDoneNoteTimerRef.current);
+      jobDoneNoteTimerRef.current = null;
+    }
+  };
+  useEffect(() => clearJobDoneNoteTimer, []);
 
   useEffect(() => {
     if (!activeJobId) return;
@@ -471,8 +475,12 @@ export function AudioAnalysisPage() {
               setError(job.error || "Job failed");
             } else {
               // Brief success flash so the user sees the batch finished.
+              clearJobDoneNoteTimer();
               setJobDoneNote(job.message || "Generation complete");
-              window.setTimeout(() => setJobDoneNote(null), 5000);
+              jobDoneNoteTimerRef.current = window.setTimeout(() => {
+                setJobDoneNote(null);
+                jobDoneNoteTimerRef.current = null;
+              }, 5000);
             }
           }
         }
@@ -489,9 +497,17 @@ export function AudioAnalysisPage() {
     loadAudioFiles();
   }, []);
 
+  // Key the stem-status fetch on the file *signature* (joined paths), not the
+  // count: a rename changes the paths while leaving .length unchanged, which
+  // left badges pointing at pre-rename paths until the next reload.
+  const librarySignature = useMemo(
+    () => audioFiles.map((f) => f.relative_path).join("|"),
+    [audioFiles],
+  );
+
   // Load stem availability for the library whenever the file list refreshes.
   useEffect(() => {
-    if (!audioFiles.length) {
+    if (!librarySignature) {
       setStemsStatus({});
       return;
     }
@@ -510,7 +526,7 @@ export function AudioAnalysisPage() {
     return () => {
       cancelled = true;
     };
-  }, [audioFiles.length]);
+  }, [librarySignature]);
 
   const handleAnalyze = async () => {
     if (!file) return;
@@ -526,7 +542,6 @@ export function AudioAnalysisPage() {
     );
     const result = await audio.analyze(file, selectedBackend, useCuda && cudaAvailable);
     if (result) {
-      setAnalysisStep("Detecting song structure...");
       loadAudioFiles();
     }
     setAnalysisStep("");
@@ -570,37 +585,57 @@ export function AudioAnalysisPage() {
     }
   };
 
-  const handleAnalyzeLibraryFile = async (storedPath: string) => {
-    if (!storedPath || editingFile) return;
-    // Normalize to relative path from output/audio/ (handles both relative and absolute paths)
-    let relativePath = storedPath;
-    const audioDirMarker = "output/audio/";
-    const audioDirMarkerWin = "output\\audio\\";
-    if (relativePath.includes(audioDirMarker)) {
-      relativePath = relativePath.split(audioDirMarker)[1];
-    } else if (relativePath.includes(audioDirMarkerWin)) {
-      relativePath = relativePath.split(audioDirMarkerWin)[1];
-    }
-    setSelectedLibraryFile(relativePath);
-    setAnalysisStep("Loading audio file...");
-    try {
-      // Pass relative path so backend can find files in subdirectories
-      const ensured = await audio.ensure(relativePath, selectedBackend);
-      if (ensured && ensured.analysis) {
-        setAnalysisStep("Detecting song structure...");
-        setAnalysis(ensured.analysis);
-        // Persist so the inline player + highlight survive completion
-        // (selectedLibraryFile is cleared below — it is the spinner only).
-        setAnalyzedLibraryPath(relativePath);
+  // One analysis at a time: a rapid second click on another library row must
+  // not let the slower first response overwrite the newer one's result.
+  const analyzeTokenRef = useRef(0);
+  const handleAnalyzeLibraryFile = useCallback(
+    async (storedPath: string) => {
+      if (!storedPath || editingFile) return;
+      // Normalize to relative path from output/audio/ (handles both relative
+      // and absolute paths)
+      let relativePath = storedPath;
+      const audioDirMarker = "output/audio/";
+      const audioDirMarkerWin = "output\\audio\\";
+      if (relativePath.includes(audioDirMarker)) {
+        relativePath = relativePath.split(audioDirMarker)[1];
+      } else if (relativePath.includes(audioDirMarkerWin)) {
+        relativePath = relativePath.split(audioDirMarkerWin)[1];
       }
-      setAnalysisStep("");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
-      setAnalysisStep("");
-    } finally {
-      setSelectedLibraryFile(null);
-    }
-  };
+      const token = ++analyzeTokenRef.current;
+      setAnalyzingLibraryPath(relativePath);
+      setAnalysisStep("Loading audio file...");
+      // A library track supersedes any uploaded file: with an upload still
+      // attached, the waveform/player would keep seeking the upload instead
+      // of the track being analyzed.
+      setFile(null);
+      setFileError(null);
+      try {
+        // Pass relative path so backend can find files in subdirectories
+        const ensured = await ensureAnalysisFor(relativePath, selectedBackend);
+        if (token !== analyzeTokenRef.current) return;
+        if (ensured && ensured.analysis) {
+          setAnalysis(ensured.analysis);
+          // Persist so the inline player + highlight survive completion
+          // (analyzingLibraryPath is cleared below — it is the spinner only).
+          setAnalyzedLibraryPath(relativePath);
+        } else {
+          // ensure() sets its own error on a failed request; a quiet null
+          // means nothing came back — say so instead of silently flashing
+          // and vanishing. Functional update so a just-set request error is
+          // not overwritten (the closure value would be stale here).
+          setError((prev) => prev ?? "No analysis available for this track");
+        }
+        setAnalysisStep("");
+      } catch (err: unknown) {
+        if (token !== analyzeTokenRef.current) return;
+        setError(err instanceof Error ? err.message : "Analysis failed");
+        setAnalysisStep("");
+      } finally {
+        if (token === analyzeTokenRef.current) setAnalyzingLibraryPath(null);
+      }
+    },
+    [editingFile, selectedBackend, ensureAnalysisFor, setAnalysis, setError],
+  );
 
   // Media Library preselection: auto-analyze ?file=filename on mount.
   const hasAutoAnalyzed = useRef(false);
@@ -628,8 +663,15 @@ export function AudioAnalysisPage() {
     setEditingFile(null);
     if (newName && newName !== oldName) {
       try {
-        const ext = oldName.includes(".") ? oldName.slice(oldName.lastIndexOf(".")) : "";
-        const finalName = newName.includes(".") ? newName : newName + ext;
+        // oldName is a relative_path (~"sub/track.mp3") but the edit box holds
+        // the bare basename. The backend joins new_filename under output/audio/
+        // as-is, so without the directory prefix a subfolder file would be
+        // silently dragged to the library root.
+        const slashIdx = Math.max(oldName.lastIndexOf("/"), oldName.lastIndexOf("\\"));
+        const dir = slashIdx >= 0 ? oldName.slice(0, slashIdx + 1) : "";
+        const oldBase = oldName.slice(slashIdx + 1);
+        const ext = oldBase.includes(".") ? oldBase.slice(oldBase.lastIndexOf(".")) : "";
+        const finalName = dir + (newName.includes(".") ? newName : newName + ext);
         await renameAudioFile(oldName, finalName);
         await loadAudioFiles();
       } catch (err) {
@@ -808,6 +850,40 @@ export function AudioAnalysisPage() {
     [seekTo],
   );
 
+  // The waveform is announced as role="slider", so it needs keyboard seek.
+  // Current time is read from the live element on keypress; tracking it in
+  // state would re-render the whole page on every playback tick.
+  const handleWaveformKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const duration = analysis?.duration_seconds ?? 0;
+      if (!duration) return;
+      const el = uploadAudioRef.current || libraryAudioRef.current;
+      let step: number;
+      if (e.key === "ArrowLeft") step = -5;
+      else if (e.key === "ArrowRight") step = 5;
+      else if (e.key === "PageDown") step = -30;
+      else if (e.key === "PageUp") step = 30;
+      else if (e.key === "Home") {
+        e.preventDefault();
+        seekTo(0);
+        return;
+      } else if (e.key === "End") {
+        e.preventDefault();
+        seekTo(Math.max(0, duration - 0.05));
+        return;
+      } else {
+        return;
+      }
+      e.preventDefault();
+      seekTo(Math.max(0, Math.min((el ? el.currentTime : 0) + step, duration)));
+    },
+    [analysis, seekTo],
+  );
+
+  // Backend reports 0-1, but a mid-flight or malformed value must not blow the
+  // bar past its track (or underflow it) — clamp at render.
+  const jobProgressPct = Math.min(100, Math.max(0, Math.round((jobProgress?.progress ?? 0) * 100)));
+
   return (
     <div className={DS.pageWide}>
       <div className={DS.pageTitle}>
@@ -872,8 +948,9 @@ export function AudioAnalysisPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        <div className="min-w-0 space-y-5">
+      {/* Two-column on lg: analysis flow (2fr) + library sidebar (1fr) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="min-w-0 space-y-5 lg:col-span-2">
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -1034,11 +1111,11 @@ export function AudioAnalysisPage() {
               </div>
               <div
                 className="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden"
-                aria-label={`Progress ${Math.round((jobProgress.progress ?? 0) * 100)}%`}
+                aria-label={`Progress ${jobProgressPct}%`}
               >
                 <div
                   className="h-full bg-violet-500 rounded-full transition-all"
-                  style={{ width: `${(jobProgress.progress ?? 0) * 100}%` }}
+                  style={{ width: `${jobProgressPct}%` }}
                 />
               </div>
             </div>
@@ -1234,9 +1311,16 @@ export function AudioAnalysisPage() {
               {analysis && (
                 <MasteringPanel
                   onMastered={(masteredPath) => {
-                    setError(null);
-                    setJobDoneNote(`Mastered: ${masteredPath.split("/").pop() ?? masteredPath}`);
-                    window.setTimeout(() => setJobDoneNote(null), 5000);
+                    // The panel only fires with a real path. mastered_path can
+                    // be a Windows path — accept both separators. Reuse the
+                    // tracked timer so this flash never outlives the page.
+                    const name = masteredPath.split(/[/\\]/).pop() || masteredPath;
+                    clearJobDoneNoteTimer();
+                    setJobDoneNote(`Mastered: ${name}`);
+                    jobDoneNoteTimerRef.current = window.setTimeout(() => {
+                      setJobDoneNote(null);
+                      jobDoneNoteTimerRef.current = null;
+                    }, 5000);
                   }}
                 />
               )}
@@ -1275,10 +1359,12 @@ export function AudioAnalysisPage() {
                 <div
                   ref={waveformRef}
                   onClick={handleWaveformSeek}
-                  title={analysis?.duration_seconds ? "Click to seek" : undefined}
-                  className={`w-full h-20 bg-gray-900/40 rounded-lg border border-gray-700 overflow-hidden mt-2 ${analysis?.duration_seconds ? "cursor-pointer" : ""}`}
+                  onKeyDown={analysis?.duration_seconds ? handleWaveformKeyDown : undefined}
+                  tabIndex={analysis?.duration_seconds ? 0 : undefined}
+                  title={analysis?.duration_seconds ? "Click to seek · ←/→ seek ±5 s" : undefined}
+                  className={`w-full h-20 bg-gray-900/40 rounded-lg border border-gray-700 overflow-hidden mt-2 ${analysis?.duration_seconds ? "cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-violet-500/70" : ""}`}
                   role={analysis?.duration_seconds ? "slider" : undefined}
-                  aria-label={analysis?.duration_seconds ? "Waveform — click to seek" : undefined}
+                  aria-label={analysis?.duration_seconds ? "Waveform — click or keyboard to seek" : undefined}
                   aria-valuemin={0}
                   aria-valuemax={analysis?.duration_seconds ?? 0}
                   aria-valuetext={`0:00 to ${formatTime(analysis?.duration_seconds ?? 0)}`}
@@ -1745,7 +1831,7 @@ export function AudioAnalysisPage() {
                           (f.relative_path && normalizedStored.endsWith(`/${f.relative_path}`)) ||
                           analyzedName === f.filename;
                         const isActive =
-                          (selectedLibraryFile === f.relative_path ||
+                          (analyzingLibraryPath === f.relative_path ||
                             analyzedLibraryPath === f.relative_path) &&
                           !editingFile;
                         const display = f.optionLabel || f.filename;

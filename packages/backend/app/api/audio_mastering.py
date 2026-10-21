@@ -61,6 +61,15 @@ class MasterRequest(BaseModel):
         default=True,
         description="Apply static de-mud (~300 Hz HPF) + presence shelf (~4 kHz).",
     )
+    gain_trim_db: float = Field(
+        default=0.0,
+        ge=-12.0,
+        le=12.0,
+        description=(
+            "Manual trim in dB applied after loudness normalization and before "
+            "true-peak limiting. 0 leaves the normalized gain untouched."
+        ),
+    )
 
 
 class MasterResponse(BaseModel):
@@ -100,6 +109,7 @@ async def master_audio(body: MasterRequest) -> MasterResponse:
         target_lufs=TARGET_LUFS[body.target_lufs],
         ceiling_dbtp=body.ceiling_dbtp,
         tone_fixes=body.tone_fixes,
+        gain_trim_db=body.gain_trim_db,
     )
     if result.get("error") and not result.get("mastered_path"):
         status = 404 if "not found" in str(result["error"]) else 400

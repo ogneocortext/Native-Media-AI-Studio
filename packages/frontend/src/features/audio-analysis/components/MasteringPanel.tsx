@@ -18,17 +18,26 @@
  *   POST /api/audio/master     — master a file, returns before/after QC report
  *   GET  /api/audio/master/measure/{filename} — measurement-only preview
  *
- * True-peak ceiling default -1 dBTP. Gain is clamped ±12 dB to avoid runaway
- * boost on silent or extreme tracks. Tone fixes are conservative: a static
- * de-mud wide cut (~300 Hz) plus a gentle presence shelf (~4 kHz).
+ * Mastering does not require a prior Measure: the backend measures the source
+ * itself and returns it in `res.before`, which seeds the QC report. Measure
+ * stays for users who want the numbers before writing anything. The manual
+ * trim slider is a post-normalization offset (gain_trim_db) — applied after
+ * the target match and before the limiter, so the iterative normalizer cannot
+ * gain it straight back.
+ *
+ * True-peak ceiling default -1 dBTP. Auto gain is clamped ±12 dB to avoid
+ * runaway boost on silent or extreme tracks (the backend clamps the trim the
+ * same way). Tone fixes are conservative: a static de-mud wide cut (~300 Hz)
+ * plus a gentle presence shelf (~4 kHz).
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import {
   MASTER_TARGETS,
   type MasterTarget,
   measureMasterLoudness,
   masterAudio,
+  getApiBase,
   type MasterResponse,
   type MasterMeasureResponse,
 } from "../../../services/api";
@@ -36,7 +45,26 @@ import { useAudioLibrary } from "../../../hooks/useAudioLibrary";
 import { DS } from "../../../styles/designSystem";
 import { AlertCircle, Download, Loader2, Music, Play, Zap, Volume2 } from "lucide-react";
 
-const MASTER_TARGET_CHIPS: MasterTarget[] = ["spotify", "apple", "competitive", "amazon"];
+/** Delivery presets, derived so chips never drift from the API's preset map. */
+const MASTER_TARGET_CHIPS = Object.keys(MASTER_TARGETS) as MasterTarget[];
+
+/** The backend writes under output/audio/mastered/<stem>_mastered.mp3 and
+ *  returns an absolute path whose separators depend on the host OS (Windows
+ *  paths come back with backslashes). /api/audio/file/mastered/<name> serves
+ *  that directory, so only the base filename survives into the URL. */
+function masteredBasename(masteredPath: string | null | undefined): string | null {
+  if (!masteredPath) return null;
+  const name = masteredPath.split(/[/\\]/).pop();
+  return name ? name : null;
+}
+
+/** True-peak gain reduction is limited; the LUFS match is not, so show the
+ *  delta direction to make an off-target result interpretable. */
+function lufsDeltaStr(lufs: number | null, target: number): string {
+  if (lufs == null) return "";
+  const delta = lufs - target;
+  return ` (${delta >= 0 ? "+" : ""}${delta.toFixed(1)} vs ${target})`;
+}
 
 interface MasteringPanelProps {
   /** Optional callback fired when a mastered file is produced, with its path. */
@@ -52,7 +80,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [target, setTarget] = useState<MasterTarget>("spotify");
   const [ceilingDb, setCeilingDb] = useState(-1);
-  const [gainDb, setGainDb] = useState<number | null>(null);
+  const [gainTrimDb, setGainTrimDb] = useState(0);
   const [toneFixes, setToneFixes] = useState(true);
 
   const [measuring, setMeasuring] = useState(false);
@@ -61,6 +89,11 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
   const [result, setResult] = useState<MasterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Incremented whenever the user picks a different track; in-flight responses
+  // that predate the pick are dropped instead of labelling the new track's QC
+  // report with the old track's numbers.
+  const opTokenRef = useRef(0);
+
   const track = useMemo(() => tracks.find((t) => t.filename === selectedTrack), [
     tracks,
     selectedTrack,
@@ -68,24 +101,28 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
 
   const handleMeasure = useCallback(async () => {
     if (!selectedTrack) return;
+    const opToken = ++opTokenRef.current;
     setMeasuring(true);
     setError(null);
     try {
       const m = await measureMasterLoudness(selectedTrack);
+      if (opToken !== opTokenRef.current) return;
       if (m.error) {
         setError(m.error);
         return;
       }
       setBefore(m);
     } catch (err) {
+      if (opToken !== opTokenRef.current) return;
       setError(err instanceof Error ? err.message : "Measure failed");
     } finally {
-      setMeasuring(false);
+      if (opToken === opTokenRef.current) setMeasuring(false);
     }
   }, [selectedTrack]);
 
   const handleMaster = useCallback(async () => {
     if (!selectedTrack) return;
+    const opToken = ++opTokenRef.current;
     setMastering(true);
     setError(null);
     try {
@@ -94,19 +131,25 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
         target_lufs: target,
         ceiling_dbtp: ceilingDb,
         tone_fixes: toneFixes,
+        gain_trim_db: gainTrimDb || undefined,
       });
-      if (res.error) {
+      if (opToken !== opTokenRef.current) return;
+      if (res.error && !res.mastered_path) {
         setError(res.error);
         return;
       }
       setResult(res);
-      onMastered?.(res.mastered_path ?? "");
+      // The backend measures the source itself, so a master run can seed the
+      // QC "before" without a separate Measure click.
+      if (res.before?.integrated_lufs != null) setBefore(res.before);
+      if (res.mastered_path) onMastered?.(res.mastered_path);
     } catch (err) {
+      if (opToken !== opTokenRef.current) return;
       setError(err instanceof Error ? err.message : "Master failed");
     } finally {
-      setMastering(false);
+      if (opToken === opTokenRef.current) setMastering(false);
     }
-  }, [selectedTrack, target, ceilingDb, toneFixes, onMastered]);
+  }, [selectedTrack, target, ceilingDb, toneFixes, gainTrimDb, onMastered]);
 
   const reset = useCallback(() => {
     setBefore(null);
@@ -115,6 +158,10 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
   }, []);
 
   const hasResult = result?.mastered_path != null;
+  const masteredUrl = useMemo(() => {
+    const name = masteredBasename(result?.mastered_path);
+    return name ? `${getApiBase()}/api/audio/file/mastered/${encodeURIComponent(name)}` : null;
+  }, [result]);
 
   return (
     <section className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-transparent space-y-4`}>
@@ -139,10 +186,14 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           <select
             value={selectedTrack ?? ""}
             onChange={(e) => {
+              // Invalidate any in-flight measure/master so a slow response
+              // cannot label the next track with this one's QC numbers.
+              opTokenRef.current++;
               setSelectedTrack(e.target.value || null);
               reset();
+              setGainTrimDb(0);
             }}
-            disabled={libraryLoading || tracks.length === 0}
+            disabled={libraryLoading || tracks.length === 0 || measuring || mastering}
             className={DS.select}
             aria-label="Mastering track"
           >
@@ -157,7 +208,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
         <div className="flex items-end">
           <button
             onClick={handleMeasure}
-            disabled={measuring || !selectedTrack}
+            disabled={measuring || mastering || !selectedTrack}
             className={`${DS.btnSecondarySm} ${
               measuring ? "opacity-60 cursor-not-allowed" : ""
             }`}
@@ -176,7 +227,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-2">
               <label className={DS.textLabel}>Target loudness</label>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Target loudness preset">
                 {MASTER_TARGET_CHIPS.map((t) => (
                   <button
                     key={t}
@@ -190,7 +241,6 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                         : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600"
                     }`}
                     aria-pressed={target === t}
-                    role="switch"
                   >
                     {t} {MASTER_TARGETS[t]} LUFS
                   </button>
@@ -228,15 +278,16 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
             </div>
           </div>
 
-          {/* Manual gain override */}
+          {/* Manual trim (sent as gain_trim_db — applied after loudness
+              normalization, before limiting, so it is audible in the export). */}
           <div className="space-y-2">
             <label className={DS.textLabel + " flex items-center justify-between"}>
-              <span>Manual gain override ({gainDb ?? "auto"} dB)</span>
+              <span>Manual trim ({gainTrimDb > 0 ? "+" : ""}{gainTrimDb} dB · after normalization)</span>
               <button
-                onClick={() => setGainDb(null)}
+                onClick={() => setGainTrimDb(0)}
                 className={DS.btnGhostSm}
-                disabled={gainDb == null}
-                title="Reset to auto gain"
+                disabled={gainTrimDb === 0}
+                title="Reset trim to 0 dB"
               >
                 reset
               </button>
@@ -246,11 +297,11 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
               min="-12"
               max="12"
               step="1"
-              value={gainDb ?? 0}
-              onChange={(e) => setGainDb(parseFloat(e.target.value))}
+              value={gainTrimDb}
+              onChange={(e) => setGainTrimDb(parseFloat(e.target.value))}
               className={DS.range}
-              disabled={gainDb == null}
-              aria-label="Manual gain override"
+              disabled={mastering || !selectedTrack}
+              aria-label="Manual gain trim"
             />
           </div>
 
@@ -258,14 +309,14 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           <div className="flex gap-2">
             <button
               onClick={handleMaster}
-              disabled={mastering || !selectedTrack || !before}
+              disabled={mastering || !selectedTrack}
               className={`${DS.btnPrimary} ${
-                mastering || !selectedTrack || !before
+                mastering || !selectedTrack
                   ? "opacity-60 cursor-not-allowed"
                   : ""
               } w-full`}
               aria-busy={mastering}
-              title="Apply gain/tone/limit and write mastered copy"
+              title="Apply gain/tone/limit and write a mastered copy (the backend measures the source itself)"
             >
               {mastering ? (
                 <>
@@ -296,6 +347,8 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                   </p>
                   <p className={DS.statSub}>
                     TP {before?.true_peak_dbtp != null ? before.true_peak_dbtp.toFixed(1) : "—"} dBTP
+                    {" · "}
+                    LRA {before?.lra_lu != null ? before.lra_lu.toFixed(1) : "—"} LU
                   </p>
                 </div>
                 <div className={DS.statCard + " border-green-500/30 bg-green-500/5"}>
@@ -307,21 +360,29 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                   </p>
                   <p className={DS.statSub}>
                     TP {result?.after?.true_peak_dbtp != null ? result.after.true_peak_dbtp.toFixed(1) : "—"} dBTP
+                    {" · "}
+                    LRA {result?.after?.lra_lu != null ? result.after.lra_lu.toFixed(1) : "—"} LU
                   </p>
                 </div>
               </div>
               {result?.applied && (
-                <div className="mt-3 flex gap-3 text-xs text-muted">
-                  <span>Gain {result.applied.gain_db >= 0 ? "+" : ""}{result.applied.gain_db.toFixed(1)} dB</span>
-                  <span>· Target {result.applied.target_lufs} LUFS</span>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
+                  <span>
+                    Gain {result.applied.gain_db >= 0 ? "+" : ""}
+                    {result.applied.gain_db.toFixed(1)} dB
+                    {result.applied.gain_trim_db
+                      ? ` ${result.applied.gain_trim_db > 0 ? "+" : ""}${result.applied.gain_trim_db.toFixed(1)} trim`
+                      : ""}
+                  </span>
+                  <span>· Target {result.applied.target_lufs} LUFS{lufsDeltaStr(result.after?.integrated_lufs ?? null, result.applied.target_lufs)}</span>
                   <span>· Ceiling {result.applied.ceiling_dbtp} dBTP</span>
                   <span>· Tone {result.applied.tone_fixes ? "on" : "off"}</span>
                 </div>
               )}
               <div className="mt-3 flex gap-2">
-                {hasResult && result.mastered_path && (
+                {hasResult && masteredUrl && (
                   <a
-                    href={`${window.location.origin}/api/audio/file/mastered/${encodeURIComponent(result.mastered_path.split("/").pop() ?? "")}`}
+                    href={masteredUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={DS.btnSecondarySm}

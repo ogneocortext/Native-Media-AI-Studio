@@ -21,6 +21,12 @@ export interface TimingHint {
  *
  * Returns the beat entry when `elapsedSec` falls within `windowSec` of
  * a stored beat time; otherwise `null`.
+ *
+ * After the search loop, `lo` is the insertion point (first beat > elapsedSec)
+ * and `hi` is `lo - 1` (last beat <= elapsedSec). The nearest beat is always
+ * one of those two adjacent entries — never `beats[mid]` alone, because `mid`
+ * at loop exit can land on either side and the other adjacent entry would be
+ * missed (e.g. beats=[1,4,5], elapsed=3 lands mid==hi==0 and misses beats[1]=4).
  */
 export function getBeatNearTimeFromArray(
   beats: number[],
@@ -31,32 +37,33 @@ export function getBeatNearTimeFromArray(
 
   let lo = 0;
   let hi = beats.length - 1;
-  let mid = 0;
 
   while (lo <= hi) {
-    mid = lo + ((hi - lo) >> 1);
+    const mid = lo + ((hi - lo) >> 1);
     const t = beats[mid];
     if (t < elapsedSec) {
       lo = mid + 1;
     } else if (t > elapsedSec) {
       hi = mid - 1;
     } else {
-      break;
+      return { index: mid, time: t };
     }
   }
 
-  const candidate = beats[mid];
-  if (candidate !== undefined && Math.abs(candidate - elapsedSec) <= windowSec) {
-    return { index: mid, time: candidate };
+  // lo is the first beat > elapsedSec, hi is the last beat <= elapsedSec.
+  // Check both adjacent entries; pick the closer one within the window.
+  let best: { index: number; time: number } | null = null;
+  if (hi >= 0 && Math.abs(beats[hi] - elapsedSec) <= windowSec) {
+    best = { index: hi, time: beats[hi] };
   }
-
-  // Check the beat just before elapsedSec if any
-  const prev = mid > 0 ? beats[mid - 1] : undefined;
-  if (prev !== undefined && Math.abs(prev - elapsedSec) <= windowSec) {
-    return { index: mid - 1, time: prev };
+  if (lo < beats.length && Math.abs(beats[lo] - elapsedSec) <= windowSec) {
+    const closer =
+      best === null || Math.abs(beats[lo] - elapsedSec) < Math.abs(best.time - elapsedSec)
+        ? { index: lo, time: beats[lo] }
+        : best;
+    best = closer;
   }
-
-  return null;
+  return best;
 }
 
 /**

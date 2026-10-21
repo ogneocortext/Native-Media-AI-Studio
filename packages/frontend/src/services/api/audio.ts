@@ -855,13 +855,17 @@ export interface MasterRequest {
   target_lufs?: MasterTarget;
   ceiling_dbtp?: number;
   tone_fixes?: boolean;
+  /** Manual trim in dB applied after normalization, before limiting. */
+  gain_trim_db?: number;
 }
 
 export interface MasterApplied {
   gain_db: number;
+  gain_trim_db?: number;
   target_lufs: number;
   ceiling_dbtp: number;
   tone_fixes: boolean;
+  gain_passes?: number;
 }
 
 export interface MasterResponse {
