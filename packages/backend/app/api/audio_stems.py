@@ -405,6 +405,56 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     )
 
 
+@router.post("/stem-check/{track_name}/{stem_name}")
+async def check_stem_phase_mono(track_name: str, stem_name: str):
+    """Phase/mono compatibility check for a separated stem.
+
+    Runs FFT phase correlation + mono-sum analysis on a separated stem
+    and returns phase_status ("ok"|"wide"|"inverted") and mono_status
+    ("ok"|"risk"|"cancel") with human-readable recommendations.
+    Per studio-quality-2026-10.md Phase 3 M3 (stem mixer honesty).
+    """
+    import re
+    import urllib.parse
+
+    track_name = urllib.parse.unquote(track_name)
+    stem_name = urllib.parse.unquote(stem_name)
+    if stem_name not in set(source_separation.STEM_NAMES):
+        raise HTTPException(
+            status_code=400, detail="stem_name must be vocals|drums|bass|other"
+        )
+
+    safe_track = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", track_name).strip()
+    if not safe_track or ".." in safe_track:
+        raise HTTPException(status_code=400, detail="Invalid track name")
+
+    base_dir = SEPARATION_DIR.resolve()
+
+    # Find the stem WAV (same search pattern as serve_stem_file).
+    stem_path: Path | None = None
+    for model_dir in sorted(SEPARATION_DIR.iterdir()):
+        if not model_dir.is_dir():
+            continue
+        candidate = (model_dir / safe_track / f"{stem_name}.wav").resolve()
+        if candidate.exists() and str(candidate).startswith(str(base_dir)):
+            stem_path = candidate
+            break
+
+    if not stem_path:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Stem not found: {safe_track}/{stem_name}.wav — "
+                "run POST /api/audio/separate-file first"
+            ),
+        )
+
+    result = source_separator.analyze_stem_phase_mono(str(stem_path))
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
 class StemVisualizationRequest(BaseModel):
     """Request model for stem-reactive visualization data (A5)."""
 

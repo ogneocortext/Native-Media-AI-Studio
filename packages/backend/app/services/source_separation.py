@@ -1263,6 +1263,107 @@ class SourceSeparator:
         except Exception as e:
             return {"file": stem_path, "error": str(e)}
 
+    def analyze_stem_phase_mono(self, stem_path: str) -> dict[str, Any]:
+        """Phase/mono compatibility check for a separated stem.
+
+        Computes left/right phase correlation (Pearson) and mono-sum
+        compatibility (energy of (L+R)/2 vs stereo energy). Returns
+        phase_status ("ok"|"wide"|"inverted") and mono_status
+        ("ok"|"risk"|"cancel") with human recommendations.
+
+        Mono files report perfect scores with no issues possible.
+        """
+        try:
+            import librosa
+            import numpy as np
+
+            y, sr = librosa.load(stem_path, sr=None, mono=False)
+
+            if y.ndim == 1:
+                return {
+                    "file": stem_path,
+                    "phase_correlation": 1.0,
+                    "mono_compatibility": 1.0,
+                    "phase_status": "ok",
+                    "mono_status": "ok",
+                    "channels": 1,
+                    "sample_rate": sr,
+                    "recommendations": ["Mono source — no phase issues possible"],
+                }
+
+            left = y[0]
+            right = y[1]
+
+            # Phase correlation: Pearson correlation between L and R.
+            l_mean = float(np.mean(left))
+            r_mean = float(np.mean(right))
+            l_centered = left - l_mean
+            r_centered = right - r_mean
+            denom = np.sqrt(
+                np.dot(l_centered, l_centered) * np.dot(r_centered, r_centered)
+            )
+            correlation = float(np.dot(l_centered, r_centered) / (denom + 1e-10))
+            correlation = float(np.clip(correlation, -1.0, 1.0))
+
+            # Mono compatibility: energy of (L+R)/2 vs stereo energy.
+            # 1.0 = perfect (no cancellation), 0.0 = total cancellation.
+            mono = (left + right) / 2
+            stereo_energy = float(np.sum(left**2 + right**2))
+            mono_energy = float(np.sum(mono**2))
+            if stereo_energy > 0:
+                mono_compat = float(2.0 * mono_energy / stereo_energy)
+                mono_compat = float(np.clip(mono_compat, 0.0, 1.0))
+            else:
+                mono_compat = 1.0
+
+            # Status classifications.
+            if correlation > 0.7:
+                phase_status = "ok"
+            elif correlation < -0.3:
+                phase_status = "inverted"
+            elif correlation > 0.3:
+                phase_status = "wide"
+            else:
+                phase_status = "ok"
+
+            if mono_compat > 0.8:
+                mono_status = "ok"
+            elif mono_compat > 0.5:
+                mono_status = "risk"
+            else:
+                mono_status = "cancel"
+
+            recommendations: list[str] = []
+            if phase_status == "inverted":
+                recommendations.append(
+                    "Phase inverted between L/R — check polarity"
+                )
+            elif phase_status == "wide":
+                recommendations.append(
+                    "Wide stereo image — verify mono collapse"
+                )
+            if mono_status in ("risk", "cancel"):
+                recommendations.append(
+                    "Mono compatibility risk — elements may cancel in mono"
+                )
+            if phase_status == "ok" and mono_status == "ok":
+                recommendations.append(
+                    "Phase and mono compatibility look good"
+                )
+
+            return {
+                "file": stem_path,
+                "phase_correlation": round(correlation, 3),
+                "mono_compatibility": round(mono_compat, 3),
+                "phase_status": phase_status,
+                "mono_status": mono_status,
+                "channels": 2,
+                "sample_rate": sr,
+                "recommendations": recommendations,
+            }
+        except Exception as e:
+            return {"file": stem_path, "error": str(e)}
+
 
 # Global instance
 source_separator = SourceSeparator()
