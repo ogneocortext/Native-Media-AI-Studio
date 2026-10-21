@@ -311,3 +311,7 @@ To update this document:
 ---
 
 *Last updated: 2026-09-04*
+
+## Related
+
+- [[coding-benchmarks.md]] :see-also

@@ -44,6 +44,7 @@ BASE = REPO / "docs" / "knowledge-library"
 INDEX = BASE / "index.md"
 TRACKER = BASE / "migration-progress.md"
 LOG = BASE / "log.md"
+SKIP = ("index.md", "README.md", "_schema.md", "log.md")
 
 CATEGORIES = {
     "1": ("production", "Production Pipeline"),
@@ -135,6 +136,66 @@ def suggest_type_from_title(title: str) -> str | None:
     return None
 
 
+def find_related_docs(category: str, ptype: str, cross_tags: list[str],
+                      limit: int = 5) -> list[tuple[str, str, str]]:
+    """Find existing library docs related to a new document.
+
+    Scores candidates by shared category (+2) and shared cross-cutting tags
+    (+1 per tag). Returns up to `limit` tuples of
+    (doc_name, display_alias, suggested_relation).
+    """
+    related: list[tuple[int, str, str, str]] = []
+    for path in BASE.glob("*.md"):
+        name = path.name
+        if name in SKIP or name.endswith(f"-{DATE[:4]}.md"):
+            continue
+        text = read_file(path)
+        # Read frontmatter tags.
+        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+        if not m:
+            continue
+        doc_tags: list[str] = []
+        doc_category = ""
+        in_tags = False
+        for line in m.group(1).split("\n"):
+            if line.startswith("tags:"):
+                in_tags = True
+                continue
+            if in_tags:
+                t = re.match(r"^\s*-\s*(\S+)\s*$", line)
+                if t:
+                    doc_tags.append(t.group(1))
+                    continue
+                if line.strip() and not line.startswith(" "):
+                    in_tags = False
+            mc = re.match(r"^type:\s*(\S+)", line)
+            if mc:
+                # Not used for scoring yet, but kept for clarity.
+                _doc_type = mc.group(1)
+        doc_category = doc_tags[0] if doc_tags else ""
+        # Score.
+        score = 2 if doc_category == category else 0
+        score += len(set(doc_tags) & set(cross_tags))
+        if score <= 0:
+            continue
+        # Suggest relation based on page type.
+        mtype = re.search(r"^type:\s*(\S+)", text, re.M)
+        doc_type = mtype.group(1) if mtype else "concept"
+        relation = ":see-also"
+        if doc_type == "source" and ptype in ("concept", "synthesis"):
+            relation = ":cites"
+        elif doc_type == "concept" and ptype == "synthesis":
+            relation = ":extends"
+        elif doc_type == "entity" and ptype in ("concept", "comparison"):
+            relation = ":implements"
+        # Get display alias.
+        display = name.removesuffix(".md")
+        related.append((score, name, display, relation))
+    related.sort(key=lambda x: (-x[0], x[1]))
+    return [(name.removesuffix(".md"), display, relation) for _, name, display, relation
+            in related[:limit]]
+
+
 def choose_type(category: str, title: str = "") -> str:
     suggested = suggest_type_from_title(title)
     default_idx = 1
@@ -176,7 +237,20 @@ def build_frontmatter(category: str, ptype: str, title: str, aliases: list[str],
     )
 
 
-def body_template(title: str) -> str:
+def body_template(title: str, related_docs: list[tuple[str, str, str]] | None = None
+                   ) -> str:
+    related_lines = ""
+    if related_docs:
+        related_lines = "\n".join(
+            f"- [[{name}|{display}]] {relation}"
+            for name, display, relation in related_docs
+        ) + "\n"
+    else:
+        related_lines = (
+            "Add typed wiki-links to related documents (see _schema.md §3):\n"
+            "\n"
+            "- [[related-doc]]:see-also\n"
+        )
     return (
         "\n"
         "> [!info] Purpose\n"
@@ -190,10 +264,7 @@ def body_template(title: str) -> str:
         "\n"
         "## Related\n"
         "\n"
-        "Add typed wiki-links to related documents (see _schema.md §3):\n"
-        "\n"
-        "- [[related-doc]]:see-also\n"
-        "\n"
+        f"{related_lines}"
     )
 
 
@@ -285,6 +356,32 @@ def append_to_log(name: str, category: str) -> None:
     write_file(LOG, text)
 
 
+def _insert_backlink(doc_path: Path, new_name: str, new_title: str) -> None:
+    """Insert a back-link from `doc_path` to `new_name` in its Related section.
+
+    Finds the "## Related" section and appends a wiki-link to the new doc.
+    If no Related section exists, appends one at the end of the body.
+    """
+    text = read_file(doc_path)
+    link_line = f"- [[{new_name}]] :see-also — {new_title}\n"
+    # Check if link already exists.
+    if f"[[{new_name}]]" in text:
+        return
+    # Try to insert into an existing "## Related" section.
+    m = re.search(r"(## Related\n)(.*?)(?=\n## |\Z)", text, re.S)
+    if m:
+        # Add link after the "## Related\n" heading (skip placeholder text).
+        new_section = m.group(1) + link_line + m.group(2)
+        text = text[:m.start()] + new_section + text[m.end():]
+    else:
+        # No Related section — append one before the closing --- if present, else at end.
+        if text.rstrip().endswith("---"):
+            text = text.rstrip() + "\n\n## Related\n\n" + link_line
+        else:
+            text = text.rstrip() + "\n\n## Related\n\n" + link_line
+    write_file(doc_path, text)
+
+
 def run_validator() -> int:
     """Run validate-knowledge-tags.py and return its exit code."""
     import subprocess
@@ -308,6 +405,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Alias (can repeat)")
     parser.add_argument("-x", "--cross-tag", action="append", default=[],
                         help="Cross-cutting tag (can repeat)")
+    parser.add_argument("--no-auto-links", action="store_true",
+                        help="Skip inserting auto-suggested related-doc links")
     parser.add_argument("--no-validate", action="store_true",
                         help="Skip running validate-knowledge-tags.py")
     args = parser.parse_args(argv)
@@ -345,9 +444,18 @@ def main(argv: list[str] | None = None) -> int:
     # Cross-cutting tags.
     cross_tags = list(args.cross_tag)
 
+    # Find related docs for auto-links (prevents orphans at creation time).
+    related_docs: list[tuple[str, str, str]] = []
+    if not args.no_auto_links:
+        related_docs = find_related_docs(category, ptype, cross_tags)
+        if related_docs:
+            print(f"\nAuto-linked {len(related_docs)} related document(s):")
+            for name, display, relation in related_docs:
+                print(f"  -> [[{name}|{display}]] {relation}")
+
     # Build file content.
     fm = build_frontmatter(category, ptype, title, aliases, cross_tags)
-    body = body_template(title)
+    body = body_template(title, related_docs)
     content = fm + body
 
     write_file(target, content)
@@ -359,6 +467,12 @@ def main(argv: list[str] | None = None) -> int:
     insert_in_tracker(target.stem, category)
     append_to_log(target.name, category)
     print("Registered in index.md, migration-progress.md, and log.md.")
+
+    # Insert back-links from related docs into their Related sections so the
+    # new doc is not an orphan (other docs link to it).
+    if not args.no_auto_links and related_docs:
+        for name, _display, _relation in related_docs:
+            _insert_backlink(BASE / name, target.stem, title)
 
     # Validate.
     if args.no_validate:

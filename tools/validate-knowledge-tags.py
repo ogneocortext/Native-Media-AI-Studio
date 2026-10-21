@@ -310,12 +310,12 @@ def check_line_endings(docs):
     CRLF, which turns a small edit into a whole-file diff. This repo stores
     markdown with LF, so flag any library file that has picked up CRLF.
     """
-    for name, path in sorted(docs.items()):
+    for _name, path in sorted(docs.items()):
         with open(path, "rb") as f:
             data = f.read()
-    if b"\r\n" in data:
-        errors.append(f"{name}: CRLF line endings (repo uses LF); "
-                      "a rewrite likely converted them")
+        if b"\r\n" in data:
+            errors.append(f"{_name}: CRLF line endings (repo uses LF); "
+                          "a rewrite likely converted them")
 
 
 def check_type_field(docs):
@@ -358,6 +358,9 @@ def extract_links(path):
         slug = m.group(1).strip()
         # Drop anchor section: [[slug#section]] -> [[slug]]
         slug = slug.split("#")[0]
+        # Strip .md extension so [[doc.md]] and [[doc]] resolve the same.
+        if slug.endswith(".md"):
+            slug = slug[:-3]
         # Skip cross-directory references (contain / or ..).
         if "/" in slug or ".." in slug:
             continue

@@ -24,3 +24,9 @@ consolidated_date: 2026-10-06
 > [[visualization-effects]] §11. Overlapping material (compute audio,
 > Rust/WASM hybrid, GPU particles, TSL, frequency scales) was already
 > covered there. This stub exists so existing wiki-links keep resolving.
+
+## Related
+- [[canvas2d-bar-visualization-research.md]] :see-also
+- [[advanced-visualization-techniques-2026.md]] :see-also
+
+- [[2d-visualization-2026.md]] :see-also

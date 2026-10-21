@@ -64,3 +64,7 @@ Real-time beat-synced music visuals punish realistic characters three ways: gene
 - No faces, hands, fingers, cloth sim, or lip-sync on the Builder (silhouette contract).
 - No AI-generated anatomy anywhere in the real-time path (anchor PNG phase-2 only, reviewed by a human first).
 - Blender MCP stays on hard-surface environments/props, never characters.
+
+## Related
+
+- [[character-animation-2026-summer-synthesis.md]] :see-also

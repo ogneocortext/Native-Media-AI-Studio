@@ -142,3 +142,9 @@ See [[ollama-utilization-2026]] §3 for the full task → model map and
 ---
 
 _Last updated: 2026-10-10_
+
+## Related
+- [[small-llm-landscape-2026.md]] :see-also
+- [[finetuning-best-practices-2026.md]] :see-also
+
+- [[3d-generation-2026-updates.md]] :see-also

@@ -126,3 +126,7 @@ short loops and plates.
 - https://github.com/deepbeepmeep/Wan2GP — upstream
 
 _Last updated: 2026-10-06_
+
+## Related
+
+- [[notification-system-improvements-2026.md]] :see-also

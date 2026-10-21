@@ -581,3 +581,8 @@ convention for new shader modes.
 
 Chrome/Edge 121+, Firefox Nightly, Safari experimental. Fallback chain:
 WebGPU → WebGL2 → Canvas2D; detect via `navigator.gpu`.
+
+## Related
+- [[unity-audio-reactive-shader-research-2026.md]] :see-also
+
+- [[3d-object-design-2026.md]] :see-also

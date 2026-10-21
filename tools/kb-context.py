@@ -67,6 +67,9 @@ def extract_links(text: str) -> set[str]:
     slugs = set()
     for m in WIKI_LINK_RE.finditer(text):
         slug = m.group(1).strip().split("#")[0]
+        # Strip .md extension so [[doc.md]] and [[doc]] resolve the same.
+        if slug.endswith(".md"):
+            slug = slug[:-3]
         if "/" in slug or ".." in slug:
             continue
         slugs.add(slug)
@@ -156,6 +159,22 @@ def emit_json(docs: list[dict]) -> str:
     return json.dumps(out, indent=2, ensure_ascii=False)
 
 
+def emit_summary(docs: list[dict]) -> str:
+    """Compact one-line summary per document: path, category, type, tags."""
+    lines = [
+        f"{'Path':<60} {'Category':<14} {'Type':<12} Tags",
+        f"{'-'*60} {'-'*14} {'-'*12} {'-'*20}",
+    ]
+    for doc in docs:
+        tags = ", ".join(doc["tags"])
+        lines.append(
+            f"{doc['path']:<60} {doc['category'] or '—':<14} "
+            f"{doc['type'] or '—':<12} {tags}"
+        )
+    lines.append(f"\nTotal: {len(docs)} document(s).")
+    return "\n".join(lines)
+
+
 def emit_paths(docs: list[dict]) -> str:
     return "\n".join(d["path"] for d in docs) + "\n"
 
@@ -172,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="Filter by cross-cutting tag (can repeat, OR logic)")
     parser.add_argument("--file", action="append", default=[],
                         help="Include a specific filename (can repeat)")
-    parser.add_argument("--format", choices=["text", "json", "paths"],
+    parser.add_argument("--format", choices=["text", "json", "paths", "summary"],
                         default="text", help="Output format (default: text)")
     parser.add_argument("--neighborhood", action="store_true",
                         help="Include documents that link to or from matched docs")
@@ -230,6 +249,8 @@ def main(argv: list[str] | None = None) -> int:
         print(emit_json(matched))
     elif args.format == "paths":
         print(emit_paths(matched))
+    elif args.format == "summary":
+        print(emit_summary(matched))
     return 0
 
 

@@ -273,3 +273,7 @@ The `index.md` file is organized by the 7 primary categories. When you add a new
 ---
 
 _Last updated: 2026-09-29_
+
+## Related
+
+- [[migration-progress.md]] :see-also

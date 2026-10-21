@@ -238,3 +238,8 @@ Research-backed depth items (envelope followers, sensitivity, motion wiring,
 mastering chain, stem QC) live in
 [[audio-reactive-best-practices-2026]] and [[ai-music-mastering-stems-2026]],
 and are sequenced in `docs/plans/studio-quality-2026-10.md`.
+
+## Related
+- [[design-philosophy-2026.md]] :see-also
+
+- [[design-auditing-2026.md]] :see-also

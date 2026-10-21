@@ -258,3 +258,7 @@ The phased plan (§7) remains the offline/hero-asset path. For the **real-time v
 - Procedural SVG silhouette "Builder" figure — near-black puppet with act-palette rim light, puppeteered per-frame from the live audio ref + storyboard acts. No faces, no AI anatomy, zero React re-renders.
 - Rationale: Jusska's "Limbo" video proves silhouette + lyric-linked motifs carry a whole music video; the game industry's Silhouette Test becomes our acceptance test; SVG `transform-box`/`transform-origin` joints need no skeletal toolchain (dbbasic-face pattern); iki/prompt-to-animation validate parameter-driven and anchor-locked approaches for later phases.
 - Blender MCP is rescoped to hard-surface environments/props only. `builder.py::create_character` (cylinder body) is not to be extended — its output ceiling is "placeholder".
+
+## Related
+
+- [[silhouette-character-animation.md]] :see-also

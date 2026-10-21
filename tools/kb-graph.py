@@ -81,6 +81,9 @@ def extract_links(text: str) -> list[tuple[str, str | None]]:
     links = []
     for m in WIKI_LINK_RE.finditer(text):
         slug = m.group(1).strip().split("#")[0]
+        # Strip .md extension so [[doc.md]] and [[doc]] resolve the same.
+        if slug.endswith(".md"):
+            slug = slug[:-3]
         relation = m.group(2)
         if "/" in slug or ".." in slug:
             continue
@@ -321,12 +324,91 @@ def print_suggest(docs, outgoing, inbound, dangling, orphans):
     print(f"\nTotal suggestions: {total_suggestions} for {len(orphans)} orphan(s).")
 
 
+def _insert_into_related(doc_path: Path, link_line: str) -> bool:
+    """Insert `link_line` into a document's "## Related" section.
+
+    Returns True if inserted, False if the link already exists.
+    """
+    text = read_text(doc_path)
+    if link_line.split("]]")[0] + "]]" in text:
+        return False
+    m = re.search(r"(## Related\n)(.*?)(?=\n## |\Z)", text, re.S)
+    if m:
+        new_section = m.group(1) + link_line + m.group(2)
+        text = text[:m.start()] + new_section + text[m.end():]
+    else:
+        if text.rstrip().endswith("---"):
+            text = text.rstrip() + "\n\n## Related\n\n" + link_line
+        else:
+            text = text.rstrip() + "\n\n## Related\n\n" + link_line
+    write_text(doc_path, text)
+    return True
+
+
+def write_text(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def print_apply(docs, outgoing, inbound, dangling, orphans) -> int:
+    """Apply suggestions: insert back-links from suggested targets into
+    orphan docs so they are no longer orphans.
+
+    Returns the number of orphans fixed.
+    """
+    meta: dict[str, tuple[str, set[str]]] = {}
+    for name, path in docs.items():
+        text = read_text(path)
+        category = frontmatter_category(text) or ""
+        tags: set[str] = set()
+        in_tags = False
+        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+        if m:
+            for line in m.group(1).split("\n"):
+                if line.startswith("tags:"):
+                    in_tags = True
+                    continue
+                if in_tags:
+                    t = re.match(r"^\s*-\s*(\S+)\s*$", line)
+                    if t:
+                        tags.add(t.group(1))
+                        continue
+                    if line.strip() and not line.startswith(" "):
+                        break
+        meta[name] = (category, tags)
+
+    fixed = 0
+    for orphan in sorted(orphans):
+        o_cat, o_tags = meta[orphan]
+        scores = []
+        for candidate in docs:
+            if candidate == orphan or candidate in inbound.get(orphan, []):
+                continue
+            c_cat, c_tags = meta[candidate]
+            score = (2 if o_cat == c_cat else 0) + len(o_tags & c_tags)
+            if score > 0:
+                scores.append((score, candidate))
+        scores.sort(reverse=True)
+        top = scores[:1]  # Apply only the top suggestion per orphan
+        applied = 0
+        for _score, candidate in top:
+            candidate_path = docs[candidate]
+            orphan_stem = orphan.removesuffix(".md")
+            link_line = f"- [[{orphan_stem}]] :see-also\n"
+            if _insert_into_related(candidate_path, link_line):
+                applied += 1
+        if applied > 0:
+            fixed += 1
+            print(f"[FIXED] [[{orphan}]] <- [[{top[0][1]}]]")
+    print(f"\nFixed {fixed} of {len(orphans)} orphan(s).")
+    return fixed
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Render the knowledge-library wiki-link graph.",
     )
     parser.add_argument("--mode", choices=["outline", "graph", "orphans",
-                        "dangling", "typed", "suggest"], default="outline",
+                        "dangling", "typed", "suggest", "apply"], default="outline",
                         help="Output mode (default: outline)")
     args = parser.parse_args(argv)
 
@@ -345,6 +427,8 @@ def main(argv: list[str] | None = None) -> int:
         print_typed(outgoing)
     elif args.mode == "suggest":
         print_suggest(docs, outgoing, inbound, dangling, orphans)
+    elif args.mode == "apply":
+        print_apply(docs, outgoing, inbound, dangling, orphans)
     return 0
 
 

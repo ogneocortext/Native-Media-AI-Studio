@@ -129,3 +129,7 @@ pass against that framing.
 - [[hyperframes-audio-reactive-2026]] — the audio-reactive contract
 
 _Last updated: 2026-10-06_
+
+## Related
+
+- [[x-platform-video-research-2026.md]] :see-also

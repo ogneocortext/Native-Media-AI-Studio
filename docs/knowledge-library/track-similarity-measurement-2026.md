@@ -359,3 +359,8 @@ methods agree, but **133.03 at confidence -13.14** and **192.45 at confidence
 Rejected: it would mean a hand-rolled buffer-feeding loop around a 2019 sdist
 (last release 2019-02-08) whose documented API does not work, in exchange for
 agreement only on cases already agreed.
+
+## Related
+- [[tempo-estimation-octave-errors-2026.md]] :see-also
+
+- [[mashup-arrangement-theory-2026.md]] :see-also

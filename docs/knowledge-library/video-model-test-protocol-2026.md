@@ -365,3 +365,9 @@ If a model passes:
 - [[app-research-gaps-2026]] — Prioritized backlog
 - [[hardware-verified-models]] — Validated model list
 - `core/model_tiers.py` — Single source of truth for VRAM requirements
+
+## Related
+- [[unsloth-triton-windows-fixes-2026.md]] :see-also
+- [[music-gen-hardware-fit-2026.md]] :see-also
+
+- [[hardware-benchmark-harness.md]] :see-also
