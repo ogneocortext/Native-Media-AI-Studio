@@ -67,6 +67,7 @@ import {
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTrimModal } from "./components/AudioTrimModal";
+import { MasteringPanel } from "./components/MasteringPanel";
 import { DS } from "../../styles/designSystem";
 import { useNavigate } from "react-router-dom";
 import { setPendingTrack } from "../../utils/pendingTrack";
@@ -1227,6 +1228,17 @@ export function AudioAnalysisPage() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Mastering — loudness normalization + true-peak limiter with QC report */}
+              {analysis && (
+                <MasteringPanel
+                  onMastered={(masteredPath) => {
+                    setError(null);
+                    setJobDoneNote(`Mastered: ${masteredPath.split("/").pop() ?? masteredPath}`);
+                    window.setTimeout(() => setJobDoneNote(null), 5000);
+                  }}
+                />
               )}
 
               {/* Mini waveform + quick actions */}

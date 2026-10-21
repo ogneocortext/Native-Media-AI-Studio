@@ -80,6 +80,9 @@ export {
   generateKineticVideo,
   getStemsAnalysis,
   enhanceStems,
+  measureMasterLoudness,
+  masterAudio,
+  MASTER_TARGETS,
 } from "./audio";
 export type {
   AudioUploadResponse,
@@ -102,6 +105,11 @@ export type {
   KineticVideoResponse,
   EnhanceStemsParams,
   EnhanceStemsResponse,
+  MasterTarget,
+  MasterMeasureResponse,
+  MasterRequest,
+  MasterApplied,
+  MasterResponse,
 } from "./audio";
 
 // Remix / mashup

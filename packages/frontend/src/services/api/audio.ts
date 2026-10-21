@@ -828,6 +828,84 @@ export async function enhanceStems(params: EnhanceStemsParams): Promise<EnhanceS
   return res.json();
 }
 
+/* ------------------------------------------------------------------ */
+/* Mastering — /api/audio/master  (backend module audio_mastering.py) */
+/* ------------------------------------------------------------------ */
+
+/** Delivery loudness presets offered to the user. Mirrors backend TARGET_LUFS. */
+export const MASTER_TARGETS: Record<string, number> = {
+  spotify: -14,
+  apple: -16,
+  competitive: -11,
+  amazon: -2,
+} as const;
+
+export type MasterTarget = keyof typeof MASTER_TARGETS;
+
+export interface MasterMeasureResponse {
+  filename: string;
+  integrated_lufs: number | null;
+  true_peak_dbtp: number | null;
+  lra_lu: number | null;
+  error: string | null;
+}
+
+export interface MasterRequest {
+  filename: string;
+  target_lufs?: MasterTarget;
+  ceiling_dbtp?: number;
+  tone_fixes?: boolean;
+}
+
+export interface MasterApplied {
+  gain_db: number;
+  target_lufs: number;
+  ceiling_dbtp: number;
+  tone_fixes: boolean;
+}
+
+export interface MasterResponse {
+  filename: string;
+  mastered_path: string | null;
+  error: string | null;
+  before: MasterMeasureResponse | null;
+  after: MasterMeasureResponse | null;
+  applied: MasterApplied | null;
+}
+
+/** Measurement-only: LUFS / true peak / LRA of a file (preview, no write). */
+export async function measureMasterLoudness(
+  filename: string,
+): Promise<MasterMeasureResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(
+    `${base}/api/audio/master/measure/${encodeURIComponent(filename)}`,
+    { timeout: 60000 },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to measure loudness");
+  }
+  return res.json();
+}
+
+/** Master a library file to a delivery loudness target and write a mastered
+ *  copy under output/audio/mastered/. Returns a before/after QC report. */
+export async function masterAudio(body: MasterRequest): Promise<MasterResponse> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/audio/master`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    timeout: 600000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to master audio");
+  }
+  return res.json();
+}
+
 export async function generateKineticVideo(
   request: KineticVideoRequest,
 ): Promise<KineticVideoResponse> {
