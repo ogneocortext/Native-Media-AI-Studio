@@ -29,6 +29,14 @@ interface PlatformSpec {
   rules?: string[];
 }
 
+interface LyricWarning {
+  kind: string;
+  line?: number;
+  text: string;
+  suggestion: string;
+  message: string;
+}
+
 interface GenResult {
   title: string;
   style: string;
@@ -37,7 +45,7 @@ interface GenResult {
   lyrics: string;
   settings: Record<string, unknown>;
   notes: string[];
-  warnings: string[];
+  warnings: (string | LyricWarning)[];
   platform: string;
   model_used: string;
   title_chars?: number;
@@ -46,8 +54,8 @@ interface GenResult {
   style_limit?: number | null;
   exclude_chars?: number;
   prompt_chars?: number;
-  lyrics_chars?: number;
   prompt_limit?: number | null;
+  lyrics_chars?: number;
   lyrics_limit?: number | null;
 }
 
@@ -838,11 +846,63 @@ export function MusicPromptGenerator({
             >
               {copied === "all" ? <Check size={14} /> : <Copy size={14} />} Copy all sections
             </button>
-            {(result.warnings ?? []).map((w, i) => (
-              <p key={`w${i}`} className="text-xs text-amber-300/90">
-                ⚠ {w}
-              </p>
-            ))}
+              {(result.warnings ?? []).map((w, i) => {
+                const isObj = typeof w === "object" && w !== null;
+                const kind = isObj ? (w as LyricWarning).kind : "generic";
+                const kindColor: Record<string, string> = {
+                  instruction_text: "bg-red-500/20 text-red-400 border-red-500/40",
+                  production_direction: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+                  caps_chant: "bg-orange-500/20 text-orange-400 border-orange-500/40",
+                  abbreviation_periods: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
+                  dense_vocals: "bg-pink-500/20 text-pink-400 border-pink-500/40",
+                  generic: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+                };
+                const kindLabel: Record<string, string> = {
+                  instruction_text: "Instruction text",
+                  production_direction: "Production note",
+                  caps_chant: "ALL-CAPS line",
+                  abbreviation_periods: "Abbreviation with periods",
+                  dense_vocals: "Dense vocals",
+                  generic: "Warning",
+                };
+                return (
+                  <div
+                    key={`w${i}`}
+                    className={`mt-2 rounded-lg border p-2 ${
+                      kindColor[kind] ?? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                    }`}
+                  >
+                    <div className="flex items-start gap-1.5 mb-1">
+                      <span className={`text-xs font-bold ${kindColor[kind] ?? "text-amber-400"}`}>
+                        {kindLabel[kind] ?? "Warning"}
+                      </span>
+                      {isObj && w.line && (
+                        <span className="ml-auto text-[10px] text-white/40">
+                          Line {w.line}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-white/85 mb-1">
+                      {isObj && w.text ? (
+                        <>
+                          <span className="font-bold">{`{`}</span>
+                          {w.text}
+                          <span className="font-bold">{`}`}</span>
+                          <br />
+                        </>
+                      ) : (
+                        <>
+                          {w}
+                          <br />
+                        </>
+                      )}
+                      {isObj && w.suggestion ? (
+                        <span className="text-sm text-white/60">{w.suggestion}</span>
+                      ) : null}
+                    </p>
+                  </div>
+                );
+              })}
             {(result.notes ?? []).map((n, i) => (
               <p key={`n${i}`} className="text-xs text-white/60">
                 • {n}

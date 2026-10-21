@@ -747,7 +747,7 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
         # Contamination + pronunciation-hardening scan (flag-for-review).
         bpm = parse_bpm(brief.get("tempo"))
         for finding in scan_lyrics(lyrics, platform, bpm=bpm):
-            warnings.append(finding["message"])
+            warnings.append(finding)
     return warnings
 
 
