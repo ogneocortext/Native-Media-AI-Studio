@@ -16,7 +16,7 @@
       "qwen3-vl:4b (vision fallback)",
       "minicpm-v:8b (OCR specialist)"
     ],
-    "api_version": "0.40.0",
+    "api_version": "0.40.7",
     "features": [
       "/api/chat is the recommended endpoint for multimodal",
       "think parameter supports extended reasoning (0.21.3+)",
@@ -25,8 +25,12 @@
       "/api/show advertises per-model thinking controls and capabilities (0.34.3+)",
       "/api/tags entries carry capabilities and details.runner (0.34.1+/0.40.0)",
       "structured outputs on thinking models apply in a single pass (0.34.4+)",
-      "typical_p is deprecated - do not send it (0.34.1+, warning since 0.35.0)"
+      "typical_p is deprecated - do not send it (0.34.1+, warning since 0.35.0)",
+      "Windows: ollama 0.40.6 prevents orphaned runners after server crash (win fix)",
+      "gguf: q2_0 tensor and file types now supported (0.40.6+)",
+      "/api/show exposes renderer, parser, and template_source fields per model (0.40.7+)",
+      "Responses API: thinking/no-thinking model switches no longer fail mid-conversation (0.40.7+)"
     ],
-    "platform_note": "The 0.40.0 headline (MLX default on Apple Silicon) does not apply to this Windows/llama.cpp build - local models report runner=ggml"
+    "platform_note": "The 0.40.0 headline (MLX default on Apple Silicon) does not apply to this Windows/llama.cpp build - local models report runner=ggml. Windows orphaned-runner fix landed in 0.40.6."
   }
 }

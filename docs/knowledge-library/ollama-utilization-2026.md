@@ -582,4 +582,4 @@ const response = await fetch(`${OLLAMA_URL}/api/chat`, {
 
 ---
 
-_Last updated: 2026-10-10 (model pruning + vision routing correction)_
+_Last updated: 2026-10-19 (Ollama 0.40.7 version bump — Windows orphaned-runner fix, q2_0 GGUF, renderer/parser/template_source API fields)_

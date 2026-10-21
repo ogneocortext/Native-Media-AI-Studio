@@ -35,6 +35,9 @@
     "structured_output": "format=json_schema enforces JSON shape on chat completions (0.33+); on thinking models it applies in a single pass (0.34.4+)",
     "ttft_improvement": "0.33+ caches resolved model metadata, cutting TTFT roughly in half vs earlier versions",
     "capabilities": "/api/tags and /api/show report per-model capabilities (completion/vision/audio/tools/thinking/embedding) and the runner (ggml on this Windows build; mlx is the 0.40.0 default on Apple Silicon only)",
-    "deprecated": "typical_p can no longer be set when creating models (0.34.1+); sending it logs a warning instead of failing (0.35.0+)"
+    "deprecated": "typical_p can no longer be set when creating models (0.34.1+); sending it logs a warning instead of failing (0.35.0+)",
+    "win_0.40_6": "Prevents orphaned runners on Windows after Ollama server crash or restart",
+    "gguf_0.40_6": "q2_0 tensor and file types now supported for ultra-low-bitrate GGUF models",
+    "api_0.40_7": "/api/show exposes renderer, parser, and template_source fields per model; Responses API thinking/no-thinking switches no longer fail mid-conversation"
   }
 }
