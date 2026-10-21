@@ -240,7 +240,7 @@ Concrete 2026 technique mappings:
 | `packages/frontend/src/features/three-js-studio/components/InspectorTab.tsx`     | Per-object property editor                   |
 | `packages/frontend/src/features/three-js-studio/components/AISceneGenerator.tsx` | Ollama LLM scene generator                   |
 | `packages/frontend/src/features/three-js-studio/services/sceneGuidelines.ts`     | Design constraint injection                  |
-| `packages/frontend/src/features/generate3D/Generation3DPage.tsx`                 | Text-to-3D generation UI                     |
+| `packages/frontend/src/features/generate3d/Generation3DPage.tsx`                 | Text-to-3D generation UI                     |
 | `tools/mcp/unity-mcp-bridge.mjs`                                                 | Unity MCP command bridge                     |
 | `unity-project-mcp/Assets/Scripts/CoronationScene.cs`                            | Current crown prop example                   |
 | `docs/knowledge-library/prompt-engineering.md`                                   | Character bible + negative prompts           |
