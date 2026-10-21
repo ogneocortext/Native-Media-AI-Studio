@@ -72,8 +72,6 @@ def find_returns(fn: ast.AST) -> list[int]:
     def walk(node: ast.AST, depth: int) -> None:
         for child in ast.iter_child_nodes(node):
             if isinstance(child, NESTING_NODES):
-                if isinstance(child, ast.Return) and depth >= 2:
-                    out.append(child.lineno)
                 walk(child, depth + 1)
             elif isinstance(child, ast.Return) and depth >= 2:
                 out.append(child.lineno)
@@ -95,10 +93,31 @@ def find_bare_excepts(fn: ast.AST) -> list[int]:
                 "BaseException",
             }:
                 # Only flag a broad catch that does not re-raise or log.
-                body = ast.dump(node)
-                if "raise" not in body and "logger" not in body and "logging" not in body:
+                if not _except_handles_error(node):
                     out.append(node.lineno)
     return out
+
+
+def _except_handles_error(handler: ast.ExceptHandler) -> bool:
+    """True if the except handler re-raises, logs, or otherwise handles the error."""
+    for child in ast.walk(handler):
+        # Re-raise: bare `raise` or `raise exc`
+        if isinstance(child, ast.Raise):
+            return True
+        # Log: logger.error(...), logging.error(...), etc.
+        if isinstance(child, ast.Attribute):
+            if child.attr in {"error", "exception", "critical", "warning", "warn"}:
+                return True
+        # Log call: logging.error(...)
+        if isinstance(child, ast.Call):
+            func = child.func
+            if isinstance(func, ast.Attribute):
+                if func.attr in {"error", "exception", "critical", "warning", "warn"}:
+                    return True
+            if isinstance(func, ast.Name):
+                if func.id in {"logger", "logging"}:
+                    return True
+    return False
 
 
 def find_try_in_loop(fn: ast.AST) -> list[int]:

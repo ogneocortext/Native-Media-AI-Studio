@@ -80,12 +80,10 @@ def git_check_ignore(path):
 
 # Scripts referenced in AGENTS.md. Always POSIX: git reports paths with forward
 # slashes, so mixing separators here silently breaks the "is it tracked?" test.
-DOCUMENTED_SCRIPTS = (
-    "scripts/check_ports.ps1",
-    "scripts/manage-servers.ps1",
-    "scripts/start-services.ps1",
-    "scripts/start-studio.ps1",
-    "scripts/start-unity-headless.ps1",
+# Extracted dynamically from AGENTS.md so new script references are caught
+# without editing this file.
+DOCUMENTED_SCRIPTS_RE = re.compile(
+    r"scripts[\\/]([\w-]+\.(?:ps1|sh|py))", re.I
 )
 
 
@@ -97,11 +95,10 @@ def documented_scripts(text):
     """
     if not text:
         return []
-    found = []
-    for rel in DOCUMENTED_SCRIPTS:
-        if rel in text or rel.replace("/", "\\") in text:
-            found.append(rel)
-    return found
+    found = set()
+    for m in DOCUMENTED_SCRIPTS_RE.finditer(text):
+        found.add(m.group(1))
+    return sorted(found)
 
 
 def tracked():
@@ -179,7 +176,8 @@ def main():
     # this machine is broken for everyone else: a fresh clone simply lacks the
     # file, and the failure looks like a missing dependency rather than a bad
     # ignore rule.
-    for rel in documented_scripts(text if os.path.exists(agents) else ""):
+    for script in documented_scripts(text if os.path.exists(agents) else ""):
+        rel = f"scripts/{script}"
         if rel in files:
             continue
         if git_check_ignore(rel):

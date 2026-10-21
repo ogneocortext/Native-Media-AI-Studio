@@ -82,10 +82,15 @@ def read(path):
 
 
 def frontmatter(path):
-    """Return (raw_block, tags); (None, None) when the block is absent."""
-    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", read(path), re.S)
+    """Return (raw_block, tags, data); (None, None, None) when block absent.
+
+    `data` is the full decoded file text, so callers can reuse it instead of
+    re-reading from disk.
+    """
+    data = read(path)
+    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", data, re.S)
     if not m:
-        return None, None
+        return None, None, data
     block = m.group(1)
     tags = []
     in_tags = False
@@ -97,12 +102,12 @@ def frontmatter(path):
             t = re.match(r"^\s*-\s*(\S+)\s*$", line)
             if t:
                 tags.append(t.group(1))
-    return block, tags
+    return block, tags, data
 
 
 def check_documents(docs):
     for name, path in sorted(docs.items()):
-        block, tags = frontmatter(path)
+        block, tags, data = frontmatter(path)
         if block is None:
             errors.append(f"{name}: no frontmatter block")
             continue
@@ -115,10 +120,11 @@ def check_documents(docs):
             if required not in block:
                 errors.append(f"{name}: missing '{required}'")
         check_unique_keys(name, block)
-        for ch in read(path):
-            if 0x80 <= ord(ch) <= 0x9F:
-                errors.append(f"{name}: C1 control U+{ord(ch):04X} (mojibake)")
-                break
+        # C1 controls (0x80-0x9F) are mojibake from cp1252 misdecoding.
+        # Regex search in C is far faster than a Python char-by-char loop.
+        if re.search(r"[\x80-\x9f]", data):
+            m = re.search(r"[\x80-\x9f]", data)
+            errors.append(f"{name}: C1 control U+{ord(m.group()):04X} (mojibake)")
 
 
 def check_unique_keys(name, block):
@@ -334,7 +340,7 @@ def report_all_docs():
             no_fm.append(rel)
             continue
         # Has frontmatter: is the first tag a library category?
-        block, tags = frontmatter(full)
+        block, tags, _ = frontmatter(full)
         if tags and tags[0] not in CATEGORIES:
             mismatched.append((rel, tags[0]))
 

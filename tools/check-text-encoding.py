@@ -97,9 +97,7 @@ def main():
         print(f"  {path}: {reason}")
     print("")
     print("Convert with Python (safe - rewrites content, not encoding damage):")
-    print('  python -c "import pathlib,sys; p=pathlib.Path(sys.argv[1]); '
-          'p.write_bytes(p.read_bytes().decode(sys.argv[2]).encode(\'utf-8\'))" '
-          '<file> utf-16')
+    print("  python tools/fix-text-encoding.py <file>")
     return 1
 
 

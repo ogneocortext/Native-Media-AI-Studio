@@ -45,9 +45,18 @@ done
 # Encoding corruption is not confined to docs: a UTF-16 write or a truncated
 # edit can hit any tracked text file, and the damage is invisible until a tool
 # misreads it. Cheap enough (reads staged files only) to always run.
-case "$staged" in
-    *.*) need_encoding=1 ;;
-esac
+#
+# Check each staged file individually: the old case-match on the whole $staged
+# string matched any filename containing a dot, so it ran on nearly every
+# commit and defeated the scoped design.
+need_encoding=0
+for f in $staged; do
+    case "$f" in
+        *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.py|*.md|*.json|*.yaml|*.yml|*.toml|*.ps1|*.sh|*.css|*.html|*.txt|*.cfg|*.ini)
+            need_encoding=1
+            ;;
+    esac
+done
 # Layout hygiene only matters when tracked files are added or removed, or when
 # the ignore rules change. Editing an existing file cannot introduce a new
 # duplicate or a case collision, so ordinary commits skip this check.
