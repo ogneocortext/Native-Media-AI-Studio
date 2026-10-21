@@ -11,8 +11,10 @@ Library checks (errors fail the pre-commit hook):
      matching that document's primary tag, with correct (N/N) counters;
   6. index.md tag counts match the tags actually present.
 
-Warnings (reported, never fail): tag-vocabulary drift in both directions, and
-duplicate markdown basenames across directories.
+Warnings (reported, never fail): tag-vocabulary drift in both directions,
+duplicate markdown basenames across directories, a missing `type:` frontmatter
+field, orphan pages (no inbound wiki-links), and dangling wiki-links (links to
+non-existent files).
 
 Report-only: --scope=all inventories markdown outside the library, which the tag
 checks never see. It applies no checks and never changes the exit code.
@@ -43,7 +45,7 @@ SECTIONS = [
     ("AI & ML", "ai"),
     ("Research & Reference", "research"),
 ]
-SKIP = ("index.md", "README.md")
+SKIP = ("index.md", "README.md", "_schema.md", "log.md")
 # The core cross-cutting tags, as opposed to the extended vocabulary table.
 # Both are read from tagging-guide.md by documented_tags(); this list is only
 # used to decide which tags must carry a count in index.md's Tags Index.
@@ -51,6 +53,14 @@ CROSS = ["platform-youtube", "platform-unity", "platform-blender",
          "platform-comfyui", "platform-remotion", "hardware-8gb",
          "hardware-pascal", "mcp", "testing", "design", "audio",
          "visualization", "3d", "webgpu"]
+
+# Valid page `type` values (OKF / LLM Wiki convention).
+PAGE_TYPES = ("concept", "entity", "source", "comparison",
+              "synthesis", "tracker", "index")
+
+# Wiki-link pattern: [[slug]] or [[slug|display]] or [[slug]]:relation.
+# Capture group 1 is the slug (everything up to the first | or ]).
+WIKI_LINK_RE = re.compile(r"\[\[([^|\]\]]+)(?:\|[^\]]*)?\]\]")
 
 errors = []
 warnings = []
@@ -303,9 +313,81 @@ def check_line_endings(docs):
     for name, path in sorted(docs.items()):
         with open(path, "rb") as f:
             data = f.read()
-        if b"\r\n" in data:
-            errors.append(f"{name}: CRLF line endings (repo uses LF); "
-                          "a rewrite likely converted them")
+    if b"\r\n" in data:
+        errors.append(f"{name}: CRLF line endings (repo uses LF); "
+                      "a rewrite likely converted them")
+
+
+def check_type_field(docs):
+    """Warn when a document lacks a `type:` frontmatter field or uses an
+    unknown page type (OKF / LLM Wiki convention).
+
+    Not yet an error: existing documents are migrated on touch. New documents
+    created from _schema.md should include `type:`.
+    """
+    for name, path in sorted(docs.items()):
+        block, _tags, data = frontmatter(path)
+        if block is None:
+            continue
+        m = re.search(r"^type:\s*(\S+)", block, re.M)
+        if not m:
+            warnings.append(f"{name}: missing `type:` frontmatter field "
+                            f"({', '.join(PAGE_TYPES)})")
+            continue
+        if m.group(1) not in PAGE_TYPES:
+            warnings.append(f"{name}: unknown `type:` '{m.group(1)}' "
+                            f"(expected one of {', '.join(PAGE_TYPES)})")
+
+
+def extract_links(path):
+    """Return the set of wiki-link slugs referenced in a document.
+
+    Strips display text (`[[slug|label]]`), anchors (`[[slug#section]]`),
+    and relation suffixes (`[[slug]]:relation`). Returns only bare slugs
+    that look like internal knowledge-library references (no path separators,
+    no `../`) — cross-references to other doc directories are intentional
+    and not flagged.
+    """
+    data = read(path)
+    slugs = set()
+    for m in WIKI_LINK_RE.finditer(data):
+        slug = m.group(1).strip()
+        # Drop anchor section: [[slug#section]] -> [[slug]]
+        slug = slug.split("#")[0]
+        # Skip cross-directory references (contain / or ..).
+        if "/" in slug or ".." in slug:
+            continue
+        slugs.add(slug)
+    return slugs
+
+
+def check_links(docs):
+    """Warn about orphan pages (no inbound wiki-links) and dangling links
+    (links to slugs with no matching document basename).
+
+    index.md is exempt from the orphan rule (it's the entry point).
+    """
+    # Map basename-without-extension -> doc name for link resolution.
+    basename_to_doc = {}
+    for name in docs:
+        basename_to_doc[os.path.splitext(name)[0]] = name
+
+    inbound = Counter()
+    for name, path in docs.items():
+        for slug in extract_links(path):
+            target = basename_to_doc.get(slug)
+            if target is None:
+                warnings.append(f"{name}: dangling wiki-link [[{slug}]] "
+                                f"(no matching document)")
+            else:
+                inbound[target] += 1
+
+    for name in sorted(docs):
+        if name == "index.md":
+            continue
+        if inbound.get(name, 0) == 0:
+            warnings.append(f"{name}: orphan page (no inbound wiki-links; "
+                            f"add at least one [[link]] from a related doc)")
 
 
 def report_all_docs():
@@ -378,6 +460,8 @@ def main():
     check_dead_vocabulary(docs)
     check_duplicate_basenames()
     check_line_endings(docs)
+    check_type_field(docs)
+    check_links(docs)
     print(f"documents checked : {len(docs):d}")
     if warnings:
         print(f"warnings ({len(warnings):d}):")

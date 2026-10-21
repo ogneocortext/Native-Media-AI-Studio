@@ -198,6 +198,14 @@ graph LR
 
 ## 📝 How to Use This Vault
 
+### Library Constitution
+
+- [[_schema]] — frontmatter schema, page types (`concept`/`entity`/`source`/
+  `comparison`/`synthesis`/`tracker`/`index`), typed wiki-link relations, and
+  health rules. Read this before adding new documents.
+- [[log]] — append-only operations log; every structural change is recorded
+  here with an ISO 8601 date heading.
+
 ### For Creators
 
 1. Start with [[music-video-production]] to understand the full workflow

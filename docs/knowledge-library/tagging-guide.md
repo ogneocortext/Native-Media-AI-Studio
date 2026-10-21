@@ -99,6 +99,24 @@ does not require a tag to appear in this table.
 | `#accessibility` | A11y concerns beyond color |
 | `#motion-design` | Motion craft - timing, easing, camera/object movement |
 
+---
+
+## Page `type` Field
+
+Every document may carry a `type:` field in its frontmatter (see `_schema.md` §2).
+Valid types: `concept`, `entity`, `source`, `comparison`, `synthesis`, `tracker`,
+`index`. The `type` field lets AI agents route queries by page kind — for
+example, "show all `concept` pages about audio" or "which `entity` pages describe
+hardware constraints?" It is recommended but not yet required; existing documents
+are migrated on touch.
+
+## Typed Wiki-Links
+
+Plain wiki-links default to `:see-also`. For semantic graph traversal,
+use typed relations (see `_schema.md` §3): `:cites`, `:extends`, `:implements`,
+`:compares-to`, `:part-of`, `:see-also`. Example:
+`[[comfyui-workflows]]:implements` or `[[tempo-estimation-octave-errors-2026]]:cites`.
+
 This table is kept honest by `tools/validate-knowledge-tags.py`, which warns when
 a document uses a tag that is not listed here. It is not the reverse: a tag can
 be dropped from a document and become dead vocabulary, so prefer reusing an
