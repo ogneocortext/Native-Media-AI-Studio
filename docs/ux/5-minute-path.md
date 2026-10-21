@@ -1,7 +1,8 @@
 # The 5-Minute Path — First-Run Flow Draft (O2)
 
-**Status:** Draft 2026-10-21 — **for owner review**. Implements nothing;
-O3 builds this after approval.
+**Status:** Implemented 2026-10-21 — O3 built this path. See
+`docs/plans/creative-onboarding-ux-2026-10.md` (O3) for what shipped and
+what was deferred.
 **Plan:** `docs/plans/creative-onboarding-ux-2026-10.md` (Priority 3, O2)
 **Evidence:** `docs/knowledge-library/creative-onboarding-patterns-2026.md`
 (O1 teardowns — CapCut / DaVinci Resolve / Runway)

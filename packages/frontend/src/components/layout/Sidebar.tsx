@@ -27,6 +27,7 @@ import {
   Mic,
   Gamepad2,
   Film,
+  Rocket,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -58,6 +59,12 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Home",
     items: [
       { path: "/", label: "Dashboard", icon: <Home size={18} />, keywords: "home overview start" },
+      {
+        path: "/onboarding",
+        label: "Quick start",
+        icon: <Rocket size={18} />,
+        keywords: "quick start onboarding first clip guided",
+      },
     ],
   },
   {

@@ -106,7 +106,7 @@ export function MasteringPanel({ initialFilename }: MasteringPanelProps = {}) {
     const url = `/api/audio/file/${encodeURIComponent(relative)}`;
     const a = document.createElement("a");
     a.href = url;
-    a.download = result.mastered_path.split(/[\/\\]/).pop()!;
+    a.download = result.mastered_path.split(/[\\/]/).pop()!;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

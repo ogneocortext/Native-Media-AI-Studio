@@ -21,8 +21,15 @@ import path from "path";
 import { execSync } from "child_process";
 
 const TEST_AUDIO = "test-10s.wav";
-const TEST_AUDIO_PATH = path.resolve(process.cwd(), "tests", TEST_AUDIO);
-const OUTPUT_DIR = path.resolve(process.cwd(), "output/video");
+/**
+ * Paths resolve from this file's location, not the process cwd — Playwright
+ * runs from `packages/frontend`, but the fixtures and the rendered output
+ * live at the repo root.
+ */
+const TEST_DIR = path.dirname(import.meta.filename);
+const REPO_ROOT = path.resolve(TEST_DIR, "..", "..", "..");
+const TEST_AUDIO_PATH = path.join(TEST_DIR, TEST_AUDIO);
+const OUTPUT_DIR = path.join(REPO_ROOT, "output", "video");
 
 /** Delete any leftover test artifacts from a previous run. */
 function cleanupArtifacts() {
@@ -58,6 +65,7 @@ test.describe("Music video generation E2E", () => {
   });
 
   test("full pipeline: upload → analyze → generate → export", async ({ page }) => {
+    test.setTimeout(300_000);
     // 1. Navigate to the music video wizard
     await page.goto("/music-video-wizard");
     await expect(page).toHaveURL(/\/music-video/);
@@ -80,7 +88,8 @@ test.describe("Music video generation E2E", () => {
 
     // Capture input duration for later comparison
     const inputDuration = ffprobeDuration(TEST_AUDIO_PATH);
-    expect(inputDuration).toBeGreaterThan(0);
+    expect(inputDuration).not.toBeNull();
+    expect(inputDuration!).toBeGreaterThan(0);
 
     // 5. Continue to Configure step
     await page.getByRole("button", { name: /Configure Style/ }).click();
@@ -120,7 +129,7 @@ test.describe("Music video generation E2E", () => {
         if (dur && dur > 0) {
           validMp4 = true;
           // Duration tolerance: within 0.5s of input (10s)
-          expect(Math.abs(dur - inputDuration)).toBeLessThan(5);
+          expect(Math.abs(dur - inputDuration!)).toBeLessThan(5);
         }
       }
       expect(validMp4).toBe(true);
@@ -128,9 +137,10 @@ test.describe("Music video generation E2E", () => {
 
     // If ComfyUI was unavailable, degradation is acceptable per Q2 plan §4
     // The test still passed upload → analyze → generate flow
-  }, 300000);
+  });
 
   test("degrades gracefully when ComfyUI unavailable", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.goto("/music-video-wizard");
 
     const fileInput = page.locator('input[type="file"][accept*="audio"]');
@@ -153,5 +163,5 @@ test.describe("Music video generation E2E", () => {
       (await page.locator('text=/Generating|generating|Assembled|degraded|ComfyUI/i').count()) > 0 ||
       hasError,
     ).toBe(true);
-  }, 120000);
+  });
 });

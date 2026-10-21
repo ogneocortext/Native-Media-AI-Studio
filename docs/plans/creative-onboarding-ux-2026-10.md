@@ -119,6 +119,55 @@ Build the onboarding flow as a new page or modal:
 - Routing: Add `/onboarding` route if using Option A
 - Tests: `OnboardingFlow.spec.ts` (Playwright), unit tests for state machine
 
+**Status: Done (2026-10-21).** Option A shipped.
+
+- `features/onboarding/onboardingState.ts` — the rules, pure and unit-tested:
+  the six steps, the transitions (illegal ones are no-ops), the
+  highest-energy 10 s window picker, and the plain-language suggestion
+  reason. 20 unit tests in `onboardingState.test.ts`.
+- `features/onboarding/FirstRunDetector.ts` — the `nma.firstRunDone`
+  localStorage flag, guarded for private-mode browsers.
+- `features/onboarding/OnboardingFlow.tsx` — the six steps. Analysis starts
+  automatically on selection; the suggested look is pre-accepted with its
+  reason shown; the render is one button with a fixed 10 s spec.
+- `features/onboarding/QuickExportButton.tsx` / `SuccessCard.tsx` — the
+  single CTA and the in-place celebration.
+- `features/onboarding/OnboardingPage.tsx` — the `/onboarding` route plus
+  `FirstRunGate`, which sends a first-time user with an empty library to
+  the path (no hijack for existing installs).
+- Wired in `App.tsx` (route + title), `Sidebar.tsx` ("Quick start" nav
+  item), and `Dashboard.tsx` (one-time banner for existing installs).
+- `tests/onboarding-flow.spec.ts` — 6 Playwright tests: the path is
+  reachable, exit lands on the studio, an empty library redirects a
+  first-time user, a returning user is not redirected, a failure carries
+  its own fix, and the full path renders a valid MP4.
+
+**Measured:** the full path — upload → analyse → look → watch → render →
+success — completes in **8.9 s** on the 10 s fixture (analysis cached from
+a prior run; the uncached run is bounded by the ~80 s librosa fallback).
+The exported file is a valid MP4: h264 1920×1080 + aac, duration exactly
+10.000000 s (ffprobe).
+
+**Two bugs the E2E test caught and the implementation fixed:**
+1. The upload response's `filename` is the *original* name; the file on
+   disk carries a content-hash prefix (`<hash>_name.wav`), and that is
+   the name the analysis endpoints expect. Using `filename` made
+   `ensure-analysis` 404. Now the basename of `stored_path` is used, as
+   `AudioAnalysisPage` already did.
+2. `onComplete` navigated to `/`, so the success card — the celebration —
+   was never shown; the render had actually succeeded. Completion now sets
+   the first-run flag only, and the user leaves the path through the
+   success card's own three actions.
+
+**Deferred (per the draft's open questions, still the owner's call):**
+- Clip window: highest-energy 10 s implemented (the draft's recommendation).
+- Demo track: not shipped — the path needs a file to begin with.
+- Quick start placement: a sidebar item plus a Dashboard banner; the
+  banner is dismissible and stored in `sessionStorage`.
+- The "watch" stage shows the track playing with the look's energy shape
+  behind it, not the full shader stack — the path's job is the idea, not
+  the visualizer.
+
 ---
 
 ### O4 — Information architecture audit

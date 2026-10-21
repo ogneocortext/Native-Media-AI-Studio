@@ -4,6 +4,7 @@ import { ErrorBoundary, PageLoader } from "./components/common";
 import { DebugPanel } from "./components/debug/DebugPanel";
 import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./features/dashboard/Dashboard";
+import { FirstRunGate } from "./features/onboarding/OnboardingPage";
 import { NotFound } from "./features/not-found/NotFound";
 import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";
@@ -106,8 +107,10 @@ const NotificationsPage = lazyNamed(
   "NotificationsPage",
 );
 const AnimationStudio = lazyNamed(
-  () => import("./features/animation-studio/AnimationStudio"),
-  "AnimationStudio",
+  () => import("./features/animation-studio/AnimationStudio"), "AnimationStudio",
+);
+const OnboardingPage = lazyNamed(
+  () => import("./features/onboarding/OnboardingPage"), "OnboardingPage",
 );
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
@@ -140,6 +143,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/preview": "Preview",
   "/notifications": "Notifications",
   "/animation-studio": "Animation Studio",
+  "/onboarding": "Quick Start",
 };
 
 function RouteTitle() {
@@ -171,7 +175,18 @@ function App() {
         <Layout>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/" element={withErrorBoundary(<Dashboard />)} />
+              <Route
+                path="/"
+                element={withErrorBoundary(
+                  <FirstRunGate>
+                    <Dashboard />
+                  </FirstRunGate>,
+                )}
+              />
+              <Route
+                path="/onboarding"
+                element={withErrorBoundary(<OnboardingPage />)}
+              />
               <Route path="/queue" element={withErrorBoundary(<Queue />)} />
               <Route path="/music-video-wizard" element={withErrorBoundary(<MusicVideoWizard />)} />
               <Route path="/three-js-studio" element={withErrorBoundary(<ThreeJSStudio />)} />

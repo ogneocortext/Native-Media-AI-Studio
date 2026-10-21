@@ -733,6 +733,8 @@ export interface VideoGenerateRequest {
   audio_filename?: string;
   method?: "comfyui" | "visualization";
   model?: string;
+  /** Visualization config (mode, palette, …) for the `visualization` method. */
+  visualization?: Record<string, unknown>;
 }
 
 export interface VideoGenerateResponse {

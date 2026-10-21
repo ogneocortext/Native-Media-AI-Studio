@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { Card } from "../../components/common";
 import { StageHero } from "./StageHero";
+import { useFirstRunDetector } from "../onboarding/FirstRunDetector";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { useJobs } from "../../hooks";
 import { useOutputStore, formatFileSize, getOutputUrl } from "../../state/outputStore";
 import { setPendingAudioFile } from "../../utils/pendingAudio";
@@ -116,6 +118,7 @@ export function Dashboard() {
 
   return (
     <div className="max-w-[900px] mx-auto p-6">
+      <QuickStartBanner />
       {/* Hero — one job, one button */}
       <div className="text-center py-8">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs text-violet-300">
@@ -375,6 +378,61 @@ export function Dashboard() {
         </button>{" "}
         — hidden from this view on purpose.
       </p>
+    </div>
+  );
+}
+
+/**
+ * QuickStartBanner — the one-time offer of the 5-minute path.
+ *
+ * Per `docs/ux/5-minute-path.md`: an existing install (library not empty)
+ * is never hijacked. The path is offered here, once, and the user can
+ * dismiss it. A first-time user with an empty library never sees this —
+ * the gate sends them to the path itself.
+ */
+function QuickStartBanner() {
+  const navigate = useNavigate();
+  const { isFirstRun } = useFirstRunDetector();
+  const { entries, isLoading } = useAudioLibrary();
+  const [dismissed, setDismissed] = useState(
+    () => sessionStorage.getItem("nma.quickStartBannerDismissed") === "1",
+  );
+
+  // Only offer it to first-time users who already have a library.
+  if (isFirstRun !== true || isLoading || entries.length === 0 || dismissed) {
+    return null;
+  }
+
+  return (
+    <div
+      className="mb-4 rounded-xl border border-violet-500/25 bg-violet-500/5 p-4 flex items-center gap-3"
+      data-testid="quick-start-banner"
+    >
+      <div className="flex-1">
+        <p className="text-sm text-white/85">New here? Make your first clip in five minutes.</p>
+        <p className="text-xs text-white/45 mt-0.5">
+          Six steps, no settings — you can leave at any time.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => navigate("/onboarding")}
+        className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition flex items-center gap-1.5"
+      >
+        Quick start
+        <ArrowRight size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          sessionStorage.setItem("nma.quickStartBannerDismissed", "1");
+          setDismissed(true);
+        }}
+        aria-label="Dismiss"
+        className="text-white/30 hover:text-white/60 transition px-1"
+      >
+        ×
+      </button>
     </div>
   );
 }
