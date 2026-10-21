@@ -142,6 +142,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `tempo-estimation-octave-errors-2026.md` → `⌘research`, `⌘audio`, `⌘beat-tracking`, `⌘octave-errors`, `⌘tempo-estimation`
 - ✅ `ai-music-video-platforms-2026.md`  → `#research`, `#platform-youtube`, `#ai`
 - ✅ `app-research-gaps-2026.md`  → `#research`
+- ✅ `creative-onboarding-patterns-2026.md`  → `#research`, `#design`
 - ✅ `feature-utilization-audit-2026.md`  → `#research`, `#features`
 - ✅ `ollama-benchmarks.md`  → `#research`, `#benchmark`, `#ai`
 - ✅ `coding-benchmarks.md`  → `#research`, `#ai`

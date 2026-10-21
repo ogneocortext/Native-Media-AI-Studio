@@ -124,6 +124,7 @@ date: 2026-09-30
 - [[youtube-algorithm-2026-updates|📺 YouTube Algorithm 2026 Updates]] — Viewer satisfaction shift, new view counting rules, format-aware discovery
 - [[music-viz-trends-2026|📈 Music Visualizer Trends 2026]] — 2025–2026 aesthetic shifts: liquid glass, aurora, organic layered visuals
 - [[ai-music-video-platforms-2026|🏟️ AI Music-Video Platforms 2026]] — Competitive landscape: music-first agents, clip generators, cost/min table, gaps a local studio can exploit, 6 adopted backlog items
+- [[creative-onboarding-patterns-2026|🎬 Creative Onboarding Patterns 2026]] — CapCut/Resolve/Runway first-run teardowns, 7-pattern catalog, recommendations behind the 5-minute path (O1)
 - [[app-research-gaps-2026|🔍 App Research Gaps 2026]] — 15 research areas: video models, audio analysis, music gen, frontend, Go sidecars, testing, deployment, a11y, Pascal perf, lyrics, HyperFrames, WebGPU, agents, data, knowledge maintenance
 - [[feature-utilization-audit-2026|🎯 Feature Utilization & Gap Analysis 2026]] — False-confidence dead code, orphaned capabilities, data-flow breaks, and true missing features
 - [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation
@@ -150,8 +151,8 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 20 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 12 documents |
-- [[tempo-estimation-octave-errors-2026|ðŸ” Tempo Estimation Octave Errors 2026]] â€” Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
-|| `#research/*` | Industry trends & analysis | 13 documents |
+- [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
+|| `#research/*` | Industry trends & analysis | 14 documents |
 
 ### Cross-Cutting Tags
 
@@ -249,7 +250,7 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 89 (markdown) + 9 (JSON data files) = 98 total |
+|| Total Documents | 90 (markdown) + 9 (JSON data files) = 99 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
 || Last Updated | 2026-10-10 (vision model reliability + model pruning added) |

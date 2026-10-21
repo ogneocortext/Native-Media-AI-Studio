@@ -90,6 +90,8 @@ def test_analyze_beats_two_pass_finds_click_tempo():
     assert abs(result["start_bpm_used"] - 126.0) <= 6.0
     expected_beats = 20.0 * 126.0 / 60.0
     assert abs(len(result["beat_times"]) - expected_beats) <= 4
+    # A steady click grid must not be "rescored" into a metrical neighbour.
+    assert result["tempo_rescored_from"] is None
 
 
 def test_analyze_beats_explicit_start_bpm_is_respected():
@@ -97,6 +99,35 @@ def test_analyze_beats_explicit_start_bpm_is_respected():
     y, sr = click_track(bpm=126.0)
     result = analyze_beats(y, sr, use_gpu=False, start_bpm=90.0)
     assert result["start_bpm_used"] == 90.0
+
+
+def _hard_track(bpm: float = 174.0, seconds: float = 24.0, sr: int = SR):
+    """Kick on every beat + offbeat hats under a sustained harmonic pad.
+
+    The pad smears the full-mix onset envelope and the tempo sits far
+    from librosa's prior, which is exactly the combination that produced
+    the measured 117.5 BPM misread (the 2/3 metrical neighbour of 174).
+    """
+    rng = np.random.default_rng(7)
+    t = np.arange(int(seconds * sr)) / sr
+    y = sum(0.18 * np.sin(2 * np.pi * f * t) for f in (110.0, 164.81, 220.0, 277.18))
+    interval = 60.0 / bpm
+    bt = 0.0
+    while bt < seconds - 0.05:
+        i = int(bt * sr)
+        y[i : i + int(0.03 * sr)] += 0.9 * rng.standard_normal(int(0.03 * sr))
+        j = int((bt + interval / 2) * sr)
+        y[j : j + int(0.015 * sr)] += 0.35 * rng.standard_normal(int(0.015 * sr))
+        bt += interval
+    return (y / np.max(np.abs(y))).astype(np.float32), sr
+
+
+def test_analyze_beats_rescoring_fixes_dotted_misread():
+    _, analyze_beats, _ = aa._import_shared_audio()
+    y, sr = _hard_track()
+    result = analyze_beats(y, sr, use_gpu=False)
+    assert result["tempo_rescored_from"] is not None
+    assert abs(result["tempo"] - 174.0) <= 6.0
 
 
 # ---------------------------------------------------------------------------

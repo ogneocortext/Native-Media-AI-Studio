@@ -149,6 +149,57 @@ def _estimate_tempo(onset_envelope, sr, hop_length: int = 512, seed_bpm: float =
     return val if 30.0 <= val <= 300.0 else seed_bpm
 
 
+def _periodicity(onset_envelope, sr, hop_length: int, tempo_bpm: float) -> float:
+    """Normalised onset-envelope autocorrelation at a tempo's beat lag.
+
+    Sums the autocorrelation at the first three multiples of the beat lag
+    and normalises by the envelope's energy, so scores are comparable
+    across candidate tempi. A tempo whose period matches the track's hit
+    grid scores high; a metrical misread (half/double/dotted) scores
+    lower because its lag drifts off the hits at higher multiples.
+    """
+    import numpy as np
+
+    env = np.asarray(onset_envelope, dtype=float)
+    if env.size < 8 or tempo_bpm <= 0:
+        return 0.0
+    lag = int(round((60.0 / tempo_bpm) * sr / hop_length))
+    if lag < 1:
+        return 0.0
+    energy = float(np.dot(env, env)) / len(env) + 1e-12
+    total = 0.0
+    count = 0
+    for k in (1, 2, 3):
+        step = lag * k
+        if step >= len(env):
+            break
+        total += float(np.dot(env[:-step], env[step:])) / (len(env) - step)
+        count += 1
+    if count == 0:
+        return 0.0
+    return (total / count) / energy
+
+
+def _grid_fit(onset_envelope, beat_frames) -> float:
+    """How strongly the beats land on onsets, relative to the envelope mean.
+
+    1.0 means beats sit on average-strength frames; higher means the grid
+    is locked onto real hits. This is the acceptance test for a rescored
+    tempo: a candidate grid must land on onsets at least as well as the
+    grid it replaces, not merely be periodic on paper.
+    """
+    import numpy as np
+
+    env = np.asarray(onset_envelope, dtype=float)
+    if env.size == 0 or beat_frames is None or len(beat_frames) == 0:
+        return 0.0
+    idx = [int(f) for f in beat_frames if 0 <= int(f) < env.size]
+    if not idx:
+        return 0.0
+    mean_env = float(env.mean()) or 1e-12
+    return float(env[idx].mean() / mean_env)
+
+
 def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float | None = None, tightness: float = 100.0) -> dict[str, Any]:
     """Run beat tracking, optionally overlapping GPU analysis.
 
@@ -163,7 +214,8 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float | None = None
 
     Returns:
         Dict with keys: tempo, beat_times, duration, gpu_result,
-        start_bpm_used.
+        start_bpm_used, tempo_rescored_from (the pre-rescore tempo when
+        the rescoring pass replaced the grid, else None).
     """
     import librosa
 
@@ -184,17 +236,18 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float | None = None
         onset_envelope = None
         prior_bpm = start_bpm if start_bpm is not None else 120.0
 
-    def _track():
+    def _track(prior: float | None = None):
+        use_prior = prior_bpm if prior is None else prior
         if onset_envelope is not None:
             return librosa.beat.beat_track(
                 onset_envelope=onset_envelope,
                 sr=sr,
                 hop_length=hop_length,
-                start_bpm=prior_bpm,
+                start_bpm=use_prior,
                 tightness=tightness,
             )
         return librosa.beat.beat_track(
-            y=y, sr=sr, hop_length=hop_length, start_bpm=prior_bpm, tightness=tightness
+            y=y, sr=sr, hop_length=hop_length, start_bpm=use_prior, tightness=tightness
         )
 
     gpu_result = None
@@ -232,6 +285,39 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float | None = None
         tempo, beats = _track()
         beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=hop_length).tolist()
 
+    # Tempo-candidate rescoring (auto mode only — an explicit start_bpm is
+    # the caller's decision and is never second-guessed). The two-pass
+    # estimator can settle on a metrical misread (measured: a synthetic
+    # 174 BPM track read as 117.5, its 2/3 neighbour). Periodicity
+    # nominates the strongest metrical neighbour of the tracked tempo;
+    # the candidate is re-tracked and accepted only if its grid lands on
+    # onsets at least 5% better than the grid it replaces.
+    rescored_from = None
+    if start_bpm is None and onset_envelope is not None:
+        try:
+            tracked = float(tempo.item() if hasattr(tempo, "item") else tempo)
+            candidates = sorted(
+                {
+                    round(tracked * f, 2)
+                    for f in (2.0, 1.5, 2.0 / 3.0, 0.5)
+                    if 40.0 <= tracked * f <= 260.0
+                }
+            )
+            base_score = _periodicity(onset_envelope, sr, hop_length, tracked)
+            best_tempo, best_score = None, base_score
+            for cand in candidates:
+                score = _periodicity(onset_envelope, sr, hop_length, cand)
+                if score > best_score:
+                    best_tempo, best_score = cand, score
+            if best_tempo is not None:
+                tempo2, beats2 = _track(best_tempo)
+                if _grid_fit(onset_envelope, beats2) > 1.05 * _grid_fit(onset_envelope, beats):
+                    rescored_from = round(tracked, 2)
+                    tempo, beats = tempo2, beats2
+                    beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=hop_length).tolist()
+        except Exception as exc:
+            logger.debug("Tempo rescoring skipped: %s", exc)
+
     duration = len(y) / sr
     tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
 
@@ -241,6 +327,7 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float | None = None
         "duration": duration,
         "gpu_result": gpu_result,
         "start_bpm_used": prior_bpm,
+        "tempo_rescored_from": rescored_from,
     }
 
 
