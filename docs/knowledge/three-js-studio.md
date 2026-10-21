@@ -34,7 +34,7 @@
   plus film grain, chromatic aberration and selective (hero-glow) bloom.
 
 Source of truth for the findings and their verification:
-`docs/ux-audit/three-js-visualizer-review-2026-09-29.md`.
+`docs/ux/three-js-visualizer-review-2026-09-29.md`.
 
 Browser checks (dev server on `127.0.0.1:5173`):
 
@@ -130,7 +130,7 @@ const [activeTemplateId, setActiveTemplateId] = useState<string>("concert");
 - `packages/frontend/src/hooks/useBeatTimeline.ts` — shared beat analysis/getCurrentBeat
 - `packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs` — UX audit regression (F2-F6/F9)
 - `packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs` — GPU dispose regression (F1)
-- `docs/ux-audit/three-js-visualizer-review-2026-09-29.md` — findings F1-F11 + triage
+- `docs/ux/three-js-visualizer-review-2026-09-29.md` — findings F1-F11 + triage
 - `tools/vision/analyze.mjs` — VLM analysis for AI scene generation
 - `docs/knowledge/unity-audio-visualization-2026.md` — Unity-side beat reactivity reference
 - `docs/knowledge/audio-visualization-techniques-2026.md` — FFT banding, particle systems, genre mapping

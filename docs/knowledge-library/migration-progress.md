@@ -26,7 +26,7 @@ type: tracker
 **Migrated:** 88 (100%)
 **Remaining:** 0
 
-This tracker also lists `../ux-audit/audit-report.md`, which is tagged but lives
+This tracker also lists `../ux/audit-report.md`, which is tagged but lives
 outside the library, so it appears in a section but is not one of the 77.
 
 Every document carries exactly one primary category as its **first** tag. The
@@ -146,7 +146,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `feature-utilization-audit-2026.md`  → `#research`, `#features`
 - ✅ `ollama-benchmarks.md`  → `#research`, `#benchmark`, `#ai`
 - ✅ `coding-benchmarks.md`  → `#research`, `#ai`
-- ✅ `../ux-audit/audit-report.md`  → `#research`, `#design`, `#testing`
+- ✅ `../ux/audit-report.md`  → `#research`, `#design`, `#testing`
 - ✅ `social-platform-video-research-2026.md`  → `#research`, `#creative`
 - ✅ `x-platform-video-research-2026.md`  → `#research`, `#creative`
 

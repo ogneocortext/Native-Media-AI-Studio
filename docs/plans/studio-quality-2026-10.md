@@ -238,9 +238,12 @@ Status verified against the repo 2026-10-06:
 | 2.1 asymmetric smoother | **Done** — `dece4e9` wired it + envelope reset on track change |
 | 2.2 reactivity triad UI | **Done** — `1bf5ca7`: `ReactivityHUD` + `QuickPresetBar` (sensitivity / attack / release / beat response), persisted to localStorage |
 | 2.3 genre reactivity presets | **Done** — `reactivityGenrePresets.ts` (EDM / ambient / vocal-led / phonk-bass) + HUD chips + auto-apply on track load from the filename genre signal |
-| 2.4 motion vocabulary | **Done** — `useMotionDriver` is consumed by `ShaderVisualizer.tsx` (camera-offset node); `vizMotion.ts` covers the 15 Three.js styles. The Oct 6 "zero consumers" note was stale. |
+| 2.4 motion vocabulary | **Live** — `useMotionDriver` is consumed by `ShaderVisualizer.tsx` (camera-offset node); `vizMotion.ts` covers the 15 Three.js styles. The Oct 6 "zero consumers" note was stale. |
 | 2.5 latency visible | **Done** — `1bf5ca7`: `RenderStats` reports `audioToVisualMs` (audio→visual pipeline latency, 20–40 ms target band) |
-| 2.6 color polish | **Done** — `energyHue` (cool→warm energy palette) in `5d6ac8b`; gamma via `vizMotion.ts`'s `gammaDrive` applied at the five energy-driven HSL lightness sites (`geometric`, `neural`, `storm`, `pulse`); frequency→color verified (see build notes below) |
+| 2.6 color polish | **Partial** — `energyHue` landed; `gammaDrive` applied at five energy-driven HSL lightness sites; frequency→color verified (bass→warm, mid→green, treble→blue). Sparse/acoustic track captures (D24 third class) blocked on input — different material needed. |
+| 2.7 wire motion vocabulary | **Done** — `useMotionDriver` + `motionMoves` impacts from `beatPhase` onsets, camera-offset node only, `clamp01` everywhere. One style wired (pulse/radial). Documented in `motion/` module docs. |
+| 2.8 beat anticipation | **Partial** — `BeatPhaseWave.timeToNextDownbeat()` + `anticipation` uniform in processor; `buildShaderMotionInput` derives lookahead from next downbeat. 9 unit tests; browser-verified on 120 BPM click track. Full-frame encode still owes non-headless run. |
+| 2.9 deterministic export | **Partial** — `services/frameAccurateExport.ts` drives `renderAtTime(i/fps)` for exactly `round(durationSec * 30)` frames. Shader scope done; 2D lane landed with frame synthesizer (live FFT can't freeze). Follow-up: extend virtual-time pattern to 3D/LrcViz paths. |
 
 **Build notes (2026-10-13):** 2.6 landed on Windows, gates green (type /
 lint / unit, 9 new `vizMotion.test.ts` cases pinning the curve).

@@ -79,6 +79,11 @@ accumulation onto anchored easing.
 - **Accept:** unit tests pin each anchor's output at t=0/0.5/1; no per-frame
   allocations in the easing path.
 - **Files:** new `services/easing.ts` (+ tests).
+- **Status: Done (2026-10-21).** `services/easing.ts` ships the six cubic-bezier
+  anchors (`entrance-sharp`, `settle-soft`, `expressive-pop`, `travel-balanced`,
+  `exit-accelerate`, `travel-cut`) as pure `ease(anchor, t)` functions, pinned by
+  unit tests at t=0/0.5/1 with zero per-frame allocations. Camera blends (F1)
+  migrated onto anchored easing.
 
 ### F4 — Beat-phrased animation (anticipation)
 
@@ -92,7 +97,7 @@ spine from the research doc, replacing pure decay.
   downbeat and the landing holds still (no post-beat wobble); toggleable per
   template.
 - **Files:** `hooks/useThreeScene.ts` (L448–463), `sceneTemplates.ts`.
-- **Status: Done (2026-10-13, browser-verified).** `beatPhrasing.ts` +
+- **Status: Partial (2026-10-21).** `beatPhrasing.ts` +
   `useThreeScene.ts` wiring + the per-template `beatPhrase` opt-in were
   already merged; the missing piece was the beat *source* —
   `ThreeJSStudio.tsx` passed a never-ready stub, so every beat-driven path
@@ -104,7 +109,8 @@ spine from the research doc, replacing pure decay.
   (`c0ac669c_…The Last-Original-V1.m4a`, 130 BPM): the HUD beat dot
   fires ~10 edges over 5.6 s at the track's BPM — impossible with the
   stub. The phrase-pullback visual check on a click track still needs a
-  dedicated run.
+  dedicated run — F4 lands the beat source but the anticipation
+  pullback-before-downbeat visual is not yet captured.
 
 ### F5 — Deterministic frame-accurate export
 
@@ -124,7 +130,7 @@ frame index instead (the documented clock-hijack shim). Map beat events to
 - **Files:** `hooks/useThreeScene.ts`, new `services/videoExport.ts`.
 - **Note:** this is the largest item; F1–F4 should land first so the export
   captures the improved motion.
-- **Status: Done (2026-10-13), studio lane.** `useThreeScene.ts` gained the
+- **Status: Partial (2026-10-21), studio lane.** `useThreeScene.ts` gained the
   clock hijack: the frame body is extracted into `runFrame`, shared by the
   live rAF driver and a new `renderAtTime(tSec, dtSec)` — while the export
   clock is active the loop takes delta/elapsed from the frame index, live
@@ -138,20 +144,13 @@ frame index instead (the documented clock-hijack shim). Map beat events to
    reuses the shader lane's `frameAccurateExport.ts` (generic canvas →
    mediabunny) rather than a duplicate; UI is a "Export 10 s MP4" button in
    `StudioHeader`. **Verified in-browser 2026-10-13** at 480×360, the largest
-   size this headless Chromium's H.264 encoder accepts (it rejects >640×480 —
-   the same constraint the shader-lane exporter carries, and the reason the
-   first attempt reported the honest "needs WebCodecs" toast): `ffprobe` on
-   two runs — exactly **300 frames, duration 10.000000 s, 30/1 fps**; a
-   byte-diff of the two runs differs in **exactly 6 bytes**, the
-   `mvhd`/`tkhd`/`mdhd` creation-time fields (`0x5e`→`0x65`, the 7-second
-   wall-clock gap between the runs). Frame payloads are byte-identical, so
-   the accept criterion is met. Reaching it took one fix: the live rAF loop
-   originally quiesced only *per captured frame*, so `frameCountRef` (which
-   gates the particle update on its parity) advanced between captures and
-   made every other export frame's particles depend on how many live frames
-   interleaved — the quiesce is now per-export
-   (`beginDeterministicRun`/`endDeterministicRun`) and the reset pins the
-   counter to 0.
+   size this headless Chromium's H.264 encoder accepts: `ffprobe` on two runs
+   — exactly **300 frames, duration 10.000000 s, 30/1 fps**; byte-diff differs
+   in **exactly 6 bytes** (container creation-time fields). Frame payloads
+   are byte-identical, so the accept criterion is met.
+   **Open:** full-frame encode (>640×360) still awaits a non-headless browser
+   — headless Chromium rejects H.264 above that size, so the largest real
+   encode is still owed a non-headless run.
 
 ## Suggested order
 

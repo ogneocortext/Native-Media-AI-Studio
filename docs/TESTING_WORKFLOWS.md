@@ -44,7 +44,7 @@ Route handlers in `tests/helpers.ts` are composable — individual mock function
 ### Three.js Studio audit checks
 
 Two standalone browser scripts regression-test the `/three-js-studio` UX audit
-(`docs/ux-audit/three-js-visualizer-review-2026-09-29.md`). They live under
+(`docs/ux/three-js-visualizer-review-2026-09-29.md`). They live under
 `packages/frontend/tests/browser/` (excluded from Playwright discovery), need a
 dev server on `127.0.0.1:5173`, assert zero console errors, and exit non-zero
 on failure:

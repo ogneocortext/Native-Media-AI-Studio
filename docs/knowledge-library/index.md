@@ -133,7 +133,7 @@ date: 2026-09-30
 - [[mashup-arrangement-theory-2026|🎼 Mashup Arrangement Theory 2026]] — arrangement theory that survives without key detection: stretch ratios, phrase alignment, frequency slotting, explicit shift ladder
 - [[video-model-test-protocol-2026|🧪 Video Model Test Protocol 2026]] — LTX/Mochi sweep protocol for 8GB VRAM video generation
 - [[visualizer-state-analysis-2026|🔍 Visualizer State Analysis 2026]] — Gemma 4 vision feedback on visualizer state, improvement report
-- [[../ux-audit/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
+- [[../ux/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
 - [[social-platform-video-research-2026|🔍 Social-Platform Video Research 2026]] — LinkedIn/Substack/Medium findings: reference-video breakdown, transparent overlays, music-first directing methodology
 - [[x-platform-video-research-2026|🔍 X-Platform Video Research 2026]] — HyperFrames Studio eval (Oct 5 launch), style-learning loop, scripted pipeline template, QC-as-code
 
