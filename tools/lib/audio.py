@@ -103,20 +103,99 @@ def load_audio(audio_path: str | Path, sr: int | None = 22050):
             tmp.unlink(missing_ok=True)
 
 
-def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float = 120.0, tightness: float = 100.0) -> dict[str, Any]:
+def _beat_onset_envelope(y, sr, hop_length: int = 512):
+    """Superflux-style onset envelope built from the percussive component.
+
+    Beat tracking is only as good as its onset envelope. The envelope
+    ``beat_track`` builds internally runs on the full mix, so harmonic
+    content (pads, sliding 808s) smears the drum transients the tracker is
+    trying to lock onto. HPSS isolates the percussive stream first, and
+    lag=2 / max_size=3 (the superflux settings) suppress vibrato and
+    sustained-note false onsets.
+    """
+    import librosa
+
+    y_perc = librosa.effects.percussive(y)
+    return librosa.onset.onset_strength(
+        y=y_perc,
+        sr=sr,
+        hop_length=hop_length,
+        lag=2,
+        max_size=3,
+        fmin=27.5,
+        fmax=16000.0,
+    )
+
+
+def _estimate_tempo(onset_envelope, sr, hop_length: int = 512, seed_bpm: float = 120.0) -> float:
+    """Two-pass tempo: estimate from the onset envelope before tracking.
+
+    A fixed 120 BPM prior biases the dynamic-programming tracker toward
+    120 and its octaves on tracks that sit far from it. Estimating the
+    tempo from the same envelope the tracker will consume, then feeding
+    it back as ``start_bpm``, removes most octave errors up front.
+    """
+    import librosa
+    import numpy as np
+
+    est = librosa.feature.tempo(
+        onset_envelope=onset_envelope,
+        sr=sr,
+        hop_length=hop_length,
+        start_bpm=seed_bpm,
+        aggregate=np.median,
+    )
+    val = float(np.atleast_1d(est).flat[0]) if est is not None else 0.0
+    return val if 30.0 <= val <= 300.0 else seed_bpm
+
+
+def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float | None = None, tightness: float = 100.0) -> dict[str, Any]:
     """Run beat tracking, optionally overlapping GPU analysis.
 
     Args:
         y: Audio time series.
         sr: Sample rate.
         use_gpu: If True, attempt CUDA-accelerated analysis.
-        start_bpm: Initial tempo guess for the beat tracker (default 120).
+        start_bpm: Tempo prior for the beat tracker. ``None`` (default)
+            estimates the tempo from the onset envelope first (two-pass);
+            an explicit value is used as given.
         tightness: Beat distribution tightness around tempo (default 100).
 
     Returns:
-        Dict with keys: tempo, beat_times, duration, gpu_result.
+        Dict with keys: tempo, beat_times, duration, gpu_result,
+        start_bpm_used.
     """
     import librosa
+
+    hop_length = 512
+
+    # Build the envelope + tempo prior once; both the GPU-overlap and CPU
+    # paths consume the same inputs. Any failure here falls back to the
+    # legacy behaviour (beat_track's internal envelope, 120 BPM prior) —
+    # a degraded grid beats a failed analysis.
+    onset_envelope = None
+    prior_bpm = start_bpm if start_bpm is not None else 120.0
+    try:
+        onset_envelope = _beat_onset_envelope(y, sr, hop_length)
+        if start_bpm is None:
+            prior_bpm = _estimate_tempo(onset_envelope, sr, hop_length)
+    except Exception as exc:
+        logger.debug("Onset-envelope pre-pass failed, using legacy beat_track inputs: %s", exc)
+        onset_envelope = None
+        prior_bpm = start_bpm if start_bpm is not None else 120.0
+
+    def _track():
+        if onset_envelope is not None:
+            return librosa.beat.beat_track(
+                onset_envelope=onset_envelope,
+                sr=sr,
+                hop_length=hop_length,
+                start_bpm=prior_bpm,
+                tightness=tightness,
+            )
+        return librosa.beat.beat_track(
+            y=y, sr=sr, hop_length=hop_length, start_bpm=prior_bpm, tightness=tightness
+        )
 
     gpu_result = None
 
@@ -133,8 +212,8 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float = 120.0, tigh
             gpu_thread = threading.Thread(target=_gpu_worker)
             gpu_thread.start()
 
-            tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512, start_bpm=start_bpm, tightness=tightness)
-            beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
+            tempo, beats = _track()
+            beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=hop_length).tolist()
 
             gpu_thread.join()
             gpu_stream.synchronize()
@@ -150,8 +229,8 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float = 120.0, tigh
             logger.debug("GPU analysis skipped: %s", exc)
 
     if gpu_result is None:
-        tempo, beats = librosa.beat.beat_track(y=y, sr=sr, hop_length=512, start_bpm=start_bpm, tightness=tightness)
-        beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=512).tolist()
+        tempo, beats = _track()
+        beat_times = librosa.frames_to_time(beats, sr=sr, hop_length=hop_length).tolist()
 
     duration = len(y) / sr
     tempo_val = float(tempo.item() if hasattr(tempo, "item") else tempo)
@@ -161,6 +240,7 @@ def analyze_beats(y, sr, *, use_gpu: bool = True, start_bpm: float = 120.0, tigh
         "beat_times": [round(t, 3) for t in beat_times],
         "duration": duration,
         "gpu_result": gpu_result,
+        "start_bpm_used": prior_bpm,
     }
 
 

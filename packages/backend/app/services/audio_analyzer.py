@@ -166,6 +166,48 @@ def beat_confidence(beat_times: list[float], tempo_bpm: float = 0.0) -> float:
     return round(min(1.0, max(0.0, stability)), 3)
 
 
+def snap_beats_to_onsets(
+    beat_times: list[float],
+    onset_envelope,
+    sr: int,
+    hop_length: int,
+    window_s: float = 0.07,
+) -> list[float]:
+    """Snap beat times to the strongest onset-envelope peak nearby.
+
+    The DP beat tracker places beats on a regularised grid, which can sit
+    tens of milliseconds off the drum hits the grid is meant to mark.
+    For each beat, search +/- ``window_s`` in the onset envelope and move
+    the beat to the peak frame — but only when that peak rises above the
+    envelope's median, so beats in quiet passages (no real onset nearby)
+    are left where the tracker put them.
+    """
+    if not beat_times or onset_envelope is None or len(onset_envelope) == 0:
+        return list(beat_times)
+    env = np.asarray(onset_envelope, dtype=float)
+    if env.size == 0 or not np.any(env > 0):
+        return list(beat_times)
+    floor = float(np.median(env))
+    win = max(1, int(round(window_s * sr / hop_length)))
+    snapped: list[float] = []
+    for t in beat_times:
+        frame = int(librosa.time_to_frames([t], sr=sr, hop_length=hop_length)[0])
+        lo = max(0, frame - win)
+        hi = min(len(env), frame + win + 1)
+        if hi <= lo:
+            snapped.append(t)
+            continue
+        seg = env[lo:hi]
+        peak = int(np.argmax(seg))
+        if seg[peak] > floor:
+            snapped.append(
+                round(float(librosa.frames_to_time([lo + peak], sr=sr, hop_length=hop_length)[0]), 3)
+            )
+        else:
+            snapped.append(t)
+    return snapped
+
+
 def detect_meter(beat_times: list[float]) -> int:
     """Estimate beats per bar from beat interval regularity.
 
@@ -361,6 +403,12 @@ class AudioAnalyzer:
         ).tolist()
         onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length).tolist()
 
+        # Snap the tracker grid onto the strongest nearby onset peaks, then
+        # rebuild the frame grid and derive meter/downbeats from the
+        # snapped times so every downstream consumer sees the same beats.
+        beat_times = snap_beats_to_onsets(beat_times, onset_envelope, sr, hop_length)
+        beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
+
         # Downbeats: meter-agnostic detection based on beat interval regularity,
         # replacing the previous hardcoded 4/4 assumption.
         meter = detect_meter(beat_times)
@@ -466,6 +514,50 @@ class AudioAnalyzer:
         result = dict(_sonara.analyze_signal(y32, mode="compact"))
         return self._beat_features_from_sonara(result, _SONARA_SR)
 
+    def _madmom_beats_from_signal(self, y, sr: int) -> BeatFeatures:
+        """Beat/downbeat via madmom-infer on an already-decoded buffer.
+
+        Mirrors ``_sonara_beats_from_signal``: callers that already hold the
+        audio (the CUDA route) can now choose the RNN+DBN grid without a
+        second decode. madmom-infer pins its DSP to 44.1 kHz mono and has
+        no resampler, so the resample is part of the contract. Tempo comes
+        from the median beat interval — madmom reports no tempo of its own
+        on this path.
+        """
+        if getattr(y, "ndim", 1) > 1:
+            y = y.mean(axis=0)
+        if sr != MADMOM_SAMPLE_RATE:
+            y_44k = resample_audio_gpu(y, orig_sr=sr, target_sr=MADMOM_SAMPLE_RATE)
+        else:
+            y_44k = y
+        beat_times, downbeat_times = _madmom_beats_downbeats(
+            np.ascontiguousarray(y_44k, dtype=np.float64)
+        )
+
+        tempo_val = 0.0
+        if len(beat_times) >= 2:
+            intervals = np.diff(np.asarray(beat_times, dtype=float))
+            median_interval = float(np.median(intervals))
+            if median_interval > 0:
+                tempo_val = 60.0 / median_interval
+
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length)
+        onset_frames = librosa.onset.onset_detect(
+            onset_envelope=onset_env, sr=sr, hop_length=self.hop_length, units="frames"
+        ).tolist()
+        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+
+        return BeatFeatures(
+            tempo_bpm=round(float(tempo_val), 1),
+            beat_frames=librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist(),
+            beat_times=beat_times,
+            onset_frames=onset_frames,
+            onset_times=onset_times,
+            confidence=beat_confidence(beat_times, tempo_val),
+            downbeat_frames=librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length).tolist(),
+            downbeat_times=downbeat_times,
+        )
+
     def analyze_from_audio(
         self,
         y,
@@ -482,19 +574,36 @@ class AudioAnalyzer:
 
         ``backend`` is descriptive metadata. ``beat_backend`` is the one that
         changes behaviour: ``"sonara"`` swaps the slow librosa beat tracker for
-        the Rust one on the buffer already in hand.
+        the Rust one on the buffer already in hand; ``"madmom"`` swaps it for
+        the RNN+DBN grid. Unavailable or failing backends fall back to the
+        librosa path, and the metadata records which grid was actually used.
         """
         if y is None or len(y) == 0:
             raise ValueError("Audio file is empty or could not be loaded")
 
         beats = None
+        used_beat_backend = "librosa"
         if beat_backend and beat_backend.lower() == "sonara" and SONARA_AVAILABLE:
             try:
                 beats = self._sonara_beats_from_signal(y, sr)
+                used_beat_backend = "sonara"
             except Exception as exc:
                 # A correct-but-slow beat grid beats a failed request.
                 logger.warning(
                     "sonara beat tracking failed on the decoded buffer, falling "
+                    "back to librosa: %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
+                beats = None
+        if beats is None and beat_backend and beat_backend.lower() == "madmom" and MADMOM_AVAILABLE:
+            try:
+                beats = self._madmom_beats_from_signal(y, sr)
+                used_beat_backend = "madmom"
+            except Exception as exc:
+                # Same rule as sonara: a librosa grid beats a failed request.
+                logger.warning(
+                    "madmom beat tracking failed on the decoded buffer, falling "
                     "back to librosa: %s: %s",
                     type(exc).__name__,
                     exc,
@@ -511,7 +620,7 @@ class AudioAnalyzer:
             beats=beats,
             metadata={
                 "backend": backend,
-                "beat_backend": "sonara" if beat_backend else "librosa",
+                "beat_backend": used_beat_backend,
                 "duration_samples": len(y),
                 "hop_length": self.hop_length,
                 "frame_length": self.frame_length,
