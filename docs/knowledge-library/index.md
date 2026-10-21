@@ -167,7 +167,7 @@ date: 2026-09-30
 || `#hardware-pascal` | Pascal architecture specifics | 8 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 3 documents |
-|| `#design` | Design systems & UX | 6 documents |
+|| `#design` | Design systems & UX | 7 documents |
 || `#audio` | Audio analysis & processing | 18 documents |
 || `#visualization` | Visualization techniques | 14 documents |
 || `#3d` | 3D generation & rendering | 13 documents |

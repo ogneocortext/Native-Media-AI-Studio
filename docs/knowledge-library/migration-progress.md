@@ -131,7 +131,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 
-### 📊 Research & Reference (14/14 completed)
+### 📊 Research & Reference (15/15 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
