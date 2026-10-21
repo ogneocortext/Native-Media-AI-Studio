@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import json
 import logging
+import shutil
+import sys
+import tempfile
+import uuid
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from ..core.config import PROJECT_ROOT
 from ..services.music_prompt_generator import (
     DEFAULT_MODEL,
     LYRIC_TECHNIQUES,
@@ -19,6 +28,9 @@ from ..services.music_prompt_generator import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_ANALYZE_FILE_SIZE = 100 * 1024 * 1024  # 100 MB upload cap
+ANALYZE_SCRIPT = PROJECT_ROOT / "tools" / "audio-analysis" / "analyze.py"
 
 router = APIRouter(prefix="/api/music-prompts", tags=["MusicPrompts"])
 
@@ -47,6 +59,26 @@ class MusicPromptRequest(BaseModel):
     platform: str = Field(..., description="suno_v6 | minimax_30 | happyshrimp_10 | lyria_35")
     brief: MusicPromptBrief
     model: str = DEFAULT_MODEL
+
+
+class AnalyzeReferenceResponse(BaseModel):
+    """Reference-track analysis for pre-filling the music-prompt form.
+
+    Fields map from tools/audio-analysis/analyze.py output:
+    tempo_bpm -> bpm, estimated_key -> key, key_confidence_r -> key_confidence,
+    rms_dbfs -> lufs, band_energy_pct.sub_20_120 -> sub_share,
+    stereo_width_side_mid_ratio -> stereo_width, duration_s -> duration_s.
+    """
+
+    bpm: float | None = None
+    key: str | None = None
+    key_confidence: float | None = None
+    lufs: float | None = None
+    sub_share: float | None = None
+    stereo_width: float | None = None
+    duration_s: float | None = None
+    raw: dict[str, Any] | None = None
+    error: str | None = None
 
 
 @router.get("/templates")
@@ -101,3 +133,93 @@ async def generate(req: MusicPromptRequest) -> dict[str, Any]:
     except Exception as exc:  # pragma: no cover - runtime Ollama failure
         logger.exception("music prompt generation failed")
         raise HTTPException(502, f"Generation failed: {exc}") from exc
+
+
+@router.post("/analyze-reference")
+async def analyze_reference(file: UploadFile = File(...)) -> AnalyzeReferenceResponse:
+    """Analyze an uploaded reference track for BPM, key, dynamics, stereo width.
+
+    Runs ``tools/audio-analysis/analyze.py`` in a subprocess. Keeps the analyzer
+    out of the request thread: the upload streams to a temp file, the
+    subprocess runs with a 120s timeout, and the response is built from its
+    stdout JSON.
+
+    Per D8 (keep heavy processing out of the request thread) and the
+    music-track-stack-integration plan: on any failure (bad file, analyzer
+    crash, parse error, timeout) returns a degraded response with null fields
+    — never a 500. The frontend can still pre-fill the form from manual fields.
+    """
+    if not ANALYZE_SCRIPT.exists():
+        return AnalyzeReferenceResponse(
+            error="analyze script not available on this server"
+        )
+
+    # Stream upload to a temp file with a size cap.
+    digest = hashlib.sha256()
+    size = 0
+    tmp_path = Path(tempfile.gettempdir()) / (uuid.uuid4().hex + ".upload")
+    try:
+        with open(tmp_path, "wb") as buffer:
+            while chunk := await file.read(8192):
+                size += len(chunk)
+                if size > MAX_ANALYZE_FILE_SIZE:
+                    return AnalyzeReferenceResponse(
+                        error=(
+                            f"File too large. Maximum size: "
+                            f"{MAX_ANALYZE_FILE_SIZE // (1024 * 1024)} MB"
+                        )
+                    )
+                digest.update(chunk)
+                buffer.write(chunk)
+    except Exception as exc:  # noqa: BLE001 - degraded path, never 500
+        tmp_path.unlink(missing_ok=True)
+        return AnalyzeReferenceResponse(error=f"Failed to save upload: {exc}")
+
+    # Run the analyzer subprocess off the event loop thread.
+    out_dir = Path(tempfile.mkdtemp(prefix="analyze_"))
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            str(ANALYZE_SCRIPT),
+            str(tmp_path),
+            str(out_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=120
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return AnalyzeReferenceResponse(error="Analysis timed out")
+
+        if proc.returncode != 0:
+            return AnalyzeReferenceResponse(
+                error=f"Analyzer failed (exit {proc.returncode})"
+            )
+
+        try:
+            res = json.loads(stdout.decode("utf-8").strip())
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return AnalyzeReferenceResponse(
+                error=f"Failed to parse analysis output: {exc}"
+            )
+
+        band_energy = res.get("band_energy_pct") or {}
+        return AnalyzeReferenceResponse(
+            bpm=res.get("tempo_bpm"),
+            key=res.get("estimated_key"),
+            key_confidence=res.get("key_confidence_r"),
+            lufs=res.get("rms_dbfs"),
+            sub_share=band_energy.get("sub_20_120"),
+            stereo_width=res.get("stereo_width_side_mid_ratio"),
+            duration_s=res.get("duration_s"),
+            raw=res,
+        )
+    except Exception as exc:  # noqa: BLE001 - degraded path, never 500
+        return AnalyzeReferenceResponse(error=f"Analysis error: {exc}")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+        shutil.rmtree(out_dir, ignore_errors=True)
