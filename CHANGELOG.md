@@ -34,15 +34,23 @@ Verified by reproducing the failure (`unrecognized arguments:
 --segment_size`, exit 2) before the fix and a real demucs 4.1.0 run
 on the 10 s test fixture after it (4 stems, exit 0).
 
-### Changed - Frontend empty states now render icons
+### Changed - Frontend empty states now render icons with actions
 
 `DataManagementPage` and `StoryboardPage` rendered seven plain-text
 empty states ("No prompts found", "No AI visuals found", "No sessions
 found", "No tracks found", "No saved scenes found", "No prompt history
 found", "No preferences found") with no accompanying icon. Each now
-shows a context-appropriate lucide-react icon (FileText, Image, Activity,
-Music, Box, Settings) above the message, matching the pattern already
-used by `EmptyState`, `Queue`, `ImageGeneration`, and `Preview`.
+shows a context-appropriate lucide-react icon above the message, and
+six of them include a primary action button (Create prompt, Generate
+visual, Create session, Upload track, Create scene, Start generating)
+that navigates to the relevant page.
+
+All empty states were consolidated into a new shared
+`EmptySection` component in `components/common/EmptySection.tsx`,
+exported from `components/common`, which renders a centered icon,
+muted title text, and an optional action button. This removed ~35
+lines of duplicated JSX and gives a single place to restyle empty
+states app-wide.
 
 ### Changed - Ollama 0.40.1 (Windows serving fixes, no surface change)
 

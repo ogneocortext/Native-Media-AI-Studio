@@ -4,10 +4,10 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Card } from "tabler-react";
 import { EmptySection } from "../../components/common";
-import { RefreshCw, FileText, Activity, Image, Music, Box, Settings } from "lucide-react";
+import { RefreshCw, FileText, Activity, Image, Music, Box, Settings, Plus, Play, ArrowRight, Upload } from "lucide-react";
 import { formatBytes } from "../../utils/format";
 import {
   getPrompts,
@@ -27,6 +27,7 @@ import {
 type TabKey = "prompts" | "visuals" | "sessions" | "tracks" | "scenes" | "history" | "preferences";
 
 export function DataManagementPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>("prompts");
   const [loading, setLoading] = useState(false);
   const [prompts, setPrompts] = useState<StoredPrompt[]>([]);
@@ -151,7 +152,15 @@ export function DataManagementPage() {
         </div>
             {activeTab === "prompts" && (
               prompts.length === 0 ? (
-                <EmptySection icon={<FileText />} title="No prompts found" />
+                <EmptySection
+                icon={<FileText />}
+                title="No prompts found"
+                action={{
+                  label: "Create prompt",
+                  onClick: () => navigate("/music-video-wizard"),
+                  icon: <Plus size={14} />,
+                }}
+              />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -191,7 +200,15 @@ export function DataManagementPage() {
 
             {activeTab === "visuals" && (
               visuals.length === 0 ? (
-                <EmptySection icon={<Image />} title="No AI visuals found" />
+                <EmptySection
+                icon={<Image />}
+                title="No AI visuals found"
+                action={{
+                  label: "Generate visual",
+                  onClick: () => navigate("/image-generation"),
+                  icon: <Play size={14} />,
+                }}
+              />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -230,7 +247,15 @@ export function DataManagementPage() {
 
             {activeTab === "sessions" && (
               sessions.length === 0 ? (
-                <EmptySection icon={<Activity />} title="No sessions found" />
+                <EmptySection
+                icon={<Activity />}
+                title="No sessions found"
+                action={{
+                  label: "Create session",
+                  onClick: () => navigate("/music-video-wizard"),
+                  icon: <Plus size={14} />,
+                }}
+              />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -267,7 +292,15 @@ export function DataManagementPage() {
 
             {activeTab === "tracks" && (
               tracks.length === 0 ? (
-                <EmptySection icon={<Music />} title="No tracks found" />
+                <EmptySection
+                icon={<Music />}
+                title="No tracks found"
+                action={{
+                  label: "Upload track",
+                  onClick: () => navigate("/audio-analysis"),
+                  icon: <Upload size={14} />,
+                }}
+              />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -305,7 +338,15 @@ export function DataManagementPage() {
 
             {activeTab === "scenes" && (
               scenes.length === 0 ? (
-                <EmptySection icon={<Box />} title="No saved scenes found" />
+                <EmptySection
+                icon={<Box />}
+                title="No saved scenes found"
+                action={{
+                  label: "Create scene",
+                  onClick: () => navigate("/three-js-studio"),
+                  icon: <Plus size={14} />,
+                }}
+              />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -334,7 +375,15 @@ export function DataManagementPage() {
 
             {activeTab === "history" && (
               history.length === 0 ? (
-                <EmptySection icon={<FileText />} title="No prompt history found" />
+                <EmptySection
+                icon={<FileText />}
+                title="No prompt history found"
+                action={{
+                  label: "Start generating",
+                  onClick: () => navigate("/music-video-wizard"),
+                  icon: <ArrowRight size={14} />,
+                }}
+              />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>

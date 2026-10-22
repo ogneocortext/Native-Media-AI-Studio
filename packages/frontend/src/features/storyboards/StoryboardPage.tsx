@@ -39,6 +39,7 @@ import {
   Eye,
   BarChart3,
   FileMusic,
+  Upload,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchUniqueTracksFromAPI, type TrackLyricsData } from "../../services/trackLyrics";
@@ -623,6 +624,7 @@ function TracksTab({
   onSelectTrack: (t: TrackLyricsData) => void;
   onGenerateScene: (t: TrackLyricsData) => void;
 }) {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback((track: TrackLyricsData) => {
@@ -649,7 +651,16 @@ function TracksTab({
         {loading ? (
           <div className="p-4 text-center text-gray-500 text-sm">Loading tracks...</div>
         ) : tracks.length === 0 ? (
-          <EmptySection icon={<Music size={24} />} title="No tracks found" size="sm" />
+          <EmptySection
+            icon={<Music size={24} />}
+            title="No tracks found"
+            size="sm"
+            action={{
+              label: "Upload track",
+              onClick: () => navigate("/audio-analysis"),
+              icon: <Upload size={14} />,
+            }}
+          />
         ) : (
           tracks.map((track) => (
             <button
