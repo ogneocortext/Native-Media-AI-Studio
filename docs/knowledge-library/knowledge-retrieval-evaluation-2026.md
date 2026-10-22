@@ -93,6 +93,36 @@ Contextual retrieval lifts every configuration except dense: `hybrid` goes
 from 90.0% to **93.3%** doc@5 and from MRR 0.757 to **0.853**, for 843 →
 1,564 tokens. The cost is the summary prepended to every chunk.
 
+### HyDE hurts on this corpus
+Retrieving with an LLM-written hypothetical answer instead of the question
+is **worse than plain BM25**: doc@5 71.7% against 85.0%, MRR 0.594
+against 0.764, passage 38.3% against 41.7%.
+
+This is the opposite of the SemEval-2026 result (HyDE improving BM25 by
+26.7%), and consistent with arXiv:2604.01733, where HyDE *underperforms
+even vanilla dense retrieval* on precise queries and falls short of simple
+hybrid fusion. The likely cause here: a hypothetical answer written by a 3B
+model adds generic filler that dilutes the distinctive terms, while the
+original question already carries them. HyDE helps when the question's
+wording diverges from the document's; these questions do not diverge, they
+are drawn from the documents' own vocabulary.
+
+### The recommended configuration, measured as a unit
+200-token chunks + heading-path enrichment + contextual summaries, k=8:
+
+| Configuration | passage | doc@8 | MRR | context |
+|---|---|---|---|---|
+| `child` (BM25) | 51.7% | 90.0% | 0.817 | 2,341 tok |
+| `parent` | 48.3% | 90.0% | 0.823 | 2,448 tok |
+| `parent_child` | 51.7% | 90.0% | 0.817 | 2,696 tok |
+| `doc` (whole document) | 58.3% | 90.0% | 0.817 | 11,179 tok |
+| `dense` (nomic) | 45.0% | 78.3% | 0.706 | 2,416 tok |
+| **`hybrid` (RRF)** | **55.0%** | **91.7%** | 0.845 | 2,381 tok |
+| `hybrid_score` | 56.7% | 91.7% | 0.847 | 2,396 tok |
+
+And the cheap variant — same, without the contextual summaries:
+`hybrid` doc@8 **90.0%**, passage 53.3%, MRR 0.777, **1,332 tok**.
+
 ---
 
 ## 3. What the numbers say
@@ -143,8 +173,8 @@ doc@5 and MRR 0.757 → **0.853**. The cost is the summary in every chunk:
 843 → 1,564 tokens.
 
 ### The remaining gap
-The right document is found 93% of the time, but the answer fact is in the
-returned context only 52% of the time (and at most ~93% counting
+The right document is found 92% of the time, but the answer fact is in the
+returned context only 55% of the time (and at most ~93% counting
 paraphrases). The answer is usually in *another section* of the right
 document. Neither more chunks nor bigger chunks nor the whole document
 closes it — which is a **reranking** problem, not a chunking or a
@@ -160,7 +190,7 @@ measuring here, not assuming.
 ## 4. Recommended configuration
 
 ```bash
-# Index: 200-token chunks, heading-path enriched, contextual summaries added
+# Index: 200-token chunks, heading-path enriched
 # Retrieve: hybrid (BM25 + nomic dense, RRF), k=8
 ```
 
@@ -168,13 +198,15 @@ measuring here, not assuming.
   matters — so take the small one.
 - **Enrich with the heading path.** Free, and measured: it lifts hybrid
   MRR from 0.757 to 0.797 on its own.
-- **Add contextual summaries.** One LLM call per document, cached. Lifts
-  hybrid doc@5 from 90.0% to 93.3% and MRR to 0.853, at 2× the context
-  tokens. Worth it if the context budget allows; skip it if not — the
-  gain is real but not the difference between working and not.
 - **Retrieve with hybrid RRF, k=8.** The only lever that moves recall.
+  This alone: doc@8 90.0%, MRR 0.777, 1,332 tokens.
+- **Add contextual summaries if the budget allows.** One LLM call per
+  document, cached. Buys +1.7 doc@8, +1.7 passage and +0.068 MRR for
+  +1,049 tokens — real, but not the difference between working and not.
 - **Do not use parent-child** unless the corpus changes shape.
 - **Do not return whole documents** — 22× the tokens for 6 points.
+- **Do not use HyDE** on this corpus. It is measurably worse than plain
+  BM25.
 
 ---
 
