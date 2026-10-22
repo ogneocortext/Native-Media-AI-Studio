@@ -89,6 +89,7 @@ date: 2026-09-30
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
 - [[shader-color-science-2026|🎨 Shader Color Science 2026]] — GLSL color science: OKLCH, tonemapping, dithering for audio-reactive shaders
 - [[unity-audio-reactive-shader-research-2026|🎮 Unity Audio-Reactive Shader Research 2026]] — AudioLink patterns, FFT-band textures, GPU-driven beat-reactive HLSL for URP
+- [[unity-audio-visualization-2026|🎮 Unity Audio Visualization 2026]] — Unity audio visualization reference (moved from docs/knowledge/)
 - [[video-to-glsl-shader-recreation-2026|🎞️ Video-to-GLSL Shader Recreation 2026]] — shader-skills verified GLSL library (186 functions) + the Video 2 GLSL recreation workflow, mapped to the FX shader lane; local-VLM critique routing with Gemma 4 E2B (NEW 2026-10-21)
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)

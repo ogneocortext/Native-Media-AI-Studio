@@ -311,6 +311,61 @@ errors**. The vignette change alters `/three-js-studio` pixels — re-capture
 
 ---
 
+## Interaction Model (UX audit F1–F9, 2026-09-29)
+
+- **Add** objects from the header palette (Crown, Sphere, Box, Character) or the drawer's quick-add row (also Cylinder, Cone, Torus). New objects take a golden-angle spiral slot so they never stack at the origin, are selected immediately, and confirm with a toast.
+- **Select** by clicking an object in the canvas (a drag still orbits the camera; clicking empty space deselects). **Delete / Backspace** removes the selection, ignored while typing in an input.
+- **Preview** (live canvas, no file written) vs **Export frame as PNG** (the only file output today — no frame-sequence recorder).
+- **Disposal**: removing an object runs `geometry.dispose()` / `material.dispose()` and stops its mixer; verified by `three-studio-dispose-check.mjs`.
+- **Post-processing**: custom vignette darkens toward **black** (three's stock `VignetteShader` mixes toward grey), plus film grain, chromatic aberration and selective (hero-glow) bloom.
+
+Source of truth: `docs/ux/three-js-visualizer-review-2026-09-29.md`.
+
+## Architecture
+
+Core components: `ThreeJSStudio.tsx` (top-level), `sceneTemplates.ts` (`SCENE_TEMPLATES`), `threeStudioConfig.ts` (`DEFAULT_SCENE`/`DEFAULT_PARTICLES`/`DEFAULT_OBJECTS`, `BLOOM_LAYER`), `hooks/useThreeScene.ts` (renderer, raycast, dispose, post-processing, `window.__renderer`), `hooks/useObjectManager.ts` (add/remove/template apply), `hooks/useTrackManager.ts`/`useTrackMetadata.ts`, `hooks/useCodeApplier.ts`, and `components/` (header, HUD, playback, drawer tabs, code panel, AI generator).
+
+Render pipeline: raw three.js (`WebGLRenderer` on a plain `<canvas>`, no R3F); post-processing chain selective bloom → chromatic aberration → film grain → custom vignette → `OutputPass`; template switching replaces scene-graph children inside a `<group>` without recreating the renderer. Export: PNG still via `canvas.toDataURL()`. GLB/FBX **import** supported in Inspector; no studio-side mesh export or frame-sequence recorder. New shader work should use `MeshStandardNodeMaterial`/`MeshPhysicalNodeMaterial` node slots so scenes preview under WebGPU and WebGL2.
+
+## TSL Integration Points
+
+- Materials: prefer `*NodeMaterial` with `colorNode`, `positionNode`, `roughnessNode`, `metalnessNode`, `emissiveNode`, `opacityNode`, `scaleNode`, `fragmentNode`.
+- Compute: `instancedArray(count, 'vec3')` + `.toAttribute()`; `Fn().compute(count)`; `renderer.compute(computeNode)` in loops; `await renderer.computeAsync(computeNode)` when CPU needs the result same frame.
+- Audio-driven: upload `AnalyserNode` frequency data to a `DataTexture` each frame; sample in `fragmentNode`/`vertexNode`; offload heavy DSP to a TSL compute shader writing a `StorageInstancedBufferAttribute`, read back only reduced band energies.
+- Post-processing: `EffectComposer` + `OutputPass` baseline; WebGPU-native uses TSL `fragmentNode` overrides or `StorageTexture` + compute passes.
+
+## Key Patterns
+
+- Template selection: `useState<string>("concert")`; `useObjectManager.applyTemplate()` copies objects/particles/camera mode.
+- Beat sync: `useTrackManager` reads `useBeatTimeline`/`getAnalysis()`; `beatAnalysis.tempo_bpm` seeds BPM; WebAudio `AnalyserNode` (fftSize 256) drives `beatActive`; `sceneConfig.beatPunch` scales on transients. `useThreeScene` receives a stub `getCurrentBeat()` today — per-beat callbacks not yet wired (open item).
+- Asset import: drop `.glb`/`.gltf` on Inspector model field → `useMeshFactory` loads via `GLTFLoader`, picks a clip, normalizes to scene units, optional material preset.
+
+## Known Limitations
+
+- No mesh export path from the studio — PNG stills only; complex Blender-node materials must be exported from Blender.
+- No frame-sequence recorder; use Unity/Blender capture paths.
+- Hyper3D Rodin / Hunyuan3D generations require API keys on the ComfyUI server.
+- Scene templates are hardcoded; runtime serialization to `scene.json` is partial.
+- `Apply to Scene` in the code panel is a no-op (`useCodeApplier({ sceneRef: { current: null } })`).
+
+## Related Files
+
+- `packages/frontend/src/features/three-js-studio/ThreeJSStudio.tsx`
+- `packages/frontend/src/features/three-js-studio/sceneTemplates.ts`
+- `packages/frontend/src/features/three-js-studio/threeStudioConfig.ts`
+- `packages/frontend/src/features/three-js-studio/hooks/useThreeScene.ts`
+- `packages/frontend/src/features/three-js-studio/hooks/useObjectManager.ts`
+- `packages/frontend/src/features/three-js-studio/hooks/useTrackManager.ts`
+- `packages/frontend/src/features/three-js-studio/hooks/useTrackMetadata.ts`
+- `packages/frontend/src/features/three-js-studio/hooks/useCodeApplier.ts`
+- `packages/frontend/src/hooks/useBeatTimeline.ts`
+- `packages/frontend/tests/browser/audit/three-studio-audit-checks.mjs`
+- `packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs`
+- `docs/ux/three-js-visualizer-review-2026-09-29.md`
+- `tools/vision/analyze.mjs`
+- `docs/knowledge/unity-audio-visualization-2026.md`
+- `docs/knowledge/audio-visualization-techniques-2026.md`
+
 ## See Also
 
 - [[music-video-production]] - Full production workflow
