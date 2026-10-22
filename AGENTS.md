@@ -131,20 +131,7 @@ Native-Media-AI-Studio/
 
 ## MCP Servers
 
-| Server       | Command                                               | Port        | Status                |
-| ------------ | ----------------------------------------------------- | ----------- | --------------------- |
-| Ollama Tools | `node tools/mcp/ollama-tools-mcp.mjs`           | stdio       | 19 tools (incl. 9 `remix_*`), executes |
-| Vision       | `node tools/mcp/vision-mcp.mjs`                       | stdio       | 11 tools, executes    |
-| Unity MCP    | `node tools/mcp/unity-mcp-bridge.mjs`                 | 7800 (REST) | 17 tools; needs Unity |
-| Blender MCP  | `uvx blender-mcp`                                     | 9876        | Running               |
-| ComfyUI MCP  | `npx comfyui-mcp --comfyui-url http://127.0.0.1:8188` | 8188        | Running               |
-| Remotion MCP | `npx -y @remotion/mcp@latest`                         | stdio       | Configured            |
-| HyperFrames  | `node tools/mcp/hyperframes-mcp.mjs`                  | stdio       | 9 tools, executes     |
-
-Tool counts are as-of 2026-10-10 and go stale — MCP tool
-availability is dynamic, not fixed. The authoritative list is each
-server's `tools/list` response (or the `server.registerTool` /
-`TOOL_DEFS` registrations in the bridge source), not this table.
+Bridges in `tools/mcp/` (stdio/REST). Tool counts as-of 2026-10-10 and go stale; authoritative list is each server's `tools/list` (or `server.registerTool`/`TOOL_DEFS` in source). `unity-mcp-bridge` ships disabled (needs Unity running). `context-store.mjs` is a library, not a server. See `docs/knowledge-library/` for full setup.
 
 ## MCP clients: which config holds the servers
 
@@ -472,14 +459,7 @@ they are not part of this project and should never be invoked for repo tasks.
 
 ## Python Environments
 
-`D:\conda-envs\` is a **misnomer**: it holds venvs, not conda envs. Measured
-2026-10-18: `nma-studio-cuda`, `comfyui-cuda` and `studio-tools` have
-`pyvenv.cfg` and no `conda-meta`; only `space-analyzer-cuda` is a genuine conda
-env (`conda-meta`, 108 pkgs, `python.exe` at the env root rather than `Scripts\`)
-and it **belongs to a different project — never delete or modify it**. There is
-**no conda installation** on this machine, so it cannot be launched here and no
-`conda` command exists (`conda`/`mamba` are not on `PATH`; the env is absent from
-`~\.conda\environments.txt`). See `docs/setup/python-environments.md`.
+See `docs/setup/python-environments.md` for full details (envs are venvs, not conda; no conda on this machine).
 
 | Task                        | Interpreter                                        | Kind                |
 | --------------------------- | -------------------------------------------------- | ------------------- |
@@ -487,23 +467,7 @@ and it **belongs to a different project — never delete or modify it**. There i
 | ComfyUI service only        | `D:\conda-envs\comfyui-cuda\Scripts\python.exe`    | venv, Python 3.11.9 |
 | Fallback / CPU-only         | `venv\Scripts\python.exe`                          | repo-local venv     |
 
-Rules:
-
-- Default to `nma-studio-cuda` for backend + GPU work — it has fastapi, uvicorn
-  and watchfiles installed.
-- Never use `comfyui-cuda` for backend work.
-- `D:\conda-envs\studio-tools` is a venv on **Python 3.14.7**, the same version
-  as the `C:\Python314` interpreter that passes `ruff` and fails pytest (see the
-  PATH-traps table above) — treat it as equally unsuitable for backend work.
-- Selection is verified, not path-based (D33): `tools/run-gates.py`
-  probes every candidate with a real ruff run **and** a real pytest
-  run (a Python 3.14 interpreter passes `ruff` and `pytest --version`
-  but fails the suite with `PermissionError` in temp-dir cleanup), and
-  `scripts\shared-utils.ps1`'s `Resolve-BackendPython` probes
-  `import fastapi, uvicorn, watchfiles` before the service launchers
-  pick an env. A broken env is skipped with a warning, never launched.
-
-Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PYTHON`, then backend `sys.executable` (with warning); each candidate is probed with `import acestep` before it is chosen.
+Rules: default to `nma-studio-cuda`; never use `comfyui-cuda` for backend; `studio-tools` is 3.14 (unsuitable); selection is verified (D33). Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PYTHON`, then backend `sys.executable`.
 
 ## Testing
 
@@ -528,73 +492,7 @@ wrong-interpreter failure and `--list` prints the resolved interpreter and gates
 Every gate has a timeout (pytest 300 s, build 600 s, e2e 900 s) and the child tree
 is killed on expiry, so a wedged gate reports a failure instead of hanging.
 
-Individual gates, for iterating on one area:
-
-- Unit (pure logic): `pnpm test:unit` in `packages/frontend/` — vitest, for
-  `src/**/*.test.ts`. Playwright cannot test these: booting a browser to assert
-  `audioTiming.ts`'s latency math costs seconds and is flaky where a unit test
-  costs ~1 ms. `pnpm test:unit:ui` opens the same suite in the Vitest UI
-  (browser, watch mode). That URL is **token-authenticated**: copy the
-  `http://localhost:<port>/__vitest__/?token=…` line it prints on startup, or
-  the page returns 403.
-  Test files are **colocated** under `src/`, not in `tests/`,
-  because `tests/` holds Playwright specs and its own `tsconfig.tests.json`.
-  For which suites exist and which remain pure-but-untested, read the coverage
-  inventory in `docs/TESTING_WORKFLOWS.md`. It changes every time tests are
-  added, so it does not belong in a file every agent loads at start-up.
-- Frontend E2E: `pnpm test` in `packages/frontend/` (Playwright)
-- Backend: `pytest` in `packages/backend/`
-- E2E: Playwright under `packages/frontend/tests/browser/`
-- Lint/format: `pnpm lint` / `pnpm format` (frontend); `ruff check` / `ruff format` (backend)
-- Docs and repo hygiene: `python tools/check-all.py`
-- Cache cleanup: `python tools/clean-caches.py --dry-run` to preview, without
-  the flag to delete. Deliberately **not** `git clean -xdf`, which would also
-  remove `output/` and the generated waveform cache. It only ever deletes
-  regenerable test/build caches and refuses to touch anything git tracks.
-  It also prunes `packages/frontend/tests/browser/out` (agent screenshot
-  scratch) by age — default 14 days, `--out-age N` to change; the dir's
-  README.md documents the dated-name convention (`ux-2026-10-16-queue.png`)
-  and is exempt from pruning.
-- **Checkpoint refs / local repo size:** Cline writes restore points to
-  `refs/cline/checkpoints/*`, which keeps their history alive in the object
-  store even though nothing published depends on it. That made this checkout
-  report **3.59 GiB** locally against **131 MB** on GitHub — the difference was
-  a 2.9 GB `archive.tar.gz.tmp` plus the torch CUDA DLLs, all committed before
-  those paths were ignored. `python tools/prune-checkpoint-refs.py` previews;
-  `--apply` deletes. It is **age-based by default (14 days)** so recent
-  sessions stay restorable — pass `--all` to delete every checkpoint. Then run
-  `git gc --prune=now` to actually reclaim the disk.
-  - **These refs are Cline's restore points.** Deleting one discards the
-    ability to rewind that session from git. That is the deliberate trade, not
-    an oversight: the objects they pin are unreachable from any branch.
-  - **Do not** reach for `git filter-repo` or any history rewrite here. The
-    published history is small; the bloat is local-only, so a rewrite would
-    change every SHA on the remote for no benefit.
-  - `python tools/report-large-git-objects.py --rev main` shows what is
-    actually published; the default `--all` includes the checkpoint refs and
-    will mislead you into thinking the remote is huge.
-  - `python tools/check-dangling-commits.py` reports commits left unreachable
-    by a prune and whether main already contains them.
-- Knowledge library: `python tools/validate-knowledge-tags.py` — run this before
-  committing any change under `docs/knowledge-library/`. A pre-commit hook does
-  it automatically (see D10 in the decision log): run
-  `bash scripts/install-git-hooks.sh` once after cloning. There is **no CI**, so
-  these local hooks are the only automated guard.
-- Hooks, and what each is for:
-  - `pre-commit` — doc/repo hygiene, scoped to what the staged paths can affect,
-    so an unrelated commit costs nothing.
-  - `pre-push` — the fast gates (`docs ruff type lint unit`, ~11 s). It
-    deliberately skips pytest (~40 s) and Playwright (~30 s): a 90 s push hook
-    gets bypassed, which is worse than no hook. Run
-    `python tools/run-gates.py --e2e` for those before pushing.
-  - `commit-msg` — attribution enforcement: rejects a commit whose message
-    carries no `Co-authored-by:` trailer (see Commit attribution above).
-    Merges, squashes and `fixup!`/`squash!` commits are exempt; bypass with
-    `SKIP_TRAILER_CHECK=1` or `--no-verify`.
-  - All three **chain** rather than replace. Git LFS ships its own `pre-push`, and
-    `install-git-hooks.sh` keeps the displaced copy as `<name>.backup`, which the
-    new hook calls at every exit path. If you install hooks by hand, preserve
-    that.
+Individual gates, for iterating on one area: `pnpm test:unit` (frontend unit, vitest), `pnpm test` (Playwright E2E), `pytest` (backend), `pnpm lint`/`pnpm format` (frontend), `ruff check`/`ruff format` (backend), `python tools/check-all.py` (docs/hygiene), `python tools/clean-caches.py --dry-run`. Full detail in `docs/TESTING_WORKFLOWS.md`.
 
 ## Quick Reference
 
