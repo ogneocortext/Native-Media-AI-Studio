@@ -393,7 +393,23 @@ def generate_questions(docs: list[dict], counter, model: str, limit: int,
     url = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
     questions: list[dict] = []
 
+    # Resume: a long generation run should not start over.
+    already: set[str] = set()
+    if out_path and out_path.exists():
+        try:
+            for prior in json.loads(out_path.read_text(encoding="utf-8")):
+                if prior.get("doc"):
+                    already.add(prior["doc"])
+                    questions.append(prior)
+        except Exception:
+            already = set()
+            questions = []
+    if already:
+        print(f"  Resuming: {len(already)} question(s) already written")
+
     for d in docs[:limit]:
+        if d["name"] in already:
+            continue
         # A distinctive, self-contained passage to write a question from.
         sentences = [s for s in re.split(r"(?<=[.!?])\s+|\n{2,}", d["body"])
                      if len(s) >= 60]
@@ -431,6 +447,10 @@ def generate_questions(docs: list[dict], counter, model: str, limit: int,
         question = (parsed.get("question") or "").strip()
         fact = (parsed.get("fact") or "").strip()
         if not question or not fact:
+            continue
+        # A fact that is a fragment, an ellipsis or too short cannot be
+        # checked for containment meaningfully.
+        if len(fact) < 20 or "..." in fact or len(fact.split()) < 3:
             continue
         questions.append({
             "doc": d["name"],
