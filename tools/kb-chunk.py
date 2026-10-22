@@ -28,6 +28,15 @@ Structure first, then sentences, then size:
   their larger parent section, so retrieval is precise and the context
   handed to the model is complete (arXiv:2603.23533, 2026).
 
+  *Measured on this vault, and it does not pay here.* `kb-eval.py` scored
+  child, parent and parent-child over 92 cloze probes: all three returned
+  the answer passage **85.9%** of the time, because the answer passage is
+  present in the returned context whenever the right *document* is
+  retrieved — the loss is in retrieval, not in chunk granularity.
+  parent-child costs ~10% *more* tokens (832 vs 757) for no gain.
+  Returning the whole document instead of chunks gives the same 85.9% at
+  23x the tokens. Keep the option; do not reach for it by default.
+
 Usage:
 
     python tools/kb-chunk.py --format stats         # the plan, no output
@@ -382,15 +391,24 @@ def merge_tiny_chunks(chunks: list[dict], counter, minimum: int) -> list[dict]:
             if len(pending) == 1:
                 merged.append(pending[0])
             else:
-                # Keep the first chunk's identity, absorb the rest.
+                # Keep the first chunk's identity, absorb the rest. A merged
+                # chunk spans several sections, so it belongs to all of
+                # their parents — recording only the first would point a
+                # child at a parent that does not contain its text.
                 head = pending[0]
                 text = "\n\n".join(c["text"] for c in pending)
                 paths = [c["heading_path"] for c in pending if c["heading_path"]]
+                parents: list[str] = []
+                for c in pending:
+                    for pid in c.get("parents", [c.get("parent")]):
+                        if pid and pid not in parents:
+                            parents.append(pid)
                 merged.append({
                     **head,
                     "text": text,
                     "tokens": counter.count(text),
                     "heading_path": paths[0] if paths else head["heading_path"],
+                    "parents": parents,
                     "merged": len(pending),
                 })
             pending = []
@@ -399,7 +417,13 @@ def merge_tiny_chunks(chunks: list[dict], counter, minimum: int) -> list[dict]:
             # A trailing run of fragments: fold them into the last chunk.
             head = merged[-1]
             text = head["text"] + "\n\n" + "\n\n".join(c["text"] for c in pending)
-            merged[-1] = {**head, "text": text, "tokens": counter.count(text)}
+            parents = list(head.get("parents", [head.get("parent")]))
+            for c in pending:
+                for pid in c.get("parents", [c.get("parent")]):
+                    if pid and pid not in parents:
+                        parents.append(pid)
+            merged[-1] = {**head, "text": text, "tokens": counter.count(text),
+                          "parents": parents}
         else:
             merged.extend(pending)
     return merged
@@ -473,9 +497,10 @@ def chunk_document(path: Path, counter, target: int, overlap: int) -> tuple:
     chunks: list[dict] = []
     parents: list[dict] = []
     for section in split_sections(body):
+        parent_id = f"{path.stem}#{len(parents)}"
         section_tokens = counter.count(section["text"])
         parents.append({
-            "id": f"{path.stem}#{len(parents)}",
+            "id": parent_id,
             "doc": path.name,
             "title": title,
             "category": category,
@@ -493,6 +518,11 @@ def chunk_document(path: Path, counter, target: int, overlap: int) -> tuple:
                 "type": doc_type,
                 "tags": tags,
                 "heading_path": piece["heading_path"],
+                # The id of the section this chunk came from. Recorded rather
+                # than inferred: a chunk's text is re-joined from units, so it
+                # is not a literal substring of its parent.
+                "parent": parent_id,
+                "parents": [parent_id],
                 "text": piece["text"],
                 "tokens": counter.count(piece["text"]),
             })
