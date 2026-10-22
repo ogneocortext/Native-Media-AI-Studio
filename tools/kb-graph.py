@@ -22,8 +22,9 @@ Usage:
     python tools/kb-graph.py --mode graph > kb.dot
     python tools/kb-graph.py --mode typed       # all typed relations
 
-Standard library only. Mirrors the link-extraction rules in
-tools/validate-knowledge-tags.py so the two tools stay consistent.
+Standard library only. Link parsing lives in tools/_kb_links.py, which this
+tool and tools/validate-knowledge-tags.py and tools/kb-context.py all share —
+so the three cannot drift apart on how a link is spelled.
 """
 from __future__ import annotations
 
@@ -41,30 +42,29 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 try:
+    from _kb_links import (
+        DEFAULT_RELATION,
+        PAGE_TYPES,
+        RELATION_WEIGHTS,
+        SPECIAL_FILES,
+        parse_links,
+        relation_weight,
+    )
     from _toolutil import REPO
 except ImportError:  # pragma: no cover
     REPO = Path(__file__).resolve().parent.parent
+    DEFAULT_RELATION = "see-also"
+    PAGE_TYPES = ("concept", "entity", "source", "comparison",
+                  "synthesis", "tracker", "index")
+    RELATION_WEIGHTS = {"cites": 4, "extends": 3, "implements": 3,
+                        "compares-to": 2, "part-of": 2, "see-also": 1}
+    SPECIAL_FILES = ("index.md", "README.md", "_schema.md", "log.md")
+    parse_links = None
+    relation_weight = None
 
 
 BASE = REPO / "docs" / "knowledge-library"
-SKIP = ("index.md", "README.md", "_schema.md", "log.md")
-
-PAGE_TYPES = ("concept", "entity", "source", "comparison",
-              "synthesis", "tracker", "index")
-
-# Relation -> traversal weight (per _schema.md §3).
-RELATION_WEIGHTS = {
-    "cites": 4,
-    "extends": 3,
-    "implements": 3,
-    "compares-to": 2,
-    "part-of": 2,
-    "see-also": 1,
-}
-
-# Wiki-link pattern: [[slug|label]] or [[slug]]:relation.
-WIKI_LINK_RE = re.compile(r"\[\[([^|\]\]]+)(?:\|[^\]]*)?\]\](?::(\w+))?")
-
+SKIP = SPECIAL_FILES
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
@@ -73,22 +73,11 @@ def read_text(path: Path) -> str:
 def extract_links(text: str) -> list[tuple[str, str | None]]:
     """Return [(slug, relation_or_None)] from document text.
 
-    Strips inline code spans so inline-code wiki-link examples are not treated
-    as real links. Strips anchors ([[slug#section]]) and skips
-    cross-directory references (contain / or ..).
+    Thin wrapper over the shared parser in tools/_kb_links.py, so the
+    graph tool, the validator and the context exporter all read the vault's
+    links the same way.
     """
-    text = re.sub(r"`[^`]*`", "", text)
-    links = []
-    for m in WIKI_LINK_RE.finditer(text):
-        slug = m.group(1).strip().split("#")[0]
-        # Strip .md extension so [[doc.md]] and [[doc]] resolve the same.
-        if slug.endswith(".md"):
-            slug = slug[:-3]
-        relation = m.group(2)
-        if "/" in slug or ".." in slug:
-            continue
-        links.append((slug, relation))
-    return links
+    return [(link.slug, link.relation) for link in parse_links(text)]
 
 
 def collect() -> dict[str, Path]:
@@ -127,32 +116,58 @@ def build_graph(docs: dict[str, Path]) -> tuple[dict, dict, dict, dict]:
     inbound:  doc -> [(source_doc, slug, relation)]
     dangling: source_doc -> [(slug, relation)]
     orphans:  set of docs with no inbound links.
+
+    The special files (index.md, README.md, _schema.md, log.md) are read as
+    link *sources* as well as being valid link targets. Without that, the
+    graph tool and tools/validate-knowledge-tags.py disagree about which
+    pages are orphans — the validator counts the index, and the graph tool
+    used not to.
     """
     basename_to_doc = {Path(p).stem: n for n, p in docs.items()}
     # Special files are valid targets too.
-    for name in ("index.md", "README.md", "_schema.md", "log.md"):
+    for name in SPECIAL_FILES:
         basename_to_doc[Path(name).stem] = name
 
     outgoing: dict[str, list[tuple[str, str, str | None]]] = defaultdict(list)
     inbound: dict[str, list[tuple[str, str, str | None]]] = defaultdict(list)
     dangling: dict[str, list[tuple[str, str | None]]] = defaultdict(list)
 
-    for name, path in docs.items():
+    # Link sources: every library document plus the special files.
+    sources: dict[str, Path] = dict(docs)
+    for name in SPECIAL_FILES:
+        p = BASE / name
+        if p.exists():
+            sources[name] = p
+
+    for name, path in sources.items():
         text = read_text(path)
         for slug, relation in extract_links(text):
             target = basename_to_doc.get(slug)
             if target is None:
-                dangling[name].append((slug, relation))
+                if name in docs:
+                    dangling[name].append((slug, relation))
             else:
-                outgoing[name].append((target, slug, relation))
+                if name in docs:
+                    outgoing[name].append((target, slug, relation))
                 inbound[target].append((name, slug, relation))
 
-    orphans = {n for n in docs if n not in inbound and n != "index.md"}
+    orphans = {n for n in docs if n not in inbound}
     return outgoing, inbound, dangling, orphans
 
 
 def weight_of(relation: str | None) -> int:
-    return RELATION_WEIGHTS.get(relation or "see-also", 1)
+    return relation_weight(relation) if relation_weight else RELATION_WEIGHTS.get(
+        relation or DEFAULT_RELATION, 1
+    )
+
+
+def as_link(name: str) -> str:
+    """The wiki-link form of a document name.
+
+    The vault's convention is a bare stem — `[[comfyui-workflows]]`, not
+    `[[comfyui-workflows.md]]` — so every rendered link uses the stem.
+    """
+    return Path(name).stem
 
 
 def relation_label(relation: str | None) -> str:
@@ -193,11 +208,12 @@ def print_outline(docs, outgoing, inbound, dangling, orphans):
             ptype_tag = f" [{ptype}]" if ptype else ""
             orphan_tag = "  [ORPHAN]" if name in orphans else ""
             dang_tag = f"  [WARN] {len(dangling[name])} dangling" if dangling.get(name) else ""
-            print(f"  - [[{name}]]{ptype_tag}{orphan_tag}{dang_tag}")
+            print(f"  - [[as_link(name)]]{ptype_tag}{orphan_tag}{dang_tag}")
             outs = sorted(outgoing.get(name, []), key=lambda x: (-weight_of(x[2]), x[0]))
             for target, _slug, relation in outs:
                 w = weight_of(relation)
-                print(f"      -> [[{target}]] :{relation_label(relation)} (w={w})")
+                link = as_link(target)
+                print(f"      -> [[{link}]] :{relation_label(relation)} (w={w})")
             ins = sorted(inbound.get(name, []), key=lambda x: x[0])
             if ins:
                 srcs = ", ".join(f"[[{s}]]" for s, _, _ in ins)
@@ -239,7 +255,7 @@ def print_orphans(orphans, docs):
         m = re.search(r"^type:\s*(\S+)", text, re.M)
         if m:
             ptype = m.group(1)
-        print(f"  - [[{name}]] [{ptype or '?'}]")
+        print(f"  - [[as_link(name)]] [{ptype or '?'}]")
     print(f"\nTotal: {len(orphans)}")
 
 
@@ -248,7 +264,7 @@ def print_dangling(dangling):
     for src in sorted(dangling):
         for slug, relation in dangling[src]:
             rel = relation_label(relation)
-            print(f"  [[{src}]] -> [[{slug}]] :{rel}")
+            print(f"  [[as_link(src)]] -> [[{slug}]] :{rel}")
     print(f"\nTotal: {sum(len(v) for v in dangling.values())}")
 
 
@@ -263,19 +279,14 @@ def print_typed(outgoing):
     if not rows:
         print("  (none — all links are untyped :see-also)")
     for w, src, target, relation in rows:
-        print(f"  [[{src}]] :{relation} -> [[{target}]]  (w={w})")
+        src_link = as_link(src)
+        dst_link = as_link(target)
+        print(f"  [[{src_link}]] :{relation} -> [[{dst_link}]]  (w={w})")
     print(f"\nTotal typed relations: {len(rows)}")
 
 
-def print_suggest(docs, outgoing, inbound, dangling, orphans):
-    """Suggest link targets for orphan pages based on shared tags/category.
-
-    For each orphan, score every other document by:
-      +2 if same primary category
-      +1 per shared cross-cutting tag
-    Prints the top 3 candidates per orphan.
-    """
-    # Pre-compute category and tag sets per doc.
+def doc_meta(docs: dict[str, Path]) -> dict[str, tuple[str, set[str]]]:
+    """Return {doc: (primary_category, tag_set)} for every document."""
     meta: dict[str, tuple[str, set[str]]] = {}
     for name, path in docs.items():
         text = read_text(path)
@@ -296,31 +307,62 @@ def print_suggest(docs, outgoing, inbound, dangling, orphans):
                     if line.strip() and not line.startswith(" "):
                         break
         meta[name] = (category, tags)
+    return meta
+
+
+def score_candidates(
+    docs: dict[str, Path],
+    meta: dict[str, tuple[str, set[str]]],
+    target: str,
+    inbound: dict,
+    limit: int = 3,
+) -> list[tuple[int, str]]:
+    """Rank other documents as link targets for `target`.
+
+    Score: +2 for the same primary category, +1 per shared cross-cutting
+    tag. Candidates that already link to `target` are excluded — the point
+    is to find a *new* inbound link. Ties resolve alphabetically, so the
+    ranking is stable between runs.
+    """
+    t_cat, t_tags = meta[target]
+    already = {src for src, _slug, _rel in inbound.get(target, [])}
+    scores: list[tuple[int, str]] = []
+    for candidate in docs:
+        if candidate == target or candidate in already:
+            continue
+        c_cat, c_tags = meta[candidate]
+        score = (2 if c_cat == t_cat else 0) + len(t_tags & c_tags)
+        if score > 0:
+            scores.append((score, candidate))
+    scores.sort(key=lambda x: (-x[0], x[1]))
+    return scores[:limit]
+
+
+def print_suggest(docs, outgoing, inbound, dangling, orphans):
+    """Suggest link targets for orphan pages based on shared tags/category.
+
+    For each orphan, score every other document by:
+      +2 if same primary category
+      +1 per shared cross-cutting tag
+    Prints the top 3 candidates per orphan.
+    """
+    meta = doc_meta(docs)
 
     print("[SUGGEST] Link targets for orphan pages (top 3 per orphan, by shared "
           "category/tags):\n")
     total_suggestions = 0
     for orphan in sorted(orphans):
-        o_cat, o_tags = meta[orphan]
-        scores = []
-        for candidate in docs:
-            if candidate == orphan or candidate in inbound.get(orphan, []):
-                continue
-            c_cat, c_tags = meta[candidate]
-            score = (2 if o_cat == c_cat else 0) + len(o_tags & c_tags)
-            if score > 0:
-                scores.append((score, candidate))
-        scores.sort(reverse=True)
-        top = scores[:3]
+        o_cat = meta[orphan][0]
+        top = score_candidates(docs, meta, orphan, inbound, limit=3)
         if top:
             total_suggestions += len(top)
             cand_str = "; ".join(
-                f"[[{c}]] (score={s}, same-cat={o_cat == meta[c][0]})"
+                f"[[{as_link(c)}]] (score={s}, same-cat={o_cat == meta[c][0]})"
                 for s, c in top
             )
-            print(f"  [[{orphan}]] -> {cand_str}")
+            print(f"  [[{as_link(orphan)}]] -> {cand_str}")
         else:
-            print(f"  [[{orphan}]] -> (no scored candidates)")
+            print(f"  [[{as_link(orphan)}]] -> (no scored candidates)")
     print(f"\nTotal suggestions: {total_suggestions} for {len(orphans)} orphan(s).")
 
 
@@ -349,57 +391,37 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def print_apply(docs, outgoing, inbound, dangling, orphans) -> int:
+def print_apply(docs, outgoing, inbound, dangling, orphans, dry_run: bool = False) -> int:
     """Apply suggestions: insert back-links from suggested targets into
     orphan docs so they are no longer orphans.
 
+    With `dry_run` the plan is printed and nothing is written.
+
     Returns the number of orphans fixed.
     """
-    meta: dict[str, tuple[str, set[str]]] = {}
-    for name, path in docs.items():
-        text = read_text(path)
-        category = frontmatter_category(text) or ""
-        tags: set[str] = set()
-        in_tags = False
-        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
-        if m:
-            for line in m.group(1).split("\n"):
-                if line.startswith("tags:"):
-                    in_tags = True
-                    continue
-                if in_tags:
-                    t = re.match(r"^\s*-\s*(\S+)\s*$", line)
-                    if t:
-                        tags.add(t.group(1))
-                        continue
-                    if line.strip() and not line.startswith(" "):
-                        break
-        meta[name] = (category, tags)
+    meta = doc_meta(docs)
 
     fixed = 0
+    planned = 0
     for orphan in sorted(orphans):
-        o_cat, o_tags = meta[orphan]
-        scores = []
-        for candidate in docs:
-            if candidate == orphan or candidate in inbound.get(orphan, []):
-                continue
-            c_cat, c_tags = meta[candidate]
-            score = (2 if o_cat == c_cat else 0) + len(o_tags & c_tags)
-            if score > 0:
-                scores.append((score, candidate))
-        scores.sort(reverse=True)
-        top = scores[:1]  # Apply only the top suggestion per orphan
-        applied = 0
-        for _score, candidate in top:
-            candidate_path = docs[candidate]
-            orphan_stem = orphan.removesuffix(".md")
-            link_line = f"- [[{orphan_stem}]] :see-also\n"
-            if _insert_into_related(candidate_path, link_line):
-                applied += 1
-        if applied > 0:
+        top = score_candidates(docs, meta, orphan, inbound, limit=1)
+        if not top:
+            continue
+        _score, candidate = top[0]
+        planned += 1
+        link_line = f"- [[{as_link(orphan)}]] :see-also\n"
+        if dry_run:
+            print(f"[WOULD FIX] [[{as_link(candidate)}]] would gain "
+                  f"-> [[{as_link(orphan)}]]")
+            continue
+        if _insert_into_related(docs[candidate], link_line):
             fixed += 1
-            print(f"[FIXED] [[{orphan}]] <- [[{top[0][1]}]]")
-    print(f"\nFixed {fixed} of {len(orphans)} orphan(s).")
+            print(f"[FIXED] [[{as_link(candidate)}]] gained -> [[{as_link(orphan)}]]")
+    if dry_run:
+        print(f"\nDry run: {planned} link(s) would be added for "
+              f"{len(orphans)} orphan(s). Nothing was written.")
+    else:
+        print(f"\nFixed {fixed} of {len(orphans)} orphan(s).")
     return fixed
 
 
@@ -424,8 +446,82 @@ def print_untyped(docs, outgoing):
     if not untyped:
         print("  (none — every document with links uses at least one typed relation)")
     for name, detail, _count in untyped:
-        print(f"  - [[{name}]] ({detail})")
+        link = as_link(name)
+        print(f"  - [[{link}]] ({detail})")
     print(f"\nTotal untyped: {len(untyped)} of {len(docs)} document(s).")
+
+
+def print_audit(docs, outgoing, inbound, dangling, orphans):
+    """A health report, categorised by severity.
+
+    The categories follow the LLM-wiki lint convention:
+
+    * **fix**     — broken and should be repaired now (dangling links)
+    * **improve** — a quality gap, optional but recommended (orphan pages,
+                    documents with no typed relations, one-way links)
+    * **explore** — a growth opportunity (pages that mention a target that
+                    does not exist yet, so a page could be written)
+
+    A "one-way link" is a page that links *out* to another page which does
+    not link back — the vault's links are meant to be navigable in both
+    directions.
+    """
+    fix: list[str] = []
+    improve: list[str] = []
+    explore: list[str] = []
+
+    # --- fix: dangling links -------------------------------------------------
+    for src in sorted(dangling):
+        for slug, _rel in dangling[src]:
+            fix.append(f"[[{as_link(src)}]] links to [[{slug}]], which does "
+                       f"not exist")
+
+    # --- improve: orphans ----------------------------------------------------
+    for name in sorted(orphans):
+        improve.append(f"[[{as_link(name)}]] has no inbound link")
+
+    # --- improve: untyped relations -----------------------------------------
+    untyped = 0
+    for name in sorted(docs):
+        outs = outgoing.get(name, [])
+        if outs and not any(rel for _t, _s, rel in outs):
+            untyped += 1
+    if untyped:
+        improve.append(
+            f"{untyped} document(s) link out but use no typed relation — "
+            f"agents cannot traverse by relation (_schema.md §3)")
+
+    # --- improve: one-way links ---------------------------------------------
+    one_way = 0
+    for name in sorted(docs):
+        for target, _slug, _rel in outgoing.get(name, []):
+            if target not in docs:
+                continue
+            # `inbound[target]` holds the sources that link to `target`;
+            # a reciprocal link means `name` appears there.
+            back = any(src == name for src, _s, _r in inbound.get(target, []))
+            if not back:
+                one_way += 1
+    if one_way:
+        improve.append(
+            f"{one_way} link(s) are one-way — the target does not link back")
+
+    # --- explore: mentioned but unwritten ------------------------------------
+    missing_targets = {
+        slug for src in docs for slug, _rel in dangling.get(src, [])
+    }
+    for slug in sorted(missing_targets):
+        explore.append(f"[[{slug}]] is referenced but not written — a page "
+                       f"could be written for it")
+
+    for title, items in (("FIX", fix), ("IMPROVE", improve), ("EXPLORE", explore)):
+        print(f"[{title}] {len(items)}")
+        for item in items:
+            print(f"  - {item}")
+        print()
+
+    print(f"Summary: {len(fix)} to fix, {len(improve)} to improve, "
+          f"{len(explore)} to explore.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -433,9 +529,12 @@ def main(argv: list[str] | None = None) -> int:
         description="Render the knowledge-library wiki-link graph.",
     )
     parser.add_argument("--mode", choices=["outline", "graph", "orphans",
-                        "dangling", "typed", "suggest", "apply", "untyped"],
+                        "dangling", "typed", "suggest", "apply", "untyped",
+                        "audit"],
                         default="outline",
                         help="Output mode (default: outline)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="With --mode apply: print the plan, write nothing")
     args = parser.parse_args(argv)
 
     docs = collect()
@@ -454,9 +553,12 @@ def main(argv: list[str] | None = None) -> int:
     elif args.mode == "suggest":
         print_suggest(docs, outgoing, inbound, dangling, orphans)
     elif args.mode == "apply":
-        print_apply(docs, outgoing, inbound, dangling, orphans)
+        print_apply(docs, outgoing, inbound, dangling, orphans,
+                    dry_run=args.dry_run)
     elif args.mode == "untyped":
         print_untyped(docs, outgoing)
+    elif args.mode == "audit":
+        print_audit(docs, outgoing, inbound, dangling, orphans)
     return 0
 
 

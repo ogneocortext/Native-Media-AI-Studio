@@ -67,6 +67,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "packages" / "backend"
 FRONTEND = ROOT / "packages" / "frontend"
+TOOLS = ROOT / "tools"
 
 # fnm-installed pnpm. Using pnpm.cmd rather than the .ps1 wrapper is deliberate:
 # the wrapper writes to stderr and swallows the child's exit status, which is
@@ -372,6 +373,14 @@ def gates():
         # slowest tests, which is where optimization effort is most valuable.
         Gate("pytest", [python, "-m", "pytest", "-v", "--durations=10",
                         "-p", "no:cacheprovider"], BACKEND),
+        # The tools' own unit tests. The knowledge-library link parser is
+        # shared by three tools, and a silent divergence in it is invisible
+        # until something reports the wrong number — so it is guarded here.
+        # Only `tools/tests/unit` is collected: the rest of tools/tests holds
+        # live scripts (MCP stdio, demucs, GPU) that block and are not
+        # gate-safe.
+        Gate("tools-pytest", [python, "-m", "pytest", "-v",
+                              "-p", "no:cacheprovider", "tests/unit"], TOOLS),
         Gate("build", [pnpm, "build"], FRONTEND, timeout=600),
         # `--reporter=verbose` names every test file as it runs. The vitest
         # config's default reporter is "dot" under CI, which prints one

@@ -322,6 +322,9 @@ tools/hyperframes-built-this-from-a-dream/.waveform-cache/
 tools/model-reliability/snapshots/
 
 !tools/tests/test_doc_checkers.py
+# The knowledge-library tool unit tests are hermetic and run in the gate
+# (tools-pytest). The rest of tools/tests holds live scripts that block.
+!tools/tests/unit/test_*.py
 
 # Ad-hoc root-level JSON dumps: OpenAPI schema snapshots and per-model image
 # payloads dropped at the repo root by exploratory tooling. None is referenced

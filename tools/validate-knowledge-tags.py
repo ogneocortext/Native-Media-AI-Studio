@@ -29,6 +29,21 @@ import re
 import sys
 from collections import Counter
 
+try:
+    from _kb_links import (
+        PAGE_TYPES,
+        SPECIAL_FILES,
+        extract_slugs,
+    )
+except ImportError:  # pragma: no cover
+    import sys as _sys
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _kb_links import (  # noqa: E402
+        PAGE_TYPES,
+        SPECIAL_FILES,
+        extract_slugs,
+    )
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = os.path.join(ROOT, "docs", "knowledge-library")
 TRACKER = os.path.join(BASE, "migration-progress.md")
@@ -45,7 +60,7 @@ SECTIONS = [
     ("AI & ML", "ai"),
     ("Research & Reference", "research"),
 ]
-SKIP = ("index.md", "README.md", "_schema.md", "log.md")
+SKIP = SPECIAL_FILES
 # The core cross-cutting tags, as opposed to the extended vocabulary table.
 # Both are read from tagging-guide.md by documented_tags(); this list is only
 # used to decide which tags must carry a count in index.md's Tags Index.
@@ -55,13 +70,6 @@ CROSS = ["platform-youtube", "platform-unity", "platform-blender",
          "visualization", "3d", "webgpu"]
 
 # Valid page `type` values (OKF / LLM Wiki convention).
-PAGE_TYPES = ("concept", "entity", "source", "comparison",
-              "synthesis", "tracker", "index")
-
-# Wiki-link pattern: [[slug]] or [[slug|display]] or [[slug]]:relation.
-# Capture group 1 is the slug (everything up to the first | or ]).
-WIKI_LINK_RE = re.compile(r"\[\[([^|\]\]]+)(?:\|[^\]]*)?\]\]")
-
 errors = []
 warnings = []
 
@@ -219,6 +227,32 @@ def check_index(docs):
             errors.append(f"index.md: #{c} says {m.group(1)}, actual {want:d}")
 
 
+def check_index_gaps(docs):
+    """Check that index.md's entries all resolve to a real document.
+
+    The count check above catches a wrong *number*; this catches a wrong
+    *name* — an index entry pointing at a document that does not exist,
+    which is a dead end for anyone navigating by the index.
+
+    The shared parser is used so that wiki-links written as syntax examples
+    inside inline code (as index.md does with `[[wiki-links]]`) are not
+    mistaken for real entries.
+    """
+    idx = read(INDEX)
+    known = {os.path.splitext(name)[0] for name in docs}
+    known.update(os.path.splitext(s)[0] for s in SKIP)
+
+    seen = set()
+    for slug in sorted(extract_slugs(idx)):
+        if "/" in slug or ".." in slug:
+            continue
+        if slug in known or slug in seen:
+            continue
+        seen.add(slug)
+        errors.append(f"index.md: entry [[{slug}]] points to a document "
+                      f"that does not exist")
+
+
 def check_vocabulary(docs):
     """Warn about tags in use that the guide does not document.
 
@@ -342,30 +376,14 @@ def check_type_field(docs):
 def extract_links(path):
     """Return the set of wiki-link slugs referenced in a document.
 
-    Strips display text (`[[slug|label]]`), anchors (`[[slug#section]]`),
-    and relation suffixes (`[[slug]]:relation`). Returns only bare slugs
-    that look like internal knowledge-library references (no path separators,
-    no `../`) — cross-references to other doc directories are intentional
-    and not flagged. Wiki-links inside inline code (backticks) are treated
-    as syntax examples, not real links.
+    Thin wrapper over the shared parser in tools/_kb_links.py, so this
+    validator, tools/kb-graph.py and tools/kb-context.py all read the
+    vault's links the same way. The parser strips display text
+    (`[[slug|label]]`), anchors (`[[slug#section]]`) and `.md` extensions,
+    skips cross-directory references, and treats wiki-links inside inline
+    code as syntax examples rather than real links.
     """
-    data = read(path)
-    # Remove inline code spans so wiki-links used as syntax examples
-    # (`` `[[slug]]` ``) are not treated as real links.
-    data = re.sub(r"`[^`]*`", "", data)
-    slugs = set()
-    for m in WIKI_LINK_RE.finditer(data):
-        slug = m.group(1).strip()
-        # Drop anchor section: [[slug#section]] -> [[slug]]
-        slug = slug.split("#")[0]
-        # Strip .md extension so [[doc.md]] and [[doc]] resolve the same.
-        if slug.endswith(".md"):
-            slug = slug[:-3]
-        # Skip cross-directory references (contain / or ..).
-        if "/" in slug or ".." in slug:
-            continue
-        slugs.add(slug)
-    return slugs
+    return extract_slugs(read(path))
 
 
 def check_links(docs):
@@ -478,6 +496,7 @@ def main():
     check_documents(docs)
     check_tracker(docs)
     check_index(docs)
+    check_index_gaps(docs)
     check_vocabulary(docs)
     check_dead_vocabulary(docs)
     check_duplicate_basenames()

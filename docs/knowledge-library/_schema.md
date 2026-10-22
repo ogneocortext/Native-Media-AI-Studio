@@ -116,12 +116,43 @@ Untyped `[[slug]]` defaults to `:see-also`. Agents should prefer typed links whe
 3. **No duplicate basenames** — wiki-links resolve by basename; two `foo.md` files make `[[foo]]` ambiguous.
 4. **Primary tag first** — the first `tags` entry must be one of the seven primary categories.
 5. **Tracker/index sync** — `migration-progress.md` and `index.md` must list every document exactly once with correct counts.
+6. **No index gaps** — every `[[slug]]` in `index.md` must resolve to a real document.
 
 Run `python tools/validate-knowledge-tags.py` before committing any change to this directory.
 
 ---
 
+## 6a. Tooling
+
+Four tools maintain the vault. They share one link parser
+(`tools/_kb_links.py`), so they cannot disagree about how a link is
+spelled.
+
+| Tool | What it does |
+|------|--------------|
+| `tools/validate-knowledge-tags.py` | The gate. Frontmatter, taxonomy, tracker/index sync, orphans, dangling links, index gaps. Exits non-zero on a problem. |
+| `tools/kb-add.py` | Scaffolds a new document: frontmatter, auto-linked related documents, registration in `index.md` / `migration-progress.md` / `log.md`, then validation. Implements §7 below. |
+| `tools/kb-graph.py` | The link graph: `outline`, `graph` (DOT), `orphans`, `dangling`, `typed`, `untyped`, `suggest`, `apply` (with `--dry-run`), and `audit`. |
+| `tools/kb-context.py` | Exports the vault as agent context: `text`, `json`, `paths`, `summary`, `index`, with `--category` / `--type` / `--tag` / `--file` filters, `--neighborhood`, `--limit` and `--budget`. |
+
+**`kb-context.py --format index` is the entry point for an agent.** It
+prints a routing table — title, type, category, tags and an estimated token
+cost per document — so the agent can decide what to fetch instead of loading
+everything. One level of routing is enough; a second level never helps
+(He et al., *Is Progressive Disclosure All You Need for Long-Context
+Agents?*, arXiv:2607.17598, 2026). Fetch a document with
+`--file <name>.md`.
+
+**`kb-graph.py --mode audit`** groups findings by severity, following the
+LLM-wiki lint convention: **fix** (broken links), **improve** (quality
+gaps: orphans, missing typed relations, one-way links), **explore**
+(referenced but unwritten pages).
+
+---
+
 ## 7. Adding a New Document
+
+The manual procedure:
 
 1. Create `kebab-case.md` with full frontmatter (tags, aliases, cssclasses, date, type).
 2. Add at least two typed wiki-links from related existing documents (avoid orphans).
@@ -130,6 +161,18 @@ Run `python tools/validate-knowledge-tags.py` before committing any change to th
 5. Update tag counts in `index.md`'s Tags Index.
 6. Append an entry to `log.md` with an ISO 8601 date heading.
 7. Run `python tools/validate-knowledge-tags.py` to verify.
+
+`tools/kb-add.py` does all seven:
+
+```bash
+python tools/kb-add.py --title "My New Doc" --category technical --type entity \
+  --alias "My New Doc" --cross-tag testing
+```
+
+It writes the frontmatter, finds and links the related documents (with a
+relation type inferred from the page types), inserts the back-links so the
+new page is not an orphan, registers it in all three bookkeeping files, and
+runs the validator.
 
 ---
 
