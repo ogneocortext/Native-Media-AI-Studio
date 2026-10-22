@@ -12,6 +12,13 @@
 # 2026-10-01 batch and the 2026-10-21 singles), so it is enforced here, at
 # the one moment it cannot be forgotten.
 #
+# Second guard: a trailer EMAIL that belongs to a third-party GitHub
+# account is rejected. GitHub credits the email's owner, not the name in
+# front of it -- trailers carrying noreply@anthropic.com are displayed as
+# contributions by @claude, and any *@users.noreply.github.com address as
+# that account. That is how phantom contributors (@claude, a Devin bot)
+# appeared on this repo's graph in Oct 2026.
+#
 # Exempt: merge and squash commits (detected via $2 and the MERGE_HEAD /
 # SQUASH_MSG state files -- their content arrives via branch commits
 # carrying their own trailers) and
@@ -69,6 +76,24 @@ subject=$(printf '%s\n' "$body" | awk 'NF { print; exit }')
 case "$subject" in
     fixup!*|squash!*) pass "$@" ;;
 esac
+
+# Phantom-credit guard: reject trailer emails bound to a third-party
+# GitHub account before the presence check below can pass the message.
+if printf '%s\n' "$body" | grep -iqE '^Co-authored-by:.*<([^>]*@users\.noreply\.github\.com|noreply@anthropic\.com)>'; then
+    cat >&2 <<'EOF'
+commit-msg: a Co-authored-by trailer carries an email that belongs to a
+third-party GitHub account.
+
+GitHub credits the trailer EMAIL's owner, not the name in front of it:
+noreply@anthropic.com renders as contributions by @claude, and any
+*@users.noreply.github.com address renders as that account. Use the
+agent's name with no email, or an email on a domain this project
+controls (see "Commit attribution" in AGENTS.md).
+
+Bypass for a deliberate one-off:  SKIP_TRAILER_CHECK=1 git commit ...
+EOF
+    fail "$@"
+fi
 
 if printf '%s\n' "$body" | grep -iq '^Co-authored-by:[[:space:]]*[^[:space:]]'; then
     pass "$@"
