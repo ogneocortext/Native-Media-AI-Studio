@@ -86,7 +86,7 @@ export interface CostEstimate {
   vram_estimate_gb: number;
   cloud_cost_usd: number | null;
   cloud_price_per_second: number | null;
-  factors: Record<string, any> | null;
+  factors: Record<string, unknown> | null;
   // A2 per-shot breakdown
   total_shots?: number | null;
   total_duration_seconds?: number | null;
@@ -113,7 +113,7 @@ export async function estimateRenderCost(params: {
   duration_seconds: number;
   model: string;
   cloud_price_per_second?: number | null;
-  shot_manifest?: Array<Record<string, any>> | null;
+  shot_manifest?: Array<Record<string, unknown>> | null;
   default_model?: string;
 }): Promise<CostEstimate> {
   const base = getApiBase();
@@ -230,7 +230,7 @@ export interface AssembleResponse {
 }
 
 export async function assembleBeatQuantized(params: {
-  shot_manifest: Array<Record<string, any>>;
+  shot_manifest: Array<Record<string, unknown>>;
   output_path?: string | null;
   audio_path?: string | null;
   engine?: string;
@@ -255,9 +255,9 @@ export async function assembleBeatQuantized(params: {
 // A5 — Stem-reactive visualization uniforms
 
 export interface StemVisualizationResponse {
-  stems: Record<string, any>;
+  stems: Record<string, unknown>;
   separated: boolean;
-  uniforms: Record<string, any>;
+  uniforms: Record<string, unknown>;
   curve_points: number;
 }
 

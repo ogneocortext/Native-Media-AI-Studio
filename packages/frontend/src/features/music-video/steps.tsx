@@ -645,7 +645,7 @@ export function GenerateStep({
   const [assemblyOutput, setAssemblyOutput] = useState<string | null>(null);
   const [assembling, setAssembling] = useState(false);
   const [assemblyError, setAssemblyError] = useState<string | null>(null);
-  const [stemVizData, setStemVizData] = useState<Record<string, any> | null>(null);
+  const [stemVizData, setStemVizData] = useState<Record<string, unknown> | null>(null);
   const [loadingStemViz, setLoadingStemViz] = useState(false);
   const [stemVizError, setStemVizError] = useState<string | null>(null);
 
@@ -702,8 +702,8 @@ export function GenerateStep({
       });
       if (res.success && res.output_path) setCanvasOutput(res.output_path);
       else setCanvasError(res.error || res.message || "Failed");
-    } catch (err: any) {
-      setCanvasError(err.message || "Failed to create Canvas loop");
+    } catch (err) {
+      setCanvasError(err instanceof Error ? err.message : "Failed to create Canvas loop");
     } finally {
       setCreatingCanvas(false);
     }
@@ -737,8 +737,8 @@ export function GenerateStep({
       });
       if (res.success && res.output_path) setAssemblyOutput(res.output_path);
       else setAssemblyError(res.error || res.message || "Failed");
-    } catch (err: any) {
-      setAssemblyError(err.message || "Failed to assemble");
+    } catch (err) {
+      setAssemblyError(err instanceof Error ? err.message : "Failed to assemble");
     } finally {
       setAssembling(false);
     }
@@ -762,8 +762,8 @@ export function GenerateStep({
       } else {
         setStemVizError("Stems not separated yet — run separation first");
       }
-    } catch (err: any) {
-      setStemVizError(err.message || "Failed to load stem viz");
+    } catch (err) {
+      setStemVizError(err instanceof Error ? err.message : "Failed to load stem viz");
     } finally {
       setLoadingStemViz(false);
     }
@@ -798,8 +798,8 @@ export function GenerateStep({
         default_model: "wan2.2-5b",
       });
       setCostEstimate(estimate);
-    } catch (err: any) {
-      setEstimateError(err.message || "Failed to estimate");
+    } catch (err) {
+      setEstimateError(err instanceof Error ? err.message : "Failed to estimate");
     } finally {
       setEstimating(false);
     }
@@ -983,7 +983,7 @@ export function GenerateStep({
                 Stem-reactive uniforms (A5)
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {Object.entries(stemVizData).map(([key, val]: [string, any]) => (
+                {Object.entries(stemVizData).map(([key, val]: [string, unknown]) => (
                   <div key={key} className="bg-gray-800/60 rounded-lg p-2">
                     <p className="text-[10px] text-gray-500 uppercase">{key}</p>
                     <p className="text-xs text-white font-semibold">{val.stem}</p>
