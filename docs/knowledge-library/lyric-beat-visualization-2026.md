@@ -270,3 +270,8 @@ const SECTION_MARKERS = {
 - `01:37.80` Verse
 - `02:17.92` Drop
 - `02:57.16` Final Drop
+
+**Related:** [[storyboard-enrichment-from-track-practice-2026]] — how measured
+beat grids, Whisper-verified sung lyrics, and the track-lyrics library feed
+storyboard generation (rules R1/R2 come from the production work this
+research informed).

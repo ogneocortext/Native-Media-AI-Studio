@@ -325,6 +325,48 @@ notes; the two additions to `/api/audio/*` (`preview-audio`,
 `preview-file`) are in `tools/audio_routes_baseline.json` alongside B2's
 `/from-prompt`, which had been left out of the baseline when it shipped.
 
+### Step 5 — Storyboard enrichment (from track-production practice)
+
+**Status 2026-10-22: proposed, not started.** Owner-requested
+exploration; design source is
+`docs/knowledge-library/storyboard-enrichment-from-track-practice-2026.md`
+(rules R1–R6 with the production evidence behind each). Goal: the
+storyboard generator stops taking only `theme + num_scenes` and starts
+consuming the track data the owner already has — the track-lyrics
+library (6 tracks, 216 lines), measured beat grids, Whisper
+transcripts, and character references.
+
+- **S1 — Measured-grid input (R1).** Storyboard jobs accept a measured
+  BPM + beat grid + section boundaries; when library/metadata BPM
+  disagrees with the measured grid, the board carries a conflict flag
+  and the grid wins. Consumes a supplied grid — no dependency on the
+  parked madmom A/B verdict.
+- **S2 — Sung-truth diff (R2).** Diff the Whisper transcript against
+  the lyric sheet at board build; sheet-only sections are marked
+  `not_sung` and produce no panels and no on-screen text. (Receipt:
+  the Valley Phonk bridge, written but not sung in the Extended V2
+  render.)
+- **S3 — Scene schema + compiler times (R3/R4/R6).** Scenes grow
+  `section`, `lyric_lines[]` refs, beat-anchored start/end, `framing`,
+  `source_aspect`, `character_ref` (reference asset + identity
+  checklist + off-axis flag), and `accent`. The HyperFrames compiler
+  manifest emits absolute start times derived from the grid on the
+  input timeline. Characterize existing payloads first — the compiler
+  accepts legacy shapes today and must keep doing so.
+- **S4 — Panel lifecycle + conformance (R5).** Panels carry
+  `planned → generated → accepted | rejected(+reason)`; the acceptance
+  check is a place/theme conformance review behind an interface whose
+  first implementation is the local VLM route (Gemma 4 E2B via Ollama,
+  chosen 2026-10-22). No hard dependency: boards work with the check
+  unimplemented, panels just stay `generated`.
+- **S5 — Lyric data completion + wiring.** (a) Capture **The Last
+  Original** lyric sets 1 and 2 (Suno URLs in the design doc §4) into
+  the track-lyrics library — a read-only transcription pass like
+  2026-09-30's, so it is Orion/owner-side work, not a code task; the
+  code side is only the two new JSONs + index entries. (b) Wire
+  `track_lyrics_id` into the generator job params (contract sketch in
+  the design doc §3).
+
 ## 3. Decisions needed from the owner
 1. Approve this sequencing (Step 2 order) or reprioritize. — **Resolved
    2026-10-22:** the written order is the order work shipped in; nothing
@@ -359,7 +401,8 @@ just landed, a flat tail means it is still open.
 are green.** The only two things still owed are (a) the D40 layering task
 (`motion/` → vizMotion primitives), scoped and owner-approved, and (b)
 Windows verification of 2.3 / 2.8 / 2.9 — owed to the owner's machine, not
-a code gap. Re-run `python tools/docs-tracker.py` at each milestone
+a code gap. A third lane — Step 5, storyboard enrichment — was proposed
+the same day at the owner's request and is scoped but not yet started. Re-run `python tools/docs-tracker.py` at each milestone
 rather than re-ranking by memory.
 
 ## Build notes
