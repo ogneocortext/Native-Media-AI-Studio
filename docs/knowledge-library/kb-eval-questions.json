@@ -1,0 +1,482 @@
+[
+  {
+    "doc": "2d-visualization-2026.md",
+    "title": "2D Visualization 2026",
+    "question": "What are the two most suitable open source 2D stacks for creating audio-reactive visuals?",
+    "fact": "Canvas2D + Web Audio API or PixiJS 8 / I2Djs",
+    "ngram": "Canvas2D + Web Audio API or PixiJS 8 / I2Djs",
+    "answer": "Canvas2D"
+  },
+  {
+    "doc": "3d-generation-2026-updates.md",
+    "title": "3D Generation 2026 Updates",
+    "question": "What makes Hunyuan3D 2.1 a production-ready 3D asset generation model?",
+    "fact": "Optimized for professional 3D production workflows",
+    "ngram": "Optimized for professional 3D production workflows",
+    "answer": "Optimized"
+  },
+  {
+    "doc": "3d-object-design-2026.md",
+    "title": "3D Object Design",
+    "question": "What is the recommended shader to use for morphing in a Three.js implementation?",
+    "fact": "custom vertex shader",
+    "ngram": "custom vertex shader",
+    "answer": "custom"
+  },
+  {
+    "doc": "3d-visualization-best-practices-2026.md",
+    "title": "3D Visualization Best Practices 2026",
+    "question": "What visualization techniques are used in the GeometricViz component?",
+    "fact": "Icosahedron core + wire + shockwave ring + 600-pt orbital `THREE.Points` + `InstancedParticles`",
+    "ngram": "Icosahedron core + wire + shockwave ring + 600-pt orbital `THREE.Points` + `InstancedParticles`",
+    "answer": "Icosahedron"
+  },
+  {
+    "doc": "a1-a6-media-pipeline-tooling-2026.md",
+    "title": "A1-A6 Media Pipeline Tooling Map",
+    "question": "What are the required tools for the music and video production pipeline?",
+    "fact": "Python audio libs + FFmpeg + ComfyUI + a JSON shot manifest + the studio dashboard and queue",
+    "ngram": "Python audio libs + FFmpeg + ComfyUI + a JSON shot manifest + the studio dashboard and queue",
+    "answer": "Python"
+  },
+  {
+    "doc": "ai-music-mastering-stems-2026.md",
+    "title": "AI Music Mastering 2026",
+    "question": "What is the recommended approach for running Demucs on an 8 GB workstation?",
+    "fact": "to run Demucs well on an 8 GB workstation",
+    "ngram": "to run Demucs well on an 8 GB workstation",
+    "answer": "to"
+  },
+  {
+    "doc": "ai-music-video-platforms-2026.md",
+    "title": "AI Music Video Platforms 2026",
+    "question": "What methods were used to estimate per-minute costs for the platforms being researched?",
+    "fact": "Per-minute costs are marked as 'estimate' and derived from September 2026 reviews, comparisons, official pricing pages as quoted by reviewers, and GitHub repos.",
+    "ngram": "Per-minute costs are marked as 'estimate' and derived from September 2026 reviews, comparisons, official pricing pages as quoted by reviewers, and GitHub repos.",
+    "answer": "Per-minute"
+  },
+  {
+    "doc": "app-research-gaps-2026.md",
+    "title": "App Research Gaps 2026",
+    "question": "How do I determine whether to research a gap in my project now or delay it?",
+    "fact": "Not every gap needs to be filled.",
+    "ngram": "Not every gap needs to be filled.",
+    "answer": "Not"
+  },
+  {
+    "doc": "audio-reactive-best-practices-2026.md",
+    "title": "Audio-Reactive Best Practices 2026",
+    "question": "What sources were used to inform the checkable practices for creating audio-reactive visuals?",
+    "fact": "2026 engineering write-ups from AUTOVJCLUB, Novus, RenderWave, Sonic Weaver, LavX/Sudonull, and others",
+    "ngram": "2026 engineering write-ups from AUTOVJCLUB, Novus, RenderWave, Sonic Weaver, LavX/Sudonull, and others",
+    "answer": "2026"
+  },
+  {
+    "doc": "audio-reactive-production.md",
+    "title": "Audio Reactive Guide",
+    "question": "How can the energy level of the visuals be matched to the energy level of the music?",
+    "fact": "Energy            | Visual Treatment                            |",
+    "ngram": "Energy            | Visual Treatment                            |",
+    "answer": "Energy"
+  },
+  {
+    "doc": "blender-mcp.md",
+    "title": "Blender MCP",
+    "question": "How do I create a new cube in Blender using the MCP protocol?",
+    "fact": "bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))",
+    "ngram": "bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))",
+    "answer": "bpy.ops.mesh.primitive_cube_add(size=2,"
+  },
+  {
+    "doc": "character-animation-2026-summer-synthesis.md",
+    "title": "Character Animation 2026",
+    "question": "What type of workflows are currently being used in music video production?",
+    "fact": "reproducible, character-consistent, music-first workflows",
+    "ngram": "reproducible, character-consistent, music-first workflows",
+    "answer": "reproducible,"
+  },
+  {
+    "doc": "coding-benchmarks.md",
+    "title": "Coding Model Benchmark",
+    "question": "How do I generate pytest tests for my Python code?",
+    "fact": "Generating runnable pytest tests that follow project fixtures",
+    "ngram": "Generating runnable pytest tests that follow project fixtures",
+    "answer": "Generating"
+  },
+  {
+    "doc": "comfyui-workflows.md",
+    "title": "ComfyUI Workflows",
+    "question": "Where can I access the ComfyUI instance for music video production?",
+    "fact": "D:\\Backup of Important Data for Windows 11 Upgrade\\ComfyUI",
+    "ngram": "D:\\Backup of Important Data for Windows 11 Upgrade\\ComfyUI",
+    "answer": "D:\\Backup"
+  },
+  {
+    "doc": "dark-ui-color-system-2026.md",
+    "title": "Dark UI Color System",
+    "question": "What is the primary reason for the design change in the `globals.css` file?",
+    "fact": "the app read as 'too much black' — measured cause was not the background alone but flat elevation (surface/bg at 1.05:1) plus invisible borders (1.49:1), so every panel melted into one black mass.",
+    "ngram": "the app read as 'too much black' — measured cause was not the background alone but flat elevation (surface/bg at 1.05:1) plus invisible borders (1.49:1), so every panel melted into one black mass.",
+    "answer": "the"
+  },
+  {
+    "doc": "design-auditing-2026.md",
+    "title": "Design Auditing 2026",
+    "question": "What tools and methods are used to audit the contrast and accessibility of music and video production?",
+    "fact": "contrast_audit.py, axe-core, Playwright a11y docs, APCA/ARC Bronze spec, Bridge-PCA notes, CI/CD a11y best-practices guides, visual-regression surveys",
+    "ngram": "contrast_audit.py, axe-core, Playwright a11y docs, APCA/ARC Bronze spec, Bridge-PCA notes, CI/CD a11y best-practices guides, visual-regression surveys",
+    "answer": "contrast_audit.py,"
+  },
+  {
+    "doc": "e2e-test-plan-2026.md",
+    "title": "E2E Test Plan",
+    "question": "Has the issue with module loading on Windows been resolved?",
+    "fact": "An earlier Windows Vite MIME-type issue prevented module loading.",
+    "ngram": "An earlier Windows Vite MIME-type issue prevented module loading.",
+    "answer": "An"
+  },
+  {
+    "doc": "feature-utilization-audit-2026.md",
+    "title": "Feature Utilization & Gap Analysis 2026",
+    "question": "What is the focus of this document in terms of evaluating the Native Media AI Studio?",
+    "fact": "data flow, false confidence, and orphaned capabilities",
+    "ngram": "data flow, false confidence, and orphaned capabilities",
+    "answer": "data"
+  },
+  {
+    "doc": "finetuning-best-practices-2026.md",
+    "title": "Fine-Tuning Best Practices",
+    "question": "What is the recommended method for local fine-tuning on 8 GB VRAM?",
+    "fact": "QLoRA is the default for local fine-tuning on 8 GB VRAM in 2026.",
+    "ngram": "QLoRA is the default for local fine-tuning on 8 GB VRAM in 2026.",
+    "answer": "QLoRA"
+  },
+  {
+    "doc": "frontend-build-pipeline.md",
+    "title": "Frontend Build Pipeline",
+    "question": "Why is the TypeScript compiler re-run on every file during the build process?",
+    "fact": "tsc in non-project mode re-checks every file from scratch; no incremental caching.",
+    "ngram": "tsc in non-project mode re-checks every file from scratch; no incremental caching.",
+    "answer": "tsc"
+  },
+  {
+    "doc": "gemma4-comfyui-mcp-2026.md",
+    "title": "Gemma 4 ComfyUI MCP",
+    "question": "How well does the Gemma 4 ComfyUI MCP tool perform on a specific hardware configuration?",
+    "fact": "QLoRA-trained on 1,055 server-verified tool-use trajectories",
+    "ngram": "QLoRA-trained on 1,055 server-verified tool-use trajectories",
+    "answer": "QLoRA-trained"
+  },
+  {
+    "doc": "hardware-benchmark-harness.md",
+    "title": "Hardware Profile and Benchmark Harness",
+    "question": "What kind of data is stored for history and comparison?",
+    "fact": "benchmark results are stored in SQLite",
+    "ngram": "benchmark results are stored in SQLite",
+    "answer": "benchmark"
+  },
+  {
+    "doc": "hunyuan3d-setup.md",
+    "title": "Hunyuan3D-2mini Setup",
+    "question": "What is the recommended approach for using the Hunyuan3D-2mini model in video production?",
+    "fact": "We use the Kijai Wrapper",
+    "ngram": "We use the Kijai Wrapper",
+    "answer": "We"
+  },
+  {
+    "doc": "hyperframes-audio-reactive-2026.md",
+    "title": "HyperFrames Audio-Reactive Guide 2026",
+    "question": "What is the recommended version of the HyperFrames CLI to use for this guide?",
+    "fact": "HyperFrames CLI v0.8.73+",
+    "ngram": "HyperFrames CLI v0.8.73+",
+    "answer": "HyperFrames"
+  },
+  {
+    "doc": "hyperframes-results-improvement-2026.md",
+    "title": "HyperFrames Results Improvement 2026",
+    "question": "What was the cause of the weak results from the studio's HyperFrames path?",
+    "fact": "the compiler (`packages/backend/app/services/storyboard_hyperframes.py`), the render API (`packages/backend/app/api/hyperframes.py`), and the upstream `heygen-com/hyperframes` repo (Apache-2.0, v0.8.73+ era)",
+    "ngram": "the compiler (`packages/backend/app/services/storyboard_hyperframes.py`), the render API (`packages/backend/app/api/hyperframes.py`), and the upstream `heygen-com/hyperframes` repo (Apache-2.0, v0.8.73+ era)",
+    "answer": "the"
+  },
+  {
+    "doc": "integration-ollama.md",
+    "title": "Ollama Integration",
+    "question": "What are the different models available for vision tasks?",
+    "fact": "<a model list with descriptions>",
+    "ngram": "<a model list with descriptions>",
+    "answer": "<a"
+  },
+  {
+    "doc": "javascript-upgrade-research-2026.md",
+    "title": "JavaScript Upgrade Research",
+    "question": "What is the current version of Node.js being used as the baseline for the frontend JS/TS stack?",
+    "fact": "Node v24.21.0 (LTS Krypton)",
+    "ngram": "Node v24.21.0 (LTS Krypton)",
+    "answer": "Node"
+  },
+  {
+    "doc": "kilo-code-subagent-optimization.md",
+    "title": "Kilo Code Subagent Optimization",
+    "question": "What specific strategies can be used to make subagent execution reliable at scale?",
+    "fact": "Both documents cover the same five strategies (concurrency, lifecycle timeout, rate limits, queueing, depth).",
+    "ngram": "Both documents cover the same five strategies (concurrency, lifecycle timeout, rate limits, queueing, depth).",
+    "answer": "Both"
+  },
+  {
+    "doc": "kilo-code-subagent-orchestration.md",
+    "title": "Kilo Code Subagent Orchestration",
+    "question": "What specific tools and systems does Kilo Code's subagent orchestration architecture consist of?",
+    "fact": "task tool, background job system, provider router, and retry mechanism",
+    "ngram": "task tool, background job system, provider router, and retry mechanism",
+    "answer": "task"
+  },
+  {
+    "doc": "mashup-arrangement-theory-2026.md",
+    "title": "Mashup Arrangement Theory",
+    "question": "What is the assumption about key detection in classical mashup theory?",
+    "fact": "reliable key detection",
+    "ngram": "reliable key detection",
+    "answer": "reliable"
+  },
+  {
+    "doc": "mcp-contracts-2026.md",
+    "title": "MCP Tool Contracts",
+    "question": "What information should I include in the input/output contracts for each tool in the Native Media AI Studio agent stack?",
+    "fact": "Formal input/output contracts for every MCP tool exposed by the Native Media AI Studio agent stack.",
+    "ngram": "Formal input/output contracts for every MCP tool exposed by the Native Media AI Studio agent stack.",
+    "answer": "Formal"
+  },
+  {
+    "doc": "minicpm-v-best-practices.md",
+    "title": "MiniCPM-V 2.6 Best Practices",
+    "question": "What is the performance of the `minicpm-v:8b` model compared to other models?",
+    "fact": "SOTA on OCRBench (beats GPT-4o/Gemini 1.5 Pro)",
+    "ngram": "SOTA on OCRBench (beats GPT-4o/Gemini 1.5 Pro)",
+    "answer": "SOTA"
+  },
+  {
+    "doc": "modern-css-2026.md",
+    "title": "Modern CSS 2026",
+    "question": "What is the primary source of inspiration for the color palette used in the project?",
+    "fact": "Tailwind v4 docs/blog",
+    "ngram": "Tailwind v4 docs/blog",
+    "answer": "Tailwind"
+  },
+  {
+    "doc": "music-video-vision-prompts.md",
+    "title": "Music Video Vision Prompts",
+    "question": "What type of feedback is needed from AI vision models to analyze music video stills?",
+    "fact": "section-aware, sync-checked, energy-rated",
+    "ngram": "section-aware, sync-checked, energy-rated",
+    "answer": "section-aware,"
+  },
+  {
+    "doc": "music-viz-trends-2026.md",
+    "title": "Music Visualizer Trends",
+    "question": "What design elements are currently popular in music and video production?",
+    "fact": "Frosted glass panels, soft blurs, neon gradients, subtle glow effects",
+    "ngram": "Frosted glass panels, soft blurs, neon gradients, subtle glow effects",
+    "answer": "Frosted"
+  },
+  {
+    "doc": "notification-system-improvements-2026.md",
+    "title": "Notification System Research 2026",
+    "question": "How does the notification system handle job status updates?",
+    "fact": "QueueManager: Job status updates → _notify_subscribers + SSE",
+    "ngram": "QueueManager: Job status updates → _notify_subscribers + SSE",
+    "answer": "QueueManager:"
+  },
+  {
+    "doc": "ollama-prompting-2026.md",
+    "title": "Ollama Prompting Guide",
+    "question": "What is the challenge of directing a VLM (Vision Language Model) in music and video production?",
+    "fact": "Directing a VLM is like directing an intern with no shared context.",
+    "ngram": "Directing a VLM is like directing an intern with no shared context.",
+    "answer": "Directing"
+  },
+  {
+    "doc": "ollama-thinking-structured-outputs.md",
+    "title": "Ollama Thinking Mode",
+    "question": "What issues have been fixed in the latest version of the Ollama server?",
+    "fact": "serving fixes, not API, and the two that matter here are both Windows-specific",
+    "ngram": "serving fixes, not API, and the two that matter here are both Windows-specific",
+    "answer": "serving"
+  },
+  {
+    "doc": "ollama-utilization-2026.md",
+    "title": "Ollama Utilization 2026",
+    "question": "What hardware specifications should I assume for this guide unless otherwise specified?",
+    "fact": "GTX 1070 Ti (8 GB VRAM, sm_61) / Ryzen 5 5500 / 32 GB RAM / Windows 11",
+    "ngram": "GTX 1070 Ti (8 GB VRAM, sm_61) / Ryzen 5 5500 / 32 GB RAM / Windows 11",
+    "answer": "GTX"
+  },
+  {
+    "doc": "pascal-gpu-optimization-2026.md",
+    "title": "Pascal GPU Optimization 2026",
+    "question": "Can I use the GTX 1070 Ti with CUDA 12.x?",
+    "fact": "It is the last consumer architecture supported by modern CUDA toolchains",
+    "ngram": "It is the last consumer architecture supported by modern CUDA toolchains",
+    "answer": "It"
+  },
+  {
+    "doc": "playwright-e2e-2026.md",
+    "title": "Playwright",
+    "question": "How does the Playwright suite's testing structure work?",
+    "fact": "the runner config — 52 lines, the whole contract",
+    "ngram": "the runner config — 52 lines, the whole contract",
+    "answer": "the"
+  },
+  {
+    "doc": "prompt-engineering.md",
+    "title": "Prompt Engineering Guide",
+    "question": "What is the typical format for specifying a shot in an AI music video generation prompt?",
+    "fact": "[Shot Size] + [Camera Angle] + [Subject] + [Action] + [Setting] + [Lighting] + [Mood] + [Style]",
+    "ngram": "[Shot Size] + [Camera Angle] + [Subject] + [Action] + [Setting] + [Lighting] + [Mood] + [Style]",
+    "answer": "[Shot"
+  },
+  {
+    "doc": "shader-color-science-2026.md",
+    "title": "Shader Color Science",
+    "question": "What happens to the frame when the loud chorus moments cause clipping?",
+    "fact": "the entire frame bloomed into a featureless pink haze — wave, background, and glow all clipped together.",
+    "ngram": "the entire frame bloomed into a featureless pink haze — wave, background, and glow all clipped together.",
+    "answer": "the"
+  },
+  {
+    "doc": "silhouette-character-animation.md",
+    "title": "Silhouette Character Animation",
+    "question": "Why are silhouettes used in music visuals instead of realistic characters?",
+    "fact": "Silhouettes invert all three — no faces to get wrong, no skinning to author, and abstraction reads as intentional art direction.",
+    "ngram": "Silhouettes invert all three — no faces to get wrong, no skinning to author, and abstraction reads as intentional art direction.",
+    "answer": "Silhouettes"
+  },
+  {
+    "doc": "social-platform-video-research-2026.md",
+    "title": "Social Platform Video Research 2026",
+    "question": "What types of music-video content are most prevalent on LinkedIn, Substack, and Medium?",
+    "fact": "most music-video content on these platforms is SaaS-pipeline marketing",
+    "ngram": "most music-video content on these platforms is SaaS-pipeline marketing",
+    "answer": "most"
+  },
+  {
+    "doc": "stack-extensions-2026.md",
+    "title": "Stack Extensions 2026",
+    "question": "How many programming languages are currently supported by the Native Media AI Studio stack?",
+    "fact": "The project already has 3 active languages",
+    "ngram": "The project already has 3 active languages",
+    "answer": "The"
+  },
+  {
+    "doc": "text-to-3d-options-2026.md",
+    "title": "Text-to-3D Options",
+    "question": "Can I use this model for commercial purposes?",
+    "fact": "research + commercial use allowed under the Tencent Hunyuan Community License",
+    "ngram": "research + commercial use allowed under the Tencent Hunyuan Community License",
+    "answer": "research"
+  },
+  {
+    "doc": "three-js-render-motion-2026.md",
+    "title": "Three.js Render and Motion 2026",
+    "question": "What is the main gap in the current Three.js Studio documentation that this new doc fills?",
+    "fact": "17 creative/visual docs cover shaders, particles, WebGL/WebGPU, Three.js — all technical (how to render), none on motion craft (how to move).",
+    "ngram": "17 creative/visual docs cover shaders, particles, WebGL/WebGPU, Three.js — all technical (how to render), none on motion craft (how to move).",
+    "answer": "17"
+  },
+  {
+    "doc": "three-js-studio.md",
+    "title": "Three.js Studio",
+    "question": "Can I record a video of my animated 3D scene directly from the browser?",
+    "fact": "Video recording (frame sequence capture)",
+    "ngram": "Video recording (frame sequence capture)",
+    "answer": "Video"
+  },
+  {
+    "doc": "track-similarity-measurement-2026.md",
+    "title": "Measuring Similarity Between Tracks",
+    "question": "Why were two out of three library tracks deemed unusable for mashups?",
+    "fact": "a property of the audio, not of the code",
+    "ngram": "a property of the audio, not of the code",
+    "answer": "a"
+  },
+  {
+    "doc": "unity-audio-reactive-shader-research-2026.md",
+    "title": "Unity Audio-Reactive Shader Research 2026",
+    "question": "How can the Unity visualizer be customized to react to specific audio frequencies and beat pulses without significantly increasing CPU usage?",
+    "fact": "with: - vertex displacement (wave/terrain/noise)",
+    "ngram": "with: - vertex displacement (wave/terrain/noise)",
+    "answer": "with:"
+  },
+  {
+    "doc": "unity-integration-2026.md",
+    "title": "Unity MCP Integration",
+    "question": "What is the purpose of the `unity-visualizer/` directory in the project?",
+    "fact": "it is the standalone audio-reactive visualization project using URP 17.0.0.",
+    "ngram": "it is the standalone audio-reactive visualization project using URP 17.0.0.",
+    "answer": "it"
+  },
+  {
+    "doc": "unsloth-triton-windows-fixes-2026.md",
+    "title": "Unsloth Triton Windows Fixes",
+    "question": "Why does the `find_msvc_env()` function fail when called from a plain terminal?",
+    "fact": "the environment variable check fails even though MSVC is installed",
+    "ngram": "the environment variable check fails even though MSVC is installed",
+    "answer": "the"
+  },
+  {
+    "doc": "video-model-test-protocol-2026.md",
+    "title": "LTX/Mochi 8GB Test Protocol",
+    "question": "What are the minimum system requirements for running LTX Video 2.3 and Mochi-1/Mochi-2 on a GTX 1070 Ti?",
+    "fact": "CUDA toolkit installed, NVIDIA driver 582.66+, PyTorch CUDA 12.4, and ComfyUI running are required.",
+    "ngram": "CUDA toolkit installed, NVIDIA driver 582.66+, PyTorch CUDA 12.4, and ComfyUI running are required.",
+    "answer": "CUDA"
+  },
+  {
+    "doc": "video-to-glsl-shader-recreation-2026.md",
+    "title": "Video 2 GLSL",
+    "question": "What is the purpose of the 'Video 2 GLSL' workflow?",
+    "fact": "to recreate a reference video as a single procedural GLSL shader, generated by a coding agent.",
+    "ngram": "to recreate a reference video as a single procedural GLSL shader, generated by a coding agent.",
+    "answer": "to"
+  },
+  {
+    "doc": "visualization-effects.md",
+    "title": "Visualization Effects Guide",
+    "question": "What resources are available to help implement 3D rendering techniques in a music and video production context?",
+    "fact": "<a Three.js Studio implementation>",
+    "ngram": "<a Three.js Studio implementation>",
+    "answer": "<a"
+  },
+  {
+    "doc": "visualization-vision-prompts.md",
+    "title": "Visualization Vision Prompts",
+    "question": "What type of feedback can a VFX director expect from using the `music-video` prompt?",
+    "fact": "These prompts provide actionable feedback from a VFX director perspective.",
+    "ngram": "These prompts provide actionable feedback from a VFX director perspective.",
+    "answer": "These"
+  },
+  {
+    "doc": "visualizer-state-analysis-2026.md",
+    "title": "Visualizer State Analysis",
+    "question": "How are the visualizer states analyzed?",
+    "fact": "using existing knowledge library prompts",
+    "ngram": "using existing knowledge library prompts",
+    "answer": "using"
+  },
+  {
+    "doc": "visualizer-ux-audit-2026-10.md",
+    "title": "Visualizer UX Audit 2026-10",
+    "question": "How were console errors and failed network requests handled during the testing process?",
+    "fact": "captured alongside every screenshot",
+    "ngram": "captured alongside every screenshot",
+    "answer": "captured"
+  },
+  {
+    "doc": "webgl-webgpu-audio-viz-2026.md",
+    "title": "WebGL WebGPU Audio Viz 2026",
+    "question": "What audio visualization techniques are covered in the article?",
+    "fact": "Overlapping material (compute audio, Rust/WASM hybrid, GPU particles, TSL, frequency scales)",
+    "ngram": "Overlapping material (compute audio, Rust/WASM hybrid, GPU particles, TSL, frequency scales)",
+    "answer": "Overlapping"
+  }
+]
