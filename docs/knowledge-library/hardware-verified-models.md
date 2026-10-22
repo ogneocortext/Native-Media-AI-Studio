@@ -152,13 +152,14 @@ For structure/pose guidance on AnimateDiff clips:
 | **Tier 1 — Safe**              | 2B–3B LLMs, 4B VL, AnimateDiff SD1.5 + motion LoRA           | <4 GB         | ✅ Run now             |
 | **Tier 2 — Workable**          | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA            | 4–6 GB        | ✅ Run now             |
 | **Tier 3 — Tight**             | 7B LLMs, SD1.5 + AnimateDiff + fp16 ControlNet               | 6–8 GB        | ⚠️ May OOM under load  |
-| **Tier 4 — Infeasible (FP16)** | 9B LLMs unquantized, WAN 14B FP16, LTX 22B, SDXL AnimateDiff | >8 GB         | ❌ Skip or quantize    |
+| **Tier 4 — Infeasible (FP16)** | 9B LLMs unquantized, WAN 14B FP16, LTX 2.3 22B FP16, SDXL AnimateDiff | >8 GB         | ❌ Skip or quantize    |
 | **Tier 4 — GGUF path**         | Wan 2.2 TI2V-5B GGUF Q4/Q5 + CPU T5 offload                  | ~6-8 GB       | ✅ Now feasible on 8GB |
+| **Tier 2 — Workable**          | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA, LTX-2B distilled (768×512, 9f) | 4–6 GB        | ✅ Run now             |
 
 ### 4.3 Recommended daily-driver stack
 
 1. **LLM:** `qwen3.5:4b` for coding/reasoning; `qwen3-vl:2b` for vision.
-2. **Video:** SD 1.5 + AnimateDiff v3 (`mm_sd15_v3.safetensors`) + motion LoRAs as needed.
+2. **Video:** SD 1.5 + AnimateDiff v3 (`mm_sd15_v3.safetensors`) + motion LoRAs as needed; **LTX-2B distilled** (`ltxv-2b-0.9.8-distilled-fp8.safetensors`) for faster 768×512 video at ~4× Wan speed on 8GB.
 3. **Control:** Start with **no ControlNet**; add one ControlNet LoRA only when specific structure guidance is required.
 4. **Audio:** Demucs for stem separation (CPU-bound, 32 GB RAM is plenty).
 
@@ -173,6 +174,10 @@ For structure/pose guidance on AnimateDiff clips:
 | AnimateDiff v3 motion module         | `ComfyUI\models\animatediff\`                                   | 1       | Pre-existing |
 | AnimateDiff v2 motion module         | `ComfyUI\models\animatediff_models\`                            | 1       | Pre-existing |
 | AnimateDiff stabilized motion module | `ComfyUI\models\animatediff_models\`                            | 1       | Pre-existing |
+| LTX-2B distilled checkpoint          | `ComfyUI\models\diffusion_models\`                              | 1       | 4.46 GB      |
+| LTX-2.3 video VAE (bf16)             | `ComfyUI\models\vae\`                                           | 1       | Pre-existing |
+| LTX-2.3 text projection              | `ComfyUI\models\text_encoders\`                                 | 1       | Pre-existing |
+| ComfyUI-LTX-Video custom node        | `ComfyUI\custom_nodes\ComfyUI-LTX-Video\`                       | 1       | Installed    |
 
 ---
 
@@ -242,4 +247,4 @@ For structure/pose guidance on AnimateDiff clips:
 
 ---
 
-_Last updated: 2026-09-09_
+_Last updated: 2026-10-21_

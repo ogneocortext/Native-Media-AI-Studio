@@ -389,6 +389,29 @@ VAELoader(LTX23_video_vae_bf16) → VAEDecode(vae)
 VAEDecode → VHS_VideoCombine(format:video/h264-mp4)
 ```
 
+### Required Model Files
+
+Per the [Lightricks ComfyUI-LTXVideo documentation](https://github.com/Lightricks/ComfyUI-LTXVideo) and [LTX ComfyUI Nodes reference](https://docs.ltx.io/open-source-model/integration-tools/ltx-comfy-ui-nodes.md):
+
+| Component | File | Location | Verified on disk |
+|-----------|------|----------|------------------|
+| Main checkpoint | `ltxv-2b-0.9.8-distilled-fp8.safetensors` | `ComfyUI/models/diffusion_models/` | ✅ 4.46 GB |
+| Video VAE | `LTX23_video_vae_bf16.safetensors` | `ComfyUI/models/vae/` | ✅ |
+| Audio VAE | `LTX23_audio_vae_bf16.safetensors` | `ComfyUI/models/vae/` | ✅ |
+| Text encoder | `t5-xxl-fp8.safetensors` | `ComfyUI/models/text_encoders/` | ✅ |
+| LTX text projection | `ltx-2.3_text_projection_bf16.safetensors` | `ComfyUI/models/text_encoders/` | ✅ |
+| Custom node | `ComfyUI-LTX-Video/` | `ComfyUI/custom_nodes/` | ✅ Installed |
+
+### Troubleshooting (from LTX docs)
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| "Cannot identify the text encoder" | Checkpoint missing metadata or wrong ckpt_name | Ensure `ckpt_name` matches the exact filename in `models/checkpoints/` |
+| Node not appearing | Custom node not installed or ComfyUI not restarted | Install `ComfyUI-LTX-Video` via ComfyUI Manager, restart ComfyUI |
+| VRAM OOM on 8GB | Resolution too high or too many frames | Clamp to 768×512, snap frames to 4n+1, enable VAE tiling |
+| Invalid MP4 output | Wrong VHS_VideoCombine format | Use `video/h264-mp4`, not `video/mp4` |
+| LTXVConditioning gets raw text | CLIPTextEncode missing between CLIPLoader and LTXVConditioning | Add two CLIPTextEncode nodes (positive/negative) before LTXVConditioning |
+
 ## See Also
 
 - [[video-generation-vram-2026]] — Current VRAM research
