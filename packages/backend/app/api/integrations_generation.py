@@ -83,7 +83,7 @@ async def list_comfyui_checkpoints() -> dict:
 ANIMATEDIFF_DIRS = ("animatediff", "animatediff_models", "animatediff_motion_lora")
 VIDEO_MODEL_SUFFIXES = (".safetensors", ".ckpt")
 VIDEO_DIFFUSION_SUFFIXES = (".safetensors", ".ckpt", ".gguf")
-VIDEO_DIFFUSION_KEYWORDS = ("wan", "video", "animate", "motion", "ti2v")
+VIDEO_DIFFUSION_KEYWORDS = ("wan", "video", "animate", "motion", "ti2v", "ltx", "i2v")
 # Wan variants that fit in 8 GB, and those that need CPU offload.
 WAN_SMALL_VARIANTS = (
     "wan2_1_t2v_1_3b",

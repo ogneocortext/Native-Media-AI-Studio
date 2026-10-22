@@ -289,6 +289,7 @@ export function VideoGenerationPage() {
   const [batchCount, setBatchCount] = useState<number>(1);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [selectedSection, setSelectedSection] = useState<string>("");
+  const isLtxModel = selectedModel.toLowerCase().includes("ltx");
   const [queueInfo, setQueueInfo] = useState<{ running: number; pending: number } | null>(null);
   const [startImage, setStartImage] = useState<string>("");
   const [imageToVideoMode, setImageToVideoMode] = useState<boolean>(false);
@@ -677,8 +678,13 @@ export function VideoGenerationPage() {
         section: selectedSection || undefined,
         start_image: imageToVideoMode && startImage ? startImage : undefined,
       };
+      const isLtx = mLower.includes("ltx");
       const isWan1_3b =
         metaVariant === "1.3b" || mLower.includes("1.3b") || mLower.includes("1_3b");
+      if (isLtx && resolution !== "480p") {
+        setResolution("480p");
+        setError("LTX clamps resolution to 768&#215;512 (480p equivalent).");
+      }
       const isWanGguf =
         metaVariant === "gguf_q4" ||
         metaVariant === "gguf_q5" ||
@@ -1090,9 +1096,17 @@ export function VideoGenerationPage() {
                 </div>
                 <div className="flex items-end">
                   <p className="text-[11px] text-gray-500">
-                    Tip: Start at <span className="text-gray-300">20 steps</span>, re-render keepers
-                    at 25–30. Length 49–97 frames (2–4s) per clip.
-                  </p>
+                    {isLtxModel ? (
+                      <>
+                        Tip: LTX 2.3 distilled &#8212; use 25 steps, 24 fps, duration 2&#8211;4s.
+                        Resolution clamped to 768&#215;512.
+                      </>
+                    ) : (
+                      <>
+                        Tip: Start at <span className="text-gray-300">20 steps</span>, re-render keepers
+                        at 25&#8211;30. Length 49&#8211;97 frames (2&#8211;4s) per clip.
+                      </>
+                    )}</p>
                 </div>
               </div>
             )}
@@ -1333,6 +1347,21 @@ export function VideoGenerationPage() {
             );
           })()}
 
+          {/* LTX-specific info banner */}
+          {isLtxModel && (
+            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-3 mt-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles size={14} className="text-emerald-400" />
+                <span className="text-sm font-medium text-emerald-300">LTX 2.3 Distilled Optimized</span>
+              </div>
+              <ul className="text-xs text-emerald-200 space-y-1 ml-4">
+                <li>&#8226; Resolution clamped to 768&#215;512 (LTX VAE patch grid)</li>
+                <li>&#8226; ~4.46 GB peak VRAM &#8212; fits 8GB with headroom</li>
+                <li>&#8226; ~210s per 25f clip at 768&#215;512 (~4&#215; faster than Wan)</li>
+                <li>&#8226; Recommended: 25 steps, 24 fps, duration 2&#8211;4s</li>
+              </ul>
+            </div>
+          )}
           {/* Image-to-Video — alternative for consistent identity (Fun InP 1.3B) */}
           {(() => {
             const isFunInP =

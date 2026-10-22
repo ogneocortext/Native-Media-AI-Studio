@@ -67,7 +67,7 @@ def _map_scheduler(scheduler_name: str) -> str:
 # the checkpoints folder but are not SD-family image checkpoints.
 NON_IMAGE_CHECKPOINT_KEYWORDS = (
     "hunyuan", "wan", "animate", "motion", "3d",
-    "kandinsky", "triposr", "stable-fast",
+    "kandinsky", "triposr", "stable-fast", "ltx",
 )
 
 

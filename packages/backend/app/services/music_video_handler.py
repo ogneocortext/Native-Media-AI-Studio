@@ -120,7 +120,7 @@ class MusicVideoHandler:
         model_lower = model.lower()
         if method == "visualization" and is_wan_8gb_model(model):
             method = "comfyui_wan_gguf"
-        elif method == "visualization" and any(kw in model_lower for kw in ["mm_sd", "mm-stabilized", "motion", "animate"]):
+        elif method == "visualization" and any(kw in model_lower for kw in ["mm_sd", "mm-stabilized", "motion", "animate", "ltx"]):
             method = "comfyui"
 
         # Update progress
