@@ -97,7 +97,7 @@ def area_of(path):
 
 
 def git(*args):
-    proc = subprocess.run(["git", *args], capture_output=True, text=True)
+    proc = subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:
         print(f"git error: {proc.stderr.strip()}", file=sys.stderr)
         sys.exit(2)

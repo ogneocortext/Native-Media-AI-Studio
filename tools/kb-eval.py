@@ -40,6 +40,7 @@ import argparse
 import importlib.util
 import json
 import math
+import os
 import re
 import sys
 from collections import Counter
@@ -84,48 +85,15 @@ def load_module(filename: str, alias: str):
 
 kb = load_module("kb-chunk.py", "kb_chunk")
 kbc = load_module("kb-context.py", "kb_context")
+kr = load_module("kb-retrieval.py", "kb_retrieval")
 
-
-# ------------------------------------------------------------------ BM25
-class BM25:
-    """Okapi BM25 over a set of documents."""
-
-    def __init__(self, docs: list[list[str]], k1: float = 1.5, b: float = 0.75):
-        self.k1 = k1
-        self.b = b
-        self.docs = docs
-        self.n = len(docs)
-        self.tf = [Counter(d) for d in docs]
-        self.len = [len(d) for d in docs]
-        self.avgdl = (sum(self.len) / self.n) if self.n else 0.0
-        df: Counter = Counter()
-        for d in docs:
-            df.update(set(d))
-        self.idf = {
-            t: math.log(1 + (self.n - n + 0.5) / (n + 0.5))
-            for t, n in df.items()
-        }
-
-    def scores(self, query: list[str]) -> list[float]:
-        out = []
-        for i, tf in enumerate(self.tf):
-            dl = self.len[i]
-            s = 0.0
-            for t in query:
-                f = tf.get(t, 0)
-                if not f:
-                    continue
-                idf = self.idf.get(t, 0.0)
-                s += idf * (f * (self.k1 + 1)) / (
-                    f + self.k1 * (1 - self.b + self.b * dl / (self.avgdl or 1))
-                )
-            out.append(s)
-        return out
-
-    def top(self, query: list[str], k: int) -> list[int]:
-        scores = self.scores(query)
-        order = sorted(range(len(scores)), key=lambda i: -scores[i])
-        return order[:k]
+# One BM25, one dense index, one fusion — the retrieval module owns them so
+# the evaluator and the serving path cannot drift apart.
+BM25 = kr.BM25
+rrf_fuse = kr.rrf_fuse
+enrich = kr.enrich
+Embedder = kr.Embedder
+DenseIndex = kr.DenseIndex
 
 
 # ---------------------------------------------------------------- probes
@@ -152,6 +120,12 @@ def build_probes(docs: list[dict], limit: int,
                   plain words. This is where the chunking strategy matters:
                   many documents match, and what you return decides whether
                   the answer is in front of the model.
+    ``sentence``  the query is the whole sentence with the answer term
+                  withheld — a natural-language question, which is what a
+                  conversational agent actually sends. This is the mode that
+                  gives dense retrieval a fair test: an embedding of four
+                  keywords carries almost no semantics, so a keyword-bag
+                  probe measures the embedding's ability to rank noise.
     """
     n = len(docs)
     # Document frequency over the whole corpus.
@@ -198,16 +172,21 @@ def build_probes(docs: list[dict], limit: int,
         pool = [t for t in tokenize(sentence) if t != answer]
         if not pool:
             continue
-        if mode == "generic":
-            # The most common terms — the plain-words case.
-            pool.sort(key=lambda t: -df.get(t, 0))
+        if mode == "sentence":
+            # The whole sentence, minus the answer term: natural language.
+            query_text = re.sub(rf"\b{re.escape(answer)}\b", " ", sentence)
+            query_text = " ".join(query_text.split())
         else:
-            # The most distinctive terms — the jargon case.
-            pool.sort(key=lambda t: -idf.get(t, 0.0))
-        query_terms = pool[:4]
-        if not query_terms:
-            continue
-        query_text = " ".join(query_terms)
+            if mode == "generic":
+                # The most common terms — the plain-words case.
+                pool.sort(key=lambda t: -df.get(t, 0))
+            else:
+                # The most distinctive terms — the jargon case.
+                pool.sort(key=lambda t: -idf.get(t, 0.0))
+            query_terms = pool[:4]
+            if not query_terms:
+                continue
+            query_text = " ".join(query_terms)
         probes.append({
             "doc": d["name"],
             "title": d["title"],
@@ -231,8 +210,12 @@ def _ngram(sentence: str, size: int = 6) -> str:
 
 
 # ------------------------------------------------------------ evaluation
-def evaluate(chunks, parents, probes, k=5, doc_texts=None):
-    """Score the retrieval configurations on the same probes."""
+def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None):
+    """Score the retrieval configurations on the same probes.
+
+    `dense_index` is a DenseIndex over the same chunks; when present the
+    dense and hybrid configurations are scored too.
+    """
     doc_texts = doc_texts or {}
     # Children carry the ids of the sections they came from, so the parent
     # lookup is exact rather than inferred. A merged chunk spans several
@@ -247,6 +230,9 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None):
     parent_index = BM25(parent_docs)
 
     results = {"child": [], "parent": [], "parent_child": [], "doc": []}
+    if dense_index is not None:
+        results["dense"] = []
+        results["hybrid"] = []
 
     for probe in probes:
         q = tokenize(probe["query"])
@@ -292,6 +278,21 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None):
         dctx = " ".join(dctx_parts)
         results["doc"].append(_score(probe, ctop, dctx, answer_re, ngram,
                                      chunks, gold_doc))
+
+        if dense_index is not None:
+            # --- dense: semantic only
+            dtop = dense_index.top(probe["query"], k)
+            dctx = " ".join(chunks[i]["text"] for i in dtop)
+            results["dense"].append(_score(probe, dtop, dctx, answer_re, ngram,
+                                          chunks, gold_doc))
+
+            # --- hybrid: BM25 + dense fused with Reciprocal Rank Fusion.
+            # RRF rather than a score sum, because BM25 scores and cosine
+            # similarities are not on the same scale; ranks can be fused.
+            htop = rrf_fuse([child_index.top(q, k), dtop])[:k]
+            hctx = " ".join(chunks[i]["text"] for i in htop)
+            results["hybrid"].append(_score(probe, htop, hctx, answer_re, ngram,
+                                           chunks, gold_doc))
 
     return results
 
@@ -370,6 +371,104 @@ def _sweep(docs, probes, args) -> int:
     return 0
 
 
+def generate_questions(docs: list[dict], counter, model: str, limit: int,
+                       out_path: Path) -> list[dict]:
+    """Write one realistic question per document with the local LLM.
+
+    A cloze probe cannot produce a realistic query: the query is derived
+    from the answer's own sentence, so lexical retrieval saturates and
+    dense retrieval is handed a bag of keywords rather than a question.
+    The published benchmarks use real questions, so this writes them.
+
+    The model is asked for a question *and* the short fact from the source
+    that answers it, so the evaluation has a real answer to look for
+    rather than a document label alone.
+
+    The question must be answerable only from that document, and must not
+    quote the source verbatim — otherwise the probe degenerates back into
+    the cloze it was meant to replace.
+    """
+    import urllib.request
+
+    url = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
+    questions: list[dict] = []
+
+    for d in docs[:limit]:
+        # A distinctive, self-contained passage to write a question from.
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+|\n{2,}", d["body"])
+                     if len(s) >= 60]
+        if not sentences:
+            continue
+        passage = " ".join(sentences[:4])[:1200]
+
+        prompt = (
+            "Read this excerpt from a technical article about music and "
+            "video production.\n\n"
+            f"EXCERPT:\n{passage}\n\n"
+            "Write ONE question a practitioner would actually ask that this "
+            "excerpt answers. Paraphrase — do not copy the excerpt's wording. "
+            'Reply with JSON only: {"question": "...", "fact": "<a short '
+            'verbatim phrase from the excerpt that answers the question>"}\n'
+        )
+        payload = {"model": model, "prompt": prompt, "stream": False,
+                   "options": {"temperature": 0.3, "num_predict": 220}}
+        try:
+            req = urllib.request.Request(
+                f"{url}/api/generate",
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=300) as r:
+                raw = json.loads(r.read()).get("response", "")
+        except Exception as exc:  # noqa: BLE001 - a failed generation is skipped
+            print(f"  ! {d['name']}: {type(exc).__name__}: {exc}",
+                  file=sys.stderr)
+            continue
+
+        parsed = _parse_json_object(raw)
+        if not parsed:
+            continue
+        question = (parsed.get("question") or "").strip()
+        fact = (parsed.get("fact") or "").strip()
+        if not question or not fact:
+            continue
+        questions.append({
+            "doc": d["name"],
+            "title": d["title"],
+            "question": question,
+            "fact": fact,
+            "ngram": fact,
+            "answer": fact.split()[0] if fact.split() else fact,
+        })
+
+    if out_path:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(questions, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8", newline="\n",
+        )
+    return questions
+
+
+def _parse_json_object(raw: str) -> dict | None:
+    """Pull a JSON object out of a model reply that may be wrapped in prose
+    or a fenced block."""
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        parsed = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate the knowledge library's chunking for retrieval.",
@@ -382,15 +481,30 @@ def main(argv: list[str] | None = None) -> int:
                         help="Chunk target in tokens (default 400)")
     parser.add_argument("--probes", type=int, default=0,
                         help="Print this many probes and exit")
-    parser.add_argument("--probe-mode", choices=["specific", "generic"],
+    parser.add_argument("--probe-mode", choices=["specific", "generic", "sentence"],
                         default="specific",
-                        help="Query style: distinctive terms (specific) or "
-                             "plain-words terms (generic)")
+                        help="Query style: distinctive terms (specific), "
+                             "plain-words terms (generic), or a full "
+                             "natural-language sentence (sentence)")
     parser.add_argument("--json", action="store_true",
                         help="Emit JSON instead of a table")
     parser.add_argument("--sweep", action="store_true",
                         help="Sweep chunk target and k, reporting the "
                              "trade-off between passage recall and context size")
+    parser.add_argument("--dense", action="store_true",
+                        help="Also score the dense (nomic) and hybrid (RRF) "
+                             "retrievers. Needs the local Ollama.")
+    parser.add_argument("--enrich", action="store_true",
+                        help="Prepend each chunk's heading path to its text "
+                             "before indexing (contextual chunk headers)")
+    parser.add_argument("--questions", default=None,
+                        help="Path to a written question set (JSON). Built "
+                             "with --generate-questions.")
+    parser.add_argument("--generate-questions", action="store_true",
+                        help="Write a question set with the local LLM — one "
+                             "realistic question per document — and save it")
+    parser.add_argument("--question-model", default="llama3.2:3b",
+                        help="LLM used to write the questions")
     args = parser.parse_args(argv)
 
     counter = resolve_counter(REPO, None) if resolve_counter else None
@@ -402,9 +516,32 @@ def main(argv: list[str] | None = None) -> int:
         chunks.extend(c)
         parents.extend(p)
 
+    if args.enrich:
+        # The chunk's own heading is in its text, but its ancestors are not,
+        # and the heading path is metadata no retriever sees. Prefixing it
+        # makes the section's subject matchable.
+        for c in chunks:
+            c["text"] = enrich(c["text"], c.get("heading_path", ""))
+        for p in parents:
+            p["text"] = enrich(p["text"], p.get("heading_path", ""))
+
     docs = [kbc.parse_doc(p, counter) for p in sorted(BASE.glob("*.md"))
             if p.name not in ("index.md", "README.md", "_schema.md", "log.md")]
-    probes = build_probes(docs, args.limit, mode=args.probe_mode)
+
+    if args.generate_questions:
+        out = Path(args.questions) if args.questions else (
+            REPO / "docs" / "knowledge-library" / "kb-eval-questions.json")
+        print(f"  Writing questions with {args.question_model} …")
+        written = generate_questions(docs, counter, args.question_model,
+                                     args.limit, out)
+        print(f"  Wrote {len(written)} question(s) to {out}")
+        return 0
+
+    if args.questions:
+        written = json.loads(Path(args.questions).read_text(encoding="utf-8"))
+        probes = written[: args.limit] if args.limit else written
+    else:
+        probes = build_probes(docs, args.limit, mode=args.probe_mode)
 
     if args.probes:
         for p in probes[: args.probes]:
@@ -420,8 +557,16 @@ def main(argv: list[str] | None = None) -> int:
         print("No probes could be built.", file=sys.stderr)
         return 1
 
+    dense_index = None
+    if args.dense:
+        embedder = Embedder()
+        dense_index = DenseIndex([c["text"] for c in chunks], embedder)
+        print(f"  Dense index: {len(chunks)} chunks embedded "
+              f"({embedder.hits} cached, {embedder.misses} computed)")
+
     results = evaluate(chunks, parents, probes, args.k,
-                       doc_texts={d["name"]: d["body"] for d in docs})
+                       doc_texts={d["name"]: d["body"] for d in docs},
+                       dense_index=dense_index)
 
     if args.json:
         out = {}
@@ -448,12 +593,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {'configuration':<14} {'answer@k':>10} {'passage':>9} "
           f"{'doc@k':>8} {'MRR':>8} {'context':>11}")
     print(f"  {'-'*14} {'-'*10} {'-'*9} {'-'*8} {'-'*8} {'-'*11}")
-    for name in ("child", "parent", "parent_child", "doc"):
-        summarize(name, results[name], args.k)
+    for name in ("child", "parent", "parent_child", "doc", "dense", "hybrid"):
+        if name in results:
+            summarize(name, results[name], args.k)
     print("\n  child       = index small chunks, return small chunks")
     print("  parent      = index parent sections, return parent sections")
     print("  parent_child= index small chunks, return their parents")
     print("  doc         = index small chunks, return the whole document")
+    if "dense" in results:
+        print("  dense       = nomic embeddings only, semantic")
+        print("  hybrid      = BM25 + dense, fused with Reciprocal Rank Fusion")
     return 0
 
 
