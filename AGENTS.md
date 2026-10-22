@@ -284,6 +284,8 @@ Measure it with `python tools/agent-contribution-report.py` (per-agent
 commits, areas and churn, from the trailers). Before pushing a batch, run
 `python tools/agent-contribution-report.py --check` — it fails if any
 unpushed commit names no agent.
+Once the repo hooks are installed (`bash scripts/install-git-hooks.sh`), a
+`commit-msg` hook enforces the trailer at commit time.
 
 | Agent | Trailer |
 |---|---|
@@ -578,7 +580,11 @@ Individual gates, for iterating on one area:
     deliberately skips pytest (~40 s) and Playwright (~30 s): a 90 s push hook
     gets bypassed, which is worse than no hook. Run
     `python tools/run-gates.py --e2e` for those before pushing.
-  - Both **chain** rather than replace. Git LFS ships its own `pre-push`, and
+  - `commit-msg` — attribution enforcement: rejects a commit whose message
+    carries no `Co-authored-by:` trailer (see Commit attribution above).
+    Merges, squashes and `fixup!`/`squash!` commits are exempt; bypass with
+    `SKIP_TRAILER_CHECK=1` or `--no-verify`.
+  - All three **chain** rather than replace. Git LFS ships its own `pre-push`, and
     `install-git-hooks.sh` keeps the displaced copy as `<name>.backup`, which the
     new hook calls at every exit path. If you install hooks by hand, preserve
     that.

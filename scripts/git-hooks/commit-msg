@@ -1,0 +1,88 @@
+#!/bin/sh
+# Commit-msg guard: every commit message must name its authoring agent.
+#
+# Installed locally only (see D10 in docs/architecture/decision-log.md: no CI, so
+# every check must happen on this machine before changes reach the remote). The
+# canonical copy lives at scripts/git-hooks/commit-msg; this file is a copy.
+# Re-install with:  bash scripts/install-git-hooks.sh
+#
+# Why: attribution lives in Co-authored-by trailers (see "Commit attribution"
+# in AGENTS.md), and tools/agent-contribution-report.py measures the project
+# from them. The convention lapsed twice when it relied on memory alone (the
+# 2026-10-01 batch and the 2026-10-21 singles), so it is enforced here, at
+# the one moment it cannot be forgotten.
+#
+# Exempt: merge and squash commits (detected via $2 and the MERGE_HEAD /
+# SQUASH_MSG state files -- their content arrives via branch commits
+# carrying their own trailers) and
+# fixup!/squash! autosquash commits (they fold into a commit that has one).
+#
+# Bypass for a deliberate one-off:  SKIP_TRAILER_CHECK=1 git commit ...
+# or git commit --no-verify.
+
+msg_file=$1
+source=${2:-}
+
+# The installer may have backed up a pre-existing commit-msg hook. Like the
+# other repo hooks, call it at every exit path, so a guard we did not write
+# still runs. An early "exit 0" here would silently disable it.
+chain_file="$(dirname "$0")/commit-msg.backup"
+run_chained_hook() {
+    if [ -f "$chain_file" ] && [ "$chain_file" != "$0" ]; then
+        sh "$chain_file" "$@"
+        return $?
+    fi
+    return 0
+}
+pass() {
+    run_chained_hook "$@"
+    exit $?
+}
+fail() {
+    run_chained_hook "$@"
+    exit 1
+}
+
+if [ "${SKIP_TRAILER_CHECK:-}" = "1" ]; then
+    pass "$@"
+fi
+
+case "$source" in
+    merge|squash) pass "$@" ;;
+esac
+
+# The $2 test alone misses `git merge -m "..."`: an explicit message makes
+# the source "message" even though the commit is a merge. The state files
+# are the reliable signal -- MERGE_HEAD exists for every merge commit,
+# SQUASH_MSG for a --squash commit.
+git_dir=$(git rev-parse --git-dir 2>/dev/null || echo "")
+if [ -n "$git_dir" ] && { [ -f "$git_dir/MERGE_HEAD" ] || [ -f "$git_dir/SQUASH_MSG" ]; }; then
+    pass "$@"
+fi
+
+# Comment lines and everything below the verbose-diff scissors line are not
+# part of the final message, so a trailer appearing only there must not
+# count.
+body=$(awk '/^# -+ >8 -+/ { exit } /^#/ { next } { print }' "$msg_file")
+
+subject=$(printf '%s\n' "$body" | awk 'NF { print; exit }')
+case "$subject" in
+    fixup!*|squash!*) pass "$@" ;;
+esac
+
+if printf '%s\n' "$body" | grep -iq '^Co-authored-by:[[:space:]]*[^[:space:]]'; then
+    pass "$@"
+fi
+
+cat >&2 <<'EOF'
+commit-msg: this commit names no authoring agent.
+
+Every commit message must end with a Co-authored-by trailer naming the
+agent that authored it (see "Commit attribution" in AGENTS.md), e.g.:
+
+    Co-authored-by: Kilo <kilo@native-media-ai.studio>
+
+Bypass for a deliberate one-off:  SKIP_TRAILER_CHECK=1 git commit ...
+(or git commit --no-verify)
+EOF
+fail "$@"
