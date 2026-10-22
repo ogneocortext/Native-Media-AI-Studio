@@ -1,0 +1,101 @@
+{
+  "id": "prototype-heart",
+  "title": "Prototype Heart",
+  "hasLrc": false,
+  "lyricsStatus": "complete",
+  "source": "Suno v6-mini",
+  "variant": "V1 / V2 (lyrics identical on both renders)",
+  "durationSec": 239,
+  "bpm": 128,
+  "bpmNote": "Stated in both renders' Suno style prompts (128 BPM); not independently measured.",
+  "urls": [
+    "https://suno.com/song/70cb8e5b-7e12-4675-8a9d-69ed8c3af924",
+    "https://suno.com/song/23c8d28b-c775-4a04-b1e7-c95937fa1ceb"
+  ],
+  "renders": [
+    {
+      "url": "https://suno.com/song/70cb8e5b-7e12-4675-8a9d-69ed8c3af924",
+      "sunoTitle": "Prototype Heart",
+      "durationSec": 239,
+      "createdAt": "2026-09-12",
+      "stylePrompt": "Electro-pop x cinematic bass music, glossy 128 BPM production with glitch-cut vocal manipulation and a massive controlled electronic chorus; powerful male lead, close-mic tense verses, commanding anthem chorus, robotic harmonies as texture; metallic percussion, low pulsing analog bass, distorted synth stabs, industrial impacts, dramatic strings, glossy arpeggiators, choir and sub bass, building from cyber-noir minimalism through breakdown to a monumental final chorus"
+    },
+    {
+      "url": "https://suno.com/song/23c8d28b-c775-4a04-b1e7-c95937fa1ceb",
+      "sunoTitle": "Prototype Heart V2",
+      "durationSec": 239,
+      "createdAt": "2026-09-12",
+      "stylePrompt": "Electro-pop x cinematic bass music, 128 BPM driving pulse, powerful male lead with close-mic tense verses and commanding anthem chorus, glitch-cut vocal manipulation with robotic harmony layers as texture, metallic percussion, low pulsing analog bass, distorted synth stabs, industrial impacts, dramatic strings, glossy arpeggiators, controlled massive electronic chorus, emotional breakdown, final choir and sub-bass lift"
+    }
+  ],
+  "notes": "Both renders run 3:59. No preferred take recorded. Captured from the Suno song pages 2026-10-22 (read-only).",
+  "provenance": "Lyrics and style prompts transcribed verbatim from the Suno song pages on 2026-10-22 (read-only capture); the two renders display identical lyric text and different style prompts, so this one file covers both. Track had no prior entry anywhere in the repo.",
+  "sections": [
+    {
+      "name": "Intro",
+      "lines": [
+        "They tried to measure me.",
+        "I changed the scale."
+      ]
+    },
+    {
+      "name": "Verse 1",
+      "lines": [
+        "Built from the nights that nobody recorded",
+        "Made from the doubt that I never rewarded",
+        "Every old version still lives in the frame",
+        "But I keep on evolving beyond what they named",
+        "They can map the surface, they can count the miles",
+        "They can sell perfection with a manufactured smile",
+        "But the pulse beneath it does not come pre-made",
+        "I became the fire in the system they surveyed"
+      ]
+    },
+    {
+      "name": "Pre-Chorus",
+      "lines": [
+        "No borrowed future",
+        "No programmed role",
+        "I kept the signal",
+        "I kept my soul"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "Prototype heart",
+        "Steel in the dark",
+        "I turn the pressure into power",
+        "I turn the spark into art",
+        "Prototype heart",
+        "I won’t restart",
+        "I am the future",
+        "But I made it from the scars"
+      ]
+    },
+    {
+      "name": "Post-Chorus",
+      "lines": [
+        "Made it from the scars",
+        "Made it from the scars"
+      ]
+    },
+    {
+      "name": "Bridge",
+      "lines": [
+        "Let them watch the old design disappear",
+        "I don’t fear the change",
+        "I engineered it here"
+      ]
+    },
+    {
+      "name": "Final Chorus",
+      "lines": [
+        "Prototype heart",
+        "Steel in the dark",
+        "I turn the pressure into power",
+        "I turn the spark into art"
+      ]
+    }
+  ]
+}

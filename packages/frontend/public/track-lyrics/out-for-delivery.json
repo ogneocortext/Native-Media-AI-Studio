@@ -1,0 +1,101 @@
+{
+  "id": "out-for-delivery",
+  "title": "Out for Delivery",
+  "hasLrc": false,
+  "lyricsStatus": "complete",
+  "source": "Suno v6-mini",
+  "variant": "V2.1 (keeper — best of the batch per the templates log)",
+  "durationSec": 157,
+  "bpm": 130,
+  "bpmNote": "Stated in the render's Suno style prompt and in the templates combo log (locked-in 130 BPM); not independently measured.",
+  "urls": [
+    "https://suno.com/song/874d6af0-7ac5-4750-9961-b1b5b107df85"
+  ],
+  "renders": [
+    {
+      "url": "https://suno.com/song/874d6af0-7ac5-4750-9961-b1b5b107df85",
+      "sunoTitle": "Out for Delivery V2.1",
+      "durationSec": 157,
+      "createdAt": "2026-10-02",
+      "stylePrompt": "Satirical synth-pop, male vocal with a playful, exasperated delivery; locked-in 130 BPM four-on-the-floor pulse; bouncy synth bass, bright plucky leads, crisp percussion, wide stereo backing vocals in the chorus; tightly sequenced drum-machine grid with a clean, punchy mix"
+    }
+  ],
+  "notes": "Take history lives in suno-templates/index.html (combo library, logged 2026-10-02): V1 and the first V2 take were deleted as cheesy misses; V2.1 is the logged hit; V2.2 a forgettable miss (not present in the 2026-10-22 page-1 library inventory). The templates log records ONE shared combo for all takes, but V2.1's Suno page shows a reworded prompt (see renders[]) — treat the page text as authoritative for the surviving render. Captured from the Suno song pages 2026-10-22 (read-only).",
+  "provenance": "Lyrics and style prompt transcribed verbatim from the Suno song page on 2026-10-22 (read-only capture) for the surviving V2.1 render; take outcomes from the owner's templates log (suno-templates/index.html).",
+  "sections": [
+    {
+      "name": "Verse 1",
+      "lines": [
+        "Clicked \"remind me later\" thirty days ago",
+        "Now the meter's running and the emails flow",
+        "Quarter to three, my phone lights up the room",
+        "\"Thanks for your purchase\" — man, I never ordered you"
+      ]
+    },
+    {
+      "name": "Pre-Chorus",
+      "lines": [
+        "Refresh, refresh, tell me where it's at",
+        "Little truck icon and it's circling the map"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "It's out for delivery, it's coming for me",
+        "Nine ninety-nine and a convenience fee",
+        "I never ordered it but it's on its way",
+        "Out for delivery, arriving today"
+      ]
+    },
+    {
+      "name": "Verse 2",
+      "lines": [
+        "Tracking number for a box I never packed",
+        "Three stops away, it's been three stops all day",
+        "Driver's in my neighborhood, just not my street",
+        "Just like my money, it ain't coming back to me"
+      ]
+    },
+    {
+      "name": "Pre-Chorus",
+      "lines": [
+        "Refresh, refresh, tell me where it's at",
+        "Little truck icon and it's circling the map"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "It's out for delivery, it's coming for me",
+        "Nine ninety-nine and a convenience fee",
+        "I never ordered it but it's on its way",
+        "Out for delivery, arriving today"
+      ]
+    },
+    {
+      "name": "Bridge",
+      "lines": [
+        "Cancel button's buried three menus deep",
+        "\"Are you sure?\" \"How 'bout one more week?\"",
+        "\"Stay for half price,\" no, just let me leave",
+        "The truck is parked right on my street"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "It's out for delivery, it's coming for me",
+        "Nine ninety-nine and a convenience fee",
+        "I never ordered it but it's on its way",
+        "Out for delivery, arriving today"
+      ]
+    },
+    {
+      "name": "Outro",
+      "lines": [
+        "Delivered."
+      ]
+    }
+  ]
+}

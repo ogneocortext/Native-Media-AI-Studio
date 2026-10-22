@@ -124,7 +124,12 @@ Canonical text lives in `packages/frontend/public/track-lyrics/`
 (`index.json` + one JSON per track; loader
 `packages/frontend/src/data/trackLyrics.ts`). Eight tracks, 268 lines
 (six at first writing; The Last Original's two sets were captured
-from Suno later the same day — see the gap note below),
+from Suno later the same day — see the gap note below). A second
+capture the same day added three more tracks the owner named from
+the library inventory (Stay Until the Lights Come On, Prototype
+Heart, Out for Delivery) and the two early Rinse and Repeat
+renders, bringing the library to eleven tracks, 384 lines, and
+25 renders with per-render prompts,
 all `lyricsStatus: complete`, **none with an LRC** — the loader spreads
 lines evenly across `durationSec` as *estimated* timing. Per the
 manifest's own warning, that estimate is preview-only, never a render

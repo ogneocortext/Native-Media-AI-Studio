@@ -1,0 +1,145 @@
+{
+  "id": "stay-until-the-lights-come-on",
+  "title": "Stay Until the Lights Come On",
+  "hasLrc": false,
+  "lyricsStatus": "complete",
+  "source": "Suno v6-mini",
+  "variant": "V1 / V2 (lyrics identical on both renders)",
+  "durationSec": 207,
+  "bpm": 145,
+  "bpmNote": "Stated in both renders' Suno style prompts (145 BPM); not independently measured.",
+  "urls": [
+    "https://suno.com/song/f8e0457c-e168-436a-a9db-8f65eca37ff2",
+    "https://suno.com/song/e5613741-079d-4ffd-a2e7-46fc9aae45d6"
+  ],
+  "renders": [
+    {
+      "url": "https://suno.com/song/f8e0457c-e168-436a-a9db-8f65eca37ff2",
+      "sunoTitle": "Stay Until the Lights Come On",
+      "durationSec": 207,
+      "createdAt": "2026-09-14",
+      "stylePrompt": "Psychedelic bass music, melodic dubstep with roomy piano chords, dusty vinyl vocal fragment, reverse swell, firm drum pulse, heavy clean sub bass, elastic wobbling mid-bass, playful vocal-formant replies, crisp snare, shuffled percussion, bright arpeggiated synths, airy pads, subtle acoustic-guitar texture, cinematic string lift; 145 BPM fast urgent half-time groove; organic warm male vocal with intimate spoken-word verses and a clear emotional sung hook, calm and human; modern detailed mix with punchy drums, wide atmospheric stereo field, controlled mono sub, clear centered vocal, colorful early drop, bigger melodic euphoric second drop, short glowing instrumental outro"
+    },
+    {
+      "url": "https://suno.com/song/e5613741-079d-4ffd-a2e7-46fc9aae45d6",
+      "sunoTitle": "Stay Until the Lights Come On V2",
+      "durationSec": 234,
+      "createdAt": "2026-09-14",
+      "stylePrompt": "Psychedelic bass music, melodic dubstep with roomy piano chord, dusty vocal fragment, reverse swell, firm drum pulse, heavy clean sub bass, elastic wobbling mid-bass, playful vocal-formant bass replies, crisp snare, shuffled percussion, bright arpeggiated synths, airy pads, subtle acoustic-guitar texture, cinematic string lift; 145 BPM fast urgent momentum with energetic half-time groove; organic warm male vocal, intimate spoken-word verses, clear emotional sung hook, calm and human; modern detailed mix with punchy drums, wide atmospheric stereo field, controlled mono sub, clear centered vocal, colorful early drop, bigger melodic euphoric second drop, short glowing instrumental outro"
+    }
+  ],
+  "notes": "No preferred take recorded. Durations: V1 3:27 (this file's durationSec), V2 3:54. Captured from the Suno song pages 2026-10-22 (read-only).",
+  "provenance": "Lyrics and style prompts transcribed verbatim from the Suno song pages on 2026-10-22 (read-only capture); the two renders display identical lyric text and different style prompts, so this one file covers both. Track had no prior entry anywhere in the repo.",
+  "sections": [
+    {
+      "name": "Spoken Intro",
+      "lines": [
+        "It's alright.",
+        "You don't have to say anything."
+      ]
+    },
+    {
+      "name": "Verse 1",
+      "lines": [
+        "You came in out of nowhere",
+        "Your hair was still wet from the rain",
+        "You said you missed the last train",
+        "Then laughed and said my name",
+        "I made a place beside me",
+        "You stared out at the street",
+        "The room was full of strangers",
+        "But you were next to me"
+      ]
+    },
+    {
+      "name": "Pre-Chorus",
+      "lines": [
+        "We didn't need a reason",
+        "We didn't need a plan",
+        "The night was almost over",
+        "But we let it start again"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "Stay until the lights come on",
+        "Stay until the last song ends",
+        "We can leave the world outside",
+        "We can be nobody's friends",
+        "Stay until the lights come on",
+        "I don't need to know your name",
+        "Just don't turn around too soon",
+        "Don't make me go back the same"
+      ]
+    },
+    {
+      "name": "Drop",
+      "lines": []
+    },
+    {
+      "name": "Verse 2",
+      "lines": [
+        "The floor was shaking under us",
+        "The windows turned to gold",
+        "You said you hated mornings",
+        "I said I was getting old",
+        "You pulled me through the crowd",
+        "Like you knew where we should go",
+        "I didn't ask you where we were",
+        "I didn't really want to know"
+      ]
+    },
+    {
+      "name": "Pre-Chorus",
+      "lines": [
+        "We didn't need a reason",
+        "We didn't need a plan",
+        "The night was almost over",
+        "But we let it start again"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "Stay until the lights come on",
+        "Stay until the last song ends",
+        "We can leave the world outside",
+        "We can be nobody's friends",
+        "Stay until the lights come on",
+        "I don't need to know your name",
+        "Just don't turn around too soon",
+        "Don't make me go back the same"
+      ]
+    },
+    {
+      "name": "Bridge",
+      "lines": [
+        "The room is getting quiet",
+        "The bass is turning low",
+        "If this is all there is tonight",
+        "Then let me take it slow"
+      ]
+    },
+    {
+      "name": "Final Chorus",
+      "lines": [
+        "Stay until the lights come on",
+        "Stay until the last song ends",
+        "We can leave the world outside",
+        "We can be nobody's friends",
+        "Stay until the lights come on",
+        "I don't need to know your name",
+        "Just don't turn around too soon",
+        "Don't make me go back the same"
+      ]
+    },
+    {
+      "name": "Outro",
+      "lines": [
+        "Stay a little longer",
+        "Stay a little longer"
+      ]
+    }
+  ]
+}

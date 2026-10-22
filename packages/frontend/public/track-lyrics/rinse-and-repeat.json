@@ -75,11 +75,27 @@
   "source": "Suno v6-mini",
   "title": "Rinse and Repeat",
   "urls": [
+    "https://suno.com/song/91d94d6b-00c3-418e-9015-7b8ff149d029",
+    "https://suno.com/song/af50866a-3850-46e2-882a-af90363f7e4f",
     "https://suno.com/song/016bb88b-388f-42c4-a4d4-546844ca2960",
     "https://suno.com/song/9f06a35d-7c6b-4f64-9ff5-ef867555fc43"
   ],
   "variant": "V3 (preferred)",
   "renders": [
+    {
+      "url": "https://suno.com/song/91d94d6b-00c3-418e-9015-7b8ff149d029",
+      "sunoTitle": "Rinse and Repeat",
+      "durationSec": 209,
+      "createdAt": "2026-09-23",
+      "stylePrompt": "Hip-hop phonk with sharp confident male and female rappers, trading verses, swapping lines, and clashing overlapping shared hooks; tight rhythmic verses build into a chantable chorus then drop back down, driving 115 BPM groove, distorted phonk sub bass, crisp punchy drums, clipped vocal doubles, and saturated low-end mix"
+    },
+    {
+      "url": "https://suno.com/song/af50866a-3850-46e2-882a-af90363f7e4f",
+      "sunoTitle": "Rinse and Repeat V2",
+      "durationSec": 209,
+      "createdAt": "2026-09-23",
+      "stylePrompt": "Hip-hop with phonk low-end and sharp drums, driving 115 BPM groove, sharp confident male and female rappers trading verses and swapping lines, tight rhythmic verses building into a chantable overlapping shared chorus then dropping back down, clipped vocal doubles, punchy transient-heavy mix, distorted sub bass, staccatic hi-hats, and saturated hook impacts"
+    },
     {
       "url": "https://suno.com/song/016bb88b-388f-42c4-a4d4-546844ca2960",
       "sunoTitle": "Rinse and Repeat V3",
@@ -95,5 +111,5 @@
       "stylePrompt": "hip-hop, talkbox-style warbling synth leads, punchy brass stabs, finger snaps and claps, slapping drums, rolling 808 basslines, bouncy synth stabs with playful video-game textures, soulful sample-style hooks, 130 BPM bounce, sharp male and female rappers trading crisp rhythmic lines with pitched harmonies and light Auto-Tune texture, chantable shared chorus, 2026 polished mix with vocals upfront and instruments behind them"
     }
   ],
-  "notes": "The two renders in urls[] are titled V3 and V4 on Suno and were made with DIFFERENT style prompts — see renders[]. Earlier renders (Rinse and Repeat, Rinse and Repeat V2) exist in the account per the 2026-10-22 library inventory but were not captured. Captured from the Suno song pages 2026-10-22 (read-only)."
+  "notes": "All four renders captured 2026-10-22: V1/V2 are the 115 BPM phonk prompts (created 12:26 AM), V3/V4 the 130 BPM bounce prompts (12:40 AM) — four DIFFERENT prompts, one lyric set, exactly as the provenance describes. Captured from the Suno song pages 2026-10-22 (read-only)."
 }

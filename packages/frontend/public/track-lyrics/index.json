@@ -100,6 +100,36 @@
       "lyricsStatus": "complete",
       "source": "Suno v6-mini",
       "title": "The Last Original V2"
+    },
+    {
+      "bpm": 145,
+      "durationSec": 207,
+      "file": "stay-until-the-lights-come-on.json",
+      "hasLrc": false,
+      "id": "stay-until-the-lights-come-on",
+      "lyricsStatus": "complete",
+      "source": "Suno v6-mini",
+      "title": "Stay Until the Lights Come On"
+    },
+    {
+      "bpm": 128,
+      "durationSec": 239,
+      "file": "prototype-heart.json",
+      "hasLrc": false,
+      "id": "prototype-heart",
+      "lyricsStatus": "complete",
+      "source": "Suno v6-mini",
+      "title": "Prototype Heart"
+    },
+    {
+      "bpm": 130,
+      "durationSec": 157,
+      "file": "out-for-delivery.json",
+      "hasLrc": false,
+      "id": "out-for-delivery",
+      "lyricsStatus": "complete",
+      "source": "Suno v6-mini",
+      "title": "Out for Delivery"
     }
   ]
 }
