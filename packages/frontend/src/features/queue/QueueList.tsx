@@ -83,6 +83,47 @@ interface JobRowProps {
   onSelect?: (job: Job) => void;
 }
 
+const AUDIO_JOB_TYPES = new Set([
+  "audio_analysis",
+  "audio_feature_extraction",
+  "audio_transcription",
+]);
+
+function isAudioJob(job: Job): boolean {
+  return AUDIO_JOB_TYPES.has(job.job_type);
+}
+
+/**
+ * Audio-specific progress visualization: a mini waveform whose bars light up
+ * proportionally to `progress`. Gives audio jobs a distinct visual identity
+ * compared to the flat progress bar used for everything else.
+ */
+function AudioWaveform({ progress }: { progress: number }) {
+  const bars = 24;
+  const filled = Math.round(progress * bars);
+  return (
+    <div
+      className="flex items-end gap-0.5 h-6"
+      role="img"
+      aria-label={`Audio progress ${(progress * 100).toFixed(0)}%`}
+    >
+      {Array.from({ length: bars }).map((_, i) => {
+        const height = 30 + 70 * Math.abs(Math.sin((i + 1) * 0.7));
+        const active = i < filled;
+        return (
+          <span
+            key={i}
+            className={`w-1 rounded-sm transition-colors duration-200 ${
+              active ? "bg-primary" : "bg-muted/30"
+            }`}
+            style={{ height: `${height}%` }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function JobRow({
   job,
   index,
@@ -164,7 +205,11 @@ export function JobRow({
                   {(job.progress * 100).toFixed(0)}%
                 </span>
               </div>
-              <ProgressBar progress={job.progress} showPercentage={false} />
+              {isAudioJob(job) ? (
+                <AudioWaveform progress={job.progress} />
+              ) : (
+                <ProgressBar progress={job.progress} showPercentage={false} />
+              )}
               <div className="flex items-center gap-3 mt-1 text-xs text-muted">
                 <span>Elapsed {formatElapsed(eta?.elapsedSeconds || 0)}</span>
                 {eta?.canEstimate && eta.remainingFormatted ? (
