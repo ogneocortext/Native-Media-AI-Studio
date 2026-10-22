@@ -88,6 +88,7 @@ date: 2026-09-30
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
 - [[shader-color-science-2026|🎨 Shader Color Science 2026]] — GLSL color science: OKLCH, tonemapping, dithering for audio-reactive shaders
 - [[unity-audio-reactive-shader-research-2026|🎮 Unity Audio-Reactive Shader Research 2026]] — AudioLink patterns, FFT-band textures, GPU-driven beat-reactive HLSL for URP
+- [[video-to-glsl-shader-recreation-2026|🎞️ Video-to-GLSL Shader Recreation 2026]] — shader-skills verified GLSL library (186 functions) + the Video 2 GLSL recreation workflow, mapped to the FX shader lane; local-VLM critique routing with Gemma 4 E2B (NEW 2026-10-21)
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
 - [[audio-reactive-best-practices-2026|🎵 Audio-Reactive Best Practices 2026]] — 2026 research: signal stack, mel/gamma perception, <30 ms latency, per-band envelopes, genre routing — with verified gap analysis (NEW 2026-10-02)
@@ -148,7 +149,7 @@ date: 2026-09-30
 || `#production/*` | Production workflow & creative guides | 12 documents |
 || `#technical/*` | System implementation & code | 15 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
-|| `#creative/*` | Design, effects & visualization | 20 documents |
+|| `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 12 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
@@ -169,7 +170,7 @@ date: 2026-09-30
 || `#testing` | Testing & QA | 3 documents |
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 18 documents |
-|| `#visualization` | Visualization techniques | 14 documents |
+|| `#visualization` | Visualization techniques | 15 documents |
 || `#3d` | 3D generation & rendering | 13 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
