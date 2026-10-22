@@ -213,6 +213,33 @@ def _ngram(sentence: str, size: int = 6) -> str:
 
 
 # ------------------------------------------------------------ evaluation
+def score_fuse(bm25_scores, cosine_scores, k):
+    """Fuse by *normalised score* rather than by rank.
+
+    RRF is the safe default because BM25 scores and cosine similarities
+    are not on the same scale. But RRF throws the score magnitudes away,
+    so it cannot reward a document that one retriever is very confident
+    about. This variant min-max normalises each retriever's scores over
+    its own candidate pool and adds them, which keeps the magnitudes.
+
+    Returns the fused ranking.
+    """
+    def norm(values):
+        if not values:
+            return []
+        lo = min(values)
+        hi = max(values)
+        if hi - lo < 1e-12:
+            return [0.0] * len(values)
+        return [(v - lo) / (hi - lo) for v in values]
+
+    b = norm(bm25_scores)
+    c = norm(cosine_scores)
+    fused = [b[i] + c[i] for i in range(min(len(b), len(c)))]
+    order = sorted(range(len(fused)), key=lambda i: -fused[i])
+    return order[:k]
+
+
 def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
              hyde_index=None):
     """Score the retrieval configurations on the same probes.
@@ -240,6 +267,7 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
     if dense_index is not None:
         results["dense"] = []
         results["hybrid"] = []
+        results["hybrid_score"] = []
     if hyde_index is not None:
         results["hyde"] = []
 
@@ -308,6 +336,17 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
             hctx = " ".join(chunks[i]["text"] for i in htop)
             results["hybrid"].append(_score(probe, htop, hctx, answer_re, ngram,
                                            chunks, gold_doc))
+
+            # --- hybrid_score: the same two retrievers fused by normalised
+            # score instead of rank.
+            pool = list(set(child_index.top(q, k * 3) + dtop))
+            bs = child_index.scores(q)
+            cs = dense_index.cosines(query_text)
+            st = score_fuse([bs[i] for i in pool], [cs[i] for i in pool], k)
+            stop = [pool[i] for i in st]
+            sctx = " ".join(chunks[i]["text"] for i in stop)
+            results["hybrid_score"].append(_score(probe, stop, sctx, answer_re,
+                                                  ngram, chunks, gold_doc))
 
         if hyde_index is not None:
             # --- hyde: retrieve with a generated hypothetical answer.
@@ -696,7 +735,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{'doc@k':>8} {'MRR':>8} {'context':>11}")
     print(f"  {'-'*14} {'-'*10} {'-'*9} {'-'*8} {'-'*8} {'-'*11}")
     for name in ("child", "parent", "parent_child", "doc", "dense", "hybrid",
-                 "hyde"):
+                 "hybrid_score", "hyde"):
         if name in results:
             summarize(name, results[name], args.k)
 
@@ -717,6 +756,7 @@ def main(argv: list[str] | None = None) -> int:
     if "dense" in results:
         print("  dense       = nomic embeddings only, semantic")
         print("  hybrid      = BM25 + dense, fused with Reciprocal Rank Fusion")
+        print("  hybrid_score= BM25 + dense, fused by normalised score")
     if "hyde" in results:
         print("  hyde        = BM25 over an LLM-written hypothetical answer")
     return 0

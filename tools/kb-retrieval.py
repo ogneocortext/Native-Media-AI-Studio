@@ -234,6 +234,13 @@ class DenseIndex:
         self.embedder = embedder
         self.vectors = embedder.embed(texts, kind="document")
 
+    def cosines(self, query: str) -> list[float]:
+        """Cosine similarity of the query against every indexed document."""
+        qv = self.embedder.embed([query], kind="query")[0]
+        if not qv:
+            return [0.0] * len(self.vectors)
+        return [cosine(qv, v) for v in self.vectors]
+
     def top(self, query: str, k: int) -> list[int]:
         qv = self.embedder.embed([query], kind="query")[0]
         if not qv:
