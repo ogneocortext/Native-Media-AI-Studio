@@ -17,10 +17,43 @@ import {
   Play,
   Download,
   ExternalLink,
+  ChevronRight,
 } from "lucide-react";
-import { StatusBadge } from "../../components/common";
-import type { Job } from "../../services/api";
+import { StatusBadge, ProgressBar } from "../../components/common";
+import type { Job, JobStep } from "@shared/types";
 import { getApiBase } from "../../services/api";
+import { calculateEta, formatElapsed } from "../../utils/eta";
+
+/**
+ * One line of a job's step list, with its status rendered as an icon.
+ * Steps are optional in the Job model, so this is only rendered when the
+ * backend sends them — a job with no steps shows just the flat progress bar.
+ */
+function StepRow({ step }: { step: JobStep }) {
+  const icon =
+    step.status === "completed" ? (
+      <CheckCircle size={12} className="text-success-text shrink-0" />
+    ) : step.status === "running" ? (
+      <Loader2 size={12} className="text-primary animate-spin shrink-0" />
+    ) : step.status === "failed" ? (
+      <AlertCircle size={12} className="text-error-text shrink-0" />
+    ) : (
+      <Clock size={12} className="text-muted shrink-0" />
+    );
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      {icon}
+      <span className="text-muted truncate" title={step.name}>
+        {step.name}
+      </span>
+      {step.status === "running" && step.progress > 0 && (
+        <span className="text-primary ml-auto">
+          {(step.progress * 100).toFixed(0)}%
+        </span>
+      )}
+    </div>
+  );
+}
 
 export const getStatusIcon = (status: string) => {
   switch (status) {
@@ -46,6 +79,8 @@ interface JobRowProps {
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Drill-down: clicking a row opens the detail view. */
+  onSelect?: (job: Job) => void;
 }
 
 export function JobRow({
@@ -53,6 +88,7 @@ export function JobRow({
   index,
   total,
   actionLoading,
+  onSelect,
   onCancel,
   onRetry,
   onDelete,
@@ -73,9 +109,30 @@ export function JobRow({
       ? new Date(job.completed_at).toLocaleString()
       : "N/A"
     : new Date(job.created_at).toLocaleString();
+  // Progress visibility: a running job shows its bar, ETA, and per-step
+  // breakdown; a failed job shows how many attempts it has burned.
+  const isRunning = job.status === "running";
+  const eta = isRunning
+    ? calculateEta(job.started_at, job.progress, job.status)
+    : null;
+  const steps = job.steps && job.steps.length > 0 ? job.steps : null;
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-background rounded-lg border border-border">
+    <div
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-background rounded-lg border border-border transition-colors ${
+        onSelect ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : ""
+      }`}
+      onClick={() => onSelect?.(job)}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      aria-label={onSelect ? `View details for ${job.job_type.replace(/_/g, " ")}` : undefined}
+      onKeyDown={(e) => {
+        if (onSelect && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onSelect(job);
+        }
+      }}
+    >
       <div className="flex items-start gap-4 min-w-0 flex-1">
         {isPending && index !== undefined ? (
           <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/20 text-xs font-medium text-muted shrink-0">
@@ -94,12 +151,54 @@ export function JobRow({
               Queued #{index + 1} of {total}
             </p>
           )}
+          {/* Progress visibility: running jobs get a live bar, an ETA, and
+              their per-step breakdown. The model already carries these; the
+              row just never rendered them. */}
+          {isRunning && (
+            <div className="mt-3 w-full max-w-md">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-muted">
+                  {job.message || "Working…"}
+                </span>
+                <span className="text-primary font-medium">
+                  {(job.progress * 100).toFixed(0)}%
+                </span>
+              </div>
+              <ProgressBar progress={job.progress} showPercentage={false} />
+              <div className="flex items-center gap-3 mt-1 text-xs text-muted">
+                <span>Elapsed {formatElapsed(eta?.elapsedSeconds || 0)}</span>
+                {eta?.canEstimate && eta.remainingFormatted ? (
+                  <span>~{eta.remainingFormatted} remaining</span>
+                ) : (
+                  <span>Calculating…</span>
+                )}
+                {job.duration_seconds ? (
+                  <span className="ml-auto">{job.duration_seconds.toFixed(0)}s avg</span>
+                ) : null}
+              </div>
+              {steps && (
+                <div className="mt-2 space-y-1">
+                  {steps.map((s, i) => (
+                    <StepRow key={i} step={s} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {isFailed && job.error && (
             <p className="text-sm text-error-text mt-1">Error: {job.error}</p>
           )}
-          {isFailed && job.retry_count > 0 && (
+          {/* Attempt visibility: failed jobs show how many retries were
+              burned; retrying jobs show the attempt in flight. Backoff
+              countdown needs backend state the model doesn't carry, so it
+              is shown only when the server reports a message. */}
+          {(isFailed || job.status === "retrying") && (
             <p className="text-xs text-muted mt-1">
-              Retry attempts: {job.retry_count}/{job.max_retries}
+              {job.status === "retrying" ? "Retrying" : "Retries"}: attempt{" "}
+              {job.retry_count + 1} of {job.max_retries + 1}
+              {job.status === "retrying" && job.message
+                ? ` · ${job.message}`
+                : ""}
             </p>
           )}
           {job.message && <p className="text-sm text-muted mt-1">{job.message}</p>}
@@ -186,6 +285,7 @@ export function JobRow({
       </div>
 
       <div className="flex items-center gap-4 shrink-0">
+        {onSelect && <ChevronRight size={16} className="text-muted" />}
         <StatusBadge status={job.status} />
         <div className="flex flex-wrap items-center gap-2">
           {showCancel && (
@@ -233,6 +333,7 @@ interface JobListSectionProps {
   jobs: Job[];
   isPending?: boolean;
   actionLoading: string | null;
+  onSelect?: (job: Job) => void;
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
   onDelete: (id: string) => void;
@@ -244,6 +345,7 @@ export function JobListSection({
   jobs,
   isPending,
   actionLoading,
+  onSelect,
   onCancel,
   onRetry,
   onDelete,
@@ -262,6 +364,7 @@ export function JobListSection({
             index={isPending ? index : undefined}
             total={isPending ? jobs.length : undefined}
             actionLoading={actionLoading}
+            onSelect={onSelect}
             onCancel={onCancel}
             onRetry={onRetry}
             onDelete={onDelete}

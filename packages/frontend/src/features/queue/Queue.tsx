@@ -12,8 +12,11 @@ import {
   ListOrdered,
   RotateCcw,
   AlertTriangle,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
+import type { Job } from "@shared/types";
 import {
   useJobStore,
   useJobs,
@@ -61,6 +64,170 @@ interface ConfirmDialogState {
   onConfirm: () => void;
 }
 
+/**
+ * Drill-down view for a single job: full error text, the step-by-step
+ * progress timeline, the parameters it was created with, and its output.
+ * Clicking a row opens this instead of doing nothing — the data the model
+ * already carries was just never surfaced together.
+ */
+function JobDetailModal({
+  job,
+  onClose,
+}: {
+  job: Job;
+  onClose: () => void;
+}) {
+  const params = job.params as Record<string, unknown> | undefined;
+  const steps = job.steps && job.steps.length > 0 ? job.steps : null;
+  const statusLabel = (s: string) =>
+    s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between p-6 border-b border-gray-800">
+          <div>
+            <h3 className="text-lg font-bold text-white">
+              {job.job_type.replace(/_/g, " ")}
+            </h3>
+            <p className="text-xs text-muted mt-1">
+              ID {job.id} · {statusLabel(job.status)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-white p-1"
+            aria-label="Close"
+          >
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Timeline */}
+          <div>
+            <h4 className="text-sm font-semibold text-white mb-2">Timeline</h4>
+            <ol className="space-y-2">
+              <li className="flex items-start gap-3 text-sm">
+                <span className="w-2 h-2 mt-1.5 rounded-full bg-primary shrink-0" />
+                <div>
+                  <p className="text-muted">
+                    Created{" "}
+                    {new Date(job.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </li>
+              {job.started_at && (
+                <li className="flex items-start gap-3 text-sm">
+                  <span className="w-2 h-2 mt-1.5 rounded-full bg-primary shrink-0" />
+                  <div>
+                    <p className="text-muted">
+                      Started {new Date(job.started_at).toLocaleString()}
+                    </p>
+                  </div>
+                </li>
+              )}
+              {job.completed_at && (
+                <li className="flex items-start gap-3 text-sm">
+                  <span
+                    className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${
+                      job.status === "completed"
+                        ? "bg-success-text"
+                        : "bg-error-text"
+                    }`}
+                  />
+                  <div>
+                    <p className="text-muted">
+                      {job.status === "completed" ? "Completed" : "Ended"}{" "}
+                      {new Date(job.completed_at).toLocaleString()}
+                    </p>
+                  </div>
+                </li>
+              )}
+            </ol>
+          </div>
+
+          {/* Steps */}
+          {steps && (
+            <div>
+              <h4 className="text-sm font-semibold text-white mb-2">Steps</h4>
+              <div className="space-y-2">
+                {steps.map((s, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 text-sm p-2 rounded-lg bg-muted/10"
+                  >
+                    {s.status === "completed" ? (
+                      <CheckCircle size={14} className="text-success-text shrink-0" />
+                    ) : s.status === "running" ? (
+                      <Loader2 size={14} className="text-primary animate-spin shrink-0" />
+                    ) : s.status === "failed" ? (
+                      <AlertCircle size={14} className="text-error-text shrink-0" />
+                    ) : (
+                      <Clock size={14} className="text-muted shrink-0" />
+                    )}
+                    <span className="text-white truncate">{s.name}</span>
+                    <span className="text-muted ml-auto">
+                      {s.status}
+                      {s.progress > 0 ? ` · ${(s.progress * 100).toFixed(0)}%` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {job.error && (
+            <div>
+              <h4 className="text-sm font-semibold text-error-text mb-2">
+                Error
+              </h4>
+              <pre className="text-xs text-muted bg-error/5 border border-error/20 rounded-lg p-3 whitespace-pre-wrap break-words">
+                {job.error}
+              </pre>
+            </div>
+          )}
+
+          {/* Params */}
+          {params && Object.keys(params).length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-white mb-2">
+                Parameters
+              </h4>
+              <pre className="text-xs text-muted bg-muted/10 border border-border rounded-lg p-3 overflow-x-auto">
+                {JSON.stringify(params, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {/* Output */}
+          {(job.output_path ||
+            ((job.result as Record<string, unknown> | null)?.output_path as
+              string)) && (
+            <div>
+              <h4 className="text-sm font-semibold text-white mb-2">
+                Output
+              </h4>
+              <p className="text-xs text-muted break-all">
+                {((job.output_path ||
+                  (job.result as Record<string, unknown> | null)?.output_path) as
+                  string)}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Queue() {
   const navigate = useNavigate();
   // Fine-grained selectors: subscribing to the whole store re-renders
@@ -81,6 +248,7 @@ export function Queue() {
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   // Fetch jobs on mount so the queue page reflects the latest state
   // (SSE is managed centrally by Layout.tsx).
@@ -298,7 +466,17 @@ export function Queue() {
                 <h3 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
                   Currently Running
                 </h3>
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+                   onClick={() => setSelectedJob(runningJob)}
+                   role="button"
+                   tabIndex={0}
+                   aria-label={`View details for ${runningJob.job_type.replace(/_/g, " ")} job`}
+                   onKeyDown={(e) => {
+                     if (e.key === "Enter" || e.key === " ") {
+                       e.preventDefault();
+                       setSelectedJob(runningJob);
+                     }
+                   }}>
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <div className="p-2 bg-primary/10 rounded-full shrink-0">
                       <Play size={20} className="text-primary" />
@@ -351,6 +529,7 @@ export function Queue() {
               jobs={pendingJobs}
               isPending
               actionLoading={actionLoading}
+              onSelect={setSelectedJob}
               onCancel={handleCancel}
               onRetry={handleRetry}
               onDelete={handleDelete}
@@ -360,6 +539,7 @@ export function Queue() {
               titleColor="text-error-text"
               jobs={failedJobs}
               actionLoading={actionLoading}
+              onSelect={setSelectedJob}
               onCancel={handleCancel}
               onRetry={handleRetry}
               onDelete={handleDelete}
@@ -369,6 +549,7 @@ export function Queue() {
               titleColor="text-success-text"
               jobs={completedJobs}
               actionLoading={actionLoading}
+              onSelect={setSelectedJob}
               onCancel={handleCancel}
               onRetry={handleRetry}
               onDelete={handleDelete}
@@ -377,6 +558,7 @@ export function Queue() {
               heading={`Cancelled (${cancelledJobs.length})`}
               jobs={cancelledJobs}
               actionLoading={actionLoading}
+              onSelect={setSelectedJob}
               onCancel={handleCancel}
               onRetry={handleRetry}
               onDelete={handleDelete}
@@ -391,6 +573,13 @@ export function Queue() {
           />
         )}
       </Card>
+
+      {selectedJob && (
+        <JobDetailModal
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
+        />
+      )}
 
       {confirmDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
