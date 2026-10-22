@@ -287,6 +287,13 @@ unpushed commit names no agent.
 Once the repo hooks are installed (`bash scripts/install-git-hooks.sh`), a
 `commit-msg` hook enforces the trailer at commit time.
 
+Finding an agent's commits: use `python tools/agent-contribution-report.py
+--agent <name>` (window it with `--since`). Do **not** use `git log
+--author`: every local agent commits as `ogneocortext`, so author search
+finds none of their work, and it misstates Orion's -- 88 commits by author
+identity vs 72 by trailer. The tool is the canonical query; it reconciles
+both channels (see its docstring for the rule).
+
 | Agent | Trailer |
 |---|---|
 | Orion (research/handoff agent) | `Co-authored-by: Orion <orion@hatch.local>` |

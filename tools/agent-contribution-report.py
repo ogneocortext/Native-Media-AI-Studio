@@ -17,6 +17,23 @@ Report mode (default):
   python tools/agent-contribution-report.py [--since 2026-09-29]
                                             [--format md|json]
 
+Per-agent listing (the canonical "show me agent X's commits" query):
+
+  python tools/agent-contribution-report.py --agent Orion [--since ...]
+
+Why a canonical query exists: attribution lives in TWO channels that
+disagree. Every local agent commits under the owner's author identity
+(ogneocortext), so `git log --author` finds none of their work; and
+Orion exists in both channels with different counts (88 by author vs
+72 by trailer at 4e9e08d). The 16-commit gap is pre-convention Orion
+work carrying no trailer at all. This tool reconciles: a commit with
+no trailer whose author is Orion <orion@hatch.local> counts as
+Orion's -- safe for that one identity only, because the push scripts
+hardcode it and nobody else commits under it. No fallback exists for
+ogneocortext (shared by the owner and every local agent). Check mode
+deliberately does NOT reconcile: going forward, the trailer is the
+only accepted signal.
+
 Coverage-check mode: list the commits in scope that carry NO trailer and
 fail when coverage drops below --min-coverage (default 1.0). Merge commits
 are excluded -- their content arrives via branch commits, which carry
@@ -110,7 +127,7 @@ def collect(scope_args):
     out = git(
         "log",
         *scope_args,
-        "--format=%H%x1f%an%x1f%ad%x1f%s%x1f%P%x1f"
+        "--format=%H%x1f%an <%ae>%x1f%ad%x1f%s%x1f%P%x1f"
         "%(trailers:key=Co-authored-by,valueonly,separator=;)",
         "--date=short",
     )
@@ -129,6 +146,11 @@ def collect(scope_args):
             "hash": h,
             "short": h[:7],
             "author": author,
+            "author_agent": (
+                "Orion"
+                if author == "Orion <orion@hatch.local>" and not agents
+                else None
+            ),
             "date": date,
             "subject": subject,
             "agents": agents,
@@ -155,10 +177,18 @@ def collect(scope_args):
     return list(meta.values())
 
 
+def effective_agents(commit):
+    """Trailer agents, or the reconciled author identity when trailer-less."""
+    if commit["agents"]:
+        return commit["agents"]
+    return [commit["author_agent"]] if commit["author_agent"] else []
+
+
 def aggregate(commits):
     agents = {}
-    for name in sorted({a for c in commits for a in c["agents"]}):
-        mine = [c for c in commits if name in c["agents"]]
+    names = sorted({a for c in commits for a in effective_agents(c)})
+    for name in names:
+        mine = [c for c in commits if name in effective_agents(c)]
         areas = defaultdict(int)
         for c in mine:
             for area in c["areas"]:
@@ -169,7 +199,7 @@ def aggregate(commits):
             "deletions": sum(c["deletions"] for c in mine),
             "areas": dict(areas),
         }
-    unattributed = [c for c in commits if not c["agents"]]
+    unattributed = [c for c in commits if not effective_agents(c)]
     return agents, unattributed
 
 
@@ -278,6 +308,11 @@ def report_md(commits, args):
         if unattributed:
             cells.append(str(sum(1 for c in unattributed if area in c["areas"])))
         lines.append(f"| {area} | " + " | ".join(cells) + " |")
+    fallback = sum(1 for c in commits if c["author_agent"])
+    if fallback:
+        lines += ["", f"Reconciled: {fallback} trailer-less commit(s) are "
+                      "attributed to Orion by author identity alone "
+                      "(pre-convention work; see this tool's docstring)."]
     tally = unknown_tally(commits)
     if tally:
         lines += ["", "Warnings (trailer names outside the known roster):"]
@@ -313,6 +348,9 @@ def report_json(commits, args):
         "unattributed_commits": len(unattributed),
         "agents": agents,
         "unknown_trailer_names": unknown_tally(commits),
+        "author_fallback_commits": sum(
+            1 for c in commits if c["author_agent"]
+        ),
         "largest_commits": largest_commits(commits),
         "unattributed_areas": dict(
             sorted(
@@ -323,6 +361,17 @@ def report_json(commits, args):
         ),
     }
     return json.dumps(payload, indent=2)
+
+
+def list_agent(commits, query):
+    wanted = ALIASES.get(query.strip().lower(), query.strip())
+    mine = [c for c in commits if wanted in effective_agents(c)]
+    print(f"{wanted}: {len(mine)} commit(s) in scope")
+    for c in mine:
+        areas = ", ".join(sorted(c["areas"]))
+        suffix = f"  [{areas}]" if areas else ""
+        print(f"  {c['date']} {c['short']} {c['subject']}{suffix}")
+    return 0
 
 
 def check_coverage(commits, args):
@@ -362,6 +411,8 @@ def main():
     parser.add_argument("--until", help="git date spec")
     parser.add_argument("--range", help="revision range, e.g. origin/main..HEAD")
     parser.add_argument("--format", choices=["md", "json"], default="md")
+    parser.add_argument("--agent",
+                        help="list this agent's commits instead of the report")
     parser.add_argument("--check", action="store_true",
                         help="coverage-check mode (default scope: origin/main..HEAD)")
     parser.add_argument("--min-coverage", type=float, default=1.0,
@@ -383,6 +434,8 @@ def main():
         scope = []
 
     commits = collect(scope)
+    if args.agent:
+        return list_agent(commits, args.agent)
     if args.check:
         return check_coverage(commits, args)
     print(report_json(commits, args) if args.format == "json"
