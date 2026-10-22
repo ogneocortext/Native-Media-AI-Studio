@@ -284,6 +284,7 @@ export type { MemoryDiagnostics, DiagnosticsModelsResponse } from "./diagnostics
 export {
   getOllamaModels,
   getBenchmarkResults,
+  getHardwareBenchmarks,
   runBenchmark,
   getBestBenchmarkModel,
   getCodingBenchmarkResults,
@@ -300,6 +301,9 @@ export type {
   ChatMessage,
   ToolDefinition,
   OllamaBenchmarkResult,
+  HardwareBenchmarkSummary,
+  HardwareBenchmarkRun,
+  HardwareBenchmarkMetrics,
   CodingBenchmarkTaskResult,
   CodingBenchmarkResult,
   AIGeneratedPreset,

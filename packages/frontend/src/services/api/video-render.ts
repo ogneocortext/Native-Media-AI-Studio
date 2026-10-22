@@ -253,11 +253,26 @@ export async function assembleBeatQuantized(params: {
 }
 
 // A5 — Stem-reactive visualization uniforms
+// One entry per shader uniform, built by tools/stem_visualization in the
+// backend (see app/services/stem_visualization.get_stem_visualization_uniforms).
+
+export interface StemVisualizationUniform {
+  stem: string;
+  energy_curve: number[];
+  curve_points: number;
+  rms_mean: number;
+  rms_std: number;
+  centroid_mean: number;
+  zcr_mean: number;
+  duration: number;
+  file: string;
+  url: string;
+}
 
 export interface StemVisualizationResponse {
   stems: Record<string, unknown>;
   separated: boolean;
-  uniforms: Record<string, unknown>;
+  uniforms: Record<string, StemVisualizationUniform>;
   curve_points: number;
 }
 

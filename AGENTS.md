@@ -499,22 +499,34 @@ Rules: default to `nma-studio-cuda`; never use `comfyui-cuda` for backend; `stud
 ## Testing
 
 **One command runs every gate:** `python tools/run-gates.py` (or `pnpm verify`).
-It runs doc checks → ruff → tsc → eslint → pytest → vite build, cheapest first,
-prints one summary, and exits non-zero if any gate fails. Add `--e2e` to include
-the Playwright suite (opt-in: it starts a Vite dev server). `--only <name> ...`
-runs a subset; `--list` shows them. Prefer this over assembling the gates by
-hand — the runner owns the Windows exit-code and UTF-8 decoding problems that
-otherwise produce both false passes and false failures.
+It runs the doc checks, ruff, tsc, eslint, pytest, vitest and vite build
+cheapest-first, prints one summary, and exits non-zero if any gate fails. Two
+concurrent lanes execute the gates (`python | node`) — wall time is bounded by
+the slower lane, not the sum of every gate (`--serial` reverts to sequential).
+Add `--e2e` to include the Playwright suite (opt-in: it starts a Vite dev
+server). `--only <name> ...` runs a subset (substring match, so `--only py`
+runs both pytest and tools-pytest; a pure-node subset never touches Python and
+a pure-python subset never touches pnpm); `--list` lists the gates. Prefer this
+over assembling the gates by hand — the runner owns the Windows exit-code and
+UTF-8 decoding problems that otherwise produce both false passes and false
+failures.
 
 **It resolves its own tools, so nothing is hardcoded to one machine's layout.**
 `pnpm` from PATH; the interpreter is chosen by probing candidates
-(`$NMA_PYTHON` -> `nma-studio-cuda` -> any working `D:\conda-envs\*` -> PATH) with
-a real `ruff` run. A hardcoded path would not merely be machine-specific, it would
-go stale silently and pin every future agent to whatever was current when it was
-written. The winner is cached in `%TEMP%\nma-studio-python-choice.json` purely
-as a **hint to try first** and is re-verified every run, so repairing a broken env
-needs no cache clearing. Set `NMA_PYTHON` to override; `--which-python` explains a
-wrong-interpreter failure and `--list` prints the resolved interpreter and gates.
+(`$NMA_PYTHON` -> declared project env -> any working `D:\conda-envs\*` -> PATH)
+with a real ruff run, and — when a test file using tmp_path exists — a real
+smallest-tmp_path-file pytest run, because C:\Python314 passes both ruff and
+`pytest --version` yet fails the suite (see Machine-specific PATH traps
+above). A hardcoded path would not merely be machine-specific, it would go
+stale silently and pin every future agent to whatever was current when it was
+written. The winner is cached in `%TEMP%\nma-studio-python-choice.json`
+(schema 2, with a timestamp) and re-used **within a TTL** (`$NMA_PROBE_TTL`,
+default 15 min; the full probe previously ran on every invocation ahead of
+gate 1). Outside the TTL the cached candidate is re-probed like any other. A
+probe that *times out* is an "unproven, re-probe serially" retry, never a
+rejection: six sibling envs probed in parallel genuinely did time the correct
+project env out. Set `NMA_PYTHON` to override; `--which-python` explains a
+wrong-interpreter failure; `--list` prints the lanes and the resolved tools.
 
 Every gate has a timeout (pytest 300 s, build 600 s, e2e 900 s) and the child tree
 is killed on expiry, so a wedged gate reports a failure instead of hanging.

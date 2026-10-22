@@ -136,7 +136,16 @@ export function MusicPromptGenerator({
 
   const [platform, setPlatform] = useState<PlatformId>("suno_v6");
   const [specs, setSpecs] = useState<Record<string, PlatformSpec> | null>(null);
-  const [creditNotes, setCreditNotes] = useState<Record<string, unknown> | null>(null);
+  const [creditNotes, setCreditNotes] = useState<Record<
+    string,
+    {
+      label?: string;
+      balance_visible?: boolean;
+      strategy: string;
+      daily_credits: number | null;
+      rollover?: boolean;
+    }
+  > | null>(null);
   const [lyricTechniques, setLyricTechniques] = useState<Record<
     string,
     { techniques: string[]; vocal_delivery?: string }

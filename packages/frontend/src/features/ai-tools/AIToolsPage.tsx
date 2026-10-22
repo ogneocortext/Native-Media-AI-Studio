@@ -22,10 +22,12 @@ import {
   ollamaChatStream,
   parseOllamaStream,
   getBenchmarkResults,
+  getHardwareBenchmarks,
   runBenchmark,
   type OllamaModel,
   type ToolDefinition,
   type OllamaBenchmarkResult,
+  type HardwareBenchmarkSummary,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
 import { formatSize } from "../../utils/format";
@@ -60,6 +62,7 @@ export function AIToolsPage() {
     import("./VisualizationCanvas").VisualizationConfig | null
   >(null);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
+  const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary>>({});
   const [benchLoading, setBenchLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -82,14 +85,23 @@ export function AIToolsPage() {
         supportsVision: m.capabilities?.includes("vision") ?? false,
       }));
 
-      // Fetch benchmarks in parallel and enrich sorting
+      // Scene quality and hardware latency are different signals: the scene
+      // score decides ordering, the hardware median is a tiebreak and the
+      // cleaner latency to display. allSettled so one failing endpoint
+      // cannot blank the other.
       let benchMap: Record<string, OllamaBenchmarkResult> = {};
-      try {
-        const data = await getBenchmarkResults();
-        benchMap = data.results || {};
+      let hwMap: Record<string, HardwareBenchmarkSummary> = {};
+      const [sceneRes, hwRes] = await Promise.allSettled([
+        getBenchmarkResults(),
+        getHardwareBenchmarks(),
+      ]);
+      if (sceneRes.status === "fulfilled") {
+        benchMap = sceneRes.value.results || {};
         setBenchmarks(benchMap);
-      } catch {
-        /* no benchmarks yet */
+      }
+      if (hwRes.status === "fulfilled") {
+        hwMap = hwRes.value;
+        setHwSummary(hwMap);
       }
 
       // Sort by benchmark score desc, then latency asc — best first
@@ -100,8 +112,18 @@ export function AIToolsPage() {
         const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
         const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
         if (sa !== sb) return sb - sa;
-        const la = a.benchmark?.latency_ms ?? benchMap[a.name]?.latency_ms ?? 999999;
-        const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
+        // Hardware median latency as the tiebreak; a model without hardware
+        // rows falls back to the scene benchmark's latency.
+        const la =
+          hwMap[a.name]?.median_latency_ms ||
+          a.benchmark?.latency_ms ||
+          benchMap[a.name]?.latency_ms ||
+          999999;
+        const lb =
+          hwMap[b.name]?.median_latency_ms ||
+          b.benchmark?.latency_ms ||
+          benchMap[b.name]?.latency_ms ||
+          999999;
         return la - lb;
       });
       setModels(sorted);
@@ -324,8 +346,13 @@ export function AIToolsPage() {
                       const bench = benchmarks[m.name];
                       const score =
                         bench?.validation?.score ?? m.benchmark?.score ?? null;
+                      // Prefer the hardware median (real end-to-end ms);
+                      // fall back to the scene benchmark's latency.
                       const latency =
-                        bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                        hwSummary[m.name]?.median_latency_ms ||
+                        bench?.latency_ms ||
+                        m.benchmark?.latency_ms ||
+                        null;
                       const s =
                         score !== null && score >= 0 ? Math.round(score) : null;
                       const caps = [

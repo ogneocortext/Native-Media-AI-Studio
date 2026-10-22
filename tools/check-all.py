@@ -17,7 +17,7 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   9. tools/docs-tracker.py              - report-only doc provenance
  10. tools/report-path-orphans.py       - report-only dangling references
 
-Run:  python tools/check-all.py
+Run:  python tools/check-all.py     (-v also runs the report-only checks)
 Exit 0 = all pass, 1 = at least one failed.
 """
 
@@ -28,36 +28,41 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# (label, script, extra args). Ordered cheapest-first by measured runtime.
+# (label, script, extra args, report_only). Ordered cheapest-first by measured
+# runtime. Report-only checkers exit 0 by design (they cannot fail), so they
+# cost seconds on every gate run while adding nothing to the verdict; they are
+# skipped unless the runner passes -v, at which point they are still labelled
+# [SKIP] rather than [PASS] so nobody mistakes "not run" for "ran clean".
 CHECKS = [
-    ("docs map", "check-docs-map.py", []),
-    ("text encoding", "check-text-encoding.py", []),
-    ("subprocess encoding", "check-subprocess-encoding.py", []),
-    ("knowledge tags", "validate-knowledge-tags.py", []),
-    ("repo layout", "check-repo-layout.py", []),
+    ("docs map", "check-docs-map.py", [], False),
+    ("text encoding", "check-text-encoding.py", [], False),
+    ("subprocess encoding", "check-subprocess-encoding.py", [], False),
+    ("knowledge tags", "validate-knowledge-tags.py", [], False),
+    ("repo layout", "check-repo-layout.py", [], False),
     # Dangling repo-relative path references: the moved-file signature
     # (target gone, same basename still tracked elsewhere). The only
     # check that catches documentation pointing at files that moved.
-    ("path references", "check-path-references.py", []),
+    ("path references", "check-path-references.py", [], False),
     # Fails if a function's control-flow nesting got deeper than the committed
     # baseline. Deep nesting is a proxy for "hard to navigate", and this is the
     # only check that stops it coming back. Re-baseline deliberately:
     #   python tools/report-nesting.py --write-baseline \
     #       tools/nesting-baseline.json packages/backend/app
     ("nesting", "report-nesting.py",
-     ["--baseline", "tools/nesting-baseline.json", "packages/backend/app"]),
+     ["--baseline", "tools/nesting-baseline.json", "packages/backend/app"],
+     False),
     # Report-only: exits 0 by design, so it cannot fail the run. Kept here so
     # one command gives the whole picture, including the outside-library view.
-    ("docs triage (report)", "docs-triage.py", []),
+    ("docs triage (report)", "docs-triage.py", [], True),
     # Report-only: regenerates output/docs-tracker.json (per-doc date, author,
     # tags) so doc provenance stays visible without manual bookkeeping.
-    ("docs tracker (report)", "docs-tracker.py", []),
+    ("docs tracker (report)", "docs-tracker.py", [], True),
     # Report-only: dangling references in operational docs whose targets
     # exist nowhere in the tree. The gate above (check-path-references)
     # covers the moved-file signature; this covers the residue it
     # deliberately cannot decide -- deletion orphans and never-existed
     # names in the docs agents actually follow.
-    ("path orphans (report)", "report-path-orphans.py", []),
+    ("path orphans (report)", "report-path-orphans.py", [], True),
 ]
 
 
@@ -82,10 +87,15 @@ def run(label, script, args):
 def main():
     verbose = "-v" in sys.argv or "--verbose" in sys.argv
     failures = []
-    print(f"Running {len(CHECKS):d} checks")
+    active = [c for c in CHECKS if verbose or not c[3]]
+    print(f"Running {len(active):d}/{len(CHECKS):d} checks"
+          + ("" if verbose else " (report-only ones need -v)"))
     print("=" * 68)
 
-    for label, script, args in CHECKS:
+    for label, script, args, report_only in CHECKS:
+        if report_only and not verbose:
+            print(f"[SKIP] {label:<22}     0 ms  ({script})  report-only")
+            continue
         code, elapsed, out = run(label, script, args)
         status = "PASS" if code == 0 else "FAIL"
         print(f"[{status}] {label:<22} {elapsed * 1000:5.0f} ms  ({script})")

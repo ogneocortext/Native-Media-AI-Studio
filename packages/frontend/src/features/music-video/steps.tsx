@@ -47,6 +47,7 @@ import {
   routeScene,
   assembleBeatQuantized,
   getStemVisualization,
+  type StemVisualizationUniform,
 } from "../../services/api/video-render";
 
 /* Section-type → colour class. Module scope: rebuilding this object inside the
@@ -645,7 +646,9 @@ export function GenerateStep({
   const [assemblyOutput, setAssemblyOutput] = useState<string | null>(null);
   const [assembling, setAssembling] = useState(false);
   const [assemblyError, setAssemblyError] = useState<string | null>(null);
-  const [stemVizData, setStemVizData] = useState<Record<string, unknown> | null>(null);
+  const [stemVizData, setStemVizData] = useState<
+    Record<string, StemVisualizationUniform> | null
+  >(null);
   const [loadingStemViz, setLoadingStemViz] = useState(false);
   const [stemVizError, setStemVizError] = useState<string | null>(null);
 
@@ -983,7 +986,7 @@ export function GenerateStep({
                 Stem-reactive uniforms (A5)
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {Object.entries(stemVizData).map(([key, val]: [string, unknown]) => (
+                {Object.entries(stemVizData).map(([key, val]) => (
                   <div key={key} className="bg-gray-800/60 rounded-lg p-2">
                     <p className="text-[10px] text-gray-500 uppercase">{key}</p>
                     <p className="text-xs text-white font-semibold">{val.stem}</p>

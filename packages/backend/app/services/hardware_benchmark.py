@@ -113,7 +113,7 @@ class HardwareBenchmarkRunner:
         started = time.perf_counter()
         model = request.model
         samples: list[dict[str, Any]] = []
-        gpu_before = self._gpu_snapshot()
+        gpu_before = await self._gpu_snapshot()
         result_payload: dict[str, Any] = {}
         error: str | None = None
         status = BenchmarkStatus.RUNNING
@@ -165,7 +165,7 @@ class HardwareBenchmarkRunner:
         finally:
             completed_at = datetime.now(timezone.utc)
             duration_ms = (time.perf_counter() - started) * 1000.0
-            gpu_after = self._gpu_snapshot()
+            gpu_after = await self._gpu_snapshot()
             metrics = self._aggregate_metrics(samples, gpu_before, gpu_after)
             result = BenchmarkResult(
                 engine=request.engine,
@@ -193,9 +193,13 @@ class HardwareBenchmarkRunner:
 
     def _get_adapter(self, engine: str) -> Any:
         try:
-            from ..adapters.registry import get_adapter
+            # The registry exposes a singleton instance, not a module-level
+            # function: importing `get_adapter` from here always raised
+            # ImportError, which surfaced as a misleading "Unable to load
+            # {engine} adapter" RuntimeError at benchmark time.
+            from ..adapters.registry import adapter_registry
 
-            return get_adapter(engine)
+            return adapter_registry.get_adapter(engine)
         except Exception as exc:
             raise RuntimeError(f"Unable to load {engine} adapter: {exc}") from exc
 
@@ -380,7 +384,7 @@ class HardwareBenchmarkRunner:
             metrics["latency_q3_ms"] = round(q3, 2)
         return self._json_safe(metrics)
 
-    def _gpu_snapshot(self) -> dict[str, Any]:
+    async def _gpu_snapshot(self) -> dict[str, Any]:
         monitor = self.resource_monitor
         if monitor is None:
             try:
@@ -390,7 +394,10 @@ class HardwareBenchmarkRunner:
             except Exception:
                 return {"available": False, "error": "resource monitor unavailable"}
         try:
-            snapshot = monitor.get_gpu_snapshot()
+            # diagnostics.ResourceMonitor.get_gpu_snapshot is async - calling
+            # it without await embedded a bare coroutine in the metrics and
+            # broke the JSON round-trip, so this must be awaited.
+            snapshot = await monitor.get_gpu_snapshot()
             return self._json_safe(snapshot or {"available": False})
         except Exception as exc:
             return {"available": False, "error": f"{type(exc).__name__}: {exc}"}

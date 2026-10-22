@@ -171,6 +171,89 @@ export async function getBestBenchmarkModel(): Promise<{
   return res.json();
 }
 
+export interface HardwareBenchmarkMetrics {
+  median_latency_ms?: number;
+  avg_latency_ms?: number;
+  min_latency_ms?: number;
+  max_latency_ms?: number;
+  latency_q1_ms?: number;
+  latency_q3_ms?: number;
+  tokens_per_second?: number;
+  output_tokens?: number;
+  prompt_tokens?: number;
+}
+
+export interface HardwareBenchmarkRun {
+  run_id: string;
+  engine: string;
+  model: string;
+  status: string;
+  started_at: string;
+  completed_at?: string | null;
+  duration_ms?: number;
+  iterations?: number;
+  successful_iterations?: number;
+  error?: string | null;
+  metrics?: HardwareBenchmarkMetrics;
+}
+
+// Aggregated per model from raw GET /api/hardware/benchmarks rows. Only
+// completed ollama runs count toward the median: a timed-out run's
+// duration_ms is the timeout budget, not a latency measurement, and a
+// failed run has no meaningful latency at all.
+export interface HardwareBenchmarkSummary {
+  model: string;
+  median_latency_ms: number;
+  tokens_per_second: number | null;
+  runs: number;
+  last_run_at: string;
+}
+
+function medianLatency(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+export async function getHardwareBenchmarks(): Promise<
+  Record<string, HardwareBenchmarkSummary>
+> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/hardware/benchmarks?limit=200`, {
+    timeout: 30000,
+  });
+  if (!res.ok) throw new Error("Failed to get hardware benchmarks");
+  const runs = (await res.json()) as HardwareBenchmarkRun[];
+  const byModel = new Map<string, HardwareBenchmarkRun[]>();
+  for (const run of runs) {
+    if (run.engine !== "ollama" || run.status !== "completed") continue;
+    const list = byModel.get(run.model) ?? [];
+    list.push(run);
+    byModel.set(run.model, list);
+  }
+  const summary: Record<string, HardwareBenchmarkSummary> = {};
+  for (const [model, list] of byModel) {
+    const latencies = list
+      .map((r) => r.metrics?.median_latency_ms ?? r.duration_ms)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    const tokPerSec = list
+      .map((r) => r.metrics?.tokens_per_second)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    const sortedRuns = [...list].sort((a, b) =>
+      b.started_at.localeCompare(a.started_at),
+    );
+    summary[model] = {
+      model,
+      median_latency_ms: medianLatency(latencies) ?? 0,
+      tokens_per_second: medianLatency(tokPerSec),
+      runs: list.length,
+      last_run_at: sortedRuns[0]?.started_at ?? "",
+    };
+  }
+  return summary;
+}
+
 export interface CodingBenchmarkTaskResult {
   task: string;
   weight: number;
