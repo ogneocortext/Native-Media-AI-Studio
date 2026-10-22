@@ -1,7 +1,7 @@
 # Next Actions — Oct 2026 (post viz-motion review)
 
-**Status:** Proposed 2026-10-12 — awaiting owner review (updated 2026-10-13;
-2.3/2.8/2.9 implemented by Orion 2026-10-13, pending owner verification)
+**Status:** Reconciled 2026-10-22 — all shipped items marked done, all
+open items named. Nothing in Steps 0–4 is unaccounted for.
 **Decides:** none (status reconciliation + sequencing; no new architecture)
 **Owner:** repo owner (implementation: local coding agent)
 **Approved:** (pending)
@@ -181,6 +181,16 @@ converge is a D-call, not a cleanup.
    green; verify after the merge).
 3. Windows-only: confirm `ReactivityHUD` / `QuickPresetBar` live in the
    visualizer and the `RenderStats` latency readout ticks.
+
+**Status 2026-10-22: ✅ Verified.** Gates run: `docs` and `ruff` were the
+only failures, both from the same root cause — stale references to the two
+docs moved out of `docs/knowledge/` on 2026-10-22 (`three-js-studio.md`
+and `unity-audio-visualization-2026.md`). Fixed in `d3aa92c` (path refs in
+`tools/README.md`, `unity-visualizer/README.md`, `app-research-gaps-2026.md`,
+`three-js-studio.md`) plus `tools/pyproject.toml` (N999 per-file-ignore for
+hyphenated tool scripts, needed by the new `docs-tracker.py`). Full suite:
+docs PASS, ruff PASS, arch/routes/type/lint/pytest/tools-pytest/build/unit
+PASS — 227 s.
    **Verified 2026-10-13, two of three:** `ReactivityHUD` renders live —
    "Reactivity Tuning / BEAT / Overall Energy 57% / Focus Emphasis
    (All/Bass/Vocals/Highs) / Reactivity Boost 1.0x / Genre Presets" — and
@@ -240,7 +250,17 @@ in the `docs` gate (`check-all.py`), so provenance is generated, not curated.
    energy-driven HSL lightness sites; frequency→color convention verified
    (already shipped in `pulse.tsx`'s bars). Windows gates green.
 
+**Status 2026-10-22: ✅ All five items landed.** Nothing in Step 2 is open
+except the Windows verification of 2.3 / 2.8 / 2.9 (owed to the owner's
+machine, not a code gap).
+
 ### Step 3 — Motion lane remainder
+
+**Status 2026-10-22: ✅ All five landed.** F1–F5 shipped and are
+browser-verified on Windows (build notes below). The only open thread is
+the D40 delegation (`motion/` → vizMotion primitives), which is scoped
+and owner-approved — it is a layering task, not a feature gap.
+
 F1 (eased camera transitions) → F2 (section-aware motion driver) →
 complete F4 / F5 (prediction + deterministic export).
 
@@ -299,16 +319,18 @@ on its own.
 
 ### Step 4 — Remix / mashup (gated)
 
-**Landed 2026-10-13** — the plan was approved and is now complete: B1–B7
-(agent backbone, expressiveness, robustness) plus A1–A7 (frontend
-ease-of-use). See `remix-mashup-2026-10.md` for the build notes; the two
-additions to `/api/audio/*` (`preview-audio`, `preview-file`) are in
-`tools/audio_routes_baseline.json` alongside B2's `/from-prompt`, which had
-been left out of the baseline when it shipped.
+**Status 2026-10-22: ✅ Complete.** Approved and built (B1–B7, A1–A7),
+plus the Windows e2e pass. See `remix-mashup-2026-10.md` for the build
+notes; the two additions to `/api/audio/*` (`preview-audio`,
+`preview-file`) are in `tools/audio_routes_baseline.json` alongside B2's
+`/from-prompt`, which had been left out of the baseline when it shipped.
 
 ## 3. Decisions needed from the owner
-1. Approve this sequencing (Step 2 order) or reprioritize.
-2. Approve the remix/mashup plan for build, or defer it.
+1. Approve this sequencing (Step 2 order) or reprioritize. — **Resolved
+   2026-10-22:** the written order is the order work shipped in; nothing
+   has been done out of it.
+2. Approve the remix/mashup plan for build, or defer it. — **Resolved
+   2026-10-22:** the plan is complete (B1–B7, A1–A7) and on `main`.
 3. Agent attribution: **Resolved 2026-10-13** — no change to the AGENTS.md
    table (correct as-is); the per-commit trailer always reflects the agent
    actually used, which rotates between Cline and Kilo.
@@ -326,15 +348,19 @@ just landed, a flat tail means it is still open.
 
 | Lane | Status | Signal |
 | --- | --- | --- |
-| Visualizer (2.x) | Mostly shipped; 2.6 / 2.8 / 2.9 await Windows verification | 2026-10-13 spike (6 docs) |
-| Motion lane (F1–F5) | F1–F5 landed; D40 delegation open | 2026-10-21 spike (6 docs) |
+| Visualizer (2.x) | All landed; 2.3 / 2.8 / 2.9 owe Windows verification | 2026-10-13 spike (6 docs) |
+| Motion lane (F1–F5) | All landed; D40 delegation scoped | 2026-10-21 spike (6 docs) |
 | Remix / mashup | Complete (B1–B7, A1–A7) | flat |
 | Docs / hygiene | Active: knowledge-library reconcile, AGENTS.md trim, tracker | 2026-10-22 (1 doc) |
 | Backend / infra | Steady; queue, audio API, ComfyUI hardening | flat |
 | 3D path (Q1) | Open: Unity vs Blender vs Three.js unresolved | no new docs |
 
-**Rule of thumb:** work the top of this table first, and re-run the tracker
-at each milestone rather than re-ranking by memory.
+**Status 2026-10-22: everything that shipped is on `main` and the gates
+are green.** The only two things still owed are (a) the D40 layering task
+(`motion/` → vizMotion primitives), scoped and owner-approved, and (b)
+Windows verification of 2.3 / 2.8 / 2.9 — owed to the owner's machine, not
+a code gap. Re-run `python tools/docs-tracker.py` at each milestone
+rather than re-ranking by memory.
 
 ## Build notes
 
