@@ -124,11 +124,10 @@ Run `python tools/validate-knowledge-tags.py` before committing any change to th
 
 ## 6a. Tooling
 
-Six tools maintain the vault. They share one link parser
-(`tools/_kb_links.py`) and one token counter (`tools/_kb_tokens.py`), so
-they cannot disagree about how a link is spelled or how long a document
-is.
-
+Eight tools maintain the vault. They share one link parser
+(`tools/_kb_links.py`), one token counter (`tools/_kb_tokens.py`) and one
+markdown primitive set (`tools/_kb_markdown.py`), so they cannot disagree
+about how a link is spelled, how long a document is, or what a table is.
 | Tool | What it does |
 |------|--------------|
 | `tools/validate-knowledge-tags.py` | The gate. Frontmatter, taxonomy, tracker/index sync, orphans, dangling links, index gaps. Exits non-zero on a problem. |
@@ -137,6 +136,8 @@ is.
 | `tools/kb-context.py` | Exports the vault as agent context: `text`, `json`, `paths`, `summary`, `index`, with `--category` / `--type` / `--tag` / `--file` filters, `--neighborhood`, `--limit` and `--budget`. |
 | `tools/kb-tokens.py` | Token accounting and context-window sizing: how big the library is, for which model, and which models can hold it. |
 | `tools/kb-chunk.py` | Structure-aware chunking: headings first, code fences and tables atomic, sentences never split, no overlap by default. Emits a JSONL chunk index. |
+| `tools/kb-retrieval.py` | The retrievers: BM25, dense (`nomic-embed-text` via the local Ollama), and their Reciprocal Rank Fusion. Also chunk enrichment — heading-path prefix, and contextual document summaries. |
+| `tools/kb-eval.py` | The evaluation harness: cloze probes, LLM-written question sets, and the measured comparison of every retrieval configuration. |
 
 **`kb-context.py --format index` is the entry point for an agent.** It
 prints a routing table — title, type, category, tags and an estimated token
