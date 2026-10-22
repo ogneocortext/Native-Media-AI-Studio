@@ -378,6 +378,93 @@ def hyde_query(question: str, model: str, timeout: int = 120) -> str:
         return ""
 
 
+
+# ----------------------------------------------------------- reranking
+class CrossEncoderReranker:
+    """A cross-encoder reranker: scores a (query, passage) pair *jointly*.
+
+    A bi-encoder embeds the query and the passage separately, so a passage
+    can be retrieved for a query it never mentions in the same words. A
+    cross-encoder reads both together, which is why it can reorder a pool
+    that the first stage got right but in the wrong order — and why the
+    literature is split on it: a cross-encoder on top of hybrid is the
+    best single pipeline in one benchmark, and *regresses* in another
+    where the pool's lexical near-misses bias it. So it has to be
+    measured here.
+
+    Requires `transformers` and `torch`; without them the reranker
+    reports itself unavailable and the caller skips the configuration
+    rather than silently falling back to something else.
+    """
+
+    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                 max_length: int = 512):
+        self.model_name = model_name
+        self.max_length = max_length
+        self._model = None
+        self._tokenizer = None
+        self.available: bool | None = None
+
+    def _ensure(self) -> bool:
+        if self._model is not None:
+            return True
+        if self.available is False:
+            return False
+        try:
+            from transformers import (  # noqa: PLC0415
+                AutoModelForSequenceClassification,
+                AutoTokenizer,
+            )
+        except ImportError:
+            self.available = False
+            return False
+        try:
+            self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self._model = AutoModelForSequenceClassification.from_pretrained(
+                self.model_name
+            )
+            self._model.eval()
+            self.available = True
+        except Exception:
+            self.available = False
+            return False
+        return True
+
+    def score(self, query: str, passages: list[str],
+              batch_size: int = 32) -> list[float]:
+        """Relevance score for each passage against the query."""
+        if not passages or not self._ensure():
+            return [0.0] * len(passages)
+        import torch  # noqa: PLC0415
+
+        scores: list[float] = []
+        with torch.no_grad():
+            for start in range(0, len(passages), batch_size):
+                batch = passages[start:start + batch_size]
+                enc = self._tokenizer(
+                    [query] * len(batch), batch, padding=True, truncation=True,
+                    max_length=self.max_length, return_tensors="pt",
+                )
+                logits = self._model(**enc).logits
+                # A cross-encoder emits a single relevance logit; a
+                # two-logit head (query/relevance) is handled by taking the
+                # difference.
+                if logits.shape[-1] == 1:
+                    row = logits.squeeze(-1)
+                else:
+                    row = logits[:, -1] - logits[:, 0]
+                scores.extend(float(x) for x in row.tolist())
+        return scores
+
+    def rerank(self, query: str, candidates: list[int], passages: list[str],
+               k: int) -> list[int]:
+        """Reorder `candidates` (indices into `passages`) by relevance."""
+        if not candidates:
+            return []
+        scores = self.score(query, [passages[i] for i in candidates])
+        order = sorted(range(len(candidates)), key=lambda j: -scores[j])
+        return [candidates[j] for j in order[:k]]
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Dense and hybrid retrieval over the knowledge library.",

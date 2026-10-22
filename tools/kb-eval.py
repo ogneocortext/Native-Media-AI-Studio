@@ -97,6 +97,7 @@ DenseIndex = kr.DenseIndex
 document_summary = kr.document_summary
 contextualize = kr.contextualize
 hyde_query = kr.hyde_query
+CrossEncoderReranker = kr.CrossEncoderReranker
 
 
 # ---------------------------------------------------------------- probes
@@ -241,7 +242,7 @@ def score_fuse(bm25_scores, cosine_scores, k):
 
 
 def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
-             hyde_index=None):
+             hyde_index=None, reranker=None, rerank_pool=3):
     """Score the retrieval configurations on the same probes.
 
     `dense_index` is a DenseIndex over the same chunks; when present the
@@ -270,6 +271,8 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
         results["hybrid_score"] = []
     if hyde_index is not None:
         results["hyde"] = []
+    if reranker is not None:
+        results["reranked"] = []
 
     for probe_index, probe in enumerate(probes):
         # A written question set uses "question" and "fact"; a cloze probe
@@ -359,6 +362,18 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
             hctx = " ".join(chunks[i]["text"] for i in htop)
             results["hyde"].append(_score(probe, htop, hctx, answer_re, ngram,
                                           chunks, gold_doc))
+
+        if reranker is not None and dense_index is not None:
+            # --- reranked: take the hybrid pool, let a cross-encoder
+            # reorder it. The pool is wider than k so the reranker has
+            # something to work with.
+            pool = list(set(child_index.top(q, k * rerank_pool)
+                            + dense_index.top(query_text, k * rerank_pool)))
+            rtop = reranker.rerank(query_text, pool,
+                                    [c["text"] for c in chunks], k)
+            rctx = " ".join(chunks[i]["text"] for i in rtop)
+            results["reranked"].append(_score(probe, rtop, rctx, answer_re,
+                                             ngram, chunks, gold_doc))
 
     return results
 
@@ -624,6 +639,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--contextual", action="store_true",
                         help="Also score contextual retrieval: prepend each "
                              "document's LLM-written summary to its chunks")
+    parser.add_argument("--rerank", action="store_true",
+                        help="Also score a cross-encoder reranker over the "
+                             "hybrid pool")
+    parser.add_argument("--rerank-model",
+                        default="cross-encoder/ms-marco-MiniLM-L-6-v2",
+                        help="Cross-encoder to rerank with")
+    parser.add_argument("--rerank-pool", type=int, default=3,
+                        help="Pool multiplier for the reranker (default 3, so "
+                             "the reranker sees 3k candidates)")
     args = parser.parse_args(argv)
 
     counter = resolve_counter(REPO, None) if resolve_counter else None
@@ -705,9 +729,20 @@ def main(argv: list[str] | None = None) -> int:
             hyde_index.append(generated or p.get("query") or "")
         print(f"  HyDE: {len(hyde_index)} hypothetical answer(s) generated")
 
+    reranker = None
+    if args.rerank:
+        reranker = CrossEncoderReranker(args.rerank_model)
+        if not reranker._ensure():
+            print(f"  ! reranker unavailable: {args.rerank_model} "
+                  f"(needs transformers + torch)", file=sys.stderr)
+            reranker = None
+        else:
+            print(f"  Reranker: {args.rerank_model}")
+
     results = evaluate(chunks, parents, probes, args.k,
                        doc_texts={d["name"]: d["body"] for d in docs},
-                       dense_index=dense_index, hyde_index=hyde_index)
+                       dense_index=dense_index, hyde_index=hyde_index,
+                       reranker=reranker, rerank_pool=args.rerank_pool)
 
     if args.json:
         out = {}
@@ -735,7 +770,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{'doc@k':>8} {'MRR':>8} {'context':>11}")
     print(f"  {'-'*14} {'-'*10} {'-'*9} {'-'*8} {'-'*8} {'-'*11}")
     for name in ("child", "parent", "parent_child", "doc", "dense", "hybrid",
-                 "hybrid_score", "hyde"):
+                 "hybrid_score", "hyde", "reranked"):
         if name in results:
             summarize(name, results[name], args.k)
 
@@ -759,6 +794,8 @@ def main(argv: list[str] | None = None) -> int:
         print("  hybrid_score= BM25 + dense, fused by normalised score")
     if "hyde" in results:
         print("  hyde        = BM25 over an LLM-written hypothetical answer")
+    if "reranked" in results:
+        print("  reranked    = hybrid pool reordered by a cross-encoder")
     return 0
 
 
