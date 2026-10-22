@@ -78,6 +78,7 @@ format), it does not append a duplicate.
 
 | Model key | Resolution | Frames | FPS | Precision | Format | Expected VRAM | Status |
 |-----------|-----------|--------|-----|-----------|--------|---------------|--------|
+| `ltxv_2b` | 768×512 | 9 | 25 | fp8 | safetensors | ~4.46GB | ✅ **Verified** — Live E2E MP4 produced 2026-10-21 |
 | `ltxv_2b` | 512×512 | 24 | 12 | fp8 | safetensors | ~8GB | ⬜ pending |
 | `ltxv_2b` | 832×480 | 24 | 12 | fp8 | safetensors | ~10GB | ⬜ pending |
 | `ltx_2_3` | 512×512 | 24 | 12 | fp8 | safetensors | ~8GB | ⬜ pending |
@@ -358,6 +359,35 @@ If a model passes:
 3. Add workflow builder method (`_build_ltx_fp8_workflow`, `_build_mochi_workflow`)
 4. Expose via `/video-models` API endpoint
 5. Update frontend `VideoGenerationPage.tsx` model selector
+
+### 8.1 LTX 2.3 — Verified Implementation (2026-10-21)
+
+LTX Video 2.3 distilled (FP8) has been validated end-to-end on GTX 1070 Ti:
+
+| Check | Result |
+|-------|--------|
+| Backend path | ✅ `_build_ltx_workflow()` in `adapters/comfyui.py` |
+| Node validation | ✅ All 8 node types verified against installed ComfyUI build |
+| Live E2E test | ✅ Valid MP4 output (`NativeMediaAI_LTX_00003.mp4`, 171 KB, H.264) |
+| VRAM | ✅ 4.46 GB peak (fits 8GB with headroom) |
+| Resolution | ✅ 768×512 max (8GB-clamped, 16-aligned) |
+| Frames | ✅ 4n+1 snap (LTX VAE patch grid) |
+| Unit tests | ✅ 9 tests in `test_comfyui_workflow.py` |
+| Lint | ✅ Ruff clean |
+
+Workflow node graph:
+```
+UNETLoader(ltxv-2b-0.9.8-distilled-fp8)
+    → KSampler(model)
+CLIPLoader(t5-xxl-fp8, type:ltxv)
+    → CLIPTextEncode(positive) → LTXVConditioning(positive, frame_rate)
+    → CLIPTextEncode(negative) → LTXVConditioning(negative, frame_rate)
+LTXVConditioning → KSampler(positive, negative)
+EmptyLTXVLatentVideo(768×512×9) → KSampler(latent_image)
+KSampler → VAEDecode(samples)
+VAELoader(LTX23_video_vae_bf16) → VAEDecode(vae)
+VAEDecode → VHS_VideoCombine(format:video/h264-mp4)
+```
 
 ## See Also
 
