@@ -70,7 +70,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `hyperframes-results-improvement-2026.md`  → `#technical`, `#creative`, `#performance`
 - ✅ `wangp-local-video-generation-2026.md`  → `#technical`, `#ai`, `#performance`
 
-### 🎮 MCP & Platform Integrations (11/11 completed) ✅
+### 🎮 MCP & Platform Integrations (12/12 completed) ✅
 
 - ✅ `mcp-contracts-2026.md`  → `#platform`, `#mcp`
 - ✅ `unity-integration-2026.md`  → `#platform`, `#platform-unity`, `#3d`, `#audio`
@@ -83,6 +83,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `kilo-code-subagent-orchestration.md`  → `#platform`
 - ✅ `kilo-code-subagent-optimization.md`  → `#platform`
 - ✅ `ai-agent-navigation.md`  → `#platform`
+- ✅ `unity-audio-visualization-2026.md`  → `#platform`, `#platform-unity`,
+  `#audio`, `#visualization`
 
 ### 🎨 Creative & Visual (21/21 completed)
 
@@ -101,7 +103,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `design-auditing-2026.md`  → `#creative`, `#design`, `#testing`
 - ✅ `dark-ui-color-system-2026.md`  → `#creative`, `#design`
 - ✅ `shader-color-science-2026.md`  → `#creative`, `#visualization`, `#design`
-- ✅ `unity-audio-reactive-shader-research-2026.md`  → `#creative`, `#platform-unity`, `#3d`, `#audio`
+- ✅ `unity-audio-reactive-shader-research-2026.md`  → `#creative`,
+  `#platform-unity`, `#3d`, `#audio`
 - ✅ `visualization-vision-prompts.md`  → `#creative`, `#visualization`, `#ai`
 - ✅ `visualizer-ux-audit-2026-10.md`  → `#creative`, `#design`, `#visualization`, `#audio`
 - ✅ `audio-reactive-best-practices-2026.md`  → `#creative`, `#visualization`, `#audio`

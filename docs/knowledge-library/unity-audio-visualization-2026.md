@@ -1,6 +1,7 @@
 ---
 tags:
-  - unity
+  - platform
+  - platform-unity
   - audio
   - visualization
   - shader-graph
@@ -14,6 +15,7 @@ aliases:
   - Audio Reactive Unity
   - Unity Beat Sync
   - Unity DSP Timing
+type: source
 cssclasses:
   - technical-guide
   - unity-guide

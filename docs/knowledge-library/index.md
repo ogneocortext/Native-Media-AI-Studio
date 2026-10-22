@@ -62,6 +62,7 @@ date: 2026-09-30
 
 - [[mcp-contracts-2026|🤝 MCP Tool Contracts 2026]] — Canonical Unity/Ollama/Vision/HyperFrames tool schemas
 - [[unity-integration-2026|🎮 Unity MCP Integration]] — Canonical Unity workflow, render-path, hardware-fit, and operations guide
+- [[unity-audio-visualization-2026|🎮 Unity Audio Visualization 2026]] — Unity audio visualization reference (moved from docs/knowledge/)
 - [[blender-mcp|🧊 Blender MCP]] — Blender MCP integration for 3D scene construction
 - [[integration-ollama|🤖 Ollama Integration]] — Local LLM inference, tool calling, agent loop patterns
 - [[hunyuan3d-setup|🧊 Hunyuan3D-2mini Setup]] — ComfyUI 3D generation with Kijai wrapper
@@ -89,7 +90,6 @@ date: 2026-09-30
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
 - [[shader-color-science-2026|🎨 Shader Color Science 2026]] — GLSL color science: OKLCH, tonemapping, dithering for audio-reactive shaders
 - [[unity-audio-reactive-shader-research-2026|🎮 Unity Audio-Reactive Shader Research 2026]] — AudioLink patterns, FFT-band textures, GPU-driven beat-reactive HLSL for URP
-- [[unity-audio-visualization-2026|🎮 Unity Audio Visualization 2026]] — Unity audio visualization reference (moved from docs/knowledge/)
 - [[video-to-glsl-shader-recreation-2026|🎞️ Video-to-GLSL Shader Recreation 2026]] — shader-skills verified GLSL library (186 functions) + the Video 2 GLSL recreation workflow, mapped to the FX shader lane; local-VLM critique routing with Gemma 4 E2B (NEW 2026-10-21)
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
@@ -151,7 +151,7 @@ date: 2026-09-30
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 12 documents |
 || `#technical/*` | System implementation & code | 16 documents |
-|| `#platform/*` | Platform-specific integrations | 11 documents |
+|| `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 12 documents |
@@ -163,7 +163,7 @@ date: 2026-09-30
 || Tag | Description | Documents |
 ||-----|-------------|-----------|
 || `#platform-youtube` | YouTube-specific content | 4 documents |
-|| `#platform-unity` | Unity-specific integration | 2 documents |
+|| `#platform-unity` | Unity-specific integration | 3 documents |
 || `#platform-blender` | Blender-specific | 3 documents |
 || `#platform-comfyui` | ComfyUI-specific | 6 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
@@ -172,8 +172,8 @@ date: 2026-09-30
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
-|| `#audio` | Audio analysis & processing | 18 documents |
-|| `#visualization` | Visualization techniques | 15 documents |
+|| `#audio` | Audio analysis & processing | 19 documents |
+|| `#visualization` | Visualization techniques | 16 documents |
 || `#3d` | 3D generation & rendering | 13 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
