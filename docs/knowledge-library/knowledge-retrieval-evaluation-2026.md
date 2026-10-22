@@ -258,6 +258,9 @@ python tools/kb-eval.py --questions docs/knowledge-library/kb-eval-questions.jso
 python tools/kb-eval.py --questions docs/knowledge-library/kb-eval-questions.json --enrich --dense
 python tools/kb-eval.py --questions docs/knowledge-library/kb-eval-questions.json --sweep
 python tools/kb-eval.py --generate-questions     # rewrite the question set
+# measure a different embedding model against this corpus (see §7):
+python tools/kb-eval.py --questions docs/knowledge-library/kb-eval-questions.json \
+    --dense --enrich --rerank --target 200 --k 8 --embed-model embeddinggemma-2:270m
 ```
 
 `tools/kb-retrieval.py` is the serving side: BM25, the dense index, RRF
@@ -282,6 +285,53 @@ fusion, and the chunk enrichments.
 - SemEval-2026 Task 8 (Jun 2026) — HyDE improves BM25 by 26.7% but dense
   by only 4.0%; hybrid gives complementary signals.
 - arXiv:2402.01613 — *Nomic Embed*. The 8192-context embedder used here.
+
+---
+
+## 7. Embedding model comparison (2026-10-22)
+
+**Question:** does `embeddinggemma-2:270m` (Google DeepMind, 740M total / 270M
+text backbone, 768d, MRL-truncatable) beat the installed `nomic-embed-text:v1.5`
+on this corpus? Its MTEB English score is 68.46 vs nomic's ~63.6, so the paper
+suggests yes. Measured, it does not transfer.
+
+Same pipeline, same 60 questions, same flags
+(`--dense --enrich --rerank --target 200 --k 8`), library embedded fresh for
+each model:
+
+| configuration | nomic | embeddinggemma-2:270m |
+| --- | --- | --- |
+| dense | 80.0% answer / 83.3% doc / **0.697** MRR | 71.7% / 86.7% / 0.681 |
+| hybrid | 78.3% / 90.0% / 0.768 | 78.3% / **93.3%** / 0.802 |
+| hybrid_score | 80.0% / 88.3% / 0.786 | 80.0% / 91.7% / 0.818 |
+| **reranked** (recommended) | 81.7% / **93.3%** / **0.868** | **83.3%** / 91.7% / 0.840 |
+| context (reranked) | 1,417 tok | **1,358 tok** |
+
+**Findings:**
+
+- **Dense alone is *worse* with embeddinggemma-2** — 80.0% → 71.7% answer@8.
+  The +5pt MTEB English gap flips on this corpus, consistent with §3's finding
+  that lexical signals dominate here and dense is not the point of the stack.
+- **The recommended config is a tie.** embeddinggemma-2 edges answer@8 by
+  +1.6; nomic edges doc@8 by +1.6 and MRR by +0.028. Within run-to-run noise.
+- **embeddinggemma-2's one clear win is context size** — ~10% smaller at every
+  row (1,056 vs 1,518 tok dense). Consistent with its compactness, not a quality
+  gain.
+
+**Decision: keep nomic.** It is already installed, cached, and measured; the
+reranked pipeline is published against its vectors. embeddinggemma-2 is a
+legitimate model but not a drop-in upgrade here. Revisit if the library grows
+enough that the 3× MRL storage saving (256d: 60.41 vs 61.36 MTEB) matters, or
+if a non-English or code-heavy document set is added — those are the axes
+where its strengths live.
+
+**Reproducing:** `--embed-model` was added to `kb-eval.py` so any embedding
+model can be measured against this corpus without editing code:
+
+```bash
+python tools/kb-eval.py --questions docs/knowledge-library/kb-eval-questions.json \
+    --dense --enrich --rerank --target 200 --k 8 --embed-model embeddinggemma-2:270m
+```
 - The rag-eval experiment (Apr 2026) — hybrid + MS-MARCO cross-encoder
   *regressed* against plain hybrid, because BM25's near-misses in the pool
   biased the reranker. Reproduced here as a different failure: the reranker

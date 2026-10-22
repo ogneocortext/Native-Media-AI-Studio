@@ -620,8 +620,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="Sweep chunk target and k, reporting the "
                              "trade-off between passage recall and context size")
     parser.add_argument("--dense", action="store_true",
-                        help="Also score the dense (nomic) and hybrid (RRF) "
+                        help="Also score the dense and hybrid (RRF) "
                              "retrievers. Needs the local Ollama.")
+    parser.add_argument("--embed-model", default="nomic-embed-text:v1.5",
+                         help="Embedding model for the dense/hybrid scores "
+                              "(default nomic-embed-text:v1.5).")
     parser.add_argument("--enrich", action="store_true",
                         help="Prepend each chunk's heading path to its text "
                              "before indexing (contextual chunk headers)")
