@@ -44,6 +44,10 @@ TOKENIZER_CANDIDATES: dict[str, tuple[str, ...]] = {
         "huggingface_cache/hub/models--unsloth--gemma-4-e2b-it-unsloth-bnb-4bit"
         "/snapshots/*/tokenizer.json",
     ),
+    "gemma-4-e4b-it": (
+        "huggingface_cache/hub/models--unsloth--gemma-4-e4b-it-unsloth-bnb-4bit"
+        "/snapshots/*/tokenizer.json",
+    ),
     "qwen3": (
         "tools/checkpoints/Qwen3-Embedding-0.6B/tokenizer.json",
         "huggingface_cache/hub/models--Qwen--Qwen3-Embedding-0.6B/snapshots/*/tokenizer.json",
@@ -55,6 +59,25 @@ TOKENIZER_CANDIDATES: dict[str, tuple[str, ...]] = {
         "huggingface_cache/hub/models--unsloth--phi-4-mini-instruct-unsloth-bnb-4bit"
         "/snapshots/*/tokenizer.json",
     ),
+}
+
+# Which local tokenizer applies to which Ollama model.
+#
+# "exact"      — this is the model's own tokenizer.
+# "family"     — the same tokenizer family, but not the model's exact
+#                vocabulary; close, and flagged as a proxy.
+# None         — no local tokenizer; the count is an estimate.
+MODEL_TOKENIZERS: dict[str, tuple[str | None, str]] = {
+    "gemma4:e2b-it-qat": ("gemma-4-e2b-it", "exact"),
+    "gemma4:e4b-it": ("gemma-4-e4b-it", "exact"),
+    "gemma4-vision-optimized-latest": ("gemma-4-e2b-it", "family"),
+    "qwen3.5:4b": ("qwen3", "family"),
+    "qwen3.5:9b": ("qwen3", "family"),
+    "minicpm-v:8b": (None, "estimate"),
+    "minicpm-v:latest": (None, "estimate"),
+    "llama3.2:3b": (None, "estimate"),
+    "nomic-embed-text:v1.5": (None, "estimate"),
+    "deepseek-r1:7b": ("qwen3", "family"),
 }
 
 # The default tokenizer to use when none is named: the studio's own model.

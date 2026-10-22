@@ -23,6 +23,7 @@ from _kb_markdown import (  # noqa: E402
 from _kb_tokens import (  # noqa: E402
     CHARS_PER_TOKEN_MARKDOWN,
     CONTEXT_CLIFF_TOKENS,
+    MODEL_TOKENIZERS,
     PRACTICAL_CHUNK_CEILING,
     humanize_tokens,
     resolve_counter,
@@ -146,3 +147,40 @@ def test_repo_local_tokenizer_is_discoverable():
         assert abs(exact - estimate) / max(1, exact) < 0.35
     else:
         pytest.skip("no local tokenizer on this machine")
+
+
+class TestPerModelSizing:
+    """A token count belongs to a tokenizer, so each model gets its own."""
+
+    def test_gemma_is_mapped_to_its_own_tokenizer(self):
+        name, basis = MODEL_TOKENIZERS["gemma4:e2b-it-qat"]
+        assert name == "gemma-4-e2b-it"
+        assert basis == "exact"
+
+    def test_qwen_is_mapped_to_its_family(self):
+        name, basis = MODEL_TOKENIZERS["qwen3.5:4b"]
+        assert name == "qwen3"
+        assert basis == "family"
+
+    def test_models_without_a_local_tokenizer_are_estimates(self):
+        for model in ("llama3.2:3b", "minicpm-v:8b"):
+            name, basis = MODEL_TOKENIZERS[model]
+            assert name is None
+            assert basis == "estimate"
+
+    def test_tokenizers_disagree_on_the_same_text(self):
+        """The whole point: one number cannot serve every model.
+
+        A haystack sized for one tokenizer under- or over-fills another's
+        (arXiv:2605.02173, 2026).
+        """
+        root = Path(__file__).resolve().parents[3]
+        gemma = resolve_counter(root, "gemma-4-e2b-it")
+        qwen = resolve_counter(root, "qwen3")
+        estimate = resolve_counter(root, "estimate")
+        if not (gemma.exact and qwen.exact):
+            pytest.skip("tokenizers not available on this machine")
+        sample = ("# Knowledge library\n\nThe studio is a full-stack "
+                  "music-video creation suite with a FastAPI backend.\n")
+        counts = {gemma.count(sample), qwen.count(sample), estimate.count(sample)}
+        assert len(counts) > 1, "tokenizers should not agree exactly"

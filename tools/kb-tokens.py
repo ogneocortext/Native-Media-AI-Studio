@@ -45,6 +45,7 @@ try:
         CONTEXT_CLIFF_TOKENS,
         FRONTIER_CONTEXT_WINDOWS,
         LOCAL_CONTEXT_WINDOWS,
+        MODEL_TOKENIZERS,
         PRACTICAL_CHUNK_CEILING,
         humanize_tokens,
         measure_ratio,
@@ -57,6 +58,7 @@ except ImportError:  # pragma: no cover
     CONTEXT_CLIFF_TOKENS = 2_500
     FRONTIER_CONTEXT_WINDOWS = {}
     LOCAL_CONTEXT_WINDOWS = {}
+    MODEL_TOKENIZERS = {}
     PRACTICAL_CHUNK_CEILING = 8_000
     humanize_tokens = str
     measure_ratio = lambda c, s: c.chars_per_token  # noqa: E731
@@ -248,31 +250,87 @@ def print_report(rep, counter, docs) -> None:
           "Route to it.")
 
 
-def print_models(counter) -> None:
-    total = None
+def library_size(root: Path, tokenizer_name: str) -> tuple[int, float]:
+    """The library's token count under one tokenizer, and its ratio.
+
+    `tokenizer_name` is a logical tokenizer name, or "estimate" to force the
+    calibrated heuristic. Returns (tokens, chars_per_token) measured over
+    the whole corpus.
+    """
+    counter = resolve_counter(root, tokenizer_name)
     docs = collect()
-    counter_ = counter
-    total = sum(counter_.count(d["body"]) for d in docs)
+    total_chars = 0
+    total_tokens = 0
+    for d in docs:
+        total_chars += len(d["body"])
+        total_tokens += counter.count(d["body"])
+    ratio = (total_chars / total_tokens) if total_tokens else 0.0
+    return total_tokens, ratio
+
+
+def print_models(counter, root: Path) -> None:
+    """Per-model sizing: the library measured with each model's own tokenizer.
+
+    A token count belongs to a tokenizer, not to the text. The same corpus
+    measures differently under each model's vocabulary, so applying one
+    model's count to another's window is how a haystack comes to
+    under- or over-fill (arXiv:2605.02173, 2026).
+    """
     windows = ollama_context_windows()
-    print("[MODELS] Context windows vs. the whole library\n")
-    print(f"  Library total: {total:,} tokens "
-          f"(counted with {counter.model})\n")
-    print(f"  {'Model':<30} {'Window':>12}  {'Whole library?':<16} Verdict")
+    print("[MODELS] The library against each model's context window\n")
+
+    # Cache the corpus count per tokenizer so each is computed once.
+    sizes: dict[str, tuple[int, float]] = {}
+
+    def size_for(name: str | None) -> tuple[int, float]:
+        key = name or "estimate"
+        if key not in sizes:
+            sizes[key] = library_size(root, name or "estimate")
+        return sizes[key]
+
+    exact_total, exact_ratio = size_for(counter.model)
+    print(f"  Counted with {counter.model} "
+          f"({'exact' if counter.exact else 'estimate'}): "
+          f"{exact_total:,} tokens, {exact_ratio:.2f} chars/token\n")
+
+    print(f"  {'Model':<28} {'Window':>11} {'Library':>11} {'Ratio':>7}  "
+          f"{'Basis':<9} Verdict")
+    print(f"  {'-'*28} {'-'*11} {'-'*11} {'-'*7}  {'-'*9} -------")
+
+    rows = []
     for model, window in sorted(windows.items(), key=lambda x: -x[1]):
+        tok_name, basis = MODEL_TOKENIZERS.get(model, (None, "estimate"))
+        total, ratio = size_for(tok_name)
         if window >= total:
-            verdict = "fits"
-            fits = "yes"
+            verdict = f"fits, {window - total:,} spare"
         else:
-            factor = total / window
-            verdict = f"needs {factor:.1f}x"
-            fits = "no"
-        print(f"  {model:<30} {window:>12,}  {fits:<16} {verdict}")
-    print("\n  Frontier tiers (benchr.org, September 2026):")
+            verdict = f"needs {total / window:.2f}x"
+        rows.append((model, window, total, ratio, basis, verdict))
+
+    for model, window, total, ratio, basis, verdict in rows:
+        print(f"  {model:<28} {window:>11,} {total:>11,} {ratio:>7.2f}  "
+              f"{basis:<9} {verdict}")
+
+    # The spread between tokenizers, made visible.
+    if len(sizes) > 1:
+        print("\n  Spread between tokenizers on the same text:")
+        for key, (total, ratio) in sorted(sizes.items(),
+                                         key=lambda kv: kv[1][0]):
+            label = key if key != "estimate" else "estimate (chars/3.9)"
+            print(f"    {label:<20} {total:>9,} tokens  "
+                  f"{ratio:.2f} chars/token")
+
+    est_total, est_ratio = size_for(None)
+    print("\n  Frontier tiers (benchr.org, September 2026) — sized with the "
+          f"estimate ({est_ratio:.2f} chars/token):")
     for model, window in sorted(FRONTIER_CONTEXT_WINDOWS.items(),
                                 key=lambda x: -x[1]):
-        fits = "yes" if window >= total else "no"
-        print(f"  {model:<30} {window:>12,}  {fits:<16} "
-              f"{'' if fits else f'needs {total / window:.1f}x'}")
+        fits = "yes" if window >= est_total else "no"
+        extra = "" if fits else f" (needs {est_total / window:.2f}x)"
+        print(f"  {model:<28} {window:>11,}  {fits:<4}{extra}")
+
+    print("\n  A window is a ceiling, not a working size: the context cliff is "
+          f"~{CONTEXT_CLIFF_TOKENS:,} tokens of retrieved context.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -299,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
     docs = collect()
 
     if args.format == "models":
-        print_models(counter)
+        print_models(counter, REPO)
         return 0
 
     filters = {"categories": args.category, "types": args.type,

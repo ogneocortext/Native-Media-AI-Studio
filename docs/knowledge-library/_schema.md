@@ -156,14 +156,23 @@ gaps: orphans, missing typed relations, one-way links), **explore**
 "Tokens" are a property of a *model's tokenizer*, not of text: the same
 corpus measures 0.9–1.2 tokens per character across vendors, a 35% spread
 (arXiv:2605.02173, 2026). So the tools count exactly when a local
-tokenizer is available (the studio has one for `gemma-4-e2b-it`, the
-studio's own model) and estimate transparently when it is not.
+tokenizer is available (the studio has one for `gemma-4-e2b-it`, its own
+model) and estimate transparently when it is not — and `kb-tokens.py
+--format models` reports **each local model with its own tokenizer**,
+because one number cannot serve every model.
 
 ```bash
-python tools/kb-tokens.py                 # the report: totals, per-category
-python tools/kb-tokens.py --format models # which models can hold the whole library
-python tools/kb-chunk.py --format stats   # the chunking plan
+python tools/kb-tokens.py                  # totals, per category and type
+python tools/kb-tokens.py --format models  # per-model sizing, live context windows
+python tools/kb-chunk.py --format stats    # the chunking plan
 ```
+
+Measured on this vault: **329,670 tokens** under gemma-4's tokenizer
+(3.57 chars/token), **309,464** under Qwen3's (3.80), **301,683** by
+estimate (3.90) — a 9.2% spread on identical text. The library fits the
+three 1M-window cloud models and **none** of the local ones: `qwen3.5:9b`
+(262,144) needs 1.18×, `gemma4:e2b-it-qat` (131,072) needs 2.52×,
+`minicpm-v:8b` (32,768) needs 9.21×.
 
 A context window is a ceiling, not a working size. Quality falls off a
 "context cliff" past roughly 2,500 tokens of retrieved context even on a
