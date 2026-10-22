@@ -1,6 +1,6 @@
 {
   "bpm": 136,
-  "bpmNote": "Target was 126; rendered at a stable 136.",
+  "bpmNote": "Flow/Lyria v1 render: target was 126, rendered at a stable 136 — the 136 in this file belongs to THAT render. The Suno Extended V2 render measures 123.0 BPM (verified 2026-10-22: studio tracker; a forced 126 prior collapses to the same 494-beat grid, median interval 488 ms). A sandbox tempogram read of 126.0 for Extended V2 was a fixed-120-prior artifact.",
   "durationSec": 167,
   "hasLrc": false,
   "id": "unproductive-valley-phonk",

@@ -87,7 +87,7 @@
   ],
   "variant": "v3 / v3.5 (lyrics identical on both renders)",
   "bpm": 150,
-  "bpmNote": "Stated in both renders' Suno style prompts ('locked 150 BPM pulse'); not independently measured.",
+  "bpmNote": "Stated in both renders' Suno style prompts (150 BPM). Measured 2026-10-22 on the v3.5 render: 152.0 BPM (studio tracker), 147.7–152.0 across the sandbox analyzer's halves — within ~1.3% of the prompted tempo.",
   "renders": [
     {
       "url": "https://suno.com/song/b107c8d6-2f38-4083-9692-8182754a18fc",

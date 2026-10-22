@@ -45,12 +45,21 @@ type: concept
 ## 2. Practice rules (evidence from the Unproductive production)
 
 **R1 — A board's tempo is a measured beat grid, never metadata.**
-On Unproductive, three numbers claimed to be the tempo: the lyric
-library's `bpm: 136` (its own note: "Target was 126; rendered at a
-stable 136"), the audio analyzer's 123.0, and the hand-measured truth
-for the render actually cut, **126.0 BPM**. The board must carry a
-verified grid plus a conflict flag when sources disagree, and panel
-timing anchors to the grid — not to estimated durations.
+On Unproductive, three numbers claimed to be the tempo of the
+render actually cut (Suno Extended V2): the lyric library's
+`bpm: 136` — which belongs to the earlier Flow/Lyria v1 render (its
+"Target was 126" note is that render's too) — a sandbox tempogram
+read of 126.0, and the studio tracker's **123.0 BPM**. A 2026-10-22
+verification pass settled it for 123.0: forcing a 126 prior in the
+tracker collapses back to the identical 494-beat grid (median
+interval 488 ms), and the 126.0 read traced to the sandbox
+analyzer's fixed 120 BPM prior on the full mix (its tempo code was
+fixed the same day to the envelope-first two-pass logic). This
+section originally printed 126.0 as "hand-measured truth" — it was
+neither hand-measured nor true; the correction is the rule working
+as intended. The board must carry a verified grid plus a conflict
+flag when sources disagree, and panel timing anchors to the grid —
+not to estimated durations.
 (Complements the parked madmom A/B: `beat_confidence()` measures grid
 regularity, not accuracy; a board needs the accuracy-checked number.)
 
@@ -158,9 +167,11 @@ per-render prompts, now stored in every entry's `renders[]`).
 ## 5. Worked example — Unproductive, Extended V2 (the V5 cut)
 
 The render actually cut: Suno "Unproductive (Valley Phonk) Extended
-V2", 240.0 s, **hand-measured 126.0 BPM** (analyzer 123.0; library
-entry 136 for the shorter Flow v1 render — three numbers, one song
-family; R1 exists because of exactly this). Night-drive direction:
+V2", 240.0 s, **123.0 BPM** (studio tracker, verified 2026-10-22 —
+see R1; the library entry's 136 belongs to the shorter Flow v1
+render, and a sandbox tempogram read of 126.0 was a fixed-prior
+artifact — three numbers, one song family; R1 exists because of
+exactly this). Night-drive direction:
 desert highways, Phoenix skyline, neon, palm trees. Section map from
 the phonk lyric set (32 lines), as storyboarded:
 

@@ -1,6 +1,6 @@
 {
   "bpm": 140,
-  "bpmNote": "Lyric sheet tags the intro as a 'locked 140 BPM groove'.",
+  "bpmNote": "Lyric sheet tags the intro as a 'locked 140 BPM groove', and both Suno prompts state 140 BPM. Measured 2026-10-22 on the V2 render: the grid is 103.4 BPM (both analyzers agree; onset autocorrelation 0.73 at 103.4 vs 0.17 at 140, and a forced 140 prior collapses to 103.4) — Suno did not render at the prompted tempo.",
   "durationSec": 180,
   "hasLrc": false,
   "id": "unproductive-v6-mini",
