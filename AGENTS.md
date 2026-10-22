@@ -280,6 +280,11 @@ and in this repo it has been wrong.
 Multiple agents commit to this repo, so every commit message ends with a
 trailer naming the authoring agent. This is how the user tracks who did what.
 
+Measure it with `python tools/agent-contribution-report.py` (per-agent
+commits, areas and churn, from the trailers). Before pushing a batch, run
+`python tools/agent-contribution-report.py --check` — it fails if any
+unpushed commit names no agent.
+
 | Agent | Trailer |
 |---|---|
 | Orion (research/handoff agent) | `Co-authored-by: Orion <orion@hatch.local>` |
