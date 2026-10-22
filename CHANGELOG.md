@@ -48,9 +48,27 @@ that navigates to the relevant page.
 All empty states were consolidated into a new shared
 `EmptySection` component in `components/common/EmptySection.tsx`,
 exported from `components/common`, which renders a centered icon,
-muted title text, and an optional action button. This removed ~35
-lines of duplicated JSX and gives a single place to restyle empty
-states app-wide.
+muted title text, optional description, and an optional action button.
+This removed ~35 lines of duplicated JSX and gives a single place to
+restyle empty states app-wide.
+
+A new `ConfirmDialog` component was added in
+`components/common/ConfirmDialog.tsx` for destructive action
+confirmation.
+
+`DataManagementPage` was further improved:
+- Each tab now loads independently — a single endpoint failure no
+  longer blanks the whole page; per-tab error banners with Retry
+  buttons are shown instead.
+- Per-tab loading states show spinners on individual tabs rather than
+  blocking the whole page.
+- Delete actions added to prompts and prompt history rows with
+  confirmation dialogs.
+- Favorite toggle added to prompts and visuals rows.
+- Copy buttons added to preference values.
+- Search/filter inputs added to prompts and visuals tables.
+- Empty states now include helpful descriptions.
+- "No preferences found" now includes an "Open Settings" action.
 
 ### Changed - Ollama 0.40.1 (Windows serving fixes, no surface change)
 

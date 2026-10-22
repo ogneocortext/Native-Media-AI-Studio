@@ -1,10 +1,10 @@
 /**
  * EmptySection — consistent empty-state pattern used across the studio.
  *
- * Renders a centered icon above a muted text label, with an optional action
- * button beneath. Use this instead of inline <div>+<Icon>+text blocks so
- * every empty state looks identical and a single style change ripples
- * everywhere.
+ * Renders a centered icon above muted text (title + optional description),
+ * with an optional action button beneath. Use this instead of inline
+ * <div>+<Icon>+text blocks so every empty state looks identical and a single
+ * style change ripples everywhere.
  */
 import React from "react";
 
@@ -17,6 +17,8 @@ interface EmptySectionAction {
 interface EmptySectionProps {
   icon: React.ReactNode;
   title: string;
+  /** Optional subtitle shown beneath the title. */
+  description?: string;
   /** Extra text size override; default is text-sm. */
   size?: "sm" | "base";
   /** Icon size; default is 32. */
@@ -28,6 +30,7 @@ interface EmptySectionProps {
 export function EmptySection({
   icon,
   title,
+  description,
   size = "sm",
   iconSize = 32,
   action,
@@ -41,11 +44,14 @@ export function EmptySection({
             : icon}
         </div>
       )}
-      {title}
+      <div className="text-base font-medium text-foreground mb-1">{title}</div>
+      {description && (
+        <p className="text-muted text-xs max-w-xs mx-auto mb-4">{description}</p>
+      )}
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-4 px-4 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs font-medium hover:bg-accent/20 transition-colors flex items-center gap-1.5 mx-auto shrink-0"
+          className="px-4 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs font-medium hover:bg-accent/20 transition-colors flex items-center gap-1.5 mx-auto shrink-0"
           aria-label={action.label}
         >
           {action.icon && (

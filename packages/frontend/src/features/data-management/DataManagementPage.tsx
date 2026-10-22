@@ -1,14 +1,37 @@
 /**
  * Data Management — dashboard for saved prompts, visuals, sessions, tracks,
  * saved scenes, prompt history, and preferences overview.
+ *
+ * Each tab loads independently so one endpoint failure never blanks the page.
+ * Empty states use the shared EmptySection with actions and descriptions.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Table, Button, Card } from "tabler-react";
-import { EmptySection } from "../../components/common";
-import { RefreshCw, FileText, Activity, Image, Music, Box, Settings, Plus, Play, ArrowRight, Upload } from "lucide-react";
-import { formatBytes } from "../../utils/format";
+import {
+  EmptySection,
+  ConfirmDialog,
+} from "../../components/common";
+import {
+  RefreshCw,
+  FileText,
+  Activity,
+  Image,
+  Music,
+  Box,
+  Settings,
+  Plus,
+  Play,
+  ArrowRight,
+  Upload,
+  Trash2,
+  Copy,
+  Star,
+  Edit3,
+  AlertCircle,
+} from "lucide-react";
+import { formatBytes, formatDate } from "../../utils/format";
 import {
   getPrompts,
   getAIVisuals,
@@ -17,6 +40,9 @@ import {
   listSavedScenes,
   getPromptHistory,
   getPreferences,
+  deletePrompt,
+  togglePromptFavorite,
+  deletePromptVersion,
   type StoredPrompt,
   type AIVisualRecord,
   type GenerationSession,
@@ -26,65 +52,115 @@ import {
 
 type TabKey = "prompts" | "visuals" | "sessions" | "tracks" | "scenes" | "history" | "preferences";
 
+interface TabState {
+  data: unknown;
+  error: string | null;
+  loading: boolean;
+  loaded: boolean;
+}
+
 export function DataManagementPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>("prompts");
-  const [loading, setLoading] = useState(false);
-  const [prompts, setPrompts] = useState<StoredPrompt[]>([]);
-  const [visuals, setVisuals] = useState<AIVisualRecord[]>([]);
-  const [sessions, setSessions] = useState<GenerationSession[]>([]);
-  const [tracks, setTracks] = useState<APITrack[]>([]);
-  const [scenes, setScenes] = useState<
-    Array<{ filename: string; path: string; size: number; modified: string }>
-  >([]);
-  const [history, setHistory] = useState<PromptHistoryEntry[]>([]);
-  const [preferences, setPreferences] = useState<Record<string, unknown>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [tabStates, setTabStates] = useState<Record<TabKey, TabState>>({
+    prompts: { data: null, error: null, loading: true, loaded: false },
+    visuals: { data: null, error: null, loading: true, loaded: false },
+    sessions: { data: null, error: null, loading: true, loaded: false },
+    tracks: { data: null, error: null, loading: true, loaded: false },
+    scenes: { data: null, error: null, loading: true, loaded: false },
+    history: { data: null, error: null, loading: true, loaded: false },
+    preferences: { data: null, error: null, loading: true, loaded: false },
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    tab: TabKey;
+    id: string;
+    label: string;
+    onConfirm: () => void;
+  } | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadTab = useCallback(async (tab: TabKey) => {
+    setTabStates((prev) => ({ ...prev, [tab]: { ...prev[tab], loading: true, error: null } }));
     try {
-      const [
-        promptsData,
-        visualsData,
-        sessionsData,
-        tracksData,
-        scenesData,
-        historyData,
-        prefsData,
-      ] = await Promise.all([
-        getPrompts(),
-        getAIVisuals(),
-        getSessions(),
-        fetchTracks(),
-        listSavedScenes(),
-        getPromptHistory(),
-        getPreferences(),
-      ]);
-      setPrompts(promptsData);
-      setVisuals(visualsData);
-      setSessions(sessionsData);
-      setTracks(tracksData);
-      setScenes(scenesData.scenes || []);
-      setHistory(historyData);
-      setPreferences(prefsData);
-      setLastRefreshed(new Date());
+      let data: unknown;
+      switch (tab) {
+        case "prompts":
+          data = await getPrompts();
+          break;
+        case "visuals":
+          data = await getAIVisuals();
+          break;
+        case "sessions":
+          data = await getSessions();
+          break;
+        case "tracks":
+          data = await fetchTracks();
+          break;
+        case "scenes": {
+          const scenesData = await listSavedScenes();
+          data = scenesData.scenes || [];
+          break;
+        }
+        case "history":
+          data = await getPromptHistory();
+          break;
+        case "preferences":
+          data = await getPreferences();
+          break;
+      }
+      setTabStates((prev) => ({
+        ...prev,
+        [tab]: { data, error: null, loading: false, loaded: true },
+      }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
+      setTabStates((prev) => ({
+        ...prev,
+        [tab]: {
+          data: null,
+          error: e instanceof Error ? e.message : String(e),
+          loading: false,
+          loaded: true,
+        },
+      }));
     }
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    Object.keys(tabStates).forEach((key) => {
+      const tab = key as TabKey;
+      if (!tabStates[tab].loaded && !tabStates[tab].loading) {
+        loadTab(tab);
+      }
+    });
+  }, []);
 
-  const formatDate = (d?: string) => (d ? new Date(d).toLocaleString() : "-");
-  const truncate = (t: string, n = 60) =>
-    t.length > n ? `${t.substring(0, n)}...` : t;
+  const reloadTab = useCallback((tab: TabKey) => {
+    loadTab(tab);
+  }, [loadTab]);
+
+  const prompts = (tabStates.prompts.data as StoredPrompt[] ?? []) as StoredPrompt[];
+  const visuals = (tabStates.visuals.data as AIVisualRecord[] ?? []) as AIVisualRecord[];
+  const sessions = (tabStates.sessions.data as GenerationSession[] ?? []) as GenerationSession[];
+  const tracks = (tabStates.tracks.data as APITrack[] ?? []) as APITrack[];
+  const scenes = (tabStates.scenes.data as Array<{ filename: string; path: string; size: number; modified: string }> ?? []) as Array<{ filename: string; path: string; size: number; modified: string }>;
+  const history = (tabStates.history.data as PromptHistoryEntry[] ?? []) as PromptHistoryEntry[];
+  const preferences = (tabStates.preferences.data as Record<string, unknown> ?? {}) as Record<string, unknown>;
+
+  const handleDelete = (tab: TabKey, id: string, label: string, onConfirm: () => void) => {
+    setDeleteConfirm({ tab, id, label, onConfirm });
+  };
+
+  const toggleFavorite = async (id: string) => {
+    try {
+      const result = await togglePromptFavorite(id);
+      if (!result) {
+        reloadTab("prompts");
+      }
+    } catch {
+      reloadTab("prompts");
+    }
+  };
+
+  const truncate = (t: string, n = 60) => (t.length > n ? `${t.substring(0, n)}...` : t);
 
   const tabItems = [
     { id: "prompts", title: `Prompts (${prompts.length})` },
@@ -109,21 +185,42 @@ export function DataManagementPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button color="primary" size="sm" onClick={loadData} disabled={loading}>
-            {loading ? <RefreshCw size={14} className="animate-spin mr-1" /> : <Activity size={14} className="mr-1" />}
-            {loading ? "Refreshing..." : "Refresh"}
+          <Button
+            color="primary"
+            size="sm"
+            onClick={() => {
+              Object.keys(tabStates).forEach((key) =>
+                reloadTab(key as TabKey),
+              );
+            }}
+            disabled={Object.values(tabStates).some((s) => s.loading)}
+          >
+            {Object.values(tabStates).some((s) => s.loading) ? (
+              <RefreshCw size={14} className="animate-spin mr-1" />
+            ) : (
+              <Activity size={14} className="mr-1" />
+            )}
+            {Object.values(tabStates).some((s) => s.loading)
+              ? "Refreshing..."
+              : "Refresh"}
           </Button>
-          {lastRefreshed && (
-            <span className="text-xs text-muted tabular-nums">
-              Last updated: {lastRefreshed.toLocaleTimeString()}
-            </span>
-          )}
         </div>
       </div>
 
-      {error && (
+      {tabStates[activeTab].error && (
         <Card className="mb-4 border-red-500/40 bg-red-500/10 p-3">
-          <div className="text-sm text-red-300">{error}</div>
+          <div className="flex items-start gap-2">
+            <AlertCircle size={16} className="text-red-400 mt-0.5" />
+            <div className="text-sm text-red-300">
+              {tabStates[activeTab].error}
+              <button
+                onClick={() => reloadTab(activeTab)}
+                className="ml-2 text-xs text-red-400 underline underline-offset-4 hover:text-red-300"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
         </Card>
       )}
 
@@ -133,34 +230,48 @@ export function DataManagementPage() {
           aria-label="Data management sections"
           className="flex flex-wrap gap-1 border-b border-border/60 mb-4"
         >
-          {tabItems.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === t.id}
-              onClick={() => setActiveTab(t.id as TabKey)}
-              className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
-                activeTab === t.id
-                  ? "border-accent text-accent"
-                  : "border-transparent text-muted hover:text-white"
-              }`}
-            >
-              {t.title}
-            </button>
-          ))}
+          {tabItems.map((t) => {
+            const state = tabStates[t.id as TabKey];
+            const isLoading = state.loading && !state.loaded;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === t.id}
+                aria-busy={isLoading}
+                disabled={isLoading}
+                onClick={() => setActiveTab(t.id as TabKey)}
+                className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
+                  activeTab === t.id
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted hover:text-white"
+                }`}
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-1">
+                    <RefreshCw size={12} className="animate-spin" />
+                    {t.title}
+                  </span>
+                ) : (
+                  t.title
+                )}
+              </button>
+            );
+          })}
         </div>
             {activeTab === "prompts" && (
               prompts.length === 0 ? (
                 <EmptySection
-                icon={<FileText />}
-                title="No prompts found"
-                action={{
-                  label: "Create prompt",
-                  onClick: () => navigate("/music-video-wizard"),
-                  icon: <Plus size={14} />,
-                }}
-              />
+                  icon={<FileText />}
+                  title="No prompts found"
+                  description="Save prompts from the Music Video Wizard to see them here."
+                  action={{
+                    label: "Create prompt",
+                    onClick: () => navigate("/music-video-wizard"),
+                    icon: <Plus size={14} />,
+                  }}
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -173,6 +284,7 @@ export function DataManagementPage() {
                         <Table.ColHeader>Favorite</Table.ColHeader>
                         <Table.ColHeader>Last Used</Table.ColHeader>
                         <Table.ColHeader>Created</Table.ColHeader>
+                        <Table.ColHeader className="text-right">Actions</Table.ColHeader>
                       </Table.Row>
                     </Table.Header>
                     <Table.Body>
@@ -181,15 +293,70 @@ export function DataManagementPage() {
                           <Table.Col>
                             <div className="font-medium">{p.name}</div>
                             {p.description && (
-                              <div className="text-xs text-muted">{truncate(p.description, 80)}</div>
+                              <div className="text-xs text-muted">
+                                {truncate(p.description, 80)}
+                              </div>
                             )}
                           </Table.Col>
                           <Table.Col>{p.prompt_type}</Table.Col>
                           <Table.Col>{p.category}</Table.Col>
                           <Table.Col>{p.use_count}</Table.Col>
-                          <Table.Col>{p.is_favorite ? "★" : "☆"}</Table.Col>
-                          <Table.Col>{formatDate(p.last_used_at)}</Table.Col>
+                          <Table.Col>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(p.id);
+                              }}
+                              className="p-1 hover:bg-gray-700 rounded"
+                              title={p.is_favorite ? "Unfavorite" : "Favorite"}
+                            >
+                              <Star
+                                size={14}
+                                className={`
+                                  ${p.is_favorite
+                                    ? "text-yellow-400 fill-yellow-400"
+                                    : "text-gray-500"}
+                                `}
+                              />
+                            </button>
+                          </Table.Col>
+                          <Table.Col>
+                            {formatDate(p.last_used_at || p.created_at)}
+                          </Table.Col>
                           <Table.Col>{formatDate(p.created_at)}</Table.Col>
+                          <Table.Col className="text-right">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/music-video-wizard?prompt=${p.id}`);
+                                }}
+                                className="p-1.5 hover:bg-gray-700 rounded text-xs"
+                                title="Use in wizard"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(
+                                    "prompts",
+                                    p.id,
+                                    p.name,
+                                    () => {
+                                      deletePrompt(p.id).then(() => {
+                                        reloadTab("prompts");
+                                      });
+                                    },
+                                  );
+                                }}
+                                className="p-1.5 hover:bg-red-500/20 text-red-400 rounded text-xs"
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </Table.Col>
                         </Table.Row>
                       ))}
                     </Table.Body>
@@ -203,6 +370,7 @@ export function DataManagementPage() {
                 <EmptySection
                 icon={<Image />}
                 title="No AI visuals found"
+                description="Generate visuals from the Image Generation page to see them here."
                 action={{
                   label: "Generate visual",
                   onClick: () => navigate("/image-generation"),
@@ -250,6 +418,7 @@ export function DataManagementPage() {
                 <EmptySection
                 icon={<Activity />}
                 title="No sessions found"
+                description="Generation sessions appear here after you start a music video or AI generation job."
                 action={{
                   label: "Create session",
                   onClick: () => navigate("/music-video-wizard"),
@@ -281,7 +450,7 @@ export function DataManagementPage() {
                             {s.actual_time_seconds || s.estimated_time_seconds}s
                           </Table.Col>
                           <Table.Col>{formatDate(s.created_at)}</Table.Col>
-                          <Table.Col>{formatDate(s.completed_at)}</Table.Col>
+                          <Table.Col>{formatDate(s.completed_at || "")}</Table.Col>
                         </Table.Row>
                       ))}
                     </Table.Body>
@@ -295,6 +464,7 @@ export function DataManagementPage() {
                 <EmptySection
                 icon={<Music />}
                 title="No tracks found"
+                description="Upload audio tracks from the Audio Analysis page to see them here."
                 action={{
                   label: "Upload track",
                   onClick: () => navigate("/audio-analysis"),
@@ -341,6 +511,7 @@ export function DataManagementPage() {
                 <EmptySection
                 icon={<Box />}
                 title="No saved scenes found"
+                description="Save 3D scenes from Three.js Studio to see them here."
                 action={{
                   label: "Create scene",
                   onClick: () => navigate("/three-js-studio"),
@@ -378,6 +549,7 @@ export function DataManagementPage() {
                 <EmptySection
                 icon={<FileText />}
                 title="No prompt history found"
+                description="Prompt versions and repair history appear here as you work in the Music Video Wizard."
                 action={{
                   label: "Start generating",
                   onClick: () => navigate("/music-video-wizard"),
@@ -395,6 +567,7 @@ export function DataManagementPage() {
                         <Table.ColHeader>Action</Table.ColHeader>
                         <Table.ColHeader>Outcome</Table.ColHeader>
                         <Table.ColHeader>Created</Table.ColHeader>
+                        <Table.ColHeader className="text-right">Actions</Table.ColHeader>
                       </Table.Row>
                     </Table.Header>
                     <Table.Body>
@@ -406,6 +579,27 @@ export function DataManagementPage() {
                           <Table.Col>{h.action}</Table.Col>
                           <Table.Col>{h.outcome}</Table.Col>
                           <Table.Col>{formatDate(h.created_at)}</Table.Col>
+                          <Table.Col className="text-right">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(
+                                  "history",
+                                  h.id,
+                                  `Prompt version "${truncate(h.prompt, 30)}"`,
+                                  () => {
+                                    deletePromptVersion(h.id).then(() => {
+                                      reloadTab("history");
+                                    });
+                                  },
+                                );
+                              }}
+                              className="p-1.5 hover:bg-red-500/20 text-red-400 rounded text-xs"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </Table.Col>
                         </Table.Row>
                       ))}
                     </Table.Body>
@@ -416,7 +610,16 @@ export function DataManagementPage() {
 
             {activeTab === "preferences" && (
               Object.keys(preferences).length === 0 ? (
-                <EmptySection icon={<Settings />} title="No preferences found" />
+                <EmptySection
+                  icon={<Settings />}
+                  title="No preferences found"
+                  description="Application preferences appear here after you configure settings."
+                  action={{
+                    label: "Open Settings",
+                    onClick: () => navigate("/settings"),
+                    icon: <Settings size={14} />,
+                  }}
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -425,16 +628,31 @@ export function DataManagementPage() {
                         <Table.ColHeader>Key</Table.ColHeader>
                         <Table.ColHeader>Category</Table.ColHeader>
                         <Table.ColHeader>Value</Table.ColHeader>
+                        <Table.ColHeader className="text-right">Actions</Table.ColHeader>
                       </Table.Row>
                     </Table.Header>
                     <Table.Body>
                       {Object.entries(preferences).map(([key, value]) => {
                         const val = value as Record<string, unknown>;
+                        const valueStr = JSON.stringify(val?.value ?? value);
                         return (
                           <Table.Row key={key}>
                             <Table.Col>{key}</Table.Col>
                             <Table.Col>{val?.category || "general"}</Table.Col>
-                            <Table.Col>{truncate(JSON.stringify(val?.value ?? value), 80)}</Table.Col>
+                            <Table.Col className="max-w-xs truncate" title={valueStr}>
+                              {truncate(valueStr, 80)}
+                            </Table.Col>
+                            <Table.Col className="text-right">
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(valueStr);
+                                }}
+                                className="p-1.5 hover:bg-gray-700 rounded text-xs"
+                                title="Copy value"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            </Table.Col>
                           </Table.Row>
                         );
                       })}
@@ -449,6 +667,17 @@ export function DataManagementPage() {
         Read-only view of saved entities. File sizes, schema state and maintenance operations live on
         the <Link to="/database" className="text-accent hover:underline">Database</Link> page.
       </div>
+
+      {deleteConfirm && (
+        <ConfirmDialog
+          title={`Delete "${deleteConfirm.label}"?`}
+          description="This action cannot be undone."
+          onConfirm={deleteConfirm.onConfirm}
+          onCancel={() => setDeleteConfirm(null)}
+          confirmLabel="Delete"
+          confirmVariant="destructive"
+        />
+      )}
     </div>
   );
 }
