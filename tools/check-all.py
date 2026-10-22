@@ -14,6 +14,8 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   6. tools/check-path-references.py     - stale repo-relative path references
   7. tools/report-nesting.py            - control-flow nesting vs baseline
   8. tools/docs-triage.py               - report-only untagged-doc grouping
+  9. tools/docs-tracker.py              - report-only doc provenance
+ 10. tools/report-path-orphans.py       - report-only dangling references
 
 Run:  python tools/check-all.py
 Exit 0 = all pass, 1 = at least one failed.
@@ -50,6 +52,12 @@ CHECKS = [
     # Report-only: regenerates output/docs-tracker.json (per-doc date, author,
     # tags) so doc provenance stays visible without manual bookkeeping.
     ("docs tracker (report)", "docs-tracker.py", []),
+    # Report-only: dangling references in operational docs whose targets
+    # exist nowhere in the tree. The gate above (check-path-references)
+    # covers the moved-file signature; this covers the residue it
+    # deliberately cannot decide -- deletion orphans and never-existed
+    # names in the docs agents actually follow.
+    ("path orphans (report)", "report-path-orphans.py", []),
 ]
 
 
