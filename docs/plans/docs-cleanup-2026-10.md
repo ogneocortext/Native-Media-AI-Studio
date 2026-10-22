@@ -55,30 +55,23 @@ item explicitly says so (C3).
 
 ## C3 — `three-js-studio.md`: same title, two documents, drifted
 
-- **Evidence:** `docs/knowledge/three-js-studio.md` (8,891 B) is
-  *route documentation* — Overview, Interaction Model (2026-09-29,
-  from the UX audit), Architecture, TSL integration.
-  `docs/knowledge-library/three-js-studio.md` (10,533 B) is the
-  library's reference treatment, with roughly twice the section
-  structure. The tag validator flags the pair as **divergent**
-  duplicates. Both were last touched 2026-10-13.
-- **Problem:** not duplication of content so much as a name
-  collision — two legitimate documents (an app-served route doc per
-  D12, and a library reference) that cannot be told apart by name,
-  and will keep drifting because neither links to the other.
-- **Proposal (choose one):** (a) rename the `knowledge/` copy to
-  `three-js-studio-route.md` and cross-link both files at the top;
-  (b) merge the route doc's unique sections (Interaction Model,
-  Architecture) into the library copy and leave a pointer stub in
-  `knowledge/` (the app serves that set, so the path must keep
-  resolving). Effort: S for (a), M for (b) — (b) is the only item in
-  this plan involving content reconciliation.
-- **Verify:** validator duplicate-basename warning for this pair
-  gone; Docs page still serves the route doc under (b).
+- **Status: ✅ Done 2026-10-22** — option (b) was chosen: the route doc's
+  unique sections (Interaction Model, Architecture, TSL Integration, Key
+  Patterns, Known Limitations, Related Files) were merged into
+  `docs/knowledge-library/three-js-studio.md`, and the `docs/knowledge/`
+  copy was deleted. The validator's divergent-duplicate warning for this
+  pair is gone.
+- **Evidence:** `docs/knowledge-library/three-js-studio.md` now carries
+  both the library reference treatment and the route doc's content.
 
 ## C4 — `unity-audio-visualization-2026.md`: divergent pair across the Unity boundary
 
-- **Evidence:** `docs/knowledge/unity-audio-visualization-2026.md`
+- **Status: ✅ Done 2026-10-22** — the `docs/knowledge/` copy was moved into
+  the library (`docs/knowledge-library/unity-audio-visualization-2026.md`),
+  its frontmatter fixed (`type: source`, primary `platform` tag), and the
+  Unity-visualizer copy kept as the project's own copy. The validator's
+  divergent-duplicate warning for this pair is gone.
+- **Evidence:** `docs/knowledge-library/unity-audio-visualization-2026.md`
   (23,716 B) vs `unity-visualizer/Assets/Documentation/
   unity-audio-visualization-2026.md` (22,966 B) — near-equal size,
   flagged divergent by the validator.

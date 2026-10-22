@@ -180,10 +180,11 @@ python tools/analyze_and_sync.py <audio_file> [--output <json_file>] [--fps 24]
 
   It also warns about **duplicate markdown basenames** across directories, which
   make `[[wiki-links]]` ambiguous and let copies drift apart. This is currently
-  reporting 7, including a genuine collision:
-  `docs/knowledge/three-js-studio.md` vs
-  `docs/knowledge-library/three-js-studio.md` are different documents with the
-  same name.
+  reporting 7, including a genuine collision that was resolved 2026-10-22:
+  `docs/knowledge/three-js-studio.md` (route doc) used to collide with
+  `docs/knowledge-library/three-js-studio.md` (library reference) — the
+  route doc's unique sections were merged into the library copy and the
+  `docs/knowledge/` copy deleted.
 
   To inventory markdown **outside** the library, which the tag checks never see:
 

@@ -136,7 +136,7 @@ public class AudioReactiveMaterial : MonoBehaviour
 
 ## Knowledge Base
 
-See `docs/knowledge/unity-audio-visualization-2026.md` for:
+See `docs/knowledge-library/unity-audio-visualization-2026.md` for:
 - FFT spectrum theory and best practices
 - Shader-based audio reactivity patterns
 - VFX Graph integration
