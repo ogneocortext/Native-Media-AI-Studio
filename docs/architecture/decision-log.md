@@ -1442,6 +1442,27 @@
   as the test of any future removal, and re-measure consumers
   (grep + tests) before re-opening the question.
 
+- **Amendment (2026-10-21) -- convergence answered: layer, don't
+  merge.** The owner call forwarded above is decided. Measured for
+  the decision (tree at `f25fa60`): `motion/`'s only consumer is
+  `ShaderVisualizer.tsx`, which reads one of the driver's eleven
+  channels (`cameraOffset.x` -> `u_camera_offset`); `vizMotion.ts`
+  serves 12 of 13 Three.js styles and shares no code and no consumer
+  with `motion/`; F1-F5's `cameraTransitions.ts` is a third path
+  touching neither. Full convergence was rejected both ways on cost
+  (onto `motion/`: 12 per-style re-tunes and real regression risk;
+  onto `vizMotion`: the ten named moves do not reduce to its
+  primitives without re-derivation) for zero current payoff.
+  **Decision: both APIs stay; where the concepts coincide,
+  `motion/` delegates to vizMotion's primitives** -- `attackRelease`
+  (envelope smoothing), `beatSnap` (beat-grid quantization),
+  `gammaDrive` (the gamma=2.2 convention). The scoped build task is
+  the D40 item in Step 3 of `docs/plans/next-actions-2026-10.md`.
+  Revisit convergence only if a second consumer of the motion
+  driver appears; the ten unconsumed channels are roadmap-or-
+  nothing until then, and this amendment is not a removal case
+  for them.
+
 
 ### D41 — The audible remix preview mixes server-side, from the build's own core (2026-10-13)
 

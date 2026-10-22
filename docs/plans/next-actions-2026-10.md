@@ -267,6 +267,26 @@ the way: the live loop originally quiesced per captured frame, so
 `frameCountRef` (the particle-update parity gate) advanced between
 captures; it is now a per-export quiesce with the counter reset. **The
 F5 accept criterion is met and measured.**
+**D40 layering task (scoped 2026-10-21, owner-approved -- for the
+local agent):** Both motion APIs stay (D40 amendment). In
+`features/visualizer/motion/`, where `motion/` implements a concept
+that `viz-styles/vizMotion.ts` already owns, delegate to the
+primitive instead of keeping the parallel implementation:
+(1) envelope smoothing -> `attackRelease`; (2) beat-grid
+quantization -> `beatSnap`; (3) gamma handling -> `gammaDrive`
+(gamma=2.2). Scope limits: no API changes on either side; no
+changes to the 12 Three.js style consumers or to
+`cameraTransitions.ts`; `ShaderVisualizer`'s one consumed channel
+(`cameraOffset.x` -> `u_camera_offset`) must behave identically.
+Characterize before delegating -- pin current `motion/` outputs in
+its colocated tests first; where a concept's math differs
+materially from the primitive, stop and report the difference
+rather than forcing the delegation (the goal is one implementation
+per shared concept, not identical numbers at any cost). Gates:
+motion + vizMotion unit tests, tsc, and a browser check of the
+shader lane. Each delegation is an independent commit, reversible
+on its own.
+
 ### Step 4 — Remix / mashup (gated)
 
 **Landed 2026-10-13** — the plan was approved and is now complete: B1–B7
@@ -282,8 +302,10 @@ been left out of the baseline when it shipped.
 3. Agent attribution: **Resolved 2026-10-13** — no change to the AGENTS.md
    table (correct as-is); the per-commit trailer always reflects the agent
    actually used, which rotates between Cline and Kilo.
-4. Motion systems: leave `motion/` + `vizMotion.ts` coexisting, or log a
-   decision to converge them?
+4. Motion systems: **Resolved 2026-10-21** -- layer, don't merge
+   (D40 amendment in the decision log). Both APIs stay; `motion/`
+   delegates to vizMotion's primitives where the concepts coincide.
+   Scoped build task: Step 3, D40 item below.
 
 ## Build notes
 
