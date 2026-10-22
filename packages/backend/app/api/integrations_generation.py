@@ -2,15 +2,18 @@
 Integrations API - Generation routes (ComfyUI, Ollama, VRAM, Audio).
 """
 from __future__ import annotations
+
 import json
 import logging
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
 import aiohttp
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
 from ..adapters.registry import adapter_registry
 from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
@@ -18,6 +21,7 @@ from ..core.model_tiers import VRAM_REQUIREMENTS, classify_model_variant
 from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
+
 # tools/scripts lives at the project root, outside the backend package.
 # PROJECT_ROOT is the repo root (packages/backend/app/core/config.py), so the
 # repo root itself must be on sys.path for `tools.scripts.*` to resolve.
@@ -436,6 +440,7 @@ async def get_preview(prompt_id: str) -> dict:
 async def view_preview(request: Request, prompt_id: str, filename: str):
     """Proxy endpoint to serve preview images from ComfyUI."""
     from urllib.parse import unquote
+
     from fastapi.responses import StreamingResponse
     base_url = config.comfyui_url
     try:
@@ -1163,6 +1168,7 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         try:
             import hashlib
             from pathlib import Path
+
             from ..core.database import save_visualization_preset
             track_hash = hashlib.md5(f"{description}{bpm}{energy}{genre}".encode()).hexdigest()[:16]
             track_name = track_meta.get("track_name") or description[:60]
@@ -1206,6 +1212,7 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
 async def list_visualizer_presets() -> dict:
     """List persisted visualizer presets (DB + file)."""
     from pathlib import Path
+
     from ..core.database import get_all_visualization_presets
     presets = get_all_visualization_presets()
     # Also include file-based presets not yet in DB
@@ -1217,6 +1224,7 @@ async def get_visualizer_preset(track_hash: str) -> dict:
     """Retrieve a persisted preset by track_hash."""
     import json as _json
     from pathlib import Path
+
     from ..core.database import get_visualization_preset
     preset = get_visualization_preset(track_hash)
     if preset:
@@ -1231,6 +1239,7 @@ async def get_visualizer_preset(track_hash: str) -> dict:
 async def delete_visualizer_preset(preset_id: str) -> dict:
     """Delete a saved preset by id."""
     from pathlib import Path
+
     from ..core.database import get_db
     with get_db() as conn:
         cur = conn.execute("DELETE FROM visualization_presets WHERE id = ?", (preset_id,))

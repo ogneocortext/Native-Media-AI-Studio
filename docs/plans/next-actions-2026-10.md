@@ -209,9 +209,14 @@ converge is a D-call, not a cleanup.
 3. ~~Remove dead `motion/` modules~~ — **STRUCK 2026-10-13:** the modules
    are live. Do not remove.
 
+**Status 2026-10-22: ✅ Already reconciled** — both plan files carry these
+statuses as of their 2026-10-13/21 build notes; nothing to re-mark. Re-verify
+with `python tools/docs-tracker.py` before the next milestone instead of
+re-reading the tables.
+
 **Docs hygiene (2026-10-22):** `python tools/docs-tracker.py` regenerates
 `output/docs-tracker.json` — per-document `date`, author (from the
-`Co-authored-by:` trailer), and tags, plus a "written per day" count. Run it
+`Co-authored-by:` trailer), and tags, plus a "written per day" count. Runs
 in the `docs` gate (`check-all.py`), so provenance is generated, not curated.
 
 ### Step 2 — Visualizer lane, in this order (user-facing gaps first)
