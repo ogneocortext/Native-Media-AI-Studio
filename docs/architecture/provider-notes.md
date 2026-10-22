@@ -51,11 +51,12 @@ extending this: **record outcomes here, re-derive listings.**
 - **Quirks (needs explicit instruction for):**
 - **Cost / access notes:**
 
-## Space Bunny Alpha — OpenRouter `stealth/space-bunny-alpha` via Cline Desktop
+## MiniMax 3.1 Flash — OpenRouter `stealth/space-bunny-alpha` ("Space Bunny Alpha") via Cline Desktop
 
 - **Model / route:** `stealth/space-bunny-alpha` on OpenRouter, via Cline
-  Desktop. Anonymous preview, owner unclaimed; independent tokenizer
-  fingerprinting points to MiniMax M3.1 (unconfirmed).
+  Desktop. Anonymous preview at the time; the stealth model was confirmed
+  as MiniMax 3.1 Flash once it came out of stealth (owner-confirmed
+  2026-10-22), matching the earlier tokenizer fingerprinting.
 - **First used:** 2026-10-01
 - **Strong at:** proactive guard/checker tooling (encoding guard, nesting gate
   with a verify-the-gate script); honest commit messages that document failed

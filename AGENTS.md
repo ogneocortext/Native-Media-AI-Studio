@@ -285,7 +285,25 @@ both channels (see its docstring for the rule).
 |---|---|
 | Orion (research/handoff agent) | `Co-authored-by: Orion <orion@hatch.local>` |
 | Ling 3.1 Flash (local coding agent, Kilo Desktop; by InclusionAI) | `Co-authored-by: Ling 3.1 Flash` |
+| Kilo (local coding agent) | `Co-authored-by: Kilo <kilo@native-media-ai.studio>` |
+| Cline (local coding agent) | `Co-authored-by: Cline <cline@cline.bot>` |
+| MiniMax 3.1 Flash (local coding agent; credited as "Space Bunny Alpha" during its stealth preview) | `Co-authored-by: MiniMax 3.1 Flash` |
 | opencode (terminal coding agent; runs deepseek-v4.1-flash-free) | `Co-authored-by: opencode` |
+
+**Trailer emails:** GitHub credits a trailer's *email*, not its name. A
+trailer reading `Space Bunny Alpha <noreply@anthropic.com>` is displayed
+by GitHub as contributions by **@claude**, and any
+`*@users.noreply.github.com` address displays as that account. Both
+phantoms on this repo's contributors graph come from trailer emails on
+historical commits (@claude: the 13 MiniMax 3.1 Flash commits above; a
+Devin bot: 3 more) -- not from those parties' work. Rule: use exactly
+the trailer in the table; a new agent gets a name-only trailer, or an
+email on a project domain (native-media-ai.studio, hatch.local). Never
+a vendor or bot noreply address. The `commit-msg` hook rejects the
+account-bound emails, and `tools/agent-contribution-report.py` flags
+them in reports and fails `--check` on them. The historical commits
+keep their trailers -- published history is not rewritten, so the
+phantom display is the accepted cost.
 
 The trailer is a commit-message convention only -- it says nothing about a
 model's provenance. Do not rewrite published history to backfill it; it

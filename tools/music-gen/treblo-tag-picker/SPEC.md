@@ -127,5 +127,8 @@ hand-picked exact tags beat natural-language prompts on Suno? This data is how
 we run it, not the answer to it.
 
 ## Attribution
-Every commit carries `Co-authored-by: Space Bunny Alpha <noreply@anthropic.com>`
-(the implementing agent's trailer, per repo convention).
+Every commit carries the implementing agent's `Co-authored-by:` trailer,
+per the repo convention in AGENTS.md. (An earlier draft of this spec
+prescribed `Space Bunny Alpha <noreply@anthropic.com>`; that email is
+the @claude account's, so GitHub credited those commits to @claude.
+The agent was MiniMax 3.1 Flash, then in stealth under that name.)
