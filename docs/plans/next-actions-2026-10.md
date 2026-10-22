@@ -209,6 +209,11 @@ converge is a D-call, not a cleanup.
 3. ~~Remove dead `motion/` modules~~ — **STRUCK 2026-10-13:** the modules
    are live. Do not remove.
 
+**Docs hygiene (2026-10-22):** `python tools/docs-tracker.py` regenerates
+`output/docs-tracker.json` — per-document `date`, author (from the
+`Co-authored-by:` trailer), and tags, plus a "written per day" count. Run it
+in the `docs` gate (`check-all.py`), so provenance is generated, not curated.
+
 ### Step 2 — Visualizer lane, in this order (user-facing gaps first)
 1. **2.3 genre reactivity presets** — ✅ Done (Orion 2026-10-13, needs
    Windows verification).
@@ -306,6 +311,25 @@ been left out of the baseline when it shipped.
    (D40 amendment in the decision log). Both APIs stay; `motion/`
    delegates to vizMotion's primitives where the concepts coincide.
    Scoped build task: Step 3, D40 item below.
+
+## Where the work is concentrated (2026-10-22)
+
+Ranked by "how much is left vs. how much shipped". Generated from
+`python tools/docs-tracker.py` (`output/docs-tracker.json`) — the
+`written per day` count is the objective signal; a big spike means a lane
+just landed, a flat tail means it is still open.
+
+| Lane | Status | Signal |
+| --- | --- | --- |
+| Visualizer (2.x) | Mostly shipped; 2.6 / 2.8 / 2.9 await Windows verification | 2026-10-13 spike (6 docs) |
+| Motion lane (F1–F5) | F1–F5 landed; D40 delegation open | 2026-10-21 spike (6 docs) |
+| Remix / mashup | Complete (B1–B7, A1–A7) | flat |
+| Docs / hygiene | Active: knowledge-library reconcile, AGENTS.md trim, tracker | 2026-10-22 (1 doc) |
+| Backend / infra | Steady; queue, audio API, ComfyUI hardening | flat |
+| 3D path (Q1) | Open: Unity vs Blender vs Three.js unresolved | no new docs |
+
+**Rule of thumb:** work the top of this table first, and re-run the tracker
+at each milestone rather than re-ranking by memory.
 
 ## Build notes
 

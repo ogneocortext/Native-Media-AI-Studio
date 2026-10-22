@@ -47,6 +47,9 @@ CHECKS = [
     # Report-only: exits 0 by design, so it cannot fail the run. Kept here so
     # one command gives the whole picture, including the outside-library view.
     ("docs triage (report)", "docs-triage.py", []),
+    # Report-only: regenerates output/docs-tracker.json (per-doc date, author,
+    # tags) so doc provenance stays visible without manual bookkeeping.
+    ("docs tracker (report)", "docs-tracker.py", []),
 ]
 
 
