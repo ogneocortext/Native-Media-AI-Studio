@@ -35,6 +35,7 @@ interface JobState {
   isLoading: boolean;
   error: string | null;
   sseConnected: boolean;
+  selectedJobId: string | null;
 
   // Actions
   setJobs: (jobs: Job[]) => void;
@@ -55,6 +56,7 @@ interface JobState {
   clearFailed: () => Promise<void>;
   connectSSE: () => void;
   disconnectSSE: () => void;
+  selectJob: (jobId: string | null) => void;
 }
 
 export const useJobStore = create<JobState>((set, get) => ({
@@ -64,6 +66,7 @@ export const useJobStore = create<JobState>((set, get) => ({
   isLoading: false,
   error: null,
   sseConnected: false,
+  selectedJobId: null,
 
   setJobs: (jobs: Job[]) => {
     // Find the currently running job
@@ -257,6 +260,10 @@ export const useJobStore = create<JobState>((set, get) => ({
     sseService.disconnect();
     set({ sseConnected: false });
   },
+
+  selectJob: (jobId: string | null) => {
+    set({ selectedJobId: jobId });
+  },
 }));
 
 /**
@@ -383,6 +390,16 @@ export const useJobError = () => useJobStore((state) => state.error);
 /** Subscribe to SSE connection state only */
 export const useJobSseConnected = () => useJobStore((state) => state.sseConnected);
 
+/** Subscribe to the currently selected job ID for detail view */
+export const useSelectedJobId = () => useJobStore((state) => state.selectedJobId);
+
+/** Get the selected job object from the jobs list */
+export const useSelectedJob = () => {
+  const jobs = useJobStore((state) => state.jobs);
+  const selectedJobId = useJobStore((state) => state.selectedJobId);
+  return jobs.find((j) => j.id === selectedJobId) ?? null;
+};
+
 /** Subscribe to all job actions (stable reference, doesn't re-render on state change) */
 export const useJobActions = () =>
   useJobStore((state) => ({
@@ -395,6 +412,7 @@ export const useJobActions = () =>
     clearFailed: state.clearFailed,
     connectSSE: state.connectSSE,
     disconnectSSE: state.disconnectSSE,
+    selectJob: state.selectJob,
   }));
 
 /**

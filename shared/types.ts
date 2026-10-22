@@ -46,6 +46,15 @@ export enum ServiceHealth {
 // Job Models
 // ============================================================================
 
+export interface JobStep {
+  name: string;
+  status: "pending" | "running" | "completed" | "failed";
+  progress: number; // 0–1 within this step
+  message?: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
 export interface Job {
   id: string;
   job_type: JobType;
@@ -61,6 +70,7 @@ export interface Job {
   output_path: string | null;
   retry_count: number;
   max_retries: number;
+  steps: JobStep[] | null;
   // Computed fields
   is_active: boolean;
   is_terminal: boolean;
@@ -100,9 +110,18 @@ export interface QueueStats {
   is_healthy: boolean;
 }
 
-// ============================================================================
-// Health & Diagnostics
-// ============================================================================
+export interface QueueMetrics {
+  stats: QueueStats;
+  queue_depth: number;
+  current_job_id: string | null;
+  current_job_type: string | null;
+  current_job_started_at: string | null;
+  processing_rate_per_min: number;
+  avg_wait_seconds: number;
+  avg_duration_seconds: number;
+  dead_letter_count: number;
+  dead_letter_sample: Array<Record<string, unknown>>;
+}
 
 export interface AdapterHealth {
   status: ServiceHealth;

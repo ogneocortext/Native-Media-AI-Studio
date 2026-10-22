@@ -16,7 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
-import type { Job } from "@shared/types";
+import type { Job, QueueMetrics } from "@shared/types";
 import {
   useJobStore,
   useJobs,
@@ -25,6 +25,7 @@ import {
   useJobError,
   useJobSseConnected,
 } from "../../state/jobStore";
+import { fetchQueueMetrics } from "../../services/api/jobs";
 import { JobListSection } from "./QueueList";
 import { showToast } from "../../utils/toast";
 
@@ -249,11 +250,13 @@ export function Queue() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [metrics, setMetrics] = useState<QueueMetrics | null>(null);
 
   // Fetch jobs on mount so the queue page reflects the latest state
   // (SSE is managed centrally by Layout.tsx).
   useEffect(() => {
     fetchJobs();
+    fetchQueueMetrics().then(setMetrics).catch(() => {});
   }, [fetchJobs]);
 
   // SSE is managed centrally by Layout.tsx; no per-component connect/disconnect.
@@ -455,6 +458,36 @@ export function Queue() {
           <p className="text-sm text-muted">Cancelled</p>
         </Card>
       </div>
+
+      {/* Health / metrics panel */}
+      {metrics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <Card className="text-center">
+            <p className="text-2xl font-bold text-success-text">
+              {metrics.stats.success_rate.toFixed(1)}%
+            </p>
+            <p className="text-sm text-muted">Success Rate</p>
+          </Card>
+          <Card className="text-center">
+            <p className="text-2xl font-bold text-primary">
+              {metrics.avg_duration_seconds.toFixed(1)}s
+            </p>
+            <p className="text-sm text-muted">Avg Duration</p>
+          </Card>
+          <Card className="text-center">
+            <p className="text-2xl font-bold text-primary">
+              {metrics.processing_rate_per_min.toFixed(2)}
+            </p>
+            <p className="text-sm text-muted">Jobs / min</p>
+          </Card>
+          <Card className="text-center">
+            <p className={`text-2xl font-bold ${metrics.dead_letter_count > 0 ? "text-error-text" : "text-muted"}`}>
+              {metrics.dead_letter_count}
+            </p>
+            <p className="text-sm text-muted">Dead Letter</p>
+          </Card>
+        </div>
+      )}
 
       {/* Job List */}
       <Card>

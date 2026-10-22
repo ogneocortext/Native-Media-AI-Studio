@@ -1,8 +1,8 @@
 import { getApiBase } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
-import type { Job, QueueStats } from "@shared/types";
+import type { Job, QueueMetrics, QueueStats } from "@shared/types";
 
-export type { Job, QueueStats };
+export type { Job, QueueMetrics, QueueStats };
 
 export async function fetchJobs(status?: string): Promise<Job[]> {
   const base = getApiBase();
@@ -23,6 +23,18 @@ export async function fetchQueueStats(): Promise<QueueStats> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/jobs/stats`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to fetch stats");
+  return res.json();
+}
+
+/**
+ * Extended metrics for the queue health panel: processing rate, average
+ * wait/duration, and the dead-letter count. Separate from `stats` because
+ * it is a heavier query and only the health panel wants it.
+ */
+export async function fetchQueueMetrics(): Promise<QueueMetrics> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/jobs/metrics`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to fetch queue metrics");
   return res.json();
 }
 
