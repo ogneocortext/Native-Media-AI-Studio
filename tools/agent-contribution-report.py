@@ -35,7 +35,10 @@ to push, or on a window you are auditing.
 Reading the numbers: churn is activity, not value -- a large deletion count
 can be an agent's best work (dead-code removal). Commits and areas are the
 contribution signal. A commit naming several agents credits each of them,
-so agent commit counts can sum slightly past the total.
+so agent commit counts can sum slightly past the total. The report also
+footnotes the largest commits in scope (a few mega-commits dominate churn)
+and warns on trailer names missing from ALIASES -- a typo'd name would
+otherwise mint a phantom agent; warnings never fail the check.
 
 Exit code: 0 = report printed / coverage check passed, 1 = check failed,
 2 = git or usage error.
@@ -116,8 +119,11 @@ def collect(scope_args):
         if len(parts) != 6:
             continue
         h, author, date, subject, parents, trailers = parts
-        agents = sorted(
-            {normalize_agent(t) for t in trailers.split(";") if t.strip()}
+        raw_names = [t.strip() for t in trailers.split(";") if t.strip()]
+        agents = sorted({normalize_agent(t) for t in raw_names})
+        unknown = sorted(
+            {t for t in raw_names
+             if t.split("<")[0].strip().lower() not in ALIASES}
         )
         meta[h] = {
             "hash": h,
@@ -126,6 +132,7 @@ def collect(scope_args):
             "date": date,
             "subject": subject,
             "agents": agents,
+            "unknown": unknown,
             "merge": len(parents.split()) > 1,
             "areas": set(),
             "insertions": 0,
@@ -177,6 +184,31 @@ def day_bound(value, end=False):
     if value and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()):
         return value.strip() + (" 23:59:59" if end else " 00:00:00")
     return value
+
+
+def unknown_tally(commits):
+    tally = defaultdict(int)
+    for c in commits:
+        for name in c["unknown"]:
+            tally[name] += 1
+    return dict(tally)
+
+
+def largest_commits(commits, n=5):
+    ranked = sorted(
+        commits, key=lambda c: -(c["insertions"] + c["deletions"])
+    )[:n]
+    return [
+        {
+            "hash": c["short"],
+            "subject": c["subject"],
+            "agents": c["agents"],
+            "insertions": c["insertions"],
+            "deletions": c["deletions"],
+        }
+        for c in ranked
+        if c["insertions"] + c["deletions"] > 0
+    ]
 
 
 def scope_label(args):
@@ -246,6 +278,21 @@ def report_md(commits, args):
         if unattributed:
             cells.append(str(sum(1 for c in unattributed if area in c["areas"])))
         lines.append(f"| {area} | " + " | ".join(cells) + " |")
+    tally = unknown_tally(commits)
+    if tally:
+        lines += ["", "Warnings (trailer names outside the known roster):"]
+        for name, n in sorted(tally.items(), key=lambda kv: -kv[1]):
+            lines.append(f"- `{name}` on {n} commit(s) -- a typo mints a "
+                         "phantom agent; add the name to ALIASES in this "
+                         "tool and to the AGENTS.md attribution table.")
+    biggest = largest_commits(commits)
+    if biggest:
+        lines += ["", "Largest commits in scope (churn concentrates here -- "
+                      "discount the line counts accordingly):"]
+        for b in biggest:
+            who = ", ".join(b["agents"]) or UNATTRIBUTED
+            lines.append(f"- `{b['hash']}` +{b['insertions']:,}/"
+                         f"-{b['deletions']:,} -- {who} -- {b['subject']}")
     lines += [
         "",
         "Notes: churn is activity, not value (deletions can be the best work in "
@@ -265,6 +312,8 @@ def report_json(commits, args):
         "attributed_commits": total - len(unattributed),
         "unattributed_commits": len(unattributed),
         "agents": agents,
+        "unknown_trailer_names": unknown_tally(commits),
+        "largest_commits": largest_commits(commits),
         "unattributed_areas": dict(
             sorted(
                 ((area, sum(1 for c in unattributed if area in c["areas"]))
@@ -292,6 +341,11 @@ def check_coverage(commits, args):
     for c in missing:
         print(f"  missing trailer: {c['short']} {c['date']} "
               f"{c['author']}: {c['subject']}")
+    tally = unknown_tally(commits)
+    for name, n in sorted(tally.items(), key=lambda kv: -kv[1]):
+        print(f"  warning: unknown trailer name {name!r} on {n} commit(s) -- "
+              "not in the AGENTS.md attribution table; add it to ALIASES in "
+              "tools/agent-contribution-report.py and to that table.")
     if coverage / 100.0 < args.min_coverage:
         print(f"FAIL: {len(missing)} of {total} commits name no agent.")
         return 1
