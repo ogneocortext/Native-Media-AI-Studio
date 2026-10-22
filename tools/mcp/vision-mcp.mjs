@@ -34,6 +34,13 @@ const ANALYZE_PY = path.join(
 
 import { BACKEND_URL, validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
 
+// Referenced at eight sites (chat, /api/ps, /api/generate, /api/tags, error
+// hints, banner) but never defined after a refactor dropped the import — the
+// server crashed at startup with `ReferenceError: OLLAMA_URL is not defined`
+// (measured live 2026-10-22: process exited rc=1 before StdioServerTransport
+// connected). Same env-override convention as the other vision entry points.
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+
 const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
 
 function generateRequestId() {

@@ -67,9 +67,16 @@ if (result.success) {
 
 ## Configuration
 
-Environment variables:
+Environment variables (all were documented here before being wired up; they
+are read by the script now, not just promised):
 - `OLLAMA_BASE_URL` - Ollama server URL (default: http://localhost:11434)
 - `DESIGN_FEEDBACK_MODEL` - Model to use (default: gemma4:e2b-it-qat)
+- `DESIGN_FEEDBACK_TIMEOUT` - Per-model request budget in seconds (default: 300 —
+  cold vision-model loads on this machine measured 60-183 s)
+- `DESIGN_FEEDBACK_MONITOR` - Which display to capture (default: 1; 0 = combined virtual)
+- `VISION_KEEP_ALIVE` - Ollama keep-alive for the analysis model (default: 10m)
+- `VISION_FALLBACK_MODELS` - Comma-separated local fallback chain tried when
+  the primary model 404s (default: qwen3.5:4b)
 
 ## How It Works
 

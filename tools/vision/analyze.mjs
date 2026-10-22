@@ -221,6 +221,22 @@ Evaluate this frame with these specific criteria:
 
 Return your analysis as structured JSON with these keys: depth_rating, mood_rating, composition_rating, top_improvements (array of 3 strings), visual_elements (array of visible element names).`;
 
+    case 'ocr':
+      // Live-measured defect (2026-10-22): ocr/table/chart/multicomp had no
+      // case here and fell through to the ui-audit skeleton, so `--mode ocr`
+      // returned "1. ELEMENTS: ..." UI audits instead of transcription.
+      // Prompt bodies mirror tools/mcp/vision-mcp.mjs MODE_PROMPTS.
+      return `Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text. Be trustworthy: lower hallucination.`;
+
+    case 'table':
+      return `Convert the table in this image to markdown, preserving headers, rows, and alignment. Keep numbers and text exactly as shown. If no table exists reply "No table detected."`;
+
+    case 'chart':
+      return `Describe the trend shown in this chart. Name axes, units, and relative heights. Compare bars/lines, note peaks/valleys, and flag any value that is ambiguous as "estimated". Do NOT invent exact numbers if labels are missing — say "unclear". Be a trustworthy chart reader.`;
+
+    case 'multicomp':
+      return `You are given two UI screenshots: first is BEFORE, second is AFTER. List every visual difference: layout shifts, color changes, text differences, missing/added elements, sizing, and spacing. Be exhaustive. Use the two images as in-context examples.`;
+
     case 'responsive':
       return `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
 
