@@ -76,8 +76,10 @@ Every reported finding carries a "did you mean" line naming the
 tracked file(s) with the same basename or tail -- the hyperhawk-style
 fix suggestion for the moved-file case.
 
-Run:  python tools/check-path-references.py
+Run:  python tools/check-path-references.py [--fix]
 Exit 0 = no moved-file references, 1 = at least one found.
+With --fix, each dangling reference is replaced with its first suggested
+new path (the "did you mean" target). Review the changes before committing.
 """
 
 import os
@@ -228,6 +230,13 @@ def suggestions_for(ref, by_basename, files):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Check that repo-relative path references point at real files.")
+    parser.add_argument("--fix", action="store_true",
+                        help="auto-fix moved-file references by replacing "
+                             "the old path with the suggested new path")
+    args = parser.parse_args()
     files = git_lines("ls-files", cwd=ROOT)
     by_basename = {}
     for f in files:
@@ -285,6 +294,19 @@ def main():
                 if key in seen:
                     continue
                 seen.add(key)
+                if args.fix and hints:
+                    disk = disk_path(rel)
+                    try:
+                        with open(disk, encoding="utf-8", errors="replace") as fh:
+                            text = fh.read()
+                        count = text.count(dangling)
+                        if count:
+                            text = text.replace(dangling, hints[0])
+                            with open(disk, "w", encoding="utf-8", newline="") as fh:
+                                fh.write(text)
+                            print(f"  FIXED {rel}:{lineno} '{dangling}' -> '{hints[0]}' ({count} replacement(s))")
+                    except OSError:
+                        pass  # leave unfixable files alone
                 findings.append((rel, lineno, dangling, hints))
 
     if findings:
@@ -294,6 +316,9 @@ def main():
                   "which does not exist on disk")
             for hint in hints:
                 print(f"      did you mean: {hint}")
+        if args.fix:
+            print()
+            print("Replacements were applied in place. Review before committing.")
         return 1
     print(f"path references clean ({scanned:d} files scanned, "
           f"{refs_checked:d} references checked)")

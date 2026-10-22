@@ -357,16 +357,17 @@ class Gate:
         self.timeout = timeout
 
 
-def gates():
+def gates(fix=False):
     python = resolve_python()
     pnpm = resolve_pnpm()
     return [
         Gate("docs", [python, "tools/check-all.py"], ROOT),
-        Gate("ruff", [python, "-m", "ruff", "check", ".", "--output-format=concise"], ROOT),
+        Gate("ruff", [python, "-m", "ruff", "check", ".", "--output-format=concise"] + (["--fix"] if fix else []), ROOT),
         Gate("arch", [python, "tools/check-import-cycles.py"], ROOT),
         Gate("routes", [python, "tools/check-duplicate-routes.py"], ROOT),
         Gate("type", [pnpm, "type-check"], FRONTEND),
-        Gate("lint", [pnpm, "lint"], FRONTEND),
+        Gate("lint", [pnpm, "exec", "eslint", "--fix", "src"] if fix else [pnpm, "lint"],
+             FRONTEND),
         # `-v --durations=10` rather than `-q`: the runner streams each line as
         # it is produced, so a verbose reporter is what makes "which test is
         # running right now" visible. `--durations=10` then names the ten
@@ -628,6 +629,8 @@ def _build_parser():
     p.add_argument("--no-stream", action="store_true",
                    help="buffer each gate's output and print it at the end "
                         "instead of streaming it line by line")
+    p.add_argument("--fix", action="store_true",
+                   help="auto-fix where supported (ruff --fix, eslint --fix)")
     return p
 
 
@@ -648,7 +651,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.retry < 0:
         parser.error("--retry must be >= 0")
-    all_gates = gates()
+    all_gates = gates(fix=args.fix)
 
     if args.which_python:
         # Diagnostic: show every candidate and why it was or was not chosen.

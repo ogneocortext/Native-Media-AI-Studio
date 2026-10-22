@@ -19,8 +19,9 @@ non-existent files).
 Report-only: --scope=all inventories markdown outside the library, which the tag
 checks never see. It applies no checks and never changes the exit code.
 
-Run from anywhere:  python tools/validate-knowledge-tags.py [--scope=all]
+Run from anywhere:  python tools/validate-knowledge-tags.py [--fix] [--scope=all|library]
 Exit code 0 = clean, 1 = problems found.
+With --fix, safe issues are corrected in place (CRLF -> LF line endings).
 """
 
 import glob
@@ -337,7 +338,7 @@ def check_duplicate_basenames():
         warnings.append(f"duplicate basename '{name}' in {len(paths):d} locations ({kind}): {', '.join(paths)}")
 
 
-def check_line_endings(docs):
+def check_line_endings(docs, fix=False):
     """Guard against CRLF creep.
 
     Rewriting a file with io.open(..., "w") on Windows converts every LF to
@@ -348,8 +349,13 @@ def check_line_endings(docs):
         with open(path, "rb") as f:
             data = f.read()
         if b"\r\n" in data:
-            errors.append(f"{_name}: CRLF line endings (repo uses LF); "
-                          "a rewrite likely converted them")
+            if fix:
+                with open(path, "wb") as f:
+                    f.write(data.replace(b"\r\n", b"\n"))
+                warnings.append(f"{_name}: fixed CRLF -> LF line endings")
+            else:
+                errors.append(f"{_name}: CRLF line endings (repo uses LF); "
+                              "run --fix to convert")
 
 
 def check_type_field(docs):
@@ -491,7 +497,14 @@ def report_all_docs():
 
 
 def main():
-    args = sys.argv[1:]
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Validate knowledge-library frontmatter, tag taxonomy, and doc hygiene.")
+    parser.add_argument("--fix", action="store_true",
+                        help="auto-fix safe issues (CRLF -> LF line endings)")
+    parser.add_argument("--scope", default="library",
+                        help='scope of docs to check: "library" or "all"')
+    args = parser.parse_args()
     docs = collect()
     check_documents(docs)
     check_tracker(docs)
@@ -500,7 +513,7 @@ def main():
     check_vocabulary(docs)
     check_dead_vocabulary(docs)
     check_duplicate_basenames()
-    check_line_endings(docs)
+    check_line_endings(docs, fix=args.fix)
     check_type_field(docs)
     check_links(docs)
     print(f"documents checked : {len(docs):d}")
@@ -513,7 +526,7 @@ def main():
         for e in errors:
             print(f"  - {e}")
         return 1
-    if "--scope=all" in args or "-a" in args:
+    if args.scope == "all":
         report_all_docs()
     print("")
     print("all checks passed")
