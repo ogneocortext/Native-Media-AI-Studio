@@ -77,17 +77,29 @@ Ollama is the **central LLM layer** for Native Media AI Studio. It is used for:
 
 ## 2. Installed Model Inventory
 
-### 2.1 Live Ollama Registry (as of 2026-10-10; 10 models, 27.58 GB)
+### 2.1 Live Ollama Registry (as of 2026-10-22; 6 models, 8.36 GB)
 
 | Model                            | Size    | VRAM Est. | Quant  | Capabilities                        | Notes                                               |
 | -------------------------------- | ------- | --------- | ------ | ----------------------------------- | --------------------------------------------------- |
-| `gemma4:e2b-it-qat`              | 4.34 GB | ~6 GB     | Q4_0   | completion, **vision**, audio, **tools**, **thinking** | Default model; 8GB-safe; **vision primary**         |
-| `qwen3.5:9b`                     | 6.60 GB | ~9 GB     | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best tool caller; tight on 8GB                      |
-| `qwen3.5:4b`                     | 3.40 GB | ~4.8 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best speed/quality balance                          |
+| `gemma4:e2b-it-qat`              | 4.14 GB | ~6 GB     | Q4_0   | completion, **vision**, audio, **tools**, **thinking** | Default model; 8GB-safe; **vision primary**         |
+| `qwen3.5:4b`                     | 3.24 GB | ~4.8 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best speed/quality balance                          |
 | `ibm/granite4.2:3b`              | 2.14 GB | ~2.8 GB   | Q4     | completion, **tools**               | Lightweight text-only; no thinking mode; fast direct output |
-| `llama3.2:3b`                    | 2.02 GB | ~2.8 GB   | Q4_K_M | completion, **tools**               | Lightweight tool caller                             |
+| `llama3.2:3b`                    | 1.93 GB | ~2.8 GB   | Q4_K_M | completion, **tools**               | Lightweight tool caller                             |
 | `nomic-embed-text:v1.5`          | 0.27 GB | ~0.4 GB   | F16    | embedding                           | Embedding model; always resident                    |
-| *(3 cloud models)*               | 0 GB    | —         | —      | cloud-only                          | No local weights                                    |
+| `embeddinggemma-2:270m`          | 0.29 GB | ~0.5 GB   | Q4_0   | embedding                           | Lightweight embedding alternative                   |
+
+**Pruned 2026-10-22 (too big for 8 GB VRAM or cloud-only, no paid key):**
+
+| Model                            | Size    | Reason                                               |
+| -------------------------------- | ------- | ---------------------------------------------------- |
+| `glm-4.7-flash:latest`           | 18 GB   | 18 GB model — far exceeds 8 GB VRAM; OOM on load     |
+| `qwen3.5:9b`                     | 6.30 GB | 9B model, ~9-10 GB VRAM est. — exceeds 6.5 GB budget |
+| `minicpm-v:8b`                   | 5.22 GB | 8B model, ~7.7 GB VRAM est. — exceeds 6.5 GB budget  |
+| `minicpm-v:latest`               | 0 GB    | alias tag for minicpm-v:8b; deleted with it          |
+| `glm-5.3:cloud`                  | 0 GB    | cloud model, no paid key — /api/show returns 402     |
+| `minimax-m3.1-flash:cloud`       | 0 GB    | cloud model, no paid key — /api/show returns 402     |
+| `deepseek-v4.1-flash:cloud`      | 0 GB    | cloud model, no paid key — /api/show returns 402     |
+| `deepseek-v4-flash:cloud`        | 0 GB    | cloud model, no paid key — /api/show returns 402     |
 
 **Pruned 2026-10-10** (`ollama rm`, 25.81 GB freed): `qwen3-vl:2b`
 (1.93 GB), `qwen3-vl:4b` (3.34 GB), `qwen3-vl-optimized:latest`

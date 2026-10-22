@@ -1698,3 +1698,22 @@
   re-download these models. If the GPU is upgraded, revisit BROKEN_MODELS and
   the decision-log entry before re-adding any of them.
 
+### D47 — Deleted cloud-only Ollama models without paid keys (2026-10-22)
+
+- **Status:** Decided
+- **Context:** Four cloud-only model entries appeared in `GET /api/tags`
+  with 0 MB size and return HTTP 402 without a paid key:
+  `glm-5.3:cloud`, `minimax-m3.1-flash:cloud`, `deepseek-v4.1-flash:cloud`,
+  `deepseek-v4-flash:cloud`. They cannot run locally and there is no paid
+  key, so they provide no value and only clutter the model list.
+- **Measurement:** `GET /api/tags` listed all four with size 0 MB and
+  `remote_host`/`remote_model` markers indicating cloud-only entries. No
+  local weights exist for any of them.
+- **Decision:** Deleted all four via `DELETE /api/delete`. Added all four to
+  `BROKEN_MODELS` in `packages/backend/app/api/integrations_config.py` with
+  reason "cloud model, no paid key — /api/show returns 402". No config or
+  selector referenced them (they were never in `recommended_models`), so no
+  frontend or backend changes beyond BROKEN_MODELS were needed.
+- **Consequences:** Same guard as D46 — BROKEN_MODELS plus this decision-log
+  entry. Agents should not attempt to re-pull cloud models without a paid key.
+
