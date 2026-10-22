@@ -43,6 +43,7 @@ Exit code: 0 = report printed / coverage check passed, 1 = check failed,
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -163,6 +164,19 @@ def aggregate(commits):
         }
     unattributed = [c for c in commits if not c["agents"]]
     return agents, unattributed
+
+
+def day_bound(value, end=False):
+    """Expand a bare YYYY-MM-DD to the start (or end) of that day.
+
+    Git's own date parser fills a bare date with the *current time of
+    day*, so `--since 2026-10-22` run on 2026-10-22 silently excludes
+    that day's commits. Expanding explicitly makes a bare date mean
+    the whole day, in the machine's local timezone.
+    """
+    if value and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()):
+        return value.strip() + (" 23:59:59" if end else " 00:00:00")
+    return value
 
 
 def scope_label(args):
@@ -305,9 +319,9 @@ def main():
     elif args.since or args.until:
         scope = []
         if args.since:
-            scope.append(f"--since={args.since}")
+            scope.append(f"--since={day_bound(args.since)}")
         if args.until:
-            scope.append(f"--until={args.until}")
+            scope.append(f"--until={day_bound(args.until, end=True)}")
     elif args.check:
         args.range = "origin/main..HEAD"
         scope = [args.range]
