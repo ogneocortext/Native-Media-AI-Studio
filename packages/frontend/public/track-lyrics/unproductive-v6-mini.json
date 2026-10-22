@@ -1,1 +1,127 @@
-{"bpm":140,"bpmNote":"Lyric sheet tags the intro as a 'locked 140 BPM groove'.","durationSec":180,"hasLrc":false,"id":"unproductive-v6-mini","lyricsStatus":"complete","notes":"Song page shows [Fade Out][End] after the outro — instrumental, no lyric text.","provenance":"Lyrics transcribed verbatim from the Suno song pages on 2026-09-30 (read-only library read): 'Unproductive' (V6-MINI, Sep 21 2026) and 'Unproductive V2' (V6-MINI, 3:00) display identical lyric text — this file covers both. This is the cleaned non-phonk lyric set; the phonk rework lives in unproductive-valley-phonk.json.","sections":[{"lines":[],"name":"Short Instrumental Intro"},{"lines":["Skipped the morning standup call","let my inbox sit unread","Swapped my deadlines for the open window","afternoon light on the couch instead","The ceiling fan keeps lazy time","and for once I'm not checking my phone"],"name":"Verse 1"},{"lines":["Phone in my pocket, face down","deadlines fading far behind","Doing nothing and it feels so sweet","nothing chasing me, nothing to lose"],"name":"Pre-Chorus"},{"lines":["Nothing to prove today","I'm unproductive and free","Doing nothing beautifully","I'm unproductive and free (gang vocal)"],"name":"Chorus"},{"lines":["Unproductive and free-ee-ee","Nothing to prove-oo-ove"],"name":"Post-Chorus / Drop"},{"lines":["Group chat's blowing up again","leaving all of them unread","Let the hustle have the day","I've got nothing planned instead"],"name":"Verse 2"},{"lines":["Phone in my pocket, face down","deadlines fading far behind","Doing nothing and it feels so sweet","nothing chasing me, nothing to lose"],"name":"Pre-Chorus"},{"lines":["Nothing to prove today","I'm unproductive and free","Doing nothing beautifully","I'm unproductive and free (gang vocal)"],"name":"Chorus"},{"lines":["Somewhere a guru's selling morning routines","I let his voice dissolve in the breeze","The algorithm can't grade this feeling","so I stopped measuring everything","(lift into final chorus, drums back in)"],"name":"Bridge"},{"lines":["Nothing to prove today","I'm unproductive and free","Doing nothing beautifully","I'm unproductive and free"],"name":"Final Chorus"},{"lines":["Unproductive... and free"],"name":"Outro"}],"source":"Suno v6-mini","title":"Unproductive","urls":["https://suno.com/song/8b470eb8-4ea1-4d5c-b26a-2bc2bce758d5","https://suno.com/song/75e0cb06-4fbe-4227-b056-24ab95a81d36"],"variant":"V2 (v6-mini; lyrics identical across both v6-mini renders)"}
+{
+  "bpm": 140,
+  "bpmNote": "Lyric sheet tags the intro as a 'locked 140 BPM groove'.",
+  "durationSec": 180,
+  "hasLrc": false,
+  "id": "unproductive-v6-mini",
+  "lyricsStatus": "complete",
+  "notes": "Song page shows [Fade Out][End] after the outro — instrumental, no lyric text. The first render runs 3:16 (this file's durationSec is the preferred V2's 3:00). The two renders were made with DIFFERENT style prompts — see renders[]. Captured from the Suno song pages 2026-10-22 (read-only).",
+  "provenance": "Lyrics transcribed verbatim from the Suno song pages on 2026-09-30 (read-only library read): 'Unproductive' (V6-MINI, Sep 21 2026) and 'Unproductive V2' (V6-MINI, 3:00) display identical lyric text — this file covers both. This is the cleaned non-phonk lyric set; the phonk rework lives in unproductive-valley-phonk.json.",
+  "sections": [
+    {
+      "lines": [],
+      "name": "Short Instrumental Intro"
+    },
+    {
+      "lines": [
+        "Skipped the morning standup call",
+        "let my inbox sit unread",
+        "Swapped my deadlines for the open window",
+        "afternoon light on the couch instead",
+        "The ceiling fan keeps lazy time",
+        "and for once I'm not checking my phone"
+      ],
+      "name": "Verse 1"
+    },
+    {
+      "lines": [
+        "Phone in my pocket, face down",
+        "deadlines fading far behind",
+        "Doing nothing and it feels so sweet",
+        "nothing chasing me, nothing to lose"
+      ],
+      "name": "Pre-Chorus"
+    },
+    {
+      "lines": [
+        "Nothing to prove today",
+        "I'm unproductive and free",
+        "Doing nothing beautifully",
+        "I'm unproductive and free (gang vocal)"
+      ],
+      "name": "Chorus"
+    },
+    {
+      "lines": [
+        "Unproductive and free-ee-ee",
+        "Nothing to prove-oo-ove"
+      ],
+      "name": "Post-Chorus / Drop"
+    },
+    {
+      "lines": [
+        "Group chat's blowing up again",
+        "leaving all of them unread",
+        "Let the hustle have the day",
+        "I've got nothing planned instead"
+      ],
+      "name": "Verse 2"
+    },
+    {
+      "lines": [
+        "Phone in my pocket, face down",
+        "deadlines fading far behind",
+        "Doing nothing and it feels so sweet",
+        "nothing chasing me, nothing to lose"
+      ],
+      "name": "Pre-Chorus"
+    },
+    {
+      "lines": [
+        "Nothing to prove today",
+        "I'm unproductive and free",
+        "Doing nothing beautifully",
+        "I'm unproductive and free (gang vocal)"
+      ],
+      "name": "Chorus"
+    },
+    {
+      "lines": [
+        "Somewhere a guru's selling morning routines",
+        "I let his voice dissolve in the breeze",
+        "The algorithm can't grade this feeling",
+        "so I stopped measuring everything",
+        "(lift into final chorus, drums back in)"
+      ],
+      "name": "Bridge"
+    },
+    {
+      "lines": [
+        "Nothing to prove today",
+        "I'm unproductive and free",
+        "Doing nothing beautifully",
+        "I'm unproductive and free"
+      ],
+      "name": "Final Chorus"
+    },
+    {
+      "lines": [
+        "Unproductive... and free"
+      ],
+      "name": "Outro"
+    }
+  ],
+  "source": "Suno v6-mini",
+  "title": "Unproductive",
+  "urls": [
+    "https://suno.com/song/8b470eb8-4ea1-4d5c-b26a-2bc2bce758d5",
+    "https://suno.com/song/75e0cb06-4fbe-4227-b056-24ab95a81d36"
+  ],
+  "variant": "V2 (v6-mini; lyrics identical across both v6-mini renders)",
+  "renders": [
+    {
+      "url": "https://suno.com/song/8b470eb8-4ea1-4d5c-b26a-2bc2bce758d5",
+      "sunoTitle": "Unproductive",
+      "durationSec": 196,
+      "createdAt": "2026-09-21",
+      "stylePrompt": "Future bass x indie electronic, dynamic clean modern master with bright major-key lift into a cathartic melodic bass drop; driving locked-in 140 BPM four-on-the-floor groove with metronomic drums; intimate male close-mic conversational verses, soaring multi-layered gang-vocal chorus and chopped vocal hooks; punchy 120–300 Hz midbass, centered mono sub, shimmering supersaw chords, plucky electric guitar, crisp electronic percussion, wide stereo pads, airy open top end"
+    },
+    {
+      "url": "https://suno.com/song/75e0cb06-4fbe-4227-b056-24ab95a81d36",
+      "sunoTitle": "Unproductive V2",
+      "durationSec": 180,
+      "createdAt": "2026-09-21",
+      "stylePrompt": "Future bass x indie electronic with intimate male close-mic conversational verses and soaring multi-layered gang-vocal chorus; driving locked-in 140 BPM four-on-the-floor groove, metronomic drums; bright major-key lift, dynamic clean modern master; punchy 120–300 Hz midbass, centered mono sub, shimmering supersaw chords, plucky electric guitar, crisp electronic percussion, wide stereo pads, airy open top end, vocal chops, cathartic melodic bass drop"
+    }
+  ]
+}

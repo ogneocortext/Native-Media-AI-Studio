@@ -363,7 +363,10 @@ transcripts, and character references.
   Original** lyric sets 1 and 2 (Suno URLs in the design doc §4) into
   the track-lyrics library — a read-only transcription pass like
   2026-09-30's, so it is Orion/owner-side work, not a code task; the
-  code side is only the two new JSONs + index entries. (b) Wire
+  code side is only the two new JSONs + index entries. **(a) done
+  2026-10-22:** both sets captured and filed the same day this step was
+  proposed; the same pass enriched every library entry with per-render
+  Suno style prompts (`renders[]`). (b) Wire
   `track_lyrics_id` into the generator job params (contract sketch in
   the design doc §3).
 

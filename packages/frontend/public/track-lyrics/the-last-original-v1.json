@@ -1,0 +1,99 @@
+{
+  "id": "the-last-original-v1",
+  "title": "The Last Original",
+  "hasLrc": false,
+  "lyricsStatus": "complete",
+  "source": "Suno v6-mini",
+  "variant": "V1 / V1.2 (lyrics identical on both renders)",
+  "durationSec": 176,
+  "bpm": 130,
+  "bpmNote": "Style prompt states 130 BPM; not independently measured.",
+  "urls": [
+    "https://suno.com/song/da6382e2-e44f-4f22-8109-b80e1de82182",
+    "https://suno.com/song/981c95c4-a179-453d-8343-b3e6d036ddb4"
+  ],
+  "notes": "Durations: library shows 2:56 for V1 and 2:54 for V1.2. The Intro tag and the Outro's single line are production directions in the lyrics field, not sung lines. Both renders share the one style prompt (see renders[]) — the exception to this library's usual one-prompt-per-render pattern.",
+  "provenance": "Lyrics and style prompt transcribed verbatim from the Suno song pages on 2026-10-22 (read-only capture): the two renders of lyric set 1 display identical lyric text and the identical style prompt, so this one file covers both. Created on Suno 2026-10-02.",
+  "sections": [
+    {
+      "name": "Intro: pulsing bass arp under wide pads, a single fragile hum-like synth motif, no vocals",
+      "lines": []
+    },
+    {
+      "name": "Verse 1",
+      "lines": [
+        "She hummed it at the stove top",
+        "While the onions turned to gold",
+        "No studio, no playback",
+        "A song the house still holds"
+      ]
+    },
+    {
+      "name": "Pre-Chorus - building",
+      "lines": [
+        "They knocked and made an offer",
+        "\"Give us every clip you own\"",
+        "\"We'll sing it back note-perfect\"",
+        "But perfect isn't home"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "I'm the last original",
+        "The only copy left",
+        "It never touched the cloud",
+        "It lives inside my chest"
+      ]
+    },
+    {
+      "name": "Verse 2",
+      "lines": [
+        "Billboards sing in voices",
+        "That never drew a breath",
+        "The charts are full of ghosts now",
+        "Who never lived, never left"
+      ]
+    },
+    {
+      "name": "Bridge - raw exposed",
+      "lines": [
+        "The reason that it's real",
+        "It can be lost forever",
+        "No server holds the feel",
+        "Of a kitchen in December"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "I'm the last original",
+        "The only copy left",
+        "It never touched the cloud",
+        "It lives inside my chest"
+      ]
+    },
+    {
+      "name": "Outro - stripped",
+      "lines": [
+        "Hum motif alone, then silence"
+      ]
+    }
+  ],
+  "renders": [
+    {
+      "url": "https://suno.com/song/da6382e2-e44f-4f22-8109-b80e1de82182",
+      "sunoTitle": "The Last Original V1",
+      "durationSec": 176,
+      "createdAt": "2026-10-02",
+      "stylePrompt": "Sparse modern synthwave, 130 BPM restrained pulse, dry intimate male vocal up front, single analog-style pad, minimal drums, raw human mix, not overproduced"
+    },
+    {
+      "url": "https://suno.com/song/981c95c4-a179-453d-8343-b3e6d036ddb4",
+      "sunoTitle": "The Last Original V1.2",
+      "durationSec": 174,
+      "createdAt": "2026-10-02",
+      "stylePrompt": "Sparse modern synthwave, 130 BPM restrained pulse, dry intimate male vocal up front, single analog-style pad, minimal drums, raw human mix, not overproduced"
+    }
+  ]
+}

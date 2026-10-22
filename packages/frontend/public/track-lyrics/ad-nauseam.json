@@ -1,1 +1,93 @@
-{"bpm":145,"durationSec":209,"hasLrc":false,"id":"ad-nauseam","lyricsStatus":"complete","notes":"Second render is titled 'Ad Nauseam V2'. Durations: library shows 3:30 for V1 and 3:29 for V2.","provenance":"Lyrics transcribed verbatim from the Suno song pages on 2026-09-30 (read-only library read): 'Ad Nauseam' and 'Ad Nauseam V2' display character-for-character identical lyric text, so this one file covers both renders.","sections":[{"lines":["Is it real or is it fake, I can't tell anymore","A I faces selling dreams from a digital store","The ad shows a game that the game never knew","Download disappointment, yeah, they played you","Fake feed, fake feed, nothing is true","Is it human or a render talking to you"],"name":"Hook"},{"lines":["Pull the pin, save the guy, that's the ad on my screen","Download it and it's match-three, not the game from the scene","Lava, spikes, and treasure in a thirty-second clip","But the real game is gem swaps on a candy trip","The hand in the ad always picks the wrong pin","Makes me think I could win it, so I tap to begin","Draw a line, save the dog from an angry swarm of bees","Download it, it's a card game, man, I'm begging you, please","It's a trick, it's a trap, it's a tease, it's a test","One star in the reviews and I'm done, unimpressed"],"name":"Verse 1 - Male"},{"lines":["Perfect smile on the screen, but she never was real","Never breathed, never blinked, she's a corporate deal","The company saved money and the actors got cut","\"Stop hiring humans\" on a billboard, what","Fire Steve, hire Ava, that's the pitch that they sell","Steve took a sick day, now he's gone, oh well","Ava booked twelve meetings, never slept, never ate","Never asked for a raise and she never showed up late","Now the law says label it, disclose the machine","But the line's getting blurry in between the scenes"],"name":"Verse 2 - Female"},{"lines":["Real or render, true or trick","Click or skip, it makes me sick","Same fake ad, different day","Delete the game, I won't play"],"name":"Bridge"},{"lines":["Is it real or is it fake, I can't tell anymore","A I faces selling dreams from a digital store","The ad shows a game that the game never knew","Download disappointment, yeah, they played you"],"name":"Final Hook"}],"source":"Suno v6-mini","title":"Ad Nauseam","urls":["https://suno.com/song/a17daa3e-1f64-461b-a757-30d9ef4fc866","https://suno.com/song/13245fed-03e8-44a9-afbf-218e3105b84b"],"variant":"V2"}
+{
+  "bpm": 145,
+  "durationSec": 209,
+  "hasLrc": false,
+  "id": "ad-nauseam",
+  "lyricsStatus": "complete",
+  "notes": "Second render is titled 'Ad Nauseam V2'. Durations: library shows 3:30 for V1 and 3:29 for V2. Corrected 2026-10-22 from the song pages: both renders are 3:29 (the V1 3:30 was a rounded list value). The two renders were made with DIFFERENT style prompts — see renders[]. Captured from the Suno song pages 2026-10-22 (read-only).",
+  "provenance": "Lyrics transcribed verbatim from the Suno song pages on 2026-09-30 (read-only library read): 'Ad Nauseam' and 'Ad Nauseam V2' display character-for-character identical lyric text, so this one file covers both renders.",
+  "sections": [
+    {
+      "lines": [
+        "Is it real or is it fake, I can't tell anymore",
+        "A I faces selling dreams from a digital store",
+        "The ad shows a game that the game never knew",
+        "Download disappointment, yeah, they played you",
+        "Fake feed, fake feed, nothing is true",
+        "Is it human or a render talking to you"
+      ],
+      "name": "Hook"
+    },
+    {
+      "lines": [
+        "Pull the pin, save the guy, that's the ad on my screen",
+        "Download it and it's match-three, not the game from the scene",
+        "Lava, spikes, and treasure in a thirty-second clip",
+        "But the real game is gem swaps on a candy trip",
+        "The hand in the ad always picks the wrong pin",
+        "Makes me think I could win it, so I tap to begin",
+        "Draw a line, save the dog from an angry swarm of bees",
+        "Download it, it's a card game, man, I'm begging you, please",
+        "It's a trick, it's a trap, it's a tease, it's a test",
+        "One star in the reviews and I'm done, unimpressed"
+      ],
+      "name": "Verse 1 - Male"
+    },
+    {
+      "lines": [
+        "Perfect smile on the screen, but she never was real",
+        "Never breathed, never blinked, she's a corporate deal",
+        "The company saved money and the actors got cut",
+        "\"Stop hiring humans\" on a billboard, what",
+        "Fire Steve, hire Ava, that's the pitch that they sell",
+        "Steve took a sick day, now he's gone, oh well",
+        "Ava booked twelve meetings, never slept, never ate",
+        "Never asked for a raise and she never showed up late",
+        "Now the law says label it, disclose the machine",
+        "But the line's getting blurry in between the scenes"
+      ],
+      "name": "Verse 2 - Female"
+    },
+    {
+      "lines": [
+        "Real or render, true or trick",
+        "Click or skip, it makes me sick",
+        "Same fake ad, different day",
+        "Delete the game, I won't play"
+      ],
+      "name": "Bridge"
+    },
+    {
+      "lines": [
+        "Is it real or is it fake, I can't tell anymore",
+        "A I faces selling dreams from a digital store",
+        "The ad shows a game that the game never knew",
+        "Download disappointment, yeah, they played you"
+      ],
+      "name": "Final Hook"
+    }
+  ],
+  "source": "Suno v6-mini",
+  "title": "Ad Nauseam",
+  "urls": [
+    "https://suno.com/song/a17daa3e-1f64-461b-a757-30d9ef4fc866",
+    "https://suno.com/song/13245fed-03e8-44a9-afbf-218e3105b84b"
+  ],
+  "variant": "V2",
+  "renders": [
+    {
+      "url": "https://suno.com/song/a17daa3e-1f64-461b-a757-30d9ef4fc866",
+      "sunoTitle": "Ad Nauseam",
+      "durationSec": 209,
+      "createdAt": "2026-09-23",
+      "stylePrompt": "hip-hop, male and female rappers in crisp, upfront rapid double-time delivery, alternating verses and a chantable shared chorus, heavy 808 bass, wild drums, running hi-hats, chopped choir chants, haunting detuned strings, distorted minor-key synths, heavy piano hits, g-funk whistle accents, bass-heavy distortion with modern 2026 mix clarity, driving 145 BPM triple-time groove"
+    },
+    {
+      "url": "https://suno.com/song/13245fed-03e8-44a9-afbf-218e3105b84b",
+      "sunoTitle": "Ad Nauseam V2",
+      "durationSec": 209,
+      "createdAt": "2026-09-23",
+      "stylePrompt": "Hip-hop chopper at 145 BPM: sharp male and confident female rapid double-time rappers alternate with crisp clear enunciation, then clash in a chantable shared chorus; slow dark bass-heavy groove, wild drums, running hi-hats, chopped choir chants, haunting detuned strings, distorted minor-key synths, heavy piano hits, g-funk whistle accents, massive 808 low-end, upfront prominent vocals, modern 2026 mix clarity"
+    }
+  ]
+}

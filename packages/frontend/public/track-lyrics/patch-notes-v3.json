@@ -1,1 +1,108 @@
-{"durationSec":185,"hasLrc":false,"id":"patch-notes-v3","lyricsStatus":"complete","provenance":"Lyrics transcribed verbatim from the Suno song pages on 2026-09-30 (read-only library read): 'Patch Notes v3' (V6-MINI, 2:54) and 'Patch Notes v3.5' (V6-MINI, 3:05) display identical lyric text — this file covers both renders.","sections":[{"lines":["I rewrote the morning with the curtains half-drawn","Faced down the list I'd been putting off too long","Every open tab held a piece of the weight","Every \"one more day\" kept adding to the wait","But the work was still there when the panic moved on","So I gave it an hour, then another till dawn","No movie montage, no lightning-strike scene","Just a hand on the wheel and the will to lean in"],"name":"Verse 1"},{"lines":["I don't have to be somebody new overnight","Just show up today and get one thing right"],"name":"Pre-Chorus"},{"lines":["These are my patch notes","I'm not who I was","I kept the scars, kept the lessons","Turned the pressure into trust","These are my patch notes","No perfect design","Just rewriting the code","Of a life that feels like mine"],"name":"Chorus"},{"lines":["Patch notes","New skin","Same soul","Begin again"],"name":"Drop Hook"},{"lines":["Now the goals on the wall don't feel far out of range","They're the proof that the small days add up to change","And the person I needed was never ahead","He was made in the mornings I wanted to run"],"name":"Verse 2"},{"lines":["No final version, no end of the road","Just a lighter version of the heavy load","Every scar's a feature, every fall's a fix","The broken parts were part of it"],"name":"Bridge"},{"lines":["These are my patch notes","I'm not who I was","I kept the scars, kept the lessons","Turned the pressure into trust","These are my patch notes","No perfect design","Just rewriting the code","Of a life that feels like mine"],"name":"Final Chorus"}],"source":"Suno v6-mini","title":"Patch Notes","urls":["https://suno.com/song/b107c8d6-2f38-4083-9692-8182754a18fc","https://suno.com/song/d1688a77-5a1c-4394-91bb-88259c5edb9f"],"variant":"v3 / v3.5 (lyrics identical on both renders)"}
+{
+  "durationSec": 184,
+  "hasLrc": false,
+  "id": "patch-notes-v3",
+  "lyricsStatus": "complete",
+  "provenance": "Lyrics transcribed verbatim from the Suno song pages on 2026-09-30 (read-only library read): 'Patch Notes v3' (V6-MINI, 2:54) and 'Patch Notes v3.5' (V6-MINI, 3:05) display identical lyric text — this file covers both renders.",
+  "sections": [
+    {
+      "lines": [
+        "I rewrote the morning with the curtains half-drawn",
+        "Faced down the list I'd been putting off too long",
+        "Every open tab held a piece of the weight",
+        "Every \"one more day\" kept adding to the wait",
+        "But the work was still there when the panic moved on",
+        "So I gave it an hour, then another till dawn",
+        "No movie montage, no lightning-strike scene",
+        "Just a hand on the wheel and the will to lean in"
+      ],
+      "name": "Verse 1"
+    },
+    {
+      "lines": [
+        "I don't have to be somebody new overnight",
+        "Just show up today and get one thing right"
+      ],
+      "name": "Pre-Chorus"
+    },
+    {
+      "lines": [
+        "These are my patch notes",
+        "I'm not who I was",
+        "I kept the scars, kept the lessons",
+        "Turned the pressure into trust",
+        "These are my patch notes",
+        "No perfect design",
+        "Just rewriting the code",
+        "Of a life that feels like mine"
+      ],
+      "name": "Chorus"
+    },
+    {
+      "lines": [
+        "Patch notes",
+        "New skin",
+        "Same soul",
+        "Begin again"
+      ],
+      "name": "Drop Hook"
+    },
+    {
+      "lines": [
+        "Now the goals on the wall don't feel far out of range",
+        "They're the proof that the small days add up to change",
+        "And the person I needed was never ahead",
+        "He was made in the mornings I wanted to run"
+      ],
+      "name": "Verse 2"
+    },
+    {
+      "lines": [
+        "No final version, no end of the road",
+        "Just a lighter version of the heavy load",
+        "Every scar's a feature, every fall's a fix",
+        "The broken parts were part of it"
+      ],
+      "name": "Bridge"
+    },
+    {
+      "lines": [
+        "These are my patch notes",
+        "I'm not who I was",
+        "I kept the scars, kept the lessons",
+        "Turned the pressure into trust",
+        "These are my patch notes",
+        "No perfect design",
+        "Just rewriting the code",
+        "Of a life that feels like mine"
+      ],
+      "name": "Final Chorus"
+    }
+  ],
+  "source": "Suno v6-mini",
+  "title": "Patch Notes",
+  "urls": [
+    "https://suno.com/song/b107c8d6-2f38-4083-9692-8182754a18fc",
+    "https://suno.com/song/d1688a77-5a1c-4394-91bb-88259c5edb9f"
+  ],
+  "variant": "v3 / v3.5 (lyrics identical on both renders)",
+  "bpm": 150,
+  "bpmNote": "Stated in both renders' Suno style prompts ('locked 150 BPM pulse'); not independently measured.",
+  "renders": [
+    {
+      "url": "https://suno.com/song/b107c8d6-2f38-4083-9692-8182754a18fc",
+      "sunoTitle": "Patch Notes v3",
+      "durationSec": 173,
+      "createdAt": "2026-09-21",
+      "stylePrompt": "Indie electronic x future bass, polished wide modern production: sparse late-night intro blooming into a cathartic melodic bass drop, tight live-feeling drums with crisp electronic percussion, warm punchy midbass, centered mono sub, wide pads/leads/hats, shimmering arpeggios, subtle distorted guitar ambience, airy 10 kHz lift, dynamic clean master; locked steady 150 BPM pulse; intimate male close-mic conversational verses, soaring multi-layered chorus, chopped vocal textures, subtle gang-vocal response on the final hook"
+    },
+    {
+      "url": "https://suno.com/song/d1688a77-5a1c-4394-91bb-88259c5edb9f",
+      "sunoTitle": "Patch Notes v3.5",
+      "durationSec": 184,
+      "createdAt": "2026-09-21",
+      "stylePrompt": "Indie electronic x future bass, locked 150 BPM pulse, intimate male close-mic conversational verses opening into soaring multi-layered chorus, finger-tight live-feeling drums with crisp electronic percussion, shimmering arpeggios, pads, wide leads and hats, subtle distorted guitar ambience, warm punchy midbass at 120–300 Hz, centered mono sub bass, chopped vocal textures and subtle gang-vocal response on the final hook, sparse late-night intro expanding into a cathartic melodic bass drop, emotional major-to-minor movement, airy top end with a gentle 10 kHz lift, polished dynamic master with tape-clean clarity and no tempo drift"
+    }
+  ],
+  "notes": "Durations corrected 2026-10-22 from the Suno song pages: v3 is 2:53 and v3.5 is 3:04 (the 2:54 / 3:05 figures in the provenance were rounded list values). The two renders were made with DIFFERENT style prompts — see renders[]. Captured from the Suno song pages 2026-10-22 (read-only)."
+}

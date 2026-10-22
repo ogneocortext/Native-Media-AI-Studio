@@ -1,0 +1,101 @@
+{
+  "id": "the-last-original-v2",
+  "title": "The Last Original",
+  "hasLrc": false,
+  "lyricsStatus": "complete",
+  "source": "Suno v6-mini",
+  "variant": "V2 / V2.2 (lyrics identical on both renders)",
+  "durationSec": 179,
+  "bpm": 130,
+  "bpmNote": "Style prompt states 130 BPM; not independently measured.",
+  "urls": [
+    "https://suno.com/song/df8e7c90-85ec-4f76-9c23-474e950c0634",
+    "https://suno.com/song/3dfa747a-502c-4ea2-830f-66de4f8d357e"
+  ],
+  "notes": "Durations: both renders show 2:59. The Intro tag and the Outro's single line are production directions in the lyrics field, not sung lines. Both renders share the one style prompt (see renders[]) — the exception to this library's usual one-prompt-per-render pattern.",
+  "provenance": "Lyrics and style prompt transcribed verbatim from the Suno song pages on 2026-10-22 (read-only capture): the two renders of lyric set 2 display identical lyric text and the identical style prompt, so this one file covers both. Created on Suno 2026-10-02.",
+  "sections": [
+    {
+      "name": "Intro: pulsing bass arp under wide pads, a single fragile hum-like synth motif, no vocals",
+      "lines": []
+    },
+    {
+      "name": "Verse 1",
+      "lines": [
+        "She hummed it while she cooked",
+        "I never wrote it down",
+        "You think you'll remember",
+        "Until they're not around"
+      ]
+    },
+    {
+      "name": "Pre-Chorus - building",
+      "lines": [
+        "They called about the program",
+        "Said \"send the clips you own\"",
+        "\"We'll make her sing it perfect\"",
+        "I told them leave it alone"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "Nobody else can hum it",
+        "It never left my head",
+        "If I forget, it's gone for good",
+        "So I keep it here instead"
+      ]
+    },
+    {
+      "name": "Verse 2",
+      "lines": [
+        "Now every screen's got voices",
+        "That never had a throat",
+        "They never burned the onions",
+        "They never stayed up late",
+        "They sing it note-for-note now",
+        "But they can't get it straight"
+      ]
+    },
+    {
+      "name": "Bridge - raw exposed",
+      "lines": [
+        "It's not in any cloud",
+        "It's in the way she stood there",
+        "Hands deep in the dishwater",
+        "Humming like she didn't care"
+      ]
+    },
+    {
+      "name": "Chorus",
+      "lines": [
+        "Nobody else can hum it",
+        "It never left my head",
+        "If I forget, it's gone for good",
+        "So I keep it here instead"
+      ]
+    },
+    {
+      "name": "Outro - stripped",
+      "lines": [
+        "Hum motif alone, then silence"
+      ]
+    }
+  ],
+  "renders": [
+    {
+      "url": "https://suno.com/song/df8e7c90-85ec-4f76-9c23-474e950c0634",
+      "sunoTitle": "The Last Original V2",
+      "durationSec": 179,
+      "createdAt": "2026-10-02",
+      "stylePrompt": "Sparse modern synthwave, 130 BPM restrained pulse, dry intimate male vocal up front, single analog-style pad, minimal drums, raw human mix, not overproduced"
+    },
+    {
+      "url": "https://suno.com/song/3dfa747a-502c-4ea2-830f-66de4f8d357e",
+      "sunoTitle": "The Last Original V2.2",
+      "durationSec": 179,
+      "createdAt": "2026-10-02",
+      "stylePrompt": "Sparse modern synthwave, 130 BPM restrained pulse, dry intimate male vocal up front, single analog-style pad, minimal drums, raw human mix, not overproduced"
+    }
+  ]
+}

@@ -122,7 +122,9 @@ times R6 requires.
 
 Canonical text lives in `packages/frontend/public/track-lyrics/`
 (`index.json` + one JSON per track; loader
-`packages/frontend/src/data/trackLyrics.ts`). Six tracks, 216 lines,
+`packages/frontend/src/data/trackLyrics.ts`). Eight tracks, 268 lines
+(six at first writing; The Last Original's two sets were captured
+from Suno later the same day — see the gap note below),
 all `lyricsStatus: complete`, **none with an LRC** — the loader spreads
 lines evenly across `durationSec` as *estimated* timing. Per the
 manifest's own warning, that estimate is preview-only, never a render
@@ -135,18 +137,18 @@ source; R1/R2 data supersedes it per track as it is produced.
 | Rinse and Repeat (`rinse-and-repeat`) | Suno v6-mini | 3:29 | 130 (V3 preferred; V1/V2 rendered at 115 — same lyrics, two grids) | 6 / 35 | Verses split `[Verse - male]` / `[Verse - female]`: vocal handoffs are coverage cues (R4) — cut or reframe on the handoff. Hook: "Ten channels, one thread, same screenshot on the screen". |
 | Human in the Loop V2 (`human-in-the-loop-v2`) | Flow Music (Lyria 3.5) | 4:06 | 145, C minor | 12 / 39 | Build-up sections ("YOU GLITCH") precede each hook return — pre-marked accent points. A Whisper transcript diff for the Suno render exists in the Suno goal files; the R2 diff has a head start here. Hook: "You glitch, I bleed". |
 | Ad Nauseam (`ad-nauseam`) | Suno v6-mini | 3:29 | 145 | 5 / 34 | V1/V2 lyric-identical (one file covers both). Male/female verse split like Rinse and Repeat. Hook: "Is it real or is it fake, I can't tell anymore". |
-| Patch Notes (`patch-notes-v3`) | Suno v6-mini | 3:05 | — (never analysed) | 7 / 38 | v3/v3.5 lyric-identical. Chorus is 8 lines ("These are my patch notes") with a 4-line Drop Hook — hook weight is measurable from the sheet alone. Needs its R1 analysis pass. |
+| Patch Notes (`patch-notes-v3`) | Suno v6-mini | 3:04 (v3.5; v3 is 2:53) | 150 — stated in both renders' style prompts (2026-10-22 capture); unmeasured | 7 / 38 | v3/v3.5 lyric-identical, but made with different prompts (both now on file in the library entry). Chorus is 8 lines ("These are my patch notes") with a 4-line Drop Hook — hook weight is measurable from the sheet alone. Still needs its R1 measured grid. |
 
-**Known gap — The Last Original is not in the library.** Two lyric sets
-were generated 2026-10-02 and exist only as Suno pages: set 1 —
-[V1](https://suno.com/song/da6382e2-e44f-4f22-8109-b80e1de82182) (2:56),
-[V1.2](https://suno.com/song/981c95c4-a179-453d-8343-b3e6d036ddb4) (2:54);
-set 2 — [V2](https://suno.com/song/df8e7c90-85ec-4f76-9c23-474e950c0634)
-(2:59), [V2.2](https://suno.com/song/3dfa747a-502c-4ea2-830f-66de4f8d357e)
-(2:59). Capture = the same read-only transcription pass used for the
-other Suno entries on 2026-09-30, then one library JSON per lyric set
-(set 1 / set 2 are different lyrics, unlike the identical-render pairs
-above). Until captured, this track has no storyboard source data.
+**The Last Original — gap closed 2026-10-22.** At first writing, its
+two lyric sets existed only as Suno pages. They were captured the same
+day (read-only pass, like 2026-09-30's) and now live in the library as
+`the-last-original-v1.json` (set 1: V1/V1.2, 25 lines) and
+`the-last-original-v2.json` (set 2: V2/V2.2, 27 lines). All four renders
+share one style prompt — the exception to the library's usual pattern,
+found in the same capture, that paired renders carry *different*
+prompts (Ad Nauseam, Patch Notes, Rinse and Repeat, Unproductive,
+Human in the Loop, and all four Valley Phonk renders each have
+per-render prompts, now stored in every entry's `renders[]`).
 
 ## 5. Worked example — Unproductive, Extended V2 (the V5 cut)
 

@@ -1,1 +1,133 @@
-{"bpm":145,"durationSec":246,"hasLrc":false,"id":"human-in-the-loop-v2","key":"C minor","lyricsStatus":"complete","provenance":"APPROVED lyrics from human-in-the-loop-lyrics-draft.md (2026-09-21 Flow Music package, Lyria 3.5, seed 260921). Note: the Suno v6-mini HITL render (3:59, 2026-09-21) used an earlier approved lyric set; the Whisper transcript diff is in hitl-v2-suno-transcript-diff.md. Fragile lines flagged there ('couch caught me like it missed me all day long', 'every ache') were kept in this Flow version.","sections":[{"lines":["I'm alive... I'm alive..."],"name":"Intro"},{"lines":["Sun came up mean, sweat before the shower","left my phone out in the sun, it overheated","said \"too hot to think,\" tapped itself to sleep","the machine clocks out — I just dig in deep","shirt stuck to my back by half past nine","the fan blows hot, but you know I'm doing fine","pour another drink, let the ice run thin","no warning light on me, I take it on the chin"],"name":"Verse"},{"lines":["You glitch, I bleed","I feel the heat, I'm alive","You glitch, I bleed","this body keeps me human"],"name":"Hook"},{"lines":["YOU GLITCH","YOU GLITCH, I BLEED"],"name":"Build-up"},{"lines":["YOU GLITCH, I BLEED"],"name":"Hook"},{"lines":["Came home wiped out, my feet talking back to me","the servers hum all night, they never miss a beat","my stomach growling louder than the A.C. blows","the machine don't eat — it never even knows","couch caught me like it missed me all day long","and the desert night is coming on strong","it never sleeps, so it never earns the rest","but I worked for mine — I feel it in my chest"],"name":"Verse"},{"lines":["You glitch, I bleed","I feel the heat, I'm alive","You glitch, I bleed","this body keeps me human"],"name":"Hook"},{"lines":["YOU GLITCH","YOU GLITCH, I BLEED"],"name":"Build-up"},{"lines":["YOU GLITCH, I BLEED"],"name":"Hook"},{"lines":["Every drop of sweat, every ache","that's the human in the wire","you can copy my voice, but you can't feel the fire"],"name":"Bridge"},{"lines":["You glitch, I bleed","I feel the heat, I'm alive","You glitch, I bleed","this body keeps me human"],"name":"Hook"},{"lines":["I'm alive... I'm alive..."],"name":"Outro"}],"source":"Flow Music (Lyria 3.5)","title":"Human in the Loop V2"}
+{
+  "bpm": 145,
+  "durationSec": 246,
+  "hasLrc": false,
+  "id": "human-in-the-loop-v2",
+  "key": "C minor",
+  "lyricsStatus": "complete",
+  "provenance": "APPROVED lyrics from human-in-the-loop-lyrics-draft.md (2026-09-21 Flow Music package, Lyria 3.5, seed 260921). Note: the Suno v6-mini HITL render (3:59, 2026-09-21) used an earlier approved lyric set; the Whisper transcript diff is in hitl-v2-suno-transcript-diff.md. Fragile lines flagged there ('couch caught me like it missed me all day long', 'every ache') were kept in this Flow version.",
+  "sections": [
+    {
+      "lines": [
+        "I'm alive... I'm alive..."
+      ],
+      "name": "Intro"
+    },
+    {
+      "lines": [
+        "Sun came up mean, sweat before the shower",
+        "left my phone out in the sun, it overheated",
+        "said \"too hot to think,\" tapped itself to sleep",
+        "the machine clocks out — I just dig in deep",
+        "shirt stuck to my back by half past nine",
+        "the fan blows hot, but you know I'm doing fine",
+        "pour another drink, let the ice run thin",
+        "no warning light on me, I take it on the chin"
+      ],
+      "name": "Verse"
+    },
+    {
+      "lines": [
+        "You glitch, I bleed",
+        "I feel the heat, I'm alive",
+        "You glitch, I bleed",
+        "this body keeps me human"
+      ],
+      "name": "Hook"
+    },
+    {
+      "lines": [
+        "YOU GLITCH",
+        "YOU GLITCH, I BLEED"
+      ],
+      "name": "Build-up"
+    },
+    {
+      "lines": [
+        "YOU GLITCH, I BLEED"
+      ],
+      "name": "Hook"
+    },
+    {
+      "lines": [
+        "Came home wiped out, my feet talking back to me",
+        "the servers hum all night, they never miss a beat",
+        "my stomach growling louder than the A.C. blows",
+        "the machine don't eat — it never even knows",
+        "couch caught me like it missed me all day long",
+        "and the desert night is coming on strong",
+        "it never sleeps, so it never earns the rest",
+        "but I worked for mine — I feel it in my chest"
+      ],
+      "name": "Verse"
+    },
+    {
+      "lines": [
+        "You glitch, I bleed",
+        "I feel the heat, I'm alive",
+        "You glitch, I bleed",
+        "this body keeps me human"
+      ],
+      "name": "Hook"
+    },
+    {
+      "lines": [
+        "YOU GLITCH",
+        "YOU GLITCH, I BLEED"
+      ],
+      "name": "Build-up"
+    },
+    {
+      "lines": [
+        "YOU GLITCH, I BLEED"
+      ],
+      "name": "Hook"
+    },
+    {
+      "lines": [
+        "Every drop of sweat, every ache",
+        "that's the human in the wire",
+        "you can copy my voice, but you can't feel the fire"
+      ],
+      "name": "Bridge"
+    },
+    {
+      "lines": [
+        "You glitch, I bleed",
+        "I feel the heat, I'm alive",
+        "You glitch, I bleed",
+        "this body keeps me human"
+      ],
+      "name": "Hook"
+    },
+    {
+      "lines": [
+        "I'm alive... I'm alive..."
+      ],
+      "name": "Outro"
+    }
+  ],
+  "source": "Flow Music (Lyria 3.5)",
+  "title": "Human in the Loop V2",
+  "urls": [
+    "https://suno.com/song/a05ea029-876c-46d2-b645-5a352f3b6cc3",
+    "https://suno.com/song/643679d2-5476-45d1-8b3a-d86dde34da15"
+  ],
+  "renders": [
+    {
+      "url": "https://suno.com/song/a05ea029-876c-46d2-b645-5a352f3b6cc3",
+      "sunoTitle": "Human in the Loop",
+      "durationSec": 239,
+      "createdAt": "2026-09-21",
+      "stylePrompt": "West coast g-funk fused with riddim at 145 bpm: laid-back swung drums driving into halftime drops, dark digital atmosphere with warm analog soul, male talkbox and conversational drawl verses with soulful gospel-tinged R&B hooks, whiny portamento synth lead, melodic funk bassline, syncopated midbass chops, aggressive riddim bass drops"
+    },
+    {
+      "url": "https://suno.com/song/643679d2-5476-45d1-8b3a-d86dde34da15",
+      "sunoTitle": "Human in the Loop V2",
+      "durationSec": 239,
+      "createdAt": "2026-09-21",
+      "stylePrompt": "West coast g-funk fused with riddim: male talkbox vocals, laid-back conversational drawl verses, soulful gospel-tinged R&B hooks; whiny portamento synth lead, melodic funk bassline, swung drums, syncopated midbass chops, aggressive riddim bass drops; dark digital atmosphere with warm analog soul; 145 bpm, laid-back swing driving into halftime drop explosions"
+    }
+  ],
+  "notes": "Suno renders located 2026-10-22: two v6-mini renders (both 3:59), made with DIFFERENT style prompts — see renders[]. Their lyrics are the EARLIER approved set named in the provenance (longer verses, full four-line hooks, a Drop section); the sections in this file remain the approved final draft (the Flow version). Do not overwrite one with the other. Captured from the Suno song pages 2026-10-22 (read-only)."
+}
