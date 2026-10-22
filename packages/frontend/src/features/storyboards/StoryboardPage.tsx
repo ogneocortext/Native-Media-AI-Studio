@@ -648,7 +648,10 @@ function TracksTab({
         {loading ? (
           <div className="p-4 text-center text-gray-500 text-sm">Loading tracks...</div>
         ) : tracks.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 text-sm">No tracks found</div>
+          <div className="p-4 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
+          <Music size={24} className="mx-auto opacity-40" />
+          No tracks found
+        </div>
         ) : (
           tracks.map((track) => (
             <button

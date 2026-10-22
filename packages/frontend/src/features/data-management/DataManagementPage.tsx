@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Table, Button, Card } from "tabler-react";
-import { RefreshCw, FileText, Activity } from "lucide-react";
+import { RefreshCw, FileText, Activity, Image, Music, Box, Settings } from "lucide-react";
 import { formatBytes } from "../../utils/format";
 import {
   getPrompts,
@@ -150,7 +150,10 @@ export function DataManagementPage() {
         </div>
             {activeTab === "prompts" && (
               prompts.length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No prompts found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <FileText size={32} className="mx-auto mb-2 text-muted/40" />
+                No prompts found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -190,7 +193,10 @@ export function DataManagementPage() {
 
             {activeTab === "visuals" && (
               visuals.length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No AI visuals found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <Image size={32} className="mx-auto mb-2 text-muted/40" />
+                No AI visuals found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -229,7 +235,10 @@ export function DataManagementPage() {
 
             {activeTab === "sessions" && (
               sessions.length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No sessions found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <Activity size={32} className="mx-auto mb-2 text-muted/40" />
+                No sessions found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -266,7 +275,10 @@ export function DataManagementPage() {
 
             {activeTab === "tracks" && (
               tracks.length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No tracks found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <Music size={32} className="mx-auto mb-2 text-muted/40" />
+                No tracks found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -304,7 +316,10 @@ export function DataManagementPage() {
 
             {activeTab === "scenes" && (
               scenes.length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No saved scenes found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <Box size={32} className="mx-auto mb-2 text-muted/40" />
+                No saved scenes found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -333,7 +348,10 @@ export function DataManagementPage() {
 
             {activeTab === "history" && (
               history.length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No prompt history found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <FileText size={32} className="mx-auto mb-2 text-muted/40" />
+                No prompt history found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -366,7 +384,10 @@ export function DataManagementPage() {
 
             {activeTab === "preferences" && (
               Object.keys(preferences).length === 0 ? (
-                <div className="text-muted text-sm py-8 text-center">No preferences found</div>
+                <div className="text-muted text-sm py-8 text-center flex flex-col items-center">
+                <Settings size={32} className="mx-auto mb-2 text-muted/40" />
+                No preferences found
+              </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
