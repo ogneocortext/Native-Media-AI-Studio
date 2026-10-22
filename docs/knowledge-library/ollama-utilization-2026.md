@@ -85,8 +85,6 @@ Ollama is the **central LLM layer** for Native Media AI Studio. It is used for:
 | `qwen3.5:9b`                     | 6.60 GB | ~9 GB     | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best tool caller; tight on 8GB                      |
 | `qwen3.5:4b`                     | 3.40 GB | ~4.8 GB   | Q4_K_M | completion, **vision**, **tools**, **thinking**        | Best speed/quality balance                          |
 | `ibm/granite4.2:3b`              | 2.14 GB | ~2.8 GB   | Q4     | completion, **tools**               | Lightweight text-only; no thinking mode; fast direct output |
-| `minicpm-v:8b`                   | 5.47 GB | ~7.7 GB   | Q4_0   | completion, **vision**              | OCR specialist; RLAIF-V; only other vision model    |
-| `minicpm-v:latest`               | 5.47 GB | ~7.7 GB   | Q4_0   | completion, **vision**              | Alias tag for `minicpm-v:8b` (same blob, 0 GB)      |
 | `llama3.2:3b`                    | 2.02 GB | ~2.8 GB   | Q4_K_M | completion, **tools**               | Lightweight tool caller                             |
 | `nomic-embed-text:v1.5`          | 0.27 GB | ~0.4 GB   | F16    | embedding                           | Embedding model; always resident                    |
 | *(3 cloud models)*               | 0 GB    | —         | —      | cloud-only                          | No local weights                                    |

@@ -158,8 +158,12 @@ BROKEN_MODELS = {
     # (2026-10-11) after measuring a 183-254 s cold load on 8 GB
     # VRAM. It stays out of chat selectors because it is
     # vision-only (no tools/thinking) and slow to cold-load.
-    "minicpm-v:8b": {"reason": "vision-only (no tools/thinking); ~254s cold load — works via /api/vision (300s timeout)"},
-    "qwen3.5:9b": {"reason": "timeout 180s for blender script"},
+    # Deleted 2026-10-22: too big for GTX 1070 Ti 8 GB VRAM (6.5 GB safe budget)
+    # Do not re-download until GPU upgrade.
+    "glm-4.7-flash:latest": {"reason": "18 GB model — far exceeds 8 GB VRAM; OOM on load"},
+    "qwen3.5:9b": {"reason": "9B model, ~9-10 GB VRAM est. — exceeds 6.5 GB safe budget; OOM risk"},
+    "minicpm-v:8b": {"reason": "8B model, ~7.7 GB VRAM est. — exceeds 6.5 GB safe budget; was vision-only fallback"},
+    "minicpm-v:latest": {"reason": "alias tag for minicpm-v:8b; deleted with it"},
     "openbmb/minicpm-v4.6:q4_K_M": {"reason": "invalid Blender API output"},
     "deepseek-v4-flash:cloud": {"reason": "cloud model, /api/show fails"},
 }

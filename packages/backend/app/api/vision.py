@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 
 DEFAULT_MODEL = "gemma4:e2b-it-qat"
-FALLBACK_MODEL = "minicpm-v:8b"
+# minicpm-v:8b deleted 2026-10-22 (too big for 8 GB VRAM). No vision fallback
+# remains; vision requests fall back to gemma4:e2b-it-qat itself.
+FALLBACK_MODEL = None
 
 OLLAMA_URL = ollama_url()
 

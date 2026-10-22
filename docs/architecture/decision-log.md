@@ -1673,3 +1673,28 @@
   system health checks, quick status responses, and any task where
   `think=false` direct output is preferred over gemma4's thinking trace.
 
+### D46 — Deleted oversized Ollama models; added do-not-re-download guard (2026-10-22)
+
+- **Status:** Decided
+- **Context:** `glm-4.7-flash:latest` (18 GB), `qwen3.5:9b` (9B, ~9-10 GB VRAM est.),
+  and `minicpm-v:8b`/`minicpm-v:latest` (8B, ~7.7 GB VRAM est.) all exceed the
+  GTX 1070 Ti's 6.5 GB safe VRAM budget. They were deleted from the local
+  Ollama instance on 2026-10-22.
+- **Measurement:** VRAM budget rule from `docs/knowledge-library/ollama-utilization-2026.md` §2.2:
+  "Keep total VRAM allocation under 6.5 GB to leave headroom for KV cache
+  growth, ComfyUI/FFmpeg, and CUDA overhead." All three deleted models exceed
+  this: glm-4.7-flash at 18 GB, qwen3.5:9b at ~9-10 GB, minicpm-v:8b at ~7.7 GB.
+- **Decision:** Deleted all four model entries (`glm-4.7-flash:latest`,
+  `qwen3.5:9b`, `minicpm-v:8b`, `minicpm-v:latest`) via
+  `DELETE /api/delete`. Added all four to `BROKEN_MODELS` in
+  `packages/backend/app/api/integrations_config.py` with reason "too big for
+  8 GB VRAM; do not re-download until GPU upgrade." Removed from
+  `config/settings.json` `recommended_models`, `AIVisualizerPrompt.tsx`
+  `TOOL_CAPABLE_MODELS`, and `vision.py` `FALLBACK_MODEL` (set to `None` — no
+  vision fallback remains; gemma4:e2b-it-qat is the only vision model).
+- **Consequences:** No model auto-download path exists in the repo (Ollama
+  pulls are operator-initiated), so the BROKEN_MODELS listing plus the
+  decision-log entry serve as the guard. Agents should not attempt to
+  re-download these models. If the GPU is upgraded, revisit BROKEN_MODELS and
+  the decision-log entry before re-adding any of them.
+
