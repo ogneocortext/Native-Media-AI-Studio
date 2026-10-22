@@ -290,6 +290,7 @@ export function VideoGenerationPage() {
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [selectedSection, setSelectedSection] = useState<string>("");
   const isLtxModel = selectedModel.toLowerCase().includes("ltx");
+  const isKandinskyModel = selectedModel.toLowerCase().includes("kandinsky");
   const [queueInfo, setQueueInfo] = useState<{ running: number; pending: number } | null>(null);
   const [startImage, setStartImage] = useState<string>("");
   const [imageToVideoMode, setImageToVideoMode] = useState<boolean>(false);
@@ -1101,6 +1102,11 @@ export function VideoGenerationPage() {
                         Tip: LTX 2.3 distilled &#8212; use 25 steps, 24 fps, duration 2&#8211;4s.
                         Resolution clamped to 768&#215;512.
                       </>
+                    ) : isKandinskyModel ? (
+                      <>
+                        Tip: Kandinsky 5 Lite &#8212; image-to-video, use a start image for
+                        consistent identity. Resolution 512&#215;512, 24 frames at ~120s.
+                      </>
                     ) : (
                       <>
                         Tip: Start at <span className="text-gray-300">20 steps</span>, re-render keepers
@@ -1359,6 +1365,21 @@ export function VideoGenerationPage() {
                 <li>&#8226; ~4.46 GB peak VRAM &#8212; fits 8GB with headroom</li>
                 <li>&#8226; ~210s per 25f clip at 768&#215;512 (~4&#215; faster than Wan)</li>
                 <li>&#8226; Recommended: 25 steps, 24 fps, duration 2&#8211;4s</li>
+              </ul>
+            </div>
+          )}
+          {/* Kandinsky-specific info banner */}
+          {isKandinskyModel && (
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 mt-3">
+              <div className="flex items-center gap-2 mb-1">
+                <ImageIcon size={14} className="text-blue-400" />
+                <span className="text-sm font-medium text-blue-300">Kandinsky 5 Lite</span>
+              </div>
+              <ul className="text-xs text-blue-200 space-y-1 ml-4">
+                <li>&#8226; Image-to-video model &#8212; use a start image for consistency</li>
+                <li>&#8226; ~5.5 GB peak VRAM &#8212; fits 8GB with headroom</li>
+                <li>&#8226; ~120s per 24f clip at 512&#215;512</li>
+                <li>&#8226; Recommended: duration 2&#8211;4s, start image preferred</li>
               </ul>
             </div>
           )}

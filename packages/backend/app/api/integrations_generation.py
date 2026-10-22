@@ -186,6 +186,19 @@ async def get_video_models() -> dict:
         )
     )
 
+    # Checkpoints that look video-related (kandinsky i2v, kandinsky checkpoints,
+    # and other video checkpoints live here but are not SD-family image models).
+    video_models.extend(
+        _scan_model_dir(
+            comfyui_models_dir / "checkpoints",
+            comfyui_models_dir,
+            VIDEO_DIFFUSION_SUFFIXES,
+            1024 * 1024,
+            "diffusion_model",
+            keyword_filter=True,
+        )
+    )
+
     return {"video_models": video_models}
 
 
