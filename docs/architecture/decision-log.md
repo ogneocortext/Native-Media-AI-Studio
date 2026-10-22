@@ -1639,3 +1639,37 @@
   `type` is the gate that catches a new API used past the configured lib - it
   fails there rather than in the browser at runtime.
 
+### D45 — ibm/granite4.2:3b evaluated as a text model (2026-10-22)
+
+- **Status:** Decided
+- **Context:** `ibm/granite4.2:3b` (2.1 GB Q4, ~2.8 GB VRAM est.) downloaded into
+  the Ollama instance on D:\AI\Models\Ollama\. Need to evaluate whether it adds
+  value over the existing text-model catalog on the GTX 1070 Ti (8 GB VRAM).
+- **Measurement (quick, `--quick` flag, `think=false`, `num_predict=16`):**
+  - `ibm/granite4.2:3b` chat-basic: 11.08 s, 41.1 tok/s, exact "OK" response
+  - `ibm/granite4.2:3b` generate: 1.43 s, 23.7 tok/s (hit `length` limit at 32
+    tokens — model is verbose by default)
+  - `ibm/granite4.2:3b` structured-output: 6.46 s, 21.5 tok/s, valid JSON
+    `{"status": "ok", "value": 42}`, parsed cleanly
+  - `gemma4:e2b-it-qat` chat-basic: 15.87 s, 101.9 tok/s (faster tokens/sec
+    but higher cold-load latency)
+  - `gemma4:e2b-it-qat` generate: 0.60 s, 59.7 tok/s (resident, uses thinking)
+- **Analysis:** Granite4.2:3b is **slower** than gemma4 on both latency
+  (11.08 s vs 15.87 s cold chat — actually slightly faster cold-start) and
+  throughput (41.1 vs 101.9 tok/s). However, Granite does **not** use thinking
+  mode, so its output is direct without the `think:` overhead that gemma4
+  incurs. For quick non-reasoning text tasks (system health checks, simple
+  classification, short completions), Granite is a viable lightweight option
+  at ~2.8 GB VRAM, fitting comfortably under the 6.5 GB VRAM budget.
+- **Decision:** `ibm/granite4.2:3b` is added as a **lightweight text-only
+  option** for simple chat/generate tasks where thinking-mode overhead is
+  unwanted. It is **not** a replacement for `gemma4:e2b-it-qat` (vision
+  primary) or `qwen3.5:4b` (best speed/quality balance for reasoning/tasks).
+- **Consequences:** Added to `config/settings.json`
+  `_ollama_notes.recommended_models` and
+  `docs/knowledge-library/ollama-utilization-2026.md` §2.1 inventory + §3.2
+  routing table. No backend adapter or route changes needed — Granite works
+  through the existing OllamaAdapter chat/generate paths. Recommended for:
+  system health checks, quick status responses, and any task where
+  `think=false` direct output is preferred over gemma4's thinking trace.
+
