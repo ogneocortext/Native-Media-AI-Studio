@@ -31,6 +31,7 @@ This directory contains project documentation, knowledge base articles, and setu
 - `README.md` (this file) — map of the documentation tree
 - `knowledge-library/index.md` — library navigation and tag counts
 - `knowledge-library/tagging-guide.md` — how library articles are tagged
+- `knowledge-library/playwright-e2e-2026.md` — the Playwright E2E suite: layout, helper vocabulary, and current Playwright practices
 - `architecture/decision-log.md` — decisions and open questions
 - `architecture/visualizer.md` — visualizer module map and refactor rules (D14)
 - `architecture/browser-support.md` — the single-engine target: modern Chromium (D44)

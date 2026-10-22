@@ -527,3 +527,7 @@ mock output was still written on service failure (42 such files remain under
 4. **Inpainting** - Add mask-based inpainting
 5. **Model Switching** - Hot-swap models without restart
 6. **Queue Management** - Priority queue for urgent jobs
+
+## Related
+
+- [[playwright-e2e-2026]] :see-also — Playwright E2E 2026

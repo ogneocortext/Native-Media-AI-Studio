@@ -275,5 +275,6 @@ The `index.md` file is organized by the 7 primary categories. When you add a new
 _Last updated: 2026-09-29_
 
 ## Related
+- [[playwright-e2e-2026]] :see-also — Playwright E2E 2026
 
 - [[migration-progress.md]] :see-also

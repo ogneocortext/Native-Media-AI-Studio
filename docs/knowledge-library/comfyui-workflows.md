@@ -561,3 +561,7 @@ Generation requests are validated at the API layer:
 ---
 
 _Last updated: 2026-09-09 — Sep 2026 sweep: Gemma 4 native (E2B 8GB), Hunyuan3D 3.0, VOID/BiRefNet, Subgraphs, 8GB-capped tables_
+
+## Related
+
+- [[playwright-e2e-2026]] :see-also — Playwright E2E 2026

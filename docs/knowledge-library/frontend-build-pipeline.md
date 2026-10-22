@@ -318,3 +318,7 @@ Parses the JSON payload embedded in `dist/stats.html` (rollup-plugin-visualizer 
 4. **Duplicated modules** — modules whose code landed in more than one chunk (recovery candidates).
 
 Data model notes (visualizer v2 format): `nodeParts[partUid] = {renderedLength, gzipLength, brotliLength, metaUid}` and `nodeMetas[metaUid] = {id, isExternal, ...}` — part uids are what the chunk tree leaves reference; module identity lives on the meta. Requires a prior `pnpm build:analyze` (or any build that emits `dist/stats.html`).
+
+## Related
+
+- [[playwright-e2e-2026]] :see-also — Playwright E2E 2026

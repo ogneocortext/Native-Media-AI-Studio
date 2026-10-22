@@ -52,7 +52,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `stem-system-evaluation-2026.md`  → `#production`, `#audio`, `#visualization`, `#technical`
 - ✅ `ai-music-mastering-stems-2026.md`  → `#production`, `#audio`
 
-### 🛠️ Technical Implementation (14/14 completed) ✅
+### 🛠️ Technical Implementation (15/15 completed) ✅
+- ✅ `playwright-e2e-2026.md`  → `#technical`
 
 - ✅ `technical-reference.md`  → `#technical`, `#platform-comfyui`, `#platform-blender`, `#hardware-8gb`
 - ✅ `comfyui-workflows.md`  → `#technical`, `#platform-comfyui`
@@ -203,5 +204,6 @@ Still open:
 _Last updated: 2026-09-29_
 
 ## Related
+- [[playwright-e2e-2026]] :see-also — Playwright E2E 2026
 
 - [[tagging-guide.md]] :see-also

@@ -41,6 +41,9 @@ Rationale: aligns the vault with the LLM Wiki pattern and Google Cloud's Open
 Knowledge Format (OKF v0.1, 2026-06), making the library more machine-readable
 for AI agents.
 
+## 2026-10-21 — Knowledge library additions
+- Added `docs/knowledge-library/playwright-e2e-2026.md` → `#technical`
+
 ---
 
 ## How to use this log

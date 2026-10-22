@@ -56,6 +56,9 @@ CATEGORIES = {
     "7": ("research", "Research & Reference"),
 }
 
+# The category slugs, in menu order — what --category accepts.
+CATEGORY_SLUGS = [cat for cat, _label in CATEGORIES.values()]
+
 PAGE_TYPES = ("concept", "entity", "source", "comparison",
               "synthesis", "tracker", "index")
 
@@ -299,56 +302,90 @@ def filename_for(slug: str) -> Path:
     return BASE / f"{stem}.md"
 
 
+def _find_section(text: str, heading_prefix: str) -> re.Match:
+    """Locate a `### ` section by heading *prefix*.
+
+    The headings carry suffixes that change over time — index.md uses
+    "### 🛠️ Technical Implementation (Code & Systems)" and the tracker uses
+    "### 🛠️ Technical Implementation (14/14 completed) ✅" — so an exact
+    match breaks as soon as a counter or a label is edited. Matching the
+    prefix survives both.
+    """
+    pattern = re.compile(
+        rf"(^### {re.escape(heading_prefix.removeprefix('### ').strip())}[^\n]*\n)"
+        rf"(.*?)(?=\n### |\Z)",
+        re.M | re.S,
+    )
+    m = pattern.search(text)
+    if not m:
+        raise SystemExit(
+            f"Could not find a section starting with '{heading_prefix}'"
+        )
+    return m
+
+
 def insert_in_index(name: str, category: str, title: str, display: str) -> None:
     """Insert a wiki-link entry into index.md under the right category."""
     text = read_file(INDEX)
     heading = SECTION_HEADING_BY_CATEGORY[category]
-    # Find the section: from its heading to the next "### " heading or EOF.
-    pattern = re.compile(
-        rf"({re.escape(heading)}\n)(.*?)(?=\n### |\Z)", re.S
-    )
-    m = pattern.search(text)
-    if not m:
-        raise SystemExit(f"Could not find section '{heading}' in index.md")
+    m = _find_section(text, heading)
     entry = f"- [[{name}|{display}]] — {title}\n"
     new_section = m.group(1) + entry + m.group(2)
-    text = text[:m.start()] + new_section + text[m.end():]
+    text = text[: m.start()] + new_section + text[m.end() :]
     write_file(INDEX, text)
 
 
 def insert_in_tracker(name: str, category: str) -> None:
     """Insert the document into migration-progress.md under its category."""
     text = read_file(TRACKER)
-    headings = {
-        "production": "### 🎬 Production Pipeline",
-        "technical": "### 🛠️ Technical Implementation",
-        "platform": "### 🎮 MCP & Platform Integrations",
-        "creative": "### 🎨 Creative & Visual",
-        "performance": "### ⚙️ Performance & Hardware",
-        "ai": "### 🤖 AI & ML",
-        "research": "### 📊 Research & Reference",
-    }
-    heading = headings[category]
-    pattern = re.compile(
-        rf"({re.escape(heading)}\n)(.*?)(?=\n### |\Z)", re.S
-    )
-    m = pattern.search(text)
-    if not m:
-        raise SystemExit(f"Could not find section '{heading}' in migration-progress.md")
-    # Update the (N/N) counter: bump numerator and denominator.
+    heading = SECTION_HEADING_BY_CATEGORY[category]
+    m = _find_section(text, heading)
+
+    # Update the (N/N) counter on the heading line. The tracker writes
+    # "(14/14 completed)" — the closing paren is not adjacent to the digits,
+    # so the pattern must not require it.
     head_line = m.group(1)
-    m2 = re.search(r"\((\d+)/(\d+)\)", head_line)
-    if m2:
-        n = int(m2.group(1)) + 1
-        head_line = head_line.replace(f"({m2.group(1)})", f"({n})")
-        head_line = head_line.replace(f"{m2.group(2)}", str(n))
-    entry = f"- ✅ `{name}`  → `#{category}`\n"
-    new_section = m.group(1).replace(m.group(1).split("\n")[0], head_line) if False else head_line + "\n" + entry + m.group(2)
-    # Rebuild: replace heading line with updated counter line.
-    old_head = m.group(1).split("\n")[0] + "\n"
-    new_section = head_line + "\n" + entry + m.group(2)
-    text = text.replace(old_head + m.group(2), new_section, 1)
+    counter = re.search(r"\((\d+)/(\d+)", head_line)
+    if counter:
+        n = int(counter.group(1)) + 1
+        head_line = (
+            head_line[: counter.start()]
+            + f"({n}/{n}"
+            + head_line[counter.end() :]
+        )
+
+    # The tracker identifies documents by their filename, extension included —
+    # that is what validate-knowledge-tags.py matches on.
+    entry = f"- ✅ `{name}.md`  → `#{category}`\n"
+    new_section = head_line + entry + m.group(2)
+    text = text[: m.start()] + new_section + text[m.end() :]
     write_file(TRACKER, text)
+
+
+def bump_index_counts(category: str, cross_tags: list[str]) -> None:
+    """Bump the document counts in index.md's Tags Index tables.
+
+    The primary category appears as `#<category>/*` in the Hierarchical Tags
+    table; cross-cutting tags appear as `#<tag>` in the Cross-Cutting Tags
+    table. Each row ends with "| N documents |", which is what
+    validate-knowledge-tags.py checks against the real tag counts.
+    """
+    text = read_file(INDEX)
+    for tag in [category, *cross_tags]:
+        pattern = re.compile(
+            rf"(\| `#{re.escape(tag)}/?\*?` \|[^|]*\| )(\d+)( documents? \|)"
+        )
+        m = pattern.search(text)
+        if not m:
+            continue
+        text = (
+            text[: m.start()]
+            + m.group(1)
+            + str(int(m.group(2)) + 1)
+            + m.group(3)
+            + text[m.end() :]
+        )
+    write_file(INDEX, text)
 
 
 def append_to_log(name: str, category: str) -> None:
@@ -420,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Scaffold a new knowledge-library document (KB schema §7).",
     )
     parser.add_argument("-t", "--title", help="Document title (human-readable)")
-    parser.add_argument("-c", "--category", choices=list(CATEGORIES.values()),
+    parser.add_argument("-c", "--category", choices=CATEGORY_SLUGS,
                         help="Primary category (e.g. technical, production)")
     parser.add_argument("-T", "--type", choices=PAGE_TYPES,
                         help="Page type (concept/entity/source/comparison/synthesis/tracker/index)")
@@ -488,14 +525,19 @@ def main(argv: list[str] | None = None) -> int:
     display = aliases[0] if aliases else title
     insert_in_index(target.stem, category, title, display)
     insert_in_tracker(target.stem, category)
+    bump_index_counts(category, cross_tags)
     append_to_log(target.name, category)
     print("Registered in index.md, migration-progress.md, and log.md.")
 
     # Insert back-links from related docs into their Related sections so the
     # new doc is not an orphan (other docs link to it).
+    # find_related_docs() returns stems (no .md) so the wiki-links it emits
+    # match the vault's link convention — add the extension back here.
     if not args.no_auto_links and related_docs:
         for name, _display, _relation in related_docs:
-            _insert_backlink(BASE / name, target.stem, title)
+            related_path = BASE / f"{name}.md"
+            if related_path.exists():
+                _insert_backlink(related_path, target.stem, title)
 
     # Validate.
     if args.no_validate:

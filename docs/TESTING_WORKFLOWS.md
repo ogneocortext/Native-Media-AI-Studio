@@ -8,6 +8,12 @@ This document describes the three new testing systems added to Native Media AI S
 
 **Purpose:** Frontend end-to-end tests validate real browser behavior, routing, SSE integration, and UI rendering against a live Vite dev server.
 
+**Full guide:** `docs/knowledge-library/playwright-e2e-2026.md` — the suite layout,
+the two-tsconfig split, the shared helper vocabulary, the Playwright 1.64
+typing traps, and the October 2026 features worth adopting (test locks,
+`--only-changed`, `init-agents`). This section stays the short version of
+the runner contract.
+
 ### Critical Pattern: Redirect Assertions
 
 React Router's client-side `<Navigate>` fires asynchronously after `domcontentloaded`. A common race condition occurs when tests check `page.url()` immediately after `navigateWithWait()`:

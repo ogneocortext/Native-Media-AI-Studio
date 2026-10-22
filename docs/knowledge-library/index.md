@@ -43,6 +43,7 @@ date: 2026-09-30
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
 
 - [[technical-reference|⚙️ Technical Reference]] — System architecture, API reference, service management
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
@@ -147,7 +148,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 12 documents |
-|| `#technical/*` | System implementation & code | 15 documents |
+|| `#technical/*` | System implementation & code | 16 documents |
 || `#platform/*` | Platform-specific integrations | 11 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
@@ -167,7 +168,7 @@ date: 2026-09-30
 || `#hardware-8gb` | 8GB VRAM constraints | 16 documents |
 || `#hardware-pascal` | Pascal architecture specifics | 8 documents |
 || `#mcp` | Model Context Protocol | 1 document |
-|| `#testing` | Testing & QA | 3 documents |
+|| `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 18 documents |
 || `#visualization` | Visualization techniques | 15 documents |
