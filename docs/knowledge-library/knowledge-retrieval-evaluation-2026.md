@@ -47,6 +47,7 @@ Retrievers compared, all over the same 1,749 chunks:
 | `hybrid` | BM25 + dense, fused with Reciprocal Rank Fusion |
 | `hybrid_score` | BM25 + dense, fused by min-max normalised score |
 | `hyde` | BM25 over an LLM-written hypothetical answer |
+| `reranked` | the hybrid pool reordered by a cross-encoder |
 
 The embedding model is the studio's own `nomic-embed-text:v1.5` (137M,
 8192-token context, open weights/code/data), with the task prefixes nomic
@@ -71,8 +72,9 @@ Baseline, k=5, 400-token chunks:
 | `parent_child` | 41.7% | 85.0% | 0.764 | 801 tok |
 | `doc` (whole document) | 55.0% | 85.0% | 0.764 | **16,756 tok** |
 | `dense` (nomic) | 41.7% | 83.3% | 0.706 | 967 tok |
-| **`hybrid` (RRF)** | **48.3%** | **90.0%** | 0.757 | 843 tok |
+| `hybrid` (RRF) | **48.3%** | **90.0%** | 0.757 | 843 tok |
 | `hybrid_score` | 45.0% | 86.7% | 0.780 | 828 tok |
+| `hyde` | 38.3% | 71.7% | 0.594 | 902 tok |
 
 ### With the two index-time enrichments
 
@@ -173,17 +175,52 @@ doc@5 and MRR 0.757 → **0.853**. The cost is the summary in every chunk:
 843 → 1,564 tokens.
 
 ### The remaining gap
-The right document is found 92% of the time, but the answer fact is in the
-returned context only 55% of the time (and at most ~93% counting
+The right document is found 93% of the time, but the answer fact is in
+the returned context only 53% of the time (and at most ~93% counting
 paraphrases). The answer is usually in *another section* of the right
-document. Neither more chunks nor bigger chunks nor the whole document
-closes it — which is a **reranking** problem, not a chunking or a
-retrieval problem. No cross-encoder is installed here, and the literature
-is split on whether one helps: a cross-encoder on top of hybrid is the
-best single pipeline in one benchmark (Recall@5 0.816 against 0.695) but
-*regressed* in another, where BM25's near-misses in the pool biased the
-reranker (arXiv:2604.01733; the rag-eval experiment, Apr 2026). It needs
-measuring here, not assuming.
+document — a **reranking** problem, not a chunking or a retrieval one.
+
+### Reranking closes it — but only if the chunks are left alone
+A cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, via
+`transformers` + `torch`) reorders the hybrid pool. On the recommended
+configuration, 200-token chunks + heading-path enrichment, hybrid RRF,
+k=8:
+
+| Configuration | passage | doc@8 | MRR | context |
+|---|---|---|---|---|
+| `hybrid` | 53.3% | 90.0% | 0.777 | 1,319 tok |
+| **`reranked`** | 53.3% | **93.3%** | **0.871** | 1,395 tok |
+
++3.3 points of document recall and +0.094 MRR for **76 more tokens**. That
+is the largest single gain available, and the opposite of the regression
+one published benchmark reports.
+
+### But stacking it with contextual summaries breaks it
+The same cross-encoder over the *contextually summarised* chunks:
+
+| Configuration | passage | doc@8 | MRR | context |
+|---|---|---|---|---|
+| `hybrid` | 55.0% | 91.7% | 0.834 | 2,372 tok |
+| `reranked` | **40.0%** | **86.7%** | **0.793** | 2,444 tok |
+
+Reranking *hurts* — passage falls from 55.0% to 40.0% and doc@8 from
+91.7% to 86.7%. This reproduces the regression reported elsewhere, and
+the mechanism is measurable:
+
+- A document summary is **110 tokens** on average — **22% of the
+  cross-encoder's 512-token window**, consumed before the body starts.
+- The summary is **identical for every chunk of that document**, so the
+  cross-encoder sees nearly the same text for all of them and cannot
+  discriminate between them — while the passage it needed may have been
+  pushed past the truncation point.
+
+The two augmentations interfere because they optimise for opposite
+readers: contextual summaries help a retriever that matches a chunk's
+*subject*, and they hurt a reader that reads the chunk in full.
+
+**Pick one.** On this corpus the reranker is the better buy — it costs 76
+tokens, the summaries cost 1,049, and the reranker wins on both recall
+and MRR.
 
 ---
 
@@ -192,17 +229,21 @@ measuring here, not assuming.
 ```bash
 # Index: 200-token chunks, heading-path enriched
 # Retrieve: hybrid (BM25 + nomic dense, RRF), k=8
+# Rerank:  cross-encoder/ms-marco-MiniLM-L-6-v2 over the hybrid pool
 ```
 
 - **Chunk target 200.** Cheaper, and the sweep shows the target barely
   matters — so take the small one.
 - **Enrich with the heading path.** Free, and measured: it lifts hybrid
   MRR from 0.757 to 0.797 on its own.
-- **Retrieve with hybrid RRF, k=8.** The only lever that moves recall.
-  This alone: doc@8 90.0%, MRR 0.777, 1,332 tokens.
-- **Add contextual summaries if the budget allows.** One LLM call per
-  document, cached. Buys +1.7 doc@8, +1.7 passage and +0.068 MRR for
-  +1,049 tokens — real, but not the difference between working and not.
+- **Retrieve with hybrid RRF, k=8.** The only first-stage lever that
+  moves recall.
+- **Rerank with a cross-encoder.** The largest single gain: doc@8
+  90.0% → 93.3%, MRR 0.777 → 0.871, for 76 tokens.
+- **Do NOT also add contextual summaries** — they break the reranker
+  (passage 55.0% → 40.0%). If you want the summaries, drop the
+  reranker: that configuration gives doc@8 91.7%, MRR 0.834, 2,372
+  tokens.
 - **Do not use parent-child** unless the corpus changes shape.
 - **Do not return whole documents** — 22× the tokens for 6 points.
 - **Do not use HyDE** on this corpus. It is measurably worse than plain
@@ -241,3 +282,9 @@ fusion, and the chunk enrichments.
 - SemEval-2026 Task 8 (Jun 2026) — HyDE improves BM25 by 26.7% but dense
   by only 4.0%; hybrid gives complementary signals.
 - arXiv:2402.01613 — *Nomic Embed*. The 8192-context embedder used here.
+- The rag-eval experiment (Apr 2026) — hybrid + MS-MARCO cross-encoder
+  *regressed* against plain hybrid, because BM25's near-misses in the pool
+  biased the reranker. Reproduced here as a different failure: the reranker
+  regresses when the chunks are contextually summarised, because the
+  summary is identical for every chunk of a document and consumes 22% of
+  the cross-encoder's 512-token window.
