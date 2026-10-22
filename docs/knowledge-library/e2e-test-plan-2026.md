@@ -158,7 +158,7 @@ scripts\start-services.ps1
 # Or manually:
 ollama serve
 python -m app.main
-node tools/mcp/comfyui-mcp.mjs
+npx comfyui-mcp --comfyui-url http://127.0.0.1:8188
 ```
 
 ---

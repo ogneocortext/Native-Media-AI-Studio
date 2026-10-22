@@ -74,7 +74,8 @@ type: tracker
 > [!tip] Recent Additions
 > These newer docs live in `docs/knowledge/` and contain the latest research:
 
-- `docs/knowledge/threejs-webgpu-best-practices-2026.md` — r185 + WebGPU + TSL
+- `docs/knowledge-library/webgl-webgpu-audio-viz-2026.md` — WebGPU/WebGL audio viz
+- `docs/knowledge-library/three-js-studio.md` — Three.js r185 + TSL studio notes
 - `docs/knowledge/kinetic-typography-techniques-2026.md` — Advanced kinetic type
 - `docs/knowledge/audio-visualization-techniques-2026.md` — Audio reactivity
 
