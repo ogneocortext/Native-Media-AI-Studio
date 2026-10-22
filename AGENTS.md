@@ -291,6 +291,15 @@ The trailer is a commit-message convention only -- it says nothing about a
 model's provenance. Do not rewrite published history to backfill it; it
 applies to new commits from 2026-10-06 onward.
 
+**Moving or renaming a file:** update every reference to it in the
+same commit. `tools/check-path-references.py` (in check-all, decision
+D39) finds references to moved files; once the hooks are installed, the
+pre-commit move guard blocks a deletion/rename commit that leaves any
+behind, naming the referencing files (historical surfaces -- CHANGELOG,
+scratch, the decision log -- are exempt). References to files that
+never existed are listed, report-only, by `tools/report-path-orphans.py`
+in check-all.
+
 ### Services: start once, then leave them alone
 
 **Do not restart a service that is already running.** This is the single most

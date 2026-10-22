@@ -12,6 +12,10 @@
 # are slow and belong in explicit local runs, not in every commit.
 #
 # Bypass for a deliberate one-off:  git commit --no-verify
+#
+# It also carries a move guard (below): a staged deletion or rename that
+# leaves references to the old path in the tree is blocked, naming the
+# referencing files, for any file type -- not just docs.
 
 set -e
 
@@ -27,6 +31,67 @@ run_chained_hook() {
         sh "$chain_file" "$@"
     fi
 }
+
+
+# ---------------------------------------------------------------------------
+# Move guard: no staged deletion/rename may leave references behind.
+#
+# The check-all path-references gate (D39) catches stale references too,
+# but only inside a triggered doc check and as a generic failure. This
+# block runs on every commit, costs one git grep per moved path, and
+# names the exact files still referencing the old path -- so the fix
+# lands in the move commit itself instead of a follow-up.
+#
+# Exempt surfaces record old paths by design and mirror the D39
+# checker's exclusions: CHANGELOG.md, docs/notes/, docs/scratch/, the
+# decision log, and generated output/. References inside files that are
+# themselves being deleted or renamed away die with them and do not
+# count. Partially staged files are judged by their working-tree
+# content, which is what git grep reads.
+#
+# Bypass for a deliberate one-off:  SKIP_MOVE_GUARD=1 git commit ...
+# ---------------------------------------------------------------------------
+if [ "${SKIP_MOVE_GUARD:-0}" != "1" ]; then
+    guard_dir=$(git rev-parse --git-dir)
+    moved_tmp=$(mktemp "$guard_dir/move-guard-moved.XXXXXX")
+    hits_tmp=$(mktemp "$guard_dir/move-guard-hits.XXXXXX")
+    git diff --cached --name-status | awk -F'\t' \
+        '$1 == "D" {print $2} $1 ~ /^R/ {print $2}' > "$moved_tmp"
+    if [ -s "$moved_tmp" ]; then
+        while IFS= read -r old_path; do
+            [ -n "$old_path" ] || continue
+            old_bs=$(printf '%s' "$old_path" | sed 's|/|\\|g')
+            git grep -F -n -e "$old_path" -e "$old_bs" -- . \
+                ':(exclude)CHANGELOG.md' \
+                ':(exclude)docs/notes/*' \
+                ':(exclude)docs/scratch/*' \
+                ':(exclude)docs/architecture/decision-log.md' \
+                ':(exclude)output/*' 2>/dev/null \
+            | while IFS= read -r hit_line; do
+                hit_file=${hit_line%%:*}
+                dying=0
+                while IFS= read -r m; do
+                    if [ "$hit_file" = "$m" ]; then dying=1; fi
+                done < "$moved_tmp"
+                if [ "$dying" -eq 0 ]; then
+                    printf '%s\n' "$hit_line" >> "$hits_tmp"
+                fi
+            done
+        done < "$moved_tmp"
+    fi
+    if [ -s "$hits_tmp" ]; then
+        echo "pre-commit: move guard -- this commit deletes or renames a" >&2
+        echo "file that other files still reference:" >&2
+        echo >&2
+        sed 's/^/    /' "$hits_tmp" >&2
+        echo >&2
+        echo "Update those references in this commit, or bypass once with" >&2
+        echo "SKIP_MOVE_GUARD=1 (deliberate) or --no-verify." >&2
+        rm -f "$moved_tmp" "$hits_tmp"
+        exit 1
+    fi
+    rm -f "$moved_tmp" "$hits_tmp"
+fi
 
 # Which checks apply depends on what is staged: the library check only concerns
 # docs/knowledge-library/, the map check only concerns the map and directories.
