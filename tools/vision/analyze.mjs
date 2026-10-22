@@ -11,8 +11,8 @@
  *   --mode ui|responsive|regression|compare
  *   --viewport WxH (intended window size)
  *   --label "screen name"
- *   --low (640px, text-dense)
- *   --high (1280px)
+ *   --low (768px, faster, worse for text)
+ *   --high (1600px, text-dense detail)
  *   --json (machine-readable output)
  */
 
@@ -20,7 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { baseName, encodeImage, residentVisionModels, resolveVisionModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL, VISION_FALLBACK_MODEL } from './vision-common.mjs';
+import { baseName, encodeImage, residentVisionModels, pickFallbackModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -39,12 +39,13 @@ const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
 // more than any prompt tweak saves.
 const MODEL_PROFILES = {
   'gemma4:e2b-it-qat':   { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1568, note: 'detailed audits' },
-  'gemma4-vision-optimized:latest': { temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1568, note: 'vision audits' },
-  'qwen3-vl:2b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'fast triage, huge ctx' },
-  'qwen3-vl:4b':         { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'fast triage, larger' },
-  'qwen3-vl-optimized:latest': { temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1280, note: 'optimized vision' },
-  'minicpm-v:8b':        { temp: 0,   tempExtract: 0, numCtx: 8192,  maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
-  'minicpm-v:latest':    { temp: 0,   tempExtract: 0, numCtx: 8192,  maxDim: 1792, note: 'trustworthy OCR (RLAIF-V)' },
+  // Unknown models fall through to DEFAULT_PROFILE, so profiles only need to
+  // exist for models actually installed here (measured /api/tags 2026-10-22:
+  // minicpm-v:*, qwen3-vl:* and gemma4-vision-optimized pruned;
+  // qwen3.5:4b is the remaining local second vision model — all routing is
+  // local-only, network-hosted models are skipped, see vision-common.mjs).
+  // Update rows when the roster changes.
+  'qwen3.5:4b':          { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'resident fallback, reasoning model' },
 };
 const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic' };
 
@@ -145,7 +146,18 @@ function parseArgs(argv) {
       // Files always win: an existing path is an image, never prompt text.
       // (The old order swallowed the 2nd+ image path as the prompt and dropped
       // the real prompt silently — this broke multi-image and MCP compare.)
-      if (fs.existsSync(arg)) {
+      // Files always win: an existing path is an image, never prompt text.
+      // (The old order swallowed the 2nd+ image path as the prompt and dropped
+      // the real prompt silently — this broke multi-image and MCP compare.)
+      // statSync.isFile() so a directory arg is treated as text instead of
+      // blowing up mid-run with EISDIR inside encodeURIComponent path.
+      let isFile = false;
+      try {
+        isFile = fs.existsSync(arg) && fs.statSync(arg).isFile();
+      } catch {
+        isFile = false;
+      }
+      if (isFile) {
         args.images.push(arg);
       } else if (!args.prompt) {
         args.prompt = arg;
@@ -304,8 +316,7 @@ function looksTruncated(text) {
   if (!text || typeof text !== 'string') return true;
   const trimmed = text.trim();
   if (trimmed.length < 200) return true;
-  const last = trimmed[trimmed.length - 1];
-  const endsProperly = /[.!?"')}\]]$/.test(trimmed) || /\n$/.test(trimmed);
+  const endsProperly = /[.!?"')}\]]$/.test(trimmed);
   if (!endsProperly) return true;
   if (trimmed.endsWith('...')) return true;
   return false;
@@ -320,12 +331,13 @@ async function isAtomicChatReady() {
     return atomicChatReady;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
-
+  // Per-request signals, not one shared controller: the single-controller
+  // version clearTimeout'd the models-check timer before dispatching the
+  // probe POST, so the probe ran with no signal at all and a hung server
+  // hung this check indefinitely. Negative results are cached too — a TIMED
+  // probe per analyze call, on every call to a dead server, added up.
   try {
-    const modelsRes = await fetch(`${ATOMIC_CHAT_URL}/v1/models`, { signal: controller.signal });
-    clearTimeout(timeout);
+    const modelsRes = await fetch(`${ATOMIC_CHAT_URL}/v1/models`, { signal: AbortSignal.timeout(4000) });
     if (!modelsRes.ok) {
       atomicChatReady = false;
       return atomicChatReady;
@@ -345,19 +357,18 @@ async function isAtomicChatReady() {
         messages: [{ role: 'user', content: 'ping' }],
         max_tokens: 4,
       }),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(8000),
     });
-    clearTimeout(timeout);
     atomicChatReady = probe.ok;
   } catch (e) {
     atomicChatReady = false;
+  } finally {
+    atomicChatReadyCachedAt = Date.now();
   }
-
-  atomicChatReadyCachedAt = Date.now();
   return atomicChatReady;
 }
 
-async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}, think = false) {
+async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}, think = false, keepAlive = VISION_KEEP_ALIVE) {
   const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
   const profile = profileFor(model);
 
@@ -375,7 +386,11 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
     model: model,
     messages: [userContent],
     stream: false,
-    keep_alive: VISION_KEEP_ALIVE,
+    // The primary model stays resident per its default keep_alive; fallback
+    // attempts pass a short one so the 8 GB card returns to a single vision
+    // model once the request is served (two 4 GB models resident squeeze
+    // each other with the desktop already holding ~5 GB).
+    keep_alive: keepAlive,
     options: {
       temperature: encOpts.extractMode ? profile.tempExtract : profile.temp,
       num_predict: numPredict,
@@ -486,7 +501,7 @@ async function main() {
   console.error('  --prompt "text" (custom prompt; or pass bare text positionally)');
   console.error('  --source file   (repeatable; appended to the prompt for regression)');
   console.error('  --backend auto|ollama|atomic (vision backend, default auto)');
-  console.error('  --model name  (override task→model routing, e.g. minicpm-v:8b)');
+  console.error('  --model name  (override task→model routing, e.g. qwen3.5:4b)');
   console.error('  --think        (enable extended reasoning for complex modes: compare, music-video, regression)');
   console.error('  --low           (768px, faster, worse for text)');
   console.error('  --high          (1600px, text-dense detail)');
@@ -567,8 +582,8 @@ async function main() {
     // Auto-enable reasoning for complex analysis modes on capable models.
     const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp']);
     const autoThink = args.think || reasoningModes.has(args.mode);
-    const ollamaAttempt = async (model, budget) => {
-      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink);
+    const ollamaAttempt = async (model, budget, keepAlive) => {
+      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink, keepAlive);
       lastDoneReason = r.done_reason;
       lastFromThinking = !!r.fromThinking;
       analysis = r.text;
@@ -660,14 +675,23 @@ async function main() {
       }
     }
 
-    if (needsMore(analysis) && VISION_FALLBACK_MODEL !== activeModel) {
-      console.error(`[vision] Still truncated, retrying with ${VISION_FALLBACK_MODEL}...`);
-      try {
-        await ollamaAttempt(VISION_FALLBACK_MODEL, 4096);
-        usedBackend = 'ollama-fallback-model';
-        console.error(`[vision] Fallback model ${VISION_FALLBACK_MODEL} succeeded.`);
-      } catch (fallbackErr) {
-        console.error(`[vision] Fallback model also failed: ${fallbackErr.message}`);
+    if (needsMore(analysis)) {
+      // Fallback is resolved live: minicpm-v:8b was pruned from this
+      // workstation, so the old hardcoded constant 404'd on every fallback
+      // attempt. pickFallbackModel prefers VISION_FALLBACK_MODEL, then any
+      // other resident vision model.
+      const fallbackModel = await pickFallbackModel(activeModel);
+      if (fallbackModel && fallbackModel !== activeModel) {
+        console.error(`[vision] Still truncated, retrying with ${fallbackModel}...`);
+        try {
+          // '2m' pin: frees the second model's VRAM slot shortly after the
+          // result lands, returning to primary-only residency.
+          await ollamaAttempt(fallbackModel, 4096, '2m');
+          usedBackend = 'ollama-fallback-model';
+          console.error(`[vision] Fallback model ${fallbackModel} succeeded.`);
+        } catch (fallbackErr) {
+          console.error(`[vision] Fallback model also failed: ${fallbackErr.message}`);
+        }
       }
     }
 
@@ -684,6 +708,8 @@ async function main() {
         model: activeModel,
         backend: usedBackend,
         fallback_used: usedBackend.includes('fallback') || usedBackend.includes('retry'),
+        used_thinking: lastFromThinking,
+        done_reason: lastDoneReason,
         analysis: ok ? analysis : '',
         error: ok ? undefined : 'empty-analysis',
       }, null, 2));

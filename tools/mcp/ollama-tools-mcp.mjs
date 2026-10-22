@@ -4,7 +4,7 @@ import { Server } from "@modelcontextprotocol/server";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, VISION_FALLBACK_MODEL } from "../vision/vision-common.mjs";
+import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, pickFallbackModel, VISION_FALLBACK_MODEL } from "../vision/vision-common.mjs";
 
 import { writeFileSync } from "node:fs";
 writeFileSync("D:/mcp-debug.log", "[MCP-START] loaded, VISION_FALLBACK_MODEL = " + VISION_FALLBACK_MODEL + "\n", { flag: "a" });
@@ -235,7 +235,7 @@ server.setRequestHandler('tools/list', async () => ({
         properties: {
           description: { type: "string", description: "What to build in Blender (e.g. 'low-poly knight with metal armor', 'studio lighting rig for product viz')" },
           target: { type: "string", description: "Asset type hint: mesh, material, rig, scene, lighting, cleanup, uv", default: "mesh" },
-          model: { type: "string", description: "Ollama text model", default: "qwen3.5:9b" },
+          model: { type: "string", description: "Ollama text model", default: "qwen3.5:4b" },
         },
         required: ["description"],
       },
@@ -448,17 +448,18 @@ async function analyzeImage(reqId, args) {
     imageData = await readImageBase64(abs);
   }
 
-  console.error(`[DEBUG] VISION_FALLBACK_MODEL = "${VISION_FALLBACK_MODEL}"`);
   console.error(`[DEBUG] resolveVisionModel available: ${typeof resolveVisionModel}`);
-  
+
   const { model: activeModel, why: modelWhy } = await resolveVisionModel(args.model);
   console.error(`[DEBUG] activeModel = "${activeModel}", why = "${modelWhy}"`);
   logRequest(reqId, "analyze_image", `calling-ollama model=${activeModel} (${modelWhy})`);
 
   const prompt = args.prompt || "Describe this image in detail.";
+  const fallbackModel = await pickFallbackModel(activeModel);
+  console.error(`[DEBUG] fallbackModel = "${fallbackModel}"`);
   const attempts = [
     { model: activeModel, label: "primary" },
-    { model: VISION_FALLBACK_MODEL, label: "fallback" },
+    { model: fallbackModel, label: "fallback" },
   ];
 
   let lastError;
@@ -466,7 +467,9 @@ async function analyzeImage(reqId, args) {
     if (attempt.model === activeModel && attempt.label !== "primary") continue;
     try {
       console.error(`[DEBUG] Calling analyzeWithOllama with model: "${attempt.model}"`);
-      const text = await analyzeWithOllama(imageData, prompt, attempt.model, 4096, !!args.think);
+      // Fallback attempt pins '2m' so its VRAM slot frees shortly after the
+      // result instead of joining the primary model in residency on an 8 GB card.
+      const text = await analyzeWithOllama(imageData, prompt, attempt.model, 4096, !!args.think, attempt.label === "fallback" ? "2m" : undefined);
       logRequest(reqId, "analyze_image", `ollama-ok model=${attempt.model} (${attempt.label})`);
       return textResponse(text);
     } catch (err) {
@@ -656,7 +659,8 @@ async function planBlenderScript(reqId, args) {
     return textResponse("Missing required arg: description", true);
   }
   const target = (args?.target || "mesh").toLowerCase();
-  const model = args?.model || "qwen3.5:9b";
+  // qwen3.5:9b was pruned 2026-10-10; qwen3.5:4b is the resident text model.
+  const model = args?.model || "qwen3.5:4b";
   logRequest(reqId, "plan_blender_script", `target=${target} desc=${description.slice(0, 40)}`);
 
   const systemPrompt = `You are a Blender Python (bpy) expert. Generate ONLY valid bpy scripts.

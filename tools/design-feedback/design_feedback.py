@@ -39,7 +39,7 @@ class ScreenshotCapture:
             raise
 
 class GemmaAnalyzer:
-    def __init__(self, base_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b'):
+    def __init__(self, base_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b-it-qat'):
         self.base_url = base_url.rstrip('/')
         self.model = model
         self.timeout = 120.0
@@ -62,7 +62,7 @@ class GemmaAnalyzer:
             return {'success': False, 'error': str(e), 'model': self.model}
 
 class DesignFeedbackService:
-    def __init__(self, ollama_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b', monitor: int = 1):
+    def __init__(self, ollama_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b-it-qat', monitor: int = 1):
         self.screenshot = ScreenshotCapture(monitor=monitor)
         self.analyzer = GemmaAnalyzer(base_url=ollama_url, model=model)
 
@@ -138,7 +138,7 @@ def main():
     parser.add_argument('--server', '-s', action='store_true', help='Start HTTP server for frontend integration')
     parser.add_argument('--port', type=int, default=8080, help='Server port')
     parser.add_argument('--ollama_url', type=str, default='http://localhost:11434', help='Ollama server URL')
-    parser.add_argument('--model', type=str, default='gemma4:e2b', help='Model to use for analysis')
+    parser.add_argument('--model', type=str, default='gemma4:e2b-it-qat', help='Model to use for analysis')
     parser.add_argument('--monitor', type=int, default=1, help='Monitor to capture')
 
     args = parser.parse_args()

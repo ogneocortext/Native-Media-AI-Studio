@@ -14,6 +14,8 @@ import base64
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -25,6 +27,13 @@ except ImportError:
 
 OLLAMA_HOST = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 DEFAULT_MODEL = os.environ.get("VISION_MODEL", "gemma4:e2b-it-qat")
+# Measured roster 2026-10-22: minicpm-v:* and qwen3-vl:* are pruned; the only
+# other local vision model is qwen3.5:4b. Comma-separated, tried in order.
+FALLBACK_MODELS = [
+    m.strip()
+    for m in os.environ.get("VISION_FALLBACK_MODELS", "qwen3.5:4b").split(",")
+    if m.strip()
+]
 MAX_DIMENSION = 1200  # Max width/height for vision models (balances detail vs reliability)
 JPEG_QUALITY = 70
 # Small files skip re-encoding: JPEG recompression smears glyphs on
@@ -69,38 +78,62 @@ def resize_image(image_path: str) -> str:
 
 
 def analyze(image_path: str, prompt: str, model: str = DEFAULT_MODEL) -> str:
-    """Send image to Ollama vision model and return response."""
+    """Send image to Ollama vision models and return the response.
+
+    Tries `model` first, then FALLBACK_MODELS. A 404 (model not pulled)
+    skips the rest of that model's retries instead of burning them; two
+    attempts per model otherwise. Reasoning vision models can return empty
+    `content` with the answer parked in `thinking` — fall back to it.
+    Stdout carries only the analysis; progress goes to stderr.
+    """
     b64 = encode_image(image_path)
+    candidates = [model] + [m for m in FALLBACK_MODELS if m != model]
+    last_exc: Exception | None = None
 
-    body = json.dumps({
-        "model": model,
-        "messages": [{
-            "role": "user",
-            "content": prompt,
-            "images": [b64]
-        }],
-        "stream": False,
-        "keep_alive": KEEP_ALIVE,
-    })
+    for candidate in candidates:
+        for attempt in range(2):
+            body = json.dumps({
+                "model": candidate,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt,
+                    "images": [b64]
+                }],
+                "stream": False,
+                "keep_alive": KEEP_ALIVE,
+            })
+            req = urllib.request.Request(
+                f"{OLLAMA_HOST}/api/chat",
+                data=body.encode(),
+                headers={"Content-Type": "application/json"}
+            )
+            try:
+                resp = urllib.request.urlopen(req, timeout=180)
+                result = json.loads(resp.read())
+                msg = result.get("message", {})
+                content = msg.get("content", "")
+                if not content.strip() and msg.get("thinking", "").strip():
+                    print("[vision] empty content; using thinking output as analysis", file=sys.stderr)
+                    content = msg["thinking"]
+                if content.strip():
+                    return content
+                last_exc = RuntimeError(f"{candidate}: empty analysis (attempt {attempt + 1})")
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    print(f"[vision] {candidate} not pulled, falling back immediately", file=sys.stderr)
+                    last_exc = e
+                    break
+                last_exc = e
+                if attempt < 1:
+                    time.sleep(2)
+            except Exception as e:
+                last_exc = e
+                if attempt < 1:
+                    time.sleep(2)
+        else:
+            print(f"[vision] {candidate} failed: {last_exc}", file=sys.stderr)
 
-    req = urllib.request.Request(
-        f"{OLLAMA_HOST}/api/chat",
-        data=body.encode(),
-        headers={"Content-Type": "application/json"}
-    )
-
-    # Retry logic for intermittent failures
-    for attempt in range(3):
-        try:
-            resp = urllib.request.urlopen(req, timeout=180)
-            result = json.loads(resp.read())
-            return result.get("message", {}).get("content", "NO CONTENT")
-        except Exception:
-            if attempt < 2:
-                import time
-                time.sleep(2)
-                continue
-            raise
+    raise last_exc or RuntimeError("no vision model available")
 
 
 def main():

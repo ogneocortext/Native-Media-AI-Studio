@@ -1,8 +1,9 @@
-import { 
-  encodeImage, 
-  residentVisionModels, 
-  resolveVisionModel, 
+import {
+  encodeImage,
+  residentVisionModels,
+  resolveVisionModel,
   analyzeWithOllama,
+  pickFallbackModel,
   baseName,
   OLLAMA_URL,
   VISION_MAX_DIM,
@@ -36,6 +37,7 @@ async function main() {
   assert(typeof residentVisionModels === 'function', 'residentVisionModels is a function');
   assert(typeof resolveVisionModel === 'function', 'resolveVisionModel is a function');
   assert(typeof analyzeWithOllama === 'function', 'analyzeWithOllama is a function');
+  assert(typeof pickFallbackModel === 'function', 'pickFallbackModel is a function');
   assert(typeof baseName === 'function', 'baseName is a function');
   assert(OLLAMA_URL.includes('http'), `OLLAMA_URL is a URL: ${OLLAMA_URL}`);
   assert(VISION_MAX_DIM > 0, `VISION_MAX_DIM positive: ${VISION_MAX_DIM}`);
@@ -66,6 +68,29 @@ async function main() {
 
   const resident = await residentVisionModels();
   assert(Array.isArray(resident), `residentVisionModels() is array (${resident.length} resident vision models)`);
+  // Regression guard: the basename safety-net used to match "gemma" anywhere,
+  // which pulled embeddinggemma-2:270m (caps: ['embedding'], no vision) into
+  // the resident list and made resident-sticky routing hand screenshots to a
+  // 270m embedder.
+  assert(
+    !resident.some((n) => n.toLowerCase().includes('embedding')),
+    'residentVisionModels() excludes embedding-only models',
+  );
+  // Local-only policy: nothing network-hosted may ever be routable.
+  assert(
+    !resident.some((n) => n.toLowerCase().endsWith(':cloud')),
+    'residentVisionModels() is local-only (no :cloud models)',
+  );
+
+  const fb = await pickFallbackModel(DEFAULT_VISION_MODEL);
+  assert(
+    fb && baseName(fb) !== baseName(DEFAULT_VISION_MODEL),
+    `pickFallbackModel(primary) picks a different model: ${fb}`,
+  );
+  assert(
+    !fb.toLowerCase().includes('embed') && !fb.toLowerCase().endsWith(':cloud'),
+    `pickFallbackModel stays a local vision model: ${fb}`,
+  );
 
   console.log('');
   console.log('=== ollama-tools-mcp.mjs import check ===');

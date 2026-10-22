@@ -1,11 +1,11 @@
 # Design Feedback System
 
-This system enables AI-powered UI/UX analysis of the Native Media AI Studio frontend using gemma4:e2b vision model.
+This system enables AI-powered UI/UX analysis of the Native Media AI Studio frontend using gemma4:e2b-it-qat vision model.
 
 ## Components
 
 1. **Standalone Script** (`design_feedback.py`)
-   - Capture screenshots and analyze with gemma4:e2b
+   - Capture screenshots and analyze with gemma4:e2b-it-qat
    - Can run as HTTP server for frontend integration
 
 2. **Backend API Router** (`apps/backend/src/api/v1/design_feedback.py`)
@@ -30,7 +30,7 @@ pip install -r tools/design-feedback/requirements.txt
 ### Standalone Script
 
 ```bash
-# Capture screenshot and analyze with gemma4:e2b
+# Capture screenshot and analyze with gemma4:e2b-it-qat
 python tools/design-feedback/design_feedback.py --capture
 
 # Start HTTP server on port 8080
@@ -69,13 +69,13 @@ if (result.success) {
 
 Environment variables:
 - `OLLAMA_BASE_URL` - Ollama server URL (default: http://localhost:11434)
-- `DESIGN_FEEDBACK_MODEL` - Model to use (default: gemma4:e2b)
+- `DESIGN_FEEDBACK_MODEL` - Model to use (default: gemma4:e2b-it-qat)
 
 ## How It Works
 
 1. Frontend calls the design feedback API
 2. Backend captures screenshot using mss library
-3. Screenshot is converted to base64 and sent to gemma4:e2b
+3. Screenshot is converted to base64 and sent to gemma4:e2b-it-qat
 4. gemma4 analyzes the UI and provides feedback in JSON format
 5. Frontend receives the analysis and can apply improvements
 

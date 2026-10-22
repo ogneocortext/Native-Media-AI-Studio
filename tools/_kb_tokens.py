@@ -167,9 +167,7 @@ def measure_ratio(counter: TokenCounter, sample: str) -> float:
 LOCAL_CONTEXT_WINDOWS: dict[str, int] = {
     # Read from the running Ollama at /api/show; these are the values it
     # reported on 2026-10-22 and act as the fallback when Ollama is down.
-    "glm-5.3:cloud": 1_048_576,
-    "minimax-m3.1-flash:cloud": 1_000_000,
-    "deepseek-v4.1-flash:cloud": 1_048_576,
+    # Local-only per studio policy: network-hosted models are not listed.
     "glm-4.7-flash:latest": 202_752,
     "qwen3.5:4b": 262_144,
     "qwen3.5:9b": 262_144,

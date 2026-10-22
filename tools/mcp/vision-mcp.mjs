@@ -173,9 +173,12 @@ async function callOllamaChat(
         keep_alive: "5m",
         ...(think ? { think: true } : {}),
         options: {
-          num_ctx: model.toLowerCase().includes("minicpm") ? 32768 : 16384,
+          // minicpm-v (the only model that wanted 32k ctx / temp 0) was pruned
+          // 2026-10-10; the remaining vision models (gemma4:e2b-it-qat,
+          // qwen3.5:4b) run fine at one shared setting.
+          num_ctx: 16384,
           num_predict: 1024,
-          temperature: model.toLowerCase().includes("minicpm") ? 0 : 0.3,
+          temperature: 0.3,
         },
       };
 
@@ -306,8 +309,8 @@ Audit for:
 4. SCENE CONTINUITY: For 3D/music-video frames, does lighting, camera angle, or mood break between consecutive shots?
 5. RECOMMENDATION: keep / recut / reframe with a one-line rationale.`,
 
-  // --- MiniCPM-V optimized modes ---
-  ocr: `Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text. RLAIF-V: lower hallucination, be trustworthy.`,
+  // --- Extractive modes (model-agnostic trustworthy transcription) ---
+  ocr: `Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text. Be trustworthy: lower hallucination.`,
 
   table: `Convert the table in this image to markdown, preserving headers, rows, and alignment. Keep numbers and text exactly as shown. If no table exists reply "No table detected."`,
 
@@ -457,7 +460,7 @@ async function compareImages(imageA, imageB, prompt) {
     prompt ||
     "Compare these two images. Identify differences, improvements, or regressions. Summarize key changes.";
   const reqId = generateRequestId();
-  const model = process.env.VISION_MODEL || DEFAULT_MODEL;
+  const model = PRIMARY_VISION_MODEL;
 
   logRequest(reqId, "vision_compare", `start ${a} vs ${b}`);
 
@@ -755,7 +758,7 @@ const TOOL_IMPLEMENTATIONS = {
     const img2 = await resizeImage(b, 1024, 80);
     const finalPrompt =
       prompt || "Compare these two screenshots. Describe every difference.";
-    const model = process.env.VISION_MODEL || DEFAULT_MODEL;
+    const model = PRIMARY_VISION_MODEL;
     if (!(await ollamaReady())) {
       return { error: `Ollama is not reachable at ${OLLAMA_URL}. Start it with \`ollama serve\`.` };
     }
@@ -1095,7 +1098,7 @@ async function main() {
     "  Primary backend: tools/vision/analyze.mjs | Fallback: tools/tests/vision_analyze.py",
   );
   console.error(
-    "  Default model: " + DEFAULT_MODEL + " | Ollama: " + OLLAMA_URL,
+    "  Default model: " + PRIMARY_VISION_MODEL + " | Ollama: " + OLLAMA_URL,
   );
 }
 main().catch((err) => {

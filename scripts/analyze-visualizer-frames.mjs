@@ -40,11 +40,14 @@ try {
 } catch { /* ignore */ }
 const VITE_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
 
-// Normalize legacy model aliases (vision.mjs uses qwen3-vl-optimized etc.)
+// Normalize legacy model aliases. The qwen3-vl:* and minicpm-v:* families were
+// pruned 2026-10-10 (measured /api/tags: only gemma4:e2b-it-qat and
+// qwen3.5:4b carry local vision now), so old flags land on an installed model.
 const MODEL_ALIASES = {
-  "qwen3-vl-optimized": "qwen3-vl-optimized:latest",
-  "qwen3-vl-optimized:latest": "qwen3-vl-optimized:latest",
-  "qwen3-vl:4b": "qwen3-vl:4b",
+  "qwen3-vl-optimized": "gemma4:e2b-it-qat",
+  "qwen3-vl-optimized:latest": "gemma4:e2b-it-qat",
+  "qwen3-vl:4b": "qwen3.5:4b",
+  "qwen3-vl:2b": "qwen3.5:4b",
   "gemma4:e2b-it-qat": "gemma4:e2b-it-qat",
 };
 
@@ -258,8 +261,14 @@ async function callOllama(model, prompt, images = []) {
     clearTimeout(timeout);
     if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(`Ollama HTTP ${res.status}: ${t}`); }
     const data = await res.json();
-    log(reqId, `ollama response ok: len=${(data.message?.content || data.response || "").length}`);
-    return data.message?.content || data.response || "";
+    // Reasoning vision models (qwen3.5:4b) can park the whole answer in the
+    // `thinking` field with empty content (same failure mode measured for
+    // qwen3-vl in tools/vision/analyze.mjs). Prefer content, fall back.
+    const content = data.message?.content || data.response || "";
+    const thinking = data.message?.thinking || "";
+    const text = content.trim() ? content : thinking;
+    log(reqId, `ollama response ok: len=${text.length}${content.trim() ? "" : " (from thinking)"}`);
+    return text;
   } catch (e) { clearTimeout(timeout); throw e; }
 }
 
