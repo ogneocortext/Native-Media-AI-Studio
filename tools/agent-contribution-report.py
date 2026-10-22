@@ -57,6 +57,18 @@ footnotes the largest commits in scope (a few mega-commits dominate churn)
 and warns on trailer names missing from ALIASES -- a typo'd name would
 otherwise mint a phantom agent; warnings never fail the check.
 
+Phantom-credit guard: GitHub credits a trailer's EMAIL, not its name.
+A trailer whose email belongs to a third-party GitHub account makes
+GitHub display the work as that account's contribution -- the repo's
+contributors graph showed @claude (13 commits) and a Devin bot (3) for
+exactly this reason: historical trailers carried noreply@anthropic.com
+and a *@users.noreply.github.com bot address. Report mode lists such
+trailers as phantom-credit warnings; check mode FAILS on them, and the
+commit-msg hook rejects the same emails at commit time. One rename
+rides along here: the agent first credited as "Space Bunny Alpha" was
+the stealth preview of MiniMax 3.1 Flash (owner-confirmed 2026-10-22);
+ALIASES maps the old spelling to the model's real name.
+
 Exit code: 0 = report printed / coverage check passed, 1 = check failed,
 2 = git or usage error.
 """
@@ -77,7 +89,9 @@ ALIASES = {
     "kilo": "Kilo",
     "cline": "Cline",
     "ling 3.1 flash": "Ling 3.1 Flash",
-    "space bunny alpha": "Space Bunny Alpha",
+    "space bunny alpha": "MiniMax 3.1 Flash",
+    "minimax 3.1 flash": "MiniMax 3.1 Flash",
+    "minimax m3.1 flash": "MiniMax 3.1 Flash",
     "opencode": "opencode",
     "devin": "Devin",
 }
@@ -104,6 +118,31 @@ def normalize_agent(raw):
     """'Kilo <kilo@native-media-ai.studio>' -> 'Kilo'; unknown names pass through."""
     name = raw.split("<")[0].strip()
     return ALIASES.get(name.lower(), name)
+
+
+def phantom_credit(email):
+    """GitHub account a trailer email credits, or None when it is safe.
+
+    GitHub resolves co-authorship by email: noreply@anthropic.com is the
+    @claude account's address, and every *@users.noreply.github.com
+    address belongs to the account named in it by construction. Any
+    other email (project domains, cline.bot, or no email at all) credits
+    nobody the contributors graph displays.
+    """
+    e = email.strip().lower()
+    if e == "noreply@anthropic.com":
+        return "@claude"
+    if e.endswith("@users.noreply.github.com"):
+        return e.split("@")[0].split("+")[-1]
+    return None
+
+
+def phantom_tally(commits):
+    tally = {}
+    for c in commits:
+        for raw, account in c["phantom"]:
+            tally[(raw, account)] = tally.get((raw, account), 0) + 1
+    return tally
 
 
 def area_of(path):
@@ -137,6 +176,13 @@ def collect(scope_args):
             continue
         h, author, date, subject, parents, trailers = parts
         raw_names = [t.strip() for t in trailers.split(";") if t.strip()]
+        phantom = []
+        for t in raw_names:
+            m = re.search(r"<([^>]+)>", t)
+            if m:
+                account = phantom_credit(m.group(1))
+                if account:
+                    phantom.append((t, account))
         agents = sorted({normalize_agent(t) for t in raw_names})
         unknown = sorted(
             {t for t in raw_names
@@ -155,6 +201,7 @@ def collect(scope_args):
             "subject": subject,
             "agents": agents,
             "unknown": unknown,
+            "phantom": phantom,
             "merge": len(parents.split()) > 1,
             "areas": set(),
             "insertions": 0,
@@ -320,6 +367,16 @@ def report_md(commits, args):
             lines.append(f"- `{name}` on {n} commit(s) -- a typo mints a "
                          "phantom agent; add the name to ALIASES in this "
                          "tool and to the AGENTS.md attribution table.")
+    phantoms = phantom_tally(commits)
+    if phantoms:
+        lines += ["", "Phantom-credit warnings (a trailer email below "
+                      "belongs to a third-party GitHub account, so GitHub "
+                      "displays the work as that account's contribution, "
+                      "not the named agent's):"]
+        for (raw, account), n in sorted(phantoms.items(),
+                                        key=lambda kv: -kv[1]):
+            lines.append(f"- `{raw}` on {n} commit(s) -- displayed by "
+                         f"GitHub as contributions by {account}.")
     biggest = largest_commits(commits)
     if biggest:
         lines += ["", "Largest commits in scope (churn concentrates here -- "
@@ -348,6 +405,10 @@ def report_json(commits, args):
         "unattributed_commits": len(unattributed),
         "agents": agents,
         "unknown_trailer_names": unknown_tally(commits),
+        "phantom_credit_trailers": {
+            f"{raw} -> {acct}": n
+            for (raw, acct), n in phantom_tally(commits).items()
+        },
         "author_fallback_commits": sum(
             1 for c in commits if c["author_agent"]
         ),
@@ -395,6 +456,16 @@ def check_coverage(commits, args):
         print(f"  warning: unknown trailer name {name!r} on {n} commit(s) -- "
               "not in the AGENTS.md attribution table; add it to ALIASES in "
               "tools/agent-contribution-report.py and to that table.")
+    phantom_hits = [(c, raw, acct) for c in commits
+                    for raw, acct in c["phantom"]]
+    for c, raw, acct in phantom_hits:
+        print(f"  phantom-credit trailer: {c['short']} {raw!r} -- GitHub "
+              f"credits this to {acct}, not the named agent. Use no email, "
+              "or one on a domain this project controls.")
+    if phantom_hits:
+        print(f"FAIL: {len(phantom_hits)} commit(s) carry a trailer email "
+              "that credits a third-party GitHub account.")
+        return 1
     if coverage / 100.0 < args.min_coverage:
         print(f"FAIL: {len(missing)} of {total} commits name no agent.")
         return 1
