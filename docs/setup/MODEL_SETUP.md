@@ -30,19 +30,27 @@ This will install:
 
 Models should be placed in:
 ```
-stable-diffusion/models/checkpoints/
+ComfyUI/models/checkpoints/
 ```
 
 **Recommended models for testing:**
 
-1. **SD 1.5 (Base Model)** - 4GB
+1. **SD 1.5 (Base Model)** - 4GB ✅ **Installed**
+   - File: `v1-5-pruned-emaonly.safetensors` in `ComfyUI/models/checkpoints/`
    - Download: https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors
-   
-2. **SDXL (Higher Quality)** - 6.9GB
-   - Download: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
 
-3. **Anything V5 (Anime/Art Style)** - 4.2GB
+2. **SDXL (Higher Quality)** - 6.9GB ⏳ **Not yet installed**
+   - Download: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+   - Place in: `ComfyUI/models/checkpoints/sd_xl_base_1.0.safetensors`
+
+3. **Anything V5 (Anime/Art Style)** - 4.2GB ⏳ **Not yet installed**
    - Download: https://huggingface.co/ckpt/anything-v5.0/resolve/main/AnythingV5Ink_v5PrtRE.safetensors
+   - Place in: `ComfyUI/models/checkpoints/AnythingV5Ink_v5PrtRE.safetensors`
+
+**Non-image models also in `checkpoints/` (do not delete — backend code references them by exact path):**
+- `triposr.ckpt` (1.6 GB) — 3D reconstruction model, used by gen3d service
+- `kandinsky5lite_i2v_5s.safetensors` (4.5 GB) — video i2v model, used by video generation
+- Both are excluded from the image-generation selector via `is_image_checkpoint()` keyword filter
 
 ### 3. Start ComfyUI
 

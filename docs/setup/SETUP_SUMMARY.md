@@ -39,7 +39,7 @@ External install at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 
 | Model | Location | VRAM |
 |-------|----------|------|
-| SD 1.5 | `stable-diffusion/models/checkpoints/` | 4GB |
+| SD 1.5 | `ComfyUI/models/checkpoints/v1-5-pruned-emaonly.safetensors` | 4GB |
 | Hunyuan3D-2mini | `ComfyUI/models/diffusion_models/hunyuan3d-2mini` | ~5GB |
 | Wan 2.2 5B | `ComfyUI/models/diffusion_models/wan2.2-5b` | 6-8GB 480p |
 | AnimateDiff | `ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved` + motion modules | ~1.6GB |

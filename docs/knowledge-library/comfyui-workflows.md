@@ -43,7 +43,7 @@ type: entity
 > **3D:** Hunyuan3D-2mini complete (DiT fast/turbo/base + VAE, `checkpoints/hunyuan3d-dit-v2-mini.safetensors` is now a hardlink to the `diffusion_models` copy) ✅; Kijai Hy3D wrapper deps installed (xatlas/pymeshlab/pygltflib/skimage/sklearn) ✅; `custom_rasterizer` wheel is cp312-only (env is py3.11) — texture baking unavailable, mesh gen unaffected
 > **Upscale:** `4x-ClearRealityV1.safetensors` + `4x-UltraSharp.pth` in `models/upscale_models/` ✅ (were missing; service silently fell back to FFmpeg lanczos)
 > **Kandinsky 5 Lite I2V:** checkpoint + native nodes + hunyuan_video VAE ✅; `qwen_2.5_vl_7b_fp8_scaled.safetensors` (9.4GB) text encoder downloaded to `models/text_encoders/` ✅
-> **Removed:** `checkpoints/triposr.safetensors` / `stable-fast-3d.safetensors` were 15/134-byte HF error pages (gated repo, unauthenticated) — deleted. TripoSR/SF3D 3D backends need authenticated re-downloads to `models/checkpoints/`.
+> **Non-image checkpoints in `checkpoints/`:** `triposr.ckpt` (1.6 GB, 3D reconstruction) and `kandinsky5lite_i2v_5s.safetensors` (4.5 GB, video i2v) live in `checkpoints/` because backend code references them by exact path (`gen3d_service.py` looks for `checkpoints/triposr.ckpt`; the video-models endpoint scans `checkpoints/` for video models). They are excluded from the image-generation selector via the `is_image_checkpoint()` keyword filter (`triposr`, `kandinsky` keywords) — they never appear as SD txt2img options.
 > **Deduped via hardlinks (8.9GB saved):** hunyuan3d DiT (3.8GB), legacy `stable-diffusion/` v1-5 (4.3GB) + mm_sd15_v3 (0.8GB).
 
 ### Installed Models
