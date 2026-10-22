@@ -74,6 +74,25 @@ Baseline, k=5, 400-token chunks:
 | **`hybrid` (RRF)** | **48.3%** | **90.0%** | 0.757 | 843 tok |
 | `hybrid_score` | 45.0% | 86.7% | 0.780 | 828 tok |
 
+### With the two index-time enrichments
+
+Heading-path prefix (free) and contextual document summaries (one LLM call
+per document, cached) both help:
+
+| Configuration | passage | doc@5 | MRR | context |
+|---|---|---|---|---|
+| `child` (BM25) | 46.7% | 88.3% | 0.812 | 1,547 tok |
+| `parent` | 46.7% | 88.3% | 0.821 | 1,527 tok |
+| `parent_child` | 46.7% | 88.3% | 0.812 | 1,749 tok |
+| `doc` (whole document) | 56.7% | 88.3% | 0.812 | 8,418 tok |
+| `dense` (nomic) | 41.7% | 76.7% | 0.705 | 1,612 tok |
+| **`hybrid` (RRF)** | **51.7%** | **93.3%** | **0.853** | 1,564 tok |
+| `hybrid_score` | 50.0% | 88.3% | 0.840 | 1,589 tok |
+
+Contextual retrieval lifts every configuration except dense: `hybrid` goes
+from 90.0% to **93.3%** doc@5 and from MRR 0.757 to **0.853**, for 843 →
+1,564 tokens. The cost is the summary prepended to every chunk.
+
 ---
 
 ## 3. What the numbers say
@@ -115,9 +134,17 @@ barely moves (1,997 → 1,702) because most sections are already under 400
 tokens. **How many chunks you retrieve is the lever** — k=3 gives 80.0%
 doc@5, k=5 gives 85.0%, k=8 gives 88.3%.
 
+### Contextual retrieval is the one augmentation that pays
+Prepending an LLM-written summary of the source document to each of its
+chunks lifts every configuration except dense. A chunk that says "it
+supports 8 GB" becomes matchable to a question about the model it belongs
+to, because the summary carries the model. `hybrid` goes 90.0% → **93.3%**
+doc@5 and MRR 0.757 → **0.853**. The cost is the summary in every chunk:
+843 → 1,564 tokens.
+
 ### The remaining gap
-The right document is found 90% of the time, but the answer fact is in the
-returned context only 48% of the time (and at most ~93% counting
+The right document is found 93% of the time, but the answer fact is in the
+returned context only 52% of the time (and at most ~93% counting
 paraphrases). The answer is usually in *another section* of the right
 document. Neither more chunks nor bigger chunks nor the whole document
 closes it — which is a **reranking** problem, not a chunking or a
@@ -133,14 +160,18 @@ measuring here, not assuming.
 ## 4. Recommended configuration
 
 ```bash
-# Index: 200-token chunks, heading-path enriched
+# Index: 200-token chunks, heading-path enriched, contextual summaries added
 # Retrieve: hybrid (BM25 + nomic dense, RRF), k=8
 ```
 
 - **Chunk target 200.** Cheaper, and the sweep shows the target barely
   matters — so take the small one.
 - **Enrich with the heading path.** Free, and measured: it lifts hybrid
-  passage from 48.3% to 50.0% and MRR from 0.757 to 0.797.
+  MRR from 0.757 to 0.797 on its own.
+- **Add contextual summaries.** One LLM call per document, cached. Lifts
+  hybrid doc@5 from 90.0% to 93.3% and MRR to 0.853, at 2× the context
+  tokens. Worth it if the context budget allows; skip it if not — the
+  gain is real but not the difference between working and not.
 - **Retrieve with hybrid RRF, k=8.** The only lever that moves recall.
 - **Do not use parent-child** unless the corpus changes shape.
 - **Do not return whole documents** — 22× the tokens for 6 points.
