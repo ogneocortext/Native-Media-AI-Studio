@@ -134,6 +134,45 @@ class TestTokenize:
         assert "pascal" in kr.tokenize("Pascal GPU tuning")
 
 
+class TestCrossEncoderReranker:
+    """The reranker must degrade explicitly, never silently."""
+
+    def test_missing_libraries_report_unavailable(self, monkeypatch):
+        import builtins
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "transformers":
+                raise ImportError("no transformers")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        r = kr.CrossEncoderReranker()
+        assert r._ensure() is False
+        assert r.available is False
+        # And scoring returns zeros rather than raising.
+        assert r.score("q", ["a", "b"]) == [0.0, 0.0]
+
+    def test_rerank_with_no_candidates(self):
+        r = kr.CrossEncoderReranker()
+        assert r.rerank("q", [], ["a"], 5) == []
+
+    def test_rerank_preserves_the_candidate_set(self, monkeypatch):
+        r = kr.CrossEncoderReranker()
+        r.available = True
+        r._model = object()
+        # Score by a fixed ordering so the result is checkable.
+        monkeypatch.setattr(
+            r, "score",
+            lambda q, ps: [3.0 if p.startswith("good") else 1.0 for p in ps],
+        )
+        passages = ["weak text", "good passage", "other text"]
+        out = r.rerank("q", [0, 1, 2], passages, 2)
+        assert out[0] == 1
+        assert sorted(out) == [0, 1]
+
+
 class TestBM25:
     def test_the_matching_document_ranks_first(self):
         index = kr.BM25([kr.tokenize("pascal gpu optimization"),
