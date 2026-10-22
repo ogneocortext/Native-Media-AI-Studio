@@ -95,12 +95,14 @@ def tracked_sets():
     files = git_lines("ls-files")
     basenames = set()
     tails = set()
+    all_files = set()
     for f in files:
+        all_files.add(f)
         basenames.add(os.path.basename(f))
         parts = f.split("/")
         if len(parts) >= 2:
             tails.add("/".join(parts[-2:]))
-    return basenames, tails
+    return basenames, tails, all_files
 
 
 def excluded(target):
@@ -142,15 +144,19 @@ def references(path, rel):
 
 
 def main():
-    basenames, tails = tracked_sets()
+    basenames, tails, tracked_files = tracked_sets()
     sources = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        dirnames[:] = [d for d in dirnames
-                       if d not in {".git", "node_modules", "__pycache__"}]
-        for name in filenames:
+    for top_dir in TOP_DIRS:
+        top_path = ROOT / top_dir
+        if not top_path.exists():
+            continue
+        for _dirpath, dirnames, _filenames in os.walk(top_path):
+            dirnames[:] = [d for d in dirnames
+                           if d not in {".git", "node_modules", "__pycache__"}]
+        for name in _filenames:
             if not name.endswith(".md"):
                 continue
-            path = Path(dirpath) / name
+            path = Path(_dirpath) / name
             rel = path.relative_to(ROOT).as_posix()
             if in_scope(rel):
                 sources.append((path, rel))
@@ -159,7 +165,7 @@ def main():
     for path, rel in sorted(sources, key=lambda s: s[1]):
         for lineno, target in references(path, rel):
             checked += 1
-            if excluded(target) or (ROOT / target).exists():
+            if excluded(target) or target in tracked_files:
                 continue
             base = os.path.basename(target)
             tail = "/".join(target.split("/")[-2:])

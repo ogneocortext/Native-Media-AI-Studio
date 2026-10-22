@@ -53,29 +53,41 @@ def frontmatter(path: Path):
     return date, tags, author
 
 
-def git_author(path: Path):
-    """Author of the last commit touching `path`, from the Co-authored-by trailer."""
-    rel = path.relative_to(ROOT).as_posix()
+def git_authors(paths):
+    """Authors of the last commit touching each path, from Co-authored-by trailer.
+
+    Batch git log over all paths in one subprocess call instead of one call
+    per file -- the per-file version spawned N subprocesses for N docs.
+    """
+    if not paths:
+        return {}
+    rels = [p.relative_to(ROOT).as_posix() for p in paths]
     try:
         out = subprocess.run(
-            ["git", "log", "-1", "--format=%H%x00%B", "--", rel],
+            ["git", "log", "--all", "--format=%H%x00%an", "--name-only", "--"] + rels,
             cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
         ).stdout
     except OSError:
-        return None
-    if not out:
-        return None
-    body = out.split("\x00", 1)[1] if "\x00" in out else out
-    m = TRAILER.search(body)
-    return m.group(1).strip() if m else None
+        return {}
+    authors = {}
+    current_author = None
+    for line in out.splitlines():
+        if chr(0) in line:
+            current_author = line.split(chr(0), 1)[1]
+        elif line.strip():
+            rel = line.strip()
+            if rel not in authors:
+                authors[rel] = current_author
+    return authors
 
 
 def main():
     docs = []
+    no_author_paths = []
     for path in sorted(Path(ROOT / "docs").rglob("*.md")):
         date, tags, author = frontmatter(path)
         if author is None:
-            author = git_author(path)
+            no_author_paths.append(path)
         docs.append({
             "path": path.relative_to(ROOT).as_posix(),
             "date": date,
@@ -94,6 +106,12 @@ def main():
         "by_date": {k: len(v) for k, v in sorted(by_date.items(), key=lambda x: str(x[0]))},
         "docs": docs,
     }
+
+    # Batch git log for docs without frontmatter author
+    batch_authors = git_authors(no_author_paths)
+    for d in docs:
+        if d["author"] is None:
+            d["author"] = batch_authors.get(d["path"])
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
