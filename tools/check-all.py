@@ -14,8 +14,9 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   6. tools/check-path-references.py     - stale repo-relative path references
   7. tools/report-nesting.py            - control-flow nesting vs baseline
   8. tools/docs-triage.py               - report-only untagged-doc grouping
-  9. tools/docs-tracker.py              - report-only doc provenance
- 10. tools/report-path-orphans.py       - report-only dangling references
+   9. tools/docs-tracker.py              - report-only doc provenance
+  10. tools/report-path-orphans.py       - report-only dangling references
+  11. tools/check-hooks-installed.py     - report-only git hooks state
 
 Run:  python tools/check-all.py     (-v also runs the report-only checks)
 Exit 0 = all pass, 1 = at least one failed.
@@ -63,6 +64,12 @@ CHECKS = [
     # deliberately cannot decide -- deletion orphans and never-existed
     # names in the docs agents actually follow.
     ("path orphans (report)", "report-path-orphans.py", [], True),
+    # Report-only: .git/hooks is not tracked, so a fresh clone silently runs
+    # the whole guard suite (D10: hooks ARE the CI here) on nothing. Report,
+    # do not fail: scratch clones used for hook E2E tests legitimately have
+    # none. The 2026-10-22 trailerless-commit escape happened on a clone
+    # missing commit-msg; run this directly to see the live state.
+    ("hooks installed (report)", "check-hooks-installed.py", [], True),
 ]
 
 

@@ -67,5 +67,20 @@ if ! "$PYTHON" tools/run-gates.py --only docs ruff type lint unit; then
     exit 1
 fi
 
+# Attribution gate. commit-msg already rejects a trailerless commit at commit
+# time on clones where it is installed, but a commit made on a clone without
+# hooks, or one made with --no-verify, still must not ship unattributed: the
+# agent-contribution report is the only channel that catches the whole unpushed
+# batch (AGENTS.md, Attributing commits). Cheap: it reads trailer lines in the
+# origin/main..HEAD range only.
+if ! "$PYTHON" tools/agent-contribution-report.py --check; then
+    echo >&2
+    echo "pre-push: unattributed commit(s) ahead of origin/main (see above)." >&2
+    echo "          Amend the named commit to end with its agent's" >&2
+    echo "          Co-authored-by trailer, then push again; --no-verify bypasses." >&2
+    run_chained_hook "$@"
+    exit 1
+fi
+
 run_chained_hook "$@"
 exit 0
