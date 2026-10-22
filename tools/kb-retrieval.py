@@ -275,6 +275,102 @@ def enrich(text: str, heading_path: str) -> str:
     return f"{heading_path}\n{text}"
 
 
+# ------------------------------------------------------- contextual index
+CONTEXTUAL_DIR = REPO / "output" / "kb-context-cache"
+
+
+def document_summary(body: str, model: str, title: str = "") -> str:
+    """A one-paragraph summary of a document, written by the local LLM.
+
+    Contextual retrieval: prepending a summary of the source document to
+    each of its chunks at index time is the one augmentation the literature
+    finds consistently helpful — it gives a chunk the document's context
+    ("which entities, which topic") so a chunk that says "it supports 8 GB"
+    can still be matched to a question about the model it belongs to.
+
+    Cached on disk, keyed by the document text, because it costs one LLM
+    call per document.
+    """
+    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()[:32]
+    cache_dir = CONTEXTUAL_DIR / model.replace(":", "_").replace("/", "_")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"{digest}.txt"
+    if cache_path.exists():
+        try:
+            cached = cache_path.read_text(encoding="utf-8").strip()
+            if cached:
+                return cached
+        except OSError:
+            pass
+
+    head = body[:6000]
+    prompt = (
+        "Summarise this technical article in two sentences, naming the "
+        "specific topic, the entities it concerns, and what it concludes. "
+        "Write it as search context that could sit above a passage from "
+        "the article, so a reader can tell what the passage is about.\n\n"
+        f"ARTICLE{': ' + title if title else ''}:\n{head}\n\nSUMMARY:"
+    )
+    try:
+        req = urllib.request.Request(
+            f"{OLLAMA_URL}/api/generate",
+            data=json.dumps({
+                "model": model, "prompt": prompt, "stream": False,
+                "options": {"temperature": 0.2, "num_predict": 120},
+            }).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=300) as r:
+            summary = (json.loads(r.read()).get("response") or "").strip()
+    except Exception:
+        return ""
+    if summary:
+        try:
+            cache_path.write_text(summary, encoding="utf-8", newline="\n")
+        except OSError:
+            pass
+    return summary
+
+
+def contextualize(chunks: list[dict], summaries: dict[str, str]) -> None:
+    """Prepend each document's summary to its chunks, in place."""
+    for c in chunks:
+        summary = summaries.get(c.get("doc", ""), "")
+        if summary:
+            c["text"] = f"{summary}\n{c['text']}"
+
+
+def hyde_query(question: str, model: str, timeout: int = 120) -> str:
+    """A hypothetical answer to the question, for HyDE.
+
+    HyDE retrieves with a generated *answer* rather than the question,
+    which helps when the question's wording differs from the document's.
+    The literature is specific about where it helps: it improves *sparse*
+    retrieval substantially and dense retrieval barely at all, and it
+    underperforms plain hybrid fusion, so it is worth measuring rather
+    than assuming.
+    """
+    prompt = (
+        "Write a short passage that would answer this question, in the "
+        "voice of a technical reference document. Two sentences. Do not "
+        "ask questions or hedge.\n\n"
+        f"QUESTION: {question}\n\nPASSAGE:"
+    )
+    try:
+        req = urllib.request.Request(
+            f"{OLLAMA_URL}/api/generate",
+            data=json.dumps({
+                "model": model, "prompt": prompt, "stream": False,
+                "options": {"temperature": 0.4, "num_predict": 120},
+            }).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return (json.loads(r.read()).get("response") or "").strip()
+    except Exception:
+        return ""
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Dense and hybrid retrieval over the knowledge library.",

@@ -94,6 +94,9 @@ rrf_fuse = kr.rrf_fuse
 enrich = kr.enrich
 Embedder = kr.Embedder
 DenseIndex = kr.DenseIndex
+document_summary = kr.document_summary
+contextualize = kr.contextualize
+hyde_query = kr.hyde_query
 
 
 # ---------------------------------------------------------------- probes
@@ -210,11 +213,15 @@ def _ngram(sentence: str, size: int = 6) -> str:
 
 
 # ------------------------------------------------------------ evaluation
-def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None):
+def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
+             hyde_index=None):
     """Score the retrieval configurations on the same probes.
 
     `dense_index` is a DenseIndex over the same chunks; when present the
     dense and hybrid configurations are scored too.
+
+    `hyde_index` is a list of LLM-written hypothetical answers, one per
+    probe, in the same order.
     """
     doc_texts = doc_texts or {}
     # Children carry the ids of the sections they came from, so the parent
@@ -233,13 +240,21 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None):
     if dense_index is not None:
         results["dense"] = []
         results["hybrid"] = []
+    if hyde_index is not None:
+        results["hyde"] = []
 
-    for probe in probes:
-        q = tokenize(probe["query"])
+    for probe_index, probe in enumerate(probes):
+        # A written question set uses "question" and "fact"; a cloze probe
+        # uses "query" and "ngram". Normalise here rather than at the call
+        # site, so every scoring path sees one shape.
+        query_text = probe.get("query") or probe.get("question") or ""
+        ngram = probe.get("ngram") or probe.get("fact") or ""
+        answer_term = probe.get("answer") or (
+            ngram.split()[0] if ngram.split() else "")
+        q = tokenize(query_text)
         gold_doc = probe["doc"]
-        answer = probe["answer"]
+        answer = answer_term
         answer_re = re.compile(rf"\b{re.escape(answer)}\b", re.I)
-        ngram = probe.get("ngram", "")
 
         # --- child: index children, return children
         top = child_index.top(q, k)
@@ -281,7 +296,7 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None):
 
         if dense_index is not None:
             # --- dense: semantic only
-            dtop = dense_index.top(probe["query"], k)
+            dtop = dense_index.top(query_text, k)
             dctx = " ".join(chunks[i]["text"] for i in dtop)
             results["dense"].append(_score(probe, dtop, dctx, answer_re, ngram,
                                           chunks, gold_doc))
@@ -293,6 +308,18 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None):
             hctx = " ".join(chunks[i]["text"] for i in htop)
             results["hybrid"].append(_score(probe, htop, hctx, answer_re, ngram,
                                            chunks, gold_doc))
+
+        if hyde_index is not None:
+            # --- hyde: retrieve with a generated hypothetical answer.
+            # The literature is specific that HyDE helps *sparse* retrieval
+            # substantially and dense retrieval barely at all, and that it
+            # underperforms plain hybrid fusion — so it is scored on its own
+            # rather than folded in silently.
+            hq = hyde_index[probe_index]
+            htop = child_index.top(tokenize(hq), k)
+            hctx = " ".join(chunks[i]["text"] for i in htop)
+            results["hyde"].append(_score(probe, htop, hctx, answer_re, ngram,
+                                          chunks, gold_doc))
 
     return results
 
@@ -489,6 +516,33 @@ def _parse_json_object(raw: str) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def fact_ceiling(probes, doc_texts) -> tuple[int, int, int]:
+    """How findable each answer fact is in its own source document.
+
+    A fact written by a model is a *paraphrase* of the source, not a copy,
+    so a literal string match under-reports. This measures the metric's
+    ceiling: how many facts are findable in the source at all. The passage
+    column is a lower bound, and this is what it is bounded by.
+
+    Returns (literal, paraphrased, unfindable).
+    """
+    literal = paraphrased = unfindable = 0
+    for probe in probes:
+        body = _squash(doc_texts.get(probe["doc"], ""))
+        fact = _squash(probe.get("ngram") or probe.get("fact") or "")
+        if not fact:
+            continue
+        if fact in body:
+            literal += 1
+            continue
+        words = [w for w in fact.split() if len(w) > 3]
+        if words and sum(1 for w in words if w in body) / len(words) >= 0.6:
+            paraphrased += 1
+        else:
+            unfindable += 1
+    return literal, paraphrased, unfindable
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate the knowledge library's chunking for retrieval.",
@@ -525,6 +579,12 @@ def main(argv: list[str] | None = None) -> int:
                              "realistic question per document — and save it")
     parser.add_argument("--question-model", default="llama3.2:3b",
                         help="LLM used to write the questions")
+    parser.add_argument("--hyde", action="store_true",
+                        help="Also score HyDE: retrieve with an LLM-written "
+                             "hypothetical answer instead of the question")
+    parser.add_argument("--contextual", action="store_true",
+                        help="Also score contextual retrieval: prepend each "
+                             "document's LLM-written summary to its chunks")
     args = parser.parse_args(argv)
 
     counter = resolve_counter(REPO, None) if resolve_counter else None
@@ -547,6 +607,19 @@ def main(argv: list[str] | None = None) -> int:
 
     docs = [kbc.parse_doc(p, counter) for p in sorted(BASE.glob("*.md"))
             if p.name not in ("index.md", "README.md", "_schema.md", "log.md")]
+
+    if args.contextual:
+        # Contextual retrieval: an LLM-written summary of each document,
+        # prepended to its chunks at index time. The one augmentation the
+        # literature finds consistently helpful.
+        summaries = {}
+        for d in docs:
+            summary = document_summary(d["body"], args.question_model, d["title"])
+            if summary:
+                summaries[d["name"]] = summary
+        contextualize(chunks, summaries)
+        contextualize(parents, summaries)
+        print(f"  Contextual: {len(summaries)} document summary/summaries added")
 
     if args.generate_questions:
         out = Path(args.questions) if args.questions else (
@@ -584,9 +657,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  Dense index: {len(chunks)} chunks embedded "
               f"({embedder.hits} cached, {embedder.misses} computed)")
 
+    hyde_index = None
+    if args.hyde:
+        hyde_index = []
+        for p in probes:
+            generated = hyde_query(p.get("query") or p.get("question", ""),
+                                    args.question_model)
+            hyde_index.append(generated or p.get("query") or "")
+        print(f"  HyDE: {len(hyde_index)} hypothetical answer(s) generated")
+
     results = evaluate(chunks, parents, probes, args.k,
                        doc_texts={d["name"]: d["body"] for d in docs},
-                       dense_index=dense_index)
+                       dense_index=dense_index, hyde_index=hyde_index)
 
     if args.json:
         out = {}
@@ -613,9 +695,21 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {'configuration':<14} {'answer@k':>10} {'passage':>9} "
           f"{'doc@k':>8} {'MRR':>8} {'context':>11}")
     print(f"  {'-'*14} {'-'*10} {'-'*9} {'-'*8} {'-'*8} {'-'*11}")
-    for name in ("child", "parent", "parent_child", "doc", "dense", "hybrid"):
+    for name in ("child", "parent", "parent_child", "doc", "dense", "hybrid",
+                 "hyde"):
         if name in results:
             summarize(name, results[name], args.k)
+
+    # The passage column is a lower bound: an LLM-written answer fact is a
+    # paraphrase, so a literal match under-reports. Show the ceiling so the
+    # number cannot be misread.
+    lit, para, unf = fact_ceiling(probes, {d["name"]: d["body"] for d in docs})
+    total = lit + para + unf
+    if total:
+        print(f"\n  passage is a LOWER BOUND — of {total} answer facts, "
+              f"{lit} ({lit/total:.0%}) appear verbatim in their source "
+              f"document and {para} ({para/total:.0%}) are paraphrases of it; "
+              f"{unf} are unfindable.")
     print("\n  child       = index small chunks, return small chunks")
     print("  parent      = index parent sections, return parent sections")
     print("  parent_child= index small chunks, return their parents")
@@ -623,6 +717,8 @@ def main(argv: list[str] | None = None) -> int:
     if "dense" in results:
         print("  dense       = nomic embeddings only, semantic")
         print("  hybrid      = BM25 + dense, fused with Reciprocal Rank Fusion")
+    if "hyde" in results:
+        print("  hyde        = BM25 over an LLM-written hypothetical answer")
     return 0
 
 
