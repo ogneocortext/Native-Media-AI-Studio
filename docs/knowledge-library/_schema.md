@@ -124,9 +124,10 @@ Run `python tools/validate-knowledge-tags.py` before committing any change to th
 
 ## 6a. Tooling
 
-Four tools maintain the vault. They share one link parser
-(`tools/_kb_links.py`), so they cannot disagree about how a link is
-spelled.
+Six tools maintain the vault. They share one link parser
+(`tools/_kb_links.py`) and one token counter (`tools/_kb_tokens.py`), so
+they cannot disagree about how a link is spelled or how long a document
+is.
 
 | Tool | What it does |
 |------|--------------|
@@ -134,6 +135,8 @@ spelled.
 | `tools/kb-add.py` | Scaffolds a new document: frontmatter, auto-linked related documents, registration in `index.md` / `migration-progress.md` / `log.md`, then validation. Implements §7 below. |
 | `tools/kb-graph.py` | The link graph: `outline`, `graph` (DOT), `orphans`, `dangling`, `typed`, `untyped`, `suggest`, `apply` (with `--dry-run`), and `audit`. |
 | `tools/kb-context.py` | Exports the vault as agent context: `text`, `json`, `paths`, `summary`, `index`, with `--category` / `--type` / `--tag` / `--file` filters, `--neighborhood`, `--limit` and `--budget`. |
+| `tools/kb-tokens.py` | Token accounting and context-window sizing: how big the library is, for which model, and which models can hold it. |
+| `tools/kb-chunk.py` | Structure-aware chunking: headings first, code fences and tables atomic, sentences never split, no overlap by default. Emits a JSONL chunk index. |
 
 **`kb-context.py --format index` is the entry point for an agent.** It
 prints a routing table — title, type, category, tags and an estimated token
@@ -147,6 +150,28 @@ Agents?*, arXiv:2607.17598, 2026). Fetch a document with
 LLM-wiki lint convention: **fix** (broken links), **improve** (quality
 gaps: orphans, missing typed relations, one-way links), **explore**
 (referenced but unwritten pages).
+
+### Sizing the library against a context window
+
+"Tokens" are a property of a *model's tokenizer*, not of text: the same
+corpus measures 0.9–1.2 tokens per character across vendors, a 35% spread
+(arXiv:2605.02173, 2026). So the tools count exactly when a local
+tokenizer is available (the studio has one for `gemma-4-e2b-it`, the
+studio's own model) and estimate transparently when it is not.
+
+```bash
+python tools/kb-tokens.py                 # the report: totals, per-category
+python tools/kb-tokens.py --format models # which models can hold the whole library
+python tools/kb-chunk.py --format stats   # the chunking plan
+```
+
+A context window is a ceiling, not a working size. Quality falls off a
+"context cliff" past roughly 2,500 tokens of retrieved context even on a
+1M-window model (arXiv:2601.14123, 2026), and a single chunk above ~8,000
+tokens is noise even on a 200K model. So "load the whole library in one
+prompt" is the wrong target — route to it, then fetch a small, well-formed
+piece. `kb-chunk.py` produces those pieces; `kb-context.py --format index`
+produces the routing table.
 
 ---
 

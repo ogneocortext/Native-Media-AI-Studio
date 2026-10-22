@@ -48,11 +48,13 @@ if hasattr(sys.stdout, "reconfigure"):
 
 try:
     from _kb_links import SPECIAL_FILES, extract_slugs
+    from _kb_tokens import resolve_counter
     from _toolutil import REPO
 except ImportError:  # pragma: no cover
     REPO = Path(__file__).resolve().parent.parent
     SPECIAL_FILES = ("index.md", "README.md", "_schema.md", "log.md")
     extract_slugs = None
+    resolve_counter = None
 
 BASE = REPO / "docs" / "knowledge-library"
 SKIP = ("index.md", "README.md", "_schema.md", "log.md")
@@ -79,7 +81,7 @@ def collect() -> list[Path]:
     return sorted(p for p in BASE.glob("*.md") if p.name not in SKIP)
 
 
-def parse_doc(path: Path) -> dict:
+def parse_doc(path: Path, counter=None) -> dict:
     """Return {path, name, title, frontmatter, body, tags, type, category, tokens}."""
     text = read_text(path)
     front: dict = {}
@@ -121,6 +123,11 @@ def parse_doc(path: Path) -> dict:
     aliases = front.get("aliases", [])
     category = tags[0] if tags else None
     stripped_body = body.strip()
+    if counter is not None:
+        tokens = counter.count(stripped_body)
+    else:
+        # Fallback when the shared counter is unavailable: ~4 chars/token.
+        tokens = max(1, len(stripped_body) // 4)
     return {
         "path": str(path.relative_to(REPO)),
         "name": path.name,
@@ -131,9 +138,9 @@ def parse_doc(path: Path) -> dict:
         "tags": tags,
         "type": ptype,
         "category": category,
-        # Rough token estimate: ~4 characters per token. Good enough to
-        # price a document in a context budget.
-        "tokens": max(1, len(stripped_body) // 4),
+        # The token cost of fetching this document, for the routing index and
+        # the --budget cap.
+        "tokens": tokens,
     }
 
 
@@ -255,9 +262,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="Cap the emitted content at roughly N tokens "
                              "(0 = no cap). The largest documents are dropped "
                              "first, and the drop is reported.")
+    parser.add_argument("--model", default=None,
+                        help="Tokenizer to count with: gemma-4-e2b-it, qwen3, "
+                             "acestep, phi-4, or 'estimate'. Default: the "
+                             "first local tokenizer found.")
     args = parser.parse_args(argv)
 
-    docs = [parse_doc(p) for p in collect()]
+    counter = resolve_counter(REPO, args.model) if resolve_counter else None
+    docs = [parse_doc(p, counter) for p in collect()]
     matched = [d for d in docs
                if matches(d, args.category, args.type, args.tag, args.file)]
 
