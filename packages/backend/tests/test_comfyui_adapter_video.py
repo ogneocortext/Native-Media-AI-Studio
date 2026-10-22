@@ -137,15 +137,20 @@ async def test_ltx_video_route_builds_ltx_workflow(
     # Verify the submitted workflow contains LTX node types.
     workflow = result["workflow"]
     node_types = {node["class_type"] for node in workflow["prompt"].values()}
-    assert "LTXVideoModelLoader" in node_types
+    assert "UNETLoader" in node_types
+    assert "CLIPLoader" in node_types
     assert "LTXVConditioning" in node_types
-    assert "LTXVSampler" in node_types
-    assert "LTXVAELoader" in node_types
+    assert "EmptyLTXVLatentVideo" in node_types
+    assert "KSampler" in node_types
+    assert "VAELoader" in node_types
     assert "VAEDecode" in node_types
     assert "VHS_VideoCombine" in node_types
     # Wan nodes must NOT appear in an LTX workflow.
     assert "WanVideoModelLoader" not in node_types
     assert "WanVideoSampler" not in node_types
+    assert "LTXVideoModelLoader" not in node_types
+    assert "LTXVSampler" not in node_types
+    assert "LTXVAELoader" not in node_types
 
 
 @pytest.mark.asyncio
@@ -167,8 +172,18 @@ async def test_ltx_resolution_clamped_to_768x512(
     )
 
     # Clamped to 768x512 (16-aligned, aspect preserved).
-    assert result["workflow"]["prompt"]["8"]["inputs"]["width"] <= 768
-    assert result["workflow"]["prompt"]["8"]["inputs"]["height"] <= 512
+    workflow = result["workflow"]
+    dim_nodes = [
+        node for node in workflow["prompt"].values()
+        if isinstance(node, dict)
+        and "width" in node.get("inputs", {})
+        and "height" in node.get("inputs", {})
+    ]
+    assert dim_nodes, "No dimension-carrying nodes found"
+    for node in dim_nodes:
+        inputs = node["inputs"]
+        assert inputs["width"] <= 768, f"width {inputs['width']} exceeds 768"
+        assert inputs["height"] <= 512, f"height {inputs['height']} exceeds 512"
 
 
 @pytest.mark.asyncio
@@ -187,6 +202,16 @@ async def test_ltx_frames_snap_to_4n_plus_1(
         }
     )
 
-    frames = result["workflow"]["prompt"]["8"]["inputs"]["num_frames"]
-    assert frames <= 30
-    assert (frames - 1) % 4 == 0  # 4n+1
+    # Frames snap to 4n+1 on EmptyLTXVLatentVideo (node "4").
+    workflow = result["workflow"]
+    frame_values = []
+    for node in workflow["prompt"].values():
+        if isinstance(node, dict):
+            inputs = node.get("inputs", {})
+            for key in ("num_frames", "length"):
+                if key in inputs:
+                    frame_values.append(inputs[key])
+    assert frame_values, "No frame-carrying nodes found"
+    for f in frame_values:
+        assert f <= 30
+        assert (f - 1) % 4 == 0  # 4n+1

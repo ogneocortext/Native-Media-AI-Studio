@@ -977,8 +977,10 @@ class ComfyUIAdapter(BaseAdapter):
         (LTX VAE patch grid), resolution clamped to 768x512 max.
 
         Node graph (ComfyUI-LTX-Video custom nodes):
-          LTXVideoModelLoader → LTXVSampler ← LTXVConditioning ← CLIPLoader(T5)
-          LTXVAELoader → VAEDecode ← LTXVSampler
+          UNETLoader -> LTXVConditioning <- CLIPLoader(T5)
+          UNETLoader -> KSampler -> VAEDecode <- LTXVConditioning
+          EmptyLTXVLatentVideo -> KSampler (latent)
+          VAELoader -> VAEDecode (vae)
           VAEDecode → VHS_VideoCombine → output MP4
         """
         # Resolve checkpoint: explicit ckpt_name first, then fall back to any
@@ -988,7 +990,7 @@ class ComfyUIAdapter(BaseAdapter):
 
         # Text encoder (T5-XXL fp8 — already staged on disk per decision-log).
         t5_name = "t5-xxl-fp8.safetensors"
-        vae_name = "LTX23_video_vae.safetensors"
+        vae_name = "LTX23_video_vae_bf16.safetensors"
 
         # LTX VAE requires 4n+1 frames; snap within [8, 121], default 25.
         lt_frames = max(8, min(num_frames, 121))
@@ -1006,18 +1008,17 @@ class ComfyUIAdapter(BaseAdapter):
             "prompt": {
                 # 1: Load LTX model (fp8 distilled, fits 8GB).
                 "1": {
-                    "class_type": "LTXVideoModelLoader",
+                    "class_type": "UNETLoader",
                     "inputs": {
-                        "model": ckpt_name,
-                        "precision": "fp8",
-                        "load_device": "offload_device",
+                        "unet_name": ckpt_name,
+                        "weight_dtype": "default",
                     },
                 },
                 # 2: Load T5-XXL text encoder (CPU offloaded on 8GB).
                 "2": {
                     "class_type": "CLIPLoader",
                     "inputs": {
-                        "ckpt_name": t5_name,
+                        "clip_name": t5_name,
                         "type": "ltx",
                     },
                 },
@@ -1034,33 +1035,43 @@ class ComfyUIAdapter(BaseAdapter):
                 # 4: Sample — creates correctly-shaped LTX latents from embeds.
                 # shift=5.0 is the Kijai-recommended default for LTX T2V.
                 "4": {
-                    "class_type": "LTXVSampler",
+                    "class_type": "EmptyLTXVLatentVideo",
+                    "inputs": {
+                        "width": lt_width,
+                        "height": lt_height,
+                        "length": lt_frames,
+                        "batch_size": 1,
+                    },
+                },
+                # 5: Sample -- creates correctly-shaped LTX latents from embeds.
+                "5": {
+                    "class_type": "KSampler",
                     "inputs": {
                         "model": ["1", 0],
-                        "conditioning": ["3", 0],
+                        "positive": ["3", 0],
+                        "negative": ["3", 1],
+                        "latent_image": ["4", 0],
+                        "seed": seed,
                         "steps": steps,
                         "cfg": cfg,
-                        "shift": 5.0,
-                        "seed": seed,
-                        "force_offload": True,
-                        "scheduler": "unipc",
+                        "sampler_name": "euler",
+                        "scheduler": "normal",
+                        "denoise": 1.0,
                     },
                 },
-                # 5: Load VAE.
-                "5": {
-                    "class_type": "LTXVAELoader",
-                    "inputs": {
-                        "model_name": vae_name,
-                        "precision": "fp16",
-                        "use_cpu_cache": True,
-                    },
-                },
-                # 6: Decode latent to images (tiled to stay under 8GB).
+                # 6: Load VAE.
                 "6": {
+                    "class_type": "VAELoader",
+                    "inputs": {
+                        "vae_name": vae_name,
+                    },
+                },
+                # 7: Decode latent to images (tiled to stay under 8GB).
+                "7": {
                     "class_type": "VAEDecode",
                     "inputs": {
-                        "vae": ["5", 0],
-                        "samples": ["4", 0],
+                        "vae": ["6", 0],
+                        "samples": ["5", 0],
                         "enable_vae_tiling": True,
                         "tile_x": 272,
                         "tile_y": 272,
@@ -1068,21 +1079,11 @@ class ComfyUIAdapter(BaseAdapter):
                         "tile_stride_y": 128,
                     },
                 },
-                # 7: Empty image embeds — required input of LTXVSampler for
-                # pure text-to-video (no start/end image).
+                # 8: Combine frames to MP4.
                 "8": {
-                    "class_type": "LTXVEmptyEmbeds",
-                    "inputs": {
-                        "width": lt_width,
-                        "height": lt_height,
-                        "num_frames": lt_frames,
-                    },
-                },
-                # 9: Combine frames to MP4.
-                "9": {
                     "class_type": "VHS_VideoCombine",
                     "inputs": {
-                        "images": ["6", 0],
+                        "images": ["7", 0],
                         "frame_rate": fps,
                         "loop_count": 0,
                         "filename_prefix": "NativeMediaAI_LTX",
