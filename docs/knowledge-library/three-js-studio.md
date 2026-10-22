@@ -363,7 +363,7 @@ Render pipeline: raw three.js (`WebGLRenderer` on a plain `<canvas>`, no R3F); p
 - `packages/frontend/tests/browser/audit/three-studio-dispose-check.mjs`
 - `docs/ux/three-js-visualizer-review-2026-09-29.md`
 - `tools/vision/analyze.mjs`
-- `docs/knowledge/unity-audio-visualization-2026.md`
+- `docs/knowledge-library/unity-audio-visualization-2026.md`
 - `docs/knowledge/audio-visualization-techniques-2026.md`
 
 ## See Also
