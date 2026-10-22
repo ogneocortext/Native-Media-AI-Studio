@@ -133,7 +133,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 
-### 📊 Research & Reference (15/15 completed)
+### 📊 Research & Reference (16/16 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -145,6 +145,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `ai-music-video-platforms-2026.md`  → `#research`, `#platform-youtube`, `#ai`
 - ✅ `app-research-gaps-2026.md`  → `#research`
 - ✅ `creative-onboarding-patterns-2026.md`  → `#research`, `#design`
+- ✅ `knowledge-retrieval-evaluation-2026.md`  → `#research`, `#technical`, `#documentation`
 - ✅ `feature-utilization-audit-2026.md`  → `#research`, `#features`
 - ✅ `ollama-benchmarks.md`  → `#research`, `#benchmark`, `#ai`
 - ✅ `coding-benchmarks.md`  → `#research`, `#ai`
