@@ -221,3 +221,4 @@ export function ErrorState({ title, description, icon, retry }: ErrorStateProps)
 export { FileUploadZone } from "./FileUploadZone";
 export { ResourceBar, ResourceGroup } from "./ResourceBar";
 export { ErrorBoundary } from "./ErrorBoundary";
+export { EmptySection } from "./EmptySection";

@@ -49,6 +49,7 @@ import {
   type CompileStoryboardResponse,
 } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { EmptySection } from "../../components/common";
 
 interface StoryboardFile {
   name: string;
@@ -648,10 +649,7 @@ function TracksTab({
         {loading ? (
           <div className="p-4 text-center text-gray-500 text-sm">Loading tracks...</div>
         ) : tracks.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
-          <Music size={24} className="mx-auto opacity-40" />
-          No tracks found
-        </div>
+          <EmptySection icon={<Music size={24} />} title="No tracks found" size="sm" />
         ) : (
           tracks.map((track) => (
             <button
