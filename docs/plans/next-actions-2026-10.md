@@ -383,26 +383,30 @@ transcripts, and character references.
 
 ## Where the work is concentrated (2026-10-22)
 
-Ranked by "how much is left vs. how much shipped". Generated from
-`python tools/docs-tracker.py` (`output/docs-tracker.json`) — the
-`written per day` count is the objective signal; a big spike means a lane
-just landed, a flat tail means it is still open.
+Generated from `python tools/docs-tracker.py` (`output/docs-tracker.json`) —
+the `docs per lane` count is the objective signal; a lane with a big share
+of the library is where the docs live, and a lane with no docs at all is
+where no work has been recorded.
 
-| Lane | Status | Signal |
+| Lane | Docs | Signal |
 | --- | --- | --- |
-| Visualizer (2.x) | All landed; 2.3 / 2.8 / 2.9 owe Windows verification | 2026-10-13 spike (6 docs) |
-| Motion lane (F1–F5) | All landed; D40 delegation scoped | 2026-10-21 spike (6 docs) |
-| Remix / mashup | Complete (B1–B7, A1–A7) | flat |
-| Docs / hygiene | Active: knowledge-library reconcile, AGENTS.md trim, tracker | 2026-10-22 (1 doc) |
-| Backend / infra | Steady; queue, audio API, ComfyUI hardening | flat |
-| 3D path (Q1) | Open: Unity vs Blender vs Three.js unresolved | no new docs |
+| Knowledge library | 119 | Bulk of the research library (2026-09-29 import spike) |
+| Plans & roadmaps | 13 | Active: feature roadmap, next-actions, per-lane plans |
+| Storyboards & visual storytelling | 8 | Production artifacts (mirrored to `packages/frontend/public/docs`) |
+| Notes (not authoritative) | 8 | Working material — archive candidates per D12 |
+| Architecture & decisions | 6 | D1–D44 + Q1–Q6 |
+| Setup & requirements | 6 | Environment + system requirements |
+| UX audit | 4 | Visualizer review findings |
+| Docs & hygiene | 4 | AGENTS.md, cheatsheet, testing workflows |
+| Guides | 4 | User/operator guides |
+| API reference | 1 | Single API reference doc |
+| Scratch (not authoritative) | 1 | Working material — archive candidate |
 
 **Status 2026-10-22: everything that shipped is on `main` and the gates
 are green.** The only two things still owed are (a) the D40 layering task
 (`motion/` → vizMotion primitives), scoped and owner-approved, and (b)
 Windows verification of 2.3 / 2.8 / 2.9 — owed to the owner's machine, not
-a code gap. A third lane — Step 5, storyboard enrichment — was proposed
-the same day at the owner's request and is scoped but not yet started. Re-run `python tools/docs-tracker.py` at each milestone
+a code gap. Re-run `python tools/docs-tracker.py` at each milestone
 rather than re-ranking by memory.
 
 ## Build notes
