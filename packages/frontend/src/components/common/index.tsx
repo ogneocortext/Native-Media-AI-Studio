@@ -223,3 +223,4 @@ export { ResourceBar, ResourceGroup } from "./ResourceBar";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { EmptySection } from "./EmptySection";
 export { ConfirmDialog } from "./ConfirmDialog";
+export { ToggleSwitch } from "./ToggleSwitch";
