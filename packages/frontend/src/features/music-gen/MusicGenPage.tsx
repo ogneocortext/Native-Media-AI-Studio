@@ -3,6 +3,7 @@ import { getApiBase } from "../../services/api/core";
 
 export function MusicGenPage() {
   const [status, setStatus] = useState<string>("Loading status...");
+  const [running, setRunning] = useState(false);
   const [style, setStyle] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [outputName, setOutputName] = useState("");
@@ -17,9 +18,11 @@ export function MusicGenPage() {
       const r = await fetch(`${api}/api/music-gen/status`);
       const j = await r.json();
       setStatus(JSON.stringify(j, null, 2));
+      setRunning(!!j?.services?.ace?.running);
     } catch (e) {
       setError(String(e));
       setStatus("Status unavailable");
+      setRunning(false);
     }
   }, [api]);
 
@@ -103,7 +106,10 @@ export function MusicGenPage() {
         <label>Output name (optional)</label>
         <input value={outputName} onChange={(e) => setOutputName(e.target.value)} style={{ width: "100%" }} />
         <div style={{ marginTop: 8 }}>
-          <button onClick={generate} disabled={busy || !style || !lyrics}>Generate</button>
+          <button onClick={generate} disabled={busy || !style || !lyrics || !running}>
+            Generate
+          </button>
+          {!running && <span style={{ marginLeft: 8, color: "#aaa" }}>Start the service first.</span>}
         </div>
         {error && <p style={{ color: "red" }}>{error}</p>}
         {audioUrl && (
