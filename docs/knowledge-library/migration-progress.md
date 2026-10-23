@@ -123,7 +123,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (12/12 completed) ✅
+### 🤖 AI & ML (13/13 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `vision-model-reliability-2026.md`  → `#ai`, `#hardware-8gb`
@@ -137,6 +137,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `text-to-3d-options-2026.md`  → `#ai`, `#hardware-pascal`, `#hardware-8gb`
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
+- ✅ `synced-technical-scan-sample-2026-10.md`  → `#ai`
 
 ### 📊 Research & Reference (16/16 completed)
 

@@ -122,6 +122,7 @@ date: 2026-09-30
 - [[text-to-3d-options-2026|💬 Text-to-3D Options 2026]] — Open-source text-to-3D models for 8GB VRAM (Point-E, Shap-E, Hunyuan3D-2mini T2I, TRELLIS-text)
 - [[3d-generation-2026-updates|🧊 3D Generation 2026 Updates]] — Hunyuan3D 2.1 PBR breakthrough, Super 3D Pro local generation, VRAM optimization
 - [[video-generation-vram-2026|🎬 Video Generation VRAM 2026]] — 8GB GPU video generation with quantization breakthroughs
+- [[synced-technical-scan-sample-2026-10|🛰️ Synced Technical Scan Sample 2026-10]] — first 机器之心 (Synced) engineering scan: agent resource hijacking + the ResGate deterministic-authorization pattern (verdict: adopt), SpanUQ span-level uncertainty quantification (verdict: test), the week's lane-filtered yield, and the free-surface access report (NEW 2026-10-22)
 
 ### 📊 Research & Reference (Industry & Analysis)
 
@@ -156,7 +157,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 12 documents |
+|| `#ai/*` | AI models, training & ML | 13 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 || `#research/*` | Industry trends & analysis | 15 documents |
 
