@@ -150,19 +150,13 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Image size={18} />,
         keywords: "image picture comfyui",
       },
-      {
-        path: "/video-generation",
-        label: "Video Gen",
-        icon: <Clapperboard size={18} />,
-        keywords: "video generate motion",
-      },
-      {
-        path: "/generate-3d",
-        label: "3D Gen",
-        icon: <Box size={18} />,
-        keywords: "3d model mesh generate",
-      },
-    ],
+       {
+         path: "/music-prompts",
+         label: "Music Prompts",
+         icon: <Mic size={18} />,
+         keywords: "music prompts lyrics suno",
+       },
+     ],
   },
   {
     id: "manage",
@@ -229,13 +223,19 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Settings size={18} />,
         keywords: "settings config preferences",
       },
-      {
-        path: "/docs",
-        label: "Docs",
-        icon: <FileText size={18} />,
-        keywords: "docs help guide documentation",
-      },
-    ],
+       {
+         path: "/generate-3d",
+         label: "3D Gen",
+         icon: <Box size={18} />,
+         keywords: "3d model mesh generate",
+       },
+       {
+         path: "/music-gen",
+         label: "Music Gen",
+         icon: <Music size={18} />,
+         keywords: "music generation ace-step generate song",
+       },
+     ],
   },
 ];
 
