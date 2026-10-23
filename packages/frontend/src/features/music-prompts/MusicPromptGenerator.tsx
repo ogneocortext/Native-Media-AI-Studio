@@ -316,7 +316,7 @@ export function MusicPromptGenerator({
     "w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500";
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto w-full min-w-0">
       {onClose && (
         <div className="flex justify-end mb-2">
           <button
