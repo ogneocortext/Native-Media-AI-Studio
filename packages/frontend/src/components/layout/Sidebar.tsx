@@ -121,13 +121,7 @@ const NAV_GROUPS: NavGroup[] = [
          keywords: "music prompts lyrics suno",
        },
        {
-         path: "/music-gen",
-         label: "Music Gen",
-         icon: <Music size={18} />,
-         keywords: "music generation ace-step generate song",
-       },
-      {
-        path: "/unity",
+         path: "/unity",
         label: "Unity Control",
         icon: <Gamepad2 size={18} />,
         keywords: "unity editor control remote",
@@ -150,13 +144,25 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Image size={18} />,
         keywords: "image picture comfyui",
       },
-       {
-         path: "/music-prompts",
-         label: "Music Prompts",
-         icon: <Mic size={18} />,
-         keywords: "music prompts lyrics suno",
-       },
-     ],
+      {
+        path: "/video-generation",
+        label: "Video Gen",
+        icon: <Clapperboard size={18} />,
+        keywords: "video generate motion",
+      },
+      {
+        path: "/generate-3d",
+        label: "3D Gen",
+        icon: <Box size={18} />,
+        keywords: "3d model mesh generate",
+      },
+      {
+        path: "/music-gen",
+        label: "Music Gen",
+        icon: <Music size={18} />,
+        keywords: "music generation ace-step generate song",
+      },
+    ],
   },
   {
     id: "manage",
@@ -223,19 +229,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Settings size={18} />,
         keywords: "settings config preferences",
       },
-       {
-         path: "/generate-3d",
-         label: "3D Gen",
-         icon: <Box size={18} />,
-         keywords: "3d model mesh generate",
-       },
-       {
-         path: "/music-gen",
-         label: "Music Gen",
-         icon: <Music size={18} />,
-         keywords: "music generation ace-step generate song",
-       },
-     ],
+    ],
   },
 ];
 
