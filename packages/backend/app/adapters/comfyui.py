@@ -1066,17 +1066,15 @@ class ComfyUIAdapter(BaseAdapter):
                         "vae_name": vae_name,
                     },
                 },
-                # 7: Decode latent to images (tiled to stay under 8GB).
+                # 7: Decode latent to images. Plain (untiled) VAEDecode avoids
+                # the tile-seam color bleeding / saturation artifacts reported by
+                # Lightricks (see #470) and the community (white grid seams).
+                # Resolution is clamped to 768x512, so untiled decode fits 8GB.
                 "7": {
                     "class_type": "VAEDecode",
                     "inputs": {
                         "vae": ["6", 0],
                         "samples": ["5", 0],
-                        "enable_vae_tiling": True,
-                        "tile_x": 272,
-                        "tile_y": 272,
-                        "tile_stride_x": 144,
-                        "tile_stride_y": 128,
                     },
                 },
                 # 8: Combine frames to MP4.
