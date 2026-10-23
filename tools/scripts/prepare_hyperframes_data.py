@@ -75,7 +75,7 @@ lyrics_path.write_text(json.dumps({"lyrics": lyrics}, indent=2), encoding="utf-8
 print(f"Wrote {lyrics_path} ({len(lyrics)} lines)")
 
 # ── 2. Build HyperFrames audio data from beat_data.json ───────────────────────
-beat_path = Path("tools/output/built_this_from_a_dream_beat_data.json")
+beat_path = Path("tools/output/placeholder.json")
 beat_data = json.loads(beat_path.read_text(encoding="utf-8"))
 
 tempo = beat_data["tempo"]

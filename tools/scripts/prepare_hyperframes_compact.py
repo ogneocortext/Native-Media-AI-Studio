@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 
 ROOT = Path("tools/hyperframes-built-this-from-a-dream")
-beat_data = json.loads(Path("tools/output/built_this_from_a_dream_beat_data.json").read_text())
+beat_data = json.loads(Path("tools/output/placeholder.json").read_text())
 lyrics = json.loads((ROOT / "lyrics.json").read_text())["lyrics"]
 
 tempo = beat_data["tempo"]
