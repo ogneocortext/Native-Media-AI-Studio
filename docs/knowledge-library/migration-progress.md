@@ -37,7 +37,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (13/13 completed) ✅
+### 🎬 Production Pipeline (14/14 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -52,6 +52,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `stem-system-evaluation-2026.md`  → `#production`, `#audio`, `#visualization`, `#technical`
 - ✅ `ai-music-mastering-stems-2026.md`  → `#production`, `#audio`
 - ✅ `storyboard-enrichment-from-track-practice-2026.md`  → `#production`, `#audio`, `#visualization`
+- ✅ `acestep-agent-drive-2026.md`  → `#production`, `#audio`
 
 ### 🛠️ Technical Implementation (15/15 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`

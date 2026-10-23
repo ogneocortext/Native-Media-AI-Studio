@@ -370,6 +370,34 @@ transcripts, and character references.
   `track_lyrics_id` into the generator job params (contract sketch in
   the design doc §3).
 
+### Step 6 — ACE-Step agent drive (local "music agent" pattern)
+
+**Status 2026-10-22: proposed, not started.** Owner-requested after
+the "ACE-Step AI agent" YouTube coverage; design source is
+`docs/knowledge-library/acestep-agent-drive-2026.md`. Goal: an agent
+can run the full plan → generate → critique → iterate loop against
+the studio's existing ACE-Step service (`tools/music-gen/server.py`
+plus the backend's `/api/music-gen` router), with the driving agent
+as planner — neither API exposes ACE-Step's own LM today, and both
+require finished style + lyrics.
+
+- **A1 — LM planner exposure.** Inspect the vendored handler
+  (`tools/music-gen/ACE-Step-1.5/`) for LM task types upstream of
+  `text2music` (caption/lyrics drafting). If supported, propose a
+  `/plan` endpoint design; if not, the agent-as-planner pattern in
+  the design doc stands.
+- **A2 — Windows smoke test.** Full loop on the owner's machine:
+  start → generate at defaults → fetch audio → unload. Record wall
+  time and peak VRAM on the GTX 1070 Ti (replaces the ~3 min/75 s
+  ecosystem estimate).
+- **A3 — Duration control.** `/generate` has no duration parameter.
+  Document what governs output length under `acestep-v15-sft`, and
+  propose the smallest change if explicit durations are wanted.
+- **A4 — Thin agent CLI (optional).** A `generate / status / unload`
+  wrapper against the backend API, mirroring the agent-first CLI
+  pattern from the ecosystem — only if A2 shows the raw HTTP loop is
+  friction in practice.
+
 ## 3. Decisions needed from the owner
 1. Approve this sequencing (Step 2 order) or reprioritize. — **Resolved
    2026-10-22:** the written order is the order work shipped in; nothing

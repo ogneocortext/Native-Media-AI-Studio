@@ -92,6 +92,7 @@ date: 2026-09-30
 - [[unity-audio-reactive-shader-research-2026|🎮 Unity Audio-Reactive Shader Research 2026]] — AudioLink patterns, FFT-band textures, GPU-driven beat-reactive HLSL for URP
 - [[video-to-glsl-shader-recreation-2026|🎞️ Video-to-GLSL Shader Recreation 2026]] — shader-skills verified GLSL library (186 functions) + the Video 2 GLSL recreation workflow, mapped to the FX shader lane; local-VLM critique routing with Gemma 4 E2B (NEW 2026-10-21)
 - [[storyboard-enrichment-from-track-practice-2026|🎬 Storyboard Enrichment from Track Practice 2026]] — growing the storyboard generator from theme-driven to track-driven: measured beat grids, sung-truth lyric diffs, character lock, panel lifecycle, and the track-lyrics library inventoried as storyboard source data (NEW 2026-10-22)
+- [[acestep-agent-drive-2026|🎵 ACE-Step Agent Drive 2026]] — driving the local ACE-Step 1.5 service from an agent: the two API surfaces (backend /api/music-gen, service :8201), the Tier 3/Pascal contract, the agent-as-planner loop, sample calls, and the A1–A4 open checks (NEW 2026-10-22)
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
 - [[audio-reactive-best-practices-2026|🎵 Audio-Reactive Best Practices 2026]] — 2026 research: signal stack, mel/gamma perception, <30 ms latency, per-band envelopes, genre routing — with verified gap analysis (NEW 2026-10-02)
@@ -150,7 +151,7 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 13 documents |
+|| `#production/*` | Production workflow & creative guides | 14 documents |
 || `#technical/*` | System implementation & code | 16 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
@@ -173,7 +174,7 @@ date: 2026-09-30
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
-|| `#audio` | Audio analysis & processing | 20 documents |
+|| `#audio` | Audio analysis & processing | 21 documents |
 || `#visualization` | Visualization techniques | 17 documents |
 || `#3d` | 3D generation & rendering | 13 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
