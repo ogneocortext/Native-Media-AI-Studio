@@ -1,8 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { getApiBase } from "../../services/api/core";
 
 export function MusicGenPage() {
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<string>("Loading status...");
   const [style, setStyle] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [outputName, setOutputName] = useState("");
@@ -19,8 +19,13 @@ export function MusicGenPage() {
       setStatus(JSON.stringify(j, null, 2));
     } catch (e) {
       setError(String(e));
+      setStatus("Status unavailable");
     }
   }, [api]);
+
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
 
   const startService = async () => {
     setBusy(true);
@@ -87,7 +92,7 @@ export function MusicGenPage() {
         <button onClick={stopService} disabled={busy}>Stop service</button>
       </section>
       <pre style={{ background: "#111", color: "#0f0", padding: 12, maxHeight: 200, overflow: "auto" }}>
-        {status || "(no status yet)"}
+        {status}
       </pre>
       <section style={{ marginTop: 24 }}>
         <h2>Generate</h2>
