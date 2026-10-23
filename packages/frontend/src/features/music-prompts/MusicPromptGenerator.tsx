@@ -699,7 +699,8 @@ export function MusicPromptGenerator({
               />
               <datalist id="music-prompt-models">
                 <option value="qwen3.5:4b" />
-                <option value="qwen3.5:4b" />
+                <option value="llama3.2:3b" />
+                <option value="ibm/granite4.2:3b" />
               </datalist>
             </div>
             <button
