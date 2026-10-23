@@ -275,7 +275,7 @@ export function JobRow({
                     <video
                       controls
                       preload="metadata"
-                      className="w-full max-w-full sm:max-w-md rounded-lg border border-border bg-black"
+                      className="w-full h-auto max-h-[40vh] sm:max-h-[240px] rounded-lg border border-border bg-black object-contain"
                       style={{ maxHeight: 240 }}
                       src={videoUrl}
                       onError={(e) => {

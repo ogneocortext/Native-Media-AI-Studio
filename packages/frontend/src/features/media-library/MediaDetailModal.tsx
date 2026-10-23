@@ -197,7 +197,7 @@ export function MediaDetailModal({
                 src={getOutputUrl(output.relative_path)}
                 controls
                 autoPlay
-                className="w-full max-h-[60vh] bg-black"
+                className="w-full max-h-[60vh] bg-black object-contain"
               />
             ) : output.file_type === "audio" ? (
               <div className="flex flex-col">
