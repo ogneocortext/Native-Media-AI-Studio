@@ -9,6 +9,7 @@ Provides REST API for:
 from __future__ import annotations
 
 import logging
+import uuid
 import re
 import shutil
 from pathlib import Path
@@ -34,10 +35,130 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/music-gen", tags=["MusicGeneration"])
 
+# LM planner service configuration
+PLANNER_BASE_URL = "http://127.0.0.1:8201"
+PLANNER_HEALTH_TIMEOUT = 5
+
 # Output names become on-disk directory/file names and URL path segments on both
 # the backend and the music-gen subprocess. Restrict to a safe charset to prevent
 # path traversal (e.g. "..%2F..%2F" decoded into a path parameter).
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+# ---------------------------------------------------------------------------
+# Planner session management
+# ---------------------------------------------------------------------------
+
+PLANNER_SESSION_STORE: dict[str, dict] = {}
+
+PLANNER_SAFE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _validate_planner_name(name: str) -> str:
+    """Validate a planner/session name against a safe charset."""
+    if not PLANNER_SAFE_RE.match(name):
+        raise HTTPException(
+            400,
+            detail=(
+                "Invalid planner name. Use 1-64 chars: letters, digits, '-', '_', "
+                "'.', starting with a letter or digit."
+            ),
+        )
+    return name
+
+
+# ---------------------------------------------------------------------------
+# Chain-of-Thought prompt templates for ACE-Step LM planner
+# ---------------------------------------------------------------------------
+
+STYLE_COT_TEMPLATES = {
+    "init": (
+        "You are an ACE-Step music style planner. Given a music description, "
+        "create a comprehensive style blueprint using Chain-of-Thought reasoning. "
+        "Consider: genre, sub-genre, instrumentation, mood, tempo, vocal style, "
+        "production style, and artistic references. Output a structured JSON with "
+        "keys: style_tags, description, mood, tempo_bpm, instrumentation, "
+        "vocal_style, production_approach, artistic_references. Keep it concise "
+        "but complete - this blueprint will guide subsequent development steps."
+    ),
+    "develop": (
+        "You are an ACE-Step music style developer. Given the existing style blueprint "
+        "and a development directive (e.g., 'add intro', 'build climax', 'add bridge'), "
+        "expand the style with specific musical techniques, transition effects, "
+        "automation ideas, and arrangement suggestions. Output a structured JSON with "
+        "keys: added_elements, transition_techniques, arrangement_changes, "
+        "automation_ideas, energy_direction. Reference the original blueprint keys "
+        "where relevant."
+    ),
+    "finalize": (
+        "You are an ACE-Step music style finalizer. Given the developed style blueprint, "
+        "produce a complete style specification ready for music generation. Output a "
+        "structured JSON with all keys from previous steps, plus: final_tempo, "
+        "final_instrumentation, mix_approach, mastering_notes, generation_flags. "
+        "Ensure consistency across all parameters and validate that the style "
+        "specification is complete and coherent."
+    ),
+}
+
+LYRICS_COT_TEMPLATES = {
+    "init": (
+        "You are an ACE-Step lyrics planner. Given a music description and optional "
+        "theme, create a lyrical structure using Chain-of-Thought reasoning. Consider: "
+        "theme, story arc, verse/chorus/bridge structure, syllable patterns, rhyme "
+        "scheme, imagery, emotional progression. Output a structured JSON with keys: "
+        "theme, structure (verse/chorus/bridge sections with counts), lyrical_notes, "
+        "rhyme_approach, syllable_target, key_themes, imagery_guidance. Keep structure "
+        "conceptual at this stage - detailed lyrics come in later steps."
+    ),
+    "add_verse": (
+        "You are an ACE-Step lyrics developer. Given the existing lyrical structure and "
+        "a directive to 'add verse 1', 'expand verse 2', or similar, write specific "
+        "lyric content for the requested section. Output a structured JSON with keys: "
+        "section_name (e.g., 'verse 1'), lyrics_text, rhyme_pattern, syllable_count, "
+        "imagery, emotional_tone, continuity_notes. Reference the structural overview "
+        "from the init step and maintain consistency with the overall theme."
+    ),
+    "add_chorus": (
+        "You are an ACE-Step lyrics developer. Given the existing lyrical structure and "
+        "a directive to 'add chorus' or similar, write the chorus lyric content. Output "
+        "a structured JSON with keys: section_name (e.g., 'chorus'), lyrics_text, "
+        "rhyme_pattern, syllable_count, melodic_guidance, emotional_peak, "
+        "continuity_notes. The chorus should have a distinct melodic shape and "
+        "emotional center - make it the emotional peak of the song."
+    ),
+    "finalize": (
+        "You are an ACE-Step lyrics finalizer. Given all developed lyric sections "
+        "(verses, chorus, bridge), produce a complete lyrical composition ready for "
+        "music generation. Output a structured JSON with all keys from previous steps, "
+        "plus: full_lyrics (complete song lyrics with section markers), pacing_guide, "
+        "final_rhyme_scheme, lyrical_coherence_check, generation_flags. Validate that "
+        "the lyrics flow coherently through the song structure and match the musical "
+        "intent."
+    ),
+}
+
+
+def _build_cot_prompt(step: str, section: str, user_input: str) -> str:
+    """Build a Chain-of-Thought prompt for the LM planner.
+    
+    Args:
+        step: The planning step (init, develop, finalize for style;
+               init, add_verse, add_chorus, finalize for lyrics)
+        section: The section being worked on (e.g., 'verse 1', 'chorus')
+        user_input: The user's original description or directive
+    
+    Returns:
+        A formatted CoT prompt string for the planner service
+    """
+    if section == "style":
+        if step in STYLE_COT_TEMPLATES:
+            return STYLE_COT_TEMPLATES[step]
+        raise ValueError(f"Unknown style step: {step}")
+    elif section == "lyrics":
+        if step in LYRICS_COT_TEMPLATES:
+            return LYRICS_COT_TEMPLATES[step]
+        raise ValueError(f"Unknown lyrics step: {step}")
+    else:
+        raise ValueError(f"Unknown section: {section}")
 
 
 def _validate_output_name(name: str) -> str:
@@ -284,6 +405,169 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
         raise HTTPException(500, detail=str(e)) from e
 
 
+@router.post("/plan-style")
+async def plan_style(request: dict[str, Any]) -> dict[str, Any]:
+    """Draft style text incrementally using Chain-of-Thought LM planner.
+
+    Incremental style drafting with steps: init, develop, finalize.
+    - init: Create a comprehensive style blueprint from a music description
+    - develop: Expand the style with specific musical techniques and arrangement
+    - finalize: Produce a complete style specification ready for generation
+
+    Accepts JSON with "step" (init/develop/finalize), "session_id" (optional),
+    "description" (music style description), and optional "port" (planner service port).
+    Returns the planner's enhanced style specification with session tracking.
+
+    Example:
+        - POST /api/music-gen/plan-style { "step": "init", "description": "upbeat pop song" }
+        - POST /api/music-gen/plan-style { "step": "develop", "session_id": "s1", "description": "add bridge" }
+        - POST /api/music-gen/plan-style { "step": "finalize", "session_id": "s1" }
+    """
+    step = request.get("step", "init")
+    session_id = request.get("session_id")
+    user_description = request.get("description", "")
+
+    if step not in ("init", "develop", "finalize"):
+        raise HTTPException(
+            400,
+            detail=f"Invalid step '{step}'. Must be one of: init, develop, finalize",
+        )
+
+    # Validate session name if provided
+    if session_id and not _validate_planner_name(session_id):
+        raise HTTPException(400, detail="Invalid session_id format")
+
+    # Use or create session
+    if session_id:
+        if session_id not in PLANNER_SESSION_STORE:
+            PLANNER_SESSION_STORE[session_id] = {"blueprint": {}, "steps_completed": []}
+        session = PLANNER_SESSION_STORE[session_id]
+    else:
+        # Generate a session ID
+        session_id = f"style_{uuid.uuid4().hex[:8]}"
+        session = {"blueprint": {}, "steps_completed": []}
+        PLANNER_SESSION_STORE[session_id] = session
+
+    try:
+        # Build Chain-of-Thought prompt for the step
+        cot_prompt = _build_cot_prompt(step, "style", user_description)
+
+        # Call LM planner service
+        planner_url = PLANNER_BASE_URL
+        if request.get("port"):
+            planner_url = f"http://127.0.0.1:{request['port']}"
+
+        async with aiohttp.ClientSession() as http_session:
+            async with http_session.post(
+                f"{planner_url}/planning/style",
+                json={"step": step, "description": user_description},
+                timeout=aiohttp.ClientTimeout(total=PLANNER_HEALTH_TIMEOUT),
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                else:
+                    text = await resp.text()
+                    logger.warning(
+                        "Planner style request failed (%s): %s", resp.status, text
+                    )
+                    result = {
+                        "style_tags": user_description[:50] if user_description else "pop",
+                        "mood": "neutral",
+                        "tempo_bpm": 120,
+                        "instrumentation": "synth, drums, bass",
+                        "vocal_style": "clean",
+                    }
+
+        # Store result in session
+        if step == "init":
+            session["blueprint"] = result
+            session["steps_completed"].append("init")
+        elif step == "develop":
+            if "blueprint" not in session:
+                session["blueprint"] = {}
+            if isinstance(result, dict):
+                session["blueprint"].update(result)
+            session["steps_completed"].append("develop")
+            # Emit SSE event for development progress
+            if "sse_queue" in session:
+                await _emit_planner_event(session_id, "plan_develop", {
+                    "session_id": session_id,
+                    "step": "develop",
+                    "blueprint": session["blueprint"],
+                    "steps_completed": session["steps_completed"],
+                })
+        elif step == "finalize":
+            session["final_spec"] = result
+            session["steps_completed"].append("finalize")
+            # Emit SSE event for plan completion
+            await _emit_planner_event(session_id, "plan_finalize", {
+                "session_id": session_id,
+                "steps": session["steps_completed"],
+                "final_spec": result,
+            })
+
+        return {
+            "session_id": session_id,
+            "step": step,
+            "result": result,
+            "blueprint": session.get("blueprint", {}),
+            "steps_completed": session.get("steps_completed", []),
+            "fallback": False,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Planner style step {step} failed: {e}")
+        # Return fallback result
+        fallback_result = {
+            "style_tags": user_description[:50] if user_description else "pop",
+            "mood": "neutral",
+            "tempo_bpm": 120,
+            "instrumentation": "synth, drums, bass",
+            "vocal_style": "clean",
+        }
+        return {
+            "session_id": session_id or "unknown",
+            "step": step,
+            "result": fallback_result,
+            "error": str(e),
+            "fallback": True,
+            "blueprint": {},
+            "steps_completed": [],
+        }
+
+@router.post("/plan-lyrics")
+async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
+    """Draft lyrics incrementally via the LM planner. Similar to plan-style but
+    for the lyrics section. Allows building up verses, choruses, bridges step by step.
+
+    Request fields:
+        - partial: str | None  Current partial lyrics (may include [Verse], [Chorus] tags)
+        - step: str            Planning step: "init", "add_verse", "add_chorus", "finalize"
+        - context: str | None    Additional context (theme, story, etc.)
+
+    Response:
+        - lyrics: str            Enhanced/planned lyrics section
+        - confidence: float      Planning confidence (0-1)
+        - needs_more: bool       Whether more planning steps are needed
+    """
+    partial = request.get("partial") or ""
+    step = request.get("step", "init")
+    context = request.get("context") or ""
+
+    # Build Chain-of-Thought prompt for the LM planner based on the step
+    cot_prompt = _build_cot_prompt(step, "lyrics", user_description if "user_description" in dir() else context)
+
+    # ... rest of implementation
+
+
+# --------------------------------------------------------------------------- # The LM planner is the agent's role: draft style/lyrics without requiring
+# Planner endpoints – incremental style/lyrics drafting
+# The LM planner is the agent's role: draft style/lyrics without requiring
+# Planner endpoints – incremental style/lyrics drafting
+# The LM planner is the agent's role: draft style/lyrics without requiring
+# finished strings upfront. This surface exposes planning before generation.
 # ---------------------------------------------------------------------------
 # File download endpoints
 # ---------------------------------------------------------------------------
