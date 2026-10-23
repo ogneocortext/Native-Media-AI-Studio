@@ -121,7 +121,7 @@ export function StudioHeader({
         <Maximize2 size={14} />
       </button>
       {/* Track selector — larger, clearer */}
-      <div className="flex items-center gap-2 ml-1 sm:ml-2 bg-black/30 px-3 py-1.5 rounded-xl border border-white/5 flex-1 min-w-0 max-w-[280px]">
+      <div className="flex items-center gap-2 ml-1 sm:ml-2 bg-black/30 px-3 py-1.5 rounded-xl border border-white/5 flex-1 min-w-0 max-w-full sm:max-w-[280px]">
         <Music size={14} className="text-violet-400 shrink-0" />
         <select
           value={selectedTrack}

@@ -100,7 +100,7 @@ export const QuickPresetBar = memo(function QuickPresetBar({
       <div className="h-4 w-px bg-white/15 mx-0.5" />
 
       {/* Mode specific quick switchers */}
-      <div className="flex items-center gap-1 overflow-x-auto max-w-[540px] scrollbar-none py-0.5">
+      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5 max-w-full">
         {vizMode === "3d" &&
           FEATURED_3D_PRESETS.map((p) => {
             const isActive = active3DPresetId === p.id;
