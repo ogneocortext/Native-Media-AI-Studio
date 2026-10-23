@@ -622,10 +622,10 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             cuda_result = None
 
         # A GPU->CPU drop costs roughly 300x on this track (0.3s vs ~92s
-        # measured on a GTX 1070 Ti), so it must not be silent. This used to
-        # log at DEBUG, which is invisible at default level - the endpoint
-        # simply reported no computed_on and ran CPU-bound with no explanation.
+        # measured on a GTX 1070 Ti), so it must not be silent. Log at WARNING
+        # so the error is visible at the default logging level, not hidden at DEBUG.
         if cuda_error is not None:
+            logger.warning("CUDA error detected: %s", cuda_error)
             logger.warning(
                 "CUDA analysis failed, falling back to CPU (~300x slower on this hardware): %s: %s",
                 type(cuda_error).__name__,
@@ -1038,7 +1038,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
             )
             await _apply_llm_sections(analysis_result, result, rms_for_llm)
         except Exception as e:
-            logger.debug("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
+            logger.warning("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
 
         # Save the analysis file (index.json is not written; see analyze_audio).
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
@@ -1115,7 +1115,7 @@ async def analyze_all_pending(backend: str = "sonara"):
                 )
                 await _apply_llm_sections(analysis_result, result, rms_for_llm)
             except Exception as e:
-                logger.debug("LLM section refinement failed for analyze-all: %s", e, exc_info=True)
+                logger.warning("LLM section refinement failed for analyze-all: %s", e, exc_info=True)
 
             # Save to database
             database.update_audio_analysis(filename, analysis_result)
@@ -1296,7 +1296,7 @@ async def get_agent_profile(filename: str):
 
                 return profile_for_file(str(stored_path))
             except Exception as exc:
-                logger.debug("agent-profile re-analysis failed for %s: %s", stored, exc)
+                logger.warning("agent-profile re-analysis failed for %s: %s", stored, exc)
     return _agent_profile_from_cached(data)
 
 

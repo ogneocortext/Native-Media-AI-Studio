@@ -47,6 +47,7 @@
   "POST   /api/audio/rename  ->  rename_audio_api_audio_rename_post",
   "POST   /api/audio/separate  ->  separate_audio_api_audio_separate_post",
   "POST   /api/audio/separate-file  ->  separate_library_file_api_audio_separate_file_post",
+  "POST   /api/audio/stem-check/{track_name}/{stem_name}  ->  check_stem_phase_mono_api_audio_stem_check__track_name___stem_name__post",
   "POST   /api/audio/stem-visualization  ->  stem_visualization_api_audio_stem_visualization_post",
   "POST   /api/audio/transcribe  ->  transcribe_track_api_audio_transcribe_post",
   "POST   /api/audio/trim  ->  trim_audio_api_audio_trim_post",
