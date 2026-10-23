@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { getApiBase } from "../../services/api/core";
 
-export default function MusicGenPage() {
+export function MusicGenPage() {
   const [status, setStatus] = useState<string>("");
   const [style, setStyle] = useState("");
   const [lyrics, setLyrics] = useState("");
