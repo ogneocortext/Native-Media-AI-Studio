@@ -223,7 +223,7 @@ export function Settings() {
         )}
       </div>
 
-      <div className="grid grid-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Error Banner */}
         {error && (
           <div className="col-span-2 p-3 bg-red-900/20 border border-red-700/50 rounded-lg flex items-start gap-2 text-red-200 text-sm">
