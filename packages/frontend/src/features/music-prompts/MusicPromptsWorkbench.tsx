@@ -43,13 +43,14 @@ export function MusicPromptsWorkbench() {
         ))}
       </nav>
 
-      {/* Both panels stay mounted: the generator keeps its state when the user
-          steps over to refine tags and back. */}
-      <div role="tabpanel" hidden={tab !== "generator"}>
-        {tab === "generator" && <MusicPromptGenerator />}
+      {/* Both panels stay mounted so the generator keeps its form state when the
+          user steps over to refine tags and back. Conditional rendering would
+          unmount and wipe the in-progress brief. */}
+      <div role="tabpanel" hidden={tab !== "generator"} aria-hidden={tab !== "generator"}>
+        <MusicPromptGenerator />
       </div>
-      <div role="tabpanel" hidden={tab !== "tags"}>
-        {tab === "tags" && <TrebloTagPicker />}
+      <div role="tabpanel" hidden={tab !== "tags"} aria-hidden={tab !== "tags"}>
+        <TrebloTagPicker />
       </div>
     </div>
   );
