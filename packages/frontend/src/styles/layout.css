@@ -116,6 +116,10 @@
   .grid-4 {
     grid-template-columns: 1fr;
   }
+  .layout-main {
+    padding-top: 56px;
+  }
+}
 }
 
 /* ===== RESPONSIVE LAYOUT — rewired for vertical + small windows ===== */
