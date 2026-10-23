@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Trash2 } from "lucide-react";
 import { Card } from "../../components/common";
+import { getPrompts, savePrompt, deletePrompt } from "../../services/api/data";
 
 interface SavedPrompt {
   id: string;
@@ -47,6 +48,35 @@ export function SavedPromptsPanel() {
   const [filter, setFilter] = useState<"all" | "untried" | "tried" | "submitted">("all");
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Hydrate from backend DB (source of truth) on mount, falling back to localStorage.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await getPrompts({ prompt_type: "music_prompt", limit: 500 });
+        if (cancelled) return;
+        const parsed: SavedPrompt[] = [];
+        for (const r of remote) {
+          try {
+            const obj = JSON.parse(r.text || "{}");
+            if (obj && obj.id) parsed.push(obj as SavedPrompt);
+          } catch {
+            /* skip malformed */
+          }
+        }
+        if (parsed.length) {
+          setItems(parsed);
+          save(parsed);
+        }
+      } catch {
+        /* backend unavailable — keep localStorage */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     save(items);
   }, [items]);
@@ -78,7 +108,16 @@ export function SavedPromptsPanel() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   };
 
+  const copyAll = async (p: SavedPrompt) => {
+    const text = `TITLE: ${p.title}\n\nSTYLE:\n${p.style}\n\nEXCLUDE:\n${p.exclude}\n\nLYRICS:\n${p.lyrics}`;
+    await copy(p.id + ":all", text);
+  };
+
   const remove = (id: string) => {
+    const item = items.find((i) => i.id === id) as (SavedPrompt & { backendId?: string }) | undefined;
+    if (item?.backendId) {
+      void deletePrompt(item.backendId).catch(() => {});
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
@@ -147,6 +186,15 @@ export function SavedPromptsPanel() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => copyAll(p)}
+                    className="text-gray-500 hover:text-white"
+                    aria-label="Copy all prompt fields"
+                    title="Copy all"
+                  >
+                    {copied === p.id + ":all" ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
                   <select
                     value={p.status}
                     onChange={(e) => update(p.id, { status: e.target.value as SavedPrompt["status"] })}
@@ -213,7 +261,7 @@ export function SavedPromptsPanel() {
                   value={p.resultUrl}
                   onChange={(e) => update(p.id, { resultUrl: e.target.value })}
                   placeholder="https://..."
-                  className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs"
+                  className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs break-all"
                 />
               </div>
               <div className="space-y-1">
@@ -236,7 +284,7 @@ export function SavedPromptsPanel() {
   );
 }
 
-export function savePromptResult(result: {
+export async function savePromptResult(result: {
   platform: string;
   model: string;
   title: string;
@@ -246,7 +294,7 @@ export function savePromptResult(result: {
   settings: Record<string, unknown>;
 }) {
   const list = load();
-  list.unshift({
+  const entry: SavedPrompt & { backendId?: string } = {
     id: uid(),
     createdAt: new Date().toISOString(),
     platform: result.platform,
@@ -259,7 +307,20 @@ export function savePromptResult(result: {
     status: "untried",
     notes: "",
     resultUrl: "",
-  });
+  };
+  try {
+    const res = await savePrompt({
+      name: result.title || "Music prompt",
+      prompt_type: "music_prompt",
+      text: JSON.stringify(entry),
+      category: "music",
+      description: `${result.platform} · ${result.model}`,
+    });
+    entry.backendId = res.id;
+  } catch {
+    /* backend unavailable — local only */
+  }
+  list.unshift(entry);
   save(list);
   window.dispatchEvent(new Event("music-prompt:saved"));
 }

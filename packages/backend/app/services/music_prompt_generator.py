@@ -35,7 +35,37 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "qwen3.5:4b"
 FALLBACK_MODEL = "qwen3.5:4b"
 
+# Recognized Suno v6 style tags (community-tested) for cross-matching Qwen output.
+_RECOGNIZED_SUNO_TAGS_PATH = Path(__file__).resolve().parents[4] / "tools" / "music-gen" / "recognized-suno-tags.json"
+
+def _load_recognized_suno_tags() -> set[str]:
+    try:
+        data = json.loads(_RECOGNIZED_SUNO_TAGS_PATH.read_text(encoding="utf-8"))
+        tags: set[str] = set()
+        for cat in (data.get("categories") or {}).values():
+            for t in cat or []:
+                tags.add(str(t).strip().lower())
+        return tags
+    except Exception as exc:
+        logger.warning("Failed to load recognized Suno tags: %s", exc)
+        return set()
+
 SUPPORTED_PLATFORMS = ("suno_v6", "minimax_30", "happyshrimp_10", "lyria_35")
+
+def _filter_style_tags(style: str) -> str:
+    """Keep only comma-separated style terms present in the recognized Suno tag set.
+
+    Terms not in the set are dropped (they are not confirmed to move Suno v6).
+    If filtering removes everything, the original style is returned unchanged.
+    """
+    recognized = globals().get("_RECOGNIZED_SUNO_TAGS", set())
+    if not style or not recognized:
+        return style
+    parts = [p.strip() for p in style.split(",") if p.strip()]
+    kept = [p for p in parts if p.lower() in recognized]
+    if not kept:
+        return style
+    return ", ".join(kept)
 
 # Load lyric technique knowledge base from the project's knowledge library.
 _KNOWLEDGE_DIR = Path(__file__).resolve().parents[4] / "docs" / "knowledge-library"
@@ -820,6 +850,9 @@ async def generate_music_prompt(
                     "notes": [],
                     "warnings": [f"Generation failed: {exc2}. Is Ollama running with {chosen}?"],
                 })
+    if platform == "suno_v6" and isinstance(data.get("style"), str):
+        data["style"] = _filter_style_tags(data["style"])
+        data["prompt"] = data["style"]
     data["warnings"] = validate_output(platform, data, brief)
     data["platform"] = platform
     data["model_used"] = chosen
