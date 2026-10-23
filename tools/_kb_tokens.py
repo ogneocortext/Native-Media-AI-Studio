@@ -72,7 +72,7 @@ MODEL_TOKENIZERS: dict[str, tuple[str | None, str]] = {
     "gemma4:e4b-it": ("gemma-4-e4b-it", "exact"),
     "gemma4-vision-optimized-latest": ("gemma-4-e2b-it", "family"),
     "qwen3.5:4b": ("qwen3", "family"),
-    "qwen3.5:9b": ("qwen3", "family"),
+    "qwen3.5:4b": ("qwen3", "family"),
     "minicpm-v:8b": (None, "estimate"),
     "minicpm-v:latest": (None, "estimate"),
     "llama3.2:3b": (None, "estimate"),
@@ -170,7 +170,7 @@ LOCAL_CONTEXT_WINDOWS: dict[str, int] = {
     # Local-only per studio policy: network-hosted models are not listed.
     "glm-4.7-flash:latest": 202_752,
     "qwen3.5:4b": 262_144,
-    "qwen3.5:9b": 262_144,
+    "qwen3.5:4b": 262_144,
     "minicpm-v:latest": 32_768,
     "minicpm-v:8b": 32_768,
     "llama3.2:3b": 131_072,

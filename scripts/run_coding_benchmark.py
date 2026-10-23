@@ -47,7 +47,7 @@ async def main() -> int:
             # Default: benchmark the project's standard coding models
             models = [
                 "qwen2.5:7b",
-                "qwen3.5:9b",
+                "qwen3.5:4b",
                 "qwen3.5:4b",
                 "gemma4:e2b-it-qat",
                 "llama3.2:3b",

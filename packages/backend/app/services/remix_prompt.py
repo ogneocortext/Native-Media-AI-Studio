@@ -40,7 +40,7 @@ from .stem_remixer import RemixLayer, RemixRecipe, RemixSlot
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "qwen3.5:9b"
+DEFAULT_MODEL = "qwen3.5:4b"
 FALLBACK_MODEL = "qwen3.5:4b"
 
 STEM_NAMES = ("vocals", "drums", "bass", "other")

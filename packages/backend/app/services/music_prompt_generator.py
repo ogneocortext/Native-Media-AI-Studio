@@ -1,6 +1,6 @@
 """Music prompt generator service.
 
-Uses local Ollama LLM (default qwen3.5:9b) to produce copy-paste-ready
+Uses local Ollama LLM (default qwen3.5:4b) to produce copy-paste-ready
 style prompts + structured lyrics for four music engines:
 
 - suno_v6        — Suno v6 family (v6 / v6-wild / v6-mini). Tag-style Style
@@ -32,7 +32,7 @@ from .lyric_safety import parse_bpm, scan_lyrics
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "qwen3.5:9b"
+DEFAULT_MODEL = "qwen3.5:4b"
 FALLBACK_MODEL = "qwen3.5:4b"
 
 SUPPORTED_PLATFORMS = ("suno_v6", "minimax_30", "happyshrimp_10", "lyria_35")

@@ -12,7 +12,7 @@
     "recommended_models": [
       "gemma4:e2b-it-qat (8GB VRAM, vision)",
       "gemma4 (native multimodal, needs >8GB)",
-      "qwen3.5:9b (text, tool use, reasoning)",
+      "qwen3.5:4b (text, tool use, reasoning)",
       "ibm/granite4.2:3b (lightweight text, no thinking)"
     ],
     "api_version": "0.40.7",

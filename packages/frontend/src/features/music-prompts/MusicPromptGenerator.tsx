@@ -168,7 +168,7 @@ export function MusicPromptGenerator({
   const [lyricStyle, setLyricStyle] = useState("");
   const [instrumental, setInstrumental] = useState(false);
   const [timeline, setTimeline] = useState(false);
-  const [model, setModel] = useState("qwen3.5:9b");
+  const [model, setModel] = useState("qwen3.5:4b");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -333,7 +333,7 @@ export function MusicPromptGenerator({
         <h1 className="text-2xl font-bold">Music Prompt Generator</h1>
       </div>
       <p className="text-sm text-muted mb-1">
-        Local <span className="text-white/80">{model || "qwen3.5:9b"}</span> writes copy-paste
+        Local <span className="text-white/80">{model || "qwen3.5:4b"}</span> writes copy-paste
         prompts + lyrics tuned per engine. {hint}
       </p>
       {spec?.engine && <p className="text-xs text-white/40 mb-4">{spec.engine}</p>}
@@ -698,7 +698,7 @@ export function MusicPromptGenerator({
                 autoComplete="off"
               />
               <datalist id="music-prompt-models">
-                <option value="qwen3.5:9b" />
+                <option value="qwen3.5:4b" />
                 <option value="qwen3.5:4b" />
               </datalist>
             </div>

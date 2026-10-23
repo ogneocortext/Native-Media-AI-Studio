@@ -458,7 +458,7 @@ export function Settings() {
                 onChange={(e) => updateSetting("default_model", e.target.value)}
               >
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
-                <option value="qwen3.5:9b">qwen3.5:9b (quality, 9B)</option>
+                <option value="qwen3.5:4b">qwen3.5:4b (quality)</option>
                 <option value="gemma4:e2b-it-qat">gemma4:e2b-it-qat (vision)</option>
                 <option value="llama3.2:3b">llama3.2:3b (lightweight)</option>
               </select>
