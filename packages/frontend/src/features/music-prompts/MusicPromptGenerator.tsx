@@ -19,6 +19,7 @@ import { useEffect, useId, useState } from "react";
 import { Loader2, Music4, Copy, Check, Sparkles } from "lucide-react";
 import { Card } from "../../components/common";
 import { getApiBase } from "../../services/api";
+import { savePromptResult } from "./SavedPromptsPanel";
 
 type PlatformId = "suno_v6" | "minimax_30" | "happyshrimp_10" | "lyria_35";
 
@@ -279,7 +280,17 @@ export function MusicPromptGenerator({
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(err.detail || "Generation failed");
       }
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      savePromptResult({
+        platform,
+        model,
+        title: data.title ?? "",
+        style: data.style ?? data.prompt ?? "",
+        exclude: data.exclude ?? "",
+        lyrics: data.lyrics ?? "",
+        settings: (data.settings ?? {}) as Record<string, unknown>,
+      });
     } catch (e) {
       setError(
         e instanceof DOMException && e.name === "AbortError"

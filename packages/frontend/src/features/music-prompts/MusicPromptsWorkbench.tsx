@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MusicPromptGenerator } from "./MusicPromptGenerator";
 import { TrebloTagPicker } from "./TrebloTagPicker";
+import { SavedPromptsPanel } from "./SavedPromptsPanel";
 
 /**
  * The music-prompts workbench: two sibling tools in one section.
@@ -11,11 +12,12 @@ import { TrebloTagPicker } from "./TrebloTagPicker";
  * natural-language description is still the open experiment (SPEC.md). Tabs, not
  * a merge, so each tool can be judged on its own.
  */
-type Tab = "generator" | "tags";
+type Tab = "generator" | "tags" | "saved";
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: "generator", label: "Prompt Generator", hint: "Engineer prose and structure" },
   { id: "tags", label: "Tag Picker", hint: "Pick exact Treblo tags" },
+  { id: "saved", label: "Saved Prompts", hint: "Track and improve past generations" },
 ];
 
 export function MusicPromptsWorkbench() {
@@ -51,6 +53,9 @@ export function MusicPromptsWorkbench() {
       </div>
       <div role="tabpanel" hidden={tab !== "tags"} aria-hidden={tab !== "tags"}>
         <TrebloTagPicker />
+      </div>
+      <div role="tabpanel" hidden={tab !== "saved"} aria-hidden={tab !== "saved"}>
+        <SavedPromptsPanel />
       </div>
     </div>
   );
