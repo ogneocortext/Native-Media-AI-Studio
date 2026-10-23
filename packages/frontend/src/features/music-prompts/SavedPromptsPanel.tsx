@@ -51,6 +51,17 @@ export function SavedPromptsPanel() {
     save(items);
   }, [items]);
 
+  // Reload when another component saves a prompt (same tab, no storage event).
+  useEffect(() => {
+    const reload = () => setItems(load());
+    window.addEventListener("music-prompt:saved", reload);
+    window.addEventListener("storage", reload);
+    return () => {
+      window.removeEventListener("music-prompt:saved", reload);
+      window.removeEventListener("storage", reload);
+    };
+  }, []);
+
   const visible = items.filter((i) => (filter === "all" ? true : i.status === filter));
 
   const copy = async (key: string, text: string) => {
@@ -250,4 +261,5 @@ export function savePromptResult(result: {
     resultUrl: "",
   });
   save(list);
+  window.dispatchEvent(new Event("music-prompt:saved"));
 }
