@@ -1,6 +1,6 @@
 import { useFrame } from "@react-three/fiber";
 import type React from "react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   getBeatNearTimeFromArray,
   getBeatPhase,
@@ -110,6 +110,44 @@ export function useRealAudio(
     sampleRate: number;
     boundaries: number[];
   } | null>(null);
+
+  // Track change (or a fresh analysis for the current track): clear every
+  // per-track analysis state ref so the previous track's smoothing,
+  // peak-hold and beat state cannot bleed into this one, and reset the
+  // worker's mirrored state the same way. The worker-side reset() existed
+  // since 2278565 but had no caller; the inline refs below mirror the
+  // worker's resetState() field-for-field. analysisData is per-track
+  // (a filename-keyed map upstream), so its identity is the change signal.
+  const prevAnalysisRef = useRef(analysisData);
+  useEffect(() => {
+    if (prevAnalysisRef.current === analysisData) return;
+    prevAnalysisRef.current = analysisData;
+    worker?.reset();
+    lastBass.current = 0;
+    beatCooldown.current = 0;
+    recentBeatIntervals.current.length = 0;
+    lastBeatTime.current = 0;
+    nextBeatInRef.current = 0;
+    smoothedBass.current = 0;
+    smoothedMid.current = 0;
+    smoothedTreble.current = 0;
+    peakHold.current = 0;
+    peakDecay.current = 0;
+    smoothedPhase.current = 0;
+    analysisDurationRef.current = 0;
+    data.current = {
+      bass: 0,
+      mid: 0,
+      treble: 0,
+      overall: 0,
+      beat: false,
+      peak: 0,
+      energy: 0,
+      drumType: null,
+      nextBeatIn: 0,
+      analyzedEnergy: 0,
+    };
+  }, [analysisData, worker]);
 
   useFrame(() => {
     const analyser = analyserRef.current;
