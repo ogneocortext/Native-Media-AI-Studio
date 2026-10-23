@@ -117,7 +117,8 @@
     grid-template-columns: 1fr;
   }
   .layout-main {
-    padding-top: 56px;
+    padding-top: 64px;
+    padding-inline-start: 64px;
   }
 }
 }
