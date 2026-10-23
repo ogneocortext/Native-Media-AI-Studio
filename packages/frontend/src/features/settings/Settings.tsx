@@ -16,6 +16,7 @@
 import { Check, FolderOpen, Link2, Save, Server, Workflow, Moon, Sun, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge } from "../../components/common";
+
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
 import {
@@ -587,7 +588,7 @@ function NotificationPreferencesCard() {
     if (key === "quietHours") return;
     setPreferences({
       ...preferences,
-      [key]: !(preferences as unknown as Record<string, boolean>)[key],
+      [key]: !preferences[key],
     });
     setSaved(false);
   };
