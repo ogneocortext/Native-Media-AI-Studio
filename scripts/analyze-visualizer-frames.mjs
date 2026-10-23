@@ -22,13 +22,19 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { fileURLToPath, pathToFileURL } from "url";
+import {
+  OLLAMA_URL,
+  DEFAULT_VISION_MODEL,
+  ollamaChat,
+  readImageForModel,
+  getRunningModels,
+  unloadModel,
+  ensureVisionModel,
+} from "../tools/vision/vision-common.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 process.chdir(REPO_ROOT);
-
-const DEFAULT_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
 // Load central port configuration for the frontend dev server URL.
 const PORTS_PATH = path.join(REPO_ROOT, 'config', 'ports.json');
@@ -132,7 +138,7 @@ function parseArgs() {
     seek: 5,
     crop: null,
     threshold: 20,
-    model: MODEL_ALIASES[DEFAULT_MODEL] || DEFAULT_MODEL,
+    model: MODEL_ALIASES[DEFAULT_VISION_MODEL] || DEFAULT_VISION_MODEL,
     promptType: "comprehensive",
     quantOnly: false,
     visionOnly: false,
@@ -180,97 +186,14 @@ function parseArgs() {
   return opts;
 }
 
+// ─── Vision helpers ───
+// Encoding, the /api/chat request, response-shape handling, the thinking
+// fallback and the VRAM trio (getRunningModels/unloadModel/ensureVisionModel)
+// are all imported from tools/vision/vision-common.mjs — this file used to
+// carry its own copies of all of them.
+
 function log(reqId, message) { process.stderr.write(`[${reqId}] ${message}\n`); }
 function generateRequestId() { return `viz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
-
-// ─── Vision helpers ───
-
-async function resizeImage(inputPath, maxDim = 1024) {
-  try {
-    const buf = await fs.promises.readFile(inputPath);
-    if (buf.length < 50000) return buf.toString("base64");
-    const img = sharp(buf);
-    const meta = await img.metadata();
-    const w = meta.width || 0, h = meta.height || 0;
-    if (w <= maxDim && h <= maxDim) return buf.toString("base64");
-    const ratio = Math.min(maxDim / w, maxDim / h);
-    const newW = Math.round(w * ratio), newH = Math.round(h * ratio);
-    const resized = await img.resize(newW, newH, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
-    log(generateRequestId(), `resize: ${inputPath} ${w}x${h} -> ${newW}x${newH}`);
-    return resized.toString("base64");
-  } catch (e) {
-    log(generateRequestId(), `resize failed: ${e.message}`);
-    const buf = await fs.promises.readFile(inputPath);
-    return buf.toString("base64");
-  }
-}
-
-async function getRunningModels() {
-  try {
-    const res = await fetch(`${OLLAMA_URL}/api/ps`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.models || []).map((m) => m.name);
-  } catch { return []; }
-}
-
-async function unloadModel(model) {
-  try {
-    await fetch(`${OLLAMA_URL}/api/generate`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, keep_alive: 0 }),
-      signal: AbortSignal.timeout(30000),
-    });
-    log(generateRequestId(), `unloaded model: ${model}`);
-  } catch (e) { log(generateRequestId(), `unload failed: ${e.message}`); }
-}
-
-async function ensureVisionModel(model) {
-  const running = await getRunningModels();
-  if (running.length === 0) return;
-  const toUnload = running.filter((m) => m !== model);
-  if (toUnload.length === 0) return;
-  log(generateRequestId(), `unloading models: ${toUnload.join(",")}`);
-  for (const m of toUnload) await unloadModel(m);
-  await new Promise((r) => setTimeout(r, 1500));
-  const still = await getRunningModels();
-  const remain = still.filter((m) => m !== model);
-  if (remain.length > 0) {
-    log(generateRequestId(), `retry unload: ${remain.join(",")}`);
-    for (const m of remain) await unloadModel(m);
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-}
-
-async function callOllama(model, prompt, images = []) {
-  const url = `${OLLAMA_URL}/api/chat`;
-  const reqId = generateRequestId();
-  const body = {
-    model,
-    messages: images.length
-      ? [{ role: "user", content: prompt, images }]
-      : [{ role: "user", content: prompt }],
-    stream: false,
-    options: { num_ctx: 16384 },
-  };
-  log(reqId, `calling ollama: model=${model} images=${images.length}`);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000);
-  try {
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(`Ollama HTTP ${res.status}: ${t}`); }
-    const data = await res.json();
-    // Reasoning vision models (qwen3.5:4b) can park the whole answer in the
-    // `thinking` field with empty content (same failure mode measured for
-    // qwen3-vl in tools/vision/analyze.mjs). Prefer content, fall back.
-    const content = data.message?.content || data.response || "";
-    const thinking = data.message?.thinking || "";
-    const text = content.trim() ? content : thinking;
-    log(reqId, `ollama response ok: len=${text.length}${content.trim() ? "" : " (from thinking)"}`);
-    return text;
-  } catch (e) { clearTimeout(timeout); throw e; }
-}
 
 function sampleEvenly(files, n) {
   if (files.length <= n) return files;
@@ -288,15 +211,26 @@ async function analyzeWithVision(framesDir, opts) {
   const prompt = ANALYSIS_PROMPTS[opts.promptType] || ANALYSIS_PROMPTS.comprehensive;
   log(reqId, `using prompt type: ${opts.promptType} sampling ${files.length}/${all.length} frames: ${files.join(", ")}`);
   const payloadImages = [];
-  for (const file of files) payloadImages.push(await resizeImage(path.join(framesDir, file), 1024));
+  for (const file of files) {
+    const img = await readImageForModel(path.join(framesDir, file), { maxDim: 1024, pngPassthrough: true });
+    payloadImages.push(img.base64);
+  }
   const running = await getRunningModels();
   log(reqId, `running models: ${running.join(",") || "none"}`);
   await ensureVisionModel(opts.model);
   try {
-    const response = await callOllama(opts.model, prompt, payloadImages);
-    log(reqId, "vision analysis complete");
+    // keepAlive '0': the explicit unloadModel() right after un-pins the slot
+    // anyway — this call leaves nothing resident behind it.
+    const result = await ollamaChat({
+      model: opts.model,
+      prompt,
+      images: payloadImages,
+      numCtx: 16384,
+      keepAlive: "0",
+    });
+    log(reqId, `vision analysis complete: len=${result.text.length}${result.usedThinking ? " (from thinking)" : ""}`);
     await unloadModel(opts.model);
-    return { text: response, sampledFiles: files };
+    return { text: result.text, sampledFiles: files };
   } catch (e) {
     log(reqId, `vision analysis failed: ${e.message}`);
     try { await unloadModel(opts.model); } catch {}

@@ -4,10 +4,14 @@ import { Server } from "@modelcontextprotocol/server";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, pickFallbackModel, VISION_FALLBACK_MODEL } from "../vision/vision-common.mjs";
+import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, pickFallbackModel } from "../vision/vision-common.mjs";
 
 import { writeFileSync } from "node:fs";
-writeFileSync("D:/mcp-debug.log", "[MCP-START] loaded, VISION_FALLBACK_MODEL = " + VISION_FALLBACK_MODEL + "\n", { flag: "a" });
+// Startup debug log used to write unconditionally to D:/mcp-debug.log on
+// every server start (outside the repo, appending forever). Now gated.
+if (process.env.OLLAMA_TOOLS_DEBUG === "true") {
+  writeFileSync("D:/mcp-debug.log", "[MCP-START] loaded, vision fallback = env or live-resolved\n", { flag: "a" });
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");

@@ -33,15 +33,29 @@ const ANALYZE_PY = path.join(
 );
 
 import { BACKEND_URL, validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
+import {
+  OLLAMA_URL,
+  readImageForModel,
+  getRunningModels,
+  unloadModel,
+  ensureVisionModel,
+} from "../vision/vision-common.mjs";
 
-// Referenced at eight sites (chat, /api/ps, /api/generate, /api/tags, error
-// hints, banner) but never defined after a refactor dropped the import — the
-// server crashed at startup with `ReferenceError: OLLAMA_URL is not defined`
-// (measured live 2026-10-22: process exited rc=1 before StdioServerTransport
-// connected). Same env-override convention as the other vision entry points.
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+// OLLAMA_URL is imported from ../vision/vision-common.mjs (env
+// OLLAMA_URL, default http://localhost:11434). It is referenced at eight
+// sites below — a previous refactor dropped its definition without updating
+// the call sites and the server crashed at startup with
+// `ReferenceError: OLLAMA_URL is not defined` (measured live 2026-10-22:
+// process exited rc=1 before StdioServerTransport connected). Importing from
+// the shared source of truth keeps the constant and the servers in step.
 
 const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
+
+// VRAM helpers come from vision-common; route their log lines through
+// logRequest so they land in the same shaped stream as the request logs.
+function vramLog(message) {
+  logRequest(generateRequestId(), "vram", message);
+}
 
 function generateRequestId() {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -123,39 +137,11 @@ function resolveImagePath(input) {
   return abs;
 }
 
+// Single resize implementation lives in vision-common (readImageForModel);
+// kept as a same-shape wrapper for the two compare call sites.
 async function resizeImage(inputPath, maxDim = 1024, quality = 80) {
-  try {
-    const buf = fs.readFileSync(inputPath);
-    if (buf.length < 50000) return buf.toString("base64");
-
-    let sharp;
-    try {
-      sharp = (await import("sharp")).default;
-    } catch {
-      return buf.toString("base64");
-    }
-
-    const img = sharp(buf);
-    const meta = await img.metadata();
-    const w = meta.width || 0;
-    const h = meta.height || 0;
-
-    // Clamp to <=1 (never upscale) and guard missing metadata (0 → NaN → throw).
-    const ratio = w > 0 && h > 0 ? Math.min(1, maxDim / w, maxDim / h) : 1;
-    const newW = Math.max(1, Math.round(w * ratio));
-    const newH = Math.max(1, Math.round(h * ratio));
-
-    const resized = await img
-      .resize(newW, newH, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality })
-      .toBuffer();
-
-    return resized.toString("base64");
-  } catch (e) {
-    console.error(`[vision] resize failed for ${inputPath}: ${e.message}`);
-    const buf = fs.readFileSync(inputPath);
-    return buf.toString("base64");
-  }
+  const img = await readImageForModel(inputPath, { maxDim, quality });
+  return img.base64;
 }
 
 // ─── Ollama helpers ────────────────────────────────────────────────────────────
@@ -327,60 +313,10 @@ Audit for:
 };
 
 // ─── VRAM management ───────────────────────────────────────────────────────────
-
-async function getRunningModels() {
-  const reqId = generateRequestId();
-  try {
-    const res = await fetch(`${OLLAMA_URL}/api/ps`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    const models = (data.models || []).map((m) => m.name);
-    logRequest(reqId, "running-models", models.join(","));
-    return models;
-  } catch (e) {
-    logRequest(reqId, "running-models-failed", e.message);
-    return [];
-  }
-}
-
-async function unloadModel(model) {
-  const reqId = generateRequestId();
-  try {
-    await fetch(`${OLLAMA_URL}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, keep_alive: 0 }),
-      signal: AbortSignal.timeout(30000),
-    });
-    logRequest(reqId, "unloaded-model", model);
-  } catch (e) {
-    logRequest(reqId, "unload-failed", `model=${model} ${e.message}`);
-  }
-}
-
-async function ensureVisionModel(model) {
-  const running = await getRunningModels();
-  if (running.length === 0) return;
-
-  const toUnload = running.filter((m) => m !== model);
-  if (toUnload.length === 0) return;
-
-  logRequest(generateRequestId(), "unloading-models", toUnload.join(","));
-  for (const m of toUnload) {
-    await unloadModel(m);
-  }
-
-  await new Promise((r) => setTimeout(r, 1500));
-
-  const stillRunning = await getRunningModels();
-  const stillThere = stillRunning.filter((m) => m !== model);
-  if (stillThere.length > 0) {
-    for (const m of stillThere) {
-      await unloadModel(m);
-    }
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-}
+// getRunningModels / unloadModel / ensureVisionModel are imported from
+// ../vision/vision-common.mjs — the single shared copies (this file and
+// scripts/analyze-visualizer-frames.mjs used to carry identical ones, which
+// is exactly where two VRAM policies would drift apart).
 
 async function ollamaReady(timeoutMs = 10000) {
   const reqId = generateRequestId();
@@ -434,7 +370,7 @@ async function describeImage(imagePath, prompt, mode) {
       "Ollama is not reachable at " + OLLAMA_URL + ". Start it with `ollama serve`.",
     );
   }
-  await ensureVisionModel(PRIMARY_VISION_MODEL);
+  await ensureVisionModel(PRIMARY_VISION_MODEL, { log: vramLog });
   await warmModel(PRIMARY_VISION_MODEL);
 
   // Primary: use the standalone analyzer which has sharp + model-aware dispatch

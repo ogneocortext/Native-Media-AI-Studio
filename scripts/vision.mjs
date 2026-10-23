@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
  * Vision Analysis Script
- * 
- * Routes screenshots through the local Ollama vision model (gemma4-e2b).
+ *
+ * Routes screenshots through the local Ollama vision model. CLI plumbing
+ * only — model constants, image encoding and the /api/chat request are
+ * shared with the MCP bridge via tools/vision/vision-common.mjs.
  * Usage:
  *   node scripts/vision.mjs analyze <image> [prompt]     # Analyze an image
  *   node scripts/vision.mjs compare <a> <b> [prompt]    # Compare two images
  *   node scripts/vision.mjs diff <old> <new> [prompt]   # Diff two images
- * 
+ *
  * Options:
  *   --low          Resize to 640px max (sharpens text)
  *   --high         Resize to 1280px max
@@ -20,24 +22,25 @@
  *   --context <text> Free-form context note
  *   --lines        Line-number attached source code
  *   --mode <mode>  ui|responsive|regression|compare
- * 
- * Environment:
- *   OLLAMA_URL     Ollama server URL (default: http://127.0.0.1:11434)
+ *
+ * Environment (see tools/vision/vision-common.mjs for the full list):
+ *   OLLAMA_URL     Ollama server URL (default: http://localhost:11434)
  *   VISION_MODEL   Default model (default: gemma4:e2b-it-qat)
- *   VISION_MAX_DIM Max dimension (default: 1024)
+ *   VISION_MAX_DIM Max dimension (default: 1280)
  *   VISION_QUALITY JPEG quality (default: 80)
  */
 
-import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  DEFAULT_VISION_MODEL,
+  VISION_MAX_DIM,
+  ollamaChat,
+  readImageForModel,
+} from "../tools/vision/vision-common.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-const DEFAULT_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
-const MAX_DIM = parseInt(process.env.VISION_MAX_DIM || "1024", 10);
-const JPEG_QUALITY = parseInt(process.env.VISION_QUALITY || "80", 10);
 
 // ─── CLI Parsing ───
 const args = process.argv.slice(2);
@@ -45,8 +48,8 @@ const command = args[0];
 const options = {
   low: false,
   high: false,
-  model: DEFAULT_MODEL,
-  quality: JPEG_QUALITY,
+  model: DEFAULT_VISION_MODEL,
+  quality: 80,
   raw: false,
   json: false,
   viewport: null,
@@ -73,67 +76,12 @@ for (let i = 1; i < args.length; i++) {
   else if (!arg.startsWith("--")) positional.push(arg);
 }
 
-// ─── Image Processing ───
-async function resizeImage(imagePath) {
-  const maxDim = options.low ? 640 : options.high ? 1280 : MAX_DIM;
-  
-  // Read file as buffer first (avoids sharp file format detection issues)
-  const inputBuffer = fs.readFileSync(imagePath);
-  const buffer = await sharp(inputBuffer)
-    .resize(maxDim, maxDim, { fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: options.quality, mozjpeg: true })
-    .toBuffer();
-  
-  const stats = await sharp(buffer).metadata();
-  return {
-    buffer,
-    base64: buffer.toString("base64"),
-    width: stats.width,
-    height: stats.height,
-    sizeKB: Math.round(buffer.length / 1024),
-  };
-}
-
-// ─── Ollama API (0.33+ recommended: /api/chat for multimodal) ───
-async function analyzeWithOllama(images, prompt, model) {
-  const url = `${OLLAMA_URL}/api/chat`;
-
-  const body = {
-    model,
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-        images: images.map((img) => img.base64),
-      },
-    ],
-    stream: false,
-    options: {
-      temperature: 0.3,
-      num_predict: 2048,
-    },
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.message?.content || data.response || "No response from model";
-}
-
 // ─── Prompt Building ───
 function buildPrompt(imageCount) {
   if (options.raw) return null;
 
   const parts = [];
-  
+
   // Mode-specific context
   switch (options.mode) {
     case "responsive":
@@ -176,13 +124,14 @@ function buildPrompt(imageCount) {
 
 // ─── Commands ───
 async function analyze(imagePaths, customPrompt) {
+  const maxDim = options.low ? 640 : options.high ? 1280 : VISION_MAX_DIM;
   const images = [];
   for (const p of imagePaths) {
     if (!fs.existsSync(p)) {
       console.error(`Error: File not found: ${p}`);
       process.exit(1);
     }
-    const img = await resizeImage(p);
+    const img = await readImageForModel(p, { maxDim, quality: options.quality });
     images.push(img);
     if (!options.json) {
       console.error(`[vision] Resized ${path.basename(p)} → ${img.width}x${img.height} (${img.sizeKB}KB)`);
@@ -198,8 +147,15 @@ async function analyze(imagePaths, customPrompt) {
     ? `${systemPrompt}\n\n${customPrompt || defaultPrompt}`
     : customPrompt || defaultPrompt;
 
-  const analysis = await analyzeWithOllama(images, prompt, options.model);
-  
+  const result = await ollamaChat({
+    model: options.model,
+    prompt,
+    images: images.map((img) => img.base64),
+    numPredict: 2048,
+    temperature: 0.3,
+  });
+  const analysis = result.text;
+
   if (options.json) {
     console.log(JSON.stringify({ analysis, images: images.map(i => ({ width: i.width, height: i.height, sizeKB: i.sizeKB })) }, null, 2));
   } else {

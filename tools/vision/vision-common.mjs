@@ -160,50 +160,174 @@ export async function encodeImage(imagePath, opts = {}) {
 }
 
 /**
- * Send a single vision request to Ollama and return the parsed response
- * text.  Retries once on the same model when the output was truncated.
+ * Read an image for a vision-model request: returns the base64 payload plus
+ * the metadata some callers report (dimensions, size). This is the single
+ * resize implementation — scripts/vision.mjs, scripts/vision-quick.mjs,
+ * scripts/analyze-visualizer-frames.mjs and tools/mcp/vision-mcp.mjs each
+ * used to carry their own near-identical sharp copy here.
  */
-export async function analyzeWithOllama(images, prompt, model, numPredict = 4096, think = false, keepAlive = VISION_KEEP_ALIVE) {
-  const imageData = typeof images === 'string' ? images : images[0];
+export async function readImageForModel(imagePath, opts = {}) {
+  const { maxDim = VISION_MAX_DIM, quality = VISION_QUALITY, pngPassthrough = false } = opts;
+  const base64 = await encodeImage(imagePath, { maxDim, quality, pngPassthrough });
+  let width = 0;
+  let height = 0;
+  let sizeKB = Math.round((base64.length * 3) / 4 / 1024); // base64 is 4/3 of raw bytes
+  try {
+    const sharp = (await import('sharp')).default;
+    const meta = await sharp(Buffer.from(base64, 'base64')).metadata();
+    width = meta.width || 0;
+    height = meta.height || 0;
+  } catch {
+    /* sharp missing or metadata unreadable — zeros are fine for logging */
+  }
+  return { base64, width, height, sizeKB };
+}
+
+/**
+ * POST one request to /api/chat and normalize the answer. Every vision entry
+ * point routes through here so they cannot drift apart again: each used to
+ * re-implement the fetch, and two of them read `data.response` (the
+ * /api/generate shape) on a /api/chat call, which always yields an empty
+ * string — measured live on 2026-10-22 in scripts/vision-quick.mjs, which
+ * printed "No response" for every prompt.
+ *
+ * Returns { text, content, thinking, usedThinking, doneReason } where `text`
+ * already applies the thinking fallback (reasoning-capable models can spend
+ * the whole output budget on chain-of-thought and return empty `content` with
+ * the answer in `thinking`; measured on this machine: qwen3-vl:4b — content
+ * 0 chars, thinking 2331 chars, done_reason "length").
+ */
+export async function ollamaChat({
+  model,
+  prompt,
+  images = [], // base64 strings, optional
+  numCtx = VISION_NUM_CTX,
+  numPredict = 4096,
+  temperature = null, // null = omit (Ollama server default)
+  keepAlive = VISION_KEEP_ALIVE,
+  think = false,
+  timeoutMs = 300000,
+}) {
+  const userContent = { role: 'user', content: prompt || 'Describe this image in detail.' };
+  if (images.length === 1) userContent.images = [images[0]];
+  else if (images.length > 1) userContent.images = images;
+
   const body = {
     model,
-    messages: [
-      {
-        role: 'user',
-        content: prompt || 'Describe this image in detail.',
-        images: [imageData],
-      },
-    ],
+    messages: [userContent],
     stream: false,
     // Callers falling back to a second vision model pass a short keepAlive so
     // the resident slot returns to the primary model (8 GB card, two 4 GB
     // vision models resident at once squeeze each other).
     keep_alive: keepAlive,
-    options: { num_ctx: VISION_NUM_CTX, num_predict: numPredict },
+    options: { num_ctx: numCtx, num_predict: numPredict },
   };
+  if (temperature !== null) body.options.temperature = temperature;
   if (think) body.think = true;
 
+  // 300 s, not 120 s: a cold model load on 8 GB VRAM takes 60-183 s
+  // (measured 2026-10-11: minicpm-v:8b 183 s), which blew the 120 s budget
+  // before any image was processed.
   const res = await fetch(`${OLLAMA_URL}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    // 300 s, not 120 s: a cold model load on 8 GB VRAM takes
-    // 60-183 s (measured 2026-10-11: minicpm-v:8b 183 s), which
-    // blew the 120 s budget before any image was processed. This
-    // inner fetch is the binding limit, so it must match the
-    // VISION_TIMEOUT_MS (300 s) outer budget in analyze.mjs.
-    signal: AbortSignal.timeout(300000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    const errText = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}: ${errText.slice(0, 200)}`);
   }
   const data = await res.json();
-  // /api/chat returns the answer at `message.content`, NOT at `response` (that is
-  // the /api/generate shape). Reading `data.response` here always yielded ''.
+  // /api/chat returns the answer at `message.content`, NOT at `response` (that
+  // is the /api/generate shape; kept as a last resort for safety).
   const content = data.message?.content || data.response || '';
-  // Reasoning models can burn the whole budget on chain-of-thought and return an
-  // empty content plus a populated `thinking` field. Better than returning nothing.
   const thinking = data.message?.thinking || '';
-  return !String(content).trim() && thinking.trim() ? thinking : content;
+  const usedThinking = !String(content).trim() && !!thinking.trim();
+  if (usedThinking) {
+    console.error(
+      `[vision] ${model}: content empty (done_reason=${data.done_reason || '?'}); ` +
+        `using ${thinking.length} chars of thinking output as the analysis.`
+    );
+  }
+  return {
+    content,
+    thinking,
+    usedThinking,
+    text: usedThinking ? thinking : content,
+    doneReason: data.done_reason || '',
+  };
+}
+
+/**
+ * Send a single vision request to Ollama and return the response text.
+ * Legacy entry point kept so existing imports (ollama-tools-mcp.mjs,
+ * tools/tests/validate-vision-unified.mjs) stay stable — the request itself
+ * now goes through ollamaChat(). Retries once on the same model when the
+ * output was truncated (historical behavior; the retry lives with the caller).
+ */
+export async function analyzeWithOllama(images, prompt, model, numPredict = 4096, think = false, keepAlive = VISION_KEEP_ALIVE) {
+  const imageData = typeof images === 'string' ? images : images[0];
+  const result = await ollamaChat({
+    model,
+    prompt,
+    images: imageData ? [imageData] : [],
+    numPredict,
+    think,
+    keepAlive,
+  });
+  return result.text;
+}
+
+// ─── VRAM management (8 GB card: exactly one vision model resident) ───
+// Shared single copies of what scripts/analyze-visualizer-frames.mjs and
+// tools/mcp/vision-mcp.mjs each used to define — identical logic, which is
+// exactly where two policies drift apart over time.
+
+async function getRunningModels() {
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/ps`, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.models || []).map((m) => m.name);
+  } catch {
+    return [];
+  }
+}
+export { getRunningModels };
+
+export async function unloadModel(model, log = (m) => console.error(`[vision] ${m}`)) {
+  try {
+    await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: 0 }),
+      signal: AbortSignal.timeout(30000),
+    });
+    log(`unloaded model: ${model}`);
+  } catch (e) {
+    log(`unload failed: ${e.message}`);
+  }
+}
+
+/**
+ * Before a vision call on this card: unload every OTHER resident model so the
+ * target fits. Retries once — the first /api/generate can race the scheduler.
+ */
+export async function ensureVisionModel(model, opts = {}) {
+  const { settleMs = 1500, log = (m) => console.error(`[vision] ${m}`) } = opts;
+  const running = await getRunningModels();
+  if (running.length === 0) return;
+  const toUnload = running.filter((m) => m !== model);
+  if (toUnload.length === 0) return;
+  log(`unloading models: ${toUnload.join(',')}`);
+  for (const m of toUnload) await unloadModel(m, log);
+  await new Promise((r) => setTimeout(r, settleMs));
+  const still = await getRunningModels();
+  const remain = still.filter((m) => m !== model);
+  if (remain.length > 0) {
+    log(`retry unload: ${remain.join(',')}`);
+    for (const m of remain) await unloadModel(m, log);
+    await new Promise((r) => setTimeout(r, settleMs));
+  }
 }
