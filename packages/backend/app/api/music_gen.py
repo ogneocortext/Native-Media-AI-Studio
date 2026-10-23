@@ -362,8 +362,9 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
         audio_path = result.get("audio_path")
         output_name = result.get("output_name") or req.output_name or ""
         if audio_path and output_name:
+            # Validate before doing any file/DB work so invalid names surface as 400.
+            output_name = _validate_output_name(output_name)
             try:
-                output_name = _validate_output_name(output_name)
                 src = Path(audio_path)
                 if src.exists():
                     dst_name = f"{output_name}.wav"
@@ -589,19 +590,111 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
     """
     step = request.get("step", "init")
     context = request.get("context") or ""
+    partial_lyrics = request.get("partial_lyrics", "")
+    session_id = request.get("session_id")
 
-    # Build Chain-of-Thought prompt for the LM planner based on the step
-    _build_cot_prompt(step, "lyrics", context)
+    if step not in ("init", "add_verse", "add_chorus", "add_bridge", "finalize"):
+        raise HTTPException(
+            400,
+            detail=f"Invalid step '{step}'. Must be one of: init, add_verse, add_chorus, add_bridge, finalize",
+        )
 
-    # ... rest of implementation
+    # Validate session name if provided
+    if session_id and not _validate_planner_name(session_id):
+        raise HTTPException(400, detail="Invalid session_id format")
+
+    # Use or create session
+    if session_id:
+        if session_id not in PLANNER_SESSION_STORE:
+            PLANNER_SESSION_STORE[session_id] = {"blueprint": {}, "steps_completed": [], "sections": {}}
+        session = PLANNER_SESSION_STORE[session_id]
+    else:
+        session_id = f"lyrics_{uuid.uuid4().hex[:8]}"
+        session = {"blueprint": {}, "steps_completed": [], "sections": {}}
+        PLANNER_SESSION_STORE[session_id] = session
+
+    # Build Chain-of-Thought prompt for the step
+    cot_prompt = _build_cot_prompt(step, "lyrics", context)
+
+    # Call LM planner service
+    planner_url = PLANNER_BASE_URL
+    if request.get("port"):
+        planner_url = f"http://127.0.0.1:{request['port']}"
+
+    payload = {
+        "step": step,
+        "context": context,
+        "partial_lyrics": partial_lyrics,
+        "cot_prompt": cot_prompt,
+    }
+    if session.get("sections"):
+        payload["sections"] = session["sections"]
+
+    try:
+        async with aiohttp.ClientSession() as http_session:
+            async with http_session.post(
+                f"{planner_url}/planning/lyrics",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=PLANNER_HEALTH_TIMEOUT),
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                else:
+                    text = await resp.text()
+                    logger.warning("Planner lyrics request failed (%s): %s", resp.status, text)
+                    result = {
+                        "lyrics": partial_lyrics or context[:200] if partial_lyrics or context else "[Verse]\n",
+                        "confidence": 0.5,
+                        "needs_more": True,
+                    }
+    except Exception as exc:
+        logger.error("Planner lyrics step %s failed: %s", step, exc)
+        result = {
+            "lyrics": partial_lyrics or context[:200] if partial_lyrics or context else "[Verse]\n",
+            "confidence": 0.0,
+            "needs_more": True,
+            "error": str(exc),
+            "fallback": True,
+        }
+
+    # Track section in session
+    sections = session.setdefault("sections", {})
+    section_name = result.get("section_name") or step
+    sections[section_name] = result
+    if step not in session["steps_completed"]:
+        session["steps_completed"].append(step)
+
+    # Emit SSE event for planning progress
+    await _emit_planner_event(
+        session_id,
+        f"plan_{step}",
+        {
+            "session_id": session_id,
+            "step": step,
+            "result": result,
+            "sections": sections,
+            "steps_completed": session["steps_completed"],
+        },
+    )
+
+    return {
+        "session_id": session_id,
+        "step": step,
+        "lyrics": result.get("lyrics", ""),
+        "confidence": result.get("confidence", 0.5),
+        "needs_more": result.get("needs_more", True),
+        "section_name": result.get("section_name", section_name),
+        "result": result,
+        "blueprint": session.get("blueprint", {}),
+        "steps_completed": session.get("steps_completed", []),
+        "fallback": result.get("fallback", False),
+    }
 
 
-# --------------------------------------------------------------------------- # The LM planner is the agent's role: draft style/lyrics without requiring
+# ---------------------------------------------------------------------------
 # Planner endpoints – incremental style/lyrics drafting
-# The LM planner is the agent's role: draft style/lyrics without requiring
-# Planner endpoints – incremental style/lyrics drafting
-# The LM planner is the agent's role: draft style/lyrics without requiring
-# finished strings upfront. This surface exposes planning before generation.
+# The LM planner drafts style/lyrics without requiring finished strings upfront.
+# This surface exposes planning before generation.
 # ---------------------------------------------------------------------------
 # File download endpoints
 # ---------------------------------------------------------------------------
@@ -611,21 +704,16 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
 async def get_audio(output_name: str):
     """Download generated audio file."""
     output_name = _validate_output_name(output_name)
-    output_dir = PROJECT_ROOT / "output" / "music" / output_name
+    output_dir = PROJECT_ROOT / "output" / "audio"
 
-    # Try flac first, then wav, then mp3
-    for ext, media_type in [
-        ("flac", "audio/flac"),
-        ("wav", "audio/wav"),
-        ("mp3", "audio/mpeg"),
-    ]:
-        audio_path = output_dir / f"audio.{ext}"
-        if audio_path.exists():
-            return FileResponse(
-                str(audio_path),
-                media_type=media_type,
-                filename=f"{output_name}.{ext}",
-            )
+    # Generated songs are written by POST /generate to output/audio/<name>.wav.
+    audio_path = output_dir / f"{output_name}.wav"
+    if audio_path.exists():
+        return FileResponse(
+            str(audio_path),
+            media_type="audio/wav",
+            filename=f"{output_name}.wav",
+        )
 
     raise HTTPException(404, detail="Audio file not found")
 
