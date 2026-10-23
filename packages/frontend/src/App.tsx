@@ -98,6 +98,10 @@ const MusicPromptsWorkbench = lazyNamed(
   () => import("./features/music-prompts/MusicPromptsWorkbench"),
   "MusicPromptsWorkbench",
 );
+const MusicGenPage = lazyNamed(
+  () => import("./features/music-gen/MusicGenPage"),
+  "MusicGenPage",
+);
 const UnityControlPage = lazyNamed(
   () => import("./features/unity-control/UnityControlPage"),
   "UnityControlPage",
@@ -131,6 +135,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/visualizer": "Visualizer",
   "/hyperframes": "HyperFrames",
   "/music-prompts": "Music Prompts",
+  "/music-gen": "Music Gen",
   "/library": "Media Library",
   "/settings": "Settings",
   "/log-analytics": "Log Analytics",
@@ -203,7 +208,8 @@ function App() {
               <Route path="/image-generation" element={withErrorBoundary(<ImageGeneration />)} />
               <Route path="/visualizer" element={withErrorBoundary(<Visualizer />)} />
               <Route path="/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
-              <Route path="/music-prompts" element={withErrorBoundary(<MusicPromptsWorkbench />)} />
+               <Route path="/music-prompts" element={withErrorBoundary(<MusicPromptsWorkbench />)} />
+               <Route path="/music-gen" element={withErrorBoundary(<MusicGenPage />)} />
               <Route path="/library" element={withErrorBoundary(<MediaLibrary />)} />
               <Route path="/media-library" element={<Navigate to="/library" replace />} />
               <Route path="/settings" element={withErrorBoundary(<Settings />)} />

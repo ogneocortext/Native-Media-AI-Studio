@@ -13,6 +13,7 @@ import {
   Image,
   ListOrdered,
   Menu,
+  Music,
   X,
   BarChart3,
   Brain,
@@ -113,12 +114,18 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Brain size={18} />,
         keywords: "ai tools models chat",
       },
-      {
-        path: "/music-prompts",
-        label: "Music Prompts",
-        icon: <Mic size={18} />,
-        keywords: "music prompts lyrics suno",
-      },
+       {
+         path: "/music-prompts",
+         label: "Music Prompts",
+         icon: <Mic size={18} />,
+         keywords: "music prompts lyrics suno",
+       },
+       {
+         path: "/music-gen",
+         label: "Music Gen",
+         icon: <Music size={18} />,
+         keywords: "music generation ace-step generate song",
+       },
       {
         path: "/unity",
         label: "Unity Control",
