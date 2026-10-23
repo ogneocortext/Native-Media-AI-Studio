@@ -9,9 +9,9 @@ Provides REST API for:
 from __future__ import annotations
 
 import logging
-import uuid
 import re
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +30,7 @@ from ..adapters.music_gen import (
 from ..core import database
 from ..core.config import PROJECT_ROOT
 from ..services.vram_manager import vram_manager
+from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,15 @@ def _validate_planner_name(name: str) -> str:
             ),
         )
     return name
+
+
+async def _emit_planner_event(session_id: str, event_type: str, data: dict) -> None:
+    """Emit a planner SSE event to connected clients."""
+    await sse_manager.broadcast(
+        "planner_event",
+        {"session_id": session_id, "event": event_type, **data},
+        priority="medium",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -139,13 +149,13 @@ LYRICS_COT_TEMPLATES = {
 
 def _build_cot_prompt(step: str, section: str, user_input: str) -> str:
     """Build a Chain-of-Thought prompt for the LM planner.
-    
+
     Args:
         step: The planning step (init, develop, finalize for style;
                init, add_verse, add_chorus, finalize for lyrics)
         section: The section being worked on (e.g., 'verse 1', 'chorus')
         user_input: The user's original description or directive
-    
+
     Returns:
         A formatted CoT prompt string for the planner service
     """
@@ -178,6 +188,7 @@ def _validate_output_name(name: str) -> str:
 # Request/Response models
 # ---------------------------------------------------------------------------
 
+
 class StartServiceRequest(BaseModel):
     engine: str = Field("ace", description="Engine: ace")
     port: int | None = Field(None, description="Port override (default: 8201)")
@@ -186,10 +197,18 @@ class StartServiceRequest(BaseModel):
 
 class GenerateRequest(BaseModel):
     engine: str = Field("ace", description="Engine: ace")
-    style: str = Field(..., min_length=1, max_length=2000,
-                       description="Genre, instruments, mood, tempo, vocal type")
-    lyrics: str = Field(..., min_length=1, max_length=10000,
-                        description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags")
+    style: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Genre, instruments, mood, tempo, vocal type",
+    )
+    lyrics: str = Field(
+        ...,
+        min_length=1,
+        max_length=10000,
+        description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags",
+    )
     seed: int | None = Field(None, description="Deterministic seed")
     cfg_scale: float = Field(7.0, ge=0.5, le=20.0, description="Classifier-free guidance")
     inference_steps: int = Field(8, ge=1, le=200, description="Diffusion steps")
@@ -209,6 +228,7 @@ class GenerateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Service management endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/status")
 async def get_status() -> dict[str, Any]:
@@ -317,6 +337,7 @@ async def stop_all() -> dict[str, Any]:
 # Generation endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("/generate")
 async def generate(req: GenerateRequest) -> dict[str, Any]:
     """Generate a complete song."""
@@ -326,14 +347,16 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
         raise HTTPException(503, detail="Service not running. Start it first with POST /start")
 
     try:
-        result = await adapter.generate({
-            "style": req.style,
-            "lyrics": req.lyrics,
-            "seed": req.seed,
-            "cfg_scale": req.cfg_scale,
-            "inference_steps": req.inference_steps,
-            "output_name": req.output_name,
-        })
+        result = await adapter.generate(
+            {
+                "style": req.style,
+                "lyrics": req.lyrics,
+                "seed": req.seed,
+                "cfg_scale": req.cfg_scale,
+                "inference_steps": req.inference_steps,
+                "output_name": req.output_name,
+            }
+        )
 
         # Register generated audio in the media library so the frontend can find/play it.
         audio_path = result.get("audio_path")
@@ -366,8 +389,13 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
                         channels = 2
                         try:
                             import soundfile as sf
+
                             info = sf.info(str(temp_path))
-                            duration = float(info.frames) / float(info.samplerate) if info.samplerate else 0.0
+                            duration = (
+                                float(info.frames) / float(info.samplerate)
+                                if info.samplerate
+                                else 0.0
+                            )
                             channels = int(info.channels)
                             sample_rate = int(info.samplerate) or sample_rate
                         except Exception:
@@ -460,16 +488,14 @@ async def plan_style(request: dict[str, Any]) -> dict[str, Any]:
         async with aiohttp.ClientSession() as http_session:
             async with http_session.post(
                 f"{planner_url}/planning/style",
-                json={"step": step, "description": user_description},
+                json={"step": step, "description": user_description, "cot_prompt": cot_prompt},
                 timeout=aiohttp.ClientTimeout(total=PLANNER_HEALTH_TIMEOUT),
             ) as resp:
                 if resp.status == 200:
                     result = await resp.json()
                 else:
                     text = await resp.text()
-                    logger.warning(
-                        "Planner style request failed (%s): %s", resp.status, text
-                    )
+                    logger.warning("Planner style request failed (%s): %s", resp.status, text)
                     result = {
                         "style_tags": user_description[:50] if user_description else "pop",
                         "mood": "neutral",
@@ -490,21 +516,29 @@ async def plan_style(request: dict[str, Any]) -> dict[str, Any]:
             session["steps_completed"].append("develop")
             # Emit SSE event for development progress
             if "sse_queue" in session:
-                await _emit_planner_event(session_id, "plan_develop", {
-                    "session_id": session_id,
-                    "step": "develop",
-                    "blueprint": session["blueprint"],
-                    "steps_completed": session["steps_completed"],
-                })
+                await _emit_planner_event(
+                    session_id,
+                    "plan_develop",
+                    {
+                        "session_id": session_id,
+                        "step": "develop",
+                        "blueprint": session["blueprint"],
+                        "steps_completed": session["steps_completed"],
+                    },
+                )
         elif step == "finalize":
             session["final_spec"] = result
             session["steps_completed"].append("finalize")
             # Emit SSE event for plan completion
-            await _emit_planner_event(session_id, "plan_finalize", {
-                "session_id": session_id,
-                "steps": session["steps_completed"],
-                "final_spec": result,
-            })
+            await _emit_planner_event(
+                session_id,
+                "plan_finalize",
+                {
+                    "session_id": session_id,
+                    "steps": session["steps_completed"],
+                    "final_spec": result,
+                },
+            )
 
         return {
             "session_id": session_id,
@@ -537,6 +571,7 @@ async def plan_style(request: dict[str, Any]) -> dict[str, Any]:
             "steps_completed": [],
         }
 
+
 @router.post("/plan-lyrics")
 async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
     """Draft lyrics incrementally via the LM planner. Similar to plan-style but
@@ -552,12 +587,11 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
         - confidence: float      Planning confidence (0-1)
         - needs_more: bool       Whether more planning steps are needed
     """
-    partial = request.get("partial") or ""
     step = request.get("step", "init")
     context = request.get("context") or ""
 
     # Build Chain-of-Thought prompt for the LM planner based on the step
-    cot_prompt = _build_cot_prompt(step, "lyrics", user_description if "user_description" in dir() else context)
+    _build_cot_prompt(step, "lyrics", context)
 
     # ... rest of implementation
 
@@ -571,6 +605,7 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # File download endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/audio/{output_name}")
 async def get_audio(output_name: str):
@@ -612,6 +647,7 @@ async def get_score(output_name: str):
 # ---------------------------------------------------------------------------
 # VRAM coordination endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/vram")
 async def get_vram() -> dict[str, Any]:
