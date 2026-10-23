@@ -51,7 +51,7 @@ export function ServiceStatusCard({ hook }: ServiceStatusCardProps) {
             <div key={key} className="flex items-center justify-between p-2 bg-gray-900 rounded-lg">
               <span className="text-gray-400 text-xs capitalize">{key.replace(/_/g, " ")}</span>
               <span
-                className={`text-xs truncate max-w-[150px] ${typeof value === "boolean" ? (value ? "text-emerald-400" : "text-red-400") : "text-white"}`}
+                className={`text-xs truncate max-w-[120px] sm:max-w-[150px] ${typeof value === "boolean" ? (value ? "text-emerald-400" : "text-red-400") : "text-white"}`}
                 title={String(value)}
               >
                 {typeof value === "boolean"

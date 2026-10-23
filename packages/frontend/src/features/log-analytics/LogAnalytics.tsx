@@ -621,7 +621,7 @@ export function LogAnalytics() {
                       </span>
                     </td>
                     <td
-                      className="py-1.5 pr-2 text-cyan-400 max-w-[140px] truncate"
+                      className="py-1.5 pr-2 text-cyan-400 max-w-[100px] sm:max-w-[140px] truncate"
                       title={entry.logger}
                     >
                       {entry.logger.split(".").pop()}

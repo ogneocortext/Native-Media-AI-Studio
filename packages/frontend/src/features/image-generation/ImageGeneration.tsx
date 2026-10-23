@@ -756,7 +756,7 @@ export function ImageGeneration() {
         <div>
           <Card
             title={generating ? "Live Preview" : "Preview"}
-            className="h-full min-h-[500px]"
+            className="h-full min-h-[300px] sm:min-h-[500px]"
             glow={!!result || generating}
           >
             {generating && livePreviewUrl ? (
