@@ -46,12 +46,12 @@ export function useFileFilters(files: MediaFile[], filter: FilterState) {
           comparison = a.filename.localeCompare(b.filename);
           break;
         case "size":
-          comparison = a.size - b.size;
+          comparison = (a.size_bytes ?? a.size ?? 0) - (b.size_bytes ?? b.size ?? 0);
           break;
         case "date":
           comparison =
-            new Date(a.modified_time).getTime() -
-            new Date(b.modified_time).getTime();
+            new Date(a.modified_at ?? a.modified_time ?? "").getTime() -
+            new Date(b.modified_at ?? b.modified_time ?? "").getTime();
           break;
       }
       return filter.sortOrder === "asc" ? comparison : -comparison;

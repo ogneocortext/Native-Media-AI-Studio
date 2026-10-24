@@ -25,6 +25,28 @@ export function useFileOperations() {
     }
   };
 
+  const handleBulkDelete = async (
+    paths: string[]
+  ): Promise<{ deleted: number; failed: number }> => {
+    setIsOperating(true);
+    setOperationError(null);
+    try {
+      const res = await fetchWithTimeout("/api/outputs/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paths }),
+      });
+      if (!res.ok) throw new Error(`bulk-delete ${res.status}`);
+      const data = await res.json();
+      return { deleted: data.deleted ?? paths.length, failed: data.failed ?? 0 };
+    } catch (e) {
+      setOperationError(e instanceof Error ? e.message : "Bulk delete failed");
+      return { deleted: 0, failed: paths.length };
+    } finally {
+      setIsOperating(false);
+    }
+  };
+
   const handleRename = async (
     _filename: string,
     relativePath: string,
@@ -36,7 +58,7 @@ export function useFileOperations() {
       await fetchWithTimeout(
         `/api/outputs/${encodeURIComponent(relativePath)}/rename`,
         {
-          method: "PUT",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ new_name: newName }),
         }
@@ -68,6 +90,7 @@ export function useFileOperations() {
     isOperating,
     operationError,
     handleDelete,
+    handleBulkDelete,
     handleRename,
     handleProbe,
   };

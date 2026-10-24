@@ -3,10 +3,18 @@ import { fetchWithTimeout } from "../../../services/fetchWithTimeout";
 
 export interface MediaFile {
   filename: string;
+  path: string;
   relative_path: string;
-  file_type: string;
-  size: number;
-  modified_time: string;
+  file_type: string; // "audio" | "video" | "image" | "3d" | ...
+  size_bytes: number;
+  created_at: string;
+  modified_at: string | null;
+  cover_image: string | null;
+  has_cover: boolean;
+  metadata: any;
+  job_id: string | null;
+  size?: number; // backward-compat alias for size_bytes
+  modified_time?: string; // backward-compat alias for modified_at
   duration?: number;
   loudness?: number;
   waveform?: number[];
@@ -27,9 +35,6 @@ export function useMediaFiles() {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(50);
 
   const loadFiles = async () => {
     setLoading(true);
@@ -41,13 +46,21 @@ export function useMediaFiles() {
       );
       if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
       const data = await res.json();
-      const outputFiles = data.files || [];
-      const mediaFiles: MediaFile[] = outputFiles.map((f: any) => ({
+      const outputFiles: MediaFile[] = data.outputs || [];
+      const mediaFiles: MediaFile[] = outputFiles.map((f) => ({
         filename: f.filename || f.relative_path || "unknown",
+        path: f.path || "",
         relative_path: f.relative_path || "",
         file_type: f.file_type || "unknown",
-        size: f.size || 0,
-        modified_time: f.modified_time || f.modified_at || new Date().toISOString(),
+        size_bytes: f.size_bytes ?? f.size ?? 0,
+        created_at: f.created_at || new Date().toISOString(),
+        modified_at: f.modified_at || f.modified_time || null,
+        cover_image: f.cover_image ?? null,
+        has_cover: f.has_cover ?? false,
+        metadata: f.metadata ?? null,
+        job_id: f.job_id ?? null,
+        size: f.size_bytes ?? f.size ?? 0,
+        modified_time: f.modified_at || f.modified_time || undefined,
         duration: f.duration,
         loudness: f.loudness,
         waveform: f.waveform,
@@ -56,7 +69,6 @@ export function useMediaFiles() {
         recording: f.recording || false,
       }));
       setFiles(mediaFiles);
-      setTotalCount(mediaFiles.length);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load files");
       console.error("Error loading files:", e);
@@ -69,16 +81,10 @@ export function useMediaFiles() {
     loadFiles();
   }, []);
 
-
   return {
     files,
     loading,
     error,
-    totalCount,
-    currentPage,
-    pageSizes: [50, 100, 200],
-    pageSize,
-    setCurrentPage,
     refetch: loadFiles,
   };
 }

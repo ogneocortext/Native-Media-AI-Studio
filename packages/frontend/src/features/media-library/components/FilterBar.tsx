@@ -52,12 +52,12 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs text-muted">Category:</span>
         {[
-          { value: "all", label: "All" },
+          { value: "all", label: "All Files" },
+          { value: "image", label: "Images" },
+          { value: "video", label: "Videos" },
           { value: "audio", label: "Audio" },
-          { value: "video", label: "Video" },
-          { value: "image", label: "Image" },
-          { value: "model", label: "Model" },
-          { value: "doc", label: "Document" },
+          { value: "model", label: "Models" },
+          { value: "document", label: "Documents" },
           { value: "other", label: "Other" },
         ].map((cat) => (
           <button
