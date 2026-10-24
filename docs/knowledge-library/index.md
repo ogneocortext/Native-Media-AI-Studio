@@ -111,6 +111,7 @@ date: 2026-09-30
 ### 🤖 AI & ML (Models & Training)
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
+- [[ollama-structured-output-pattern|🧠 Ollama Structured Output Pattern]] — Client-side JSON validation and retry pattern for Ollama structured outputs
 - [[vision-model-reliability-2026|🖼️ Vision Model Reliability 2026]] — qwen3-vl degenerate reasoning loop (Ollama #17978), measured evidence, the gemma4 primary routing fix, and the 2026-10-10 model pruning (NEW 2026-10-10)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy
 - [[ollama-thinking-structured-outputs|🧠 Ollama Thinking & Structured Outputs]] — `think` + `format:json`
@@ -157,7 +158,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 13 documents |
+|| `#ai/*` | AI models, training & ML | 14 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 || `#research/*` | Industry trends & analysis | 15 documents |
 
