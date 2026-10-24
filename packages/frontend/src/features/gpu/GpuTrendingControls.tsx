@@ -144,6 +144,12 @@ export function GpuTrendingControls({
               {tempStats.max.toFixed(0)}°
             </span>
           </p>
+          <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-rose-400/70 transition-all"
+              style={{ width: `${Math.min(100, (tempStats.cur / 95) * 100)}%` }}
+            />
+          </div>
         </div>
         <div className="rounded-lg bg-white/[0.03] border border-white/5 px-3 py-2">
           <div className="flex items-center gap-1.5 text-[11px] text-muted">
@@ -159,6 +165,12 @@ export function GpuTrendingControls({
               {vramStats.max.toFixed(1)}%
             </span>
           </p>
+          <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-violet-400/70 transition-all"
+              style={{ width: `${Math.min(100, vramStats.cur)}%` }}
+            />
+          </div>
         </div>
         <div className="rounded-lg bg-white/[0.03] border border-white/5 px-3 py-2">
           <div className="flex items-center gap-1.5 text-[11px] text-muted">
@@ -174,6 +186,12 @@ export function GpuTrendingControls({
               {utilStats.max.toFixed(0)}%
             </span>
           </p>
+          <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-400/70 transition-all"
+              style={{ width: `${Math.min(100, utilStats.cur)}%` }}
+            />
+          </div>
         </div>
       </div>
       {patternHint && (
