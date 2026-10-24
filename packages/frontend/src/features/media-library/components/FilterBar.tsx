@@ -43,7 +43,7 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
           placeholder="Search files…"
           value={filter.query}
           onChange={handleQueryChange}
-          className={`${DS.input} flex-1`}
+          className={`${DS.input} max-w-xs sm:max-w-md flex-1`}
         />
         {filter.query && (
           <button
@@ -62,10 +62,10 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
           <button
             key={opt.value}
             onClick={() => handleFileTypeChange(opt.value)}
-            className={`px-2 py-1 rounded text-xs ${
+            className={`px-2.5 py-1 rounded-md text-sm font-medium ${
               filter.fileType === opt.value
-                ? "bg-primary/20 text-primary border border-primary/30"
-                : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
+                ? "bg-primary text-white border border-primary/50 shadow-sm"
+                : "bg-black/40 text-muted border border-transparent hover:bg-black/50 hover:text-white"
             }`}
             title={opt.label}
           >

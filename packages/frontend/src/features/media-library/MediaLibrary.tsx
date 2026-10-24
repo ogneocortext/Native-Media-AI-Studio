@@ -282,22 +282,22 @@ export function MediaLibrary() {
 
       {/* View tabs: Library / Favorites / Collections / Trash */}
       <div className="mb-3 flex gap-1">
-        <button
+          <button
           onClick={() => setView("library")}
-          className={`px-3 py-1 text-xs rounded transition-colors ${
+          className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "library"
-              ? "bg-primary/20 text-primary"
-              : "bg-black/30 text-muted hover:bg-black/50"
+              ? "bg-primary/20 text-primary border border-primary/30 shadow-sm"
+              : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
           Library
         </button>
         <button
           onClick={() => setView("favorites")}
-          className={`px-3 py-1 text-xs rounded transition-colors ${
+          className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "favorites"
-              ? "bg-amber-900/30 text-amber-300"
-              : "bg-black/30 text-muted hover:bg-black/50"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+              : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
           <Heart size={14} className="mr-1" /> Favorites
@@ -309,10 +309,10 @@ export function MediaLibrary() {
         </button>
         <button
           onClick={() => setView("collections")}
-          className={`px-3 py-1 text-xs rounded transition-colors ${
+          className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "collections"
-              ? "bg-blue-900/30 text-blue-300"
-              : "bg-black/30 text-muted hover:bg-black/50"
+              ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm"
+              : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
           <Tag size={14} className="mr-1" /> Collections
@@ -324,10 +324,10 @@ export function MediaLibrary() {
         </button>
         <button
           onClick={() => setView("trash")}
-          className={`px-3 py-1 text-xs rounded transition-colors ${
+          className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "trash"
-              ? "bg-red-900/30 text-red-300"
-              : "bg-black/30 text-muted hover:bg-black/50"
+              ? "bg-red-500/20 text-red-300 border border-red-500/40 shadow-sm"
+              : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
           <Trash2 size={14} className="mr-1" /> Trash

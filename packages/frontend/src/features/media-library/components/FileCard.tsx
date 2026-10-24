@@ -180,19 +180,21 @@ export function FileCard({
 
         <div className="flex flex-col gap-1">
           <div
-            className="text-sm font-medium text-white truncate"
+            className="text-base font-semibold text-white truncate leading-tight"
             title={file.filename}
           >
             {file.filename}
           </div>
-          <div className="text-xs text-muted truncate">
+          <div className="flex items-center gap-3 text-xs text-muted truncate">
             <span className={`inline-flex items-center gap-1 px-1.5 py-0 rounded ${typeColor}`}>
               {typeIcon} {file.file_type}
-            </span>{" · "}
-            {sizeLabel}
+            </span>
+            <span>{sizeLabel}</span>
           </div>
-          <div className="text-xs text-muted">
-            {formatDateTime(file.modified_at || file.modified_time || "")}
+          <div className="flex items-center gap-1 text-xs text-muted truncate">
+            <time title={formatDateTime(file.modified_at || file.modified_time || "")}>
+              {formatDateTime(file.modified_at || file.modified_time || "")}
+            </time>
           </div>
 
           {/* Tag chips */}
