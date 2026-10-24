@@ -799,19 +799,6 @@ def delete_benchmark_results(older_than_days: int = 30) -> int:
         return int(cursor.rowcount or 0)
 
 
-def delete_benchmark_results(older_than_days: int = 30) -> int:
-    """Prune benchmark history older than the requested age."""
-
-    cutoff = (datetime.now().timestamp() - int(older_than_days) * 86400) * 1000
-    with get_db() as conn:
-        cursor = conn.execute(
-            "DELETE FROM hardware_benchmarks WHERE "
-            "CAST(strftime('%s', started_at) AS INTEGER) * 1000 < ?",
-            (int(cutoff),),
-        )
-        return int(cursor.rowcount or 0)
-
-
 # =============================================================================
 # Media Library Repository (favorites, collections, tags, trash)
 # =============================================================================

@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+from fastapi import APIRouter, HTTPException, Query
+from fastapi import Path as PathParam
 from pydantic import BaseModel, Field
 
 from ..core.database import (
@@ -310,7 +310,7 @@ async def add_item_tag(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> None:
     """Assign a tag to a media item."""
-    add_tag_to_item(relative_path, tag_id)
+    add_item_tag(relative_path, tag_id)
 
 
 @router.delete(
