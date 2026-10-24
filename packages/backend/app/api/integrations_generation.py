@@ -216,7 +216,8 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
                 [{"role": "system", "content": enrich_sys}, {"role": "user", "content": request.prompt}],
                 model=config.default_model,
                 timeout=15,
-                extra={"format": response_schema, "think": False, "options": {"temperature": 0.2, "num_ctx": 4096}},
+                think=False,
+                extra={"format": response_schema, "options": {"temperature": 0.2, "num_ctx": 4096}},
             )
             if c:
                 pj = json.loads(strip_code_fences(c))

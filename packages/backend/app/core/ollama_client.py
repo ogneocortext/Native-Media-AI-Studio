@@ -47,7 +47,11 @@ async def close_shared_session() -> None:
 
 
 async def list_models(timeout: float = 10) -> list[dict] | None:
-    """GET ``/api/tags``; returns the model list or None on failure."""
+    """GET ``/api/tags``; returns the model list or None on failure.
+
+    Distinguishes connection-refused (Ollama not running) from HTTP errors so
+    callers can surface the right message to the user.
+    """
     try:
         session = await get_shared_session()
         async with session.get(
@@ -55,9 +59,21 @@ async def list_models(timeout: float = 10) -> list[dict] | None:
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
+                logger.warning(
+                    "Ollama /api/tags returned HTTP %s; is the server at %s reachable?",
+                    resp.status,
+                    ollama_url(),
+                )
                 return None
             data = await resp.json()
             return data.get("models", [])
+    except aiohttp.ClientConnectorError as e:
+        logger.warning(
+            "Ollama /api/tags connection refused: Ollama server may not be running at %s (%s)",
+            ollama_url(),
+            e,
+        )
+        return None
     except Exception as e:
         logger.debug("Ollama /api/tags failed: %s", e)
         return None
@@ -261,14 +277,28 @@ async def chat_content(
     model: str | None = None,
     timeout: float = 30,
     extra: dict[str, Any] | None = None,
+    think: bool | str | None = None,
 ) -> str | None:
-    """POST ``/api/chat`` (non-streaming); returns message content or None."""
+    """POST ``/api/chat`` (non-streaming); returns message content or None.
+
+    Args:
+        messages: Chat messages with 'role' and 'content'.
+        model: Model name; defaults to ``config.default_model``.
+        timeout: Request timeout in seconds.
+        extra: Additional payload keys merged into the request body.
+        think: Thinking mode (bool or ``"high"``/``"medium"``/``"low"``/``"max"``).
+            Passed as the top-level ``think`` key. Use ``False`` to disable
+            thinking on thinking-capable models — measured ~65x faster on
+            section-labeling tasks (39.5s -> 0.6s on gemma4:e2b-it-qat).
+    """
     payload: dict[str, Any] = {
         "model": model or config.default_model,
         "messages": messages,
         "stream": False,
-        **(extra or {}),
     }
+    if think is not None:
+        payload["think"] = think
+    payload.update(extra or {})
     try:
         session = await get_shared_session()
         async with session.post(
@@ -290,14 +320,29 @@ async def generate_content(
     model: str,
     timeout: float = 30,
     extra: dict[str, Any] | None = None,
+    think: bool | str | None = None,
 ) -> str | None:
-    """POST ``/api/generate`` (non-streaming); returns response text or None."""
+    """POST ``/api/generate`` (non-streaming); returns response text or None.
+
+    Args:
+        prompt: The input prompt.
+        model: Model name (required — no default, since generate is used for
+            specific tasks rather than the default model).
+        timeout: Request timeout in seconds.
+        extra: Additional payload keys merged into the request body.
+        think: Thinking mode (bool or ``"high"``/``"medium"``/``"low"``/``"max"``).
+            Note: /api/generate does not honor ``think`` reliably for Qwen3.5/
+            DeepSeek models — prefer ``/api/chat`` with ``think=False`` for
+            those. See docs/knowledge-library/ollama-thinking-structured-outputs.md.
+    """
     payload: dict[str, Any] = {
         "model": model,
         "prompt": prompt,
         "stream": False,
-        **(extra or {}),
     }
+    if think is not None:
+        payload["think"] = think
+    payload.update(extra or {})
     try:
         session = await get_shared_session()
         async with session.post(

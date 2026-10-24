@@ -14,7 +14,7 @@ type: concept
 # Ollama Thinking Mode & Structured Outputs
 
 > **Last Updated:** 2026-10-08
-> **Ollama Version:** 0.40.1 (server, verified via `GET /api/version`)
+> **Ollama Version:** 0.40.10 (server, verified via `GET /api/version`)
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
 
 ## 2026-10-08: 0.40.1 — Windows serving fixes, no surface change

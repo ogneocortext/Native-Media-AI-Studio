@@ -69,11 +69,13 @@ does not require a tag to appear in this table.
 
 | Tag | Description |
 |-----|-------------|
+| `#2026` | Year-suffixed, time-boxed research or analysis documents |
 | `#documentation` | Process and meta-documentation (guides, indexes, trackers) |
 | `#knowledge-library` | Part of the knowledge library itself |
 | `#tagging` | The tagging system itself |
 | `#migration` | A migration or restructuring effort |
 | `#index` | Index or hub documents |
+| `#beat-detection` | Beat detection and onset analysis in audio |
 | `#beat-tracking` | Beat tracking and tempo estimation analysis |
 | `#octave-errors` | Tempo octave error diagnosis and correction |
 | `#tempo-estimation` | Tempo estimation algorithm research |
@@ -86,8 +88,12 @@ does not require a tag to appear in this table.
 | `#dead-code` | Unused or unreachable code paths |
 | `#music-gen` | Music generation models and tooling |
 | `#ollama` | Ollama runtime or model usage |
+| `#shader-graph` | Unity Shader Graph / HLSL shader authoring |
 | `#three-js` | Three.js scene work |
+| `#timeline` | Timeline-based animation or editing |
+| `#urp` | Unity Universal Render Pipeline |
 | `#unsloth` | Unsloth fine-tuning |
+| `#vfx-graph` | Unity VFX Graph particle systems |
 | `#triton` | Triton kernels |
 | `#cuda` | CUDA toolkit or runtime |
 | `#tonemapping` | Tone mapping |

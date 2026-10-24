@@ -181,10 +181,13 @@ not a candidate.
   `gemma4:e2b-it-qat` (4.6B Q4_0); vision fallbacks
   `qwen3-vl:2b`/`minicpm-v:8b`; text `qwen3.5:9b`;
   embeddings `nomic-embed-text:v1.5`. Server upgraded
-  to **0.40.1** on 2026-10-08 (0.40.0 on 2026-10-06; verified via
-  `GET /api/version`). 0.40.1 is Windows serving fixes only (clef
-  >2 GiB reads, no NTFS symlinks) — see D36; the surface below is
-  unchanged since 0.40.0.
+  to **0.40.10** on 2026-10-23 (0.40.1 on 2026-10-08; verified via
+  `GET /api/version`). No API surface change since 0.40.0 — the
+  endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,
+  `/api/generate`, `/api/embed`) are unchanged, so the `think: false`
+  guidance and capability handling stand. Notable for this studio:
+  Flint on Windows (0.40.9), d3 decision models (0.40.9), Nemotron
+  3.5 Bolt E4B VLM (0.40.10). See CHANGELOG.md for the full 0.40.7→0.40.10 delta.
 - **First used:** 2026-09 (see
   `docs/knowledge-library/ollama-thinking-structured-outputs.md`).
 - **Strong at:** vision analysis within the 8 GB VRAM

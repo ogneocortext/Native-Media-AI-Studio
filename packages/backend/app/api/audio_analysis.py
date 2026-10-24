@@ -597,15 +597,39 @@ _SECTION_LLM_TIMEOUT = 12
 def _section_models(default_model: str) -> list[str]:
     """Models to try for section labelling, cheapest first.
 
-    The configured default leads, then small fast fallbacks. deepseek-r1:7b is
-    not in the chain any more: it is a reasoning model, which is a poor fit for
-    a fixed-schema JSON task and measured 89s cold. It was tried first
-    previously, so every request paid that cost before falling through.
+    The configured default leads, then small fast fallbacks that are actually
+    installed on this workstation (queried from ``/api/tags``). Models that
+    report only ``decision`` capability (Ollama 0.35+ decision models) are
+    excluded — they are poor fits for fixed-schema JSON tasks. deepseek-r1:7b
+    is not in the chain: it is a reasoning model, measured 89s cold, and a poor
+    fit for fixed-schema JSON.
+
+    The caller (``_generate_sections_llm``) filters further at runtime by
+    checking each model's capabilities via ``/api/show``.
     """
     ordered = [default_model, "gemma4:e2b-it-qat", "llama3.2:3b", "qwen3.5:4b"]
     # De-duplicate, preserving order - default_model may already be one of these.
     seen: set[str] = set()
     return [m for m in ordered if m and not (m in seen or seen.add(m))]
+
+
+async def _section_models_installed(default_model: str) -> list[str]:
+    """Like ``_section_models`` but filters to models actually installed.
+
+    Queries ``/api/tags`` for the installed model list and only returns
+    candidates that are present, de-duplicating and preserving the preferred
+    order. Falls back to the static list if the tag query fails.
+    """
+    from ..core import ollama_client as _oc
+    try:
+        installed = await _oc.list_models(timeout=5)
+        if installed is None:
+            return _section_models(default_model)
+        installed_names = {m.get("name", "") for m in installed if isinstance(m, dict)}
+        static = _section_models(default_model)
+        return [m for m in static if m in installed_names] or _section_models(default_model)
+    except Exception:
+        return _section_models(default_model)
 
 
 async def _generate_sections_llm(
@@ -637,9 +661,17 @@ async def _generate_sections_llm(
     user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: '+lyrics_hint[:200] if lyrics_hint else ''}"
     from ..core import ollama_client as _oc
     from ..core.text import strip_code_fences
-    for model in _section_models(app_config.default_model):
+    for model in await _section_models_installed(app_config.default_model):
         try:
-            # Some Ollama builds reject unknown keys like `think`; omit it.
+            # think=false is the single biggest win in this call. Measured on
+            # Ollama 0.35.0 with gemma4:e2b-it-qat on a GTX 1070 Ti: the
+            # identical request took 39.5s and returned content_len=0 with
+            # thinking=1738 chars, and 0.6s with think=false and content
+            # length 67. The model spends the whole budget reasoning about a
+            # task that needs no reasoning, then answers.
+            #
+            # /api/chat honors think; /api/generate does not reliably.
+            # See docs/knowledge-library/ollama-thinking-structured-outputs.md.
             content = await _oc.chat_content(
                 [{"role": "system", "content": sys}, {"role": "user", "content": user}],
                 model=model,
@@ -648,22 +680,9 @@ async def _generate_sections_llm(
                 # so a slow model must degrade to the fallback quickly rather
                 # than hold the request open.
                 timeout=_SECTION_LLM_TIMEOUT,
-                # think=false is the single biggest win in this call. Measured on
-                # Ollama 0.35.0 with gemma4:e2b-it-qat on a GTX 1070 Ti: the
-                # identical request took 39.5s and returned content_len=0 with
-                # thinking=1738 chars, and 0.6s with think=false and content
-                # length 67. The model spends the whole budget reasoning about a
-                # task that needs no reasoning, then answers.
-                #
-                # This is the documented fix in
-                # docs/knowledge-library/ollama-thinking-structured-outputs.md
-                # (/api/chat + think=false; /api/generate does not honor it
-                # reliably). The comment that used to sit here said "some builds
-                # reject unknown keys like think; omit it" - which is why it was
-                # never sent, and why this was slow.
+                think=False,
                 extra={
                     "format": "json",
-                    "think": False,
                     "options": {"temperature": 0.2, "num_ctx": 4096},
                 },
             )

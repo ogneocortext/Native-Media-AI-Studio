@@ -38,6 +38,9 @@
     "deprecated": "typical_p can no longer be set when creating models (0.34.1+); sending it logs a warning instead of failing (0.35.0+)",
     "win_0.40_6": "Prevents orphaned runners on Windows after Ollama server crash or restart",
     "gguf_0.40_6": "q2_0 tensor and file types now supported for ultra-low-bitrate GGUF models",
-    "api_0.40_7": "/api/show exposes renderer, parser, and template_source fields per model; Responses API thinking/no-thinking switches no longer fail mid-conversation"
+    "api_0.40_7": "/api/show exposes renderer, parser, and template_source fields per model; Responses API thinking/no-thinking switches no longer fail mid-conversation",
+    "notes_0.40_8": "Flint coding model (Recursive MoE, 262K context) - macOS only at 0.40.8; llama.cpp bump b11845",
+    "notes_0.40_9": "Flint now supported on Linux and Windows; d3 decision models (classify/yes-no/score); Speech/Phonon TTS (Apple Silicon); OpenAI Responses/Anthropic streaming report failures instead of silent partial output",
+    "notes_0.40_10": "Nemotron 3.5 Bolt E4B - Gemma 4-based vision-language model, 128K context, DFlash speculative decoding"
   }
 }

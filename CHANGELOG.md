@@ -70,6 +70,34 @@ confirmation.
 - Empty states now include helpful descriptions.
 - "No preferences found" now includes an "Open Settings" action.
 
+### Changed - Ollama 0.40.10 (latest stable, shipped 2026-10-23)
+
+The local server and CLI moved 0.40.7 → 0.40.10. Verified via
+`GET /api/version` on the live server. No breaking changes to the
+endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,
+`/api/generate`, `/api/embed`) — the `think: false` guidance, the
+capability aliases (`completion`→`chat`, `embedding`→`embed`), and the
+`_DECISION_ONLY_BLOCKED` handling all stand. What's new that matters
+to this Windows/ggml (GTX 1070 Ti) studio:
+
+- **0.40.8** — llama.cpp bump b11845; Flint coding model (Recursive
+  MoE, 262K context) macOS-only at this point.
+- **0.40.9** — Flint now supported on Linux **and Windows**; d3
+  decision models (classify / yes-no / score via `/v1/systemone`);
+  Speech/Phonon TTS (Apple Silicon); OpenAI Responses and Anthropic
+  Messages streaming now report generation failures instead of ending
+  silently after partial output.
+- **0.40.10** — Nemotron 3.5 Bolt E4B, a Gemma 4-based
+  vision-language model with 128K context and DFlash speculative
+  decoding (`ollama run nemotron-3.5-bolt:e4b`).
+
+No model re-pulls needed for current workloads; gemma4:e2b-it-qat
+remains the default/vision model. Docs: this entry supersedes the
+0.40.1 entry below; `config/settings.json` api_version and the
+hardware-profile `_ollama_0.40_notes` were bumped to 0.40.10;
+`docs/architecture/provider-notes.md` and the two Ollama knowledge
+library docs were updated to match.
+
 ### Changed - Ollama 0.40.1 (Windows serving fixes, no surface change)
 
 The local server and CLI moved 0.40.0 → 0.40.1 (shipped 2026-10-07;

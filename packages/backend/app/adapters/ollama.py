@@ -473,21 +473,21 @@ Generate 3-8 scenes based on the input theme or concept."""
             if "keep_alive" in params:
                 payload["keep_alive"] = params["keep_alive"]
             # Disable thinking mode for structured output tasks (visualizer, storyboard)
-            if params.get("think") is False:
-                payload["think"] = False
+            if params.get("think") is not None:
+                payload["think"] = params["think"]
 
             if system:
                 payload["system"] = system
             if options:
-                # VRAM-aware clamp for generate too
-                if "num_ctx" in options:
+                # VRAM-aware clamp for generate too — consistent with chat: 8192 max on 8GB.
+                if "num_ctx" not in options:
+                    options["num_ctx"] = 8192
+                else:
                     try:
                         requested = int(options["num_ctx"])
-                        if requested > 32768:
-                            options["num_ctx"] = 32768
-                        elif requested > 16384:
-                            logger.warning("generate num_ctx %d capped to 16384 for 8GB VRAM", requested)
-                            options["num_ctx"] = 16384
+                        if requested > 8192:
+                            logger.warning("generate num_ctx %d capped to 8192 for 8GB VRAM", requested)
+                            options["num_ctx"] = 8192
                     except Exception:
                         pass
                 payload["options"] = options
@@ -546,17 +546,14 @@ Generate 3-8 scenes based on the input theme or concept."""
         if tools and not self._supports_tools(model):
             logger.warning("Model %s is not known to support tools; sending without tool definitions", model)
             tools = None
-        # VRAM-aware num_ctx cap: don't exceed free VRAM. Caller should keep
-        # num_ctx modest; we clamp here to prevent OOM on 8GB cards (e.g. 5740MB free).
-        # Rough KV cache: ~ (num_ctx * hidden_dim * layers) — we use a safe heuristic:
-        # 9B @ 8k ctx ~ 1.5GB KV, @ 32k ~ 6GB. Clamp to 16384 if free < 6GB.
-        if "num_ctx" in options:
+        # VRAM-aware num_ctx: default to 8192 on the 8GB workstation and clamp
+        # anything larger. Callers can override with a smaller value, but we
+        # never allow a caller to request a KV cache that won't fit in VRAM.
+        if "num_ctx" not in options:
+            options["num_ctx"] = 8192
+        else:
             try:
-                import psutil  # noqa: F401 — ensure available
-                # Lightweight clamp without nvidia-smi dependency
                 requested = int(options["num_ctx"])
-                # 8GB workstation safety: cap KV cache at the configured
-                # context budget instead of allowing 16K/32K requests.
                 if requested > 8192:
                     logger.warning("num_ctx %d requested — capping to 8192 for 8GB VRAM", requested)
                     options["num_ctx"] = 8192
