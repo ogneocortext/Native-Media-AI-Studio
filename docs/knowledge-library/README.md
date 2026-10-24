@@ -32,7 +32,7 @@ knowledge-library/
 ├── .obsidian/              ← Obsidian configuration (gitignored)
 ├── index.md                ← Start here (84 docs indexed, reorganized 2026-09-29)
 ├── tagging-guide.md        ← Hierarchical tagging system (2026-09-29)
-├── migration-progress.md   ← Tag migration record (2026-09-29)
+├── knowledge-tracker.md   ← Tag migration record (2026-09-29)
 ├── README.md               ← This file
 ├── music-video-production.md
 ├── youtube-optimization.md

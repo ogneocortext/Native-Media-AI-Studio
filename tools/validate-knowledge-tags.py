@@ -7,7 +7,7 @@ Library checks (errors fail the pre-commit hook):
      documents silently violated);
   3. it declares aliases, cssclasses and a date, with no duplicate YAML keys;
   4. no mojibake (C1 controls) remains, and line endings are LF;
-  5. migration-progress.md lists every document exactly once, in the section
+  5. knowledge-tracker.md lists every document exactly once, in the section
      matching that document's primary tag, with correct (N/N) counters;
   6. index.md tag counts match the tags actually present.
 
@@ -47,7 +47,7 @@ except ImportError:  # pragma: no cover
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = os.path.join(ROOT, "docs", "knowledge-library")
-TRACKER = os.path.join(BASE, "migration-progress.md")
+TRACKER = os.path.join(BASE, "knowledge-tracker.md")
 INDEX = os.path.join(BASE, "index.md")
 
 CATEGORIES = ["production", "technical", "platform", "creative",
@@ -171,7 +171,7 @@ def check_tracker(docs):
                     bounds.append((i, idx))
                     break
     if not bounds:
-        errors.append("migration-progress.md: no category sections found")
+        errors.append("knowledge-tracker.md: no category sections found")
         return
 
     block_end = len(lines)
@@ -207,7 +207,7 @@ def check_tracker(docs):
             errors.append(f"{sname}: heading denominator {m.group(2)} but lists {count:d}")
 
     for name in docs:
-        if name not in seen and name != "migration-progress.md":
+        if name not in seen and name != "knowledge-tracker.md":
             errors.append(f"{name} exists but is not listed in the tracker")
 
 

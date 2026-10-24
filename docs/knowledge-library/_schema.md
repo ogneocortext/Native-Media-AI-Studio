@@ -62,7 +62,7 @@ type: entity
 | `source` | Structured summary of external material (paper, article, report) | ISMIR 2018 tempo estimation paper |
 | `comparison` | Side-by-side analysis of two+ entities | madmom vs librosa beat backends |
 | `synthesis` | Cross-cutting analysis across notes, concepts, sources | "audio-reactive signal stack" |
-| `tracker` | Progress / status / migration documents | migration-progress.md |
+| `tracker` | Progress / status / migration documents | knowledge-tracker.md |
 | `index` | Hub / catalog documents | index.md |
 
 The `type` field lets agents route queries: "show me all `concept` pages about audio" or "which `entity` pages describe hardware constraints?"
@@ -104,7 +104,7 @@ Untyped `[[slug]]` defaults to `:see-also`. Agents should prefer typed links whe
 | `index.md` | Master catalog, organized by primary category. Updated on every add/remove. |
 | `_schema.md` | This document — conventions and rules. |
 | `log.md` | Append-only operations log, ISO 8601 date headings. |
-| `migration-progress.md` | Tag-migration tracker (enforced by `validate-knowledge-tags.py`). |
+| `knowledge-tracker.md` | Tag-migration tracker (enforced by `validate-knowledge-tags.py`). |
 | `tagging-guide.md` | Tag taxonomy and selection rules. |
 
 ---
@@ -115,7 +115,7 @@ Untyped `[[slug]]` defaults to `:see-also`. Agents should prefer typed links whe
 2. **No dangling links** — every `[[slug]]` must resolve to an existing file.
 3. **No duplicate basenames** — wiki-links resolve by basename; two `foo.md` files make `[[foo]]` ambiguous.
 4. **Primary tag first** — the first `tags` entry must be one of the seven primary categories.
-5. **Tracker/index sync** — `migration-progress.md` and `index.md` must list every document exactly once with correct counts.
+5. **Tracker/index sync** — `knowledge-tracker.md` and `index.md` must list every document exactly once with correct counts.
 6. **No index gaps** — every `[[slug]]` in `index.md` must resolve to a real document.
 
 Run `python tools/validate-knowledge-tags.py` before committing any change to this directory.
@@ -131,7 +131,7 @@ about how a link is spelled, how long a document is, or what a table is.
 | Tool | What it does |
 |------|--------------|
 | `tools/validate-knowledge-tags.py` | The gate. Frontmatter, taxonomy, tracker/index sync, orphans, dangling links, index gaps. Exits non-zero on a problem. |
-| `tools/kb-add.py` | Scaffolds a new document: frontmatter, auto-linked related documents, registration in `index.md` / `migration-progress.md` / `log.md`, then validation. Implements §7 below. |
+| `tools/kb-add.py` | Scaffolds a new document: frontmatter, auto-linked related documents, registration in `index.md` / `knowledge-tracker.md` / `log.md`, then validation. Implements §7 below. |
 | `tools/kb-graph.py` | The link graph: `outline`, `graph` (DOT), `orphans`, `dangling`, `typed`, `untyped`, `suggest`, `apply` (with `--dry-run`), and `audit`. |
 | `tools/kb-context.py` | Exports the vault as agent context: `text`, `json`, `paths`, `summary`, `index`, with `--category` / `--type` / `--tag` / `--file` filters, `--neighborhood`, `--limit` and `--budget`. |
 | `tools/kb-tokens.py` | Token accounting and context-window sizing: how big the library is, for which model, and which models can hold it. |
@@ -191,7 +191,7 @@ The manual procedure:
 
 1. Create `kebab-case.md` with full frontmatter (tags, aliases, cssclasses, date, type).
 2. Add at least two typed wiki-links from related existing documents (avoid orphans).
-3. Add the document to `migration-progress.md` under its primary category.
+3. Add the document to `knowledge-tracker.md` under its primary category.
 4. Add the document to `index.md` under its primary category.
 5. Update tag counts in `index.md`'s Tags Index.
 6. Append an entry to `log.md` with an ISO 8601 date heading.

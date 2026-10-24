@@ -395,5 +395,5 @@ warm GPU. Run it before pushing when you touched frontend behaviour.
 - [[frontend-build-pipeline]] — the dev server and build this suite runs against
 - [[backend-debugging-guide]] — the backend the suite drives
 - [[comfyui-workflows]] — the ComfyUI surface the video specs exercise
-- [[migration-progress]] — library migration tracker
+- [[knowledge-tracker]] — library migration tracker
 - [[tagging-guide]] — how this article is tagged

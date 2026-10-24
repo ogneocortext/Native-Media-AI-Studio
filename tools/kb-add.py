@@ -7,7 +7,7 @@ Implements ``docs/knowledge-library/_schema.md`` §7 "Adding a New Document":
    cssclasses, date, type).
 2. Add at least two typed wiki-links from related existing documents
    (avoid orphans).
-3. Add the document to migration-progress.md under its primary category.
+3. Add the document to knowledge-tracker.md under its primary category.
 4. Add the document to index.md under its primary category.
 5. Update tag counts in index.md's Tags Index.
 6. Append an entry to log.md.
@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover - fallback for other invocation styles.
 
 BASE = REPO / "docs" / "knowledge-library"
 INDEX = BASE / "index.md"
-TRACKER = BASE / "migration-progress.md"
+TRACKER = BASE / "knowledge-tracker.md"
 LOG = BASE / "log.md"
 SKIP = ("index.md", "README.md", "_schema.md", "log.md")
 
@@ -336,7 +336,7 @@ def insert_in_index(name: str, category: str, title: str, display: str) -> None:
 
 
 def insert_in_tracker(name: str, category: str) -> None:
-    """Insert the document into migration-progress.md under its category."""
+    """Insert the document into knowledge-tracker.md under its category."""
     text = read_file(TRACKER)
     heading = SECTION_HEADING_BY_CATEGORY[category]
     m = _find_section(text, heading)
@@ -527,7 +527,7 @@ def main(argv: list[str] | None = None) -> int:
     insert_in_tracker(target.stem, category)
     bump_index_counts(category, cross_tags)
     append_to_log(target.name, category)
-    print("Registered in index.md, migration-progress.md, and log.md.")
+    print("Registered in index.md, knowledge-tracker.md, and log.md.")
 
     # Insert back-links from related docs into their Related sections so the
     # new doc is not an orphan (other docs link to it).

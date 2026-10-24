@@ -216,7 +216,7 @@ graph LR
   here with an ISO 8601 date heading.
 - [[tagging-guide|Tagging Guide]] — hierarchical tag taxonomy and selection
   rules for the knowledge library.
-- [[migration-progress|Tag Migration Progress]] — migration tracker and
+- [[knowledge-tracker|Tag Migration Progress]] — migration tracker and
   per-category completion status for the tagging system.
 
 ### For Creators

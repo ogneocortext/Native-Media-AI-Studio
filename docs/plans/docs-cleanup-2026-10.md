@@ -46,7 +46,7 @@ item explicitly says so (C3).
   1. `docs/README.md` map — merge the `ux-audit/` and `ux/` rows.
   2. `docs/knowledge-library/index.md:136` — the
      `[[../ux-audit/audit-report]]` link → `[[../ux/audit-report]]`.
-  3. `docs/knowledge-library/migration-progress.md` — the tracker
+  3. `docs/knowledge-library/knowledge-tracker.md` — the tracker
      lists `../ux-audit/audit-report.md` (and discusses it at line
      28); update both mentions.
 - **Verify:** `python tools/validate-knowledge-tags.py` — all checks
