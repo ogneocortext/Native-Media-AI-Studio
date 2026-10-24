@@ -1,3 +1,9 @@
+---
+tags:
+  - frontend
+  - css
+---
+
 # Modern CSS Best Practices (September 2026)
 
 > Compiled: 2026-09-10

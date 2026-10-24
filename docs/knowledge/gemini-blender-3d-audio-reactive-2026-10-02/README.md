@@ -1,3 +1,10 @@
+---
+tags:
+  - 3d
+  - audio
+  - blender
+---
+
 # Real-Time 3D Audio-Reactive Architecture — Gemini Pass (2026-10-02)
 
 Two Blender tutorials translated to real-time browser architecture.

@@ -1,3 +1,10 @@
+---
+tags:
+  - visualization
+  - audio
+  - threejs
+---
+
 # Three.js Audio-Reactive Scene Pipeline — Gemini Pass (2026-10-02)
 
 SimonDev's Three.js + Web Audio visualization translated into a

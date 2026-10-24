@@ -1,3 +1,9 @@
+---
+tags:
+  - visualization
+  - typography
+---
+
 # Kinetic Typography — Route Documentation
 
 > Compiled: 2026-09-15

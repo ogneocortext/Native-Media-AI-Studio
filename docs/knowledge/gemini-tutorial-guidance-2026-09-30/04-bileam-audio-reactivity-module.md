@@ -1,3 +1,9 @@
+---
+tags:
+  - audio
+  - reactivity
+---
+
 # Gemini Guidance — Bileam Tschepe: Audio-Reactivity Module Spec
 
 - **Source video:** "Make Anything Audio Reactive – TouchDesigner Tips, Tricks and FAQs 12" — bileam tschepe — 7,402 likes

@@ -1,3 +1,10 @@
+---
+tags:
+  - visualization
+  - audio
+  - shader
+---
+
 # Audio-Reactive Raymarching Shaders — Gemini Pass (2026-10-02)
 
 Two raymarching tutorials translated to audio-reactive GLSL for music

@@ -1,3 +1,10 @@
+---
+tags:
+  - visualization
+  - canvas2d
+  - diagnosis
+---
+
 # Canvas2D Visualizer Diagnosis — Code Audit Handoff (2026-10-02)
 
 **For the implementing agent:** the 2D visualizations look like a mess.

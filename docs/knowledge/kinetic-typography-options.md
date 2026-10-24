@@ -1,3 +1,9 @@
+---
+tags:
+  - visualization
+  - typography
+---
+
 # Kinetic Typography Options — Research Note
 
 Date: 2026-09-10

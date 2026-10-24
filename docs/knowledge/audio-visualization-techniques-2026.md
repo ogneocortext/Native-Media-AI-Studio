@@ -1,3 +1,9 @@
+---
+tags:
+  - visualization
+  - audio
+---
+
 # Audio Visualization Techniques & Best Practices (2026)
 
 > Research compiled: 2026-08-29

@@ -1,3 +1,9 @@
+---
+tags:
+  - audio
+  - stems
+---
+
 # Gemini Guidance — UVR5 Headless Stem Separation
 
 - **Source video:** "How to extract vocals from ANY song with Ultimate Vocal Remover (UVR 5)" — soundlearn — 21,342 likes

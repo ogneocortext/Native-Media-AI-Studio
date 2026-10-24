@@ -1,3 +1,10 @@
+---
+tags:
+  - visualization
+  - canvas2d
+  - animation
+---
+
 # AE Motion Craft → Canvas2D — Gemini Pass (2026-10-02)
 
 FLIMLION's After Effects Trap Nation tutorial translated to real-time

@@ -1,3 +1,9 @@
+---
+tags:
+  - visualization
+  - 3d
+---
+
 # Gemini Guidance — PPPANIK: Instanced Blob-Field for Three.js
 
 - **Source video:** "BLOB TRACK INSTANCING (AUDIOREACTIVE) - TOUCHDESIGNER TUTORIAL" — PPPANIK — 9,788 likes

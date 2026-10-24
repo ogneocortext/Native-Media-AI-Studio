@@ -1,3 +1,9 @@
+---
+tags:
+  - visualization
+  - typography
+---
+
 # Kinetic Typography Techniques & Templates (2026)
 
 > Research compiled: 2026-08-29

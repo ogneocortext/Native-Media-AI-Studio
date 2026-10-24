@@ -1,3 +1,9 @@
+---
+tags:
+  - visualization
+  - tutorial
+---
+
 # Gemini Tutorial Guidance — Native Media AI Studio (2026-09-30)
 
 Five YouTube tutorials run through Gemini 3.5 Flash Lite in Google AI Studio, prompted for **implementation guidance to steal, adapt, and improve** — not video recaps. Packaged for local review/implementation.

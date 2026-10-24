@@ -1,3 +1,10 @@
+---
+tags:
+  - visualization
+  - motion
+  - design
+---
+
 # Motion Design for Audio-Reactive Visuals — Gemini Research Handoff (2026-10-02)
 
 **For the implementing agent:** this is motion DESIGN craft, not rendering

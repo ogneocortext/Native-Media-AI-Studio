@@ -1,3 +1,9 @@
+---
+tags:
+  - audio
+  - vocals
+---
+
 # Gemini Guidance — KARRA Stock-Plugin Mixing → "Suno Vocal Enhancer" Preset
 
 - **Source video:** "How to Record & Mix Vocals in FL Studio (99% STOCK PLUGINS!)" — KARRA — 46,100 likes

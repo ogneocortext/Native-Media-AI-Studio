@@ -1,3 +1,9 @@
+---
+tags:
+  - audio
+  - mixing
+---
+
 # Gemini Guidance — In The Mix: Full-Mix Vocal Placement Upgrades
 
 - **Source video:** "How To Mix Vocals in FL Studio" — In The Mix — 46,847 likes

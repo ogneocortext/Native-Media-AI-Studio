@@ -1,3 +1,10 @@
+---
+tags:
+  - audio
+  - ux
+  - stems
+---
+
 # Stem Mixer UX — Gemini Research Handoff (2026-10-02)
 
 **For the implementing agent:** this is UX design guidance, not DSP guidance.

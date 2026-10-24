@@ -1,3 +1,9 @@
+---
+tags:
+  - production
+  - video
+---
+
 # Video Generation — Route Documentation
 
 > Compiled: 2026-09-15
