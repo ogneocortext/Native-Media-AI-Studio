@@ -11,14 +11,14 @@ export interface MediaFile {
   modified_at: string | null;
   cover_image: string | null;
   has_cover: boolean;
-  metadata: any;
+  metadata: Record<string, unknown>;
   job_id: string | null;
   size?: number; // backward-compat alias for size_bytes
   modified_time?: string; // backward-compat alias for modified_at
   duration?: number;
   loudness?: number;
   waveform?: number[];
-  analysis?: any;
+  analysis?: Record<string, unknown>;
   thumbnail?: string;
   recording?: boolean;
 }

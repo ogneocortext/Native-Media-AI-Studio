@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { fetchWithTimeout } from "../../../services/fetchWithTimeout";
-import { probeMedia } from "../../../services/api";
+import { probeMedia, type MediaProbeResponse } from "../../../services/api";
 
 export function useFileOperations() {
   const [isOperating, setIsOperating] = useState(false);
@@ -72,7 +72,9 @@ export function useFileOperations() {
     }
   };
 
-  const handleProbe = async (filename: string): Promise<any> => {
+  const handleProbe = async (
+    filename: string
+  ): Promise<MediaProbeResponse | null> => {
     setIsOperating(true);
     setOperationError(null);
     try {

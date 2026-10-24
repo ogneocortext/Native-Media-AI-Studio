@@ -14,6 +14,11 @@ import { JobProgress } from "./components/JobProgress";
 import { ModelSelector } from "./components/ModelSelector";
 import { AdvancedSettings } from "./components/AdvancedSettings";
 
+interface VideoGenerationResult {
+  job_id: string;
+  status: string;
+}
+
 /**
  * Main orchestrator for the video generation page.
  *
@@ -42,7 +47,7 @@ export function VideoGenerationPage() {
   const [duration, setDuration] = useState(10);
   const [verticalFirst, setVerticalFirst] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<VideoGenerationResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [scheduler, setScheduler] = useState("normal");
@@ -168,7 +173,7 @@ export function VideoGenerationPage() {
           <QueueStatus info={queueInfo} />
 
           <div className="space-y-2">
-            {results.map((r: any, idx: number) => (
+            {results.map((r: VideoGenerationResult, idx: number) => (
               <div
                 key={r.job_id || idx}
                 className={DS.card}
