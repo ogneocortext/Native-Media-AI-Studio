@@ -194,6 +194,32 @@ Primary (9B/7B) → CPU offload → 4B fallback → 3B fallback → mock
 - `generate_with_fallback()` in `base.py` raises on service unavailability (no silent mock)
 - `vram_manager.py` offloads Ollama during GPU-heavy jobs (ComfyUI, 3D)
 
+### 3.5 Cold-Start Reliability Rule (owner finding, 2026-10-24)
+
+Measured on this machine: the 4B class (`qwen3.5:4b`) is the most
+reliable local model in agent pipelines — not on output quality, but
+because its cold load fits inside a caller's patience. The 9B's cold
+load (6.6 GB off SATA into 8 GB VRAM) runs long enough that cloud
+models calling it through the vision scripts time out and record it
+as broken. **In an agent pipeline, reliability is end-to-end latency
+including the load, not benchmark quality.**
+
+The rule:
+
+1. **Anything a cloud agent waits on synchronously** (vision-script
+   calls, agent tool calls) defaults to the 4B class or smaller —
+   models that are resident or load in seconds.
+2. **The 9B is warm-only or batch.** Use it when it is already
+   resident, or when no caller blocks on the response (offline
+   passes, queued jobs). The §3.2 rows naming `qwen3.5:9b` as
+   primary stand for those lanes; for a synchronous external caller,
+   the listed 4B fallback becomes the primary.
+3. **If the 9B must serve a synchronous caller**, pay the load once,
+   up front: fire a throwaway pre-warm request at pipeline start
+   and pin the model with `keep_alive` on its calls, so no timed
+   request ever eats the cold load.
+
+
 ---
 
 ## 4. Integration Points in the Codebase
