@@ -1,2235 +1,288 @@
 /**
  * AudioAnalysisPage — upload, analyze, and visualize a single audio track.
  *
- * Purpose: the analysis dashboard. Lets the user upload a track (or pick one
- * from the shared media library), run analysis through a backend backend
- * (sonara / librosa / madmom / essentia / CUDA), then inspect the result:
- * tempo, beats, downbeats, energy curve, spectral curves, detected sections,
- * and visualization/kinetic-preset suggestions.
- *
- * Audio-library rule (AGENTS.md D16): this page must read the track list from
- * useAudioLibrary() only. Do NOT call listAudioFiles() from this component —
- * that function has exactly one caller (the store). Six pages used to each call
- * listAudioFiles() with their own hash-stripping regex; two regexes leaked a
- * raw sha256[:8] prefix into 12 of 58 rows, so names rendered with a visible
- * hash. Render optionLabel and never re-derive a track name with a local regex.
- *
- * Backend endpoints used (see services/api/audio.ts for the full client):
- *   POST /api/audio/upload, POST /api/audio/analyze, POST /api/audio/analyze-cuda,
- *   POST /api/audio/ensure-analysis, POST /api/audio/separate,
- *   GET  /api/audio/stems-status, GET /api/audio/video/generate-section
- *
- * CUDA note: analyzeAudioCuda() routes to the CUDA-accelerated backend. When
- * CUDA is unavailable the backend falls back to CPU (~300x slower on the same
- * file), so the UI gates the CUDA toggle behind getCudaStatus() rather than
- * assuming GPU is present.
+ * REFACTORED VERSION — simplified orchestrator that delegates UI to extracted
+ * components/hooks and drives analysis through `useAudioAnalysis`.
  */
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { AudioTransport } from "../../components/audio";
+import { useState, useEffect } from "react";
 import {
-  Upload,
-  Music,
-  Zap,
-  Play,
-  Loader2,
-  AlertCircle,
   BarChart3,
-  Database,
+  Loader2,
   RefreshCw,
-  ChevronDown,
-  ChevronRight,
-  Activity,
-  Clock,
-  TrendingUp,
-  Music2,
-  Pencil,
-  Download,
-  SkipForward,
-  ListMusic,
   Sparkles,
-  Type,
   Scissors,
+  Type,
+  Play,
+  AlertCircle,
 } from "lucide-react";
 import {
-  getApiBase,
   getCudaStatus,
-  separateAudioStems,
-  renameAudioFile,
-  generateVideoSection,
-  getStemsStatus,
+  separateAudioFile,
 } from "../../services/api";
-import { isAudioFile } from "../../utils/audioProbe";
-import { formatTime } from "../../utils/format";
 import {
   SEPARATION_FAILED_HEADLINE,
   friendlyPipelineError,
 } from "../../utils/errorCopy";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
-import { useAudioLibrary } from "../../hooks/useAudioLibrary";
-import { AudioTrimModal } from "./components/AudioTrimModal";
-import { MasteringPanel } from "./components/MasteringPanel";
+import { AudioTransport } from "../../components/audio";
 import { DS } from "../../styles/designSystem";
 import { useNavigate } from "react-router-dom";
 import { setPendingTrack } from "../../utils/pendingTrack";
+
+// Extracted components
 import {
-  ResponsiveContainer,
-  AreaChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ReferenceLine,
-  Area,
-  BarChart,
-  Bar,
-  Cell,
-} from "recharts";
+  BeatDensityChart,
+  buildBeatDensity,
+} from "./components/BeatDensityChart";
+import { EnergyChart } from "./components/EnergyChart";
+import { SectionsDisplay } from "./components/SectionsDisplay";
+import { LibraryTrackList } from "./components/LibraryTrackList";
+import { AnalysisCards } from "./components/AnalysisCards";
+import { AudioTrimModal } from "./components/AudioTrimModal";
+import { MasteringPanel } from "./components/MasteringPanel";
 
-interface BeatDensityPoint {
-  bar: number;
-  time: number;
-  count: number;
-  section: string;
-  energy: number;
-}
-
-const SECTION_HEX: Record<string, string> = {
-  intro: "#3b82f6",
-  verse: "#22c55e",
-  chorus: "#8b5cf6",
-  bridge: "#f97316",
-  outro: "#ef4444",
-  full: "#6b7280",
-  "pre-chorus": "#06b6d4",
-  drop: "#ec4899",
-  interlude: "#84cc16",
-  solo: "#f59e0b",
-};
-
-/** A bar is 4 beats (4/4 assumption — the backend does not report a meter). */
-const BEATS_PER_BAR = 4;
-
-function buildBeatDensity(
-  beats: number[],
-  sections: { type: string; start: number; end: number; energy: number }[],
-  energyCurve: number[],
-  duration: number,
-  bpm: number,
-): BeatDensityPoint[] {
-  const beatInterval = bpm > 0 ? 60 / bpm : 0;
-  if (!beats.length || !duration || beatInterval <= 0) return [];
-  // Bucket by BAR, not by beat: one beat per beat-sized bucket would make
-  // "beats per bar" a flat chart of ≈1 everywhere. 60/bpm is a beat; a bar
-  // is BEATS_PER_BAR of those.
-  const barInterval = beatInterval * BEATS_PER_BAR;
-  if (barInterval <= 0) return [];
-  const totalBars = Math.max(1, Math.floor(duration / barInterval));
-  const bars = new Map<number, number>();
-  for (const bt of beats) {
-    const b = Math.max(0, Math.min(Math.floor(bt / barInterval), totalBars - 1));
-    bars.set(b, (bars.get(b) ?? 0) + 1);
-  }
-  function getSection(t: number) {
-    const s = sections.find((s) => t >= s.start && t <= s.end);
-    return s ? s.type : "full";
-  }
-  function energyAtTime(t: number) {
-    if (!energyCurve.length) return 0;
-    const idx = Math.round((t / duration) * (energyCurve.length - 1));
-    return energyCurve[Math.max(0, Math.min(idx, energyCurve.length - 1))];
-  }
-  return Array.from(bars.entries()).map(([barIdx, count]) => ({
-    bar: barIdx,
-    time: barIdx * barInterval,
-    count,
-    section: getSection(barIdx * barInterval),
-    energy: energyAtTime(barIdx * barInterval),
-  }));
-}
-
-function getEnergyColor(energy: number): string {
-  if (energy < 0.3) return "#3b82f6";
-  if (energy < 0.6) return "#f59e0b";
-  return "#ef4444";
-}
-
-interface DisplaySection {
-  type: string;
-  start: number;
-  end: number;
-  energy: number;
-  parts: number;
-  confidence: number;
-}
-
-/**
- * Merge adjacent same-type sections (gap < 1s) into blocks.
- * Real analyses often emit chorus ×5 in a row — showing five identical rows
- * (and generating five overlapping clips) is noise. Energy is part-averaged.
- */
-function coalesceSections(
-  sections: { type: string; start: number; end: number; energy: number; confidence?: number }[],
-): DisplaySection[] {
-  const out: DisplaySection[] = [];
-  for (const s of sections) {
-    const last = out[out.length - 1];
-    if (last && last.type === s.type && s.start - last.end < 1.0) {
-      last.energy = (last.energy * last.parts + s.energy) / (last.parts + 1);
-      last.end = s.end;
-      last.parts += 1;
-      last.confidence = (last.confidence * (last.parts - 1) + (s.confidence ?? 0.7)) / last.parts;
-    } else {
-      out.push({ ...s, parts: 1, confidence: s.confidence ?? 0.7 });
-    }
-  }
-  return out;
-}
-
-const BeatDensityTooltip = ({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload: BeatDensityPoint }>;
-}) => {
-  if (active && payload && payload.length) {
-    const d = payload[0].payload as BeatDensityPoint & Record<string, unknown>;
-    return (
-      <div className={DS.cardTight}>
-        <p className="text-xs text-white font-medium capitalize">
-          {String(d.section)} · Bar {Number(d.bar) + 1}
-        </p>
-        <p className={DS.textXs}>
-          {Number(d.time).toFixed(1)}s · {Number(d.count)} beats ·{" "}
-          {Math.round(Number(d.energy) * 100)}% energy
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
-const EnergyBeatTooltip = ({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value?: number }>;
-  label?: string;
-}) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className={DS.cardTight}>
-        <p className="text-xs text-white font-medium">Energy: {payload[0]?.value?.toFixed(0)}%</p>
-        <p className={DS.textXs}>
-          Time: {formatTime(Number(label))}
-          {payload[1] ? ` · Beat at ${payload[1].value?.toFixed(1)}s` : ""}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+// Extracted utils
+import { validateAudioFile } from "./utils/fileValidation";
 
 export function AudioAnalysisPage() {
   const audio = useAudioAnalysis();
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [separating, setSeparating] = useState(false);
-  const [stemsNote, setStemsNote] = useState<string[] | null>(null);
-  // Plan 0.1 UI: raw exception text for the current separation error, shown
-  // behind a disclosure under SEPARATION_FAILED_HEADLINE — never as state.
-  const [errorDetail, setErrorDetail] = useState<string | null>(null);
-  // Shared media-library source. Read directly from the store — every selector
-  // in the app consumes the same deduplicated entries (D16), so no local copy
-  // or re-typing is needed.
-  const {
-    entries: audioFiles,
-    isLoading: libraryLoading,
-    error: libraryError,
-    refresh: loadAudioFiles,
-  } = useAudioLibrary();
-  const [dragOver, setDragOver] = useState(false);
-  // Transient: library relative_path currently being analyzed (row spinner).
-  // Persisted: last library file successfully analyzed — keeps the inline
-  // player + row highlight alive after analysis finishes.
-  const [analyzingLibraryPath, setAnalyzingLibraryPath] = useState<string | null>(null);
-  const [analyzedLibraryPath, setAnalyzedLibraryPath] = useState<string | null>(null);
-  const [showLibrary, setShowLibrary] = useState(true);
-  const [generating, setGenerating] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"name" | "size" | "date">("date");
-  const [filterText, setFilterText] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
-  const [editingFile, setEditingFile] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [selectedSections, setSelectedSections] = useState<Set<number>>(new Set());
-  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
-  const [showTrimModal, setShowTrimModal] = useState(false);
-  const [pendingGenerateSection, setPendingGenerateSection] = useState<{
-    type: string;
-    start: number;
-    end: number;
-  } | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [jobProgress, setJobProgress] = useState<{ progress: number; message: string } | null>(
-    null,
-  );
+  const [libraryTrack, setLibraryTrack] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [cudaAvailable, setCudaAvailable] = useState(false);
-  const [cudaGpuName, setCudaGpuName] = useState("");
-  const [cudaFallback, setCudaFallback] = useState(false);
-  const [useCuda, setUseCuda] = useState(true);
-  const [analysisStep, setAnalysisStep] = useState<string>("");
-  const [gpuVram, setGpuVram] = useState<{ used: number; total: number; percent: number } | null>(
-    null,
-  );
-  const [selectedBackend, setSelectedBackend] = useState<string>("sonara");
-  const [stemsStatus, setStemsStatus] = useState<
-    Record<string, { has_stems: boolean; stems: string[] }>
-  >({});
-  const [loadingStemsStatus, setLoadingStemsStatus] = useState(false);
-
-  // Keep local aliases for compatibility with the rest of this component
-  const analyzing = audio.analyzing;
-  const analysis = audio.analysis;
-  const error = audio.error;
-  // `ensure`/`setAnalysis`/`setError` are stable callbacks or setState fns, so
-  // memoized callbacks below may close over them without re-creating.
-  const { ensure: ensureAnalysisFor, setAnalysis, setError, backends, lastBackend } = audio;
+  const [showTrimModal, setShowTrimModal] = useState(false);
   const navigate = useNavigate();
 
-  // Sync local backend selector with the hook's available/default list once loaded.
   useEffect(() => {
-    if (backends?.available?.length && !backends.available.includes(selectedBackend)) {
-      setSelectedBackend(backends.default || backends.available[0]);
-    }
-  }, [backends, selectedBackend]);
-
-  // Playback of the analyzed track (upload object-URL or library stream) + section seeking
-  const uploadAudioRef = useRef<HTMLAudioElement | null>(null);
-  const libraryAudioRef = useRef<HTMLAudioElement | null>(null);
-  const analyzedFilename = analysis?.stored_path?.split(/[/\\]/).pop() ?? file?.name ?? null;
-  // Library stream only applies when no upload file is active; derives from the
-  // persisted analyzed-library path so the player survives analysis completion.
-  const activeLibraryPath = !file ? analyzedLibraryPath : null;
-  const libraryStreamUrl = activeLibraryPath
-    ? `${getApiBase()}/api/audio/file/${encodeURIComponent(activeLibraryPath)}`
-    : null;
-
-  const goToKineticTypography = useCallback(() => {
-    const filename = analyzedFilename || file?.name;
-    if (!filename) return;
-    setPendingTrack(filename);
-    navigate("/kinetic-typography");
-  }, [analyzedFilename, file?.name, navigate]);
-  const seekTo = useCallback((t: number) => {
-    const el = uploadAudioRef.current || libraryAudioRef.current;
-    if (!el) return;
-    try {
-      el.currentTime = Math.max(0, t);
-      void el.play().catch(() => {});
-    } catch {
-      /* seek unsupported */
-    }
+    getCudaStatus().then((status) => setCudaAvailable(!!status.available));
   }, []);
 
-  // Coalesced section blocks for display + generation (see coalesceSections)
-  const displaySections = useMemo(
-    () => (analysis ? coalesceSections(analysis.sections ?? []) : []),
-    [analysis],
-  );
-
-  // Stale selection carried across analyses pointed at wrong rows — reset per track
-  const analysisKey = analysis?.stored_path ?? null;
-  useEffect(() => {
-    setSelectedSections(new Set());
-  }, [analysisKey]);
-
-  // One-line insights derived from the real data
-  const insights = useMemo(() => {
-    if (!analysis || (analysis.duration_seconds ?? 0) <= 0) return null;
-    const bps = (analysis.beat_count ?? 0) / analysis.duration_seconds;
-    const peak = displaySections.reduce<DisplaySection | null>(
-      (acc, s) => (!acc || s.energy > acc.energy ? s : acc),
-      null,
-    );
-    const structure = displaySections
-      .map((s) => `${s.type}${s.parts > 1 ? ` ×${s.parts}` : ""}`)
-      .join(" → ");
-    return { bps, peak, structure };
-  }, [analysis, displaySections]);
-
-  useEffect(() => {
-    getCudaStatus()
-      .then((s) => {
-        setCudaAvailable(s.available ?? false);
-        setCudaGpuName(s.gpu_name ?? "");
-        setCudaFallback((s as unknown as Record<string, unknown>).fallback === "torch.cuda");
-        if (!s.available) setUseCuda(false);
-        fetch(`${getApiBase()}/api/health/gpu`)
-          .then((r) => r.json())
-          .then((g) => {
-            if (g.available)
-              setGpuVram({
-                used: g.memory_used_mb ?? 0,
-                total: g.memory_total_mb ?? 8192,
-                percent: g.memory_percent ?? 0,
-              });
-          })
-          .catch((e) => console.warn("GPU health check failed:", e));
-      })
-      .catch(() => {
-        setCudaAvailable(false);
-        setUseCuda(false);
-      });
-  }, []);
-
-  // Manage preview URL lifecycle
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
+  const handleFileSelect = (selectedFile: File) => {
+    const validation = validateAudioFile(selectedFile);
+    if (!validation.valid) {
+      setError(validation.error ?? "Invalid file");
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  // Close the generate dialog with Escape
-  useEffect(() => {
-    if (!showGenerateDialog) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setShowGenerateDialog(false);
-        setPendingGenerateSection(null);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showGenerateDialog]);
-
-  const validateFile = (f: File): string | null => {
-    // Shared probe util (MIME may be empty/unreliable on Windows) + explicit
-    // extension check. Video is accepted too: the backend converts it to .m4a on
-    // upload, so dropping an .mp4 adds a real track instead of failing.
-    const audioOk = /\.(mp3|wav|flac|ogg|oga|opus|m4a|aac|wma)$/i.test(f.name);
-    const videoOk = /\.(mp4|m4v|mov|webm|mkv|avi|mpeg|mpg|wmv|flv)$/i.test(f.name);
-    if (!audioOk && !videoOk && !isAudioFile(f))
-      return `Unsupported format: ${f.name.split(".").pop()}. Use audio (MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA) or video (MP4, MOV, WebM), which converts to M4A.`;
-    if (f.size > 500 * 1024 * 1024)
-      return `File too large (${(f.size / 1048576).toFixed(1)} MB). Max 500 MB.`;
-    if (f.size === 0) return `File is empty.`;
-    return null;
+    setError(null);
+    setFile(selectedFile);
+    setLibraryTrack(null);
   };
 
-  const handleFileSelect = (f: File) => {
-    const err = validateFile(f);
-    if (err) {
-      setFileError(err);
-      setFile(null);
-      return;
-    }
-    setFileError(null);
-    setFile(f);
-    audio.reset();
-    // Uploaded file supersedes any previously analyzed library track.
-    setAnalyzedLibraryPath(null);
-  };
-
-  const clearFile = () => {
+  const handleLibrarySelect = (filename: string) => {
+    setLibraryTrack(filename);
     setFile(null);
-    setPreviewUrl(null);
-    setFileError(null);
-    audio.reset();
-    setAnalyzedLibraryPath(null);
-  };
-
-  const [jobDoneNote, setJobDoneNote] = useState<string | null>(null);
-  // Tracked so the success-flash timer can be revoked if the component
-  // unmounts before the 5 s flash elapses.
-  const jobDoneNoteTimerRef = useRef<number | null>(null);
-  const clearJobDoneNoteTimer = () => {
-    if (jobDoneNoteTimerRef.current != null) {
-      window.clearTimeout(jobDoneNoteTimerRef.current);
-      jobDoneNoteTimerRef.current = null;
-    }
-  };
-  useEffect(() => clearJobDoneNoteTimer, []);
-
-  useEffect(() => {
-    if (!activeJobId) return;
-    const poll = async () => {
-      try {
-        const res = await fetch(`${getApiBase()}/api/jobs/${activeJobId}`);
-        if (res.ok) {
-          const job = await res.json();
-          setJobProgress({ progress: job.progress ?? 0, message: job.message ?? "" });
-          if (job.is_terminal) {
-            setActiveJobId(null);
-            setGenerating(null);
-            setJobProgress(null);
-            if (job.has_error) {
-              setError(job.error || "Job failed");
-            } else {
-              // Brief success flash so the user sees the batch finished.
-              clearJobDoneNoteTimer();
-              setJobDoneNote(job.message || "Generation complete");
-              jobDoneNoteTimerRef.current = window.setTimeout(() => {
-                setJobDoneNote(null);
-                jobDoneNoteTimerRef.current = null;
-              }, 5000);
-            }
-          }
-        }
-      } catch {
-        /* */
-      }
-    };
-    const iv = setInterval(poll, 2000);
-    poll();
-    return () => clearInterval(iv);
-  }, [activeJobId]);
-
-  useEffect(() => {
-    loadAudioFiles();
-  }, []);
-
-  // Key the stem-status fetch on the file *signature* (joined paths), not the
-  // count: a rename changes the paths while leaving .length unchanged, which
-  // left badges pointing at pre-rename paths until the next reload.
-  const librarySignature = useMemo(
-    () => audioFiles.map((f) => f.relative_path).join("|"),
-    [audioFiles],
-  );
-
-  // Load stem availability for the library whenever the file list refreshes.
-  useEffect(() => {
-    if (!librarySignature) {
-      setStemsStatus({});
-      return;
-    }
-    let cancelled = false;
-    setLoadingStemsStatus(true);
-    getStemsStatus()
-      .then((res) => {
-        if (!cancelled) setStemsStatus(res.tracks || {});
-      })
-      .catch(() => {
-        if (!cancelled) setStemsStatus({});
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingStemsStatus(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [librarySignature]);
-
-  const handleAnalyze = async () => {
-    if (!file) return;
-    const vErr = validateFile(file);
-    if (vErr) {
-      setFileError(vErr);
-      return;
-    }
-    setAnalysisStep(
-      useCuda && cudaAvailable
-        ? `Analyzing on GPU${cudaFallback ? " (compat mode)" : ""}...`
-        : `Analyzing tempo and beats with ${selectedBackend}...`,
-    );
-    const result = await audio.analyze(file, selectedBackend, useCuda && cudaAvailable);
-    if (result) {
-      loadAudioFiles();
-    }
-    setAnalysisStep("");
-  };
-
-  const handleSeparate = async () => {
-    if (!file) return;
-    const vErr = validateFile(file);
-    if (vErr) {
-      setFileError(vErr);
-      return;
-    }
-    setSeparating(true);
     setError(null);
-    setErrorDetail(null);
-    setStemsNote(null);
-    setAnalysisStep("Separating stems with Demucs...");
-    try {
-      const result = await separateAudioStems(file, "mdx_extra_q");
-      if (result.error) {
-        const friendly = friendlyPipelineError(result.error, SEPARATION_FAILED_HEADLINE);
-        setError(friendly.headline);
-        setErrorDetail(friendly.detail ?? null);
-      } else {
-        const names = Object.keys(result.stems);
-        setStemsNote(names);
-        setAnalysisStep(`Separated ${names.length} stems`);
-        setTimeout(() => setAnalysisStep(""), 2500);
-        loadAudioFiles();
-      }
-    } catch (err: unknown) {
-      const friendly = friendlyPipelineError(
-        err instanceof Error ? err.message : String(err),
-        SEPARATION_FAILED_HEADLINE,
-      );
-      setError(friendly.headline);
-      setErrorDetail(friendly.detail ?? null);
-      setAnalysisStep("");
-    } finally {
-      setSeparating(false);
-    }
   };
 
-  // One analysis at a time: a rapid second click on another library row must
-  // not let the slower first response overwrite the newer one's result.
-  const analyzeTokenRef = useRef(0);
-  const handleAnalyzeLibraryFile = useCallback(
-    async (storedPath: string) => {
-      if (!storedPath || editingFile) return;
-      // Normalize to relative path from output/audio/ (handles both relative
-      // and absolute paths)
-      let relativePath = storedPath;
-      const audioDirMarker = "output/audio/";
-      const audioDirMarkerWin = "output\\audio\\";
-      if (relativePath.includes(audioDirMarker)) {
-        relativePath = relativePath.split(audioDirMarker)[1];
-      } else if (relativePath.includes(audioDirMarkerWin)) {
-        relativePath = relativePath.split(audioDirMarkerWin)[1];
-      }
-      const token = ++analyzeTokenRef.current;
-      setAnalyzingLibraryPath(relativePath);
-      setAnalysisStep("Loading audio file...");
-      // A library track supersedes any uploaded file: with an upload still
-      // attached, the waveform/player would keep seeking the upload instead
-      // of the track being analyzed.
-      setFile(null);
-      setFileError(null);
-      try {
-        // Pass relative path so backend can find files in subdirectories
-        const ensured = await ensureAnalysisFor(relativePath, selectedBackend);
-        if (token !== analyzeTokenRef.current) return;
-        if (ensured && ensured.analysis) {
-          setAnalysis(ensured.analysis);
-          // Persist so the inline player + highlight survive completion
-          // (analyzingLibraryPath is cleared below — it is the spinner only).
-          setAnalyzedLibraryPath(relativePath);
-        } else {
-          // ensure() sets its own error on a failed request; a quiet null
-          // means nothing came back — say so instead of silently flashing
-          // and vanishing. Functional update so a just-set request error is
-          // not overwritten (the closure value would be stale here).
-          setError((prev) => prev ?? "No analysis available for this track");
-        }
-        setAnalysisStep("");
-      } catch (err: unknown) {
-        if (token !== analyzeTokenRef.current) return;
-        setError(err instanceof Error ? err.message : "Analysis failed");
-        setAnalysisStep("");
-      } finally {
-        if (token === analyzeTokenRef.current) setAnalyzingLibraryPath(null);
-      }
-    },
-    [editingFile, selectedBackend, ensureAnalysisFor, setAnalysis, setError],
-  );
-
-  // Media Library preselection: auto-analyze ?file=filename on mount.
-  const hasAutoAnalyzed = useRef(false);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const fileParam = params.get("file");
-    if (!fileParam || hasAutoAnalyzed.current) return;
-    if (audioFiles.length === 0) return;
-
-    hasAutoAnalyzed.current = true;
-    const match = audioFiles.find((f) => f.filename === fileParam || f.relative_path === fileParam);
-    if (match) {
-      handleAnalyzeLibraryFile(match.relative_path);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, [audioFiles, handleAnalyzeLibraryFile]);
-
-  const startEditing = (path: string, currentName: string) => {
-    setEditingFile(path);
-    setEditName(currentName);
-  };
-
-  const saveEdit = async (oldName: string) => {
-    const newName = editName.trim();
-    setEditingFile(null);
-    if (newName && newName !== oldName) {
-      try {
-        // oldName is a relative_path (~"sub/track.mp3") but the edit box holds
-        // the bare basename. The backend joins new_filename under output/audio/
-        // as-is, so without the directory prefix a subfolder file would be
-        // silently dragged to the library root.
-        const slashIdx = Math.max(oldName.lastIndexOf("/"), oldName.lastIndexOf("\\"));
-        const dir = slashIdx >= 0 ? oldName.slice(0, slashIdx + 1) : "";
-        const oldBase = oldName.slice(slashIdx + 1);
-        const ext = oldBase.includes(".") ? oldBase.slice(oldBase.lastIndexOf(".")) : "";
-        const finalName = dir + (newName.includes(".") ? newName : newName + ext);
-        await renameAudioFile(oldName, finalName);
-        await loadAudioFiles();
-      } catch (err) {
-        console.error("Rename failed:", err);
-        setError("Failed to rename file");
-      }
-    }
-  };
-
-  const handleGenerateSection = (section: string, start: number, end: number) => {
-    if (!analysis?.stored_path) {
-      setError("No analyzed audio file available.");
+  const handleAnalyze = async (useCuda: boolean = false) => {
+    if (!file && !libraryTrack) {
+      setError("Please select a file or track first");
       return;
     }
-    setPendingGenerateSection({ type: section, start, end });
-    setShowGenerateDialog(true);
-  };
 
-  const confirmGenerate = async (method: "comfyui" | "visualization") => {
-    if (!pendingGenerateSection) return;
-    const { type, start, end } = pendingGenerateSection;
-    setShowGenerateDialog(false);
-    setPendingGenerateSection(null);
-    const genKey = `${type}@${start}`;
-    setGenerating(genKey);
+    setAnalyzing(true);
     setError(null);
+
     try {
-      const result = await generateVideoSection({
-        prompt: `Music video for ${type} section`,
-        section: type,
-        duration: end - start,
-        audio_path: analysis!.stored_path ?? "",
-        audio_filename: file?.name || analysis!.stored_path?.split(/[/\\]/).pop() || "audio.mp3",
-        method,
-      });
-      if (result.success) {
-        setActiveJobId(result.job_id);
-        setJobProgress({
-          progress: 0,
-          message: `Queued ${type} via ${method === "comfyui" ? "ComfyUI" : "Visualization"}`,
-        });
-      } else setError(result.error || "Failed to generate");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate");
+      if (file) {
+        await audio.analyze(file, "sonara", useCuda);
+      } else if (libraryTrack) {
+        await audio.ensure(libraryTrack, "sonara");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
-      setGenerating(null);
+      setAnalyzing(false);
     }
   };
 
-  const handleGenerateSelected = async (method: "comfyui" | "visualization" = "comfyui") => {
-    if (!analysis?.stored_path || selectedSections.size === 0) return;
-    const sections = displaySections.filter((_, i) => selectedSections.has(i));
-    setShowGenerateDialog(false);
-    setGenerating("selected");
-    setError(null);
+  const handleSeparateStems = async () => {
+    if (!audio.summary?.filename) return;
+
     try {
-      for (const section of sections) {
-        const result = await generateVideoSection({
-          prompt: `Music video for ${section.type} section`,
-          section: section.type,
-          duration: section.end - section.start,
-          audio_path: analysis.stored_path ?? "",
-          audio_filename: file?.name || analysis.stored_path?.split(/[/\\]/).pop() || "audio.mp3",
-          method,
-        });
-        if (!result.success) {
-          setError(result.error || `Failed to generate ${section.type}`);
-          break;
-        }
-        setActiveJobId(result.job_id);
-        setJobProgress({ progress: 0, message: `Generating ${section.type}` });
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate");
-    } finally {
-      setGenerating(null);
-      setSelectedSections(new Set());
+      await separateAudioFile(audio.summary.filename);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : SEPARATION_FAILED_HEADLINE);
     }
   };
 
-  const formatFileSize = (b: number) =>
-    b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
-  const formatDate = (ms: number | undefined) =>
-    ms
-      ? new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-      : "—";
+  const handleGenerateVideo = async () => {
+    if (!audio.summary?.filename) return;
 
-  const exportAnalysis = () => {
-    if (!analysis) return;
-    const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(file?.name || analysis.stored_path?.split(/[/\\]/).pop() || "analysis").replace(/\.[^.]+$/, "")}-analysis.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setPendingTrack(audio.summary.filename);
+    navigate("/video-generation");
   };
 
-  const waveformRef = useRef<HTMLDivElement>(null);
-  const waveformMetaRef = useRef<{ duration: number; sections: DisplaySection[] }>({
-    duration: 0,
-    sections: [],
-  });
-  waveformMetaRef.current = {
-    duration: analysis?.duration_seconds ?? 0,
-    sections: displaySections,
-  };
+  const beatDensityData = audio.analysis
+    ? buildBeatDensity(audio.analysis.beat_times, audio.analysis.sections)
+    : [];
 
-  useEffect(() => {
-    const envelope = analysis?.amplitude_envelope;
-    const host = waveformRef.current;
-    if (!envelope?.length || !host) return;
-    const draw = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      const dpr = window.devicePixelRatio || 1;
-      const rect = host.getBoundingClientRect();
-      if (rect.width === 0) return;
-      canvas.width = rect.width * dpr;
-      canvas.height = 80 * dpr;
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `80px`;
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, rect.width, 80);
-      const mid = 40;
-      const step = rect.width / envelope.length;
-      const trace = (mirror: 1 | -1, alpha: number) => {
-        ctx.beginPath();
-        ctx.moveTo(0, mid);
-        for (let i = 0; i < envelope.length; i++) {
-          const amp = Math.max(0, Math.min(1, envelope[i] ?? 0));
-          ctx.lineTo(i * step, mid + mirror * amp * 36);
-        }
-        ctx.strokeStyle = "#8b5cf6";
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      };
-      trace(-1, 1);
-      trace(1, 0.35);
-      // Section structure bands along the bottom of the waveform
-      const { duration, sections } = waveformMetaRef.current;
-      if (duration > 0 && sections.length) {
-        const bandH = 5;
-        for (const s of sections) {
-          const x0 = Math.max(0, (s.start / duration) * rect.width);
-          const x1 = Math.min(rect.width, (s.end / duration) * rect.width);
-          if (x1 <= x0) continue;
-          ctx.fillStyle = SECTION_HEX[s.type] ?? SECTION_HEX.full;
-          ctx.globalAlpha = 0.85;
-          ctx.fillRect(x0, 80 - bandH, x1 - x0, bandH);
-        }
-        ctx.globalAlpha = 1;
-      }
-      host.innerHTML = "";
-      host.appendChild(canvas);
-    };
-    draw();
-    const ro = new ResizeObserver(draw);
-    ro.observe(host);
-    return () => ro.disconnect();
-  }, [analysis?.amplitude_envelope]);
+  const energyData = audio.analysis?.energy_curve?.map((v, i) => ({
+    time: i,
+    energy: v,
+  })) ?? [];
 
-  // Click-to-seek on the waveform (mirrors the section timestamp buttons)
-  const handleWaveformSeek = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const { duration } = waveformMetaRef.current;
-      if (!duration || duration <= 0) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const t = ((e.clientX - rect.left) / rect.width) * duration;
-      seekTo(Math.max(0, Math.min(t, duration)));
-    },
-    [seekTo],
-  );
-
-  // The waveform is announced as role="slider", so it needs keyboard seek.
-  // Current time is read from the live element on keypress; tracking it in
-  // state would re-render the whole page on every playback tick.
-  const handleWaveformKeyDown = useCallback(
-    (e: ReactKeyboardEvent<HTMLDivElement>) => {
-      const duration = analysis?.duration_seconds ?? 0;
-      if (!duration) return;
-      const el = uploadAudioRef.current || libraryAudioRef.current;
-      let step: number;
-      if (e.key === "ArrowLeft") step = -5;
-      else if (e.key === "ArrowRight") step = 5;
-      else if (e.key === "PageDown") step = -30;
-      else if (e.key === "PageUp") step = 30;
-      else if (e.key === "Home") {
-        e.preventDefault();
-        seekTo(0);
-        return;
-      } else if (e.key === "End") {
-        e.preventDefault();
-        seekTo(Math.max(0, duration - 0.05));
-        return;
-      } else {
-        return;
-      }
-      e.preventDefault();
-      seekTo(Math.max(0, Math.min((el ? el.currentTime : 0) + step, duration)));
-    },
-    [analysis, seekTo],
-  );
-
-  // Backend reports 0-1, but a mid-flight or malformed value must not blow the
-  // bar past its track (or underflow it) — clamp at render.
-  const jobProgressPct = Math.min(100, Math.max(0, Math.round((jobProgress?.progress ?? 0) * 100)));
+  const filename = audio.summary?.filename || audio.analysis?.stored_path || null;
+  const audioUrl = filename ? `/api/audio/file/${encodeURIComponent(filename)}` : null;
 
   return (
-    <div className={DS.pageWide}>
-      <div className={DS.pageTitle}>
-        <Music size={22} /> Audio Analysis
-      </div>
-      <p className={DS.pageSubtitle}>
-        Upload audio or select from library to detect tempo, beats, and song structure.
-      </p>
-
-      {/* GPU status banner — always visible for clarity */}
-      <div
-        className={`${DS.cardTight} ${cudaAvailable ? "border-green-500/30 bg-green-500/5" : "border-amber-500/20 bg-amber-500/5"}`}
-        role="status"
-        aria-live="polite"
-      >
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <Zap
-              size={16}
-              className={`shrink-0 ${cudaAvailable ? "text-green-400" : "text-amber-400"}`}
-            />
-            <span className={`text-sm ${cudaAvailable ? "text-green-300" : "text-amber-300"}`}>
-              {cudaAvailable
-                ? cudaFallback
-                  ? "CUDA Available (compat)"
-                  : "CUDA Available"
-                : "CPU Mode"}
-            </span>
-            <span className={DS.textXs + " truncate"}>
-              {cudaAvailable ? cudaGpuName : "GPU not detected — using CPU fallback"}
-            </span>
-            {cudaAvailable && gpuVram && (
-              <span className={DS.badge + " tabular-nums"}>
-                {(gpuVram.used / 1024).toFixed(1)}/{(gpuVram.total / 1024).toFixed(1)} GB ·{" "}
-                {gpuVram.percent.toFixed(0)}%
-              </span>
-            )}
-            {cudaAvailable && cudaFallback && (
-              <span className={DS.badgeBlue} title="NVML unavailable, using torch.cuda fallback">
-                fallback
-              </span>
-            )}
-          </div>
-          {cudaAvailable && (
-            <label
-              className="flex items-center gap-2 cursor-pointer shrink-0"
-              title={useCuda ? "GPU acceleration on" : "CPU only"}
-            >
-              <span className={DS.textXs}>{useCuda ? "GPU on" : "GPU off"}</span>
-              <input
-                type="checkbox"
-                checked={useCuda}
-                onChange={(e) => setUseCuda(e.target.checked)}
-                className="rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500"
-                aria-label="Toggle GPU acceleration"
-              />
-            </label>
-          )}
+    <div className={DS.page}>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className={DS.pageTitle}>
+            <BarChart3 size={24} className="text-accent" />
+            Audio Analysis
+          </h1>
+          <p className={DS.pageSubtitle}>
+            Upload or select a track to analyze tempo, beats, sections, and energy
+          </p>
         </div>
-        {!cudaAvailable && (
-          <p className={DS.textXs + " mt-1"}>CPU analysis is slower but works for any file.</p>
+        {audio.analysis && (
+          <button
+            onClick={() => {
+              if (audio.summary?.filename)
+                void audio.ensure(audio.summary.filename, "sonara");
+            }}
+            className="btn btn-ghost"
+            title="Refresh analysis"
+          >
+            <RefreshCw size={14} />
+          </button>
         )}
       </div>
 
-      {/* Two-column on lg: analysis flow (2fr) + library sidebar (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="min-w-0 space-y-5 lg:col-span-2">
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              const f = e.dataTransfer.files[0];
-              if (f) handleFileSelect(f);
-              setDragOver(false);
-            }}
-            onClick={() =>
-              !file &&
-              (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click()
-            }
-            className={`${DS.card} text-center transition-all duration-200 ${file ? "border-violet-500/30 bg-violet-500/5" : dragOver ? "border-violet-500 bg-violet-500/10 scale-[1.01]" : "border-dashed border-2 hover:border-gray-500 cursor-pointer hover:bg-gray-800/50"}`}
-            role="button"
-            aria-label="Upload track file"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !file)
-                (document.getElementById("audio-analysis-file-input") as HTMLInputElement)?.click();
-            }}
-          >
-            <Upload size={36} className="mx-auto mb-3 text-gray-500" />
-            {file ? (
-              <div>
-                <p className={DS.textBold}>{file.name}</p>
-                <p className={DS.textXs}>
-                  {(file.size / 1048576).toFixed(2)} MB · {file.type || "audio/*"}
-                </p>
-                {previewUrl && (
-                  <AudioTransport
-                    audioRef={uploadAudioRef}
-                    src={previewUrl}
-                    className="mt-3"
-                    ariaLabel={`Preview ${file.name}`}
-                  />
-                )}
+      {/* Upload / Library Selection */}
+      {!audio.analysis && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={DS.card}>
+            <h3 className={DS.cardTitle}>Upload File</h3>
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              className={DS.input}
+            />
+            {file && (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-sm text-muted">{file.name}</span>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearFile();
-                  }}
-                  className={DS.btnSecondarySm + " mt-3 mx-auto"}
-                  aria-label="Clear selected file"
+                  onClick={() => handleAnalyze(cudaAvailable)}
+                  disabled={analyzing}
+                  className={DS.btnPrimarySm}
                 >
-                  Clear
+                  {analyzing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={14} />
+                  )}
+                  Analyze
                 </button>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-gray-300 font-medium">
-                  Drop a track here — video converts to M4A
-                </p>
-                <p className={DS.textXs + " mt-1"}>
-                  Audio: MP3, WAV, FLAC, OGG, OPUS, M4A, AAC, WMA · Video: MP4, MOV,
-                  WebM, MKV → M4A · Max 500 MB
-                </p>
               </div>
             )}
-            <input
-              id="audio-analysis-file-input"
-              type="file"
-              accept="audio/*,video/*,.mp3,.wav,.flac,.ogg,.opus,.m4a,.aac,.wma,.mp4,.m4v,.mov,.webm,.mkv,.avi"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleFileSelect(f);
-              }}
-              className="hidden"
-            />
           </div>
-          {fileError && (
-            <div className={DS.cardError} role="alert">
-              <AlertCircle size={16} />
-              <span className="text-sm">{fileError}</span>
-            </div>
-          )}
 
-          {file && (
-            <div className="flex gap-2">
-              <select
-                value={selectedBackend}
-                onChange={(e) => setSelectedBackend(e.target.value)}
+          <div className={DS.card}>
+            <h3 className={DS.cardTitle}>From Library</h3>
+            <LibraryTrackList onSelect={handleLibrarySelect} />
+            {libraryTrack && (
+              <button
+                onClick={() => handleAnalyze(cudaAvailable)}
                 disabled={analyzing}
-                className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500 disabled:opacity-50"
-                aria-label="Audio analysis backend"
+                className={DS.btnFull}
               >
-                {(backends?.available ?? ["sonara", "librosa", "madmom"]).map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleAnalyze}
-                disabled={analyzing || separating}
-                className={`${DS.btnPrimary} flex-1`}
-                aria-busy={analyzing}
-              >
-                {analyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
-                {analyzing ? "Analyzing..." : "Analyze"}
-              </button>
-            </div>
-          )}
-          {file && !analyzing && (
-            <button
-              onClick={handleSeparate}
-              disabled={separating || analyzing}
-              className={`${DS.btnSecondary} w-full mt-2`}
-              aria-busy={separating}
-              title="Split into vocals, drums, bass and more with Demucs (slow, GPU recommended)"
-            >
-              {separating ? <Loader2 size={18} className="animate-spin" /> : <Music2 size={18} />}
-              {separating ? "Separating stems..." : "Separate Stems (optional)"}
-            </button>
-          )}
-
-          {stemsNote && !separating && (
-            <div className={DS.cardTight + " border-green-500/30 bg-green-500/5"} role="status">
-              <p className="text-sm text-green-300">
-                Separated {stemsNote.length} stems — saved to the library:
-              </p>
-              <p className={DS.textXs + " mt-1 break-words"}>{stemsNote.join(" · ")}</p>
-            </div>
-          )}
-
-          {analyzing && analysisStep && (
-            <div
-              className={DS.cardTight}
-              style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }}
-              role="status"
-              aria-live="polite"
-            >
-              <div className={DS.flexBetween}>
-                <div className={DS.flexCenter}>
-                  <Loader2 size={16} className="animate-spin text-violet-400" />
-                  <span className="text-sm text-violet-300">{analysisStep}</span>
-                </div>
-                <span className={DS.textXs}>
-                  {analyzing ? "This may take 10–30s for long tracks" : ""}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {jobProgress && !analyzing && (
-            <div
-              className={DS.cardTight}
-              style={{ background: "rgba(139,92,246,0.08)", borderColor: "rgba(139,92,246,0.2)" }}
-              role="status"
-              aria-live="polite"
-            >
-              <div className={DS.flexCenter}>
-                <Loader2 size={16} className="animate-spin text-violet-400" />
-                <span className="text-sm text-violet-300">{jobProgress.message}</span>
-              </div>
-              <div
-                className="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden"
-                aria-label={`Progress ${jobProgressPct}%`}
-              >
-                <div
-                  className="h-full bg-violet-500 rounded-full transition-all"
-                  style={{ width: `${jobProgressPct}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {jobDoneNote && !analyzing && (
-            <div className={DS.cardTight + " border-green-500/30 bg-green-500/5"} role="status">
-              <div className={DS.flexCenter}>
-                <span className="text-sm text-green-300">✓ {jobDoneNote}</span>
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className={DS.cardError} role="alert">
-              <AlertCircle size={20} />
-              <div className="flex-1">
-                <p className="text-sm font-medium">{error}</p>
-                {errorDetail && error === SEPARATION_FAILED_HEADLINE && (
-                  <details className="mt-1">
-                    <summary className="text-xs text-gray-400 cursor-pointer hover:text-white select-none">
-                      Show details
-                    </summary>
-                    <p className="mt-1 text-xs text-red-300/70 break-all whitespace-pre-wrap">
-                      {errorDetail}
-                    </p>
-                  </details>
-                )}
-                <button
-                  onClick={() => {
-                    setError(null);
-                    setErrorDetail(null);
-                  }}
-                  className="text-xs underline mt-1"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
-
-          {analysis && (
-            <div
-              className={DS.cardTight + " border-gray-700 bg-gray-800/40"}
-              role="status"
-              aria-live="polite"
-            >
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className={DS.textXs + " text-gray-400"}>Analysis backend:</span>
-                <span className="px-2 py-0.5 rounded bg-violet-500/15 text-violet-300 text-xs font-medium capitalize">
-                  {analysis.metadata?.backend ?? lastBackend ?? "unknown"}
-                </span>
-                {analysis.metadata?.computed_on && (
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium ${analysis.metadata.computed_on === "GPU" ? "bg-emerald-500/15 text-emerald-300" : "bg-gray-700 text-gray-300"}`}
-                  >
-                    {String(analysis.metadata.computed_on)}
-                  </span>
-                )}
-                {analysis.beats_truncated && (
-                  <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-xs font-medium">
-                    beats capped
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {analysis && (
-            <div className={DS.section}>
-              <div className={DS.grid4}>
-                <div
-                  className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-transparent`}
-                >
-                  <div className={DS.flexCenter}>
-                    <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center mr-3">
-                      <Music2 size={18} className="text-violet-400" />
-                    </div>
-                    <span className={DS.textBoldXl}>{(analysis.tempo_bpm ?? 0).toFixed(0)}</span>
-                  </div>
-                  <p className={DS.textXs + " mt-1.5"}>BPM</p>
-                </div>
-                <div
-                  className={`${DS.card} border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-transparent`}
-                >
-                  <div className={DS.flexCenter}>
-                    <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center mr-3">
-                      <Clock size={18} className="text-blue-400" />
-                    </div>
-                    <span className={DS.textBoldXl}>
-                      {formatTime(analysis.duration_seconds ?? 0)}
-                    </span>
-                  </div>
-                  <p className={DS.textXs + " mt-1.5"}>Duration</p>
-                </div>
-                <div
-                  className={`${DS.card} border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-transparent`}
-                >
-                  <div className={DS.flexCenter}>
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center mr-3">
-                      <Zap size={18} className="text-amber-400" />
-                    </div>
-                    <span className={DS.textBoldXl}>{analysis.beat_count ?? 0}</span>
-                  </div>
-                  <p className={DS.textXs + " mt-1.5"}>Beats</p>
-                </div>
-                <div
-                  className={`${DS.card} border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-transparent`}
-                >
-                  <div className={DS.flexCenter}>
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mr-3">
-                      <TrendingUp size={18} className="text-emerald-400" />
-                    </div>
-                    <span className={DS.textBoldXl}>
-                      {((analysis.confidence ?? 0) * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <p className={DS.textXs + " mt-1.5"}>Confidence</p>
-                </div>
-              </div>
-
-              {/* Insights + playback */}
-              {insights && (
-                <div className={`${DS.cardTight} border-l-4 border-l-violet-500 bg-violet-500/5`}>
-                  <p className="text-sm text-gray-200 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <ListMusic size={14} className="text-violet-400 shrink-0" />
-                    <span className="capitalize font-medium">{insights.structure}</span>
-                  </p>
-                  <p className={DS.textXs + " mt-1.5 tabular-nums text-gray-400"}>
-                    {insights.bps.toFixed(1)} beats/s
-                    {insights.peak && (
-                      <>
-                        {" "}
-                        · Peak{" "}
-                        <strong className="text-white capitalize">{insights.peak.type}</strong>{" "}
-                        {formatTime(insights.peak.start)}–{formatTime(insights.peak.end)} (
-                        {(insights.peak.energy * 100).toFixed(0)}%)
-                      </>
-                    )}
-                    {displaySections.some((s) => s.parts > 1) && (
-                      <>
-                        {" "}
-                        · {analysis.sections.length} raw sections merged into{" "}
-                        {displaySections.length} blocks
-                      </>
-                    )}
-                    <>
-                      {" "}
-                      · Avg confidence{" "}
-                      <strong className="text-white">
-                        {displaySections.length
-                          ? (
-                              (displaySections.reduce((a, s) => a + s.confidence, 0) /
-                                displaySections.length) *
-                              100
-                            ).toFixed(0)
-                          : 0}
-                        %
-                      </strong>
-                    </>
-                  </p>
-                </div>
-              )}
-
-              {/* Next step: Kinetic Typography */}
-              {analysis && (
-                <div
-                  className={`${DS.card} border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-transparent hover:border-violet-500/40 transition-colors cursor-pointer`}
-                  onClick={goToKineticTypography}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") goToKineticTypography();
-                  }}
-                >
-                  <div className={DS.flexBetween}>
-                    <div className={DS.flexCenter}>
-                      <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center mr-3">
-                        <Type size={18} className="text-violet-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">Kinetic Typography</p>
-                        <p className={DS.textXs + " text-gray-400"}>
-                          Create animated lyric visuals for this track
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Mastering — loudness normalization + true-peak limiter with QC report */}
-              {analysis && (
-                <MasteringPanel
-                  onMastered={(masteredPath) => {
-                    // The panel only fires with a real path. mastered_path can
-                    // be a Windows path — accept both separators. Reuse the
-                    // tracked timer so this flash never outlives the page.
-                    const name = masteredPath.split(/[/\\]/).pop() || masteredPath;
-                    clearJobDoneNoteTimer();
-                    setJobDoneNote(`Mastered: ${name}`);
-                    jobDoneNoteTimerRef.current = window.setTimeout(() => {
-                      setJobDoneNote(null);
-                      jobDoneNoteTimerRef.current = null;
-                    }, 5000);
-                  }}
-                />
-              )}
-
-              {/* Mini waveform + quick actions */}
-              <div className={DS.card}>
-                <div className={DS.flexBetween}>
-                  <h3 className={DS.sectionTitle}>Waveform</h3>
-                  <div className="flex gap-2">
-                    {analyzedFilename && (analysis?.duration_seconds ?? 0) > 0 && (
-                      <button
-                        onClick={() => setShowTrimModal(true)}
-                        className={DS.btnSecondarySm}
-                        title="Trim sections and save as a new file"
-                      >
-                        <Scissors size={14} /> Trim
-                      </button>
-                    )}
-                    <button
-                      onClick={exportAnalysis}
-                      className={DS.btnSecondarySm}
-                      title="Download analysis JSON"
-                    >
-                      <Download size={14} /> Export
-                    </button>
-                  </div>
-                </div>
-                {libraryStreamUrl && (
-                <AudioTransport
-                  audioRef={libraryAudioRef}
-                  src={libraryStreamUrl}
-                  className="mt-2"
-                  ariaLabel={`Play ${analyzedFilename}`}
-                />
-                )}
-                <div
-                  ref={waveformRef}
-                  onClick={handleWaveformSeek}
-                  onKeyDown={analysis?.duration_seconds ? handleWaveformKeyDown : undefined}
-                  tabIndex={analysis?.duration_seconds ? 0 : undefined}
-                  title={analysis?.duration_seconds ? "Click to seek · ←/→ seek ±5 s" : undefined}
-                  className={`w-full h-20 bg-gray-900/40 rounded-lg border border-gray-700 overflow-hidden mt-2 ${analysis?.duration_seconds ? "cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-violet-500/70" : ""}`}
-                  role={analysis?.duration_seconds ? "slider" : undefined}
-                  aria-label={analysis?.duration_seconds ? "Waveform — click or keyboard to seek" : undefined}
-                  aria-valuemin={0}
-                  aria-valuemax={analysis?.duration_seconds ?? 0}
-                  aria-valuetext={`0:00 to ${formatTime(analysis?.duration_seconds ?? 0)}`}
-                />
-                {libraryStreamUrl && (
-                  <p className={DS.textXs + " mt-1.5"}>
-                    Tip: click the waveform or section timestamps below to seek.
-                  </p>
-                )}
-              </div>
-
-              {/* Energy + Beats combined chart */}
-              <div className={DS.card}>
-                <h3 className={DS.sectionTitle}>
-                  <Activity size={14} />
-                  Energy &amp; Beats
-                </h3>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart margin={{ top: 8, right: 5, left: -20, bottom: 5 }}>
-                      <defs>
-                        <linearGradient id="energyGradient2" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.6} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-                      <XAxis
-                        type="number"
-                        dataKey="time"
-                        domain={[0, analysis.duration_seconds ?? 0]}
-                        tick={{ fontSize: 10, fill: "#9ca3af" }}
-                        axisLine={{ stroke: "#374151" }}
-                        tickLine={false}
-                        tickFormatter={(v) => formatTime(v)}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "#9ca3af" }}
-                        domain={[0, 100]}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v) => `${v}%`}
-                      />
-                      <Tooltip content={<EnergyBeatTooltip />} />
-                      {displaySections.map((s, i) => (
-                        <ReferenceLine
-                          key={i}
-                          x={(s.start + s.end) / 2}
-                          stroke="#4b5563"
-                          strokeDasharray="3 3"
-                          strokeWidth={1}
-                        />
-                      ))}
-                      <Area
-                        type="monotone"
-                        dataKey="energy"
-                        stroke="#8b5cf6"
-                        strokeWidth={2}
-                        fill="url(#energyGradient2)"
-                        animationDuration={600}
-                        dot={false}
-                        data={(() => {
-                          const curve = analysis.energy_curve ?? [];
-                          if (!curve.length || !(analysis.duration_seconds > 0)) return [];
-                          const maxPts = 120;
-                          const step = Math.max(1, Math.floor(curve.length / maxPts));
-                          const sampled = curve.filter((_, i) => i % step === 0);
-                          return sampled.map((e, i) => ({
-                            time: (i / sampled.length) * analysis.duration_seconds,
-                            energy: e * 100,
-                          }));
-                        })()}
-                      />
-                      {/* Sample beats to avoid clutter — show fewer lines on longer tracks */}
-                      {(analysis.beat_times ?? [])
-                        .filter((_, i) => {
-                          const len = analysis.beat_times.length;
-                          if (len <= 40) return true;
-                          const step = Math.max(1, Math.floor(len / 40));
-                          return i % step === 0;
-                        })
-                        .map((bt, i) => (
-                          <ReferenceLine
-                            key={`b${i}`}
-                            x={bt}
-                            stroke="#fbbf24"
-                            strokeWidth={1}
-                            strokeOpacity={0.25}
-                          />
-                        ))}
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* Section labels */}
-                <div
-                  className="flex rounded-lg overflow-hidden h-6 mt-1"
-                  role="img"
-                  aria-label="Song sections"
-                >
-                  {displaySections.map((s, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-center"
-                      style={{
-                        width: `${((s.end - s.start) / analysis.duration_seconds) * 100}%`,
-                        backgroundColor: SECTION_HEX[s.type] || SECTION_HEX.full,
-                      }}
-                      title={`${s.type}${s.parts > 1 ? ` (×${s.parts} merged)` : ""}: ${formatTime(s.start)}–${formatTime(s.end)} ${Math.round(s.energy * 100)}%`}
-                    >
-                      <span className="text-[10px] font-medium truncate px-1 leading-6 text-white">
-                        {s.type}
-                        {s.parts > 1 ? ` ×${s.parts}` : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {(() => {
-                    const seen = new Set<string>();
-                    return analysis.sections
-                      .filter((s) => {
-                        if (seen.has(s.type)) return false;
-                        seen.add(s.type);
-                        return true;
-                      })
-                      .map((s) => (
-                        <span key={s.type} className="flex items-center gap-1.5">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full"
-                            style={{ backgroundColor: SECTION_HEX[s.type] || SECTION_HEX.full }}
-                          />
-                          <span className="text-xs capitalize text-gray-300">{s.type}</span>
-                        </span>
-                      ));
-                  })()}
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className={DS.textXs}>0:00</span>
-                  <span className={DS.textXs}>
-                    Purple = energy · Amber = beats (sampled) · Dashed = sections
-                  </span>
-                  <span className={DS.textXs}>{formatTime(analysis.duration_seconds ?? 0)}</span>
-                </div>
-              </div>
-
-              {/* Beat Density by Section */}
-              {(analysis.beat_times ?? []).length > 0 &&
-                (() => {
-                  const raw = buildBeatDensity(
-                    analysis.beat_times ?? [],
-                    analysis.sections ?? [],
-                    analysis.energy_curve ?? [],
-                    analysis.duration_seconds ?? 0,
-                    analysis.tempo_bpm ?? 0,
-                  );
-                  const maxBars = 100;
-                  const step = Math.max(1, Math.floor(raw.length / maxBars));
-                  const density = raw.filter((_, i) => i % step === 0);
-                  return density.length > 0 ? (
-                    <div className={DS.card}>
-                      <h3 className={DS.sectionTitle}>
-                        <BarChart3 size={14} />
-                        Beat Density
-                        <span className={DS.textXs}>(beats per bar, opacity = energy)</span>
-                      </h3>
-                      <div className="h-28">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={density}
-                            margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
-                          >
-                            <XAxis
-                              dataKey="bar"
-                              tick={false}
-                              axisLine={{ stroke: "#374151" }}
-                              tickLine={false}
-                            />
-                            <YAxis
-                              tick={{ fontSize: 10, fill: "#9ca3af" }}
-                              axisLine={false}
-                              tickLine={false}
-                              width={30}
-                            />
-                            <Tooltip
-                              content={<BeatDensityTooltip />}
-                              cursor={{ fill: "rgba(139,92,246,0.1)" }}
-                            />
-                            <Bar dataKey="count" radius={[2, 2, 0, 0]} animationDuration={400}>
-                              {density.map((d, i) => (
-                                <Cell
-                                  key={i}
-                                  fill={SECTION_HEX[d.section] ?? "#6b7280"}
-                                  opacity={0.5 + d.energy * 0.5}
-                                />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex justify-between mt-1">
-                        <span className={DS.textXs + " tabular-nums"}>
-                          {formatTime(density[0]?.time ?? 0)}
-                        </span>
-                        <span className={DS.textXs}>{density.length} bars</span>
-                        <span className={DS.textXs + " tabular-nums"}>
-                          {formatTime(analysis.duration_seconds)}
-                        </span>
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-
-              {/* Detected Sections */}
-              <div className={DS.card}>
-                <div className={DS.flexBetween}>
-                  <h3 className={DS.sectionTitle}>
-                    <Activity size={16} />
-                    Detected Sections
-                    <span className={DS.textXs + " ml-2"}>
-                      ({displaySections.length}
-                      {displaySections.length !== analysis.sections.length
-                        ? ` · ${analysis.sections.length} merged`
-                        : ""}
-                      ) · check to batch-generate
-                    </span>
-                  </h3>
-                  <div className="flex gap-2">
-                    {displaySections.length > 1 && (
-                      <button
-                        onClick={() =>
-                          setSelectedSections(new Set(displaySections.map((_, i) => i)))
-                        }
-                        className={DS.btnSecondarySm}
-                      >
-                        Select all
-                      </button>
-                    )}
-                    <button
-                      onClick={exportAnalysis}
-                      className={DS.btnSecondarySm}
-                      title="Export analysis JSON"
-                    >
-                      <Download size={14} />
-                      Export
-                    </button>
-                    {selectedSections.size > 0 && (
-                      <button
-                        onClick={() => {
-                          setPendingGenerateSection(null);
-                          setShowGenerateDialog(true);
-                        }}
-                        className={DS.btnPrimarySm}
-                      >
-                        Generate Selected ({selectedSections.size})
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1.5" role="list" aria-label="Song sections">
-                  {displaySections.map((section, i) => (
-                    <div
-                      key={i}
-                      role="listitem"
-                      className={`flex items-center gap-3 py-2.5 px-3 rounded-lg border transition-colors ${selectedSections.has(i) ? "bg-violet-500/10 border-violet-500/30" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600"}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedSections.has(i)}
-                        onChange={(e) => {
-                          const n = new Set(selectedSections);
-                          if (e.target.checked) n.add(i);
-                          else n.delete(i);
-                          setSelectedSections(n);
-                        }}
-                        className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500 shrink-0"
-                        aria-label={`Select ${section.type} ${formatTime(section.start)} to ${formatTime(section.end)}`}
-                      />
-                      <span
-                        className="px-2 py-1 rounded-md text-xs font-semibold shrink-0 text-white"
-                        style={{ backgroundColor: SECTION_HEX[section.type] || SECTION_HEX.full }}
-                      >
-                        {section.type}
-                        {section.parts > 1 ? ` ×${section.parts}` : ""}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className={DS.textXs}>
-                          <button
-                            onClick={() => seekTo(section.start)}
-                            className="hover:text-violet-300 underline decoration-dotted underline-offset-2 tabular-nums font-medium"
-                            title={`Play from ${formatTime(section.start)}`}
-                          >
-                            {formatTime(section.start)} → {formatTime(section.end)}
-                          </button>
-                          <span className="ml-2 text-gray-500 tabular-nums">
-                            ({formatTime(section.end - section.start)})
-                          </span>
-                          <span className="ml-2 text-gray-500 tabular-nums">
-                            · {(section.confidence * 100).toFixed(0)}% conf
-                          </span>
-                        </div>
-                        <div
-                          className="flex items-center gap-2 mt-1"
-                          aria-label={`Energy ${Math.round(section.energy * 100)}%`}
-                        >
-                          <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{
-                                width: `${section.energy * 100}%`,
-                                backgroundColor: getEnergyColor(section.energy),
-                              }}
-                            />
-                          </div>
-                          <span className={DS.textXs + " tabular-nums text-gray-400"}>
-                            {(section.energy * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => seekTo(section.start)}
-                        className="p-2 rounded-lg text-muted hover:text-white hover:bg-white/10 shrink-0 transition-colors"
-                        title={`Preview from ${formatTime(section.start)}`}
-                        aria-label={`Preview ${section.type} from ${formatTime(section.start)}`}
-                      >
-                        <SkipForward size={14} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleGenerateSection(section.type, section.start, section.end)
-                        }
-                        disabled={
-                          generating === `${section.type}@${section.start}` ||
-                          generating === "selected" ||
-                          !analysis?.stored_path
-                        }
-                        className={`${DS.btnSecondarySm} shrink-0`}
-                        title={`Generate video for ${section.type}`}
-                        aria-label={`Generate ${section.type}`}
-                      >
-                        {generating === `${section.type}@${section.start}` ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <Play size={12} />
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <p className={DS.textXs + " mt-2"}>
-                  Timestamps seek the player · <Play size={10} className="inline" /> generates one
-                  block · check multiple then “Generate Selected”.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="lg:col-span-1 space-y-5 min-w-0">
-        <div className={DS.card} style={{ overflow: "hidden" }}>
-          <div onClick={() => setShowLibrary(!showLibrary)} className={DS.flexBetween}>
-            <span className={DS.sectionTitle}>
-              <Database size={14} />
-              Audio Library ({audioFiles.length})
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  loadAudioFiles();
-                }}
-                className={DS.btnSecondary}
-                aria-label="Refresh library"
-              >
-                <RefreshCw size={14} />
-              </button>
-              {showLibrary ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </div>
-          </div>
-          {showLibrary && (
-            <div className="mt-3">
-              <div className="flex gap-2 mb-3 max-w-md">
-                <input
-                  type="text"
-                  placeholder="Filter files..."
-                  aria-label="Filter library files"
-                  value={filterText}
-                  onChange={(e) => {
-                    setFilterText(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="flex-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
-                />
-                <select
-                  value={sortBy}
-                  aria-label="Sort library files"
-                  onChange={(e) => {
-                    setSortBy(e.target.value as "name" | "size" | "date");
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500"
-                >
-                  <option value="date">Newest</option>
-                  <option value="name">Name</option>
-                  <option value="size">Size</option>
-                </select>
-              </div>
-              {(() => {
-                const filtered = audioFiles.filter((f) => {
-                  if (!filterText) return true;
-                  const q = filterText.toLowerCase();
-                  return (
-                    f.filename.toLowerCase().includes(q) ||
-                    (f.optionLabel ?? "").toLowerCase().includes(q)
-                  );
-                });
-                const sorted = [...filtered].sort((a, b) => {
-                  if (sortBy === "name") return a.filename.localeCompare(b.filename);
-                  if (sortBy === "size") return b.size_bytes - a.size_bytes;
-                  return (b.modified ?? 0) - (a.modified ?? 0);
-                });
-                const analyzedName = analysis?.stored_path?.split(/[/\\]/).pop();
-                const paged = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-                if (libraryLoading && audioFiles.length === 0) {
-                  return (
-                    <p className={DS.textXs + " py-4 text-center"}>
-                      <Loader2 size={14} className="animate-spin inline mr-1" />
-                      Loading library…
-                    </p>
-                  );
-                }
-                if (libraryError && audioFiles.length === 0) {
-                  return (
-                    <p className={DS.cardWarning}>
-                      Library failed to load: {libraryError}.{" "}
-                      <button onClick={loadAudioFiles} className="underline">
-                        Retry
-                      </button>
-                    </p>
-                  );
-                }
-                if (filtered.length === 0 && audioFiles.length > 0)
-                  return (
-                    <p className={DS.cardWarning}>
-                      No files match “{filterText}”.{" "}
-                      <button onClick={() => setFilterText("")} className="underline">
-                        Clear filter
-                      </button>
-                    </p>
-                  );
-                return filtered.length > 0 ? (
-                  <>
-                    {filterText && (
-                      <p className={DS.textXs + " mb-2"}>
-                        {filtered.length} file{filtered.length !== 1 ? "s" : ""} matching filter
-                      </p>
-                    )}
-                    <div className="space-y-1.5" role="list" aria-label="Audio files">
-                      {paged.map((f) => {
-                        const normalizedStored = (analysis?.stored_path ?? "").replace(/\\/g, "/");
-                        // Prefer exact stored-path match (handles duplicate
-                        // filenames across subdirectories); fall back to name.
-                        const isAnalyzed =
-                          (f.relative_path && normalizedStored.endsWith(`/${f.relative_path}`)) ||
-                          analyzedName === f.filename;
-                        const isActive =
-                          (analyzingLibraryPath === f.relative_path ||
-                            analyzedLibraryPath === f.relative_path) &&
-                          !editingFile;
-                        const display = f.optionLabel || f.filename;
-                        return (
-                          <div
-                            key={f.relative_path}
-                            role="listitem"
-                            tabIndex={0}
-                            aria-label={`Analyze ${display}`}
-                            title={
-                              isAnalyzed
-                                ? `${display} — currently analyzed`
-                                : `Analyze ${display} (cached when available)`
-                            }
-                            className={`group p-2.5 rounded-lg cursor-pointer transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-violet-500/70 ${isActive ? "bg-violet-500/15 border border-violet-500/30 shadow-sm" : isAnalyzed ? "border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border border-transparent hover:bg-gray-700/50"}`}
-                            onClick={() => handleAnalyzeLibraryFile(f.relative_path)}
-                            onKeyDown={(e) => {
-                              if (
-                                (e.key === "Enter" || e.key === " ") &&
-                                editingFile !== f.relative_path
-                              ) {
-                                e.preventDefault();
-                                handleAnalyzeLibraryFile(f.relative_path);
-                              }
-                            }}
-                          >
-                            <div className={DS.flexBetween}>
-                              <div className={DS.flexCenter} style={{ minWidth: 0, flex: 1 }}>
-                                {isActive && analyzing ? (
-                                  <Loader2
-                                    size={14}
-                                    className="animate-spin text-violet-400 shrink-0"
-                                  />
-                                ) : (
-                                  <Music
-                                    size={14}
-                                    className={`shrink-0 ${isAnalyzed ? "text-emerald-400" : "text-gray-500"}`}
-                                  />
-                                )}
-                                {editingFile === f.relative_path ? (
-                                  <form
-                                    onSubmit={async (e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      await saveEdit(f.relative_path);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex-1 min-w-0"
-                                  >
-                                    <input
-                                      autoFocus
-                                      value={editName}
-                                      onChange={(e) => setEditName(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Escape") setEditingFile(null);
-                                      }}
-                                      className="ml-2 px-1.5 py-0.5 bg-gray-700 border border-violet-500 rounded text-sm text-white w-full focus:outline-none"
-                                      aria-label="New file name"
-                                    />
-                                  </form>
-                                ) : (
-                                  <>
-                                    <span
-                                      className="text-sm truncate ml-2 text-gray-200"
-                                      title={f.filename}
-                                    >
-                                      {f.folder ? (
-                                        <span className="text-gray-500 mr-1">{f.folder}/</span>
-                                      ) : null}
-                                      {display}
-                                    </span>
-                                    {editingFile !== f.relative_path && isAnalyzed && (
-                                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-medium shrink-0">
-                                        ✓ analyzed
-                                      </span>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                                <span
-                                  className={DS.textXs + " tabular-nums text-gray-500 whitespace-nowrap"}
-                                  title={`Modified ${formatDate(f.modified)}`}
-                                >
-                                  {formatDate(f.modified)}
-                                </span>
-                                <span
-                                  className={DS.textXs + " tabular-nums text-gray-500 whitespace-nowrap"}
-                                >
-                                  {formatFileSize(f.size_bytes)}
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAnalyzeLibraryFile(f.relative_path);
-                                  }}
-                                  disabled={analyzing && isActive}
-                                  className="text-[10px] px-1.5 py-1 rounded text-violet-300 hover:text-white bg-violet-500/10 hover:bg-violet-500/25 border border-violet-500/30 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title={`Analyze ${display} (cached when available)`}
-                                  aria-label={`Analyze ${display}`}
-                                >
-                                  {analyzing && isActive ? "…" : "Analyze"}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    startEditing(f.relative_path, f.filename);
-                                  }}
-                                  className="p-1.5 rounded text-muted hover:text-white hover:bg-white/10 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 focus-visible:opacity-100"
-                                  title={`Rename ${f.filename}`}
-                                  aria-label={`Rename ${f.filename}`}
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {filtered.length > pageSize && (
-                      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-700">
-                        <button
-                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                          disabled={currentPage === 1}
-                          className={DS.btnSecondarySm + " shrink-0"}
-                        >
-                          ← Prev
-                        </button>
-                        <span className={DS.textXs + " tabular-nums whitespace-nowrap"}>
-                          Page {currentPage} of {Math.ceil(filtered.length / pageSize)}
-                        </span>
-                        <button
-                          onClick={() => setCurrentPage((p) => p + 1)}
-                          disabled={currentPage >= Math.ceil(filtered.length / pageSize)}
-                          className={DS.btnSecondarySm + " shrink-0"}
-                        >
-                          Next →
-                        </button>
-                      </div>
-                    )}
-                  </>
+                {analyzing ? (
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <p className={DS.textXs}>
-                    No audio files in library.
-                    <br />
-                    Upload a file to add it.
-                  </p>
-                );
-              })()}
-            </div>
-          )}
-          <details className={DS.card} style={{ overflow: "hidden" }}>
-            <summary
-              className={
-                DS.sectionTitle + " cursor-pointer list-none flex items-center justify-between"
-              }
-            >
-              <span>Tips</span>
-              <span className={DS.textXs}>show</span>
-            </summary>
-            <ul className={DS.textSm + " mt-2 space-y-1.5"}>
-              <li>
-                • <strong>Analyze:</strong> click a library file (cached results load instantly) or
-                upload + Analyze. The green badge marks what's loaded.
-              </li>
-              <li>
-                • <strong>Uploads:</strong> drag & drop MP3/WAV/FLAC/OGG/OPUS/M4A/AAC/WMA (≤500 MB)
-                onto the upload zone.
-              </li>
-              <li>
-                • <strong>Rename:</strong> pencil icon on any row;{" "}
-                <kbd className="px-1 rounded bg-gray-700">Esc</kbd> cancels.
-              </li>
-              <li>
-                • <strong>Stems:</strong> Separate Stems is slow (Demucs) — results land back in the
-                library.
-              </li>
-              <li>
-                • <strong>Batch generate:</strong> check sections → “Generate Selected”, or play per
-                row.
-              </li>
-            </ul>
-          </details>
-
-          {/* Stems overview — which tracks have separated stems + which viz channels they feed */}
-          <div className={DS.card} style={{ overflow: "hidden" }}>
-            <div className={DS.flexBetween}>
-              <span className={DS.sectionTitle}>
-                <ListMusic size={14} />
-                Stems Overview
-              </span>
-              {loadingStemsStatus && <Loader2 size={14} className="animate-spin text-gray-400" />}
-            </div>
-            <p className={DS.textXs + " mt-1 mb-3"}>
-              Tracks with separated stems and the visualization channels they drive.
-            </p>
-            {(() => {
-              const tracksWithStems = audioFiles.filter(
-                (f) => stemsStatus[f.relative_path]?.has_stems,
-              );
-              const tracksWithoutStems = audioFiles.filter(
-                (f) => !stemsStatus[f.relative_path]?.has_stems,
-              );
-              if (audioFiles.length === 0)
-                return <p className={DS.textXs}>No audio files in library.</p>;
-              if (tracksWithStems.length === 0)
-                return (
-                  <p className={DS.textXs}>
-                    No separated stems yet. Use “Separate Stems” on any track to populate this
-                    panel.
-                  </p>
-                );
-              return (
-                <div className="space-y-2">
-                  {tracksWithStems.map((f) => {
-                    const status = stemsStatus[f.relative_path];
-                    const stemColors: Record<string, string> = {
-                      vocals: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-                      drums: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-                      bass: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-                      other: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-                    };
-                    const stemVizMap: Record<string, string> = {
-                      drums: "pulse / scale",
-                      bass: "rotation / shake",
-                      vocals: "hue / brightness",
-                      other: "palette / opacity",
-                    };
-                    return (
-                      <div
-                        key={f.relative_path}
-                        className="p-2 rounded-lg border border-gray-700 bg-gray-800/40"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-gray-200 truncate" title={f.filename}>
-                            {f.folder ? (
-                              <span className="text-gray-500 mr-1">{f.folder}/</span>
-                            ) : null}
-                            {f.optionLabel || f.filename}
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 font-medium shrink-0">
-                            {status.stems.length} stem{status.stems.length !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {status.stems.map((s) => (
-                            <span
-                              key={s}
-                              className={`text-[10px] px-1.5 py-0.5 rounded border ${stemColors[s] || "bg-gray-500/20 text-gray-300 border-gray-500/30"}`}
-                              title={`${s} → drives ${stemVizMap[s] || "visualization"} in enabled styles`}
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {tracksWithoutStems.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="text-[10px] text-gray-500 cursor-pointer hover:text-gray-300">
-                        Show {tracksWithoutStems.length} track
-                        {tracksWithoutStems.length !== 1 ? "s" : ""} without stems
-                      </summary>
-                      <div className="mt-1 space-y-1">
-                        {tracksWithoutStems.map((f) => (
-                          <div
-                            key={f.relative_path}
-                            className="flex items-center gap-2 py-1 px-2 rounded bg-gray-800/20"
-                          >
-                            <span className="text-[10px] text-gray-500 truncate">
-                              {f.folder ? (
-                                <span className="text-gray-600 mr-1">{f.folder}/</span>
-                              ) : null}
-                              {f.optionLabel || f.filename}
-                            </span>
-                            <span className="text-[10px] text-gray-600 shrink-0">no stems</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      </div>
-
-      {showGenerateDialog && (
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => {
-            setShowGenerateDialog(false);
-            setPendingGenerateSection(null);
-          }}
-          role="presentation"
-        >
-          <div
-            className={DS.card}
-            style={{ maxWidth: 520, width: "92%" }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Generate video"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold text-white mb-1">Generate Video</h3>
-            <p className="text-sm text-gray-400 mb-5">
-              {pendingGenerateSection
-                ? `Generate video for "${pendingGenerateSection.type}" section (${formatTime(pendingGenerateSection.end - pendingGenerateSection.start)})?`
-                : `Generate video for ${selectedSections.size} selected sections?`}
-            </p>
-            <p className="text-xs text-gray-500 mb-5">
-              Choose a generation method. ComfyUI uses AI image models; Visualization creates
-              audio-reactive motion graphics.
-            </p>
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <button
-                onClick={() =>
-                  pendingGenerateSection
-                    ? confirmGenerate("comfyui")
-                    : handleGenerateSelected("comfyui")
-                }
-                className={`${DS.card} hover:border-violet-500/40 text-left p-4 transition-colors group`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors">
-                    <Sparkles size={16} className="text-violet-400" />
-                  </div>
-                  <span className="text-sm font-bold text-white">ComfyUI</span>
-                </div>
-                <p className="text-xs text-gray-400">
-                  AI-generated visuals from text prompts. Best for cinematic, stylized scenes.
-                </p>
+                  <Sparkles size={16} />
+                )}
+                Analyze {libraryTrack}
               </button>
-              <button
-                onClick={() =>
-                  pendingGenerateSection
-                    ? confirmGenerate("visualization")
-                    : handleGenerateSelected("visualization")
-                }
-                className={`${DS.card} hover:border-blue-500/40 text-left p-4 transition-colors group`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
-                    <Activity size={16} className="text-blue-400" />
-                  </div>
-                  <span className="text-sm font-bold text-white">Visualization</span>
-                </div>
-                <p className="text-xs text-gray-400">
-                  Audio-reactive waveforms and particles. Best for lyric videos and abstract
-                  visuals.
-                </p>
-              </button>
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={() => {
-                  setShowGenerateDialog(false);
-                  setPendingGenerateSection(null);
-                }}
-                className={DS.btnSecondary}
-              >
-                Cancel
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
 
-      {showTrimModal &&
-        analyzedFilename &&
-        (analysis?.duration_seconds ?? 0) > 0 &&
-        (libraryStreamUrl || previewUrl) && (
-          <AudioTrimModal
-            isOpen={showTrimModal}
-            onClose={() => setShowTrimModal(false)}
-            filename={analyzedFilename}
-            audioUrl={libraryStreamUrl ?? previewUrl ?? ""}
-            duration={analysis?.duration_seconds ?? 60}
-            sections={(analysis?.sections ?? []).map((s) => ({
-              type: String(s.type),
-              start: Number(s.start),
-              end: Number(s.end),
-            }))}
-            onSaved={() => loadAudioFiles()}
-            onAnalyzeFile={(_fn, storedPath) => {
-              setShowTrimModal(false);
-              setFile(null);
-              void handleAnalyzeLibraryFile(storedPath);
-            }}
-            onSendToKinetic={(fn) => {
-              setPendingTrack(fn);
-              navigate("/kinetic-typography");
-            }}
-          />
-        )}
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-900/30 border border-red-700 text-red-300 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle size={20} />
+          <div>
+            <p className="font-semibold">Error</p>
+            <p className="text-sm">
+              {friendlyPipelineError(error, "Analysis failed").headline}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Analysis Results */}
+      {audio.analysis && (
+        <>
+          <AnalysisCards analysis={audio.analysis} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <BeatDensityChart data={beatDensityData} />
+            <EnergyChart data={energyData} />
+          </div>
+
+          <SectionsDisplay sections={audio.analysis.sections} />
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleSeparateStems}
+              className={DS.btnSecondary}
+            >
+              <Scissors size={16} />
+              Separate Stems
+            </button>
+            <button
+              onClick={() => setShowTrimModal(true)}
+              className={DS.btnSecondary}
+            >
+              <Type size={16} />
+              Trim Audio
+            </button>
+            <button
+              onClick={handleGenerateVideo}
+              className={DS.btnPrimary}
+            >
+              <Play size={16} />
+              Generate Video
+            </button>
+          </div>
+
+          {/* Audio Transport */}
+          {audioUrl && (
+            <div className={DS.card}>
+              <AudioTransport src={audioUrl} ariaLabel="Analysis playback" />
+            </div>
+          )}
+
+          {/* Mastering Panel */}
+          <MasteringPanel onMastered={() => {/* Handle mastered file */}} />
+        </>
+      )}
+
+      {/* Trim Modal */}
+      {showTrimModal && filename && audioUrl && (
+        <AudioTrimModal
+          isOpen={showTrimModal}
+          onClose={() => setShowTrimModal(false)}
+          filename={filename}
+          audioUrl={audioUrl}
+          duration={audio.analysis?.duration_seconds ?? 0}
+          sections={audio.analysis?.sections ?? []}
+          onSaved={() => {
+            setShowTrimModal(false);
+            if (audio.summary?.filename)
+              void audio.ensure(audio.summary.filename, "sonara");
+          }}
+          onAnalyzeFile={() => {}}
+          onSendToKinetic={() => {}}
+        />
+      )}
     </div>
   );
 }
