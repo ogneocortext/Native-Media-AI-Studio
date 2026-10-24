@@ -245,7 +245,9 @@ Report ONLY actionable findings:
 2. TOUCH TARGETS: Are buttons/inputs smaller than 44x44px? List each offender with its current size estimate.
 3. READABILITY: Is text below 14px or low-contrast? Give the exact text, size, and contrast issue.
 4. NAVIGATION: Is content hidden behind menus, tabs, or scroll? Identify the hidden feature and how to expose it.
-5. FIX: One concrete CSS/layout change that would have the biggest impact.`;
+5. FIX: One concrete CSS/layout change that would have the biggest impact.
+
+CONSTRAINTS: Only report what is actually visible. Do not invent elements or sizes. If unsure, estimate and mark "est.".`;
 
     case 'regression':
       return `You are a code reviewer comparing a rendered UI against its source implementation.
@@ -256,7 +258,9 @@ For each discrepancy found:
 3. FIX: Shortest revert or patch path. Reference the likely source file/component if identifiable.
 4. CONFIDENCE: high / medium / low
 
-Focus on regressions that affect user-facing functionality or visual polish in Native Media AI Studio.`;
+Focus on regressions that affect user-facing functionality or visual polish in Native Media AI Studio.
+
+CONSTRAINTS: Only report discrepancies that are visible in the rendered output. Do not speculate about source files you cannot see.`;
 
     case 'compare':
       return `You are a design lead comparing two versions of a Native Media AI Studio screen.
@@ -267,7 +271,9 @@ For every difference:
 3. IMPACT: UX improvement, regression, or neutral
 4. FIX/PROMOTE: If it is a regression, what is the shortest fix. If it is an improvement, what principle does it demonstrate?
 
-Prioritize differences that affect usability, readability, or visual hierarchy.`;
+Prioritize differences that affect usability, readability, or visual hierarchy.
+
+CONSTRAINTS: Only report differences that are visible in both images. Do not invent changes.`;
 
     case 'depth':
       return `You are a VFX depth analyst reviewing a music visualization frame for spatial quality.
@@ -306,7 +312,9 @@ Do NOT give generic descriptions. Give ONLY actionable feedback organized as:
 2. TEXT: Transcribe visible labels, buttons, headings, and status text
 3. LAYOUT: Spacing, alignment, overflow, and responsiveness issues. Reference specific CSS properties or components where possible.
 4. ERRORS: Visible errors, warnings, broken images, empty states, loading skeletons, or missing content
-5. NEXT_ACTION: The single highest-impact fix a coding agent should make first. Explain WHY it matters for this project's user experience.`;
+5. NEXT_ACTION: The single highest-impact fix a coding agent should make first. Explain WHY it matters for this project's user experience.
+
+CONSTRAINTS: Only report what is actually visible in the image. Do not invent elements, text, or errors. If a region is unclear, write "unclear". Keep each finding concrete and actionable.`;
   }
 }
 
