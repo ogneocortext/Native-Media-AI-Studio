@@ -396,6 +396,7 @@ _OPENAPI_TAGS = [
     {"name": "Docs", "description": "Application documentation operations."},
     {"name": "HyperFrames", "description": "HyperFrames composition and rendering operations."},
     {"name": "Media", "description": "Media inspection and file operations."},
+    {"name": "Media Library", "description": "Media library organization: favorites, collections, tags, trash."},
     {"name": "Music Generation", "description": "Music generation engine operations."},
     {"name": "Music Prompts", "description": "Music prompt creation and management operations."},
     {"name": "Root", "description": "Application root and compatibility endpoints."},
@@ -547,6 +548,7 @@ from .api import (  # noqa: E402
     lyrics,
     mcp_validate,
     media,
+    media_library,
     music_gen,
     music_prompts,
     native_open,
@@ -598,6 +600,7 @@ app.include_router(unity_control.router)
 app.include_router(docs.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
+app.include_router(media_library.router)
 app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
 app.include_router(notifications.router)

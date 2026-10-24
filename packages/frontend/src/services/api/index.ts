@@ -268,6 +268,45 @@ export type {
   RegenerateCoverResponse,
 } from "./media";
 
+// Media Library organization (favorites, collections, tags, trash)
+export {
+  listMediaFavorites,
+  isMediaFavorite,
+  toggleMediaFavorite,
+  listCollections,
+  createCollection,
+  getCollectionDetail,
+  updateCollection,
+  deleteCollection,
+  listCollectionItems,
+  addItemToCollection,
+  removeItemFromCollection,
+  listItemCollections,
+  listTags,
+  createTag,
+  listTagItems,
+  listItemTags,
+  addItemTag,
+  removeItemTag,
+  setItemTags,
+  moveItemToTrash,
+  listTrash,
+  restoreFromTrash,
+  purgeFromTrash,
+  emptyTrash,
+} from "./media_library";
+export type {
+  Collection,
+  CollectionDetail,
+  Tag,
+  TrashItem,
+  FavoriteToggleResponse,
+  CreateCollectionRequest,
+  CreateTagRequest,
+  SetItemTagsRequest,
+  MoveToTrashRequest,
+} from "./media_library";
+
 // Diagnostics
 export {
   getDiagnostics,
