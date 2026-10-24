@@ -25,7 +25,6 @@ export interface MediaFile {
 
 export interface FilterState {
   query: string;
-  category: string | "all";
   fileType: string | "all";
   sortBy: "name" | "size" | "date";
   sortOrder: "asc" | "desc";

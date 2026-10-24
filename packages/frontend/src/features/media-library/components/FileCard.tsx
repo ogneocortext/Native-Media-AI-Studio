@@ -7,6 +7,20 @@ import {
 import { getOutputUrl } from "../../../utils/url";
 import { Heart, Play, Image } from "lucide-react";
 
+const FILE_TYPE_COLORS: Record<string, string> = {
+  audio: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  video: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  image: "bg-green-500/20 text-green-300 border-green-500/30",
+  "3d": "bg-amber-500/20 text-amber-300 border-amber-500/30",
+};
+
+const FILE_TYPE_ICONS: Record<string, string> = {
+  audio: "🎵",
+  video: "🎬",
+  image: "🖼️",
+  "3d": "🤖",
+};
+
 export interface FileCardProps {
   file: MediaFile;
   viewMode?: "grid" | "list";
@@ -22,6 +36,7 @@ export interface FileCardProps {
   onToggleFavorite?: (file: MediaFile) => void;
   className?: string;
 }
+
 
 export function FileCard({
   file,
@@ -45,6 +60,8 @@ export function FileCard({
     file.size_bytes != null
       ? formatFileSize(file.size_bytes)
       : formatFileSize(file.size ?? 0);
+  const typeColor = FILE_TYPE_COLORS[file.file_type] || "bg-gray-500/20";
+  const typeIcon = FILE_TYPE_ICONS[file.file_type] || "📁";
 
   const handleCardClick = () => {
     if (onSelect) onSelect(file);
@@ -54,7 +71,7 @@ export function FileCard({
   return (
     <div
       className={`
-        ${className || ""} p-2 transition-colors rounded-lg cursor-pointer
+        ${className || ""} p-2 transition-colors rounded-lg cursor-pointer group
         ${selected ? "ring-2 ring-violet-500 bg-black/60" : "bg-black/40 border border-white/10 hover:bg-black/50"}
       `}
       onClick={handleCardClick}
@@ -75,7 +92,7 @@ export function FileCard({
         </div>
       )}
 
-      {/* Favorite heart (top-right, always visible) */}
+      {/* Favorite heart */}
       {onToggleFavorite && (
         <button
           onClick={(e) => {
@@ -95,7 +112,7 @@ export function FileCard({
       )}
 
       <div className="flex flex-col gap-2">
-        {/* Thumbnail / cover area with hover preview controls */}
+        {/* Thumbnail / cover area */}
         <div
           className={`aspect-square rounded overflow-hidden relative ${
             viewMode === "list" ? "w-12 h-12 flex-shrink-0" : "w-full"
@@ -107,11 +124,13 @@ export function FileCard({
                 src={coverUrl}
                 alt="Cover art"
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
               <span className="absolute bottom-1 right-1 text-xl bg-black/60 rounded">
                 ♫
               </span>
-              {/* Hover: play button overlay */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -124,60 +143,37 @@ export function FileCard({
               </button>
             </div>
           ) : (
-            <div className="w-full h-full bg-gray-800/60 flex items-center justify-center border border-gray-700/50 group">
-              {isAudio ? (
+            <div className={`w-full h-full bg-gray-800/60 flex items-center justify-center border border-gray-700/50 group ${typeColor}`}>
+              {coverUrl && !isAudio ? (
+                <img
+                  src={coverUrl}
+                  alt={file.filename}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    // Fall through to placeholder handled by CSS
+                  }}
+                />
+              ) : null}
+              {!coverUrl || (file.file_type !== "audio" && !coverUrl) ? (
                 <>
-                  <span className="text-2xl">🎵</span>
+                  <span className="text-2xl">{typeIcon}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onClick?.(file);
                     }}
                     className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Play"
+                    aria-label={isVideo ? "Play video" : "Open"}
                   >
-                    <Play size={28} className="text-white ml-1" />
+                    {isVideo || file.file_type === "image" ? (
+                      <Play size={28} className="text-white ml-1" />
+                    ) : (
+                      <Image size={24} className="text-white" />
+                    )}
                   </button>
                 </>
-              ) : isVideo ? (
-                <>
-                  <span className="text-2xl">🎬</span>
-                  {/* Hover: frame scrub hint (video) */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClick?.(file);
-                    }}
-                    className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Play video"
-                  >
-                    <Play size={28} className="text-white ml-1" />
-                  </button>
-                </>
-              ) : file.file_type === "image" ? (
-                <>
-                  <img
-                    src={getOutputUrl(file.relative_path)}
-                    alt={file.filename}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClick?.(file);
-                    }}
-                    className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-60 transition-opacity"
-                    aria-label="Open image"
-                  >
-                    <Image size={24} className="text-white" />
-                  </button>
-                </>
-              ) : (
-                <span className="text-lg">{getFileIcon(file.file_type)}</span>
-              )}
+              ) : null}
             </div>
           )}
         </div>
@@ -190,7 +186,10 @@ export function FileCard({
             {file.filename}
           </div>
           <div className="text-xs text-muted truncate">
-            {file.file_type} · {sizeLabel}
+            <span className={`inline-flex items-center gap-1 px-1.5 py-0 rounded ${typeColor}`}>
+              {typeIcon} {file.file_type}
+            </span>{" · "}
+            {sizeLabel}
           </div>
           <div className="text-xs text-muted">
             {formatDateTime(file.modified_at || file.modified_time || "")}
@@ -287,26 +286,4 @@ function hexToTailwind(hex: string): string {
     "#a855f7": "purple-600",
   };
   return map[hex] || "gray-600";
-}
-
-function getFileIcon(fileType: string): string {
-  const ext = fileType.split(".").pop()?.toLowerCase() || "";
-  const iconMap: Record<string, string> = {
-    mp3: "🎵",
-    wav: "🎵",
-    flac: "🎵",
-    ogg: "🎵",
-    m4a: "🎵",
-    mp4: "🎬",
-    webm: "🎬",
-    jpg: "🖼️",
-    jpeg: "🖼️",
-    png: "🖼️",
-    glb: "🤖",
-    obj: "🤖",
-    pdf: "📄",
-    txt: "📝",
-    json: "📋",
-  };
-  return iconMap[ext] || (fileType.includes("audio") ? "🎵" : "📁");
 }

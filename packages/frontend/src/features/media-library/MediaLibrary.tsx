@@ -70,13 +70,11 @@ export function MediaLibrary() {
 
   const [filter, setFilter] = useState<{
     query: string;
-    category: string | "all";
     fileType: string | "all";
     sortBy: "name" | "size" | "date";
     sortOrder: "asc" | "desc";
   }>({
     query: "",
-    category: "all",
     fileType: "all",
     sortBy: "name",
     sortOrder: "asc",
@@ -247,7 +245,6 @@ export function MediaLibrary() {
     setCurrentPage(1);
   }, [
     filter.query,
-    filter.category,
     filter.fileType,
     filter.sortBy,
     filter.sortOrder,
@@ -344,7 +341,8 @@ export function MediaLibrary() {
 
       {/* Header: view toggle + duplicates + refresh (library/favorites only) */}
       {view === "library" || view === "favorites" ? (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          {/* Left: view toggles */}
           <div className="flex gap-1">
             <button
               onClick={() => setViewMode("grid")}
@@ -368,6 +366,7 @@ export function MediaLibrary() {
             </button>
           </div>
 
+          {/* Center: bulk bar or actions */}
           {selectedPaths.size > 0 ? (
             <BulkBar
               selectedCount={selectedPaths.size}
@@ -404,6 +403,7 @@ export function MediaLibrary() {
             </>
           )}
 
+          {/* Right: refresh */}
           <button
             onClick={() => {
               void refetchFiles();

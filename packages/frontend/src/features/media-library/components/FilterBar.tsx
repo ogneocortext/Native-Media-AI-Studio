@@ -4,11 +4,20 @@ import { DS } from "../../../styles/designSystem";
 
 export interface FilterState {
   query: string;
-  category: string | "all";
   fileType: string | "all";
   sortBy: "name" | "size" | "date";
   sortOrder: "asc" | "desc";
 }
+
+const FILE_TYPE_OPTIONS: Array<{ value: string; label: string; icon?: string }> = [
+  { value: "all", label: "All Files" },
+  { value: "audio", label: "Audio", icon: "🎵" },
+  { value: "video", label: "Video", icon: "🎬" },
+  { value: "image", label: "Image", icon: "🖼️" },
+  { value: "3d", label: "3D Models", icon: "🤖" },
+  { value: "document", label: "Documents", icon: "📄" },
+  { value: "other", label: "Other", icon: "📁" },
+];
 
 interface FilterBarProps {
   filter: FilterState;
@@ -20,21 +29,18 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
     onChange({ ...filter, query: e.target.value });
   };
 
-  const handleCategoryChange = (category: string) => {
-    onChange({ ...filter, category });
-  };
-
   const handleFileTypeChange = (fileType: string) => {
     onChange({ ...filter, fileType });
   };
 
   return (
     <div className={`${DS.card} p-4 space-y-3`}>
+      {/* Search */}
       <div className="flex items-center gap-2">
         <Search size={16} className="text-muted" />
         <input
           type="text"
-          placeholder="Search files..."
+          placeholder="Search files…"
           value={filter.query}
           onChange={handleQueryChange}
           className={`${DS.input} flex-1`}
@@ -49,53 +55,26 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-muted">Category:</span>
-        {[
-          { value: "all", label: "All Files" },
-          { value: "image", label: "Images" },
-          { value: "video", label: "Videos" },
-          { value: "audio", label: "Audio" },
-          { value: "model", label: "Models" },
-          { value: "document", label: "Documents" },
-          { value: "other", label: "Other" },
-        ].map((cat) => (
-          <button
-            key={cat.value}
-            onClick={() => handleCategoryChange(cat.value)}
-            className={`px-2 py-1 rounded text-xs ${
-              filter.category === cat.value
-                ? "bg-primary/20 text-primary border border-primary/30"
-                : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 items-center">
+      {/* File type filter — single combined filter (Category + Type merged) */}
+      <div className="flex items-center gap-2">
         <span className="text-xs text-muted">Type:</span>
-        {[
-          { value: "all", label: "All" },
-          { value: "audio", label: "Audio" },
-          { value: "video", label: "Video" },
-          { value: "image", label: "Image" },
-        ].map((type) => (
+        {FILE_TYPE_OPTIONS.map((opt) => (
           <button
-            key={type.value}
-            onClick={() => handleFileTypeChange(type.value)}
+            key={opt.value}
+            onClick={() => handleFileTypeChange(opt.value)}
             className={`px-2 py-1 rounded text-xs ${
-              filter.fileType === type.value
+              filter.fileType === opt.value
                 ? "bg-primary/20 text-primary border border-primary/30"
                 : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
             }`}
+            title={opt.label}
           >
-            {type.label}
+            {opt.icon} {opt.label}
           </button>
         ))}
       </div>
 
+      {/* Sort */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted">Sort:</span>
@@ -110,8 +89,8 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
             className={DS.selectSm}
           >
             <option value="name">Name</option>
-            <option value="size">Size</option>
-            <option value="date">Date</option>
+            <option value="date">Date Added</option>
+            <option value="size">File Size</option>
           </select>
           <button
             onClick={() =>
@@ -126,7 +105,9 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
           </button>
         </div>
         <span className="text-xs text-muted">
-          {filter.query ? `Results for "${filter.query}"` : "Total files"}
+          {filter.query
+            ? `Results for "${filter.query}"`
+            : `Total files`}
         </span>
       </div>
     </div>

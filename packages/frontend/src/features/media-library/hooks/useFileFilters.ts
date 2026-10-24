@@ -15,25 +15,7 @@ export function useFileFilters(files: MediaFile[], filter: FilterState) {
       );
     }
 
-    // Filter by category
-    if (filter.category !== "all") {
-      const categoryMap: Record<string, string> = {
-        audio: "audio",
-        video: "video",
-        image: "image",
-        model: "model",
-        doc: "document",
-        other: "other",
-      };
-      filtered = filtered.filter((f) => {
-        const ext = f.file_type.split(".").pop()?.toLowerCase() || "";
-        const cat = f.file_type.split("/").pop()?.toLowerCase() || "";
-        const type = categoryMap[cat] || ext;
-        return type === filter.category;
-      });
-    }
-
-    // Filter by file type
+    // Filter by file type (single combined filter)
     if (filter.fileType !== "all") {
       filtered = filtered.filter((f) => f.file_type === filter.fileType);
     }
