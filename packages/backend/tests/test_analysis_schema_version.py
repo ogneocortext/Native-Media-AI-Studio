@@ -99,6 +99,40 @@ def test_cache_delete_removes_only_the_named_entry():
     audio._cache_delete("never-cached.mp3", "")
 
 
+
+
+def test_cache_delete_by_content_id_evicts_every_backend():
+    """Cleanup eviction: entries live under the full stored filename.
+
+    Regression for the cleanup path popping a key that never exists: it
+    evicted by the bare content id while _cache_set keys on the stored
+    filename (``{content_id}_{original}``) once per backend, so a deleted
+    analysis stayed servable until it aged out of the cache.
+    """
+    audio = _stale_mod()
+    audio._cache_set("abc12345_track.mp3", {"schema_version": 2}, "")
+    audio._cache_set("abc12345_track.mp3", {"schema_version": 2}, "sonara")
+    audio._cache_set("zzz99999_other.mp3", {"schema_version": 2}, "sonara")
+    audio._cache_delete_by_content_id("abc12345")
+    assert audio._cache_get("abc12345_track.mp3", "") is None
+    assert audio._cache_get("abc12345_track.mp3", "sonara") is None
+    assert audio._cache_get("zzz99999_other.mp3", "sonara") is not None
+
+
+def test_cleanup_derives_content_id_before_the_orphan_branch():
+    """cleanup_audio_files must bind unique_id on every path.
+
+    With remove_orphans off, the id used to be assigned only inside the
+    orphan branch, so an age-based removal hit the eviction call with
+    the name unbound. Checked against the source: the endpoint needs
+    live output dirs, and the failure mode is structural.
+    """
+    import inspect
+
+    audio = _stale_mod()
+    src = inspect.getsource(audio.cleanup_audio_files)
+    assert src.index("unique_id = analysis_file.stem") < src.index("if opts.remove_orphans")
+    assert "_cache_delete_by_content_id(unique_id)" in src
 def test_built_result_carries_the_stamp():
     """The stamp is set in _build_analysis_result, so every producer is covered.
 

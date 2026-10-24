@@ -216,6 +216,24 @@ def _cache_delete(filename: str, backend: str = "") -> None:
     _analysis_cache.pop(f"{filename}:{backend}", None)
 
 
+def _cache_delete_by_content_id(content_id: str) -> None:
+    """Remove every cached entry for the file stored under `content_id`.
+
+    Stored filenames are ``{content_id}_{original name}`` and cache keys are
+    ``{stored filename}:{backend}``, so no single ``_cache_delete`` call can
+    evict a file's entries — the cleanup path tried exactly that with the
+    bare content id and popped a key that never exists, leaving deleted
+    analyses servable until they aged out of the cache. Match the
+    stored-name prefix across all backends instead; this also covers
+    orphans, whose audio file (and exact stored name) is already gone.
+    """
+    prefix = f"{content_id}_"
+    for key in list(_analysis_cache):
+        filename = key.split(":", 1)[0]
+        if filename == content_id or filename.startswith(prefix):
+            _analysis_cache.pop(key, None)
+
+
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
@@ -1334,9 +1352,9 @@ async def cleanup_audio_files(body: CleanupRequest | None = None) -> dict:
         try:
             should_remove = False
             reason = ""
+            unique_id = analysis_file.stem.removesuffix("_analysis")
 
             if opts.remove_orphans:
-                unique_id = analysis_file.stem.removesuffix("_analysis")
                 matching_audio = _find_by_content_id(AUDIO_DIR, unique_id)
                 if matching_audio is None:
                     should_remove = True
@@ -1350,7 +1368,7 @@ async def cleanup_audio_files(body: CleanupRequest | None = None) -> dict:
                 analysis_file.unlink()
                 removed.append({"filename": analysis_file.name, "reason": reason})
                 # Evict from the in-memory cache so stale entries stop being served
-                _cache_delete(unique_id, "")
+                _cache_delete_by_content_id(unique_id)
         except Exception as e:
             errors.append({"filename": analysis_file.name, "error": str(e)})
 
