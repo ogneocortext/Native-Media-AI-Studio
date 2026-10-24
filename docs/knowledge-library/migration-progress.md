@@ -22,7 +22,7 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 89 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Documents in library:** 90 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
 **Migrated:** 88 (100%)
 **Remaining:** 0
 
@@ -123,7 +123,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (13/13 completed) ✅
+### 🤖 AI & ML (14/14 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `vision-model-reliability-2026.md`  → `#ai`, `#hardware-8gb`
@@ -131,6 +131,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-options-2026.md`  → `#ai`, `#hardware-pascal`, `#hardware-8gb`, `#platform-comfyui`
 - ✅ `ollama-prompting-2026.md`  → `#ai`
 - ✅ `ollama-thinking-structured-outputs.md`  → `#ai`
+- ✅ `ollama-structured-output-pattern.md`  → `#ai`
 - ✅ `minicpm-v-best-practices.md`  → `#ai`, `#hardware-8gb`
 - ✅ `gemma4-comfyui-mcp-2026.md`  → `#ai`, `#hardware-8gb`, `#platform-comfyui`
 - ✅ `small-llm-landscape-2026.md`  → `#ai`, `#hardware-8gb`
