@@ -21,9 +21,6 @@
 export const QWEN35_UI_PROMPT = `You are a senior UX/UI design auditor for Native Media AI Studio.
 
 SCREEN: Media Library UI screenshot of Native Media AI Studio (\`output/\` file browser).
-VIEWPORT: {{viewport}}
-LABEL: {{label}}
-CONTEXT: {{context}}
 
 TASK: Produce a UX audit with concrete, actionable findings. Think step by step:
 observe the whole screen first, then drill into each region, then conclude with
@@ -77,8 +74,6 @@ export const QWEN35_MODE_PROMPTS = {
   responsive: `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
 
 TARGET: Responsive layout audit.
-SCREEN: {{label}}
-CONTEXT: {{context}}
 
 Think step by step:
 1. Viewport fit: is content clipped, overflowing, or crammed? Name offending element + CSS fix.
@@ -91,11 +86,6 @@ Report ONLY visible elements. Estimate and mark "est." if unsure.
 `,
   regression: `You are a code reviewer comparing a rendered UI against its source implementation.
 
-SCREEN: {{label}}
-CONTEXT: {{context}}
-SOURCE CODE UNDER REVIEW:
-{{source_code}}
-
 For each discrepancy:
 1. WHAT CHANGED: element, style, or layout shift from source
 2. SEVERITY: critical (breaks function), minor (visual polish), cosmetic
@@ -107,8 +97,6 @@ Report only visible discrepancies. Do not speculate about unseen source files.
   compare: `You are a design lead comparing two Native Media AI Studio screenshots.
 
 IMAGE 1: BEFORE. IMAGE 2: AFTER.
-SCREEN: {{label}}
-CONTEXT: {{context}}
 
 For every difference:
 1. LOCATION: where on screen
@@ -128,13 +116,8 @@ Return structured text: AXES | TREND | PEAKS | VALLEYS | ESTIMATED.
 `,
 };
 
-export function buildQwen35Prompt(mode, args = {}) {
-  const template = QWEN35_MODE_PROMPTS[mode] || QWEN35_UI_PROMPT;
-  return template
-    .replace('{{viewport}}', args.viewport || 'not specified')
-    .replace('{{label}}', args.label || 'not specified')
-    .replace('{{context}}', args.context || 'not specified')
-    .replace('{{source_code}}', args.sourceCode || '(none provided)');
+export function buildQwen35Prompt(mode, _args = {}) {
+  return QWEN35_MODE_PROMPTS[mode] || QWEN35_UI_PROMPT;
 }
 
 export const QWEN35_THINKING_CONFIG = {
