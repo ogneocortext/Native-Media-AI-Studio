@@ -261,11 +261,9 @@ export function MediaLibrary() {
         Media Library
       </h1>
       <p className={DS.pageSubtitle}>
-        Browse and manage files in `output/` — audio covers, video thumbnails,
-        rename, delete, duplicates, favorites, collections, tags, and trash.
-      </p>
-
-      {combinedError && (
+        Browse and manage files in `output/` — covers, thumbnails, rename,
+        delete, duplicates, favorites, collections, tags, and trash.
+      </p>      {combinedError && (
         <div className="mb-4 bg-red-900/30 border border-red-700 text-red-300 rounded p-4 flex items-center gap-3">
           <span>Error loading files</span>
           <button
@@ -282,11 +280,11 @@ export function MediaLibrary() {
 
       {/* View tabs: Library / Favorites / Collections / Trash */}
       <div className="mb-3 flex gap-1">
-          <button
+        <button
           onClick={() => setView("library")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "library"
-              ? "bg-primary/20 text-primary border border-primary/30 shadow-sm"
+              ? "bg-primary/30 text-primary border border-primary/40 shadow-sm ring-1 ring-primary/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -296,7 +294,7 @@ export function MediaLibrary() {
           onClick={() => setView("favorites")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "favorites"
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+              ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -311,7 +309,7 @@ export function MediaLibrary() {
           onClick={() => setView("collections")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "collections"
-              ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-sm"
+              ? "bg-blue-500/25 text-blue-300 border border-blue-500/40 shadow-sm ring-1 ring-blue-500/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -326,7 +324,7 @@ export function MediaLibrary() {
           onClick={() => setView("trash")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "trash"
-              ? "bg-red-500/20 text-red-300 border border-red-500/40 shadow-sm"
+              ? "bg-red-500/25 text-red-300 border border-red-500/40 shadow-sm ring-1 ring-red-500/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -346,20 +344,20 @@ export function MediaLibrary() {
           <div className="flex gap-1">
             <button
               onClick={() => setViewMode("grid")}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
+              className={`px-2 py-1 text-xs rounded-md transition-colors ${
                 viewMode === "grid"
-                  ? "bg-primary/20 text-primary"
-                  : "bg-black/30 text-muted hover:bg-black/50"
+                  ? "bg-primary/20 text-primary border border-primary/30 shadow-sm"
+                  : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
               }`}
             >
               <Square size={14} /> Grid
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
+              className={`px-2 py-1 text-xs rounded-md transition-colors ${
                 viewMode === "list"
-                  ? "bg-primary/20 text-primary"
-                  : "bg-black/30 text-muted hover:bg-black/50"
+                  ? "bg-primary/20 text-primary border border-primary/30 shadow-sm"
+                  : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
               }`}
             >
               <Video size={14} /> List
@@ -409,10 +407,10 @@ export function MediaLibrary() {
               void refetchFiles();
               void refetchOrg();
             }}
-            className="px-3 py-1 text-xs text-muted hover:text-white border border-gray-600 rounded"
+            className="px-3 py-1 text-sm text-muted hover:text-white border border-gray-600 rounded"
             title="Refresh file list"
           >
-            <RefreshCw size={14} className="mr-1" /> Refresh
+            <RefreshCw size={16} className="mr-1" /> Refresh
           </button>
         </div>
       ) : null}

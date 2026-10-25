@@ -644,7 +644,7 @@ export function Sidebar() {
                 <span className="sidebar-footer-toggle-indicator">
                   <span
                     className={`system-status-indicator ${dotStatus}`}
-                    title={getStatusLabel()}
+                    title={`System status: ${getStatusLabel()}`}
                   />
                   {systemFooterOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </span>

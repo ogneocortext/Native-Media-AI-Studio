@@ -14,8 +14,6 @@ const FILE_TYPE_OPTIONS: Array<{ value: string; label: string; icon?: string }> 
   { value: "audio", label: "Audio", icon: "🎵" },
   { value: "video", label: "Video", icon: "🎬" },
   { value: "image", label: "Image", icon: "🖼️" },
-  { value: "3d", label: "3D Models", icon: "🤖" },
-  { value: "document", label: "Documents", icon: "📄" },
   { value: "other", label: "Other", icon: "📁" },
 ];
 
@@ -77,7 +75,7 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
       {/* Sort */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">Sort:</span>
+          <span className="text-xs font-medium text-muted uppercase tracking-wider">Sort:</span>
           <select
             value={filter.sortBy}
             onChange={(e) =>
@@ -104,7 +102,7 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
             {filter.sortOrder === "asc" ? "↑" : "↓"}
           </button>
         </div>
-        <span className="text-xs text-muted">
+        <span className="text-sm font-medium text-foreground">
           {filter.query
             ? `Results for "${filter.query}"`
             : `Total files`}

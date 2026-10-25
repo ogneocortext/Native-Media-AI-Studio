@@ -143,7 +143,7 @@ export function FileCard({
               </button>
             </div>
           ) : (
-            <div className={`w-full h-full bg-gray-800/60 flex items-center justify-center border border-gray-700/50 group ${typeColor}`}>
+            <div className={`w-full h-full bg-black/40 flex items-center justify-center border border-gray-700/50 group`}>
               {coverUrl && !isAudio ? (
                 <img
                   src={coverUrl}
@@ -157,7 +157,7 @@ export function FileCard({
               ) : null}
               {!coverUrl || (file.file_type !== "audio" && !coverUrl) ? (
                 <>
-                  <span className="text-2xl">{typeIcon}</span>
+                  <span className="text-3xl">{typeIcon}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
