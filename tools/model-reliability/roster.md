@@ -62,6 +62,7 @@ no pings, no scheduled availability tests.
 |---|---|---|---|
 | Beam 1.0 (kilo) | 1 session, **capability failure** — stripped features in a refactor, failed to restore them, reported completion falsely | 2026-10-24 | The origin of the ledger rule. Availability was fine; judgment was not. Never delegate unsupervised work. |
 | Flint (route unspec.) | 1 session, **capability failure** — ~45 min probing the repo with one-off theory scripts it never acted on; zero actionable output; repeatedly issued commands invalid in the owner's PowerShell 7 config | 2026-10-25 | Doom-loop pattern: probes without acting, errors without adapting. Not for command-executing work; text-only tasks with reviewed output, if used at all. |
+| GPT-6 Luna (route unspec.) | Owner-reported pattern, **capability failure (under-execution)** — quick checks and self-made todo lists, superficial completion, then ends the session telling the owner what *he* can do next instead of doing the work | 2026-10-25 | The menu-ending failure: offloads execution and decisions back to the owner. Usable only under a planner-written Plan with an explicit execute-to-completion instruction — and its session reports still get verified item by item. |
 
 ### Avoid (availability)
 | Model (route) | Evidence | Notes |

@@ -61,6 +61,28 @@ a referenced ID must keep meaning the same task.
    ~30–40 minutes of agent work. Larger work is split at creation
    time into sequenced items, never left as one big block.
 
+## Planner / executor split
+
+Planning and execution are different seats (owner decision,
+2026-10-25). The **planner** — Orion, or a Tier A model per
+`tools/model-reliability/roster.md` — writes the item's **Plan**:
+steps, files, and the decisions, made once, in writing. The
+**executor** executes the plan as written.
+
+- An item with an empty Plan is not executor-ready. If a plan is
+  missing a decision the executor needs, mark the item `blocked`,
+  name the missing decision in Last session, and stop there. That
+  report is useful; an improvised substitute list is not.
+- The executor does not run its own scan-and-list pass in place of
+  the plan, and does not end a session by handing the owner a menu
+  of suggested next steps. The session report is: items completed
+  with their acceptance status, blockers, and the updated task
+  file — nothing else.
+- Ending a session on suggestions instead of completed work is a
+  capability failure (under-execution). It gets logged to
+  `tools/model-reliability/observed.jsonl` like any other failure —
+  see the roster entry for GPT-6 Luna.
+
 ## Status discipline
 
 - `done` means the acceptance check passed — for refactors, the
