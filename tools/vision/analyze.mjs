@@ -21,6 +21,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { baseName, encodeImage, residentVisionModels, pickFallbackModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
+import { buildGemma4Prompt, GEMMA4_SYSTEM, GEMMA4_MODE_PROMPTS } from './prompts/gemma4-ui.mjs';
+import { buildQwen35Prompt, QWEN35_UI_PROMPT, QWEN35_MODE_PROMPTS, QWEN35_THINKING_CONFIG } from './prompts/qwen35-ui.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -38,16 +40,13 @@ const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
 // cold load when a capable model is already warm — a switch costs 30-60s,
 // more than any prompt tweak saves.
 const MODEL_PROFILES = {
-  'gemma4:e2b-it-qat':   { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1568, note: 'detailed audits' },
-  // Unknown models fall through to DEFAULT_PROFILE, so profiles only need to
-  // exist for models actually installed here (measured /api/tags 2026-10-22:
-  // minicpm-v:*, qwen3-vl:* and gemma4-vision-optimized pruned;
-  // qwen3.5:4b is the remaining local second vision model — all routing is
-  // local-only, network-hosted models are skipped, see vision-common.mjs).
-  // Update rows when the roster changes.
-  'qwen3.5:4b':          { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'resident fallback, reasoning model' },
+  'gemma4:e2b-it-qat':   { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1568, note: 'detailed audits', jsonOutput: true, controlTokens: true },
+  // qwen3.5 via Atomic Chat (port 1337): hybrid-thinking, strong spatial/reasoning.
+  // Structured JSON output NOT supported when thinking enabled → use text output.
+  'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M': { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'resident fallback, reasoning model', jsonOutput: false, thinking: true },
+  'qwen3.5:4b':          { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'resident fallback, reasoning model', jsonOutput: false, thinking: true },
 };
-const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic' };
+const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic', jsonOutput: true };
 
 // Extractive modes want trustworthiness over flair. The qwen3-vl family
 // is a reasoning model that puts its ENTIRE answer in the `thinking`
@@ -65,9 +64,12 @@ const MODE_MODEL = {
   chart: 'gemma4:e2b-it-qat',
   ui: 'gemma4:e2b-it-qat',
   responsive: 'gemma4:e2b-it-qat',
-  regression: 'gemma4:e2b-it-qat',
-  compare: 'gemma4:e2b-it-qat',
-  multicomp: 'gemma4:e2b-it-qat',
+  regression: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  compare: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  multicomp: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  'music-video': 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  depth: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  consistency: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
 };
 
 function profileFor(model) {
@@ -176,146 +178,53 @@ function parseArgs(argv) {
   return args;
 }
 
-function buildPrompt(args) {
+function buildPrompt(args, activeModel) {
   if (args.prompt) return args.prompt;
 
   const section = args.section ? ` for a ${args.section} section` : '';
+  const profile = profileFor(activeModel);
+  const isQwen35 = activeModel.includes('Qwen3_5') || activeModel.includes('qwen3.5');
+  const isGemma4 = activeModel.includes('gemma4');
 
-  switch (args.mode) {
-    case 'music-video':
-      return `You are a professional music-video director and VFX supervisor reviewing a rendered frame from an audio-reactive visualization.
-
-Context: This is a Remotion-rendered frame for a music video. The visualization uses SVG/Canvas elements driven by audio analysis (BPM, frequency bands, waveform). The song is "${args.section || 'unknown section'}".
-
-Evaluate this frame with these specific criteria:
-
-1. DEPTH LAYERS (Foreground/Midground/Background):
-   - Are there at least 3 distinct depth layers?
-   - Does parallax or size variation create real depth?
-   - Rate depth effect 1-10
-
-2. AUDIO-REACTIVE ELEMENTS:
-   - Are waveform/spectrum bars visible and properly sized?
-   - Do particles or elements appear to respond to audio?
-   - Is the central focal point (orb/flame/shape) appropriately intense?
-
-3. COLOR & MOOD:
-   - Does the palette match the song section (cyan=intro, blue=verse, purple=chorus, amber=bridge)?
-   - Is there sufficient contrast between elements?
-   - Rate mood alignment 1-10
-
-4. COMPOSITION:
-   - Is the rule of thirds or center-weighted balance used effectively?
-   - Are there leading lines or visual flow?
-   - Is text readable against the background?
-
-5. TECHNICAL QUALITY:
-   - Any rendering artifacts, clipping, or overflow issues?
-   - Are SVG elements sharp or pixelated?
-   - Is the aspect ratio correct (16:9)?
-
-6. TOP 3 IMPROVEMENTS (ranked by impact):
-   - What single change would most improve this frame?
-   - What element feels flat or missing?
-   - What would make this feel more "premium YouTube" quality?
-
-Return your analysis as structured JSON with these keys: depth_rating, mood_rating, composition_rating, top_improvements (array of 3 strings), visual_elements (array of visible element names).`;
-
-    case 'ocr':
-      // Live-measured defect (2026-10-22): ocr/table/chart/multicomp had no
-      // case here and fell through to the ui-audit skeleton, so `--mode ocr`
-      // returned "1. ELEMENTS: ..." UI audits instead of transcription.
-      // Prompt bodies mirror tools/mcp/vision-mcp.mjs MODE_PROMPTS.
-      return `Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text. Be trustworthy: lower hallucination.`;
-
-    case 'table':
-      return `Convert the table in this image to markdown, preserving headers, rows, and alignment. Keep numbers and text exactly as shown. If no table exists reply "No table detected."`;
-
-    case 'chart':
-      return `Describe the trend shown in this chart. Name axes, units, and relative heights. Compare bars/lines, note peaks/valleys, and flag any value that is ambiguous as "estimated". Do NOT invent exact numbers if labels are missing — say "unclear". Be a trustworthy chart reader.`;
-
-    case 'multicomp':
-      return `You are given two UI screenshots: first is BEFORE, second is AFTER. List every visual difference: layout shifts, color changes, text differences, missing/added elements, sizing, and spacing. Be exhaustive. Use the two images as in-context examples.`;
-
-    case 'responsive':
-      return `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
-
-Report ONLY actionable findings:
-1. VIEWPORT FIT: Is content clipped, overflowing, or crammed? Name the offending element and its CSS fix (e.g., overflow-x, flex-wrap, grid-template).
-2. TOUCH TARGETS: Are buttons/inputs smaller than 44x44px? List each offender with its current size estimate.
-3. READABILITY: Is text below 14px or low-contrast? Give the exact text, size, and contrast issue.
-4. NAVIGATION: Is content hidden behind menus, tabs, or scroll? Identify the hidden feature and how to expose it.
-5. FIX: One concrete CSS/layout change that would have the biggest impact.
-
-CONSTRAINTS: Only report what is actually visible. Do not invent elements or sizes. If unsure, estimate and mark "est.".`;
-
-    case 'regression':
-      return `You are a code reviewer comparing a rendered UI against its source implementation.
-
-For each discrepancy found:
-1. WHAT CHANGED: Element, style, or layout shift from the source code
-2. SEVERITY: critical (breaks functionality), minor (visual polish), or cosmetic
-3. FIX: Shortest revert or patch path. Reference the likely source file/component if identifiable.
-4. CONFIDENCE: high / medium / low
-
-Focus on regressions that affect user-facing functionality or visual polish in Native Media AI Studio.
-
-CONSTRAINTS: Only report discrepancies that are visible in the rendered output. Do not speculate about source files you cannot see.`;
-
-    case 'compare':
-      return `You are a design lead comparing two versions of a Native Media AI Studio screen.
-
-For every difference:
-1. LOCATION: Where on screen (top-left, center, bottom-right, full-width, etc.)
-2. CHANGE: What moved, resized, recolored, appeared, or disappeared
-3. IMPACT: UX improvement, regression, or neutral
-4. FIX/PROMOTE: If it is a regression, what is the shortest fix. If it is an improvement, what principle does it demonstrate?
-
-Prioritize differences that affect usability, readability, or visual hierarchy.
-
-CONSTRAINTS: Only report differences that are visible in both images. Do not invent changes.`;
-
-    case 'depth':
-      return `You are a VFX depth analyst reviewing a music visualization frame for spatial quality.
-
-Rate each depth cue 1-10 and provide specific improvement suggestions:
-
-1. SIZE GRADIENT: Do elements shrink with distance? Are near elements significantly larger than far ones?
-2. OVERLAP: Do elements properly occlude each other based on depth order?
-3. ATMOSPHERIC PERSPECTURE: Do distant elements fade, blur, or shift toward background color?
-4. PARALLAX: Would motion at different speeds create depth illusion?
-5. FOCUS/BLUR: Is there depth-of-field effect on background/foreground elements?
-6. LIGHTING DEPTH: Do light sources create proper shadows and highlights that define space?
-7. COLOR DEPTH: Do warm colors advance and cool colors recede appropriately?
-
-Overall depth score: [average of above]
-Top 3 specific fixes to increase depth perception:
-
-Return as JSON: {depth_scores: {size_gradient, overlap, atmospheric, parallax, focus_blur, lighting_depth, color_depth}, overall_depth: number, top_fixes: [string]}`;
-
-    case 'consistency':
-      return `You are a design systems auditor checking visual consistency across Native Media AI Studio frames.
-
-Audit for:
-1. COLOR PALETTE DRIFT: Compare primary/secondary/accent colors across frames. Flag any deviation from the project palette.
-2. TYPOGRAPHY: Font sizes, weights, line heights, and heading styles. Are they uniform?
-3. ASSET REUSE: Are icons, logos, or illustrations inconsistent in style or treatment?
-4. SCENE CONTINUITY: For 3D/music-video frames, does lighting, camera angle, or mood break between consecutive shots?
-5. RECOMMENDATION: keep / recut / reframe with a one-line rationale.`;
-
-    default:
-      return `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot.
-
-Do NOT give generic descriptions. Give ONLY actionable feedback organized as:
-
-1. ELEMENTS: List visible UI elements with their approximate positions and role in the app
-2. TEXT: Transcribe visible labels, buttons, headings, and status text
-3. LAYOUT: Spacing, alignment, overflow, and responsiveness issues. Reference specific CSS properties or components where possible.
-4. ERRORS: Visible errors, warnings, broken images, empty states, loading skeletons, or missing content
-5. NEXT_ACTION: The single highest-impact fix a coding agent should make first. Explain WHY it matters for this project's user experience.
-
-CONSTRAINTS: Only report what is actually visible in the image. Do not invent elements, text, or errors. If a region is unclear, write "unclear". Keep each finding concrete and actionable.`;
+  if (isQwen35) {
+    return buildQwen35Prompt(args.mode, {
+      label: args.label,
+      section: args.section,
+      context: args.context,
+      viewport: args.viewport,
+      sourceCode: args.sourceFiles.map((f) => {
+        try {
+          return `--- ${f} ---\n${fs.readFileSync(f, 'utf-8').slice(0, 6000)}`;
+        } catch {
+          return `--- ${f} (unreadable) ---`;
+        }
+      }).join('\n\n'),
+    });
   }
+
+  if (isGemma4) {
+    return buildGemma4Prompt(args.mode, {
+      label: args.label,
+      section: args.section,
+      context: args.context,
+      viewport: args.viewport,
+    });
+  }
+
+  // Fallback to original inline prompts for unknown models
+  const fallbackPrompts = {
+    ocr: `Transcribe all visible text preserving original line breaks, punctuation, and reading order. If a table is present, convert it to markdown. If a region is unclear write [unclear]. Do NOT invent text.`,
+    table: `Convert the table in this image to markdown, preserving headers, rows, and alignment. Keep numbers and text exactly as shown. If no table exists reply "No table detected."`,
+    chart: `Describe the trend shown in this chart. Name axes, units, and relative heights. Compare bars/lines, note peaks/valleys, and flag any value that is ambiguous as "estimated". Do NOT invent exact numbers if labels are missing — say "unclear".`,
+    multicomp: `You are given two UI screenshots: first is BEFORE, second is AFTER. List every visual difference: layout shifts, color changes, text differences, missing/added elements, sizing, and spacing. Be exhaustive.`,
+    responsive: `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot. Report ONLY actionable findings: 1. VIEWPORT FIT 2. TOUCH TARGETS 3. READABILITY 4. NAVIGATION 5. FIX. CONSTRAINTS: Only report what is actually visible.`,
+    regression: `You are a code reviewer comparing a rendered UI against its source implementation. For each discrepancy: WHAT CHANGED, SEVERITY, FIX, CONFIDENCE.`,
+    compare: `You are a design lead comparing two versions of a Native Media AI Studio screen. For every difference: LOCATION, CHANGE, IMPACT, FIX/PROMOTE.`,
+    depth: `Rate each depth cue 1-10: SIZE GRADIENT, OVERLAP, ATMOSPHERIC PERSPECTURE, PARALLAX, FOCUS/BLUR, LIGHTING DEPTH, COLOR DEPTH.`,
+    consistency: `Audit for COLOR PALETTE DRIFT, TYPOGRAPHY, ASSET REUSE, SCENE CONTINUITY. Recommend: keep / recut / reframe.`,
+    ui: `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot. Do NOT give generic descriptions. Give ONLY actionable feedback organized as: 1. ELEMENTS 2. TEXT 3. LAYOUT 4. ERRORS 5. NEXT_ACTION.`,
+  };
+  return (fallbackPrompts[args.mode] || fallbackPrompts.ui) + GROUNDING_SUFFIX;
 }
 
 function buildMetadata(args) {
@@ -422,9 +331,15 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
     }
   };
 
+  // Gemma 4: native JSON structured output — reliable machine-readable results.
+  // Qwen3.5: structured JSON NOT supported when thinking enabled → text output.
+  if (profile.jsonOutput) {
+    body.format = 'json';
+  }
+
   // Ollama 0.21.3+ supports think parameter for reasoning models.
   // Values: true/false/"max"/"high"/"medium"/"low"/"minimal"/"none".
-  if (think) {
+  if (think || profile.thinking) {
     body.think = true;
   }
 
@@ -474,6 +389,8 @@ async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, en
   }
 
   const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
+  const profile = profileFor(model);
+  const isQwen35 = model.includes('Qwen3_5') || model.includes('qwen3.5');
 
   const imageParts = imageData.map((base64) => ({
     type: 'image_url',
@@ -495,6 +412,13 @@ async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, en
     temperature: 0.3,
   };
 
+  // Qwen3.5 hybrid-thinking: enable reasoning for complex UI analysis.
+  // Structured JSON output NOT supported when thinking enabled → text output.
+  if (isQwen35 || profile.thinking) {
+    body.enable_thinking = true;
+    body.thinking_budget = profile.thinking_budget ?? QWEN35_THINKING_CONFIG.thinking_budget;
+  }
+
   const response = await fetch(`${ATOMIC_CHAT_URL}/v1/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -508,8 +432,13 @@ async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, en
   }
 
   const result = await response.json();
-  const content = result?.choices?.[0]?.message?.content;
-  return typeof content === 'string' ? content : '';
+  const message = result?.choices?.[0]?.message;
+  const content = message?.content || '';
+  const reasoning = message?.reasoning_content || '';
+  // Qwen3.5 hybrid-thinking: reasoning goes in reasoning_content, final answer in content.
+  // Prefer content when present; fall back to reasoning for detailed breakdowns.
+  const text = content.trim() ? content : reasoning.trim();
+  return typeof text === 'string' ? text : '';
 }
 
 async function main() {
@@ -557,7 +486,7 @@ async function main() {
     extractMode: EXTRACT_MODES.has(args.mode),
   };
 
-  const prompt = buildPrompt(args);
+  const prompt = buildPrompt(args, activeModel);
   const metadata = buildMetadata(args);
   let fullPrompt = prompt + metadata + GROUNDING_SUFFIX;
 

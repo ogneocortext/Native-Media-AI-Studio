@@ -57,7 +57,7 @@ Ollama is the **central LLM layer** for Native Media AI Studio. It is used for:
 | ---------------------------------------- | --------------------------------------------------------------------- | ----------------------------- | --------- |
 | Storyboard generation                    | `POST /api/storyboard/generate` → `StoryboardGeneratorHandler`        | `gemma4:e2b-it-qat` (default) | ✅ Active |
 | Three.js scene generation (agent loop)   | `packages/backend/app/adapters/ollama.py` built-in tools + MCP bridge | `qwen3.5:9b` (planner)        | ✅ Active |
-| Vision analysis (screenshots, UI audits) | `tools/vision/analyze.mjs` → `gemma4:e2b-it-qat` (all modes) | `gemma4:e2b-it-qat` | ✅ Active |
+| Vision analysis (screenshots, UI audits) | `tools/vision/analyze.mjs` → model-specific routing (gemma4 for fast audits, qwen3.5 via Atomic Chat for complex reasoning) | `gemma4:e2b-it-qat` / `qwen3.5:4b` | ✅ Active |
 | Audio analysis section labeling          | `POST /api/audio/analysis/:filename`                                  | `gemma4:e2b-it-qat`           | ✅ Active |
 | Embeddings                               | `POST /api/embed`                                                     | `nomic-embed-text:v1.5`       | ✅ Active |
 | Hardware benchmarks                      | `POST /api/hardware/benchmark` → `HardwareBenchmarkRunner`            | First available model         | ✅ Active |
@@ -162,23 +162,39 @@ capabilities the resident lacks.
 
 ### 3.3 Vision Mode Routing (Implemented in `tools/vision/analyze.mjs`)
 
-| Mode          | Model               | Temperature | num_ctx | Max Dim | Notes                       |
-| ------------- | ------------------- | ----------- | ------- | ------- | --------------------------- |
-| `ui`          | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Detailed UI audits          |
-| `responsive`  | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Layout issues               |
-| `regression`  | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | What changed                |
-| `compare`     | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Multi-image diff            |
-| `multicomp`   | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Multi-image sets            |
-| `ocr`         | `gemma4:e2b-it-qat` | 0           | 8192    | 1568    | Deterministic transcription |
-| `table`       | `gemma4:e2b-it-qat` | 0           | 8192    | 1568    | Deterministic extraction    |
-| `chart`       | `gemma4:e2b-it-qat` | 0           | 8192    | 1568    | Deterministic extraction    |
-| `music-video` | `gemma4:e2b-it-qat` | 0.3         | 8192    | 1568    | Frame analysis              |
+Vision analysis uses two backends and two prompt families, selected per mode:
+
+| Mode          | Backend     | Model                            | Prompt Family   | Temperature | num_ctx | Max Dim | Notes                       |
+| ------------- | ----------- | -------------------------------- | --------------- | ----------- | ------- | ------- | --------------------------- |
+| `ui`          | Ollama      | `gemma4:e2b-it-qat`              | gemma4-ui       | 0.3         | 8192    | 1568    | Detailed UI audits; JSON output |
+| `responsive`  | Ollama      | `gemma4:e2b-it-qat`              | gemma4-ui       | 0.3         | 8192    | 1568    | Layout issues; JSON output  |
+| `ocr`         | Ollama      | `gemma4:e2b-it-qat`              | gemma4-ui       | 0           | 8192    | 1568    | Deterministic transcription |
+| `table`       | Ollama      | `gemma4:e2b-it-qat`              | gemma4-ui       | 0           | 8192    | 1568    | Deterministic extraction    |
+| `chart`       | Ollama      | `gemma4:e2b-it-qat`              | gemma4-ui       | 0           | 8192    | 1568    | Deterministic extraction    |
+| `regression`  | Atomic Chat | `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` | qwen35-ui   | 0.3         | 8192    | 1280    | Code vs render diff; hybrid thinking |
+| `compare`     | Atomic Chat | `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` | qwen35-ui   | 0.3         | 8192    | 1280    | Multi-image diff; hybrid thinking |
+| `multicomp`   | Atomic Chat | `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` | qwen35-ui   | 0.3         | 8192    | 1280    | Multi-image sets; hybrid thinking |
+| `music-video` | Atomic Chat | `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` | qwen35-ui   | 0.3         | 8192    | 1280    | Frame analysis; hybrid thinking |
+| `depth`       | Atomic Chat | `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` | qwen35-ui   | 0.3         | 8192    | 1280    | Spatial depth; hybrid thinking |
+| `consistency` | Atomic Chat | `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` | qwen35-ui   | 0.3         | 8192    | 1280    | Design system audit; hybrid thinking |
+
+**Prompt families** live in `tools/vision/prompts/`:
+- `gemma4-ui.mjs` — native JSON output (`format: "json"`), control tokens, four-layer structure
+- `qwen35-ui.mjs` — hybrid-thinking reasoning (`enable_thinking`), structured text output
+
+**Backends:**
+- `ollama` — `http://localhost:11434` (direct Ollama API)
+- `atomic` — `http://localhost:1337` (Atomic Chat wrapper around Ollama)
 
 > **2026-10-10 correction:** `compare`/`multicomp` previously routed
 > to `qwen3-vl:2b`. That family is pruned (degenerate reasoning
 > loop, empty `content` — [[vision-model-reliability-2026]]); all
-> modes now route to `gemma4:e2b-it-qat`, which handles multi-image
-> sets fine at `num_ctx` 8192.
+> modes now route through the model-specific router.
+>
+> **2026-10-24 addition:** Atomic Chat (port 1337) added as a backend for
+> qwen3.5 hybrid-thinking analysis on complex modes (compare, regression,
+> music-video, depth, consistency). Falls back to direct Ollama when
+> Atomic Chat is unavailable.
 
 ### 3.4 VRAM-Aware Fallback Ladder
 
@@ -271,38 +287,37 @@ the routing table from `tools/vision/analyze.mjs`.
 
 ### 4.3 Vision Script (`tools/vision/analyze.mjs`)
 
-Sophisticated task → model router with resident-model stickiness:
+Sophisticated task → model router with resident-model stickiness, two backends
+(Ollama port 11434, Atomic Chat port 1337), and two prompt families:
 
 ```javascript
 const MODEL_PROFILES = {
   "gemma4:e2b-it-qat": {
-    temp: 0.3,
-    tempExtract: 0,
-    numCtx: 8192,
-    maxDim: 1568,
+    temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1568,
+    note: "detailed audits", jsonOutput: true, controlTokens: true,
   },
-  "qwen3-vl:2b": { temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1280 },
-  "minicpm-v:8b": { temp: 0, tempExtract: 0, numCtx: 8192, maxDim: 1792 },
-};
-const MODE_MODEL = {
-  ocr: "gemma4:e2b-it-qat",
-  table: "gemma4:e2b-it-qat",
-  chart: "gemma4:e2b-it-qat",
-  compare: "gemma4:e2b-it-qat",
-  multicomp: "gemma4:e2b-it-qat",
+  "unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M": {
+    temp: 0.3, tempExtract: 0, numCtx: 8192, maxDim: 1280,
+    note: "resident fallback, reasoning model", jsonOutput: false, thinking: true,
+  },
 };
 ```
 
-**Key behaviors:**
+Prompt families live in `tools/vision/prompts/`:
+- `gemma4-ui.mjs` — four-layer structure (Locate/Task/Steps/Output), native JSON
+- `qwen35-ui.mjs` — think-then-act, named heuristics, structured text
 
+**Key behaviors:**
 - Text-extraction modes force `temperature: 0`
 - All modes append `GROUNDING_SUFFIX` to prompts
 - Images are resized to `maxDim` before sending
 - `keep_alive: 10m` prevents cold loads
 - Resident model stickiness: if a vision model is already loaded, reuse it
-- A degenerate attempt (empty `content`, answer recovered from
-  `thinking`) skips the same-model retry and falls back — the
-  qwen3-vl reasoning-loop guard ([[vision-model-reliability-2026]])
+- A degenerate attempt (empty `content`, answer recovered from `thinking`)
+  skips the same-model retry and falls back — the qwen3-vl reasoning-loop
+  guard ([[vision-model-reliability-2026]])
+- Qwen3.5 thinking mode: `enable_thinking: true` + `thinking_budget: 2048`;
+  JSON output disabled while thinking is on (Ollama constraint)
 
 ### 4.4 Core HTTP Helpers (`packages/backend/app/core/ollama_client.py`)
 
@@ -480,14 +495,13 @@ the same prompt against N models and returns a ranked comparison.
 
 ### 7.3 Vision
 
-- **Resize before sending** — screenshots > 1280 px waste tokens and may exceed
-  context. Use `sharp` or equivalent to fit within `maxDim`.
-- **Use mode-specific prompts** — `ui` mode asks for "list elements + issues";
-  `ocr` mode asks for verbatim transcription. Don't use generic "describe this".
-- **Append grounding suffix** — the 4-line `GROUNDING_SUFFIX` in `analyze.mjs`
-  converts silent hallucinations into routable uncertainty.
-- **Enumerate before counting** — "count each item, then state the total"
-  prevents confident wrong counts.
+- **Match model to task** — gemma4 for fast element audits (native JSON output); qwen3.5 via Atomic Chat for complex reasoning (hybrid thinking, structured text)
+- **Resize before sending** — screenshots > 1280 px waste tokens and may exceed context. Use `sharp` or equivalent to fit within `maxDim`.
+- **Use mode-specific prompts** — `ui` mode asks for "list elements + issues"; `ocr` mode asks for verbatim transcription. Don't use generic "describe this".
+- **Append grounding suffix** — the 4-line `GROUNDING_SUFFIX` in `analyze.mjs` converts silent hallucinations into routable uncertainty.
+- **Enumerate before counting** — "count each item, then state the total" prevents confident wrong counts.
+- **Backend selection** — `ollama` (port 11434) for gemma4 fast audits; `atomic` (port 1337) for qwen3.5 complex reasoning. Falls back to Ollama when Atomic Chat is unavailable.
+- **Qwen3.5 thinking** — `enable_thinking: true` with `thinking_budget: 2048`; JSON output is NOT supported when thinking is enabled (Ollama constraint). Use structured text output instead.
 
 ### 7.4 Performance
 

@@ -9,42 +9,84 @@ aliases:
   - VFX Review Prompts
 cssclasses:
   - creative-guide
-date: 2026-09-29
+date: 2026-10-24
 type: source
 ---
 
 # 🎬 Visualization Vision Prompts
 
 > [!info] Purpose
-> Specialized prompts for analyzing music visualization frames with Ollama vision models.
-> These prompts provide actionable feedback from a VFX director perspective.
+> Specialized prompts for analyzing music visualization frames and UI screenshots
+> with local vision models. Two prompt families exist — one tuned for **gemma4**'
+> s native JSON output (concise, element-focused audits), one tuned for
+> **qwen3.5**'s hybrid-thinking reasoning (detailed spatial/UX breakdowns).
+> Prompts live in `tools/vision/prompts/` (`gemma4-ui.mjs`, `qwen35-ui.mjs`)
+> and are wired through `tools/vision/analyze.mjs`.
+
+---
+
+## Prompt Families
+
+| Family | Model | Best For | Output Format | Thinking |
+|--------|-------|----------|---------------|----------|
+| `gemma4-ui` | `gemma4:e2b-it-qat` | UI element ID, layout, color, typography, fast audits | JSON (`format: "json"`) | Off |
+| `qwen35-ui` | `qwen3.5` (via Atomic Chat port 1337) | Complex reasoning, spatial analysis, compare/regression | Structured text | On |
+
+### Gemma 4 Prompts (`tools/vision/prompts/gemma4-ui.mjs`)
+
+Gemma 4 strengths: native multimodal vision, native JSON structured output,
+variable resolution budgets, control tokens (`<|turn>`, `<|system>`). Do's:
+be specific, name regions, provide constraints. Don't: vague "analyze this",
+expect exact counts for dense objects.
+
+Prompt structure (four layers from vision research):
+1. **Locate** — region/subject to inspect
+2. **Task** — concrete verb-led job
+3. **Steps** — ordered observe→describe→reason→conclude
+4. **Output** — structured JSON with named fields
+
+Named heuristics (checkable rules, not taste): 8pt grid spacing, WCAG 4.5:1
+contrast, line-height multiples of 4px, internal padding <= external margin.
+
+Modes: `ui`, `responsive`, `regression`, `compare`, `ocr`, `table`, `chart`.
+
+Example:
+```bash
+node tools/vision/analyze.mjs  --mode ui --backend ollama --model gemma4:e2b-it-qat --json
+```
+
+### Qwen3.5 Prompts (`tools/vision/prompts/qwen35-ui.mjs`)
+
+Qwen3.5 strengths: hybrid-thinking (reasoning before answer), spatial reasoning,
+GUI grounding, computer use, detailed visual reasoning. Do's: enable thinking
+for detailed UX breakdown, output structured text sections (not JSON — JSON is
+not supported when thinking is on), use think-then-act: observe whole screen,
+then drill into regions.
+
+Modes: `ui`, `responsive`, `regression`, `compare`, `ocr`, `chart`, `music-video`, `depth`, `consistency`.
+
+Example:
+```bash
+node tools/vision/analyze.mjs  --mode compare --backend atomic --model unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M
+```
 
 ---
 
 ## Available Modes
 
-| Mode | Purpose | Best For |
-|------|---------|----------|
-| `music-video` | Full VFX review with depth, mood, composition | General frame review |
-| `depth` | Spatial depth analysis only | Checking parallax/layering |
-| `compare` | Before/after comparison | V5 vs V6, iteration comparison |
-| `responsive` | UI layout audit | Frontend screenshots |
-| `regression` | Code vs render diff | Debugging rendering issues |
-
----
-
-## Usage
-
-```bash
-# Basic music video analysis
-node tools/vision/analyze.mjs <image> --mode music-video --section <section>
-
-# Depth-only analysis
-node tools/vision/analyze.mjs <image> --mode depth
-
-# Custom prompt with JSON output
-node tools/vision/analyze.mjs <image> --prompt "your prompt" --json
-```
+| Mode | Purpose | Primary Model | Best For |
+|------|---------|---------------|----------|
+| `ui` | Full UI/UX audit | gemma4 | Detailed UI audits |
+| `responsive` | UI layout audit | gemma4 | Layout issues, touch targets |
+| `regression` | Code vs render diff | qwen3.5 | Debugging rendering issues |
+| `compare` | Before/after comparison | qwen3.5 | V5 vs V6, iteration comparison |
+| `multicomp` | Multi-image diff | qwen3.5 | Multi-image sets |
+| `ocr` | Deterministic transcription | gemma4 | OCR, table-to-markdown |
+| `table` | Table extraction | gemma4 | Deterministic extraction |
+| `chart` | Chart trend analysis | gemma4 | Deterministic extraction |
+| `music-video` | Frame analysis | qwen3.5 | Music visualization frames |
+| `depth` | Spatial depth analysis | qwen3.5 | Checking parallax/layering |
+| `consistency` | Design system audit | qwen3.5 | Visual consistency across frames |
 
 ---
 
@@ -181,32 +223,35 @@ Return JSON: {differences: [{location, change, impact, depth_impact}], overall_v
 
 ## Model Recommendations
 
-| Model | Best For | Notes |
-|-------|----------|-------|
-| `gemma4:e2b-it-qat` | General analysis, text understanding | Default, fast |
-| `minicpm-v:8b` | OCR, detailed description | Better for text-heavy frames |
-| `qwen3-vl:4b` | Multilingual, balanced | Good all-around |
+| Model | Backend | Best For | Notes |
+|-------|---------|----------|-------|
+| `gemma4:e2b-it-qat` | Ollama (11434) | General analysis, text understanding, fast audits | Default vision model; native JSON output |
+| `qwen3.5:4b` | Atomic Chat (1337) | Complex reasoning, spatial analysis, compare/regression | Hybrid thinking; structured text output |
+| `minicpm-v:8b` | Ollama (11434) | OCR, detailed description | Better for text-heavy frames |
 
 ---
 
 ## Tips for Better Results
 
-1. **Be specific about what to evaluate** — Don't just say "describe this image"
-2. **Provide context** — Mention the song section, energy level, intended mood
-3. **Ask for ratings** — "Rate X 1-10" gives actionable metrics
-4. **Request JSON output** — Structured responses are easier to process programmatically
-5. **Compare versions** — Side-by-side analysis reveals improvements/regressions
+1. **Match the model to the task** — gemma4 for fast element audits (JSON output); qwen3.5 for complex reasoning (structured text).
+2. **Be specific about what to evaluate** — Don't just say "describe this image"
+3. **Provide context** — Mention the song section, energy level, intended mood
+4. **Ask for ratings** — "Rate X 1-10" gives actionable metrics
+5. **Request JSON output** — Structured responses are easier to process programmatically (gemma4 only)
+6. **Compare versions** — Side-by-side analysis reveals improvements/regressions (qwen3.5)
+7. **Append grounding suffix** — "Describe only what is actually visible. Do not infer beyond the pixels."
 
 ---
 
 ## Related Docs
 
+- [[ollama-utilization-2026]] — Ollama model routing, VRAM-aware scheduling
+- [[vision-model-reliability-2026]] — qwen3-vl reasoning loop, gemma4 primary, 2026-10-10 pruning
+- [[ollama-thinking-structured-outputs]] — Ollama API patterns, thinking mode
 - [[prompt-engineering]] — General prompt engineering guide
-- [[minicpm-v-best-practices]] — MiniCPM-V model specifics
-- [[ollama-thinking-structured-outputs]] — Ollama API patterns
 - [[audio-reactive-production]] — Audio-reactive visualization techniques
 - [[visualization-effects]] — WebGPU/TSL/particle effects
 
 ---
 
-*Last updated: 2026-09-08*
+*Last updated: 2026-10-24*
