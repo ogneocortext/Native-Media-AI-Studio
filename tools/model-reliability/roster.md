@@ -43,7 +43,7 @@ no pings, no scheduled availability tests.
 ### Tier A — Delegate
 | Model (route) | Evidence | Last observed | Notes |
 |---|---|---|---|
-| Nemotron 3.5 Super VL (kilo) | 1 session, success — repaired a failed refactor and finalized it | 2026-10-24 | Provisional on count; the session was the hardest kind of work (repair). Max-thinking effort still feels uneven per owner — verify outputs, as with any A. |
+| Nemotron 3.5 Super VL (kilo) | 2 sessions, success — repaired a failed refactor and finalized it (2026-10-24); owner reports it as the most reliable model at shell/environment awareness (2026-10-25) | 2026-10-25 | Distinguishing strength: notices PowerShell vs the bash→WSL trap that weaker models fall into; resolved the owner's environment-variable tool conflicts and was the only model to flag his dev tools needed better configuration. Max-thinking effort still feels uneven per owner — verify outputs, as with any A. |
 | StepFun Step 5 Preview (kilo, `stepfun/step-5-preview-free`) | 11 sessions, all worked — Playwright suite, plan steps with all gates green, remix phase work | 2026-10-14 | Strongest recent streak in the log. |
 | StepFun Step 3.7 Flash (kilo, `:free`) | Owner: "worked for months at a time; competent; known-good fallback" | 2026-10-02 | The daily-driver benchmark. Evidence is old but long-horizon; re-confirm on next use. |
 | Ling 3.1 Flash (kilo) | 5 sessions, all worked — root-causing, remix plan implementation, upgrade verification | 2026-10-10 | Also a commit author in this repo (trailer: `Co-authored-by: Ling 3.1 Flash`). |

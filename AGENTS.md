@@ -20,6 +20,11 @@
 > broken. On any PowerShell failure, fall back to Python immediately
 > (see Shell / Process Management below).
 >
+> **Command cheatsheet:** `docs/agent-shell-cheatsheet.md` — read it before
+> your first command. It names the correct interpreters and commands on
+> this machine; in particular, `bash` here resolves to the WSL launcher,
+> not the project shell — the project shell is PowerShell 7 (`pwsh`).
+>
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
