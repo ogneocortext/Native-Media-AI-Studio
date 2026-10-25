@@ -22,7 +22,7 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 90 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Documents in library:** 91 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
 **Migrated:** 88 (100%)
 **Remaining:** 0
 
@@ -123,7 +123,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (14/14 completed) ✅
+### 🤖 AI & ML (15/15 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `vision-model-reliability-2026.md`  → `#ai`, `#hardware-8gb`
@@ -139,6 +139,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `3d-generation-2026-updates.md`  → `#ai`, `#hardware-8gb`
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `synced-technical-scan-sample-2026-10.md`  → `#ai`
+- ✅ `custom-agent-design.md`  → `#ai`, `#technical`, `#documentation`
 
 ### 📊 Research & Reference (16/16 completed)
 

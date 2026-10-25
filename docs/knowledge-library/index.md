@@ -158,7 +158,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 14 documents |
+|| `#ai/*` | AI models, training & ML | 15 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 || `#research/*` | Industry trends & analysis | 15 documents |
 
