@@ -8,7 +8,7 @@ Agents in this repo follow the D21 agent handoff portability rules:
 - Checker/guard scripts as enforcement layer
 """
 
-from app.agents.nma_agent import NMAAgent, run_pipeline
 from app.agents.agent_state import AgentState
+from app.agents.nma_agent import NMAAgent, run_pipeline
 
 __all__ = ["NMAAgent", "run_pipeline", "AgentState"]

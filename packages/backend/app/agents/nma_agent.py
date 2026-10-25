@@ -23,7 +23,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -135,7 +134,6 @@ class NMAAgent:
 
         # Build a recipe based on audio analysis
         sections = analysis.get("sections", [])
-        beats = analysis.get("beat_times", [])
         duration = analysis.get("duration_seconds", 30)
 
         # Simple plan: one scene per song section
@@ -194,7 +192,6 @@ class NMAAgent:
         if result is None:
             return None
 
-        # Enhance (master)
         remix_name = recipe.get("name", "mashup")
         enhance_result = self._api_call(self.api.remix_enhance, remix_name)
 

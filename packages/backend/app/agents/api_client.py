@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 
@@ -157,6 +158,3 @@ class NMAApiClient:
         return self._request(
             "POST", f"/api/outputs/{relative_path}/rename", {"new_name": new_name}
         )
-
-
-from pathlib import Path
