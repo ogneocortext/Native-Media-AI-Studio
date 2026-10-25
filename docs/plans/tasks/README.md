@@ -70,3 +70,12 @@ a referenced ID must keep meaning the same task.
   missing decision, external dependency).
 - When an area's work changes its state materially, update the area
   entry in the focus map in the same session (focus map §3.9 ledger).
+
+## Picking the model for a session
+
+Trust tiers live in `tools/model-reliability/roster.md` (A = delegate,
+B = scoped, C = supervised only). An **Untested** model — new to the
+catalog, or not observed in 30+ days — gets the smallest open item in
+the area's file as its first job (roster.md, first-contact rule), and
+its outcome is logged to `tools/model-reliability/observed.jsonl`
+before the session ends.

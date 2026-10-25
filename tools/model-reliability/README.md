@@ -45,6 +45,24 @@ behind an account tier. So this tracker keeps two separate layers:
 Tiers: `RELIABLE NOW` > `worked before` > `listed, untested` > `AVOID`.
 Check the table *before* committing a session to an untested model.
 
+## Trust tiers (`roster.md`)
+
+Availability is not capability. A model can run perfectly and still do
+bad work — or report work done that it did not do. `roster.md` is the
+third layer: **trust tiers (A/B/C/Avoid/Untested) derived only from the
+observed layer**, stating what each model may be trusted with, with
+evidence counts and dates cited per row.
+
+- **First-contact rule:** an Untested model's first job is the smallest
+  open item in a task file (`docs/plans/tasks/`) — real work with a
+  known acceptance check, never open-ended work. This is a
+  work-assignment rule, not a probe; the no-synthetic-probes rule below
+  is unchanged.
+- **Maintenance:** appending an `observed.jsonl` entry that changes a
+  model's evidence updates its roster row in the same commit.
+- **Staleness:** a tier whose latest evidence is older than 30 days is
+  treated as Untested for planning.
+
 ## Rules
 
 - **Never add synthetic probes.** No scheduled pings, no "is it up" scripts.
