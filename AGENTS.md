@@ -28,6 +28,14 @@
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
 >
+> **Task state lives in `docs/plans/tasks/`** — one file per focus area
+> (map: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md`). When
+> starting work in an area, read its task file and resume at the first
+> open item. Mark items `doing` when you start them, `done` only when
+> their acceptance check passes, and **commit the task file after each
+> item**: sessions end without warning, and the file is the handoff.
+> Format and rules: `docs/plans/tasks/README.md`.
+>
 > **Project skills** live in `.kilo/skills/` (local-only, auto-discovered
 > each session). Key ones: `visual-qa-loop` (screenshot → vision-analyze →
 > research → improve → re-verify), `gates-commit-push` (commit/push
