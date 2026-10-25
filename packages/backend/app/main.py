@@ -35,6 +35,7 @@ from .core.database import init_db
 from .core.logging_config import setup_logging
 from .core.port_manager import port_manager
 from .core.tracing import setup_tracing
+from .core.urls import atomic_chat_url
 from .diagnostics.health import health_monitor
 from .diagnostics.resources import resource_monitoring_loop
 from .models.errors import ErrorResponse
@@ -85,6 +86,28 @@ def _release_zombie_port(port: int, host: str = "127.0.0.1") -> bool:
     except Exception as exc:
         logger.warning("Zombie port release failed on %s:%d - %s", host, port, exc)
         return False
+
+
+def _get_atomic_chat_model() -> str | None:
+    """Query Atomic Chat's /v1/models to learn which model it has resident.
+
+    Atomic Chat wraps Ollama on port 1337 and loads its own model into the
+    same 8 GB VRAM. This function is a module-level helper so it can be
+    called from lifespan() without adding nesting depth inside the try block.
+    Returns None if Atomic Chat is unreachable or has no models registered.
+    """
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(atomic_chat_url("/v1/models"))
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+        models = data.get("data", [])
+        if models:
+            return models[0].get("id")
+    except Exception:
+        pass
+    return None
 
 
 async def _ensure_backend_port_free(port: int) -> None:
@@ -221,7 +244,10 @@ async def lifespan(app: FastAPI):
         #   services.vram_manager -> adapters.ollama -> queue.manager
         #   -> diagnostics.resources -> services.vram_manager
         # Wiring it here keeps the adapter import at the composition root.
-        from .services.vram_manager import set_last_model_provider
+        from .services.vram_manager import (
+            set_last_atomic_chat_model_provider,
+            set_last_model_provider,
+        )
 
         def _last_ollama_model() -> str | None:
             from .adapters.ollama import ollama_adapter
@@ -229,6 +255,12 @@ async def lifespan(app: FastAPI):
             return getattr(ollama_adapter, "_last_model", None)
 
         set_last_model_provider(_last_ollama_model)
+
+        # Same pattern for Atomic Chat: it wraps Ollama on port 1337 and loads
+        # its own model (e.g. qwen3.5) into the same 8 GB VRAM. The VRAM
+        # manager needs to know which model Atomic Chat has resident so it can
+        # coordinate unloading/reloading when switching backends.
+        set_last_atomic_chat_model_provider(_get_atomic_chat_model)
 
         logger.info("Database initialized")
     except Exception as e:
