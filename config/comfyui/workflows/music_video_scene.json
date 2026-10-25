@@ -1,0 +1,102 @@
+{
+  "name": "Music Video Scene",
+  "description": "Full music video scene generation with camera moves and effects",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "1",
+      "type": "LoadCheckpoint",
+      "inputs": {
+        "ckpt_name": "anime-diff-sd15.safetensors"
+      },
+      "position": [0, 0]
+    },
+    {
+      "id": "2",
+      "type": "NMAAudioSyncNode",
+      "inputs": {
+        "audio_analysis": ["audio_analysis", 0],
+        "section_index": 0,
+        "beat_multiplier": 1.5
+      },
+      "position": [300, 0]
+    },
+    {
+      "id": "3",
+      "type": "NMAStemRouterNode",
+      "inputs": {
+        "stems": ["audio_stems", 0],
+        "stem_type": "drums",
+        "channel": "motion",
+        "gain": 1.0
+      },
+      "position": [300, 200]
+    },
+    {
+      "id": "4",
+      "type": "EmptyLatentImage",
+      "inputs": {
+        "width": 1024,
+        "height": 576,
+        "batch_size": 1
+      },
+      "position": [0, 400]
+    },
+    {
+      "id": "5",
+      "type": "CLIPTextEncode",
+      "inputs": {
+        "text": "cinematic music video scene, camera movement, dramatic lighting",
+        "clip": ["1", 1]
+      },
+      "position": [0, 600]
+    },
+    {
+      "id": "6",
+      "type": "KSampler",
+      "inputs": {
+        "seed": 42,
+        "steps": 25,
+        "cfg": 8.0,
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
+        "denoise": 0.7,
+        "model": ["1", 0],
+        "positive": ["5", 0],
+        "negative": ["5", 1],
+        "latent_image": ["4", 0]
+      },
+      "position": [300, 600]
+    },
+    {
+      "id": "7",
+      "type": "VAEDecode",
+      "inputs": {
+        "samples": ["6", 0],
+        "vae": ["1", 2]
+      },
+      "position": [600, 600]
+    },
+    {
+      "id": "8",
+      "type": "SaveImage",
+      "inputs": {
+        "images": ["7", 0],
+        "filename_prefix": "NMA_music_video"
+      },
+      "position": [900, 600]
+    }
+  ],
+  "connections": [
+    [["2", 0], ["6", 0]],
+    [["3", 0], ["6", 1]],
+    [["1", 0], ["6", 0]],
+    [["1", 2], ["6", 2]],
+    [["4", 0], ["6", 3]],
+    [["5", 0], ["6", 4]],
+    [["5", 1], ["6", 5]],
+    [["6", 0], ["7", 0]],
+    [["1", 2], ["7", 1]],
+    [["7", 0], ["8", 0]]
+  ]
+}

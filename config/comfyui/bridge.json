@@ -1,0 +1,92 @@
+{
+  "$schema": "comfyui-bridge.json",
+  "version": "1.0.0",
+  "description": "Bridge configuration between Native Media AI Studio app and standalone ComfyUI core.",
+  
+  "bridge": {
+    "enabled": true,
+    "description": "When enabled, custom nodes from config/comfyui/custom_nodes/ are linked into ComfyUI's custom_nodes/ directory on startup. This keeps ComfyUI core standalone and updatable while preserving custom modifications."
+  },
+  
+  "paths": {
+    "comfyui_core": "${COMFYUI_DIR}",
+    "bridge_root": "${CONFIG_DIR}/comfyui",
+    "custom_nodes_source": "${CONFIG_DIR}/comfyui/custom_nodes",
+    "custom_nodes_target": "${COMFYUI_DIR}/custom_nodes",
+    "workflows": "${CONFIG_DIR}/comfyui/workflows",
+    "models": "${CONFIG_DIR}/comfyui/models"
+  },
+  
+  "custom_nodes": {
+    "description": "Custom ComfyUI nodes maintained by the app. These are symlinked into ComfyUI's custom_nodes/ directory on startup so ComfyUI core remains untouched.",
+    "nodes": [
+      {
+        "id": "nma-audio-sync",
+        "name": "NMA Audio Sync",
+        "source": "audio_sync_node.py",
+        "description": "Syncs visual generation to audio beats/sections"
+      },
+      {
+        "id": "nma-stem-router",
+        "name": "NMA Stem Router", 
+        "source": "stem_router_node.py",
+        "description": "Routes audio stems to different visual channels"
+      },
+      {
+        "id": "nma-remix-controller",
+        "name": "NMA Remix Controller",
+        "source": "remix_controller_node.py",
+        "description": "Controls remix parameters for real-time mashup generation"
+      }
+    ]
+  },
+  
+  "workflows": {
+    "description": "Pre-built ComfyUI workflows for common tasks.",
+    "workflows": [
+      {
+        "id": "audio-reactive-visualizer",
+        "name": "Audio Reactive Visualizer",
+        "file": "audio_reactive_visualizer.json",
+        "description": "Generates audio-reactive visualizations from audio stems"
+      },
+      {
+        "id": "music-video-scene",
+        "name": "Music Video Scene",
+        "file": "music_video_scene.json",
+        "description": "Full music video scene generation with camera moves and effects"
+      },
+      {
+        "id": "stem-mixer-preview",
+        "name": "Stem Mixer Preview",
+        "file": "stem_mixer_preview.json",
+        "description": "Preview stem mixes with visual feedback"
+      }
+    ]
+  },
+  
+  "models": {
+    "description": "Custom model configurations referenced by workflows.",
+    "models": [
+      {
+        "id": "anime-diff-sd15",
+        "name": "AnimateDiff SD 1.5",
+        "path": "checkpoints/animatediff_sd15.safetensors",
+        "type": "checkpoint"
+      },
+      {
+        "id": "ltx-vae-tile",
+        "name": "LTX VAE Tile",
+        "path": "vae/ltx-vae-tile.safetensors",
+        "type": "vae"
+      }
+    ]
+  },
+  
+  "startup": {
+    "description": "Startup behavior configuration.",
+    "link_custom_nodes": true,
+    "verify_on_start": true,
+    "auto_install_requirements": false
+  }
+}

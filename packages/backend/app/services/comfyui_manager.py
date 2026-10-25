@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..core.config import PROJECT_ROOT, config
 from ..core.paths import comfyui_dir
+from .comfyui_bridge import comfyui_bridge
 
 logger = logging.getLogger(__name__)
 
@@ -405,12 +406,36 @@ class ComfyUIManager:
                     "hint": "Check that all required Python packages are installed in the venv",
                 }
 
+            # Link custom nodes from the bridge into ComfyUI's custom_nodes/
+            # This keeps ComfyUI core standalone while allowing custom modifications
+            bridge_link_result = None
+            try:
+                if comfyui_bridge.should_link_custom_nodes():
+                    bridge_link_result = comfyui_bridge.link_all_configured_nodes()
+                    if bridge_link_result.get("linked"):
+                        logger.info(
+                            "Linked %d custom node(s) into ComfyUI: %s",
+                            len(bridge_link_result["linked"]),
+                            ", ".join(bridge_link_result["linked"]),
+                        )
+                    if bridge_link_result.get("failed"):
+                        logger.warning(
+                            "Failed to link %d custom node(s): %s",
+                            len(bridge_link_result["failed"]),
+                            bridge_link_result["failed"],
+                        )
+            except Exception as e:
+                logger.warning("Failed to link custom nodes: %s", e)
+                # Don't fail the start if bridge linking fails - ComfyUI is running
+                bridge_link_result = {"error": str(e)}
+
             return {
                 "success": True,
                 "message": f"ComfyUI started on port {port} (PID {self._process.pid})",
                 "pid": self._process.pid,
                 "port": port,
                 "url": f"http://127.0.0.1:{port}",
+                "bridge": bridge_link_result,
             }
 
         except Exception as e:
@@ -749,6 +774,7 @@ class ComfyUIManager:
             "port": self._port,
             "url": f"http://127.0.0.1:{self._port}",
             "version": version,
+            "bridge": comfyui_bridge.get_bridge_status(),
         }
 
         if running:
