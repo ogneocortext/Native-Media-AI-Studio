@@ -93,23 +93,22 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
       {status.version && (
         <div className="flex items-center justify-between text-xs text-muted pt-3 border-t border-border">
           <div className="flex items-center gap-4">
-            {status.version.branch && <span>Branch: {status.version.branch}</span>}
-            {status.version.commit && (
-              <span className="font-mono">{status.version.commit.split(" ")[0]}</span>
+            {status.version.behind_remote !== undefined && status.version.behind_remote > 0 && (
+              <span className="text-yellow-400 flex items-center gap-1">
+                <RefreshCw size={12} />
+                {status.version.behind_remote} update{status.version.behind_remote > 1 ? "s" : ""}{" "}
+                available
+              </span>
+            )}
+            {status.version.up_to_date && (
+              <span className="text-green-400 flex items-center gap-1">
+                <CheckCircle size={12} />
+                Up to date
+              </span>
             )}
           </div>
-          {status.version.behind_remote !== undefined && status.version.behind_remote > 0 && (
-            <span className="text-yellow-400 flex items-center gap-1">
-              <RefreshCw size={12} />
-              {status.version.behind_remote} update{status.version.behind_remote > 1 ? "s" : ""}{" "}
-              available
-            </span>
-          )}
-          {status.version.up_to_date && (
-            <span className="text-green-400 flex items-center gap-1">
-              <CheckCircle size={12} />
-              Up to date
-            </span>
+          {status.version.up_to_date || (status.version.behind_remote !== undefined && status.version.behind_remote > 0) ? null : (
+            <span className="text-gray-400">{status.version.version}</span>
           )}
         </div>
       )}

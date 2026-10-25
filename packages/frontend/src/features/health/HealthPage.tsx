@@ -422,12 +422,6 @@ export function HealthPage() {
             />
             <GPUCard />
           </div>
-          {memUsage >= 80 && (
-            <p className="text-xs text-amber-400 mt-2">
-              Memory high — queue will auto-clean before new jobs. Click Clean RAM for GC + Ollama
-              offload.
-            </p>
-          )}
         </div>
       </div>
 

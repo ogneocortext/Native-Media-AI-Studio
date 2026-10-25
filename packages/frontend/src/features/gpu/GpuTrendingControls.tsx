@@ -93,7 +93,7 @@ export function GpuTrendingControls({
             </button>
           ))}
         </div>
-        <span className="text-[11px] text-muted/70 tabular-nums">
+        <span className="text-xs font-medium text-foreground tabular-nums">
           {windowHistory.length} points in view • {history.length} stored • {rangeLabel} window
           {dbSynced ? " • DB ✓" : " • local only"}
         </span>

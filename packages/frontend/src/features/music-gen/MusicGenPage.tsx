@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
-import { Music, Play, Square, Settings, Sparkles, RefreshCw } from "lucide-react";
+import { Music, Play, Square, Settings, Sparkles, RefreshCw, Info } from "lucide-react";
 import { getApiBase } from "../../services/api/core";
 import { DS } from "../../styles/designSystem";
 import { Card, StatusBadge, EmptyState } from "../../components/common";
 
 export function MusicGenPage() {
-  const [status, setStatus] = useState<string>("Loading status...");
   const [running, setRunning] = useState(false);
   const [style, setStyle] = useState("");
   const [lyrics, setLyrics] = useState("");
@@ -20,11 +19,9 @@ export function MusicGenPage() {
     try {
       const r = await fetch(`${api}/api/music-gen/status`);
       const j = await r.json();
-      setStatus(JSON.stringify(j, null, 2));
       setRunning(!!j?.services?.ace?.running);
     } catch (e) {
       setError(String(e));
-      setStatus("Status unavailable");
       setRunning(false);
     }
   }, [api]);
@@ -123,7 +120,7 @@ export function MusicGenPage() {
               <button
                 onClick={startService}
                 disabled={busy}
-                className={DS.btnSecondary}
+                className={DS.btnPrimary}
               >
                 <Play size={14} />
                 Start
@@ -139,10 +136,23 @@ export function MusicGenPage() {
             </div>
           </Card>
 
-          <Card title="Service Details" icon={<Settings size={18} />}>
-            <pre className="bg-gray-900 text-emerald-400 p-3 rounded-lg text-xs overflow-auto max-h-48">
-              {status}
-            </pre>
+          <Card title="Service Details" icon={<Info size={18} />}>
+            <div className="space-y-2 text-xs text-muted">
+              <div className="flex justify-between">
+                <span>Engine</span>
+                <span className="text-white">ACE-Step</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Status</span>
+                <span className={`text-sm ${running ? "text-emerald-400" : "text-red-400"}`}>
+                  {running ? "Running" : "Offline"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Port</span>
+                <span className="text-white">8001</span>
+              </div>
+            </div>
           </Card>
         </div>
 
@@ -156,7 +166,7 @@ export function MusicGenPage() {
                   value={style}
                   onChange={(e) => setStyle(e.target.value)}
                   rows={3}
-                  className={DS.textarea}
+                  className={`${DS.textarea} border border-gray-600`}
                   placeholder="e.g., upbeat electronic, synthwave, calm ambient..."
                 />
               </div>
@@ -167,7 +177,7 @@ export function MusicGenPage() {
                   value={lyrics}
                   onChange={(e) => setLyrics(e.target.value)}
                   rows={6}
-                  className={DS.textarea}
+                  className={`${DS.textarea} border border-gray-600`}
                   placeholder="Enter lyrics or leave empty for instrumental..."
                 />
               </div>
@@ -177,7 +187,7 @@ export function MusicGenPage() {
                 <input
                   value={outputName}
                   onChange={(e) => setOutputName(e.target.value)}
-                  className={DS.input}
+                  className={`${DS.input} border border-gray-600`}
                   placeholder="my-song"
                 />
               </div>

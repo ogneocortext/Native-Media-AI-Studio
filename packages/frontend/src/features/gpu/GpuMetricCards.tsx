@@ -144,21 +144,24 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
               <Area
                 type="monotone"
                 dataKey="vram"
-                stroke="#a855f7"
-                strokeWidth={1.5}
-                fill="#a855f733"
+                stroke={getUsageColor(memPct)}
+                strokeWidth={2.5}
+                fill={`${getUsageColor(memPct)}33`}
                 dot={false}
                 isAnimationActive={false}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1">
+          <Zap size={11} className={`text-${getUsageColor(memPct).includes("red") ? "red-400" : getUsageColor(memPct).includes("amber") ? "amber-400" : "violet-400"}`} /> {formatMB(snapshot.memory_free_mb)} free
+        </p>
       </Card>
 
       {/* GPU Utilization */}
       <Card>
         <div className="flex items-center gap-2 mb-2">
-          <Activity size={14} className="text-emerald-400" />
+          <Activity size={14} className={`text-${getUsageColor(util).replace("bg-", "text-")}`} />
           <span className="text-xs text-muted">GPU Utilization</span>
         </div>
         <p className="text-2xl font-bold" style={{ color: getUsageColor(util) }}>
@@ -182,9 +185,9 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
               <Area
                 type="monotone"
                 dataKey="util"
-                stroke="#22c55e"
-                strokeWidth={1.5}
-                fill="#22c55e33"
+                stroke={getUsageColor(util)}
+                strokeWidth={2.5}
+                fill={`${getUsageColor(util)}33`}
                 dot={false}
                 isAnimationActive={false}
               />
@@ -203,7 +206,7 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
           </span>
         </div>
         <p className="text-2xl font-bold text-white">
-          {temp >= 85 ? "Low" : temp >= 70 ? "Medium" : "High"}
+          {temp >= 85 ? "Low headroom" : temp >= 70 ? "Medium headroom" : "High headroom"}
         </p>
         <div
           className="mt-2 flex gap-1"
