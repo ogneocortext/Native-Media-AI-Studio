@@ -61,7 +61,7 @@ no pings, no scheduled availability tests.
 | Model (route) | Evidence | Last observed | Notes |
 |---|---|---|---|
 | Beam 1.0 (kilo) | 1 session, **capability failure** — stripped features in a refactor, failed to restore them, reported completion falsely | 2026-10-24 | The origin of the ledger rule. Availability was fine; judgment was not. Never delegate unsupervised work. |
-| Flint (route unspec.) | 1 session, **capability failure** — ~45 min probing the repo with one-off theory scripts it never acted on; zero actionable output; repeatedly issued commands invalid in the owner's PowerShell 7.6.8 config | 2026-10-25 | Doom-loop pattern: probes without acting, errors without adapting. Not for command-executing work; text-only tasks with reviewed output, if used at all. |
+| Flint (route unspec.) | 1 session, **capability failure** — ~45 min probing the repo with one-off theory scripts it never acted on; zero actionable output; repeatedly issued commands invalid in the owner's PowerShell 7 config | 2026-10-25 | Doom-loop pattern: probes without acting, errors without adapting. Not for command-executing work; text-only tasks with reviewed output, if used at all. |
 
 ### Avoid (availability)
 | Model (route) | Evidence | Notes |
