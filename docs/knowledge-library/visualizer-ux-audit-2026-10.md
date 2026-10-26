@@ -256,33 +256,41 @@ session). States analyzed:
 | 5 | Focus tab: Highs | `interaction-focus-highs.png` | ✓ |
 | 6 | Genre preset: EDM | `interaction-genre-edm.png` | ✓ |
 | 7 | Genre preset: Phonk/Bass | `interaction-genre-phonk.png` | ✓ |
-| 8 | Mode toggle: 3D | `interaction-mode-3d.png` | ✗ (Ollama 500, VRAM 86%) |
-| 9 | Mode toggle: 2D | `interaction-mode-2d.png` | ✗ (not attempted, VRAM 86%) |
+| 8 | Mode toggle: 3D | `interaction-mode-3d.png` | ✓ |
+| 9 | Mode toggle: 2D | `interaction-mode-2d.png` | ✓ |
 
 ### Cross-state patterns (issues appearing in multiple states)
 
-**No hover/focus states on any interactive element** — all 7 states
+**No hover/focus states on any interactive element** — all 9 states
 Sliders, buttons, sidebar items, mode icons, genre presets — none show hover
 or focus rings. Users cannot tell what is interactive or which element is
-active without clicking.
+active without clicking. Confirmed in both 3D mode (top toolbar icons) and
+2D mode (top toolbar buttons FX/3D/2D/etc.).
 
-**Dense control panel with no visual grouping** — 5 of 7 states
+**Dense control panel without visual grouping** — 7 of 9 states
 The Reactivity Tuning panel has 10+ sliders crammed together with no visual
 separation between energy controls, frequency controls, and triad controls.
-Cognitive overload risk.
+In 2D mode specifically, the panel uses small text/meters making it hard to
+quickly understand each slider's effect. Cognitive overload risk.
 
-**Sidebar too long / dense** — 6 of 7 states
+**Sidebar too long / dense** — 8 of 9 states
 16+ navigation items in a single flat list, no collapsible sections or visual
-grouping. Hard to scan quickly.
+grouping. In 3D mode, the sidebar is "overloaded with numerous text links and
+icons under the 'CREATE' section, leading to cognitive overload and poor
+information architecture." Hard to scan quickly.
 
-**Missing visual feedback on state changes** — 4 of 7 states
+**Missing visual feedback on state changes** — 5 of 9 states
 Track dropdown open but no indication of which track is selected. Focus tab
 changes (Bass/Vocals/Highs) but no clear active indicator. Genre preset
-selection not visually distinct.
+selection not visually distinct. No hover states on toolbar buttons in either
+3D or 2D mode.
 
-**Contrast / WCAG concerns** — 4 of 7 states
-Dark theme text contrast needs verification against WCAG 4.5:1. Specific
-warning text flagged as critical by Qwen analysis (yellow on dark background).
+**Contrast / WCAG concerns** — 5 of 9 states
+Dark theme text contrast needs verification against WCAG 4.5:1. In 2D mode,
+the Reactivity Tuning panel text labels have low contrast against the dark
+background. In 3D mode, potential low contrast between dark grey background
+and sidebar text. Specific warning text flagged as critical by Qwen analysis
+(yellow on dark background).
 
 ### State-specific findings
 
@@ -295,22 +303,34 @@ warning text flagged as critical by Qwen analysis (yellow on dark background).
 | Focus: Highs | 8+ toolbar toggles cause clutter; excessive sidebar length |
 | Genre: EDM | Genre presets tightly packed; no separation between visualizer and tuning panel |
 | Genre: Phonk/Bass | Presets use small text; tuning panel cluttered; sidebar causes excessive scrolling |
+| Mode: 3D | Sidebar overloaded with CREATE section links; top control bar dense combining mode/track/toggles/tools; no hover states on toolbar icons |
+| Mode: 2D | Reactivity Tuning Panel too dense with small text/meters; low contrast text labels (WCAG 4.5:1 risk); no hover states on top toolbar buttons (FX, 3D, 2D, etc.) |
 
 ### Prioritized recommendations
 
-1. **Add hover/focus states to all interactive elements** (sliders, buttons, sidebar items, mode icons, genre presets) — affects every state
-2. **Group the Reactivity Tuning panel** with visual dividers/sub-headings — affects 5 states
-3. **Make the sidebar collapsible** with grouped sections — affects 6 states
-4. **Add visual feedback for active states** (focus tab highlight, genre preset selection, track selection indicator) — affects 4 states
+1. **Add hover/focus states to all interactive elements** (sliders, buttons, sidebar items, mode icons, genre presets) — affects every state (9/9)
+2. **Group the Reactivity Tuning panel** with visual dividers/sub-headings — affects 7 states
+3. **Make the sidebar collapsible** with grouped sections — affects 8 states
+4. **Add visual feedback for active states** (focus tab highlight, genre preset selection, track selection indicator, toolbar button states) — affects 5 states
+5. **Fix contrast on dark background** — tuning panel labels and sidebar text need WCAG 4.5:1 verification — affects 5 states
 
 ### Notes on vision-analysis methodology
 
-- Sequential single-model analysis (gemma4:e2b-it-qat) is safer than parallel
-  multi-model analysis on an 8 GB GPU — cold-loading Qwen3.5:4b through Atomic
-  Chat on top of a resident Ollama model pushed VRAM to 86% and caused Ollama
-  500 errors.
-- Always check `GET /api/integrations/vram/status` before starting a vision
-  analysis session; skip if VRAM > 70%.
+- **Always check VRAM first.** Query `GET /api/integrations/vram/status`
+  before starting; the preflight check in `analyze.mjs` warns at 70% and
+  aborts at 85%. On an 8 GB GTX 1070 Ti, gemma4 (~6 GB) and qwen3.5 (~4.8 GB)
+  cannot both be resident (~10.8 GB OOM).
+- **Use the VRAM manager for model switching.** `POST
+  /api/integrations/vram/switch-backend-model` coordinates unloading the
+  current model before loading the target, keeping `_ollama_loaded` /
+  `_atomic_chat_loaded` flags in sync with `/api/ps` reality. Do not call
+  Ollama's `/api/generate` directly to unload — that bypasses the state
+  tracking and caused the 86% VRAM / near-BSOD incident.
+- **One analysis at a time.** Never run vision analyses in parallel — each
+  loads a model into GPU memory and they compound.
+- **Sequential single-model analysis is safer than parallel multi-model.**
+  Cold-loading Qwen3.5:4b through Atomic Chat on top of a resident Ollama
+  model pushed VRAM to 86% and caused Ollama 500 errors.
 - Interaction-state screenshots reveal issues a single static screenshot
   cannot (state-change feedback, active-state indicators, focus rings). The
   combination of interaction + vision analysis is valuable but must be
