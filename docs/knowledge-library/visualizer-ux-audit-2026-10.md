@@ -457,6 +457,25 @@ remain correctly targeted across viewport sizes (1600x900 vs 780x410 were both
 captured in the original audit) and that click coordinates land on intended
 elements after layout changes.
 
+## Tooling Improvements (2026-10-26)
+
+To make interaction + vision analysis safe on an 8 GB GTX 1070 Ti, the
+following changes were made to the VRAM management and vision tooling:
+
+- **`packages/backend/app/services/vram_manager.py`**: `switch_backend_model()`
+  now reconciles `_ollama_loaded` / `_atomic_chat_loaded` flags against
+  `/api/ps` reality before any load/unload decision, preventing stale-flag
+  OOMs. All `begin_*` methods call `sync_resident_state()` first.
+- **`packages/backend/app/api/integrations_generation.py`**: New
+  `POST /api/integrations/vram/switch-backend-model` endpoint for coordinated
+  model switching (unload current → load target). `offload-ollama` now syncs
+  the resident flag after unloading.
+- **`tools/vision/analyze.mjs`**: VRAM preflight check warns at 70%, aborts
+  at 85% before starting analysis. `--skip-vram-check` override available.
+- **`tools/vision/vision-common.mjs`**: `ensureVisionModel()` now offloads
+  through the VRAM manager instead of direct Ollama API calls, keeping
+  resident flags in sync.
+
 ---
 
 ## Related

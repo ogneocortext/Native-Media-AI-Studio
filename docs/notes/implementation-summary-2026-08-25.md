@@ -58,7 +58,7 @@ All endpoints organized into focused route modules:
 | Module | Routes |
 |--------|--------|
 | `integrations_config.py` | `/`, `/{service_name}`, `/config/mock-mode`, `/config/settings`, `/models/status`, `/system-resources`, `/visualization-presets`, `/ollama-models` |
-| `integrations_generation.py` | `/comfyui/checkpoints`, `/{service_name}/generate`, `/{service_name}/generate-video`, `/{service_name}/job`, `/ollama/models`, `/vram/status`, `/vram/offload-ollama`, `/vram/reload-ollama`, `/ollama/chat`, `/ollama/generate`, `/audio/analyze`, `/audio/analyze/job` |
+| `integrations_generation.py` | `/comfyui/checkpoints`, `/{service_name}/generate`, `/{service_name}/generate-video`, `/{service_name}/job`, `/ollama/models`, `/vram/status`, `/vram/offload-ollama`, `/vram/reload-ollama`, `/vram/switch-backend-model`, `/ollama/chat`, `/ollama/generate`, `/audio/analyze`, `/audio/analyze/job` |
 | `integrations_music_video.py` | `/music-video/styles`, `/music-video/generate`, `/music-video/style-preview`, `/music-video/job/{id}/progress`, `/music-video/generate-preview`, `/music-video/preview`, `/music-video/templates` |
 | `integrations_misc.py` | `/cuda/status`, `/analyze-track-stream` |
 
