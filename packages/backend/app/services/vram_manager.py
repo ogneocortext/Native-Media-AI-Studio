@@ -72,6 +72,47 @@ def set_last_model_provider(provider: Callable[[], str | None] | None) -> None:
 _LAST_ATOMIC_CHAT_MODEL_PROVIDER: Callable[[], str | None] | None = None
 
 
+#: Cache of what Ollama's /api/ps actually reports as resident, refreshed on
+#: every verification.  The boolean flags (_ollama_loaded, _atomic_chat_loaded)
+#: can drift from reality (e.g. startup unloads Ollama but never flips the flag,
+#: or an external process unloads a model).  Always verify against /api/ps
+#: before making load/unload decisions on an 8 GB card where a wrong assumption
+#: means a 10.8 GB OOM.
+_resident_cache: list[str] = []
+_resident_cache_ts: float = 0.0
+_RESIDENT_CACHE_TTL_S = 2.0
+
+
+async def _fetch_resident_models() -> list[str]:
+    """Return model names Ollama actually has resident on the GPU right now.
+
+    Never raises: network/parse errors return an empty list and leave the
+    cache untouched.  Results are cached for _RESIDENT_CACHE_TTL_S to avoid
+    hammering /api/ps on every call.
+    """
+    import time
+    global _resident_cache, _resident_cache_ts
+    now = time.monotonic()
+    if now - _resident_cache_ts < _RESIDENT_CACHE_TTL_S and _resident_cache:
+        return list(_resident_cache)
+    try:
+        import urllib.request
+        req = urllib.request.Request(ollama_url("/api/ps"))
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        models = [m.get("name", "") for m in (data.get("models") or []) if m.get("name")]
+        _resident_cache = models
+        _resident_cache_ts = now
+        return models
+    except Exception:
+        return []
+
+
+def _base_name(name: str) -> str:
+    """Strip quant suffix and lowercase for model-name comparison."""
+    return str(name or "").split(":")[0].lower()
+
+
 def set_last_atomic_chat_model_provider(
     provider: Callable[[], str | None] | None
 ) -> None:
@@ -144,6 +185,22 @@ class VRAMManager:
         # over-committing.
         self._queue_provider: Callable[[], Awaitable[list[Any]]] | None = None
         self._init_thresholds()
+
+    async def sync_resident_state(self) -> None:
+        """Reconcile _ollama_loaded / _atomic_chat_loaded with /api/ps reality.
+
+        Call before any load/unload decision so the manager never assumes a
+        model is resident when it isn't (or vice versa).  On an 8 GB card a
+        wrong assumption means a ~10.8 GB OOM (gemma4 ~6 GB + qwen3.5 ~4.8 GB).
+        """
+        resident = await _fetch_resident_models()
+        names = {_base_name(m) for m in resident}
+        self._ollama_loaded = any(
+            n.startswith(("gemma4", "llama")) for n in names
+        )
+        self._atomic_chat_loaded = any(
+            n.startswith("qwen3") or "qwen3_5" in n for n in names
+        )
 
     def set_queue_provider(
         self, provider: Callable[[], Awaitable[list[Any]]] | None
@@ -444,6 +501,9 @@ class VRAMManager:
             self._current_workload = GPUWorkload.RENDER_3D
             self._comfyui_busy = True
 
+            # Reconcile resident flags with /api/ps before offload decisions.
+            await self.sync_resident_state()
+
             vram = await self.get_vram_status()
             actions = []
 
@@ -660,6 +720,9 @@ class VRAMManager:
             self._current_workload = GPUWorkload.MUSIC_GENERATION
             self._music_gen_running = True
 
+            # Reconcile resident flags with /api/ps before offload decisions.
+            await self.sync_resident_state()
+
             vram = await self.get_vram_status()
             actions = []
 
@@ -787,6 +850,9 @@ class VRAMManager:
             logger.info("VRAM Manager: Lip-sync starting (need=%dMB)", vram_budget_mb)
             self._current_workload = GPUWorkload.LIPSYNC
             self._lipsync_running = True
+
+            # Reconcile resident flags with /api/ps before offload decisions.
+            await self.sync_resident_state()
 
             vram = await self.get_vram_status()
             actions = []
@@ -924,6 +990,9 @@ class VRAMManager:
             logger.info("VRAM Manager: Audio analysis starting (need=%dMB)", budget)
             self._current_workload = GPUWorkload.AUDIO_ANALYSIS
             self._audio_analysis_running = True
+
+            # Reconcile resident flags with /api/ps before offload decisions.
+            await self.sync_resident_state()
 
             vram = await self.get_vram_status()
             actions: list[dict[str, Any]] = []
@@ -1290,6 +1359,10 @@ class VRAMManager:
                     "ollama_loaded": self._ollama_loaded,
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                 }
+
+            # Reconcile flags with /api/ps reality before trusting them — a
+            # stale flag can skip a needed unload and OOM the 8 GB card.
+            await self.sync_resident_state()
 
             # Idempotency: if the same backend already has this model loaded, nothing to do
             if backend == "ollama" and self._ollama_loaded:

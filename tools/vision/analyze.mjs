@@ -32,6 +32,11 @@ const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const ATOMIC_CHAT_URL = process.env.ATOMIC_CHAT_URL || 'http://localhost:1337';
 const ATOMIC_CHAT_ENABLED = (process.env.ATOMIC_CHAT_ENABLED || 'false').toLowerCase() === 'true';
 const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '300000');
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+// VRAM safety threshold: warn above 70%, abort above 85% (leaves headroom for
+// the model itself, which can be 4-6 GB on an 8 GB card).
+const VRAM_WARN_PCT = parseInt(process.env.VISION_VRAM_WARN_PCT || '70');
+const VRAM_ABORT_PCT = parseInt(process.env.VISION_VRAM_ABORT_PCT || '85');
 
 // --- Task → model routing -------------------------------------------------
 // One prompt skeleton serves all models; what differs per model is sampling
@@ -80,8 +85,15 @@ function profileFor(model) {
 //   1. explicit --model flag (or VISION_MODEL env) always wins;
 //   2. mode-mapped model when it is resident or nothing vision-capable is;
 //   3. otherwise the resident model (cold loads cost more than any match gain).
-async function resolveModel(args, forcedModel) {
+async function resolveModel(args, forcedModel, backend = 'auto') {
   if (forcedModel) return { model: forcedModel, why: 'override' };
+  // When targeting Atomic Chat, route to its resident model instead of Ollama's.
+  if (backend === 'atomic') {
+    if (await isAtomicChatReady()) {
+      return { model: atomicChatModelsCache[0], why: 'atomic-chat-resident' };
+    }
+    // Atomic Chat not ready; fall through to Ollama routing below.
+  }
   const mapped = MODE_MODEL[args.mode];
   if (!mapped) return { model: DEFAULT_VISION_MODEL, why: 'default' };
   const resident = await residentVisionModels();
@@ -111,6 +123,22 @@ GROUNDING RULES (apply always, even to the task above):
 const EXTRACT_MODES = new Set(['ocr', 'table', 'chart']);
 const ATOMIC_CHAT_READY_CACHE_TTL_MS = parseInt(process.env.ATOMIC_CHAT_READY_CACHE_TTL_MS || '10000');
 
+/**
+ * Query the backend's VRAM status endpoint before starting a vision analysis.
+ * Returns null if the backend is unreachable (caller decides whether to proceed).
+ */
+async function fetchVRAMStatus() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/integrations/vram/status`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 function parseArgs(argv) {
   const args = {
     images: [],
@@ -127,6 +155,7 @@ function parseArgs(argv) {
     backend: 'auto',
     model: null,
     think: (process.env.VISION_THINK || '').toLowerCase() === 'true',
+    skipVramCheck: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -142,6 +171,7 @@ function parseArgs(argv) {
     else if (arg === '--low') { args.low = true; }
     else if (arg === '--high') { args.high = true; }
     else if (arg === '--json') { args.json = true; }
+    else if (arg === '--skip-vram-check') { args.skipVramCheck = true; }
     else if (arg === '--model' && argv[i + 1]) { args.model = argv[++i]; }
     else if (arg === '--think') { args.think = true; }
     else if (!arg.startsWith('--')) {
@@ -224,9 +254,30 @@ function buildMetadata(args) {
   return parts.length > 0 ? `\n\n---\n${parts.join('\n')}` : '';
 }
 
-function toAtomicChatModel(model) {
-  if (!model || typeof model !== 'string') return model;
+function toAtomicChatModel(model, knownModels = atomicChatModelsCache) {  if (!model || typeof model !== 'string') return model;
   if (model.startsWith('ollama/')) return model;
+
+  // Normalize for comparison: lowercase, strip non-alphanumeric.
+  const normalize = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const target = normalize(model);
+
+  // Try to match the requested model against Atomic Chat's actual resident models.
+  // Atomic Chat IDs look like "unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M"
+  // while callers pass "qwen3.5:4b" — direct string equality won't work.
+  if (knownModels && knownModels.length > 0) {
+    // 1. Exact normalized match.
+    for (const km of knownModels) {
+      if (normalize(km) === target) return km;
+    }
+    // 2. Substring match either direction (covers partial names like "qwen3.5:4b"
+    //    matching "unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M").
+    for (const km of knownModels) {
+      const kn = normalize(km);
+      if (kn.includes(target) || target.includes(kn)) return km;
+    }
+  }
+
+  // Fall back to the ollama/ prefix conversion (may 404 if Atomic Chat lacks it).
   if (model.includes(':')) {
     return `ollama/${model.replace(/:/g, '-')}`;
   }
@@ -245,6 +296,7 @@ function looksTruncated(text) {
 
 let atomicChatReadyCachedAt = 0;
 let atomicChatReady = false;
+let atomicChatModelsCache = [];
 
 async function isAtomicChatReady() {
   const now = Date.now();
@@ -265,6 +317,7 @@ async function isAtomicChatReady() {
     }
     const modelsJson = await modelsRes.json();
     const models = Array.isArray(modelsJson?.data) ? modelsJson.data : [];
+    atomicChatModelsCache = models.map((m) => m.id);
     if (!models.length) {
       atomicChatReady = false;
       return atomicChatReady;
@@ -429,6 +482,136 @@ async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, en
   return typeof text === 'string' ? text : '';
 }
 
+/**
+ * Convert raw model analysis text into a human-friendly, colorized,
+ * section-separated render. Keeps structured JSON available via --json.
+ */
+function renderHumanFriendly(analysis, model) {
+  const trimmed = (analysis || '').trim();
+  if (!trimmed) return '';
+
+  const C = {
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    red: '\x1b[31m',
+    green: '\x1b[32m',
+    yellow: '\x1b[33m',
+    blue: '\x1b[34m',
+    magenta: '\x1b[35m',
+    cyan: '\x1b[36m',
+    white: '\x1b[37m',
+  };
+
+  const bar = `${C.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C.reset}`;
+  const out = [];
+  out.push(`${bar}`);
+  out.push(`${C.bold}${C.white}  VISION ANALYSIS — ${model}${C.reset}`);
+  out.push(`${bar}`);
+
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    parsed = null;
+  }
+
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    renderJsonSections(parsed, C, out);
+  } else {
+    renderTextSections(trimmed, C, out);
+  }
+
+  return out.join('\n');
+}
+
+function renderJsonSections(obj, C, out) {
+  const sections = [
+    { key: 'elements', title: 'ELEMENTS', color: C.blue },
+    { key: 'layout', title: 'LAYOUT', color: C.green },
+    { key: 'typography', title: 'TYPOGRAPHY', color: C.yellow },
+    { key: 'color', title: 'COLOR', color: C.magenta },
+    { key: 'affordances', title: 'AFFORDANCES', color: C.cyan },
+    { key: 'empty_states', title: 'EMPTY STATES', color: C.dim },
+    { key: 'findings', title: 'FINDINGS', color: C.red },
+    { key: 'top_3_fixes', title: 'TOP 3 FIXES', color: C.red },
+  ];
+
+  for (const { key, title, color } of sections) {
+    if (!(key in obj)) continue;
+    const val = obj[key];
+    out.push(`\n${color}${C.bold}▶ ${title}${C.reset}`);
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (typeof item === 'object' && item !== null) {
+          const bits = [];
+          for (const [k, v] of Object.entries(item)) {
+            if (v !== null && v !== undefined) bits.push(`${C.dim}${k}:${C.reset} ${v}`);
+          }
+          out.push(`  • ${bits.join(' | ')}`);
+        } else {
+          out.push(`  • ${item}`);
+        }
+      }
+    } else if (typeof val === 'object' && val !== null) {
+      for (const [k, v] of Object.entries(val)) {
+        out.push(`  ${C.dim}${k}:${C.reset} ${v}`);
+      }
+    } else {
+      out.push(`  ${val}`);
+    }
+  }
+}
+
+function renderTextSections(text, C, out) {
+  const parts = text.split(/^=== (.+) ===$/m);
+  if (parts.length <= 1) {
+    out.push(text);
+    return;
+  }
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const title = parts[i].trim();
+    const content = (parts[i + 1] || '').trim();
+    if (!content) continue;
+
+    out.push(`\n${C.bold}${C.cyan}━ ${title} ━${C.reset}`);
+
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) { out.push(''); continue; }
+
+      const sev = t.match(/\[SEVERITY:\s*(\w+)\]/i);
+      if (sev) {
+        const s = sev[1].toLowerCase();
+        const color = s === 'critical' ? C.red : s === 'minor' ? C.yellow : C.green;
+        const clean = t.replace(/\[SEVERITY:\s*\w+\]/i, '').trim();
+        out.push(`  ${color}[${sev[1].toUpperCase()}]${C.reset} ${clean}`);
+        continue;
+      }
+
+      if (/^\d+\.\s/.test(t)) {
+        out.push(`  ${C.bold}${C.magenta}${t}${C.reset}`);
+        continue;
+      }
+
+      if (t.startsWith('-') || t.startsWith('•')) {
+        out.push(`  ${C.dim}•${C.reset} ${t.replace(/^[•\-]\s*/, '')}`);
+        continue;
+      }
+
+      const m = t.match(/^\*\*([^*]+)\*\*(.*)$/);
+      if (m) {
+        out.push(`  ${C.bold}${C.white}${m[1]}${C.reset}${C.dim}${m[2]}${C.reset}`);
+        continue;
+      }
+
+      out.push(`  ${t}`);
+    }
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -458,12 +641,38 @@ async function main() {
     }
   }
 
+  // VRAM preflight check — protect the 8 GB card from compounding model loads.
+  // Skip only with --skip-vram-check or VISION_SKIP_VRAM_CHECK=1.
+  if (!args.skipVramCheck && process.env.VISION_SKIP_VRAM_CHECK !== '1') {
+    const vram = await fetchVRAMStatus();
+    if (vram) {
+      const v = vram.vram || vram;
+      const pct = v.percent ?? 0;
+      const freeMb = v.free_mb ?? 0;
+      const totalMb = v.total_mb ?? 0;
+      const usedMb = v.used_mb ?? 0;
+      console.error(`[vision] VRAM: ${usedMb}MB / ${totalMb}MB (${pct}%), free ${freeMb}MB`);
+      if (pct >= VRAM_ABORT_PCT && !args.skipVramCheck) {
+        console.error(`[vision] ERROR: VRAM at ${pct}% >= abort threshold ${VRAM_ABORT_PCT}%. ` +
+          `Free GPU memory first (POST /api/integrations/vram/offload-ollama) ` +
+          `or use --skip-vram-check to override.`);
+        process.exit(1);
+      }
+      if (pct >= VRAM_WARN_PCT) {
+        console.error(`[vision] WARNING: VRAM at ${pct}% >= warn threshold ${VRAM_WARN_PCT}%. ` +
+          `Model load may fail or force eviction of other resident models.`);
+      }
+    } else {
+      console.error('[vision] WARNING: Could not reach backend VRAM status endpoint — proceeding blind.');
+    }
+  }
+
   // Encode settings: text-dense modes get higher resolution (reading needs
   // pixels), extractive modes get deterministic temperature. --low/--high win.
   // The active model's profile caps resolution (bigger is not better past a
   // model's native patches) and sets sampling + context per its strengths.
   const forcedModel = args.model || process.env.VISION_MODEL || null;
-  const { model: activeModel, why: modelWhy } = await resolveModel(args, forcedModel);
+  const { model: activeModel, why: modelWhy } = await resolveModel(args, forcedModel, args.backend);
   const profile = profileFor(activeModel);
   const textMode = TEXT_MODES.has(args.mode);
   const maxDim = args.low ? 768 : args.high ? 1600 : textMode ? Math.max(VISION_MAX_DIM, 1568) : VISION_MAX_DIM;
@@ -655,7 +864,7 @@ async function main() {
         error: ok ? undefined : 'empty-analysis',
       }, null, 2));
     } else if (ok) {
-      console.log(analysis);
+      console.log(renderHumanFriendly(analysis, activeModel));
     }
     if (!ok) {
       // Nonzero exit matters: MCP runNode treats this as failure and actually

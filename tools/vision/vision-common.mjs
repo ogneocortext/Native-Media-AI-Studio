@@ -20,6 +20,7 @@
 // as an exclusion guard (same convention tools/probe-ollama.py relies on).
 
 export const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 export const VISION_MAX_DIM = parseInt(process.env.VISION_MAX_DIM || '1280');
 export const VISION_QUALITY = parseInt(process.env.VISION_QUALITY || '80');
 export const VISION_KEEP_ALIVE = process.env.VISION_KEEP_ALIVE || '10m';
@@ -312,7 +313,9 @@ export async function unloadModel(model, log = (m) => console.error(`[vision] ${
 
 /**
  * Before a vision call on this card: unload every OTHER resident model so the
- * target fits. Retries once — the first /api/generate can race the scheduler.
+ * target fits. Coordinates through the backend's VRAM manager so the
+ * _ollama_loaded / _atomic_chat_loaded flags stay in sync with /api/ps reality.
+ * Retries once — the first unload can race the scheduler.
  */
 export async function ensureVisionModel(model, opts = {}) {
   const { settleMs = 1500, log = (m) => console.error(`[vision] ${m}`) } = opts;
@@ -320,8 +323,37 @@ export async function ensureVisionModel(model, opts = {}) {
   if (running.length === 0) return;
   const toUnload = running.filter((m) => m !== model);
   if (toUnload.length === 0) return;
-  log(`unloading models: ${toUnload.join(',')}`);
-  for (const m of toUnload) await unloadModel(m, log);
+
+  // Offload through the VRAM manager so its resident flags stay in sync.
+  // offload-ollama unloads ALL Ollama models; we then reload the target below.
+  log(`offloading backend models via VRAM manager: ${toUnload.join(',')}`);
+  try {
+    await fetch(`${BACKEND_URL}/api/integrations/vram/offload-ollama`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch (e) {
+    log(`VRAM manager offload failed, falling back to direct unload: ${e.message}`);
+    for (const m of toUnload) await unloadModel(m, log);
+  }
+
+  // If the target is an Ollama model, load it now (it was just offloaded).
+  const targetIsOllama = running.some((m) => m === model);
+  if (!targetIsOllama) {
+    // Target wasn't running before — load it fresh.
+    try {
+      await fetch(`${OLLAMA_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, keep_alive: '5m' }),
+        signal: AbortSignal.timeout(300000),
+      });
+    } catch (e) {
+      log(`load target model failed: ${e.message}`);
+    }
+  }
+
   await new Promise((r) => setTimeout(r, settleMs));
   const still = await getRunningModels();
   const remain = still.filter((m) => m !== model);

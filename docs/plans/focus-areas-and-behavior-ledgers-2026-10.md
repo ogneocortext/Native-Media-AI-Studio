@@ -98,10 +98,22 @@ backward** — the thing a changelog cannot show.
   hook extracted (~400 lines of shared state moved out), Visualizer.tsx
   reduced from ~2,475 to ~2,400 lines. Canvas2DVisualizer.tsx ≈83 KB still
   pending (T-VIZ-03+). Untouched by the Oct 24 refactor otherwise.
-- **Pain:** monolith size makes agent edits risky and review slow.
+  **Interaction-state vision analysis completed 2026-10-26:** 7 of 9
+  interaction states analyzed (modal closed, track dropdown open, focus tabs
+  Bass/Vocals/Highs, genre presets EDM/Phonk+Bass); findings documented in
+  `docs/knowledge-library/visualizer-ux-audit-2026-10.md` §5. Cross-state
+  patterns: no hover/focus states on any interactive element (7/7 states),
+  dense control panel without visual grouping (5/7), long dense sidebar (6/7),
+  missing visual feedback on state changes (4/7), contrast/WCAG concerns (4/7).
+  Two states (3D mode, 2D mode) could not be analyzed — VRAM pressure from
+  prior analyses caused Ollama 500 errors at 86% VRAM.
+- **Pain:** monolith size makes agent edits risky and review slow. Interaction
+  states reveal UX issues invisible to static screenshot review.
 - **Next moves:** decompose both files under the §2 refactor protocol
   (tag first, ledger after). Follow `docs/architecture/visualizer.md`
-  (D14) for where new logic belongs.
+  (D14) for where new logic belongs. Apply interaction-state findings
+  (hover/focus states, panel grouping, collapsible sidebar, active-state
+  feedback) as implementation items.
 - **Behavior ledger:**
   - [x] Track change resets analysis state for the new track (no
     bleed-over smoothing/beat state) — verified present after T-VIZ-02
@@ -109,6 +121,17 @@ backward** — the thing a changelog cannot show.
     no local name regexes in components — verified present
   - [x] Playback, reactivity HUD, and presets behave as before the
     decomposition, page by page — verified present after T-VIZ-02
+  - [ ] No hover/focus states on interactive elements (sliders, buttons,
+    sidebar items, mode icons, genre presets) — found missing in all 7
+    analyzed interaction states
+  - [ ] Reactivity Tuning panel has visual grouping/dividers between
+    control groups — found absent (dense, 10+ sliders ungrouped)
+  - [ ] Sidebar navigation has collapsible grouped sections — found absent
+    (16+ flat items)
+  - [ ] Active state feedback on focus tabs, genre presets, track selection —
+      found missing (no clear indicator which is active)
+  - [ ] Dark theme text contrast meets WCAG 4.5:1 — unverified; flagged
+      as concern in 4 of 7 analyzed states
 
 ### 3.5 Video Pipeline & Storyboard
 
