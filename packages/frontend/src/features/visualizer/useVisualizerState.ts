@@ -257,7 +257,7 @@ export function useVisualizerState() {
     storyboard: null, activeVisualPresetId: null,
     visualsVisible: true, lyricsVisible: true, characterVisible: true,
   });
-  const prevTestState = useRef(testStateRef.current);
+  const prevTestState = useRef({ ...testStateRef.current });
 
   return {
     bgColor, meshColor, demoEnabled, audioUrl, currentFilename, isPlaying, isPaused, error,
