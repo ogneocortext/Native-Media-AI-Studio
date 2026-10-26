@@ -430,7 +430,7 @@ export function Visualizer() {
       lyricsVisible,
       characterVisible,
     };
-    prevTestState.current = testStateRef.current;
+    prevTestState.current = { ...testStateRef.current };
   }
 
   // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio).
