@@ -2,6 +2,8 @@
 
 **Platform: Windows 11. All terminal commands MUST go through PowerShell 7 (`pwsh`). Do NOT use `bash`, `cmd`, or Unix shells on this machine.** `bash` here resolves to the WSL launcher — it is NOT Git Bash and will produce confusing errors.
 
+**This machine runs PowerShell 7.6.9 (LTS, built on .NET 10).** Windows 11 also ships PowerShell 5.1 (built on .NET Framework 4.x) — that version is retired for repo work. The two versions install side-by-side: `pwsh.exe` is v7+, `powershell.exe` is v5.1. Always use `pwsh`.
+
 Read this before running your first command. Keep it open while working.
 
 ---
@@ -12,15 +14,40 @@ Read this before running your first command. Keep it open while working.
 # Verify you are in PowerShell 7, not 5.1 or cmd
 $PSVersionTable.PSVersion
 
-# Expected output: Major = 7 (e.g. 7.6.6)
+# Expected: Major = 7 (e.g. 7.6.9), Edition = Core
 # If Major = 5, you are in the wrong shell. Exit and use pwsh.
+# If Edition = Desktop, you are in Windows PowerShell 5.1 — wrong shell.
 ```
 
-**The project shell is `pwsh` 7.6.6.** The old `powershell` (5.1) is retired. Never invoke scripts as `powershell ...`.
+**The project shell is `pwsh` 7.6.x.** Never invoke scripts as `powershell ...` (that's 5.1).
 
 ---
 
-## 2. File & Directory Operations (replaces bash `ls/cp/mv/rm/find/grep/cat`)
+## 2. PowerShell 7.6 vs Windows PowerShell 5.1 — Key Differences
+
+| Feature | PowerShell 5.1 (retired) | PowerShell 7.6 (use this) |
+|---------|-------------------------|--------------------------|
+| Executable | `powershell.exe` | `pwsh.exe` |
+| Install location | `$Env:windir\System32\WindowsPowerShell\v1.0` | `$Env:ProgramFiles\PowerShell\7` |
+| .NET base | .NET Framework 4.x | .NET 10 (LTS) |
+| Platform | Windows only | Cross-platform (Windows, macOS, Linux) |
+| Profiles | `Microsoft.PowerShell_profile.ps1` | Separate 7.x profiles |
+| PSModulePath | Separate from 7.x | Separate from 5.1 |
+| Ternary operator `? :` | ❌ | ✅ |
+| `ForEach-Object -Parallel` | ❌ | ✅ (runspace pool, ThrottleLimit default 5) |
+| `Start-ThreadJob` | ❌ (installable module) | ✅ (Microsoft.PowerShell.ThreadJob) |
+| `PSForEach()` / `PSWhere()` | ❌ | ✅ (intrinsic method aliases) |
+| `Get-Clipboard -Delimiter` | ❌ | ✅ |
+| `Join-Path -ChildPath` as string[] | ❌ | ✅ |
+| `NO_COLOR` respected | ❌ | ✅ |
+| Hex native exit codes | ❌ | ✅ |
+| `Import-Module -UseWindowsPowerShell` | N/A | ✅ (load 5.1-only modules in 7.x) |
+
+**Side-by-side rule:** PowerShell 7 installs to a separate directory with a separate executable name (`pwsh.exe`). Both versions can run simultaneously. The new name (`pwsh`) makes it easy to support side-by-side execution.
+
+---
+
+## 3. File & Directory Operations (replaces bash `ls/cp/mv/rm/find/grep/cat`)
 
 | Task | PowerShell 7 | Notes |
 |------|-------------|-------|
@@ -31,7 +58,7 @@ $PSVersionTable.PSVersion
 | Read last N lines | `Get-Content file -Tail 50` | |
 | Search content | `Select-String "pattern" file` | Alias: `sls`. Use Kilo `grep` tool when available. |
 | Search recursively | `Select-String -Path "dir\*" -Pattern "pattern"` | |
-| Create directory | `New-Item -ItemType Directory -Path "dir"` | Alias: `md`, `mkdir` |
+| Create directory | `New-Item -ItemType Directory -Path "dir"` | Alias: `md`, `mkdir`. `-Target` is literal in 7.6 |
 | Create file | `New-Item -ItemType File -Path "file"` | |
 | Copy file | `Copy-Item -Path "src" -Destination "dst"` | Alias: `cp`, `cpi` |
 | Move/rename | `Move-Item -Path "src" -Destination "dst"` | Alias: `mv`, `mi` |
@@ -42,16 +69,29 @@ $PSVersionTable.PSVersion
 | Current directory | `Get-Location` | Alias: `pwd`, `cd` (no args) |
 | Change directory | `Set-Location "dir"` | Alias: `cd`, `chdir`, `sl` |
 | Push/pop directory | `Push-Location "dir"` / `Pop-Location` | Like `pushd`/`popd` |
+| Clipboard | `Get-Clipboard -Delimiter ","` | 7.6+ only |
+| Command lookup | `Get-Command -ExcludeModule "name"` | 7.6+ only |
 
-**PowerShell works with objects, not text.** Pipe output to objects, not strings:
+**PowerShell works with objects, not text.** Pipe objects, not strings:
+
 ```powershell
-# Wrong (text): Get-Content file | Select-String "error" | ForEach-Object { ... }
-# Right (object): Get-EventLog -LogName Application | Where-Object { $_.EntryType -eq "Error" }
+# Wrong (text-based, fragile): Get-Content file | Select-String "error"
+# Right (object-based): Get-Process | Where-Object { $_.CPU -gt 100 }
+```
+
+**Filter left:** Apply filters at the source (command parameters) before piping to `Where-Object`:
+
+```powershell
+# Good: filter at source
+Get-Service -Name w32time
+
+# Bad: retrieve all, then filter
+Get-Service | Where-Object Name -EQ w32time
 ```
 
 ---
 
-## 3. Running External Commands & Scripts
+## 4. Running External Commands & Scripts
 
 ### PowerShell scripts (.ps1)
 
@@ -62,17 +102,32 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1 -Action
 # Check ports
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\check_ports.ps1
 
-# Start services (one name, array, or 'all')
+# Start services — one name per invocation, or use -Command for arrays
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
 ```
 
-**Important:** Via `-File`, a comma-separated list arrives as ONE string and fails `ValidateSet`. Pass arrays with `-Command`, or one service per invocation.
+**Important:** Via `-File`, a comma-separated list arrives as ONE string and fails `ValidateSet`. Pass arrays with `-Command`, or one service per `-Services` invocation.
+
+**In 7.6, `New-Item -Target` is treated as literal** (not expanded). Use literal paths for `-Target`.
+
+### Native command exit codes
+
+In 7.6+, native command exit codes can be shown in hex format. Check `$LASTEXITCODE` after any native command:
+
+```powershell
+cmd.exe /c "some-command"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Command failed with exit code $LASTEXITCODE (0x$($LASTEXITCODE.ToString('X')))"
+}
+```
+
+**Empty capture ≠ success.** Always check `$LASTEXITCODE`, not whether output is empty.
 
 ### Python
 
 ```powershell
-# Default backend Python (conda env)
+# Default backend Python (conda env — 3.11.9)
 D:\conda-envs\nma-studio-cuda\Scripts\python.exe tools/run-gates.py
 
 # Or via NMA_PYTHON env var if set
@@ -99,7 +154,43 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import subprocess; subproce
 
 ---
 
-## 4. Git Operations
+## 5. Parallel Execution (PowerShell 7.6+)
+
+PowerShell 7 offers three parallel execution options. Choose based on workload:
+
+| Option | Best for | Overhead | Notes |
+|--------|----------|----------|-------|
+| `ForEach-Object -Parallel` | I/O-bound or compute-bound, moderate count | Medium (runspace pool) | ThrottleLimit default 5, runspaces reused from pool |
+| `Start-ThreadJob` | Lightweight parallel tasks, fire-and-forget | Low (runspaces) | Module: Microsoft.PowerShell.ThreadJob |
+| `Start-Job` | Heavy isolation, separate processes | High (separate process each) | Built-in, no ThrottleLimit |
+
+### `ForEach-Object -Parallel` (7.0+, runspaces reused from pool in 7.1+)
+
+```powershell
+# Run scriptblocks in parallel with a throttle limit
+1..10 | ForEach-Object -Parallel {
+    # $_ is the current input object
+    # Use Using: to pass variables from caller scope
+    $result = Do-Work -Input $_ -Using:$someVar
+    $result
+} -ThrottleLimit 5
+```
+
+**Important:** Parallel scriptblocks run in temporary runspaces. Objects decorated with ScriptProperties/ScriptMethods may not work correctly across runspaces. PipelineVariable is not supported. Errors are non-deterministic in order.
+
+### `Start-ThreadJob` (lighter than Start-Job)
+
+```powershell
+# Thread-based job — lighter weight than Start-Job
+$job = Start-ThreadJob -ScriptBlock { Get-Process } -ThrottleLimit 5
+$job | Receive-Job -Wait
+```
+
+ThreadJob module was renamed to `Microsoft.PowerShell.ThreadJob` in PowerShell 7.6. Installable from PowerShell Gallery for 5.1.
+
+---
+
+## 6. Git Operations
 
 | Task | PowerShell command |
 |------|-------------------|
@@ -114,13 +205,14 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import subprocess; subproce
 | Check branch | `git branch --show-current` |
 
 **Git via PowerShell:** `git` is a native Windows command. Pipe chain with `&&` works via PowerShell's pipeline-chain operator:
+
 ```powershell
 git add . && git commit -m "msg" && git push origin main
 ```
 
 ---
 
-## 5. Process & Service Management
+## 7. Process & Service Management
 
 | Task | PowerShell command |
 |------|-------------------|
@@ -141,9 +233,11 @@ Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue
 Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue
 ```
 
+**Start-Process improvements in 7.6:** `-Wait` polling is more efficient. Standard handles are explicitly set when using `-NoNewWindow`.
+
 ---
 
-## 6. Environment Variables
+## 8. Environment Variables
 
 | Task | PowerShell command |
 |------|-------------------|
@@ -157,16 +251,16 @@ Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue
 ```powershell
 $env:NMA_PYTHON = "D:\conda-envs\nma-studio-cuda\Scripts\python.exe"
 $env:VISION_VRAM_WARN_PCT = "70"
+$env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 ```
 
 ---
 
-## 7. Common Traps to Avoid
+## 9. Common Traps to Avoid
 
 | Trap | Wrong | Right |
 |------|-------|-------|
 | **Unix shell** | `bash`, `sh`, `zsh`, `cmd` | `pwsh` only |
-| **Unix path separators** | `packages/frontend/src` | `packages\frontend\src` or `packages/frontend/src` (PowerShell accepts both, but use backslashes for native commands) |
 | **`bash` is WSL** | `bash script.sh` | `pwsh -File script.ps1` — `bash` is the WSL launcher, NOT Git Bash |
 | **`powershell` = 5.1** | `powershell -File script.ps1` | `pwsh -NoProfile -ExecutionPolicy Bypass -File script.ps1` |
 | **Comma list via -File** | `-Services a,b,c` | Pass one service per `-Services` invocation, or use `-Command` |
@@ -174,14 +268,17 @@ $env:VISION_VRAM_WARN_PCT = "70"
 | **Empty capture = success** | `$x = cmd.exe /c ...; if (-not $x) { ... }` | Check `$LASTEXITCODE` after native commands |
 | **UTF-8 decoding** | `subprocess.run(text=True)` (Python) | Pass `encoding="utf-8"` explicitly (see `tools/check-subprocess-encoding.py`) |
 | **Background with `&`** | `npm run dev &` | Use `background_process` tool or `Start-Process` |
+| **`powershell` on PATH** | May resolve to 5.1 | Use `pwsh` explicitly — 5.1 is retired |
+| **Module compatibility** | Assuming 5.1 modules work in 7.x | Use `Import-Module -UseWindowsPowerShell` for 5.1-only modules |
+| **Profile confusion** | Editing 5.1 profile | 7.x has separate profiles — edit the 7.x profile |
 
 ---
 
-## 8. Common One-Liners
+## 10. Common One-Liners
 
 ```powershell
 # Check PowerShell version
-$PSVersionTable.PSVersion.Major
+$PSVersionTable.PSVersion
 
 # Check if a port is in use
 Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue
@@ -206,11 +303,21 @@ New-Item -ItemType Directory -Path "$env:TEMP\nma-scratch" -Force; Set-Location 
 
 # View file tail (like `tail -f`)
 Get-Content -Path "output/logs/backend.log" -Tail 50 -Wait
+
+# Use intrinsic collection methods (PS 4.0+, 7.6 aliases)
+$files = Get-ChildItem "packages/frontend/src\*.ts"
+$tsFiles = $files.Where({ $_.Length -gt 1000 })    # alias: PSWhere()
+$names   = $files.ForEach({ $_.Name })              # alias: PSForEach()
+
+# Parallel file processing
+Get-ChildItem "packages\frontend\src\*.ts" | ForEach-Object -Parallel {
+    Select-String -Path $_.FullName -Pattern "TODO"
+} -ThrottleLimit 5
 ```
 
 ---
 
-## 9. Running Gates
+## 11. Running Gates
 
 ```powershell
 # All gates
@@ -224,7 +331,7 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe tools/run-gates.py --only type
 
 ---
 
-## 10. When PowerShell Fails
+## 12. When PowerShell Fails
 
 Per AGENTS.md: **On any PowerShell failure, fall back to Python immediately.** Use `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` with `subprocess` and explicit `encoding="utf-8"`.
 
@@ -259,7 +366,8 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe tools/check-subprocess-encoding
 | `netstat -tlnp` | `Get-NetTCPConnection -State Listen` |
 | `env` | `Get-ChildItem env:` |
 | `export VAR=val` | `$env:VAR = "val"` |
+| `xargs` | `ForEach-Object` or `ForEach-Object -Parallel` |
 
 ---
 
-**Remember: You are on Windows. PowerShell 7 is the only shell. No bash. No cmd. No Unix utilities.**
+**Remember: You are on Windows. PowerShell 7 is the only shell for repo work. No bash. No cmd. No Unix utilities. `powershell.exe` (5.1) is retired — use `pwsh.exe` only.**

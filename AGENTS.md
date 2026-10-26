@@ -5,7 +5,7 @@
 > **Platform:** Windows 11 local development machine
 
 > **Shell rule: all commands go through PowerShell 7 (`pwsh`) by
-> default.** The agent shell is configured as pwsh **7.6.6** via the
+> default.** The agent shell is configured as pwsh **7.6.9** via the
 > global Kilo config (`~/.config/kilo/kilo.jsonc`, `"shell":
 > "C:\\kilo\\pwsh7\\pwsh.exe"`); the runtime is a full copy of the
 > WindowsApps install at `C:\kilo\pwsh7\` (the old
@@ -376,7 +376,7 @@ one service per invocation:
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
 ```
 
-Note `pwsh`, not `powershell` — the agent shell is pwsh 7.6.6 by
+Note `pwsh`, not `powershell` — the agent shell is pwsh 7.6.9 by
 default (a session that predates the config change may still be
 5.1) and these scripts require 7.6+. ComfyUI and the video editor
 are optional; the studio runs without them.
@@ -412,7 +412,7 @@ aesthetic:
   this repo's own docs contain em dashes and arrows.
 - Native commands writing to stderr raise `NativeCommandError` even on success,
   so `2>&1 | Select-Object -Last N` is unreliable for diagnostics.
-- The agent shell defaults to PowerShell 7.6.6 (a session that
+- The agent shell defaults to PowerShell 7.6.9 (a session that
   predates the config change may still be 5.1); the repo's scripts
   need 7.6+. That gap was a recurring source of "the script is
   broken" conclusions that are wrong.
@@ -434,7 +434,7 @@ integration — service lifecycle, port binding, Unity launch — where it is th
 right tool and nothing has gone wrong.
 
 - **Requires PowerShell 7.6+ for the project's own scripts.** The
-  agent shell is pwsh 7.6.6 by default; a session that predates the
+  agent shell is pwsh 7.6.9 by default; a session that predates the
   config change may still be PowerShell **5.1** — check
   `$PSVersionTable.PSVersion.Major` before concluding the scripts are broken.
 - On PowerShell failures, **fall back to Python immediately**. This is not just
