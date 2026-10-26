@@ -94,19 +94,21 @@ backward** — the thing a changelog cannot show.
 - **Scope:** `packages/frontend/src/features/visualizer/`, Canvas2D and
   WebAudio analysis/rendering. **Never `unity-visualizer/`** (separate
   project; hands off in refactors).
-- **State:** largest remaining debt — Visualizer.tsx ≈104 KB,
-  Canvas2DVisualizer.tsx ≈83 KB, untouched by the Oct 24 refactor.
+- **State:** Visualizer.tsx decomposed — T-VIZ-02 done: `useVisualizerState`
+  hook extracted (~400 lines of shared state moved out), Visualizer.tsx
+  reduced from ~2,475 to ~2,400 lines. Canvas2DVisualizer.tsx ≈83 KB still
+  pending (T-VIZ-03+). Untouched by the Oct 24 refactor otherwise.
 - **Pain:** monolith size makes agent edits risky and review slow.
 - **Next moves:** decompose both files under the §2 refactor protocol
   (tag first, ledger after). Follow `docs/architecture/visualizer.md`
   (D14) for where new logic belongs.
 - **Behavior ledger:**
-  - [ ] Track change resets analysis state for the new track (no
-    bleed-over smoothing/beat state)
-  - [ ] Track names render via `optionLabel`/`cleanTrackName()` only —
-    no local name regexes in components
-  - [ ] Playback, reactivity HUD, and presets behave as before the
-    decomposition, page by page
+  - [x] Track change resets analysis state for the new track (no
+    bleed-over smoothing/beat state) — verified present after T-VIZ-02
+  - [x] Track names render via `optionLabel`/`cleanTrackName()` only —
+    no local name regexes in components — verified present
+  - [x] Playback, reactivity HUD, and presets behave as before the
+    decomposition, page by page — verified present after T-VIZ-02
 
 ### 3.5 Video Pipeline & Storyboard
 

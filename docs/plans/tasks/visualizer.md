@@ -18,13 +18,18 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   with 7 slices (T-VIZ-02–T-VIZ-08), each with files + acceptance.
 
 ### T-VIZ-02 — Extract `useVisualizerState` hook
-- **Status:** doing
+- **Status:** done
 - **Goal:** All `useState`/`useRef` declarations extracted from Visualizer.tsx
   into a new `useVisualizerState.ts` hook. Returns state + setters + refs.
 - **Files:** new `packages/frontend/src/features/visualizer/useVisualizerState.ts`,
   `packages/frontend/src/features/visualizer/Visualizer.tsx`
 - **Acceptance:** Same state surface, zero behavior change; tsc + vitest pass.
-- **Last session:** —
+- **Last session:** Kilo, 2026-10-26 — extracted useVisualizerState hook; moved
+  csvContent, vizParams, trackMetadata, analysisData, stemsData, analyzing,
+  rendererReady, rendererBackend, lyrics, modeFade from local state into the
+  hook; fixed duplicate lastBeatAtRef/lastAudioDataAtRef local refs that
+  shadowed hook refs; converted useState-based refs to proper useRef; removed
+  dead proMixerStems state from hook; tsc + vitest + eslint all pass.
 
 ### T-VIZ-02 — Decompose Canvas2DVisualizer.tsx
 - **Status:** todo

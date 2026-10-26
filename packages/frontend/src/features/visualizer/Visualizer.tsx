@@ -29,7 +29,7 @@
  * backend app/api/audio_analysis.py); treat results below the current schema
  * as stale.
  */
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import {
@@ -66,8 +66,6 @@ import type {
   AudioAnalysisData,
   AudioData,
   StemAnalysisData,
-  VizParams,
-  PerceptualScale,
 } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import { useUIStore } from "../../state/uiStore";
@@ -92,19 +90,13 @@ import { StemMixerPanel, type StemName } from "./components/StemMixer";
 import { RemixPanel } from "./remix/RemixPanel";
 import { EqualizerPanel } from "./components/EqualizerPanel";
 import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
-import type { ChannelMeters } from "./professionalMixer/types";
 import { StylePicker } from "./components/StylePicker";
 import { QuickPresetBar } from "./components/QuickPresetBar";
 import { ReactivityHUD } from "./components/ReactivityHUD";
 import {
-  DEFAULT_REACTIVITY_TRIAD,
-  type ReactivityTriad,
-} from "./audioReactivityProcessor";
-import {
   matchReactivityGenrePreset,
   type ReactivityGenrePreset,
 } from "./reactivityGenrePresets";
-import type { ShaderPresetName } from "./shaders";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
 import { PresetFileUpload } from "./components/PresetFileUpload";
@@ -120,12 +112,13 @@ import { consumePendingTrack } from "../../utils/pendingTrack";
 import { visualPresets, selectVisualPreset } from "./visualPresets";
 import { resolveTrackVisualProfile, buildTunedPreset } from "./trackVisualProfiles";
 import { selectPresetForTrack } from "./components/KineticPresets";
-import { buildStoryboard, getStoryState, EMPTY_STORYBOARD } from "./storyboard";
+import { buildStoryboard, getStoryState } from "./storyboard";
 import { BuilderFigure } from "./components/BuilderFigure";
 import { useMCPContextSync } from "./useMCPContextSync";
 import { useVisualizerRecording } from "./useVisualizerRecording";
 import { useAudioGraph } from "./useAudioGraph";
-import { RenderStatsProbe, RenderStatsBadge, type RenderStats } from "./components/RenderStats";
+import { useVisualizerState } from "./useVisualizerState";
+import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
 import {
   CANVAS_2D_MODES,
   CANVAS_2D_MODE_LABELS,
@@ -143,24 +136,90 @@ import {
   type Canvas2DMode,
   type LibraryFile,
   selectVizMode,
-  type VizMode,
 } from "./visualizerHelpers";
 
-/** localStorage key for the persisted reactivity triad (plan 2.2). */
-const REACTIVITY_STORAGE_KEY = "visualizerReactivity:triad";
-
 export function Visualizer() {
-  const [bgColor, setBgColor] = useState("#050505");
-  const [meshColor, setMeshColor] = useState("#6366f1");
+  const {
+    // Colors
+    bgColor, setBgColor,
+    meshColor, setMeshColor,
+    // Demo
+    demoEnabled, setDemoEnabled,
+    // Audio
+    audioUrl, setAudioUrl,
+    currentFilename, setCurrentFilename,
+    isPlaying, setIsPlaying,
+    isPaused, setIsPaused,
+    error, setError,
+    // Live audio
+    liveAudioData, setLiveAudioData,
+    // Render
+    adaptiveDpr, setAdaptiveDpr,
+    renderStats, setRenderStats,
+    aiEnhancing, setAiEnhancing,
+    // UI overlays
+    openOverlay, setOpenOverlay,
+    // Presets
+    activeVisualPresetId, setActiveVisualPresetId,
+    activeShaderPreset, setActiveShaderPreset,
+    // Reactivity
+    reactivityGain, setReactivityGain,
+    frequencyFocus, setFrequencyFocus,
+    reactivityTriad, setReactivityTriad,
+    activeGenrePresetId, setActiveGenrePresetId,
+    // Mixer
+    stemsMixerState, setStemsMixerState,
+    proMixerMeters,
+    useProMixer, setUseProMixer,
+    // Playback
+    elapsed, setElapsed,
+    audioDuration, setAudioDuration,
+    // Viz mode
+    vizMode, setVizMode,
+    canvas2DMode, setCanvas2DMode,
+    sceneFrozen, setSceneFrozen,
+    prefersReducedMotion, setPrefersReducedMotion,
+    // Timing refs
+    lastBeatIdxRef, lastBeatAtRef,
+    lastAudioDataAtRef, last3DUiUpdateRef,
+    // Test harness
+    testStateRef, prevTestState,
+    // Visibility
+    visualsVisible, setVisualsVisible,
+    lyricsVisible, setLyricsVisible,
+    characterVisible, setCharacterVisible,
+    // Dev panels/modals
+    showTestPanel, setShowTestPanel,
+    showSettings, setShowSettings,
+    showAnimDemo, setShowAnimDemo,
+    showTheatreStudio, setShowTheatreStudio,
+    showExportModal, setShowExportModal,
+    showAIPanel, setShowAIPanel,
+    showAudioBrowser, setShowAudioBrowser,
+    // Pending track / loop
+    pendingTrack, setPendingTrack,
+    loopAnchor, setLoopAnchor,
+    loopRegion, setLoopRegion,
+    // Kinetic / style / scale / preset
+    kineticPreset, setKineticPreset,
+    visualizationStyle, setVisualizationStyle,
+    perceptualScale, setPerceptualScale,
+    loadedPreset, setLoadedPreset,
+    // Library / analysis / stem data (moved out of local state)
+    csvContent, setCsvContent,
+    vizParams, setVizParams,
+    trackMetadata, setTrackMetadata,
+    analysisData, setAnalysisData,
+    stemsData, setStemsData,
+    analyzing, setAnalyzing,
+    // Canvas / renderer state
+    rendererReady, setRendererReady,
+    rendererBackend, setRendererBackend,
+    // Lyrics + mode crossfade
+    lyrics, setLyrics,
+    modeFade, setModeFade,
+  } = useVisualizerState();
   const demoBpm = 120;
-  const [demoEnabled, setDemoEnabled] = useState(true);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  // Explicit selection state — previously reverse-derived from audioUrl, which broke
-  // for uploaded (blob:) URLs and any URL with query params.
-  const [currentFilename, setCurrentFilename] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   // Shared media-library source. `LibraryFile` consumers still work because the
   // store entries are a superset (they add `displayName`, `optionLabel`, `ref`).
   const { entries: sharedLibraryEntries } = useAudioLibrary();
@@ -168,17 +227,6 @@ export function Visualizer() {
     () => sharedLibraryEntries.map((f) => ({ ...f })),
     [sharedLibraryEntries],
   );
-  const [liveAudioData, setLiveAudioData] = useState<AudioData>({
-    bass: 0,
-    mid: 0,
-    treble: 0,
-    overall: 0,
-    beat: false,
-    peak: 0,
-    energy: 0,
-    drumType: null,
-    nextBeatIn: 0,
-  });
   const liveAudioDataRef = useRef<AudioData>({
     bass: 0,
     mid: 0,
@@ -190,104 +238,28 @@ export function Visualizer() {
     drumType: null,
     nextBeatIn: 0,
   });
-  const [visualizationStyle, setVisualizationStyle] = useState<VisualizationStyle>("geometric");
-  const [csvContent, setCsvContent] = useState<string>("");
-  const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
-  const [trackMetadata, setTrackMetadata] = useState<
-    Record<string, { bpm?: number; duration?: number }>
-  >({});
-  const [analysisData, setAnalysisData] = useState<Record<string, AudioAnalysisData>>({});
-  const [stemsData, setStemsData] = useState<Record<string, StemAnalysisData>>({});
-  const [analyzing, setAnalyzing] = useState(false);
-  const [sceneFrozen, setSceneFrozen] = useState(false);
   // A-B loop region on the timeline. `loopAnchor` holds the pending
   // start while the user walks to the end point: one button cycles
   // set-A → set-B → clear (see handleLoopToggle).
-  const [loopRegion, setLoopRegion] = useState<{ start: number; end: number } | null>(null);
-  const [loopAnchor, setLoopAnchor] = useState<number | null>(null);
   const loopRegionRef = useRef<{ start: number; end: number } | null>(null);
-  loopRegionRef.current = loopRegion;
-  const [showSettings, setShowSettings] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [rendererReady, setRendererReady] = useState(false);
-  const [rendererBackend, setRendererBackend] = useState("");
-  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
-  const [lyricsVisible, setLyricsVisible] = useState(true);
-  const [visualsVisible, setVisualsVisible] = useState(true);
-  const [characterVisible, setCharacterVisible] = useState(false);
-  const [kineticPreset, setKineticPreset] = useState("cinematic");
-  const [showAnimDemo, setShowAnimDemo] = useState(false);
-  const [showTheatreStudio, setShowTheatreStudio] = useState(false);
-  const [showAudioBrowser, setShowAudioBrowser] = useState(false);
-  const [loadedPreset, setLoadedPreset] = useState<VisualPreset | null>(null);
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [vizMode, setVizMode] = useState<VizMode>("shader"); // 2d = Canvas2D (2026 visual-flux/Waviz)
-  const [modeFade, setModeFade] = useState(0);
   const prevModeRef = useRef(vizMode);
   // One definition of the mode list, in visualizerHelpers.ts. This used to be an
   // inline 12-member union that had already drifted from the picker's list (it
   // was missing `aurora`), which is how an implemented, budgeted mode ended up
   // unreachable from the UI.
-  const [canvas2DMode, setCanvas2DMode] = useState<Canvas2DMode>("bars");
-  const [perceptualScale, setPerceptualScale] = useState<PerceptualScale>("mel");
-  // Adaptive pixel ratio (2026 perf best practice): PerformanceMonitor steps
-  // down to 1x when fps regresses and restores the [1, 1.5] band on recovery.
-  const [adaptiveDpr, setAdaptiveDpr] = useState<[number, number]>([1, 1.5]);
-  const [renderStats, setRenderStats] = useState<RenderStats | null>(null);
-  const [aiEnhancing, setAiEnhancing] = useState(false);
   // Plan 1.3 — one floating overlay at a time. The shortcuts popover, the
   // More-controls menu and the FX panel are mutually exclusive: opening one
   // closes the others, a scrim dims the canvas, and Esc dismisses. The 3D
   // preset column hides while an overlay is open (Visualizer.tsx render).
-  const [openOverlay, setOpenOverlay] = useState<"shortcuts" | "more" | "fx" | null>(
-    null,
-  );
   const showShortcuts = openOverlay === "shortcuts";
   const showMoreMenu = openOverlay === "more";
   const toggleOverlay = useCallback((id: "shortcuts" | "more" | "fx") => {
     setOpenOverlay((o) => (o === id ? null : id));
   }, []);
   // Single source of truth for which visual preset is currently active (fixes
-  // "multiple presets appear selected" when they share visualizationStyle).
-  const [activeVisualPresetId, setActiveVisualPresetId] = useState<string | null>(null);
-  const [activeShaderPreset, setActiveShaderPreset] = useState<ShaderPresetName | undefined>(undefined);
-  const [reactivityGain, setReactivityGain] = useState(1.0);
-  const [frequencyFocus, setFrequencyFocus] = useState<"balanced" | "bass" | "mid" | "treble">("balanced");
-  // Plan 2.2 — the reactivity triad (sensitivity / attack /
-  // release / beat response). Persisted so a reload keeps the
-  // user's tuning; the ShaderVisualizer rAF loop composes it
-  // onto the AudioReactivityProcessor only when it changes.
-  const [reactivityTriad, setReactivityTriad] = useState<ReactivityTriad>(() => {
-    try {
-      const raw = localStorage.getItem(REACTIVITY_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<ReactivityTriad>;
-        const num = (v: unknown, fallback: number): number =>
-          typeof v === "number" && Number.isFinite(v) ? v : fallback;
-        return {
-          sensitivity: num(parsed.sensitivity, DEFAULT_REACTIVITY_TRIAD.sensitivity),
-          attack: num(parsed.attack, DEFAULT_REACTIVITY_TRIAD.attack),
-          release: num(parsed.release, DEFAULT_REACTIVITY_TRIAD.release),
-          beatResponse: num(parsed.beatResponse, DEFAULT_REACTIVITY_TRIAD.beatResponse),
-        };
-      }
-    } catch {
-      // no-op — fall through to defaults
-    }
-    return DEFAULT_REACTIVITY_TRIAD;
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(REACTIVITY_STORAGE_KEY, JSON.stringify(reactivityTriad));
-    } catch {
-      // no-op
-    }
-  }, [reactivityTriad]);
   // Plan 2.3 — genre reactivity presets. The active chip highlight;
   // the guard ref mirrors the visual-preset lock: a preset the user
   // picks by hand while a track is loading wins over auto-apply.
-  const [activeGenrePresetId, setActiveGenrePresetId] = useState<string | null>(null);
   const userPickedGenrePresetRef = useRef(false);
   // Q4 — guard ref so a manual viz-mode pick mid-load is never clobbered by
   // auto-apply on the next track. Mirrors userPickedGenrePresetRef.
@@ -315,19 +287,7 @@ export function Visualizer() {
   const currentStemsData = currentFilename ? (stemsData[currentFilename] ?? null) : null;
   const currentStemsDataRef = useRef(currentStemsData);
   currentStemsDataRef.current = currentStemsData;
-  const [stemsMixerState, setStemsMixerState] = useState<{
-    muted: Record<StemName, boolean>;
-    volumes: Record<StemName, number>;
-  } | null>(null);
-
-  // Professional mixer state — per-stem meter data for visualization
-  const [proMixerMeters, _setProMixerMeters] = useState<Record<StemName, ChannelMeters> | null>(
-    null,
-  );
-
   // Toggle between simple stem mixer and professional mixer
-  const [useProMixer, setUseProMixer] = useState(false);
-
   // Build stems URL record for the professional mixer from current stems data
   const proMixerStems = useMemo(() => {
     if (!currentStemsData || !currentFilename) return null;
@@ -341,11 +301,6 @@ export function Visualizer() {
   }, [currentStemsData, currentFilename]);
 
   const audioElapsedRef = useRef(0);
-  const [elapsed, setElapsed] = useState(0);
-  // Element duration as state: the playhead below renders from `elapsed` +
-  // `audioDuration`, both reactive. Reading `audioElapsedRef.current` in render
-  // would freeze the marker at its value from the last unrelated re-render.
-  const [audioDuration, setAudioDuration] = useState(0);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   // Shared Web Audio graph (context + EQ + analyser + gain). Owns setup/reset/teardown.
@@ -445,24 +400,6 @@ export function Visualizer() {
   const perceptualScaleRef = useRef(perceptualScale);
   perceptualScaleRef.current = perceptualScale;
   // Throttle for the 3D scene's per-frame audio callback (mirrors the shader loop).
-  const last3DUiUpdateRef = useRef(0);
-  // Latest snapshot for the __VIZ_TEST__ harness without re-registering per frame.
-  const testStateRef = useRef({
-    vizMode,
-    canvas2DMode,
-    currentFilename,
-    isPlaying,
-    liveAudioData,
-    visualizationStyle,
-    kineticPreset,
-    loadedPresetName: null as string | null,
-    storyboard: EMPTY_STORYBOARD,
-    activeVisualPresetId: null as string | null,
-    visualsVisible: true,
-    lyricsVisible: true,
-    characterVisible: true,
-  });
-  const prevTestState = useRef(testStateRef.current);
   if (
     prevTestState.current.vizMode !== vizMode ||
     prevTestState.current.canvas2DMode !== canvas2DMode ||
@@ -496,12 +433,11 @@ export function Visualizer() {
     prevTestState.current = testStateRef.current;
   }
 
-  // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio)
-  const lastBeatIdxRef = useRef(-1);
-  const lastBeatAtRef = useRef(0);
+  // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio).
+  // lastBeatAtRef and lastAudioDataAtRef come from useVisualizerState — shared
+  // with the shader loop and RenderStatsProbe. Do not redeclare locally.
   // Plan 2.5 — wall-clock of the freshest audio frame, read by
   // RenderStatsProbe to report the audio→visual pipeline latency.
-  const lastAudioDataAtRef = useRef<number | null>(null);
   // Wall-clock of the last beat frame — latches `beat: true` for throttled
   // state consumers (see BEAT_LATCH_MS). Reset per track with the other detectors.
 
@@ -1172,8 +1108,6 @@ export function Visualizer() {
     }
   }, [currentAnalysisData, currentFilename, csvContent, aiEnhancing, applyPreset]);
 
-  const [showTestPanel, setShowTestPanel] = useState(false);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // DEV-ONLY: the test panel dumps live state to the screen and exposes the
@@ -1415,7 +1349,6 @@ export function Visualizer() {
   // Media Library handoff: auto-select a pending track exactly once. The handoff
   // may carry a bare filename while the library entry lives in a subfolder, so
   // resolve against the loaded library (by ref or bare name) before selecting.
-  const [pendingTrack, setPendingTrack] = useState<string | null>(null);
   useEffect(() => {
     const pending = consumePendingTrack();
     if (pending) setPendingTrack(pending);
