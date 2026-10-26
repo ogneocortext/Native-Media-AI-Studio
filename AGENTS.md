@@ -20,10 +20,17 @@
 > broken. On any PowerShell failure, fall back to Python immediately
 > (see Shell / Process Management below).
 >
-> **Command cheatsheet:** `docs/agent-shell-cheatsheet.md` — read it before
-> your first command. It names the correct interpreters and commands on
-> this machine; in particular, `bash` here resolves to the WSL launcher,
-> not the project shell — the project shell is PowerShell 7 (`pwsh`).
+> **Mandatory before any command work:** read
+> `docs/powershell-command-sheet.md` in full. It is the authoritative
+> PowerShell 7 command reference for this Windows machine. **Do NOT use
+> `bash`, `cmd`, `sh`, `zsh`, or any Unix shell** on this machine —
+> `bash` here resolves to the WSL launcher, NOT Git Bash, and will
+> produce confusing errors. `powershell` (5.1) is retired. The only
+> permitted shell is `pwsh` 7+.
+>
+> **Command cheatsheet:** `docs/agent-shell-cheatsheet.md` — quick
+> reference for interpreters and exit codes. The mandatory command
+> sheet is `docs/powershell-command-sheet.md`.
 >
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read

@@ -2,6 +2,10 @@
 
 Quick reference for shells used by agents in this repo. Full detail: `AGENTS.md` §Shell/Process Management.
 
+**Mandatory:** Before running any command, read `docs/powershell-command-sheet.md` in full. That document is the authoritative PowerShell 7 command reference. This sheet is a quick summary only — it does NOT replace the full sheet.
+
+**Shell rule:** All commands go through PowerShell 7 (`pwsh`). Do NOT use `bash`, `cmd`, `sh`, `zsh`, or any Unix shell — `bash` here resolves to the WSL launcher, NOT Git Bash.
+
 ## Interpreters
 - Default backend Python: `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` (3.11.9).
 - `python` resolves to 3.14 unless the user profile is loaded. In a no-profile shell use `tools\python.cmd` (or set `NMA_PYTHON`).
