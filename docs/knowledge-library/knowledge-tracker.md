@@ -22,8 +22,8 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 91 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
-**Migrated:** 88 (100%)
+**Documents in library:** 92 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Migrated:** 89 (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux/audit-report.md`, which is tagged but lives
@@ -141,7 +141,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `synced-technical-scan-sample-2026-10.md`  → `#ai`
 - ✅ `custom-agent-design.md`  → `#ai`, `#technical`, `#documentation`
 
-### 📊 Research & Reference (16/16 completed)
+### 📊 Research & Reference (17/17 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -160,6 +160,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `../ux/audit-report.md`  → `#research`, `#design`, `#testing`
 - ✅ `social-platform-video-research-2026.md`  → `#research`, `#creative`
 - ✅ `x-platform-video-research-2026.md`  → `#research`, `#creative`
+- ✅ `suno-v6-style-tags-README.md` → `#research`, `#audio`
 
 ## 📝 Migration Template
 

@@ -1,3 +1,15 @@
+---
+tags:
+  - research
+  - audio
+aliases:
+  - Suno v6 Style-Tag Library
+cssclasses:
+  - research-guide
+date: 2026-10-26
+type: concept
+---
+
 # Suno v6 Style-Tag Library
 
 A curated, deduplicated library of Suno style descriptors and lyric metatags, compiled 2026-10-26 from three community sources:
