@@ -116,7 +116,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
           />
           <span>Reactivity Tuning</span>
           {isPlaying === false && (
-            <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-white/10 text-white/50 border border-white/20">
+            <span className="viz-paused-badge viz-status-badge viz-status-badge--paused">
               Paused
             </span>
           )}
@@ -145,10 +145,13 @@ export const ReactivityHUD = memo(function ReactivityHUD({
             </p>
           )}
           {/* Energy meters */}
-          <div className="space-y-1">
+          <div className="viz-tuning-group">
+            <div className="viz-tuning-group-label">
+              <span className="viz-group-icon">⚡</span>Overall Energy
+            </div>
             <div className="flex items-center justify-between text-[10px] text-white/60">
               <span>Overall Energy</span>
-              <span className="font-mono text-white/80">{energyPercent}%</span>
+              <span className="viz-slider-value font-mono text-white/80">{energyPercent}%</span>
             </div>
             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
               <div
@@ -159,8 +162,10 @@ export const ReactivityHUD = memo(function ReactivityHUD({
           </div>
 
           {/* Quick Frequency Focus */}
-          <div>
-            <div className="text-[10px] text-white/60 mb-1">Focus Emphasis</div>
+          <div className="viz-tuning-group">
+            <div className="viz-tuning-group-label">
+              <span className="viz-group-icon">🎯</span>Focus Emphasis
+            </div>
             <div className="grid grid-cols-4 gap-1">
               {(
                 [
@@ -175,9 +180,11 @@ export const ReactivityHUD = memo(function ReactivityHUD({
                   onClick={() => onFrequencyFocusChange(f.id)}
                   className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
                     frequencyFocus === f.id
-                      ? "bg-violet-600 text-white font-semibold shadow-sm"
+                      ? "viz-focus-btn--active bg-violet-600 text-white font-semibold shadow-sm"
                       : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
                   }`}
+                  title={f.label}
+                  aria-pressed={frequencyFocus === f.id}
                 >
                   {f.label}
                 </button>
@@ -186,32 +193,39 @@ export const ReactivityHUD = memo(function ReactivityHUD({
           </div>
 
           {/* Live Gain / Reactivity Boost Slider */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[10px] text-white/60">
-              <span className="flex items-center gap-1">
-                <Sliders size={10} />
-                Reactivity Boost
-              </span>
-              <span className="font-mono text-white/90">{gain.toFixed(1)}x</span>
+          <div className="viz-tuning-group">
+            <div className="viz-tuning-group-label">
+              <span className="viz-group-icon">🎚️</span>Reactivity Boost
             </div>
-            <input
-              type="range"
-              min="0.4"
-              max="2.5"
-              step="0.1"
-              value={gain}
-              onChange={(e) => onGainChange(parseFloat(e.target.value))}
-              className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-violet-500"
-              title="Scale reactivity intensity"
-            />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="flex items-center gap-1 viz-slider-label">
+                  <Sliders size={10} />
+                  Reactivity Boost
+                </span>
+                <span className="viz-slider-value font-mono text-white/90">{gain.toFixed(1)}x</span>
+              </div>
+              <input
+                type="range"
+                min="0.4"
+                max="2.5"
+                step="0.1"
+                value={gain}
+                onChange={(e) => onGainChange(parseFloat(e.target.value))}
+                className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                title="Scale reactivity intensity"
+              />
+            </div>
           </div>
 
           {/* Plan 2.3 — genre reactivity presets. Chips live in the
               reactivity panel (not Master EQ): one click applies the
               preset's triad + focus + gain via the parent. */}
           {onGenrePresetSelect && (
-            <div className="space-y-1 pt-1 border-t border-white/10">
-              <div className="text-[10px] text-white/60">Genre Presets</div>
+            <div className="viz-tuning-group">
+              <div className="viz-tuning-group-label">
+                <span className="viz-group-icon">🎵</span>Genre Presets
+              </div>
               <div className="flex flex-wrap gap-1">
                 {REACTIVITY_GENRE_PRESETS.map((p) => {
                   const isActive = activeGenrePresetId === p.id;
@@ -221,7 +235,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
                       onClick={() => onGenrePresetSelect(p)}
                       className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${
                         isActive
-                          ? "bg-violet-600 text-white border-violet-400 shadow-sm"
+                          ? "viz-genre-chip--active bg-violet-600 text-white border-violet-400 shadow-sm"
                           : "bg-white/5 text-white/60 border-white/10 hover:text-white hover:bg-white/10"
                       }`}
                       title={p.description}
@@ -239,10 +253,9 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               release + beat response. These move the
               AudioReactivityProcessor's config, so they change
               the visuals, not just the meters. */}
-          <div className="space-y-1.5 pt-1 border-t border-white/10">
-            <div className="text-[10px] text-white/60 flex items-center gap-1">
-              <Sliders size={10} />
-              Reactivity Triad
+          <div className="viz-tuning-group">
+            <div className="viz-tuning-group-label">
+              <span className="viz-group-icon">🔧</span>Reactivity Triad
             </div>
             <TriadSlider
               label="Sensitivity"
@@ -283,41 +296,46 @@ export const ReactivityHUD = memo(function ReactivityHUD({
           </div>
 
           {/* Live Low/Mid/High bar meters */}
-          <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-white/5 text-[9px]">
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-white/50">
-                <span>Low</span>
-                <span className="font-mono">{bassPercent}%</span>
-              </div>
-              <div className="h-1 bg-white/10 rounded overflow-hidden">
-                <div
-                  className="h-full bg-indigo-400 transition-all duration-75"
-                  style={{ width: `${bassPercent}%` }}
-                />
-              </div>
+          <div className="viz-tuning-group">
+            <div className="viz-tuning-group-label">
+              <span className="viz-group-icon">📊</span>Live Bands
             </div>
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-white/50">
-                <span>Mid</span>
-                <span className="font-mono">{midPercent}%</span>
+            <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-white/5 text-[9px]">
+              <div className="space-y-0.5">
+                <div className="flex justify-between text-white/50">
+                  <span className="viz-slider-label">Low</span>
+                  <span className="viz-slider-value font-mono">{bassPercent}%</span>
+                </div>
+                <div className="h-1 bg-white/10 rounded overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-400 transition-all duration-75"
+                    style={{ width: `${bassPercent}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-1 bg-white/10 rounded overflow-hidden">
-                <div
-                  className="h-full bg-fuchsia-400 transition-all duration-75"
-                  style={{ width: `${midPercent}%` }}
-                />
+              <div className="space-y-0.5">
+                <div className="flex justify-between text-white/50">
+                  <span className="viz-slider-label">Mid</span>
+                  <span className="viz-slider-value font-mono">{midPercent}%</span>
+                </div>
+                <div className="h-1 bg-white/10 rounded overflow-hidden">
+                  <div
+                    className="h-full bg-fuchsia-400 transition-all duration-75"
+                    style={{ width: `${midPercent}%` }}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-white/50">
-                <span>High</span>
-                <span className="font-mono">{treblePercent}%</span>
-              </div>
-              <div className="h-1 bg-white/10 rounded overflow-hidden">
-                <div
-                  className="h-full bg-pink-400 transition-all duration-75"
-                  style={{ width: `${treblePercent}%` }}
-                />
+              <div className="space-y-0.5">
+                <div className="flex justify-between text-white/50">
+                  <span className="viz-slider-label">High</span>
+                  <span className="viz-slider-value font-mono">{treblePercent}%</span>
+                </div>
+                <div className="h-1 bg-white/10 rounded overflow-hidden">
+                  <div
+                    className="h-full bg-pink-400 transition-all duration-75"
+                    style={{ width: `${treblePercent}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>

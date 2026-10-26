@@ -89,8 +89,8 @@ for (const state of states) {
   try {
     switch (state.action) {
       case "open-track-dropdown":
-        // Click the track selector to open its dropdown
-        await page.locator('button:has-text("Select a track...")').first().click({ timeout: 3000 });
+        // The track selector is a <select> element — click it to open the dropdown.
+        await page.locator('select[data-testid="viz-track-select"]').click({ timeout: 3000 });
         await sleep(1500); // let dropdown render
         break;
       case "focus-bass":

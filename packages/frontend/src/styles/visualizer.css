@@ -466,10 +466,183 @@
     border-color: #ef4444;
     color: #f87171;
   }
-  .viz-icon-btn.drag-over {
-    background: rgba(0, 122, 255, 0.2);
-    border-color: #007aff;
-    color: #4da6ff;
+  /* ============================================================
+     Visual grouping containers — Reactivity Tuning Panel sections
+     Each logical group gets a subtle container so related
+     controls read as one unit (reduces cognitive overload).
+     ============================================================ */
+  .viz-tuning-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: oklch(100% 0 0 / 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    margin-top: 0.5rem;
+  }
+
+  .viz-tuning-group-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 0.25rem;
+  }
+
+  .viz-tuning-group-label .viz-group-icon {
+    margin-right: 0.35rem;
+    opacity: 0.7;
+  }
+
+  /* Section dividers within a group */
+  .viz-tuning-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 0.5rem 0;
+  }
+
+  /* ============================================================
+     Active state indicators — focus emphasis buttons & genre presets
+     Active states need a clear visual signal beyond color alone.
+     ============================================================ */
+  .viz-focus-btn--active,
+  .viz-genre-chip--active {
+    position: relative;
+    box-shadow: 0 0 0 1px var(--color-primary);
+  }
+
+  .viz-focus-btn--active::after,
+  .viz-genre-chip--active::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    border: 1px solid var(--color-primary);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  /* ============================================================
+     Contrast fixes — PAUSED text, sidebar text, tuning panel headers
+     WCAG AA 4.5:1 minimum on dark surfaces.
+     ============================================================ */
+  .viz-paused-badge {
+    color: var(--text-secondary) !important;
+    background: color-mix(in oklch, var(--text-secondary) 15%, transparent) !important;
+    border: 1px solid color-mix(in oklch, var(--text-secondary) 25%, transparent) !important;
+  }
+
+  .viz-tuning-panel-header {
+    color: var(--text-primary) !important;
+    font-weight: 600;
+  }
+
+  .viz-tuning-panel-subtitle {
+    color: var(--text-secondary) !important;
+  }
+
+  /* Slider value readout — higher contrast for legibility */
+  .viz-slider-value {
+    color: var(--text-primary) !important;
+    font-weight: 500;
+  }
+
+  .viz-slider-label {
+    color: var(--text-secondary) !important;
+  }
+
+  /* Status badges — always meet 4.5:1 on dark surfaces */
+  .viz-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-inverse);
+  }
+  .viz-status-badge--paused {
+    background: color-mix(in oklch, var(--color-danger) 20%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-danger) 30%, transparent);
+    color: oklch(72% 0.2 25);
+  }
+  .viz-status-badge--playing {
+    background: color-mix(in oklch, var(--color-success) 20%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-success) 30%, transparent);
+    color: oklch(78% 0.16 145);
+  }
+
+  /* ============================================================
+     Focus-visible states — WCAG 2.4.7
+     Every interactive element gets a visible focus ring so
+     keyboard users can tell which element has focus.
+     ============================================================ */
+  .viz-icon-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--color-primary) 20%, transparent);
+  }
+
+  .viz-track-select:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  .viz-analyze-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .viz-style-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .kinetic-preset-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  .viz-slider-row input[type="range"]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* QuickPresetBar mode pills — focus ring */
+  .viz-quick-preset-bar button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* ReactivityHUD focus buttons — focus ring + slight lift */
+  .viz-reactivity-hud button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+    transform: translateY(-1px);
+  }
+
+  .viz-reactivity-hud input[type="range"]:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .viz-empty-cta:focus-visible,
+  .viz-empty-secondary:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .viz-preset-clear:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .viz-empty-link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
   }
 
   .viz-preset-upload {
