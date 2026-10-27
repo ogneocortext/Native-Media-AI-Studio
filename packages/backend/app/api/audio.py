@@ -345,7 +345,7 @@ async def list_audio_backends():
     }
 
 
-@router.get("/analysis/summary/{filename}")
+@router.get("/analysis/summary/{filename:path}")
 async def get_analysis_summary(filename: str):
     """Agent-friendly summary of cached analysis for a file.
     Returns a compact view optimized for AI consumption:
@@ -744,7 +744,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             logger.warning("VRAM restore after audio analysis failed: %s", vram_exc)
 
 
-@router.get("/timing-metadata/{filename}")
+@router.get("/timing-metadata/{filename:path}")
 async def get_timing_metadata(filename: str):
     """Get Remotion-ready timing metadata for a file.
 
@@ -771,6 +771,11 @@ async def get_timing_metadata(filename: str):
 @router.get("/hyperframes-payload/{filename:path}")
 async def get_hyperframes_payload(filename: str, fps: int = 30, bands: int = 16):
     """Return deterministic embedded audio data for HyperFrames compositions."""
+    import urllib.parse
+
+    filename = urllib.parse.unquote(filename)
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
     from ..services.storyboard_hyperframes import build_hyperframes_audio_payload
     from ..services.transcription import get_transcript_path
 

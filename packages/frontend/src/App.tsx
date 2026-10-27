@@ -144,6 +144,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/analyze/audio": "Audio Analysis",
   "/analyze/ai": "AI Tools",
   "/analyze/chat": "Ollama Chat",
+  "/mastering": "Mastering",
   "/render/visualizer": "Visualizer",
   "/render/preview": "Preview",
   "/render/prompts": "Music Prompts",

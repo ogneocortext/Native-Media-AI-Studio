@@ -335,8 +335,11 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     """Serve a separated stem (WAV, or MP3 via ?format=mp3) for per-stem playback/analysis.
 
     Per ai-video-trends-2026 Trend 2 (music-native per-stem mapping):
-    the Visualizer / wizard fetch individual stems to map drums→pulse,
-    bass→camera shake, vocals→lyric glow, other→palette.
+
+    Track names may contain colons (e.g. `norm_StillIRise_V4b_preview_1.4dB:0`).
+    The caller must URL-encode the track name (`encodeURIComponent`) so the colon
+    does not break path segmentation. Stem names are simple (vocals/drums/bass/other)
+    and stay as a single segment.
     """
     import re
     import urllib.parse
@@ -409,10 +412,10 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
 async def check_stem_phase_mono(track_name: str, stem_name: str):
     """Phase/mono compatibility check for a separated stem.
 
-    Runs FFT phase correlation + mono-sum analysis on a separated stem
-    and returns phase_status ("ok"|"wide"|"inverted") and mono_status
+    Runs FFT phase correlation and mono-sum analysis on a separated stem.
+    Returns phase_status ("ok"|"wide"|"inverted") and mono_status
     ("ok"|"risk"|"cancel") with human-readable recommendations.
-    Per studio-quality-2026-10.md Phase 3 M3 (stem mixer honesty).
+    See studio-quality-2026-10.md Phase 3 M3 (stem mixer honesty).
     """
     import re
     import urllib.parse

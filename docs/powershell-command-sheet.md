@@ -2,6 +2,12 @@
 
 **Platform: Windows 11. All terminal commands MUST go through PowerShell 7 (`pwsh`). Do NOT use `bash`, `cmd`, or Unix shells on this machine.** `bash` here resolves to the WSL launcher — it is NOT Git Bash and will produce confusing errors.
 
+**CRITICAL:** The `bash` tool runs PowerShell 7 on this machine — NOT bash, NOT WSL, NOT Git Bash. Do NOT use `tail`, `wc`, `head`, `grep`, `cat`, `ls`, `cp`, `mv`, `rm`, `find`, `ps`, `kill`, `netstat`, `env`, `export`, `xargs`, `&&`, or any other Unix utility in the `bash` tool or any shell command. All of these fail in PowerShell 7.
+
+Use PowerShell 7 cmdlets instead (see the translation table in §13 below), or better yet, use the dedicated Kilo tools (`read`, `glob`, `grep`, `filesystem_*`) for file operations — they work cross-platform and avoid shell issues entirely.
+
+If you need to search file contents, use the `grep` tool, not `Select-String` or `grep`. If you need to list files, use `glob` or `filesystem_list_directory`, not `Get-ChildItem`. Only use shell commands for genuine PowerShell 7 operations (git, pwsh scripts, python, etc.).
+
 **This machine runs PowerShell 7.6.9 (LTS, built on .NET 10).** Windows 11 also ships PowerShell 5.1 (built on .NET Framework 4.x) — that version is retired for repo work. The two versions install side-by-side: `pwsh.exe` is v7+, `powershell.exe` is v5.1. Always use `pwsh`.
 
 Read this before running your first command. Keep it open while working.

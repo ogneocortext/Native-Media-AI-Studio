@@ -242,7 +242,7 @@ async def remix_tempo_refresh(body: TempoRefreshRequest) -> dict:
     return essentia_tempo_store.start_refresh(tracks)
 
 
-@router.get("/by-track/{track}")
+@router.get("/by-track/{track:path}")
 async def remix_by_track(track: str) -> dict:
     """What exists for one track: the mashups that consumed it, and how.
 

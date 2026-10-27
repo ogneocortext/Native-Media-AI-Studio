@@ -739,7 +739,7 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/audio/{output_name}")
+@router.get("/audio/{output_name:path}")
 async def get_audio(output_name: str):
     """Download generated audio file."""
     output_name = _validate_output_name(output_name)
@@ -757,7 +757,7 @@ async def get_audio(output_name: str):
     raise HTTPException(404, detail="Audio file not found")
 
 
-@router.get("/score/{output_name}")
+@router.get("/score/{output_name:path}")
 async def get_score(output_name: str):
     """Download ABC score file."""
     output_name = _validate_output_name(output_name)
