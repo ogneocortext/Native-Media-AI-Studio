@@ -1,7 +1,7 @@
 """Natural-language remix drafting (remix plan B2).
 
-The REST surface takes a fully hand-built ``RemixRecipeRequest`` — name,
-target BPM, 1-64 slots, per-layer track/stem/gain/key-shift/start-bar — so
+The REST surface takes a fully hand-built ``RemixRecipeRequest`` -- name,
+target BPM, 1-64 slots, per-layer track/stem/gain/key-shift/start-bar -- so
 every musical decision sits with the caller. This module closes the gap
 for the target scenario *"make a darker version of track X using its
 drums and bass plus the vocals from track Y"*: a prompt goes in, a
@@ -9,7 +9,7 @@ reviewable recipe comes out.
 
 Two deliberate constraints, both from the plan:
 
-1. **Draft only — never prompt → audio in one shot.** The endpoint returns
+1. **Draft only -- never prompt -> audio in one shot.** The endpoint returns
    ``{recipe, explanation, warnings}``; the existing ``/preview`` and
    ``/build`` (job-tracked by B5) do the rest. The agent or the user
    reviews before a render is paid for.
@@ -110,7 +110,7 @@ _STOP_TOKENS = {
 # Adjective -> arrangement. B4 gave the adjectives parameters to land on:
 # `stem_gain_db` adds per stem, `brightness_db` adds in dB/octave around
 # 1 kHz (positive = brighter), and `lowpass_hz` is taken from the
-# strongest matching adjective rather than summed — two cutoffs in series
+# strongest matching adjective rather than summed -- two cutoffs in series
 # would just be the lower one, so the map keeps the darker intent. The
 # gains are deliberately modest: the render sums layers, so a loud
 # adjective plus a loud layer clips.
@@ -210,7 +210,7 @@ GENRE_GAIN_PROFILES: dict[str, dict[str, float]] = {
 }
 
 # Matchable prompt words per genre id. Kept local (not imported from
-# visual_fallback) — the matching semantics differ (prompt text vs track
+# visual_fallback) -- the matching semantics differ (prompt text vs track
 # metadata) and the modules should not couple over a word list.
 GENRE_TAGS: dict[str, list[str]] = {
     "phonk": ["phonk", "drift phonk"],
@@ -233,12 +233,12 @@ _BPM_RE = re.compile(r"(\d{2,3})\s*bpm", re.IGNORECASE)
 
 _CONNECTORS = {"from", "of", "using", "with", "on", "over", "into"}
 
-# Sources that must never be drafted from — the plan's B6 fixture guard.
+# Sources that must never be drafted from -- the plan's B6 fixture guard.
 # `demucs_test_input` is the ~10-second demucs test fixture that "once
 # built mashups" (the plan's own cautionary tale); it sits in the source
 # listing precisely because a naive `list_stem_sources` reports every
 # stem directory on disk. Hash-named sources are library tracks and are
-# NOT fixtures — only test-input-looking names are.
+# NOT fixtures -- only test-input-looking names are.
 _FIXTURE_PREFIXES = ("demucs_test_input", "test_input_", "test_input", "fixture_", "test_fixture")
 
 
@@ -254,7 +254,7 @@ def draftable_sources(
     """Split the source table into (draftable, excluded fixture names).
 
     The excluded list is returned so the caller can name what was kept
-    out of a draft — silently filtering is how a fixture stays a trap.
+    out of a draft -- silently filtering is how a fixture stays a trap.
     """
     kept: list[dict[str, Any]] = []
     excluded: list[str] = []
@@ -280,7 +280,7 @@ def attribute_stems(prompt: str, mentioned: list[dict[str, Any]]) -> list[set[st
     """Which stems the prompt asks each mentioned source for.
 
     The plan's target scenario is *"The Last using its drums and bass plus
-    the vocals from Ad Nauseam"* — one prompt, two sources, different
+    the vocals from Ad Nauseam"* -- one prompt, two sources, different
     stems each. A global stem scan cannot answer it ("vocals" belongs to
     the second track, not the first), so attribution is explicit:
 
@@ -289,7 +289,7 @@ def attribute_stems(prompt: str, mentioned: list[dict[str, Any]]) -> list[set[st
        in the first source's corridor.
     2. **From/of handoff.** A stem word immediately before
        ``from|of|using|...`` plus a source mention hands that stem to
-       that source, overriding the corridor — this is what makes "the
+       that source, overriding the corridor -- this is what makes "the
        vocals from Ad Nauseam" work when the noun precedes the name.
 
     Both rules are token-position arithmetic, so the result is
@@ -311,7 +311,7 @@ def attribute_stems(prompt: str, mentioned: list[dict[str, Any]]) -> list[set[st
         if stem is None:
             continue
         owner: int | None = None
-        # Rule 1: "STEM from SOURCE" — the noun hands itself to the name.
+        # Rule 1: "STEM from SOURCE" -- the noun hands itself to the name.
         if i + 2 < len(tokens) and tokens[i + 1] in _CONNECTORS:
             for k, start in enumerate(starts):
                 if start == i + 2:
@@ -348,7 +348,7 @@ def _name_tokens(text: str) -> list[str]:
     """A source name's identity tokens, with bracketed decorations dropped.
 
     ``Blind Architects (Vocals Forward Mix)`` identifies as
-    ``blind architects`` — the parenthetical is a mix label, not part of
+    ``blind architects`` -- the parenthetical is a mix label, not part of
     how anyone refers to the track. Library variants that share a main
     name resolve to the sorted-first match, which is deterministic.
     """
@@ -365,7 +365,7 @@ def longest_shared_run(a: list[str], b: list[str]) -> list[str]:
     """
     if not a or not b:
         return []
-    # Index b's token positions for O(n·m) scanning.
+    # Index b's token positions for O(n.m) scanning.
     positions: dict[str, list[int]] = {}
     for idx, tok in enumerate(b):
         positions.setdefault(tok, []).append(idx)
@@ -406,7 +406,7 @@ def mention_score(source: dict[str, Any], prompt: str) -> float:
     ``SunoV6Mini-The Last-Original-V1`` (shared run ``the last``), and
     *"Ad Nauseam"* names ``SunoV6Mini-Ad-Nauseam``. Two guards keep it
     honest: a run made only of stopwords scores nothing, and a run made
-    only of stem words ("vocals", "bass") scores nothing either —
+    only of stem words ("vocals", "bass") scores nothing either --
     instrumentation is not identity, and without this a prompt's
     "vocals from X" would match a track called "Vocals Forward Mix".
 
@@ -454,7 +454,7 @@ def match_track(reference: str, sources: list[dict[str, Any]]) -> dict[str, Any]
 
     Order matters: exact, then normalised equivalence, then bidirectional
     token coverage. Bidirectional because a reference abbreviates a name
-    (``"Blind Architects"`` → ``"Blind Architects (Vocals Forward Mix)"``)
+    (``"Blind Architects"`` -> ``"Blind Architects (Vocals Forward Mix)"``)
     as often as it spells it out. First match wins, so the caller's source
     list order (the API returns it sorted by name) makes ties
     deterministic.
@@ -562,7 +562,7 @@ def _stems_for(source: dict[str, Any], wanted: set[str]) -> tuple[list[str], str
     """Which stems of this source a request resolves to, plus a repair note.
 
     ``wanted`` empty means the arrangement backbone (drums, bass, vocals,
-    other — the order the plan's dark-mashup scenario is built on). When a
+    other -- the order the plan's dark-mashup scenario is built on). When a
     named stem is not separated, the backbone substitutes with a warning
     rather than dropping the track: a draft that returns *something*
     reviewable beats a 400 the caller has to parse, and the note names
@@ -633,7 +633,7 @@ def build_heuristic_recipe(
     Composes the plan's target scenario directly: every track the prompt
     mentions becomes one slot; stems named in the prompt (or the
     drums/bass/vocals/other backbone) fill it; detected adjectives shape
-    gains and slot lengths. Always returns a *valid* recipe — that is the
+    gains and slot lengths. Always returns a *valid* recipe -- that is the
     point of the fallback.
     """
     warnings: list[str] = []
@@ -701,7 +701,7 @@ def recipe_to_request(recipe: RemixRecipe, overwrite: bool = False) -> dict[str,
     """Serialise a service recipe into the REST request shape.
 
     ``overwrite`` defaults to False here, unlike the REST schema's True:
-    A5's "no silent overwrite" starts on this side of the boundary — a
+    A5's "no silent overwrite" starts on this side of the boundary -- a
     drafted recipe must never clobber an existing mashup by default.
     """
     return {
@@ -777,7 +777,7 @@ def parse_gain_deltas(text: str) -> list[tuple[str, float]]:
     """Signed dB deltas per stem alias found in a revision prompt.
 
     "vocals up 2 dB" -> [("vocals", +2.0)]; "drums down 3" -> [("drums", -3.0)].
-    A bare direction with no number ("vocals up") is +1 dB — a nudge, not
+    A bare direction with no number ("vocals up") is +1 dB -- a nudge, not
     an error. Unknown stem words are ignored here; the caller's repair
     pipeline drops what cannot resolve, with a warning.
 
@@ -806,7 +806,7 @@ def parse_gain_deltas(text: str) -> list[tuple[str, float]]:
         out.append((stem, delta))
     for match in _QUIET_LOUD_RE.finditer(lowered):
         # The quiet/loud match includes the stem group, so anchor on the
-        # direction subgroup — match.start() is the stem's start, which the
+        # direction subgroup -- match.start() is the stem's start, which the
         # greedy group may have pushed far left of the real stem word.
         prefix = lowered[: match.start("direction")]
         idx = len(re.findall(r"[a-z0-9]+", prefix))
@@ -823,7 +823,7 @@ def _nearest_stem_alias(words: list[str], idx: int, window: int = 6) -> str | No
 
     Scans backwards up to `window` words, trying two-word aliases ("low
     end") before single words at each position. Returns None when nothing
-    in the window names a stem — the caller skips the direction rather
+    in the window names a stem -- the caller skips the direction rather
     than guessing.
     """
     for back in range(1, min(window, idx) + 1):
@@ -880,8 +880,8 @@ def parse_slot_bars(text: str) -> list[tuple[int, int, bool]]:
     return out
 
 
-# A track reference in the draft's own grammar — the same connectors
-# `attribute_stems` hands stems across — captured with the original casing
+# A track reference in the draft's own grammar -- the same connectors
+# `attribute_stems` hands stems across -- captured with the original casing
 # so a capitalised phrase can be told apart from filler.
 _TRACK_REF_RE = re.compile(
     r"\b(?:" + "|".join(sorted(_CONNECTORS)) + r")\s+(?P<name>[A-Za-z0-9][^,.;:!?]*)"
@@ -940,7 +940,7 @@ _REF_FILLER = {
 } | {alias for aliases in STEM_ALIASES.values() for alias in aliases if " " not in alias}
 
 # Articles are part of a name ("The Vow", "The Last"), so the leading trim
-# pops operands only — an article at the front stays.
+# pops operands only -- an article at the front stays.
 _REF_ARTICLES = {"the", "a", "an"}
 
 
@@ -948,7 +948,7 @@ def _clean_track_reference(raw: str) -> str:
     """Trim a captured reference to its name: operand words off both ends.
 
     "The Vow up 2 dB" -> "The Vow"; "The Last's drums" -> "The Last's".
-    Returns "" when nothing but filler remains — that reference named no
+    Returns "" when nothing but filler remains -- that reference named no
     track, so the caller must not warn about it.
     """
     words = (raw or "").split()
@@ -968,7 +968,7 @@ def _clean_track_reference(raw: str) -> str:
         and first_token(words[0]) not in _REF_ARTICLES
     ):
         words.pop(0)
-    return " ".join(words).strip(" -—'\"")
+    return " ".join(words).strip(" -").strip("'").strip('"')
 
 
 def unknown_track_references(text: str, sources: list[dict[str, Any]]) -> list[str]:
@@ -976,7 +976,7 @@ def unknown_track_references(text: str, sources: list[dict[str, Any]]) -> list[s
 
     "vocals from The Vow up 2 dB" with no such track in the library is a
     revision the arranger cannot honour: the honest answer is a warning
-    and the base recipe unchanged — repair-before-return, same as drafts.
+    and the base recipe unchanged -- repair-before-return, same as drafts.
     Applying the delta to every matching layer instead is the silent
     substitution the draft path already refuses to make.
 
@@ -1063,7 +1063,7 @@ def diff_recipes(base: RemixRecipe, revised: RemixRecipe) -> list[str]:
 
     Compared by (track, stem) identity within each positional slot: the
     revision loop preserves order, so positional diff names what the user
-    asked about. Empty means unchanged — "looks good" is valid, not an error.
+    asked about. Empty means unchanged -- "looks good" is valid, not an error.
     """
     changes: list[str] = []
     if abs(base.target_bpm - revised.target_bpm) > 1e-9:
@@ -1124,7 +1124,7 @@ def build_revision_system_prompt(
 
     `mix_report` is the last build's measured levels (per-stem LUFS, true
     peak, clipping). When present the model revises against what was
-    actually rendered, not just the recipe's gain numbers — e.g. a
+    actually rendered, not just the recipe's gain numbers -- e.g. a
     "vocals up 2 dB" on a vocal stem already clipping is better answered
     by pulling the other stems down.
     """
@@ -1176,7 +1176,7 @@ def revise_heuristic_recipe(
     Parses gain deltas ("vocals up 2 dB"), stem removals ("drop the bass in
     slot 2") and slot-length changes ("make slot 1 twice as long") directly
     off the base recipe. A revision that names an unknown track warns and
-    leaves the recipe unchanged — repair-before-return, same as drafts.
+    leaves the recipe unchanged -- repair-before-return, same as drafts.
     """
     import copy
 
@@ -1414,7 +1414,7 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
 
     The source table is the guardrail: the model is told, in its own
     context, which tracks and stems exist, so it has no reason to
-    invent names — and if it does, ``repair_recipe`` catches it.
+    invent names -- and if it does, ``repair_recipe`` catches it.
     """
     lines = [
         "You are a remix/mashup arranger. Reply with JSON only.",
@@ -1443,7 +1443,7 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
         "unless the prompt names a key; source_start_bar is 0 unless the prompt names a",
         "start. Optional tone shaping per layer: lowpass_hz (200-20000 Hz, removes",
         "highs above it) and brightness_db (-12..+12 dB/octave around 1 kHz, positive",
-        "= brighter). Use them for mood words — 'dark' means lowpass plus a negative",
+        "= brighter). Use them for mood words -- 'dark' means lowpass plus a negative",
         "tilt, never just quieter.",
         "Tempo: keep target_bpm within 5% of the sources\u2019 BPMs; beyond 10% the drums",
         "smear audibly \u2014 only stretch further for a deliberate half-time (0.5x) or",
@@ -1451,7 +1451,7 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
         "Structure: source_start_bar on multiples of 4 bars (prefer 8); when skipping a",
         "silent intro, round up past first_audible to the next 4-bar boundary. Match",
         "energy across layers: chorus vocals over a chorus instrumental, not a verse.",
-        "Genre words set the starting balance — 'phonk' means drums and bass",
+        "Genre words set the starting balance -- 'phonk' means drums and bass",
         "forward, 'r&b' means vocals forward, 'ambient' means drums back and",
         "pads forward. Adjectives and explicit gains compose on top.",
         "Slotting: never stack two \u2018other\u2019 stems at similar gain in one slot (midrange",
@@ -1501,7 +1501,7 @@ async def draft_recipe_from_prompt(
     ``recipe`` is the REST request shape (ready for ``/preview`` or
     ``/build``) and ``source`` is ``ollama`` or ``heuristic``. Raises
     ValueError only when nothing can be drafted (no track recognised, no
-    stems anywhere) — that is a caller error worth a 400, not a silent
+    stems anywhere) -- that is a caller error worth a 400, not a silent
     empty draft.
     """
     if not (prompt or "").strip():
@@ -1522,13 +1522,13 @@ async def draft_recipe_from_prompt(
     )
     # The tracks the prompt actually named, from the available table. Any
     # track the recipe uses beyond these is the model substituting for a
-    # request it could not fulfil — the reviewer must be told, because
+    # request it could not fulfil -- the reviewer must be told, because
     # "use The Last's drums" answered with take-the-crown's drums is the
     # kind of silent substitution that erodes trust in the draft.
     mentioned_tracks = {str(s.get("track", "")).lower() for s in mentioned_sources(sources, prompt)}
 
     # Honesty check: if the prompt names no source with separated stems,
-    # say so — the reviewer needs to know the arrangement came from the
+    # say so -- the reviewer needs to know the arrangement came from the
     # model's picks rather than the request.
     if not mentioned_sources(sources, prompt):
         fixture_warning.append(
@@ -1585,7 +1585,7 @@ async def draft_recipe_from_prompt(
     try:
         recipe, warnings = repair_recipe(data, sources)
     except ValueError:
-        # A model recipe that resolves to nothing is not a failed request —
+        # A model recipe that resolves to nothing is not a failed request --
         # the deterministic draft is still a reviewable answer.
         logger.info("Remix draft: model recipe unusable, falling back to heuristic")
         recipe, warnings, explanation = build_heuristic_recipe(prompt, sources)
@@ -1628,7 +1628,7 @@ async def revise_recipe_from_prompt(
 ) -> dict[str, Any]:
     """Revise a base recipe from one natural-language sentence (R1).
 
-    Same contract as `draft_recipe_from_prompt`, plus `changes` — the
+    Same contract as `draft_recipe_from_prompt`, plus `changes` -- the
     human-readable diff of base vs revised. The prompt is interpreted as
     *deltas* against the base ("vocals up 2 dB"), not a fresh draft; the
     deterministic repair pipeline runs unchanged on the revised recipe, so
@@ -1653,7 +1653,7 @@ async def revise_recipe_from_prompt(
         raise ValueError(f"base_recipe is unusable: {exc}") from exc
 
     # R1: a revision naming a track with no separated stems cannot be
-    # honoured. Refuse before the model call — warn and hand the base back
+    # honoured. Refuse before the model call -- warn and hand the base back
     # unchanged, rather than spend a draft on it or substitute a source.
     unknown = unknown_track_references(prompt, sources)
     if unknown:

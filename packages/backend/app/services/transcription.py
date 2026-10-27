@@ -38,7 +38,7 @@ TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model size: "tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"
 # "large-v3" is most accurate but needs ~6GB VRAM (fp16)
-# "large-v3-turbo" is near-large quality with 4 decoder layers — fast (~3GB fp32)
+# "large-v3-turbo" is near-large quality with 4 decoder layers -- fast (~3GB fp32)
 # "medium" is a good balance (~3GB VRAM)
 # "small" works on most GPUs (~2GB VRAM)
 DEFAULT_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo")
@@ -55,7 +55,7 @@ def _register_nvidia_dll_dirs() -> None:
     """Expose pip-installed cuBLAS/cuDNN DLLs to CTranslate2 on Windows.
 
     The nvidia-*-cu12 pip wheels install DLLs under site-packages/nvidia/*/bin,
-    which is not on the default DLL search path — without this, WhisperModel
+    which is not on the default DLL search path -- without this, WhisperModel
     fails to initialize on CUDA.
     """
     if os.name != "nt":

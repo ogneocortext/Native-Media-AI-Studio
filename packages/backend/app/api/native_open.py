@@ -1,5 +1,5 @@
 """
-Native app open — Blender / Unity
+Native app open -- Blender / Unity
 Local-first: launches the desktop app with the selected output file.
 """
 
@@ -80,7 +80,7 @@ async def open_in_blender(payload: dict):
         try:
             sock.connect(("127.0.0.1", 9876))
             # Minimal protocol: send execute code to import GLB
-            # The addon expects JSON with type "execute_code" or similar — try both
+            # The addon expects JSON with type "execute_code" or similar -- try both
             code = f"import bpy; bpy.ops.import_scene.gltf(filepath=r'{src.as_posix()}')"
             msg = json.dumps({"type": "execute_code", "code": code}) + "\n"
             sock.sendall(msg.encode())
@@ -107,7 +107,7 @@ async def open_in_blender(payload: dict):
 
     blender = _find_blender()
     if not blender:
-        raise HTTPException(status_code=500, detail="Blender not found — install at C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe or add to PATH")
+        raise HTTPException(status_code=500, detail="Blender not found -- install at C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe or add to PATH")
 
     # Launch Blender with a small Python snippet that imports the GLB
     # We write a temp .py that imports the file so Blender opens with it loaded
@@ -228,7 +228,7 @@ async def open_in_unity(payload: dict):
         "source": str(src),
         "unity_path": str(dest.relative_to(PROJECT_ROOT)),
         "absolute_unity_path": str(dest),
-        "message": "Copied to Assets/GeneratedModels — open Unity Editor at unity-project-mcp to see it" + (" (auto-refreshed)" if unity_refreshed else ""),
+        "message": "Copied to Assets/GeneratedModels -- open Unity Editor at unity-project-mcp to see it" + (" (auto-refreshed)" if unity_refreshed else ""),
     }
 
 
@@ -245,7 +245,7 @@ async def native_open_status():
 
 @router.get("/open/history")
 async def native_open_history(app: str | None = None, limit: int = 20):
-    """Recent Blender/Unity opens from DB — powers 'recently opened' and dedup."""
+    """Recent Blender/Unity opens from DB -- powers 'recently opened' and dedup."""
     try:
         import asyncio as _asyncio6
 

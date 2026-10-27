@@ -1,4 +1,4 @@
-"""MovieLite render engine — Numba-JIT MoviePy alternative.
+"""MovieLite render engine -- Numba-JIT MoviePy alternative.
 
 APIs verified against scripts/benchmark_video_tools.py::render_movielite
 (movielite.ImageClip.from_color / VideoWriter) which produced

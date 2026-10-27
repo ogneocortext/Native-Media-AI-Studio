@@ -192,7 +192,7 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         raise HTTPException(
             status_code=503, detail=f"Service {service_name} is not available"
         )
-    # Explicit LLM prompt enrichment — only if user opts in via enrich_prompt=true
+    # Explicit LLM prompt enrichment -- only if user opts in via enrich_prompt=true
     if request.enrich_prompt and request.prompt and len(request.prompt.strip()) < 200:
         try:
             from ..core import ollama_client as _oc
@@ -228,7 +228,7 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         except Exception:
             pass
     try:
-        # Build params dict for adapter (single converter — no drift)
+        # Build params dict for adapter (single converter -- no drift)
         params = request.to_adapter_params()
         # Validate checkpoint - don't allow 3D/video models for image generation
         if request.ckpt_name:
@@ -1145,8 +1145,8 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         if duration:
             parts.append(f"duration: {duration:.0f}s")
         track_context = "\n\nTRACK CONTEXT (adapt the preset to match this music):\n" + "\n".join(f"- {p}" for p in parts)
-        track_context += "\n\n- Scale animation speed to the BPM (faster tempo → quicker transitions)"
-        track_context += "\n- Match intensity to the energy level (high energy → more particles, faster motion)"
+        track_context += "\n\n- Scale animation speed to the BPM (faster tempo -> quicker transitions)"
+        track_context += "\n- Match intensity to the energy level (high energy -> more particles, faster motion)"
         track_context += "\n- Set camera keyframe 'at' times to fit within the track duration"
         if energy is not None:
             if energy > 0.6:
@@ -1289,7 +1289,7 @@ async def list_ollama_tools() -> dict:
         logger.error("Failed to list Ollama tools: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 # ============================================================================
-# Benchmark Endpoints (restored — frontend still calls these)
+# Benchmark Endpoints (restored -- frontend still calls these)
 # ============================================================================
 @router.get("/ollama/benchmark/results")
 async def get_benchmark_results() -> dict:
@@ -1392,8 +1392,8 @@ async def get_best_coding_benchmark() -> dict:
         logger.error("Failed to get best coding benchmark model: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 # ---------------------------------------------------------------------------
-# Upscale — 4x post-process pass (ai-video-trends-2026 Trend 4,
-# comfyui-workflows §5). ComfyUI 4x-ClearRealityV1 when reachable,
+# Upscale -- 4x post-process pass (ai-video-trends-2026 Trend 4,
+# comfyui-workflows section5). ComfyUI 4x-ClearRealityV1 when reachable,
 # FFmpeg lanczos fallback otherwise.
 # ---------------------------------------------------------------------------
 class UpscaleRequest(BaseModel):

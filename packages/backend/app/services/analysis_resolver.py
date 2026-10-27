@@ -5,7 +5,7 @@ Why this exists
 `output/audio_analysis/` accumulated four incompatible naming conventions
 (bare hash, hash+slug, slug-only, `test-`/`orphan-`-prefixed), and `index.json`
 grew to ~62 keys pointing at only 17 files. `get_analysis_by_filename`
-compensated with three regex fallback passes plus a glob — load-bearing guesswork
+compensated with three regex fallback passes plus a glob -- load-bearing guesswork
 that returns whatever it finds first and cannot say *why* a lookup failed.
 
 This module replaces that with an explicit, ordered, testable policy. It is pure
@@ -19,7 +19,7 @@ Resolution order (first match wins)
 3. Same, comparing a slug form (spaces/punctuation collapsed to ``-``).
 4. The bare ``<hash>`` form of the track (content-addressed prefix only).
 
-Candidates predating ``current_schema`` are never returned — they are reported
+Candidates predating ``current_schema`` are never returned -- they are reported
 as ``stale`` instead. Serving them is what let incomplete results persist.
 """
 
@@ -87,7 +87,7 @@ def resolve_analysis(
 ) -> Resolution:
     """Find the analysis file for `track_ref`, or explain why there isn't one.
 
-    `track_ref` is whatever the frontend sends — a bare filename, possibly with a
+    `track_ref` is whatever the frontend sends -- a bare filename, possibly with a
     content-hash prefix, possibly with an extension, possibly subfolder-relative.
     """
     if not track_ref:
@@ -105,7 +105,7 @@ def resolve_analysis(
 
     # Stale candidates are excluded from the match rather than rejected after it.
     # Picking the first match and then rejecting it meant that when two files
-    # shared a slug — one stale, one current — the stale one shadowed the good
+    # shared a slug -- one stale, one current -- the stale one shadowed the good
     # one and the lookup failed even though a valid answer was on disk.
     def _match(pool: list[AnalysisCandidate]) -> tuple[AnalysisCandidate, str] | None:
         # 1/2: exact stem, then hash-prefix-insensitive.
@@ -115,7 +115,7 @@ def resolve_analysis(
         for c in pool:
             if strip_prefix(c.stem) == ref_nohash:
                 return c, "stem match (hash prefix ignored)"
-        # 3: slug comparison — absorbs spaces, punctuation, case and prefixes.
+        # 3: slug comparison -- absorbs spaces, punctuation, case and prefixes.
         for c in pool:
             if slugify(c.stem) == ref_slug:
                 return c, "slug match"
@@ -136,7 +136,7 @@ def resolve_analysis(
         return _finish(hit[0], considered, hit[1])
 
     # Nothing current. Only mention a stale file when it genuinely matches this
-    # track — listing every stale file in the store is noise that buries the
+    # track -- listing every stale file in the store is noise that buries the
     # actual cause, and reads as if any of them could have served the request.
     stale_hit = _match([c for c in candidates if c not in usable])
     if stale_hit:
@@ -196,8 +196,8 @@ def content_fingerprint(data: dict) -> str | None:
 
     Two analyses of the same audio produce identical signal arrays, whatever
     they are named and whatever job produced them. Fields that record *where*
-    the analysis came from — `job_id`, `stored_path`, `relative_path`,
-    `computed_on`, `metadata`, `timing_contract` — legitimately differ between
+    the analysis came from -- `job_id`, `stored_path`, `relative_path`,
+    `computed_on`, `metadata`, `timing_contract` -- legitimately differ between
     duplicates and must not affect the fingerprint.
 
     Returns None for a document too sparse to fingerprint, so a truncated or
@@ -251,7 +251,7 @@ def content_diff(a: dict, b: dict) -> list[str]:
     audio is the same, but it says nothing about whether the two documents carry
     the same sections, suggestions or confidence values. Deleting on a
     fingerprint alone could drop the only copy that has, say, LLM-refined
-    `sections` — the fingerprint deliberately ignores those, because a
+    `sections` -- the fingerprint deliberately ignores those, because a
     differently-processed analysis of the same audio is still a duplicate *by
     content*, but is not necessarily redundant *as a document*.
     """
@@ -289,7 +289,7 @@ def scan_analysis_dir_cached(
 ) -> list[AnalysisCandidate]:
     """`scan_analysis_dir`, but re-reads only files that actually changed.
 
-    Reading `schema_version` means parsing whole analysis documents — ~2.5 MB
+    Reading `schema_version` means parsing whole analysis documents -- ~2.5 MB
     across the 17 files currently in the store, measured at ~42 ms. The old code
     paid this on every cache miss because it looked the file up through
     `index.json` instead. A `stat` per file is orders of magnitude cheaper than

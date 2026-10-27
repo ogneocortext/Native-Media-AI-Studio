@@ -2,9 +2,9 @@
 
 Executes a beat-synced shot manifest by assembling pre-rendered section
 clips on top of the track's beat grid. Cuts land on beats because the
-planner (A1) already snapped them — this service does no music analysis.
+planner (A1) already snapped them -- this service does no music analysis.
 
-Engine priority (decided — D1): auto resolves coreflux → movielite → ffmpeg.
+Engine priority (decided -- D1): auto resolves coreflux -> movielite -> ffmpeg.
 FFmpeg is the always-available fallback and is used here for the actual
 concatenation + transitions. No subtitle burn-in (excluded per request).
 """
@@ -109,7 +109,7 @@ async def assemble_beat_quantized(
         clips.append(p)
 
     if len(clips) == 1:
-        # Single clip — no transition needed
+        # Single clip -- no transition needed
         try:
             shutil.copy2(clips[0], out)
             return {
@@ -127,7 +127,7 @@ async def assemble_beat_quantized(
     t0 = time.perf_counter()
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
-        raise RuntimeError("ffmpeg not found on PATH — cannot assemble clips")
+        raise RuntimeError("ffmpeg not found on PATH -- cannot assemble clips")
 
     # Build concat list for FFmpeg demuxer
     list_path = out.with_suffix(".list")

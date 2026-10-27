@@ -32,7 +32,7 @@ DEFAULT_PORT = getattr(config, 'comfyui_port', 8188)
 
 # ComfyUI MUST run in its own dedicated environment. Using the project venv or
 # sys.executable risks inheriting a parent bootstrapped from another project
-# (e.g. space-analyzer-cuda) — that breaks adapter isolation and can leak
+# (e.g. space-analyzer-cuda) -- that breaks adapter isolation and can leak
 # incompatible packages into ComfyUI.
 # NOTE: These checks are validated lazily (at start/update time), NOT at import
 # time, so the backend can boot even when ComfyUI is not installed.
@@ -64,7 +64,7 @@ def _get_venv_python() -> Path:
 
 # Extra args for compatibility with GTX 10-series GPUs
 # --disable-pinned-memory: required on 8GB Pascal (see comfyui-workflows.md).
-# --force-fp16: Pascal (sm_61) has no BF16/Tensor cores — never let ComfyUI
+# --force-fp16: Pascal (sm_61) has no BF16/Tensor cores -- never let ComfyUI
 #   autotune into bf16 weights that fail with "no kernel image available".
 EXTRA_ARGS = ["--disable-pinned-memory", "--force-fp16"]
 
@@ -143,7 +143,7 @@ class ComfyUIManager:
         if self._process is not None:
             if self._process.poll() is None:
                 return True
-            # Our process exited — forget it and fall through to the port
+            # Our process exited -- forget it and fall through to the port
             # check so an externally-started ComfyUI is still detected.
             self._process = None
             self._start_time = None
@@ -278,7 +278,7 @@ class ComfyUIManager:
                 error_msg = stderr.decode("utf-8", errors="replace").strip()[-200:]
                 # Never return a bare detail: an empty stdout+stderr with no
                 # exception means the probe produced nothing (observed once
-                # with a stale backend whose child stdio was broken) — say so
+                # with a stale backend whose child stdio was broken) -- say so
                 # with the return code instead of silence.
                 detail = (
                     f"torch={output or '<no stdout>'} "
@@ -324,7 +324,7 @@ class ComfyUIManager:
         if not cuda_check["available"]:
             return {
                 "success": False,
-                "message": "CUDA not available — ComfyUI requires an NVIDIA GPU with CUDA support",
+                "message": "CUDA not available -- ComfyUI requires an NVIDIA GPU with CUDA support",
                 "detail": cuda_check.get("detail") or cuda_check["error"],
                 "suggestion": "ComfyUI requires an NVIDIA GPU. Without CUDA, image generation will not work. You can still use other features like Music Video (FFmpeg), Audio Analysis, and Ollama.",
             }
@@ -377,7 +377,7 @@ class ComfyUIManager:
 
             # Start a background task to read stderr and log it.
             # NOTE: iterating a subprocess PIPE is blocking I/O, so it must run
-            # in a worker thread — otherwise the backend event loop would freeze
+            # in a worker thread -- otherwise the backend event loop would freeze
             # while ComfyUI holds the pipe open (blocking any other request).
             def _drain_stderr():
                 if self._process is None or self._process.stderr is None:
@@ -393,7 +393,7 @@ class ComfyUIManager:
             async def _read_stderr():
                 await asyncio.to_thread(_drain_stderr)
 
-            # Keep a reference to the task — unreferenced tasks can be
+            # Keep a reference to the task -- unreferenced tasks can be
             # garbage-collected mid-flight (see asyncio.create_task docs).
             self._stderr_task = asyncio.create_task(_read_stderr())
 
@@ -460,7 +460,7 @@ class ComfyUIManager:
         if self._process is None:
             return {
                 "success": False,
-                "message": "ComfyUI is running but was not started by this manager — stop it manually",
+                "message": "ComfyUI is running but was not started by this manager -- stop it manually",
             }
 
         try:
@@ -508,7 +508,7 @@ class ComfyUIManager:
             return result
 
         # ComfyUI updates must use the comfyui-cuda venv. Never fall back to the
-        # project venv or sys.executable — those can be parented to space-analyzer-cuda.
+        # project venv or sys.executable -- those can be parented to space-analyzer-cuda.
         try:
             venv_python = _get_venv_python()
         except RuntimeError as e:
@@ -541,7 +541,7 @@ class ComfyUIManager:
 
         git_exe = _find_git()
         if git_exe is None:
-            result["message"] = "Git executable not found — cannot update custom nodes"
+            result["message"] = "Git executable not found -- cannot update custom nodes"
             return result
 
         # Prefer the comfyui-cuda venv for pip operations
@@ -685,7 +685,7 @@ class ComfyUIManager:
             if status_out.decode("utf-8", errors="replace").strip():
                 return {
                     "success": False,
-                    "message": "ComfyUI has uncommitted local changes — commit or stash them before updating",
+                    "message": "ComfyUI has uncommitted local changes -- commit or stash them before updating",
                     "hint": "Run 'git stash' or commit your changes, then retry the update",
                 }
 
@@ -713,7 +713,7 @@ class ComfyUIManager:
                     "hint": "Try resolving merge conflicts or run 'git pull' manually in the ComfyUI directory",
                 }
 
-            # Get new version info (bypass cache — we just pulled new commits)
+            # Get new version info (bypass cache -- we just pulled new commits)
             version = self.get_version(refresh=True)
 
             # Update Python requirements
@@ -811,7 +811,7 @@ class ComfyUIManager:
         from ..core.config import config
         base_url = config.comfyui_url
 
-        # Legacy helper only — sanitize the section label used in the output
+        # Legacy helper only -- sanitize the section label used in the output
         # filename so it can't inject path separators.
         safe_section = re.sub(r"[^A-Za-z0-9_-]+", "_", section)[:64] or "section"
 

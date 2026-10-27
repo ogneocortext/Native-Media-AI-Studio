@@ -52,7 +52,7 @@ def _sidecar_rename_pairs(full_path: Path, new_path: Path) -> list[tuple[Path, P
     """(old, new) sidecar pairs for a rename.
 
     Every candidate name starts with the old stem, so the new name swaps
-    in the new stem and keeps the remainder (``clip.mp4.json`` →
+    in the new stem and keeps the remainder (``clip.mp4.json`` ->
     ``clip2.mp4.json``).
     """
     pairs = []
@@ -681,7 +681,7 @@ async def list_outputs(
 ) -> OutputsResponse:
     """List all output files with their metadata.
 
-    Uses in-memory caching with 30s TTL. No FFmpeg calls on list —
+    Uses in-memory caching with 30s TTL. No FFmpeg calls on list --
     thumbnails are generated on-demand when opening a file.
     """
     # Fast cached scan (no FFmpeg)
@@ -1026,7 +1026,7 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
         raise HTTPException(status_code=409, detail=f"Target already exists: {new_name}")
     # Validate extension stays same type (optional but helps avoid misclassification)
     if Path(new_name).suffix.lower() != full_path.suffix.lower():
-        # Allow but warn — keep as is for flexibility (e.g., .png -> .jpg)
+        # Allow but warn -- keep as is for flexibility (e.g., .png -> .jpg)
         pass
 
     try:

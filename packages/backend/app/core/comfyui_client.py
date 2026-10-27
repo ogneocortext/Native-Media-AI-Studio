@@ -10,8 +10,8 @@ Consolidation point for logic previously copy-pasted across:
 
 Using this module gives every ComfyUI caller:
 - one shared ``aiohttp`` session for stateless routes (no per-request
-  ``ClientSession()`` churn â€” see knowledge-library/backend-debugging-guide.md
-  Â§ Adapter Connection Reuse),
+  ``ClientSession()`` churn aEUR" see knowledge-library/backend-debugging-guide.md
+  Asection Adapter Connection Reuse),
 - one filename/subfolder sanitizer (path-traversal safe),
 - one history/queue/view implementation handling both ComfyUI queue shapes,
 - one model-dir resolver (no more duplicated search_paths lists).
@@ -154,7 +154,7 @@ def extract_combo_options(node_info: dict[str, Any], input_name: str) -> list[st
     ComfyUI uses two shapes depending on node/version:
     - ``{input_name: [[opt, ...], {...}]}`` (e.g. CheckpointLoaderSimple)
     - ``{input_name: ["COMBO", {"options": [opt, ...], ...}]}``
-      (e.g. AnimateDiff loaders â€” naive ``[0]`` indexing returns the
+      (e.g. AnimateDiff loaders aEUR" naive ``[0]`` indexing returns the
       string ``"COMBO"`` here, which once produced ``['C','O','M','B','O']``)
 
     Searches ``input.required`` then ``input.optional``. Returns ``[]`` when

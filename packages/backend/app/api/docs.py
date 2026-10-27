@@ -1,5 +1,5 @@
 """
-Docs API — serves Obsidian vault (docs/knowledge-library) and project docs to the frontend.
+Docs API -- serves Obsidian vault (docs/knowledge-library) and project docs to the frontend.
 Connects Documentation page directly to vault so edits appear instantly.
 """
 
@@ -156,7 +156,7 @@ async def list_docs(
     vault_only: bool = Query(False, description="Only vault (knowledge-library) files"),
     search: str | None = Query(None, description="Filter by title/tags/path"),
 ) -> list[DocEntry]:
-    """List all docs — vault + guides. Used by Documentation page."""
+    """List all docs -- vault + guides. Used by Documentation page."""
     entries = _scan_docs()
     if vault_only:
         entries = [e for e in entries if e.in_vault]
@@ -266,7 +266,7 @@ async def get_mcp_registry():
 @router.get("/bootstrap")
 async def agent_bootstrap():
     """Single-call agent onboarding: returns manifest, codebase structure, API registry, MCP registry, and system health.
-    Use this endpoint first when an agent connects — one call gives everything needed to operate."""
+    Use this endpoint first when an agent connects -- one call gives everything needed to operate."""
     import json
 
     # Load all registry files
@@ -310,11 +310,11 @@ async def agent_bootstrap():
             if not e.path.endswith(".json")
         ],
         "quick_start": {
-            "step_1": "POST /api/audio/analyze — upload audio file",
-            "step_2": "GET /api/health/gpu — check VRAM before generation",
-            "step_3": "POST /api/video/generate-section — generate video (use manifest.styles for prompt)",
-            "step_4": "GET /api/jobs/{job_id} — poll until completed",
-            "step_5": "GET /api/outputs — list generated files",
+            "step_1": "POST /api/audio/analyze -- upload audio file",
+            "step_2": "GET /api/health/gpu -- check VRAM before generation",
+            "step_3": "POST /api/video/generate-section -- generate video (use manifest.styles for prompt)",
+            "step_4": "GET /api/jobs/{job_id} -- poll until completed",
+            "step_5": "GET /api/outputs -- list generated files",
         },
     }
 

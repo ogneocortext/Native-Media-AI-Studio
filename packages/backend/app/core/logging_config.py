@@ -508,7 +508,7 @@ def get_recent_errors(log_file: Path = ERROR_LOG, minutes: int = 60, max_errors:
                 try:
                     ts = datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
                 except ValueError:
-                    continue  # continuation/traceback line — skip, parent holds context
+                    continue  # continuation/traceback line -- skip, parent holds context
                 if ts >= cutoff:
                     errors.append(line)
                     if len(errors) >= max_errors:

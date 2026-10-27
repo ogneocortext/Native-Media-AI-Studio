@@ -43,7 +43,7 @@ async def _run_hyperframes_async(args: list[str], cwd: Path | None = None) -> di
     These endpoints are ``async def``, so a bare ``subprocess.run`` blocks
     the loop for the subprocess's whole lifetime: ``npx hyperframes`` cold
     start is seconds and ``render`` is allowed up to ``timeout`` seconds,
-    and while it runs *every* other request starves — including the SSE
+    and while it runs *every* other request starves -- including the SSE
     health stream the frontend polls. Measured: a blocking 1.5 s
     subprocess gave a concurrent coroutine 0 event-loop turns versus
     497,212 with ``asyncio.to_thread``. ``run_subprocess_thread`` is the
@@ -148,7 +148,7 @@ async def hyperframes_examples() -> dict[str, Any]:
     if result.get("returncode") == 0:
         for line in (result.get("stdout") or "").splitlines():
             line = line.strip()
-            if line and not line.startswith("—") and not line.startswith("No "):
+            if line and not line.startswith("--") and not line.startswith("No "):
                 examples.append({"name": line})
     return {
         "raw": result,

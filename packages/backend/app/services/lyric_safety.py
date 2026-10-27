@@ -118,9 +118,9 @@ def scan_lyrics(
         if instruction:
             add(
                 "instruction_text", idx, instruction.group(0).strip(),
-                "Delete this line — it is not a lyric. Put directions in the Style field.",
+                "Delete this line -- it is not a lyric. Put directions in the Style field.",
                 f"Lyric line {idx} looks like an instruction/preface "
-                f"('{instruction.group(0).strip()}') — engines sing it literally. "
+                f"('{instruction.group(0).strip()}') -- engines sing it literally. "
                 "Delete it or move it to Style.",
             )
             continue  # an instruction line needs no further checks
@@ -131,7 +131,7 @@ def scan_lyrics(
                     "production_direction", idx, hit.group(0),
                     "Move production notes to the Style/prompt field, or reword the line.",
                     f"Production-direction word '{hit.group(0)}' in lyric line {idx} "
-                    "may get sung — move it to Style or reword.",
+                    "may get sung -- move it to Style or reword.",
                 )
                 break
         take_hit = _TAKE_RE.search(content)
@@ -140,7 +140,7 @@ def scan_lyrics(
                 "production_direction", idx, take_hit.group(0),
                 "Remove take markers from lyrics.",
                 f"'{take_hit.group(0)}' in lyric line {idx} looks like a studio "
-                "take marker — engines will sing it. Remove it.",
+                "take marker -- engines will sing it. Remove it.",
             )
         if _is_caps_chant(content):
             preview = content[:42] + ("..." if len(content) > 42 else "")
@@ -148,7 +148,7 @@ def scan_lyrics(
                 "caps_chant", idx, preview,
                 "Use mixed case; put delivery direction in [bracketed] section tags.",
                 f"ALL-CAPS lyric line {idx} ('{preview}') risks chant/shout "
-                "delivery — use mixed case and put direction in [tags].",
+                "delivery -- use mixed case and put direction in [tags].",
             )
         abbrev = _ABBREV_RE.search(content)
         if abbrev:
@@ -157,7 +157,7 @@ def scan_lyrics(
                 "abbreviation_periods", idx, abbrev.group(0),
                 f"Write it without periods: {plain}.",
                 f"Abbreviation '{abbrev.group(0)}' (line {idx}) with periods "
-                f"stumbles — write '{plain}'.",
+                f"stumbles -- write '{plain}'.",
             )
 
     # Density heuristic: near-continuous vocals at high BPM slur.
@@ -171,7 +171,7 @@ def scan_lyrics(
                     "dense_vocals", None, f"{len(lyric_lines)} lines, ~{avg_words:.0f} words/line",
                     "Add rests, breaks, or ad-lib space between phrases.",
                     f"Dense vocals at {bpm:g} BPM ({len(lyric_lines)} lines averaging "
-                    f"~{avg_words:.0f} words) risk slurring — add rests/breaks.",
+                    f"~{avg_words:.0f} words) risk slurring -- add rests/breaks.",
                 )
 
     return findings

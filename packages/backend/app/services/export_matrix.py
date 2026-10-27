@@ -1,12 +1,12 @@
-"""Export Matrix service — multi-format publishing exports from one master video.
+"""Export Matrix service -- multi-format publishing exports from one master video.
 
 Implements the documented-but-missing "Export Matrix" step from:
   - ai-video-trends-2026.md Trend 5 (Multi-Modal Integrated Workflows):
-      "Add `Export Matrix` step: single Remotion composition → `StillIRise` (16:9)
+      "Add `Export Matrix` step: single Remotion composition -> `StillIRise` (16:9)
        + `StillIRiseVertical` (9:16) + 3s loop + thumbnail still"
-  - ai-video-trends-2026.md §5 P1: "Integrated export matrix: MV + thumbnails
+  - ai-video-trends-2026.md section5 P1: "Integrated export matrix: MV + thumbnails
     (3 variants A/B) + timestamps + SEO"
-  - 2d-visualization-2026.md §7 ImgTool specs: TikTok/Reels 1080x1920,
+  - 2d-visualization-2026.md section7 ImgTool specs: TikTok/Reels 1080x1920,
     Spotify Canvas 3-8s seamless loop (beat-boundary start).
 
 All derivation is FFmpeg-based (FFmpeg 8.1 on PATH; mirrors the thumbnail
@@ -107,7 +107,7 @@ def _beat_aligned_start(
 ) -> tuple[float, str]:
     """Pick a loop start on a strong boundary.
 
-    Preference order (youtube-optimization "First 3 Seconds Rule" — front-load
+    Preference order (youtube-optimization "First 3 Seconds Rule" -- front-load
     energy, never the slow intro):
       1. Highest-energy section start
       2. Beat nearest 25% of the track
@@ -140,7 +140,7 @@ def _relative(path: Path) -> str:
 
 
 async def _derive_vertical(src: Path, dst: Path, total: float) -> MatrixArtifact:
-    """Center-crop 16:9 → 9:16 vertical master (TikTok/Reels/Shorts 1080x1920).
+    """Center-crop 16:9 -> 9:16 vertical master (TikTok/Reels/Shorts 1080x1920).
 
     Per ai-video-trends Trend 3: derive the vertical from the horizontal
     master's center safe zone rather than stretching.
@@ -243,7 +243,7 @@ async def build_export_matrix(
     stem = src.stem
     result = MatrixResult(source=str(src))
 
-    # 1) Vertical master (16:9 → 9:16 center crop)
+    # 1) Vertical master (16:9 -> 9:16 center crop)
     try:
         vertical = await _derive_vertical(src, VIDEO_DIR / f"{stem}_vertical.mp4", total)
         result.artifacts.append(vertical)
@@ -265,7 +265,7 @@ async def build_export_matrix(
         try:
             raw_target = total * frac if total else 0.0
             # Energy-aware placement: pick the highest-energy frame within a
-            # ±3% window around the target when RMS data is available.
+            # +/-3% window around the target when RMS data is available.
             if rms_energy and duration and total > 0:
                 window = min(total * 0.06, 3.0)
                 lo = max(0.0, raw_target - window)

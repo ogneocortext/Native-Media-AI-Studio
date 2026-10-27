@@ -6,15 +6,15 @@ gentle, smoothed, clamped correction to the target so its tonal balance
 leans toward the reference. No API, no key detection, no ML.
 
 The correction is deliberately conservative: profiles are zero-mean (it
-matches *balance*, never loudness — the chain's own LUFS staging owns
+matches *balance*, never loudness -- the chain's own LUFS staging owns
 that), the per-band delta is smoothed across bands (no narrow resonant
 boosts), clamped to +/-max_correction_db, and scaled by strength
 (0.5 = halfway there). A full-strength, unclamped match sounds like a
 different master; this sounds like the same mix with better manners.
 
 The band math (profile, delta, smoothing, interpolation) is pure numpy
-and unit-tested. The spectral application uses librosa's stft/istft —
-the same construction as stem_remixer's `_stft_filter` — because
+and unit-tested. The spectral application uses librosa's stft/istft --
+the same construction as stem_remixer's `_stft_filter` -- because
 overlap-add normalization is exactly the kind of thing to reuse rather
 than re-derive.
 """
@@ -72,7 +72,7 @@ def _bin_power(y: np.ndarray, sr: int, n_fft: int = 4096, hop: int = 2048) -> tu
 def profile_from_bin_power(freqs: np.ndarray, power: np.ndarray) -> np.ndarray:
     """Zero-mean per-band profile in dB from bin frequencies and powers.
 
-    Pure numpy — the unit-testable half. Bands are Gaussian-weighted in
+    Pure numpy -- the unit-testable half. Bands are Gaussian-weighted in
     log-frequency (sigma ~0.35 octaves), so each band sees its neighborhood
     without hard edges.
     """
@@ -103,7 +103,7 @@ def correction_gains_db(ref_profile: np.ndarray, target_profile: np.ndarray,
                         max_correction_db: float = 6.0) -> np.ndarray:
     """Per-band correction in dB: smoothed, clamped, strength-scaled.
 
-    Pure numpy — the unit-testable core. Smoothing (3-point moving average
+    Pure numpy -- the unit-testable core. Smoothing (3-point moving average
     over bands) prevents narrow corrections; clamping bounds the worst
     case; strength scales toward "halfway there" by default.
     """
@@ -136,7 +136,7 @@ def match_to_reference(
     """Nudge `y`'s tonal balance toward `ref_profile` (zero-mean dB vector).
 
     With strength=0 the audio passes through untouched. Without librosa
-    the audio passes through untouched (and logs) — a missing DSP
+    the audio passes through untouched (and logs) -- a missing DSP
     dependency must not silently produce uncorrected audio that claims
     to be corrected.
     """

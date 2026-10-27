@@ -1,7 +1,7 @@
 """
 Video rendering engine abstraction.
 
-Implements `stack-extensions-2026.md` § Phase 2 (Integration):
+Implements `stack-extensions-2026.md` section Phase 2 (Integration):
     "Video: Add `VideoRenderer` abstraction in `packages/backend/app/services/video/`
      with `MoviePyRenderer`, `CoreFluxRenderer`, `MovieLiteRenderer` implementations."
 
@@ -69,12 +69,12 @@ def _moviepy_renderer() -> VideoRenderer:
     return MoviePyRenderer()
 
 
-# id → (factory, label). Availability is checked lazily via factory().
+# id -> (factory, label). Availability is checked lazily via factory().
 RENDER_ENGINES: dict[str, dict] = {
     "ffmpeg": {
         "label": "FFmpeg 8.1",
         "factory": _ffmpeg_renderer,
-        "notes": "Always available — filter-graph fallback, frame-accurate",
+        "notes": "Always available -- filter-graph fallback, frame-accurate",
     },
     "coreflux": {
         "label": "core-flux",
@@ -89,7 +89,7 @@ RENDER_ENGINES: dict[str, dict] = {
     "moviepy": {
         "label": "MoviePy",
         "factory": _moviepy_renderer,
-        "notes": "Legacy baseline — not installed in the studio env",
+        "notes": "Legacy baseline -- not installed in the studio env",
     },
 }
 
@@ -109,7 +109,7 @@ def available_engines() -> list[dict]:
             renderer = meta["factory"]()
             available = renderer.is_available()
             detail = renderer.availability_detail()
-        except Exception as exc:  # pragma: no cover — defensive
+        except Exception as exc:  # pragma: no cover -- defensive
             logger.debug("Engine probe failed for %s: %s", engine_id, exc)
             available, detail = False, f"probe error: {exc}"
         out.append(

@@ -8,13 +8,13 @@ session so per-service tuning (connector limits, default timeouts) stays
 independent; all sessions share one creation lock since creation is rare
 and contention is negligible.
 
-Key configurations (first call wins per key — keys are module-owned, so
+Key configurations (first call wins per key -- keys are module-owned, so
 each module passes its own constants):
 - ``"comfyui"``: limit 10, total 30s (stateless API routes).
 - ``"ollama"``: limit 10, total 30s (stateless API routes).
 - ``"music-gen"``: limit 10, no total timeout (subprocess generations run
   minutes; every call site passes an explicit per-request timeout, so the
-  session default only guards callers that omit one — matching the
+  session default only guards callers that omit one -- matching the
   previous bare-``ClientSession()`` behavior exactly).
 """
 

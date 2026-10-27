@@ -5,16 +5,16 @@ Provides text-to-3D and image-to-3D generation using multiple backends
 appropriate for the GTX 1070 Ti (8GB VRAM, sm_61):
 
 Image-to-3D backends (require reference image):
-- **Hunyuan3D-2mini** (geometry, ~5GB) — native ComfyUI or Kijai wrapper
-- **Hunyuan3D-2mv** (geometry, ~6GB) — native ComfyUI multi-view
-- **TripoSR** (geometry, ~4GB) — fastest, ComfyUI-3D-Pack
-- **Stable Fast 3D** (geometry+UV, ~6GB) — ComfyUI-3D-Pack
+- **Hunyuan3D-2mini** (geometry, ~5GB) -- native ComfyUI or Kijai wrapper
+- **Hunyuan3D-2mv** (geometry, ~6GB) -- native ComfyUI multi-view
+- **TripoSR** (geometry, ~4GB) -- fastest, ComfyUI-3D-Pack
+- **Stable Fast 3D** (geometry+UV, ~6GB) -- ComfyUI-3D-Pack
 
 Text-to-3D backends (no reference image needed):
-- **Point-E** (point cloud, ~4-6GB) — OpenAI, MIT license
-- **Shap-E** (implicit mesh, ~6-8GB) — OpenAI, MIT license
-- **Hunyuan3D-2mini via 2-stage** (text→SDXL→3D, ~9-10GB total) — tight on 8GB
-- **Hunyuan3D-2GP** (text→3D, <6GB) — DeepBeepMeep standalone app, NOT a ComfyUI node
+- **Point-E** (point cloud, ~4-6GB) -- OpenAI, MIT license
+- **Shap-E** (implicit mesh, ~6-8GB) -- OpenAI, MIT license
+- **Hunyuan3D-2mini via 2-stage** (text->SDXL->3D, ~9-10GB total) -- tight on 8GB
+- **Hunyuan3D-2GP** (text->3D, <6GB) -- DeepBeepMeep standalone app, NOT a ComfyUI node
 
 PyTorch 2.14.0+cu126 is the LAST prebuilt wheel supporting Pascal (sm_61).
 From 2.15 onward, must build from source or stay on 2.14.
@@ -297,7 +297,7 @@ class Gen3DService:
 
         import random as _rand
         import time as _time
-        # ensure unique, filesystem-safe name — previous truncated to 30 chars caused 4 identical prefixes
+        # ensure unique, filesystem-safe name -- previous truncated to 30 chars caused 4 identical prefixes
         base = self._sanitize_name(output_name or prompt[:40]) or "gen3d"
         # add seed + timestamp nonce to avoid Collisions when same prompt reused with same seed
         nonce = f"{seed}_{int(_time.time())%10000}_{_rand.randint(100,999)}"
@@ -439,7 +439,7 @@ class Gen3DService:
     ) -> dict[str, Any]:
         """Build ComfyUI workflow: SD1.5 text-to-image, then Hunyuan3D image-to-mesh.
 
-        Hunyuan3D-2mini is an image-to-3D model — its Hy3DGenerateMesh node requires an
+        Hunyuan3D-2mini is an image-to-3D model -- its Hy3DGenerateMesh node requires an
         IMAGE input (verified against the live node schema). So for a text prompt we first
         render a 512x512 concept image with the local SD1.5 checkpoint, then feed that
         image into the Hunyuan3D wrapper chain.
@@ -451,7 +451,7 @@ class Gen3DService:
         backend_info = MODEL_BACKENDS[self.backend]
         model_path = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
 
-        # Hunyuan expects isolated object on white background — add hint if missing (helps avoid alien blob)
+        # Hunyuan expects isolated object on white background -- add hint if missing (helps avoid alien blob)
         enhanced_prompt = prompt
         if "white background" not in prompt.lower() and "isolated" not in prompt.lower():
             enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo, studio lighting"
@@ -779,7 +779,7 @@ class Gen3DService:
         steps: int,
     ) -> dict[str, Any]:
         """Build ComfyUI workflow JSON for image-to-3D based on the selected backend."""
-        # The workflow only needs the image's basename — ComfyUI resolves it
+        # The workflow only needs the image's basename -- ComfyUI resolves it
         # against its own input directory. (This used to call _upload_image(),
         # the output-finalize step, which crashed with a NameError here.)
         image_name = Path(image_path).name
@@ -932,7 +932,7 @@ class Gen3DService:
                 logger.debug("Chrome apply skipped: %s", e)
 
             return {"success": True, "model_path": str(dst), "prompt_id": prompt_id, "decimate": decimate_result}
-        # Source file not found — surface what ComfyUI reported.
+        # Source file not found -- surface what ComfyUI reported.
         logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
         return {"success": True, "prompt_id": prompt_id, "model_path": str(OUTPUT_DIR / Path(image_path).name),
                 "warning": "Mesh exported but file could not be located in backend outputs."}

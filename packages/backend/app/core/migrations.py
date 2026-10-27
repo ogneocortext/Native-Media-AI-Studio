@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _migrate_v1(conn: sqlite3.Connection):
-    """Initial schema — jobs table."""
+    """Initial schema -- jobs table."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
@@ -444,13 +444,13 @@ def _migrate_v18(conn: sqlite3.Connection):
 
 
 def _migrate_v19(conn: sqlite3.Connection):
-    """Agent memory tables — episodic + semantic memory for self-improvement loop.
+    """Agent memory tables -- episodic + semantic memory for self-improvement loop.
 
     agent_episodes: one row per completed agent episode (task, approach, result,
     success/failure, duration, tools used). Used by System 2 reflection to
     assign credit and curate learnings.
 
-    agent_memory_entries: curated learnings extracted from episodes — successful
+    agent_memory_entries: curated learnings extracted from episodes -- successful
     patterns, failed patterns, API spec notes, environment constants. Used by
     System 1 retrieval to augment the agent's context before each tool-calling
     turn.

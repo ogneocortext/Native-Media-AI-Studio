@@ -120,7 +120,7 @@ def _verify_ace_bridge_startup() -> None:
     """Verify ACE-Step bridge integrity on startup.
 
     Module-level helper so lifespan() stays flat (no extra nesting).
-    A bridge issue is logged but never blocks startup — the app keeps
+    A bridge issue is logged but never blocks startup -- the app keeps
     running with whatever ACE-Step is currently installed.
     """
     try:
@@ -142,7 +142,7 @@ def _verify_ace_bridge_startup() -> None:
                 logger.info(f"ACE-Step bridge: {warning}")
         if integrity["provider_update_detected"]:
             logger.warning(
-                "ACE-Step provider update detected — review config/ace-step/bridge.json"
+                "ACE-Step provider update detected -- review config/ace-step/bridge.json"
             )
     except Exception as e:
         logger.warning(f"ACE-Step bridge verification skipped: {e}")
@@ -325,7 +325,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"Port configuration failed: {e}")
         raise
 
-    # Subscribe to job updates — fan-out to both SSE and legacy WS
+    # Subscribe to job updates -- fan-out to both SSE and legacy WS
     async def _fanout_job_update(job):
         await sse_manager.send_job_update(job)
         try:
@@ -353,7 +353,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Native Media AI Studio started successfully")
 
-    # Ensure Ollama starts idle — don't auto-load any model on resume/crash.
+    # Ensure Ollama starts idle -- don't auto-load any model on resume/crash.
     # Previous fire-and-forget visualizer generation left models resident via keep_alive=30m
     try:
         from .services.vram_manager import _unload_ollama_models
@@ -626,7 +626,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
         # Access log: one line per request at INFO (slow) / DEBUG (fast) so
         # the app log shows traffic without flooding on health polls.
-        # SSE/health polling is frequent — keep those at DEBUG.
+        # SSE/health polling is frequent -- keep those at DEBUG.
         msg = "%s %s -> %d (%.1fms, request_id=%s)"
         args = (request.method, request.url.path, response.status_code, duration_ms, request_id)
         if request.url.path in ("/api/health", "/api/events") or duration_ms < 500:
@@ -1003,7 +1003,7 @@ async def root():
 
 
 # ---------------------------------------------------------------------------
-# Legacy WebSocket endpoint — kept for backward compatibility.
+# Legacy WebSocket endpoint -- kept for backward compatibility.
 # New clients should use SSE at /api/events (see sseService.ts).
 # Returns 426 for plain HTTP GET with a JSON hint.
 # ---------------------------------------------------------------------------
@@ -1045,7 +1045,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 }
             )
         )
-        # Keep connection alive — echo any client message and forward keepalives
+        # Keep connection alive -- echo any client message and forward keepalives
         while True:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=30)

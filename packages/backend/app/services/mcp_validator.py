@@ -27,7 +27,7 @@ class ValidationError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Schema registry — one entry per in-repo tool.
+# Schema registry -- one entry per in-repo tool.
 # Each schema follows JSON Schema subset (type + required + properties).
 # ---------------------------------------------------------------------------
 
@@ -329,7 +329,7 @@ def validate_tool_call(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     """
     schema = _TOOL_SCHEMAS.get(tool_name)
     if schema is None:
-        logger.warning("validate_tool_call: unknown tool %r — passing through unchanged", tool_name)
+        logger.warning("validate_tool_call: unknown tool %r -- passing through unchanged", tool_name)
         return args
 
     errors: list[str] = []
@@ -366,7 +366,7 @@ def validate_tool_call(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
 
     if errors:
         raise ValidationError(
-            f"tool {tool_name!r}: invalid arguments — " + "; ".join(errors)
+            f"tool {tool_name!r}: invalid arguments -- " + "; ".join(errors)
         )
 
     return args

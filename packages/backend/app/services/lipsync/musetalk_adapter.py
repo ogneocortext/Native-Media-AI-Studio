@@ -1,4 +1,4 @@
-"""MuseTalk lip-sync adapter — local-only inference, no API calls.
+"""MuseTalk lip-sync adapter -- local-only inference, no API calls.
 
 See D42 (docs/architecture/decision-log.md). MuseTalk v1.5 is MIT-licensed,
 needs ~4 GB VRAM (declared as MIN_VRAM_FOR_LIPSYNC in vram_manager), and runs
@@ -12,7 +12,7 @@ Layout:
   confirmed against the installed MuseTalk version on the Windows GPU box;
   until it is, :meth:`MuseTalkAdapter.lipsync` fails open with
   :class:`LipSyncNotConfiguredError` naming the exact missing step.
-- Audio is normalized to 16 kHz mono WAV via ffmpeg before inference — the
+- Audio is normalized to 16 kHz mono WAV via ffmpeg before inference -- the
   format lip-sync models expect. For songs, feed the isolated vocals stem
   (``POST /api/audio/separate``) and mux the full mix back afterwards;
   speech-trained models sync markedly worse on full mixes (research notes).
@@ -81,7 +81,7 @@ class MuseTalkConfig:
             try:
                 raw = json.loads(config_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError) as exc:
-                logger.warning("Could not read %s: %s — using defaults", config_path, exc)
+                logger.warning("Could not read %s: %s -- using defaults", config_path, exc)
         weights = raw.get("weights_dir", "models/musetalk")
         weights_dir = Path(weights)
         if not weights_dir.is_absolute():
@@ -197,7 +197,7 @@ class MuseTalkAdapter:
         workdir.mkdir(parents=True, exist_ok=True)
         try:
             wav = await asyncio.to_thread(self._prepare_audio, audio, workdir)
-            # VRAM handshake (D7) — preflighted through vram_manager.
+            # VRAM handshake (D7) -- preflighted through vram_manager.
             # Skipped in mock mode: there is no GPU to manage.
             if not mock:
                 _note(0.15, "VRAM preflight")
@@ -271,7 +271,7 @@ class MuseTalkAdapter:
         template = self.config.inference_command.strip()
         if not template:
             raise LipSyncNotConfiguredError(
-                "inference.command is empty in config/lipsync.json — "
+                "inference.command is empty in config/lipsync.json -- "
                 "confirm the invocation against the installed MuseTalk version "
                 "on the Windows GPU box, then set it."
             )

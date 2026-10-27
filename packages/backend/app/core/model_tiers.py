@@ -3,10 +3,10 @@ Model-tier classification + VRAM requirements (single source of truth).
 
 Consolidates the Wan/GGUF name-sniffing previously scattered across:
 - ``services/generation_estimator.py`` (``classify_model_variant``,
-  ``VRAM_REQUIREMENTS`` — moved here verbatim),
+  ``VRAM_REQUIREMENTS`` -- moved here verbatim),
 - ``adapters/comfyui.py`` (inline ``is_wan_gguf`` routing check),
 - ``api/integrations_generation.py`` (``/video-models`` variant tagging),
-- ``VideoGenerationPage.tsx`` (frontend badge sniffing — backend remains
+- ``VideoGenerationPage.tsx`` (frontend badge sniffing -- backend remains
   the authority; the page prefers ``meta.variant`` and only falls back to
   name-sniffing when metadata is absent).
 
@@ -20,25 +20,25 @@ import re
 
 # VRAM requirements (MB) for video generation models on Pascal (GTX 1070 Ti / sm_61)
 # Based on 2026 research: Wan 2.2 TI2V-5B GGUF Q4/Q5 fits 8GB with CPU T5 offload;
-# FP16 variants require 16-24GB. Wan 2.1 1.3B is the 6GB class (832×480 native).
-# LTX 2.3 distilled validated on 8GB (2026-10-06: 25f 768×512 in 210s, ~4.46 GB peak,
+# FP16 variants require 16-24GB. Wan 2.1 1.3B is the 6GB class (832x480 native).
+# LTX 2.3 distilled validated on 8GB (2026-10-06: 25f 768x512 in 210s, ~4.46 GB peak,
 # no OOM, coherent output). Super 3D Pro Standard fits 6-8GB.
 VRAM_REQUIREMENTS: dict[str, dict[str, int]] = {
-    # Wan 2.1 1.3B — 6GB class, 832×480 native (fits 8GB directly, no GGUF needed)
+    # Wan 2.1 1.3B -- 6GB class, 832x480 native (fits 8GB directly, no GGUF needed)
     "wan2_1_t2v_1_3b": {"min_mb": 5000, "recommended_mb": 6500, "max_mb": 8000},
     "wan2_1_fun_inp_1_3b": {"min_mb": 6000, "recommended_mb": 7500, "max_mb": 8500},
     # Wan 2.2 TI2V-5B variants
     "wan_ti2v_5b_gguf_q4": {"min_mb": 5500, "recommended_mb": 7500, "max_mb": 8000},
     "wan_ti2v_5b_gguf_q5": {"min_mb": 6000, "recommended_mb": 7800, "max_mb": 8200},
     "wan_ti2v_5b_fp16": {"min_mb": 16000, "recommended_mb": 20000, "max_mb": 24000},
-    # LTX 2.3 distilled — ~4.46 GB peak measured on GTX 1070 Ti (25f 768×512),
-    # fits 8GB with headroom; ~4× faster than Wan 2.2 Q4.
+    # LTX 2.3 distilled -- ~4.46 GB peak measured on GTX 1070 Ti (25f 768x512),
+    # fits 8GB with headroom; ~4x faster than Wan 2.2 Q4.
     "ltx_2_3": {"min_mb": 4500, "recommended_mb": 5500, "max_mb": 7000},
     # Other video models
     "super_3d_pro_standard": {"min_mb": 5000, "recommended_mb": 6500, "max_mb": 8000},
     "animate_diff_sd15": {"min_mb": 3000, "recommended_mb": 4500, "max_mb": 6000},
     "kandinsky_5_lite": {"min_mb": 4000, "recommended_mb": 5500, "max_mb": 7000},
-    # Mochi — research targets, 8GB viability unvalidated; community estimates.
+    # Mochi -- research targets, 8GB viability unvalidated; community estimates.
     "mochi_1": {"min_mb": 8000, "recommended_mb": 12000, "max_mb": 16000},
     "mochi_2": {"min_mb": 8000, "recommended_mb": 12000, "max_mb": 16000},
 }

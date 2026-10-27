@@ -24,7 +24,7 @@ except ImportError:
 try:
     # NOTE: the import name is `madmom_infer` (underscore). The code used to try
     # `madmom.infer`, which exists in neither the legacy `madmom` package nor
-    # this one — and neither package exposes module-level `beats()`/`downbeats()`
+    # this one -- and neither package exposes module-level `beats()`/`downbeats()`
     # functions. The real entry points are
     # `madmom_infer.features.downbeats.{RNNDownBeatProcessor, DBNDownBeatTrackingProcessor}`;
     # `_madmom_beats_downbeats()` below adapts them to (beat_times, downbeat_times).
@@ -47,7 +47,7 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "audio_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Shared audio core (tools/lib/audio.py) — imported lazily to avoid a hard
+# Shared audio core (tools/lib/audio.py) -- imported lazily to avoid a hard
 # cross-package dependency at module load time.  The project root is on
 # sys.path when the backend runs under uvicorn / the service scripts.
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ def resample_audio_gpu(y, orig_sr: int, target_sr: int):
             out = _taf.resample(tensor, orig_freq=orig_sr, new_freq=target_sr)
             return out.cpu().numpy().astype(np.float32)
     except Exception:
-        logger.debug("GPU resample unavailable — falling back to librosa", exc_info=True)
+        logger.debug("GPU resample unavailable -- falling back to librosa", exc_info=True)
     return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr).astype(np.float32)
 
 
@@ -178,7 +178,7 @@ def snap_beats_to_onsets(
     The DP beat tracker places beats on a regularised grid, which can sit
     tens of milliseconds off the drum hits the grid is meant to mark.
     For each beat, search +/- ``window_s`` in the onset envelope and move
-    the beat to the peak frame — but only when that peak rises above the
+    the beat to the peak frame -- but only when that peak rises above the
     envelope's median, so beats in quiet passages (no real onset nearby)
     are left where the tracker put them.
     """
@@ -238,7 +238,7 @@ def detect_meter(beat_times: list[float]) -> int:
         if db_median <= 0:
             continue
         mad = float(np.mean(np.abs(db_intervals - db_median))) / db_median
-        # Penalize meters that imply extreme tempos (0.2s–2.0s per beat)
+        # Penalize meters that imply extreme tempos (0.2s--2.0s per beat)
         beat_dur = median_interval
         if beat_dur < 0.2 or beat_dur > 2.0:
             mad += 0.5
@@ -440,7 +440,7 @@ class AudioAnalyzer:
         onset_frames = list(result.get("onset_frames", []))
 
         # sonara pins its own pipeline to sr=22050 / hop=512 regardless of
-        # how we decoded the file — it reports them in `provenance`, so
+        # how we decoded the file -- it reports them in `provenance`, so
         # convert frame indices with sonara's grid, not ours.
         provenance = result.get("provenance") or {}
         prov_sr = float(provenance.get("sample_rate") or 22050)
@@ -521,7 +521,7 @@ class AudioAnalyzer:
         audio (the CUDA route) can now choose the RNN+DBN grid without a
         second decode. madmom-infer pins its DSP to 44.1 kHz mono and has
         no resampler, so the resample is part of the contract. Tempo comes
-        from the median beat interval — madmom reports no tempo of its own
+        from the median beat interval -- madmom reports no tempo of its own
         on this path.
         """
         if getattr(y, "ndim", 1) > 1:
@@ -689,7 +689,7 @@ class AudioAnalyzer:
                 if median_interval > 0:
                     tempo_val = 60.0 / median_interval
 
-            # Real onsets (librosa) — previously the downbeats were reported as
+            # Real onsets (librosa) -- previously the downbeats were reported as
             # onsets, which conflated two different musical events. Downbeats now
             # travel in their own fields.
             onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length)
@@ -739,7 +739,7 @@ class AudioAnalyzer:
         try:
             # Decode ONCE, at native rate. This used to decode twice: once at
             # 22050 for sonara and again at the native rate for the waveform
-            # features — ~5.5 s each on a 157 s track, so half the decode cost
+            # features -- ~5.5 s each on a 157 s track, so half the decode cost
             # was pure duplication. Resampling the buffer we already hold is
             # ~0.2 s, so the second decode is now pure waste.
             #
@@ -942,7 +942,7 @@ def analyze_with_cuda(
 
     Args:
         audio_path: Path to audio file.
-        y: Optional pre-loaded mono time series — avoids decoding the file a
+        y: Optional pre-loaded mono time series -- avoids decoding the file a
             second time when the caller already loaded it.
         sr: Sample rate matching ``y`` (required when ``y`` is given).
         include_beats: Set False when the caller runs its own beat tracking
@@ -969,7 +969,7 @@ def analyze_with_cuda(
         logger.warning(f"CUDA analysis failed ({e}), falling back to CPU")
 
     if not cuda_ok:
-        # CPU fallback — reuse already-loaded audio for RMS + beats
+        # CPU fallback -- reuse already-loaded audio for RMS + beats
         rms = librosa.feature.rms(y=y, hop_length=512)[0]
         rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
         target_points = 60
@@ -981,7 +981,7 @@ def analyze_with_cuda(
             "computed_on": "CPU",
         }
 
-    # Beat tracking (still CPU — librosa beat_track has no GPU equivalent)
+    # Beat tracking (still CPU -- librosa beat_track has no GPU equivalent)
     if include_beats:
         beat_result = analyze_beats(y, sr, use_gpu=False)
         result["tempo_bpm"] = beat_result["tempo"]

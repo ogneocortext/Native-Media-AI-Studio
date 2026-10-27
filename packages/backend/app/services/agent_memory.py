@@ -77,7 +77,7 @@ class AgentMemoryService:
         pass
 
     # ------------------------------------------------------------------
-    # System 1 — Retrieve
+    # System 1 -- Retrieve
     # ------------------------------------------------------------------
 
     def get_relevant_memories(
@@ -157,7 +157,7 @@ class AgentMemoryService:
         )
 
     # ------------------------------------------------------------------
-    # System 2 — Store / Reflect
+    # System 2 -- Store / Reflect
     # ------------------------------------------------------------------
 
     def store_episode(
@@ -273,7 +273,7 @@ class AgentMemoryService:
 
         <MEMORY>
         Relevant past learnings:
-        - [pattern] Audio analysis → music generation: always analyze first
+        - [pattern] Audio analysis -> music generation: always analyze first
         - [env_const] VRAM budget for music: 6144 MB
         </MEMORY>
         """

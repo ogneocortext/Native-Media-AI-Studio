@@ -1,4 +1,4 @@
-"""Music Prompt Generator API — per-engine style prompts + lyrics via local Ollama."""
+"""Music Prompt Generator API -- per-engine style prompts + lyrics via local Ollama."""
 
 from __future__ import annotations
 
@@ -47,11 +47,11 @@ class MusicPromptBrief(BaseModel):
     instruments: str = Field("", max_length=300)
     language: str = Field("English", max_length=50)
     dialect: str = Field("General American", max_length=100, description="Sung dialect, e.g. General American, Southern American, AAVE")
-    tricky_words: str = Field("", max_length=500, description="Comma-separated words that stumbled before — model respells or replaces them")
+    tricky_words: str = Field("", max_length=500, description="Comma-separated words that stumbled before -- model respells or replaces them")
     duration: str = Field("", max_length=100)
     extra: str = Field("", max_length=1000)
     exclude: str = Field("", max_length=300, description="Suno Exclude Styles / things to avoid")
-    use_case: str = Field("", max_length=300, description="Where the track will be used (loop, film, game, …)")
+    use_case: str = Field("", max_length=300, description="Where the track will be used (loop, film, game, ...)")
     instrumental: bool = Field(False, description="No vocals: lyrics empty, prompt carries the arrangement")
     timeline: bool = Field(False, description="Lyria 3.5: timestamp [mm:ss] timeline for video scoring")
     lyric_style: str = Field("", max_length=200, description="Lyric writing style: poetic, conversational, storytelling, minimal, fragmented, narrative, or a genre like melodic rap / alt R&B / phonk / pop / drill / afrobeat / country / latin / indie folk / edm")
@@ -173,7 +173,7 @@ async def analyze_reference(file: UploadFile = File(...)) -> AnalyzeReferenceRes
     Per D8 (keep heavy processing out of the request thread) and the
     music-track-stack-integration plan: on any failure (bad file, analyzer
     crash, parse error, timeout) returns a degraded response with null fields
-    — never a 500. The frontend can still pre-fill the form from manual fields.
+    -- never a 500. The frontend can still pre-fill the form from manual fields.
     """
     if not ANALYZE_SCRIPT.exists():
         return AnalyzeReferenceResponse(

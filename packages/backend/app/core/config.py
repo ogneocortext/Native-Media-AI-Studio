@@ -24,7 +24,7 @@ class AppConfig(BaseModel):
     backend_port: int = 8000
     frontend_port: int = 5173
     # Canonical realtime transport is SSE at /api/events; WebSocket at /ws
-    # is a compat shim on the same port. `ws_port` is deprecated — use
+    # is a compat shim on the same port. `ws_port` is deprecated -- use
     # backend_port. Kept for config/ports.json compat.
     ws_port: int = 8000
     comfyui_url: str = "http://127.0.0.1:8188"
@@ -201,7 +201,7 @@ def save_config(config: AppConfig) -> None:
 # Without hot-reload, a config change requires restarting the backend.
 # These functions let an operator (or an API endpoint) reload settings from
 # disk without restarting. Ports and URLs remain owned by `ports.json` and are
-# not reloaded here — changing those requires a restart anyway (the socket is
+# not reloaded here -- changing those requires a restart anyway (the socket is
 # already bound).
 
 

@@ -1,4 +1,4 @@
-"""Suno Track Enhancer — auto-mix chain for separated stems.
+"""Suno Track Enhancer -- auto-mix chain for separated stems.
 
 18 reported stages; the numbers below are the `step` values in
 `EnhanceResult.steps`, which is what the UI timeline renders.
@@ -10,7 +10,7 @@
   5.  Per-stem compression (glue), threshold adaptive to stem RMS
   6.  De-ess vocals (band-RMS)
   7.  KARRA vocal chain (air boost + gentle acompressor)
-  8.  Vocal balance ±3 dB macro + stereo widen non-vocals
+  8.  Vocal balance +/-3 dB macro + stereo widen non-vocals
   9.  Relative per-frame spectral gate on vocals
   10. Dynamic EQ taming 2.5-4 kHz on vocals
   11. Parallel weight bus (-12 to -18 dB)
@@ -61,7 +61,7 @@ except ImportError:
     SOUNDFILE_AVAILABLE = False
 
 
-# ─── Config ──────────────────────────────────────────────────────────────────
+# --- Config ------------------------------------------------------------------
 
 @dataclass
 class EnhanceConfig:
@@ -71,7 +71,7 @@ class EnhanceConfig:
       - High-pass at 30 Hz (spectral-centroid adaptive) to strip DC,
         infrasonic rumble and MP3 artefacts.
       - Anti-AI-grit: per-frame-relative spectral gate on vocals, dynamic EQ
-        taming 2.5–4 kHz.
+        taming 2.5--4 kHz.
       - No reverb on vocals (pseudo-reverb already baked into Suno exports).
       - Progressive high-end drift correction on the mixed bus (V6 darkening).
 
@@ -79,17 +79,17 @@ class EnhanceConfig:
       - Vocal expander/transient recovery instead of compression (Suno vocals
         are already brickwalled; extra compression pumps artifacts).
       - Air boost + de-ess + gentle acompressor + true-peak limiter on vocals.
-      - ±3 dB vocal balance macro slider.
+      - +/-3 dB vocal balance macro slider.
 
     In The Mix upgrades:
       - Two-stage EQ (subtractive before comp, character after).
       - Parallel weight bus (-12 to -18 dB).
-      - Sidechain "pocket EQ" on Other stem: duck 2.5–3.5 kHz while vocals sing.
+      - Sidechain "pocket EQ" on Other stem: duck 2.5--3.5 kHz while vocals sing.
     """
     target_peak_dbfs: float = -1.0
     attack_ms: float = 5.0
     release_ms: float = 80.0
-    ratio: float = 2.5          # Gentle acompressor (2.5:1) — NOT brickwall
+    ratio: float = 2.5          # Gentle acompressor (2.5:1) -- NOT brickwall
     threshold_dbfs: float = -24.0
     reverb_decay: float = 0.4
     reverb_mix: float = 0.12
@@ -119,7 +119,7 @@ class EnhanceConfig:
     deess_freq_hz: float = 6500.0  # KARRA de-ess at 6.5 kHz
     air_boost_gain_db: float = 2.5 # +2.5 dB air boost at 10 kHz
     air_boost_freq_hz: float = 10000.0
-    vocal_balance_db: float = 0.0  # ±3 dB macro slider for vocal level
+    vocal_balance_db: float = 0.0  # +/-3 dB macro slider for vocal level
     # Reference tonal match (opt-in): lean the master bus toward a reference
     # track's spectral balance. The reference is an audio-library path; the
     # profile is cached in memory. None (default) skips the step entirely.
@@ -127,7 +127,7 @@ class EnhanceConfig:
     reference_match_strength: float = 0.5  # 0..1, 0.5 = halfway there
     # In The Mix upgrades
     parallel_weight_bus_db: float = -15.0  # -12 to -18 dB parallel weight
-    sidechain_pocket_eq_enabled: bool = False  # duck 2.5–3.5 kHz on Other when vocals present
+    sidechain_pocket_eq_enabled: bool = False  # duck 2.5--3.5 kHz on Other when vocals present
     # V6 progressive darkening (2026-10-02). Measured on a real export: mean
     # spectral centroid falls 3467 Hz -> 1279 Hz from the opening to the last
     # chorus, a 63% loss of brightness that a static chain cannot correct
@@ -139,16 +139,16 @@ class EnhanceConfig:
     max_drift_boost_db: float = 4.0
 
 
-# ─── DSP helpers ─────────────────────────────────────────────────────────────
+# --- DSP helpers -------------------------------------------------------------
 
 def _db_to_linear(db: float | np.ndarray) -> float | np.ndarray:
-    """dB → linear amplitude.
+    """dB -> linear amplitude.
 
     Accepts an array as well as a scalar. `math.pow` raises
     `TypeError: only 0-dimensional arrays can be converted to Python scalars`
     on an ndarray, which is why this uses `np.power`. `_band_rms_deesser` needs
     one gain per STFT frame (line 434), so the array form is load-bearing, not
-    hypothetical — and because the exception was raised inside the step-5
+    hypothetical -- and because the exception was raised inside the step-5
     `try`, the whole enhance run aborted with "deess failed: ..." on every
     input. This is why the chain had never produced output.
     """
@@ -348,11 +348,11 @@ def _simple_limiter(y: np.ndarray, ceiling_db: float = -0.3) -> np.ndarray:
     return np.clip(y, -ceiling, ceiling)
 
 
-# ─── Anti-AI-grit helpers ─────────────────────────────────────────────────────
+# --- Anti-AI-grit helpers -----------------------------------------------------
 # Gemini guidance for AI-generated tracks (Suno/UVR5):
 #   1. Pre high-pass < 30 Hz (sub-bass rumble / MP3 artifacts).
 #   2. Post spectral gating on vocal stem (kill ghost bleed / phase smearing).
-#   3. Dynamic EQ taming 2.5–4 kHz digital harshness.
+#   3. Dynamic EQ taming 2.5--4 kHz digital harshness.
 
 def _high_pass(y: np.ndarray, sr: int, cutoff_hz: float = 30.0) -> np.ndarray:
     """Simple DC-blocking high-pass via FFT magnitude zeroing."""
@@ -548,7 +548,7 @@ def _dynamic_eq_tame_harshness(
     bandwidth_hz: float = 1500.0,
     max_reduction_db: float = 4.0,
 ) -> np.ndarray:
-    """Dynamic EQ: tame 2.5–4 kHz harshness when energy exceeds the track mean.
+    """Dynamic EQ: tame 2.5--4 kHz harshness when energy exceeds the track mean.
 
     The reference is `local_mean`, which despite the name is the mean over the
     *whole track*, not a moving average: `np.mean(band_energy)` with no axis
@@ -583,10 +583,10 @@ def _dynamic_eq_tame_harshness(
     return out.astype(np.float32)
 
 
-# ─── KARRA / Gemini Suno Vocal Enhancer helpers ────────────────────────────────
+# --- KARRA / Gemini Suno Vocal Enhancer helpers --------------------------------
 # Reference preset (FFmpeg blueprint, Karra "warm" chain):
-#   highpass f=30 (DC + infrasonic rumble only) → dynamic tamer 2600/3800Hz →
-#   de-ess 6.5kHz → air boost 10kHz +2.5dB → gentle acompressor 2.5:1 →
+#   highpass f=30 (DC + infrasonic rumble only) -> dynamic tamer 2600/3800Hz ->
+#   de-ess 6.5kHz -> air boost 10kHz +2.5dB -> gentle acompressor 2.5:1 ->
 #   alimiter -1.0dB
 # We translate the same stages into numpy/librosa DSP. The blueprint's 110 Hz
 # high-pass is deliberately NOT reproduced: measured on the 48 kHz source it
@@ -695,7 +695,7 @@ def _band_rms_deesser(
     band_energy = np.mean(np.abs(stft[band_mask, :]), axis=0)
     overall_rms = np.sqrt(np.mean(np.abs(stft) ** 2, axis=0)) + 1e-8
     ratio = band_energy / overall_rms
-    threshold = 1.8  # band is 1.8× overall RMS → start reducing
+    threshold = 1.8  # band is 1.8x overall RMS -> start reducing
     reduction = np.where(ratio > threshold, np.minimum(max_reduction_db, (ratio - threshold) * max_reduction_db), 0.0)
     lin_gain = _db_to_linear(-reduction)
     stft[band_mask, :] *= lin_gain[np.newaxis, :]
@@ -718,7 +718,7 @@ def _lufs_gain_stage(y: np.ndarray, target_lufs: float = -14.0) -> np.ndarray:
     rms = float(np.sqrt(np.mean(y ** 2)))
     if rms < 1e-10:
         return y
-    # Rough LUFS ≈ -0.691 + 10*log10(RMS^2) for full-scale sine
+    # Rough LUFS ~= -0.691 + 10*log10(RMS^2) for full-scale sine
     current_lufs = 20.0 * math.log10(rms + 1e-10) - 0.691
     delta_db = target_lufs - current_lufs
     gain = _db_to_linear(delta_db)
@@ -757,9 +757,9 @@ def _sidechain_pocket_eq(
     bandwidth_hz: float = 1000.0,
     max_reduction_db: float = 4.0,
 ) -> np.ndarray:
-    """Sidechain pocket EQ: duck 2.5–3.5 kHz on Other when vocals are present.
+    """Sidechain pocket EQ: duck 2.5--3.5 kHz on Other when vocals are present.
 
-    In The Mix guidance: sidechain-duck 2.5–3.5 kHz on the Other stem while
+    In The Mix guidance: sidechain-duck 2.5--3.5 kHz on the Other stem while
     vocals sing, creating a "pocket" for the vocal to sit in.
     """
     if other.size == 0 or vocals.size == 0 or not LIBROSA_AVAILABLE:
@@ -789,7 +789,7 @@ def _sidechain_pocket_eq(
     return out.astype(np.float32)
 
 
-# ─── Core pipeline ────────────────────────────────────────────────────────────
+# --- Core pipeline ------------------------------------------------------------
 
 @dataclass
 class EnhanceResult:
@@ -830,7 +830,7 @@ class SunoEnhancer:
         loaded: dict[str, np.ndarray] = {}
         sr = 22050
 
-        # ── Step 1: Load stems ──────────────────────────────────────────────
+        # -- Step 1: Load stems ----------------------------------------------
         try:
             for name in stem_names:
                 wav = stems_dir / f"{name}.wav"
@@ -852,8 +852,8 @@ class SunoEnhancer:
             if y.ndim == 1:
                 loaded[name] = y[np.newaxis, :]
 
-# ── Step 2: Pre high-pass (heuristic: spectral-centroid adaptive) ────
-        # Gemini KARRA: push HPF to 110–130 Hz for Suno + Demucs low-end bleed.
+# -- Step 2: Pre high-pass (heuristic: spectral-centroid adaptive) ----
+        # Gemini KARRA: push HPF to 110--130 Hz for Suno + Demucs low-end bleed.
         # Default 120 Hz; adapt down to 80 Hz only when spectral centroid is very low.
         try:
             adaptive_hp = self.config.pre_highpass_hz
@@ -881,7 +881,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"pre_highpass failed: {exc}")
 
-# ── Step 3: LUFS gain staging (heuristic) ───────────────────────────
+# -- Step 3: LUFS gain staging (heuristic) ---------------------------
         try:
             for name, y in loaded.items():
                 loaded[name] = _lufs_gain_stage(y, target_lufs=-14.0)
@@ -889,7 +889,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"lufs_gain_stage failed: {exc}")
 
-# ── Step 4: Normalize ─────────────────────────────────────────────
+# -- Step 4: Normalize ---------------------------------------------
         try:
             for name, y in loaded.items():
                 loaded[name] = _normalize_peak(y, self.config.target_peak_dbfs)
@@ -897,7 +897,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"normalize failed: {exc}")
 
-# ── Step 5: Per-stem processing (KARRA split) ───────────────────────
+# -- Step 5: Per-stem processing (KARRA split) -----------------------
         # Heuristic (always): non-vocals get gentle glue compression.
         # Needs-fallback (opt-in): vocals get expander + KARRA preset instead.
         try:
@@ -924,7 +924,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"stem_processing failed: {exc}")
 
-# ── Step 6: De-ess vocals (band-RMS heuristic) ──────────────────────
+# -- Step 6: De-ess vocals (band-RMS heuristic) ----------------------
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
@@ -941,7 +941,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"deess failed: {exc}")
 
-# ── Step 7: KARRA vocal chain (air boost + gentle acompressor) ──────
+# -- Step 7: KARRA vocal chain (air boost + gentle acompressor) ------
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
@@ -967,7 +967,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"karrra_vocal_chain failed: {exc}")
 
-# ── Step 8: Vocal balance ±3 dB macro + stereo widen non-vocals ─────
+# -- Step 8: Vocal balance +/-3 dB macro + stereo widen non-vocals -----
         try:
             if "vocals" in loaded and self.config.vocal_balance_db != 0.0:
                 bal = _db_to_linear(self.config.vocal_balance_db)
@@ -983,7 +983,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"stereo_widen failed: {exc}")
 
-# ── Step 9: Post spectral gating on vocals (ghost bleed killer) ─────
+# -- Step 9: Post spectral gating on vocals (ghost bleed killer) -----
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
@@ -995,7 +995,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"vocal_spectral_gate failed: {exc}")
 
-# ── Step 10: Dynamic EQ tame 2.5–4 kHz harshness on vocals ──────────
+# -- Step 10: Dynamic EQ tame 2.5--4 kHz harshness on vocals ----------
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
@@ -1007,7 +1007,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"vocal_dynamic_eq failed: {exc}")
 
-# ── Step 11: Parallel weight bus (-12 to -18 dB) ─────────────────────
+# -- Step 11: Parallel weight bus (-12 to -18 dB) ---------------------
         try:
             if self.config.parallel_weight_bus_db != 0.0:
                 for name, y in loaded.items():
@@ -1016,7 +1016,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"parallel_weight_bus failed: {exc}")
 
-# ── Step 12: Sidechain pocket EQ on Other while vocals sing ───────────
+# -- Step 12: Sidechain pocket EQ on Other while vocals sing -----------
         try:
             if self.config.sidechain_pocket_eq_enabled and "vocals" in loaded and "other" in loaded:
                 vocals_y = loaded["vocals"]
@@ -1043,7 +1043,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"sidechain_pocket_eq failed: {exc}")
 
-# ── Step 13: Reverb/delay sends (vocals EXCLUDED — pseudo-reverb baked in) ──
+# -- Step 13: Reverb/delay sends (vocals EXCLUDED -- pseudo-reverb baked in) --
         try:
             for name, y in loaded.items():
                 send_target = y
@@ -1059,14 +1059,14 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"fx_sends failed: {exc}")
 
-# ── Step 14: Mix stems with auto-leveling ───────────────────────────
+# -- Step 14: Mix stems with auto-leveling ---------------------------
         try:
             mixed = await asyncio.to_thread(self._mix_stems, loaded, sr)
             steps.append({"step": 14, "name": "mix", "method": "auto_level"})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"mix failed: {exc}")
 
-# ── Step 15: Progressive high-end drift correction (V6) ───────────────
+# -- Step 15: Progressive high-end drift correction (V6) ---------------
         try:
             if self.config.restore_high_end_drift:
                 mixed = _restore_high_end_drift(
@@ -1082,7 +1082,7 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"drift_correction failed: {exc}")
 
-# ── Step 16: Reference tonal match (opt-in) ─────────────────────────
+# -- Step 16: Reference tonal match (opt-in) -------------------------
         # EQ before limiting: the limiter then sees the final spectrum.
         try:
             if self.config.reference_track:
@@ -1103,14 +1103,14 @@ class SunoEnhancer:
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"reference_match failed: {exc}")
 
-# ── Step 17: Master bus true-peak limiter (-1.0 dB) ─────────────────
+# -- Step 17: Master bus true-peak limiter (-1.0 dB) -----------------
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
             steps.append({"step": 17, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
         except Exception as exc:
             return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"limiter failed: {exc}")
 
-        # ── Step 18/19: Export ──────────────────────────────────────────────
+        # -- Step 18/19: Export ----------------------------------------------
         wav_path = None
         mp3_path = None
         try:
@@ -1142,15 +1142,15 @@ class SunoEnhancer:
         - Both attempts to "fix" the weighting made the tonal balance worse, in
           opposite directions, and both were found by measuring the output
           rather than by reading the code:
-            * 1/RMS per channel — stem RMS spans -21.1 (bass) to -27.1 dBFS
+            * 1/RMS per channel -- stem RMS spans -21.1 (bass) to -27.1 dBFS
               (other), so it rebalanced stems against each other. Crest factor
               fell 16.0 -> 5.7 dB; bass fell 69% -> 4% of the spectrum.
-            * peak-normalise each stem to -6 dBFS — also wrong, because crest
+            * peak-normalise each stem to -6 dBFS -- also wrong, because crest
               factor differs by stem type. Measured after all processing: vocals
               peaked at -12.5 dBFS and bass at -3.1 dBFS, so peak-normalising
               pushed vocals up +6.5 dB relative to drums and pushed bass down
               -2.9 dB. The bass stem still held 91.7% of its energy below
-              250 Hz at that point, so the low end was not being filtered — the
+              250 Hz at that point, so the low end was not being filtered -- the
               mixer was simply unbalancing it.
 
         Per-stem normalisation is the mistake in both cases: it discards the
@@ -1198,7 +1198,7 @@ class SunoEnhancer:
     def _encode_mp3(self, wav_path: Path, mp3_path: Path, y: np.ndarray, sr: int) -> None:
         ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
         if not ffmpeg:
-            raise RuntimeError("ffmpeg not found — cannot encode MP3")
+            raise RuntimeError("ffmpeg not found -- cannot encode MP3")
         if not wav_path.exists():
             raise FileNotFoundError(f"intermediate WAV missing: {wav_path}")
         cmd = [
@@ -1210,7 +1210,7 @@ class SunoEnhancer:
         subprocess.run(cmd, encoding="utf-8", errors="replace", check=True, capture_output=True, text=True, timeout=300)
 
 
-# ─── Async entry point ────────────────────────────────────────────────────────
+# --- Async entry point --------------------------------------------------------
 
 async def enhance_stems(
     stems_dir: str | Path,

@@ -3,13 +3,13 @@
 Uses local Ollama LLM (default qwen3.5:4b) to produce copy-paste-ready
 style prompts + structured lyrics for four music engines:
 
-- suno_v6        — Suno v6 family (v6 / v6-wild / v6-mini). Tag-style Style
+- suno_v6        -- Suno v6 family (v6 / v6-wild / v6-mini). Tag-style Style
                    field (~1000 chars, sweet spot 5-8 descriptors) + tagged lyrics.
-- minimax_30     — MiniMax Music 3.0 (music-3.0). Narrative sentences +
+- minimax_30     -- MiniMax Music 3.0 (music-3.0). Narrative sentences +
                    Structured Caption (Global Metadata / Vocal Details / Arrangement).
-- happyshrimp_10 — Alibaba HappyShrimp 1.0 beta. Natural-language scene prompt,
+- happyshrimp_10 -- Alibaba HappyShrimp 1.0 beta. Natural-language scene prompt,
                    end-to-end whole-song, Smart/Custom/Instrumental modes.
-- lyria_35       — Google Lyria 3.5 (model id ``lyria-3.5``, Interactions API,
+- lyria_35       -- Google Lyria 3.5 (model id ``lyria-3.5``, Interactions API,
                    44.1 kHz stereo). Full songs (couple minutes, up to ~3 min),
                    timestamps + ``Lyrics:`` block. Launched in Flow Music
                    29 Jul 2026, Gemini app/API 4 Sep 2026. Clip model
@@ -122,16 +122,16 @@ MUSIC_PROMPT_PRESETS: dict[str, list[dict[str, Any]]] = _load_presets()
 # Fallback generic styles are always available even if the JSON fails to load.
 GENERIC_LYRIC_STYLES: dict[str, list[str]] = {
     "poetic": ["Use vivid imagery, metaphor, and assonance; compress meaning into short phrases.",
-               "Avoid clichés; prefer unexpected word pairings."],
+               "Avoid cliches; prefer unexpected word pairings."],
     "conversational": ["Write as if talking to a friend; simple words, natural rhythm, no forced rhymes.",
                        "Use contractions, fragments, and honest emotion."],
-    "storytelling": ["Tell a complete mini-story: setup → conflict → resolution across verses.",
+    "storytelling": ["Tell a complete mini-story: setup -> conflict -> resolution across verses.",
                      "Include specific characters, places, and sensory details."],
     "minimal": ["Strip to 1-2 idea words per line; let the beat breathe.",
                 "Repeat key phrases; fewer unique words = more memorable."],
     "fragmented": ["Break phrases into 3-5 word chunks with rests; layer vocal textures.",
                    "Use breath sounds and ad-libs as percussion."],
-    "narrative": ["Linear timeline: past → present → future; clear scenes.",
+    "narrative": ["Linear timeline: past -> present -> future; clear scenes.",
                   "Use specific times, locations, and objects as anchors."],
 }
 
@@ -144,15 +144,15 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         "style_sweet_spot": "5-8 comma-separated descriptors",
         "formula": "Genre+Era, Mood, 2-3 Instruments, Vocal, Production",
         "lyric_tags": ["Intro", "Verse", "Pre-Chorus", "Chorus", "Bridge", "Instrumental Break", "Outro"],
-        "sliders": "Variety (0 = keep tags verbatim; >0 rewrites style text), Style Influence (Loose→Strong adherence), Weirdness (Safe→Chaos, 50% normal), Audio Influence (with uploads), Vocal Gender, Duration, Max Mode (>2 min / close covers)",
+        "sliders": "Variety (0 = keep tags verbatim; >0 rewrites style text), Style Influence (Loose->Strong adherence), Weirdness (Safe->Chaos, 50% normal), Audio Influence (with uploads), Vocal Gender, Duration, Max Mode (>2 min / close covers)",
         "rules": [
-            "Sound goes in Style box, story+structure go in Lyrics box — never mix.",
+            "Sound goes in Style box, story+structure go in Lyrics box -- never mix.",
             "4-7 descriptors ideal; max ~10. Front-load genre + vocal (early tags weigh most).",
-            "Identity in style (gender, age, register, texture); PERFORMANCE in lyrics: short parenthetical delivery cues after section tags like [Chorus] (belted, open vowels, wide) — physical cues (soft, whispered, belted, close-mic, falsetto) work, emotion words (heartfelt, passionate) don't.",
+            "Identity in style (gender, age, register, texture); PERFORMANCE in lyrics: short parenthetical delivery cues after section tags like [Chorus] (belted, open vowels, wide) -- physical cues (soft, whispered, belted, close-mic, falsetto) work, emotion words (heartfelt, passionate) don't.",
             "Lyrics: 6-10 syllables/line with consistent counts per section; spell sustains into open vowels (lo-o-ove, staaay) once or twice per section; hyphenate for staccato (do-not-call-me-back); repeat chorus verbatim.",
             "Max 2 genres. Use Exclude Styles for failures (e.g. 'no autotune, no EDM drop'). Never put 'no X' or slider values ('Weirdness 20%') in the style text.",
             "Instrumental: put 'instrumental only' near front, leave lyrics empty or structure-only.",
-            "Pronunciation: v6-mini currently pronounces cleanest — test lyric pacing there first, then run the keeper on v6 flagship.",
+            "Pronunciation: v6-mini currently pronounces cleanest -- test lyric pacing there first, then run the keeper on v6 flagship.",
             "Recommend slider settings + model pick (v6 flagship for finish, v6-mini free for sketches, v6-wild for exploration) in the settings object.",
         ],
     },
@@ -185,9 +185,9 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         "rules": [
             "Prompt scenes, not tag stacks: 'late shift ends, empty train home, quiet relief'.",
             "Describe emotion/story/era/vocal character/energy curve; model plans grammar+semantics.",
-            "One clear genre anchor — weak at genre-bending fusions and over-the-top anthem choruses; leans into one style instead of blending.",
+            "One clear genre anchor -- weak at genre-bending fusions and over-the-top anthem choruses; leans into one style instead of blending.",
             "If supplying lyrics, keep section labels ([Verse]/[Pre-Chorus]/[Chorus]) and use prompt for production direction only.",
-            "Beta: 2 songs per run to compare; reference audio + style/model-version/song-count/audio-influence controls exist; no stems, no published pricing/rights — keep an established workflow for production.",
+            "Beta: 2 songs per run to compare; reference audio + style/model-version/song-count/audio-influence controls exist; no stems, no published pricing/rights -- keep an established workflow for production.",
             "Strong at Chinese-style, R&B/soul, bilingual pop hooks, clean stereo vocals.",
         ],
     },
@@ -199,13 +199,13 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         "durations": "Clip (lyria-3-clip-preview) = 30s previews MP3; Lyria 3.5 = full songs, couple minutes / up to ~3 min, MP3 or WAV",
         "formula": "[Genre+Era] + [Mood] + [Instrumentation] + [Tempo/BPM] + [Key] + [Vocal style+language] + [Lyrics:]",
         "rules": [
-            "Lead with genre+era, then mood, exact instruments (Fender Rhodes, TR-808 — not families), BPM number, key (G major / D minor), detailed singer profile (gender+timbre+range).",
+            "Lead with genre+era, then mood, exact instruments (Fender Rhodes, TR-808 -- not families), BPM number, key (G major / D minor), detailed singer profile (gender+timbre+range).",
             "Custom lyrics: prefix with 'Lyrics:' and use [Verse]/[Chorus]/[Bridge] section tags.",
-            "Control duration in prompt ('create a 2-minute song') or — better for video scoring — a [mm:ss - mm:ss] timestamp timeline fixing what plays where; last mark sets the end.",
+            "Control duration in prompt ('create a 2-minute song') or -- better for video scoring -- a [mm:ss - mm:ss] timestamp timeline fixing what plays where; last mark sets the end.",
             "Prompt LANGUAGE sets lyric language: write the whole brief in the target language; 'a song in Spanish' inside an English prompt usually returns English.",
-            "No negative prompting, no artist-voice mimicry, no copyrighted lyrics — describe traits instead.",
+            "No negative prompting, no artist-voice mimicry, no copyrighted lyrics -- describe traits instead.",
             "Workflow: draft on Clip (fast 30s), render keeper on 3.5; ask WAV when the track goes into an edit, MP3 otherwise. Single-turn (no follow-up edits), non-deterministic (download keepers), SynthID watermarked.",
-            "Multimodal: up to 10 images/PDFs can steer mood/style/atmosphere — name them in notes when relevant.",
+            "Multimodal: up to 10 images/PDFs can steer mood/style/atmosphere -- name them in notes when relevant.",
         ],
     },
 }
@@ -235,7 +235,7 @@ STUMBLE_PRONE = (
     "synecdoche", "abysmal", "nocturnal",
 )
 
-# 2026 lyric-writing technique reference — techniques used by popular artists
+# 2026 lyric-writing technique reference -- techniques used by popular artists
 # in 2026 for each target genre.  Used by the system prompt to steer the LLM
 # toward lyrics that match current hit patterns.
 LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
@@ -244,11 +244,11 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
             "Internal rhyme chains: rhyme inside the bar, not just at the end.",
             "4-bar verse structure with a 1-bar ad-lib tag at the end of every 4th bar.",
             "Hook repeats a 2-line motif with slight melodic variation each time.",
-            "Use parenthetical ad-libs: (yeah), (go), (shit) — short, punchy.",
+            "Use parenthetical ad-libs: (yeah), (go), (shit) -- short, punchy.",
             "Syllable density: 8-12 syllables per bar; stretch vowels for melody.",
             "Pre-chorus builds tension with shorter lines (5-7 syllables).",
         ],
-        "vocal_delivery": "Auto-tuned melodic rap, half-sung half-rapped, dynamic range soft verse → loud hook.",
+        "vocal_delivery": "Auto-tuned melodic rap, half-sung half-rapped, dynamic range soft verse -> loud hook.",
     },
     "alt R&B": {
         "techniques": [
@@ -286,7 +286,7 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
     "drill": {
         "techniques": [
             "Syncopated triplet flows over 140-150 BPM; off-beat emphasis.",
-            "Violent imagery, street narratives, braggadocio — direct, unapologetic.",
+            "Violent imagery, street narratives, braggadocio -- direct, unapologetic.",
             "Ad-libs on every bar end: (grrah), (skrrt), (bang), (free), (whoa).",
             "Short verses (8-12 bars), longer hooks (4-8 bars repeating).",
             "Use of local slang / regional dialect for authenticity.",
@@ -307,10 +307,10 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
     },
     "country": {
         "techniques": [
-            "Storytelling arc: setup → conflict → resolution in 3 verses + chorus.",
+            "Storytelling arc: setup -> conflict -> resolution in 3 verses + chorus.",
             "Specific details: small-town names, brands, landmarks, seasons.",
             "AABB rhyme scheme with occasional internal rhymes.",
-            "Chorus is the emotional core — repeat verbatim, same words every time.",
+            "Chorus is the emotional core -- repeat verbatim, same words every time.",
             "Bridge shifts perspective or reveals a twist.",
             "Outro fades on a repeated hook or a final lyrical punchline.",
         ],
@@ -320,7 +320,7 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
         "techniques": [
             "Spanglish mixing: Spanish phrases for emotional emphasis, English for flow.",
             "Reggaeton dembow rhythm: syllables lock to the 4/4 kick pattern.",
-            "Perreo / dance call-and-response: vocal line → crowd response → vocal line.",
+            "Perreo / dance call-and-response: vocal line -> crowd response -> vocal line.",
             "Hook in Spanish if targeting Latin markets; bilingual for crossover.",
             "Short verses (4-8 bars), long repetitive hooks with dance breaks.",
             "Use of vocal effects: pitch-shifted ad-libs, reverb sweeps.",
@@ -340,10 +340,10 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
     },
     "edm": {
         "techniques": [
-            "Instrumental-first: vocals are a texture, not the lead — short phrases over drops.",
+            "Instrumental-first: vocals are a texture, not the lead -- short phrases over drops.",
             "Hook is a 1-4 word vocal chop repeated and processed (reversed, pitched).",
             "Build-up: 4-8 bars of rising tension with repeated vocal fragments.",
-            "Drop has no lyrics — pure energy. Post-drop uses processed vocal shots.",
+            "Drop has no lyrics -- pure energy. Post-drop uses processed vocal shots.",
             "Verse is minimal: 1-2 lines repeated, leaving space for synths.",
             "Use vocal effects: reverb tails, delay echoes, formant shifts.",
         ],
@@ -354,7 +354,7 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
             "Intimate spoken-word verses: 3-5 word phrases, conversational, leave space for piano chords and reverse swells.",
             "Emotional sung hook: clear melody, short lines, repeat verbatim in chorus.",
             "Half-time groove feel: write syllables to sit behind the beat, not on top.",
-            "Use vocal-formant bass replies as ad-libs: (yeah), (uh), (oh) — treat voice as another synth.",
+            "Use vocal-formant bass replies as ad-libs: (yeah), (uh), (oh) -- treat voice as another synth.",
             "Bridge strips to piano + vocal only before final euphoric drop section.",
             "Avoid over-writing: let the sub bass and wobble bass carry the energy; lyrics are the sparse human layer.",
         ],
@@ -378,14 +378,14 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
             "Robotic harmony textures: write backing vocal lines that sound like synth patches (tight thirds, octaves).",
             "Pre-chorus builds with a single repeated phrase that rises in pitch or intensity.",
             "Bridge strips to voice + one metallic percussion element before final chorus.",
-            "Use punchy imperative verbs: (run), (burn), (rise), (break) — action words over feeling words.",
+            "Use punchy imperative verbs: (run), (burn), (rise), (break) -- action words over feeling words.",
         ],
         "vocal_delivery": "Powerful male or female lead; tense close-mic verses, commanding open chorus; Auto-Tune as aesthetic choice, not correction.",
     },
     "cinematic bass": {
         "techniques": [
-            "Dramatic narrative arc: tension → breakdown → monumental release across sections.",
-            "Choir-like hook: write lyrics that sound like they belong in a trailer — epic, concise, repeatable.",
+            "Dramatic narrative arc: tension -> breakdown -> monumental release across sections.",
+            "Choir-like hook: write lyrics that sound like they belong in a trailer -- epic, concise, repeatable.",
             "Bridge features a cinematic string lift moment: lyrics drop out or reduce to 1-2 words.",
             "Use weaponized wit or theatrical honesty for emotional stakes.",
             "Post-chorus is a short, punchy vocal stab rather than a full repeated section.",
@@ -411,7 +411,7 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
             "Short phrases (3-6 words) over 150 BPM; leave space for super-saw chords and arpeggios.",
             "Use major-to-minor pivot: verse in major, chorus in parallel minor for emotional whiplash.",
             "Pre-chorus is 1-2 lines that build with pitch or intensity.",
-            "Outro is a short, glowing instrumental — no lyrical outro needed.",
+            "Outro is a short, glowing instrumental -- no lyrical outro needed.",
         ],
         "vocal_delivery": "Soaring, layered, emotional; wide stereo harmonies; subtle pitch correction for polish without losing humanity.",
     },
@@ -433,17 +433,17 @@ LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = {
             "Whispered female or androgynous male vocal: intimate, detached, cool.",
             "Use sampled-speech fragments: write lines that sound like they could be a vinyl sample.",
             "Tension builds through repetition with subtle variation, not through more words.",
-            "Final release is melodic and wide — lyrics open up from noir minimalism into cinematic grandeur.",
+            "Final release is melodic and wide -- lyrics open up from noir minimalism into cinematic grandeur.",
         ],
         "vocal_delivery": "Dry, close, breathy; minimal reverb; whispered or half-spoken; cool detachment with emotional undertow.",
     },
     "uk grime": {
         "techniques": [
             "Calm spoken precision: fast 2-step flow but content is controlled, not chaotic.",
-            "British dialect: write in natural UK speech patterns (man, innit, wasteman, ting) — sparingly, not forced.",
+            "British dialect: write in natural UK speech patterns (man, innit, wasteman, ting) -- sparingly, not forced.",
             "Restrained melodic lift: melody only on the hook, not the verses.",
             "Short 8-16 bar verses, longer 4-8 bar hooks with repetitive chant structure.",
-            "Use of grime ad-libs: (skeng), (wagwan), (boom), (check) — as punctuation, not filler.",
+            "Use of grime ad-libs: (skeng), (wagwan), (boom), (check) -- as punctuation, not filler.",
             "Rain-dark atmosphere: lyrics reference weather, night, urban landscape as emotional backdrop.",
         ],
         "vocal_delivery": "Low-register female or male vocal; calm, precise, half-spoken; restrained melody only on the hook; modern crisp mix.",
@@ -467,13 +467,13 @@ LYRIC_BRACKETS: dict[str, list[str]] = {
         "Section tags on their own line: [Verse 1], [Pre-Chorus], [Chorus], [Bridge], [Outro].",
         "Delivery cue in parentheses right after the tag: [Chorus] (belted, open vowels, wide).",
         "Backing vocals / ad-libs in parentheses on their own lines: (ooh), (yeah).",
-        "Sustain spelling on open vowels only (ah, oh, ay, oo): lo-o-ove, staaay — once or twice per section.",
+        "Sustain spelling on open vowels only (ah, oh, ay, oo): lo-o-ove, staaay -- once or twice per section.",
         "Hyphenate for clipped staccato reads: do-not-call-me-back.",
-        "Write dialect words as sung in General American: gonna, wanna, kinda — never formal 'going to' in a casual chorus.",
+        "Write dialect words as sung in General American: gonna, wanna, kinda -- never formal 'going to' in a casual chorus.",
     ],
     "minimax_30": [
         "One tag per line, official tags: [Intro] [Verse] [Pre Chorus] [Chorus] [Post Chorus] [Interlude] [Bridge] [Hook] [Build Up] [Break] [Transition] [Inst] [Solo] [Outro].",
-        "Backing vocal cues in parentheses: (Ooh), (Yeah) — adds production polish.",
+        "Backing vocal cues in parentheses: (Ooh), (Yeah) -- adds production polish.",
         "Keep lines short and singable; split prose into phrases. Dialect coloring goes in the vocal description, not spelled into every word.",
     ],
     "happyshrimp_10": [
@@ -493,7 +493,7 @@ _SYSTEM_TEMPLATE = (
     '"style" (string, the main paste-box: ready to paste), '
     '"exclude" (string, styles/instruments to avoid; empty string when not applicable), '
     '"lyrics" (string with section tags; empty string for instrumental mode), '
-    '"settings" (object with the platform\'s copy-paste controls — see below), '
+    '"settings" (object with the platform\'s copy-paste controls -- see below), '
     '"notes" (array of 1-3 short strings), '
     '"warnings" (array, may be empty).\n'
     "\nPlatform rules (follow strictly):\n__RULES__\n"
@@ -503,7 +503,7 @@ _SYSTEM_TEMPLATE = (
     "\nWrite original lyrics only (never reproduce copyrighted lyrics or artist mimicry).\n"
     "Keep lines short and singable. Repeat the chorus verbatim when a chorus exists.\n"
     "For suno_v6: title max 100 chars; style = 5-8 comma-separated descriptors under 1000 chars "
-    "(Genre+Era, Mood, 2-3 Instruments, Vocal, Production — most important first); "
+    "(Genre+Era, Mood, 2-3 Instruments, Vocal, Production -- most important first); "
     "exclude = comma-separated Exclude Styles tags (e.g. 'autotune, EDM drop, fade out'), never mixed into style; "
     "settings = {variety (0 to keep tags verbatim, else 1-100), style_influence ('Loose'|'Medium'|'Strong'), "
     "weirdness (0-100, 50 normal), vocal_gender, max_mode (true for >2 min songs or close covers), "
@@ -521,7 +521,7 @@ _SYSTEM_TEMPLATE = (
     "if brief says instrumental, return lyrics as empty string.\n"
     "For lyria_35: title max 100 chars; style = descriptive prompt with detailed singer profile "
     "and explicit duration; exclude MUST be empty string (Lyria 3.5 does not support negative "
-    "prompting — mention that in notes instead); lyrics use a 'Lyrics:' block with section tags; "
+    "prompting -- mention that in notes instead); lyrics use a 'Lyrics:' block with section tags; "
     "settings = {model ('lyria-3.5' full song / 'lyria-3-clip-preview' fast 30s draft), "
     "response_format ('wav' for edits, 'mp3' otherwise)}; "
     "if brief asks for a timeline, write style as a [mm:ss - mm:ss] timestamp timeline.\n"
@@ -581,7 +581,7 @@ def build_system_prompt(platform: str, brief: dict[str, Any]) -> str:
                     break
     if not technique_lines:
         technique_lines.append(
-            "Default: use 2026 pop techniques — hook-first, AABB or ABAB rhyme, "
+            "Default: use 2026 pop techniques -- hook-first, AABB or ABAB rhyme, "
             "simple, catchy, repeat the chorus verbatim."
         )
     technique_block = "\n".join(f"- {t}" for t in technique_lines)
@@ -593,10 +593,10 @@ def build_system_prompt(platform: str, brief: dict[str, Any]) -> str:
         "(e.g. 'rural' -> 'roo-rul' only if it must stay; prefer replacing it)."
     )
     if tricky:
-        pron += f"\nWords that stumbled before — respell or replace: {tricky}."
+        pron += f"\nWords that stumbled before -- respell or replace: {tricky}."
     if _PRON_HARDENING_RULES:
         hardening = "\n".join(f"- {rule}" for rule in _PRON_HARDENING_RULES)
-        pron += "\nPronunciation hardening (from real engine misfires — apply while writing):\n" + hardening
+        pron += "\nPronunciation hardening (from real engine misfires -- apply while writing):\n" + hardening
     engine_note = _PRON_ENGINE_NOTES.get(platform)
     if engine_note:
         pron += f"\nEngine note: {engine_note}"
@@ -732,14 +732,14 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
             warnings.append(f"Style prompt {len(prompt)} chars exceeds Suno 1000-char field; front-load key tags.")
         tags = [t.strip() for t in prompt.split(",") if t.strip()]
         if len(tags) > 10:
-            warnings.append(f"{len(tags)} descriptors — trim to 5-8 to avoid mush.")
+            warnings.append(f"{len(tags)} descriptors -- trim to 5-8 to avoid mush.")
         if lyrics.strip() and "[Verse]" not in lyrics and "[Chorus]" not in lyrics:
             warnings.append("Add [Verse]/[Chorus] section tags to lyrics for structure.")
         if exclude and len(exclude) > 500:
             warnings.append("Exclude Styles is very long; keep it to a few comma-separated tags.")
         settings = data.get("settings") or {}
         if settings.get("variety", 0) != 0:
-            warnings.append("Variety > 0 lets v6 rewrite your style text — set Variety to 0 to keep tags verbatim.")
+            warnings.append("Variety > 0 lets v6 rewrite your style text -- set Variety to 0 to keep tags verbatim.")
     elif platform == "minimax_30":
         if len(prompt) > 2000:
             warnings.append("Prompt exceeds MiniMax 2000-char limit.")
@@ -752,28 +752,28 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
             warnings.append("Prompt exceeds HappyShrimp 5000-char box.")
         genre_words = [g.strip() for g in _coerce_str(brief.get("genre", "")).replace("/", ",").split(",") if g.strip()]
         if len(genre_words) > 2:
-            warnings.append("HappyShrimp is weak at genre fusions — pick one anchor genre instead of blending.")
+            warnings.append("HappyShrimp is weak at genre fusions -- pick one anchor genre instead of blending.")
     elif platform == "lyria_35":
         if lyrics.strip() and "Lyrics:" not in lyrics and "Lyrics:" not in prompt:
             warnings.append("Prefix custom lyrics with 'Lyrics:' for Lyria 3.5.")
         if exclude.strip():
-            warnings.append("Lyria 3.5 has no negative prompting — describe what you want instead of pasting Exclude.")
+            warnings.append("Lyria 3.5 has no negative prompting -- describe what you want instead of pasting Exclude.")
         if brief.get("timeline") and "[0:" not in prompt and "[00:" not in prompt:
-            warnings.append("Timeline requested but no [mm:ss] marks found — ask for a timestamped timeline.")
+            warnings.append("Timeline requested but no [mm:ss] marks found -- ask for a timestamped timeline.")
     if not prompt and not lyrics and not title:
         warnings.append("Empty result from model.")
     if lyrics.strip():
         stumbled = sorted({w for w in STUMBLE_PRONE if re.search(rf"\b{re.escape(w)}\b", lyrics, re.IGNORECASE)})
         if stumbled:
-            warnings.append(f"Stumble-prone words in lyrics ({', '.join(stumbled)}) — respell or replace before pasting.")
+            warnings.append(f"Stumble-prone words in lyrics ({', '.join(stumbled)}) -- respell or replace before pasting.")
         tricky = [t.strip().lower() for t in _coerce_str(brief.get("tricky_words", "")).replace(",", "\n").split("\n") if t.strip()]
         unhandled = [t for t in tricky if re.search(rf"\b{re.escape(t)}\b", lyrics, re.IGNORECASE)]
         if unhandled:
-            warnings.append(f"Previously stumbled words still verbatim ({', '.join(unhandled)}) — respell them (e.g. stretched vowels) or swap them out.")
+            warnings.append(f"Previously stumbled words still verbatim ({', '.join(unhandled)}) -- respell them (e.g. stretched vowels) or swap them out.")
         if platform == "lyria_35":
             long_words = sorted({w for w in re.findall(r"[A-Za-z]{11,}", lyrics) if w.lower() != "instrumental"})
             if len(long_words) > 3:
-                warnings.append(f"Lyria pronounces worse than Suno v6-mini — simplify long words ({', '.join(long_words[:5])}) or test on v6-mini first.")
+                warnings.append(f"Lyria pronounces worse than Suno v6-mini -- simplify long words ({', '.join(long_words[:5])}) or test on v6-mini first.")
         # Contamination + pronunciation-hardening scan (flag-for-review).
         bpm = parse_bpm(brief.get("tempo"))
         for finding in scan_lyrics(lyrics, platform, bpm=bpm):

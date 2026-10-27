@@ -717,7 +717,7 @@ class NMAAgent:
             )
 
             if response is None:
-                self._log("LLM chat failed — aborting loop", "error")
+                self._log("LLM chat failed -- aborting loop", "error")
                 self.state.update(llm_aborted=True)
                 break
 
@@ -734,7 +734,7 @@ class NMAAgent:
             history.append(assistant_turn)
 
             if not tool_calls:
-                # LLM says it's done — record final answer and exit
+                # LLM says it's done -- record final answer and exit
                 self._log(f"LLM loop complete after {iteration + 1} iterations")
                 self.state.update(llm_driver="atomic_chat")
 

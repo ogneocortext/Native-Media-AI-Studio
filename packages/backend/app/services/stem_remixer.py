@@ -1,4 +1,4 @@
-"""Stem remixing / mashups — build a new composition from stems of different songs.
+"""Stem remixing / mashups -- build a new composition from stems of different songs.
 
 ## Why this is a stem service
 
@@ -17,7 +17,7 @@ and stretched to a common grid automatically.
 
 Key detection is **not** usable, and this module refuses to pretend otherwise.
 Measured chroma flatness (geometric/arithmetic mean) on the separated stems is
-0.978-0.998, where 1.0 is pure noise and ~0.1 is a single pitch — the profiles
+0.978-0.998, where 1.0 is pure noise and ~0.1 is a single pitch -- the profiles
 are effectively flat. The Krumhansl-Schmuckler correlation ranged 0.03-0.48, and
 probing returned a *different* argmax for the same file between two runs.
 Automatically pitch-shifting a stem by a difference derived from that would shift
@@ -99,17 +99,17 @@ _PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 _MAJOR_PROFILE = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 
 
-# ─── source discovery ────────────────────────────────────────────────────────
+# --- source discovery --------------------------------------------------------
 
 
-# ─── track-key resolution (B6) ─────────────────────────────────────────────
+# --- track-key resolution (B6) ---------------------------------------------
 #
-# The library reports filenames and paths (`2f9a5ced_Suno-V6-mini-….m4a`,
+# The library reports filenames and paths (`2f9a5ced_Suno-V6-mini-....m4a`,
 # `Suno-V6-Mini/SunoV6Mini-The Last-Original-V1.m4a`); this module keys stems
 # by the bare directory demucs wrote (`SunoV6Mini-Ad-Nauseam`). Both forms are
 # real to a caller, so every remix endpoint accepts either: a stem key passes
 # through, and a library filename, relative path or hash-prefixed variant is
-# normalised to the stem key. The join is deliberately conservative — a
+# normalised to the stem key. The join is deliberately conservative -- a
 # reference that matches no stem directory, or more than one after
 # normalisation, is a ValueError naming the candidates rather than a guess.
 
@@ -166,7 +166,7 @@ def resolve_track_key(reference: str) -> str:
 
     Order matters: an exact stem-dir hit wins first (it is the form this
     module speaks), then an exact basename match, then a normalized-unique
-    match. Ambiguity is reported, not resolved silently — "which track did
+    match. Ambiguity is reported, not resolved silently -- "which track did
     you mean" is a question for the caller, and a wrong guess renders
     the wrong song.
     """
@@ -177,7 +177,7 @@ def resolve_track_key(reference: str) -> str:
     basename = reference.replace("\\", "/").split("/")[-1].strip()
     candidates = _stem_dir_map()
     if not candidates:
-        raise ValueError("No separated stems exist yet — run separation first.")
+        raise ValueError("No separated stems exist yet -- run separation first.")
 
     # 1. The reference is already the stem key (or its normalized form
     #    is unique among stem directories).
@@ -186,7 +186,7 @@ def resolve_track_key(reference: str) -> str:
         return candidates[direct]
 
     # 2. Normalized with hash prefixes stripped from BOTH sides: a library
-    #    filename like `2f9a5ced_Suno-….m4a` normalizes to the same
+    #    filename like `2f9a5ced_Suno-....m4a` normalizes to the same
     #    identity as its stem directory.
     matches = {key for norm, key in candidates.items() if norm == direct}
     if not matches:
@@ -205,7 +205,7 @@ def resolve_track_key(reference: str) -> str:
             "for the available tracks."
         )
     raise ValueError(
-        f"{reference!r} is ambiguous — it matches {', '.join(sorted(matches))}. "
+        f"{reference!r} is ambiguous -- it matches {', '.join(sorted(matches))}. "
         "Pass one of those exactly."
     )
 
@@ -321,7 +321,7 @@ def library_file_for(track: str, files: list[Path] | None = None) -> str | None:
 def list_stem_sources() -> list[dict[str, Any]]:
     """Every track directory holding at least one stem, with per-stem presence.
 
-    Pure path query — no audio is decoded, so this is safe to call on a
+    Pure path query -- no audio is decoded, so this is safe to call on a
     dropdown open without waiting on demucs. Cached probe measurements
     (bpm, duration, first-audible) are joined from the probe cache when
     they exist, so a picker can show tempo and length without a probe
@@ -354,7 +354,7 @@ def list_stem_sources() -> list[dict[str, Any]]:
     return sorted(found.values(), key=lambda d: d["track"].lower())
 
 
-# ─── analysis ────────────────────────────────────────────────────────────────
+# --- analysis ----------------------------------------------------------------
 
 
 def _pick_analysis_stem(track: str) -> tuple[str, Path]:
@@ -487,7 +487,7 @@ def probe_track(track: str) -> dict[str, Any]:
     return result
 
 
-# ─── recipe ──────────────────────────────────────────────────────────────────
+# --- recipe ------------------------------------------------------------------
 
 
 @dataclass
@@ -499,7 +499,7 @@ class RemixLayer:
     level, so two layers of the same stem at 0 dB sum to unity.
 
     `lowpass_hz` / `brightness_db` are the tone-shaping pair the remix plan's
-    B4 added, because "darker" was previously inexpressible — the only lever
+    B4 added, because "darker" was previously inexpressible -- the only lever
     was gain. `lowpass_hz` zeroes spectrum above the cutoff (same STFT trick as
     the enhancer's `_high_pass`), and `brightness_db` tilts the spectrum in
     dB/octave around a 1 kHz pivot (positive = brighter). Both default to
@@ -529,7 +529,7 @@ class RemixLayer:
         if self.brightness_db is not None and not (
             math.isfinite(self.brightness_db) and -12.0 <= self.brightness_db <= 12.0
         ):
-            # ±12 dB/octave is the range where a tilt reads as tone rather
+            # +/-12 dB/octave is the range where a tilt reads as tone rather
             # than as a broken signal. B4.
             raise ValueError(f"brightness_db out of range: {self.brightness_db}")
         if not math.isfinite(self.key_shift_semitones) or abs(self.key_shift_semitones) > 12.0:
@@ -596,7 +596,7 @@ class RemixResult:
     mix_report: dict[str, Any] = field(default_factory=dict)
 
 
-# ─── DSP ─────────────────────────────────────────────────────────────────────
+# --- DSP ---------------------------------------------------------------------
 
 
 def _db_to_linear(db: float) -> float:
@@ -606,7 +606,7 @@ def _db_to_linear(db: float) -> float:
 def _loop_to_length(y: np.ndarray, n_samples: int) -> np.ndarray:
     """Tile `y` until it covers `n_samples`, then trim to exactly that length.
 
-    Remixes are often longer than their sources — a 32-bar arrangement over a
+    Remixes are often longer than their sources -- a 32-bar arrangement over a
     60-second stem would otherwise run dry and leave the tail silent, which
     reads as a bug rather than as an arrangement. Callers pass bar-aligned
     counts, so the loop seam lands on a downbeat.
@@ -644,7 +644,7 @@ def _stft_filter(
     """Apply a per-bin magnitude gain in the STFT domain.
 
     Same construction as the enhancer's `_high_pass` (FFT magnitude shaping
-    with librosa's stft/istft and length restoration) — no scipy in this
+    with librosa's stft/istft and length restoration) -- no scipy in this
     dependency set, and one implementation is easier to reason about than
     two. `gain_by_bin` maps the bin-frequency array to a linear gain array.
     """
@@ -676,7 +676,7 @@ def _brightness_tilt(y: np.ndarray, sr: int, db_per_octave: float) -> np.ndarray
     """Shelf the spectrum above a 1 kHz pivot by `db_per_octave` dB/octave.
 
     The B4 "bright/dark" control that gain cannot express: positive lifts
-    highs, negative cuts them. It is a *shelf*, not a constant slope —
+    highs, negative cuts them. It is a *shelf*, not a constant slope --
     a true tilt would also boost the lows by 6 dB under a "darker"
     command, which fights the layer's own bass gain and reads as mud.
 
@@ -714,17 +714,17 @@ def _equal_power_ramp(n: int) -> tuple[np.ndarray, np.ndarray]:
     return np.cos(t * math.pi / 2.0), np.sin(t * math.pi / 2.0)
 
 
-# ─── source cache ────────────────────────────────────────────────────────────
+# --- source cache ------------------------------------------------------------
 
 
-# ─── loudness staging ────────────────────────────────────────────────────────
+# --- loudness staging --------------------------------------------------------
 #
 # Source stems come from different masters: 0 dB on a loud master is not 0 dB
 # on a quiet one, so a recipe's gain_db is meaningless until the sources are
 # calibrated to a common anchor. The anchor is a working level, not a target:
 # the enhance chain still masters the finished mix to -14 LUFS downstream.
 # Calibration is fail-open (0 dB) when ffmpeg is missing or a measurement
-# fails — no calibration beats a wrong one.
+# fails -- no calibration beats a wrong one.
 LOUDNESS_ANCHOR_LUFS = -20.0
 CALIBRATION_MAX_DB = 12.0
 
@@ -732,7 +732,7 @@ CALIBRATION_MAX_DB = 12.0
 def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
     """Integrated LUFS and true peak of a (2, N) float32 buffer.
 
-    One ffmpeg ebur128 run, piped through stdin — no temp files. This is
+    One ffmpeg ebur128 run, piped through stdin -- no temp files. This is
     the same measurement ffmpeg_tools.compute_loudness uses (and the
     repo's +157 LUFS lesson is why it is not reimplemented in numpy
     here). Fields are None when ffmpeg is missing or the measurement
@@ -767,7 +767,7 @@ def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
 
 
 def _ebur128_integrated_lufs(y: np.ndarray, sr: int) -> float | None:
-    """Integrated LUFS only — the loudness-staging calibration path."""
+    """Integrated LUFS only -- the loudness-staging calibration path."""
     return _ebur128_stats(y, sr)["integrated_lufs"]
 
 
@@ -867,7 +867,7 @@ class _SourceCache:
         Measures the raw source stem's integrated loudness and returns
         LOUDNESS_ANCHOR_LUFS - measured, so 0 dB of recipe gain means the
         same perceived loudness for every source. Clamped to
-        ±CALIBRATION_MAX_DB; fail-open 0.0 when ffmpeg is missing or the
+        +/-CALIBRATION_MAX_DB; fail-open 0.0 when ffmpeg is missing or the
         measurement fails. Cached per (track, stem).
         """
         key = (track, stem)
@@ -922,7 +922,7 @@ class _SourceCache:
         return 20.0 * math.log10(rms + 1e-12)
 
 
-# ─── rendering ───────────────────────────────────────────────────────────────
+# --- rendering ---------------------------------------------------------------
 
 
 class RemixCancelledError(Exception):
@@ -988,7 +988,7 @@ def _mix_recipe(
 
     Shared by the full render and the audible preview (A3), so a preview
     exercises the same tempo alignment, key shifting, tone shaping,
-    crossfades and per-layer gains as the build it previews — a preview
+    crossfades and per-layer gains as the build it previews -- a preview
     that mixed differently would misrepresent the thing it previews.
 
     `should_cancel` is polled at each slot boundary and raises
@@ -1103,7 +1103,7 @@ def _archive_previous_render(out_dir: Path) -> int | None:
 def build_mix_report(mixed: dict[str, np.ndarray]) -> dict[str, Any]:
     """Post-build mix report: per-stem and summed-mix loudness facts.
 
-    For the R1 revision loop: an agent reads this instead of listening —
+    For the R1 revision loop: an agent reads this instead of listening --
     per-stem integrated LUFS shows the balance ("vocals 8 dB hotter than
     drums"), true peak and the clipping flag show whether the limiter
     engaged. Measured from the clipped buffers (what is on disk); the
@@ -1160,9 +1160,9 @@ def render_remix(
     calibration = cache.calibration_report()
     for ref, rec in calibration.items():
         if rec["measured_lufs"] is None:
-            warnings.append(f"{ref}: loudness calibration skipped (ffmpeg/measurement failed) — layer renders uncalibrated")
+            warnings.append(f"{ref}: loudness calibration skipped (ffmpeg/measurement failed) -- layer renders uncalibrated")
         elif rec["clamped"]:
-            warnings.append(f"{ref}: calibration {rec['offset_db']:+.1f} dB hit the ±{CALIBRATION_MAX_DB:.0f} dB clamp — source is unusually quiet/loud, check the stem")
+            warnings.append(f"{ref}: calibration {rec['offset_db']:+.1f} dB hit the +/-{CALIBRATION_MAX_DB:.0f} dB clamp -- source is unusually quiet/loud, check the stem")
     total_n = plan["total_n"]
 
     try:
@@ -1217,11 +1217,11 @@ def render_remix(
     for stem, entry in mix_report["stems"].items():
         if entry["clipping"]:
             warnings.append(
-                f"{stem} hits {entry['peak_dbfs']:+.1f} dBFS — the limiter engaged; pull its layers down"
+                f"{stem} hits {entry['peak_dbfs']:+.1f} dBFS -- the limiter engaged; pull its layers down"
             )
     if mix_report["mix"]["clipping"]:
         warnings.append(
-            f"summed mix hits {mix_report['mix']['peak_dbfs']:+.1f} dBFS — the limiter engaged on the master"
+            f"summed mix hits {mix_report['mix']['peak_dbfs']:+.1f} dBFS -- the limiter engaged on the master"
         )
     (out_dir / "remix.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
@@ -1236,7 +1236,7 @@ def render_remix(
     )
 
 
-# ─── audible preview (A3) ────────────────────────────────────────────────────
+# --- audible preview (A3) ----------------------------------------------------
 #
 # `preview_recipe` answers "what would this render to" in numbers; A3 answers
 # "what does it sound like" without paying for a build. The preview is the same
@@ -1251,7 +1251,7 @@ PREVIEW_MAX_ENTRIES = 12
 def truncate_recipe(recipe: RemixRecipe, max_seconds: float = PREVIEW_MAX_SECONDS) -> RemixRecipe:
     """Bound a recipe's rendered length to `max_seconds`, whole slots first.
 
-    Whole slots stay whole — an audition of the first three slots and a
+    Whole slots stay whole -- an audition of the first three slots and a
     fade tells the user more about the arrangement than a hard cut in the
     middle of the second one. Only the final kept slot is trimmed, and its
     crossfade is clamped with it so `plan_timeline` cannot reject the
@@ -1392,7 +1392,7 @@ def render_preview_audio(
 
 
 def _wav_duration_sec(path: Path) -> float:
-    """Duration of a 16-bit PCM WAV from its header — no decode needed."""
+    """Duration of a 16-bit PCM WAV from its header -- no decode needed."""
     import wave
 
     with wave.open(str(path), "rb") as handle:
@@ -1442,10 +1442,10 @@ def _near_silent_detail(layer: RemixLayer, rms: float, bar_seconds: float) -> di
 
 
 def _masking_warnings(slot_index: int, layers: list[RemixLayer]) -> tuple[list[str], list[dict[str, Any]]]:
-    """Frequency-slotting warnings (knowledge: mashup-arrangement-theory §4).
+    """Frequency-slotting warnings (knowledge: mashup-arrangement-theory section4).
 
     Two layers in the same band mask each other: louder but muddier, not
-    fuller. Drums are exempt — transients poke through sustained material,
+    fuller. Drums are exempt -- transients poke through sustained material,
     so stacking drums is a level problem, not a masking problem.
     """
     warnings: list[str] = []
@@ -1457,7 +1457,7 @@ def _masking_warnings(slot_index: int, layers: list[RemixLayer]) -> tuple[list[s
     if len(bass) >= 2:
         refs = " + ".join(f"{lyr.track}/bass" for lyr in bass)
         warnings.append(
-            f"slot {slot_index + 1}: two bass layers ({refs}) will mask each other — "
+            f"slot {slot_index + 1}: two bass layers ({refs}) will mask each other -- "
             "keep one, or cut the other 3-6 dB"
         )
         details.append(
@@ -1472,7 +1472,7 @@ def _masking_warnings(slot_index: int, layers: list[RemixLayer]) -> tuple[list[s
     if len(other) >= 2 and max(lyr.gain_db for lyr in other) - min(lyr.gain_db for lyr in other) <= 6.0:
         refs = " + ".join(f"{lyr.track}/other" for lyr in other)
         warnings.append(
-            f"slot {slot_index + 1}: two 'other' stems at similar gain ({refs}) — "
+            f"slot {slot_index + 1}: two 'other' stems at similar gain ({refs}) -- "
             "midrange masking likely; pull one down 3-6 dB or lowpass it (lowpass_hz)"
         )
         details.append(
@@ -1554,7 +1554,7 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
     }
 
 
-# ─── existing remixes ────────────────────────────────────────────────────────
+# --- existing remixes --------------------------------------------------------
 
 
 def remix_dir(name: str) -> Path:
@@ -1682,7 +1682,7 @@ def _live_version(out_dir: Path) -> int:
         return 0
 
 
-# ─── provenance: which mashups used a track, and how ──────────────────────────
+# --- provenance: which mashups used a track, and how --------------------------
 #
 # A remix manifest already stores everything a RemixRecipe needs (target_bpm,
 # beats_per_bar, and each slot's bars/crossfade/layers with gain, key shift and
@@ -1782,9 +1782,9 @@ def list_remixes_for_track(track: str) -> list[dict[str, Any]]:
     what this endpoint exists to answer.
     """
     matched: list[dict[str, Any]] = []
-    # B6: a caller may hold the library filename (`….m4a`) or a
+    # B6: a caller may hold the library filename (`....m4a`) or a
     # hash-prefixed variant where the manifest recorded the bare stem key,
-    # so join on the normalized identity rather than the raw string —
+    # so join on the normalized identity rather than the raw string --
     # otherwise "accept either key" would mean "does not 400", which is not
     # the same as finding the lineage.
     target = _normalize_track_name(track)

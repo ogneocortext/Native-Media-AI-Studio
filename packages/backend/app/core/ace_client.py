@@ -4,7 +4,7 @@ ACE-Step HTTP client abstraction.
 This client sits between the app and the ACE-Step subprocess service
 (``tools/music-gen/server.py``). It is the isolation layer: if ACE-Step is
 updated by the provider and its request/response shapes change, only this
-client (and the bridge config) needs updating — the rest of the app keeps
+client (and the bridge config) needs updating -- the rest of the app keeps
 calling the same stable methods.
 
 All methods raise :class:`ACEClientError` on failure; callers decide whether
@@ -34,7 +34,7 @@ class ACEClient:
     the app never sees ACE-Step's raw wire format.
 
     Bridge config (``config/ace-step/bridge.json``) drives the parameter map,
-    so a provider update that renames ``cfg_scale`` → ``guidance`` only
+    so a provider update that renames ``cfg_scale`` -> ``guidance`` only
     requires a config change, not a code change.
     """
 

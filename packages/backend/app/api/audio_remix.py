@@ -135,8 +135,8 @@ class RemixDraftResponse(BaseModel):
     """A reviewable draft: the recipe plus why it looks the way it does.
 
     `recipe` is the exact `/build` request shape, so reviewing means one
-    call, not a translation step. `source` names the drafter — `ollama` or
-    `heuristic` (the deterministic fallback when no model answered) — so a
+    call, not a translation step. `source` names the drafter -- `ollama` or
+    `heuristic` (the deterministic fallback when no model answered) -- so a
     caller can tell a modelled arrangement from a parsed one. `changes` is
     the R1 human-readable diff of base vs revised; drafts carry [].
     """
@@ -151,8 +151,8 @@ class RemixDraftResponse(BaseModel):
 
 def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
     # B6: a layer may name a library filename, path or hash-prefixed
-    # variant. Normalise to the canonical stem key here — the single
-    # HTTP-to-dataclass translation point — so the manifest records
+    # variant. Normalise to the canonical stem key here -- the single
+    # HTTP-to-dataclass translation point -- so the manifest records
     # provenance in the stem service's own vocabulary and the render path
     # never has to resolve again. An unresolvable reference is a missing
     # resource (404), not a malformed one (400).
@@ -265,7 +265,7 @@ async def remix_by_track(track: str) -> dict:
     try:
         # NOT resolved through resolve_track_key: this scans rendered
         # manifests, so a track with no separated stems still has a
-        # lineage. Resolving here 400'd exactly those tracks — the ones
+        # lineage. Resolving here 400'd exactly those tracks -- the ones
         # whose mashups were built from stems that have since been moved
         # or cleaned.
         stem_remixer._safe_track_name(track)
@@ -281,7 +281,7 @@ async def remix_by_track(track: str) -> dict:
 async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
     """Draft a mashup recipe from natural language (plan B2; R1 revisions).
 
-    Deliberately draft-only: the plan's non-goals forbid prompt → audio in
+    Deliberately draft-only: the plan's non-goals forbid prompt -> audio in
     one shot, so this returns `{recipe, explanation, warnings}` and the
     caller reviews before spending a render on `/build`. `recipe` is the
     exact `/build` request shape, so review is one call, not a
@@ -293,7 +293,7 @@ async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
     then to a deterministic parse of the same prompt) never invents sources:
     every layer is re-resolved against `list_stem_sources()` and an
     unresolvable track or missing stem is dropped with a warning rather
-    than failing the request. A prompt naming no library track is a 400 —
+    than failing the request. A prompt naming no library track is a 400 --
     that is a caller error worth reporting, not something to paper over.
     """
     try:
@@ -332,12 +332,12 @@ class RemixPreviewAudioRequest(RemixRecipeRequest):
 async def remix_preview_audio(body: RemixPreviewAudioRequest) -> RemixPreviewAudioResponse:
     """Render a bounded, playable excerpt of a recipe (A3; R2 slot audition).
 
-    Same mix core as `/build` — tempo alignment, key shift, tone shaping,
-    crossfades and gains — truncated to ~30 s so an audition costs one
+    Same mix core as `/build` -- tempo alignment, key shift, tone shaping,
+    crossfades and gains -- truncated to ~30 s so an audition costs one
     render rather than a full build. Cached by recipe hash, so re-clicking
     after a tweak replays only the changed part.
 
-    R2: `slot_index` (0-based) auditions one slot alone — the backend
+    R2: `slot_index` (0-based) auditions one slot alone -- the backend
     builds a single-slot recipe from the posted recipe and renders it
     through the same path, so no new DSP. Out of range is a 400, no render.
     """

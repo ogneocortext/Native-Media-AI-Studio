@@ -4,7 +4,7 @@ Extends per-stem analysis into shader-uniform-ready data for the frontend
 WebGL pipeline. Maps per-stem RMS/energy curves to normalized uniform
 values that drive visuals in the deterministic fallback mode.
 
-Reference: Neural Frames' 8-stem → visual-parameter mapping.
+Reference: Neural Frames' 8-stem -> visual-parameter mapping.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Target number of energy-curve samples for visualization uniforms.
 _UNIFORM_CURVE_POINTS = 128
 
-# Stem → uniform prefix mapping (matches the frontend WebGL uniform names).
+# Stem -> uniform prefix mapping (matches the frontend WebGL uniform names).
 STEM_UNIFORM_MAP = {
     "vocals": "u_vocals",
     "drums": "u_drums",

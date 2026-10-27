@@ -1,16 +1,16 @@
-"""Image upscaling service — 4x post-process pass for YouTube 4K export.
+"""Image upscaling service -- 4x post-process pass for YouTube 4K export.
 
 Implements the documented-but-missing upscaler from:
   - ai-video-trends-2026.md Trend 4: "add **4x upscaler pass**
     (ComfyUI 4x-ClearRealityV1) as optional post-process for YouTube 4K
     export without 4K render cost."
-  - comfyui-workflows.md §5 Upscaling:
+  - comfyui-workflows.md section5 Upscaling:
       comfyui_generate_image(action="upscale", image=..., model="4x-ClearRealityV1", scale=2|4)
 
 Strategy:
-  1. If ComfyUI is reachable → LoadImage → UpscaleModelLoader →
-     ImageUpscaleWithModel → SaveImage workflow (AI super-resolution).
-  2. Else → FFmpeg lanczos fallback (pure resize, always available).
+  1. If ComfyUI is reachable -> LoadImage -> UpscaleModelLoader ->
+     ImageUpscaleWithModel -> SaveImage workflow (AI super-resolution).
+  2. Else -> FFmpeg lanczos fallback (pure resize, always available).
 
 Outputs land in output/images/{stem}_upscaled_{scale}x.png so they appear
 in the Media Library like any other generated image.
@@ -104,10 +104,10 @@ async def _list_upscale_models() -> list[str]:
 
 
 def _build_upscale_workflow(image_name: str, model: str, scale: int, filename_prefix: str) -> dict:
-    """ComfyUI API workflow: LoadImage → UpscaleModelLoader →
-    ImageUpscaleWithModel → SaveImage.
+    """ComfyUI API workflow: LoadImage -> UpscaleModelLoader ->
+    ImageUpscaleWithModel -> SaveImage.
 
-    The model upscales at its native factor (e.g. 4x); a scale≠model-factor
+    The model upscales at its native factor (e.g. 4x); a scale!=model-factor
     result is accepted as-is (ComfyUI ImageScale percent resizing is not
     uniform across versions), keeping the workflow minimal and robust.
     """
@@ -243,13 +243,13 @@ async def _upscale_via_ffmpeg(src: Path, scale: int) -> UpscaleResult:
         source=str(src), output_path=str(dst),
         relative_path=_relative(dst),
         elapsed_s=round(time.perf_counter() - t0, 2),
-        warnings=["ComfyUI unavailable — pure lanczos resize (no AI super-resolution)"],
+        warnings=["ComfyUI unavailable -- pure lanczos resize (no AI super-resolution)"],
     )
 
 
 async def upscale_image(image: str, model: str = DEFAULT_MODEL, scale: int = 4,
                         prefer_comfyui: bool = True) -> UpscaleResult:
-    """Upscale one image by `scale`× via ComfyUI AI model or FFmpeg fallback."""
+    """Upscale one image by `scale`x via ComfyUI AI model or FFmpeg fallback."""
     if scale not in (2, 4):
         raise ValueError("scale must be 2 or 4")
     src = _resolve_image(image)

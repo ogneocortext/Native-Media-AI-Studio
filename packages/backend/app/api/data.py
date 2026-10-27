@@ -1,5 +1,5 @@
 """
-Data persistence API routes — prompts, audio, visuals, sessions, tracks, preferences.
+Data persistence API routes -- prompts, audio, visuals, sessions, tracks, preferences.
 """
 
 import csv
@@ -136,13 +136,13 @@ def list_prompts(
 
 
 # =============================================================================
-# Prompt History — version history + repair log per track/section
-# (ai-video-trends-2026.md §5 P2 "Prompt repair log + version history per
+# Prompt History -- version history + repair log per track/section
+# (ai-video-trends-2026.md section5 P2 "Prompt repair log + version history per
 #  song section"; music-video-production.md Phase 2 "save fails + repairs,
 #  versioned")
 #
 # NOTE: these routes are declared BEFORE the `GET /{prompt_id}` catch-all
-# below — FastAPI matches in registration order, so declaring them after
+# below -- FastAPI matches in registration order, so declaring them after
 # would make "prompt-history" be captured as a prompt_id (observed as 404
 # "Prompt not found").
 # =============================================================================
@@ -176,7 +176,7 @@ def list_prompt_history(
 
 @router.get("/prompt-history/{entry_id}/chain")
 def get_prompt_history_chain(entry_id: str):
-    """Return the full ancestry chain of a prompt entry (v1 → current)."""
+    """Return the full ancestry chain of a prompt entry (v1 -> current)."""
     chain = database.get_prompt_chain(entry_id)
     if not chain:
         raise HTTPException(status_code=404, detail="Prompt history entry not found")
@@ -579,7 +579,7 @@ def save_generated_scene(body: SaveGeneratedSceneRequest):
     filepath = output_dir / filename
 
     # Save with metadata header
-    header = f"// Generated Scene — {track_name}\n"
+    header = f"// Generated Scene -- {track_name}\n"
     header += f"// Model: {model}\n"
     header += f"// Date: {datetime.now().isoformat()}\n"
     header += f"// Track: {track_name}\n\n"

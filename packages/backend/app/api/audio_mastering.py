@@ -6,13 +6,13 @@ Owns: POST /api/audio/master, GET /api/audio/master/measure/{filename}.
 Split for responsibility, not behaviour: mastering is *editing/measurement*,
 so per D15 it goes in this module (audio_mastering.py), registered in main.py
 alongside audio.py. All /api/audio routers must stay registered here or the
-split silently drops routes — OpenAPI is built from decorators and never runs
+split silently drops routes -- OpenAPI is built from decorators and never runs
 a handler body; tools/snapshot-audio-routes.py --check is the guard, but it
 cannot catch a missing import.
 
 Like audio_edit.py, this module does NOT import audio.py (circular risk if
 audio.py ever needs anything from here). It calls services/mastering.py
-directly — the dependency direction is api -> services, never upward.
+directly -- the dependency direction is api -> services, never upward.
 """
 
 from __future__ import annotations

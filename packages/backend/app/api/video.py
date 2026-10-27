@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/video", tags=["Video"])
 
 
 class VideoGenerateRequest(BaseModel):
-    """Request model for video section generation — real queue, no mock"""
+    """Request model for video section generation -- real queue, no mock"""
     prompt: str
     negative_prompt: str = ""
     steps: int = 20
@@ -38,7 +38,7 @@ class VideoGenerateRequest(BaseModel):
 
 
 class VideoGenerateResponse(BaseModel):
-    """Response model for video generation — now returns real job for polling"""
+    """Response model for video generation -- now returns real job for polling"""
     success: bool
     job_id: str | None = None
     output_path: str | None = None
@@ -76,7 +76,7 @@ class RenderRequest(BaseModel):
 
 @router.post("/generate-section", response_model=VideoGenerateResponse)
 async def generate_section(request: VideoGenerateRequest) -> VideoGenerateResponse:
-    """Generate a video section — queues real MUSIC_VIDEO job, no mock fallback."""
+    """Generate a video section -- queues real MUSIC_VIDEO job, no mock fallback."""
     try:
         from ..models.job import JobType
         from ..queue.manager import queue_manager
@@ -106,7 +106,7 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                 candidates = [c for c in candidates if c.is_file()]
                 fallback = str(candidates[0]) if candidates else None
                 if not fallback:
-                    raise ValueError("audio_path is required — upload audio first via /api/audio/upload or /api/audio/analyze")
+                    raise ValueError("audio_path is required -- upload audio first via /api/audio/upload or /api/audio/analyze")
                 request.audio_path = fallback
 
         viz_config = (request.visualization or {}).copy()
@@ -152,7 +152,7 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
 
 
 class ExportMatrixRequest(BaseModel):
-    """Export Matrix request — one master video → publishing derivatives.
+    """Export Matrix request -- one master video -> publishing derivatives.
 
     source_path: absolute or project-relative path to a master video
                  (typically output/video/*.mp4).
@@ -213,7 +213,7 @@ async def render_video(request: RenderRequest) -> dict:
     """Render a clip with the selected engine (VideoRenderer abstraction).
 
     Unlike /generate-section (full music-video queue jobs), this is the direct
-    render path for quick composites — matches stack-extensions-2026.md:
+    render path for quick composites -- matches stack-extensions-2026.md:
     `/api/video/render?engine=moviepy|coreflux|movielite`.
     """
     from ..core.config import PROJECT_ROOT
@@ -359,14 +359,14 @@ async def estimate_cost(request: EstimateCostRequest) -> EstimateCostResponse:
 
 
 # ---------------------------------------------------------------------------
-# A4 — Spotify Canvas recipe (9:16, 720px, 3–8s seamless loop)
+# A4 -- Spotify Canvas recipe (9:16, 720px, 3--8s seamless loop)
 # ---------------------------------------------------------------------------
 
 class CanvasLoopRequest(BaseModel):
     """Request model for Spotify Canvas loop extraction."""
     source_path: str = Field(description="Absolute path to the source video file")
     start: float | None = Field(default=None, description="Loop start time in seconds (auto-selected if omitted)")
-    duration: float = Field(default=5.0, ge=3.0, le=8.0, description="Loop duration in seconds (3–8)")
+    duration: float = Field(default=5.0, ge=3.0, le=8.0, description="Loop duration in seconds (3--8)")
     width: int = Field(default=720, description="Canvas width in pixels (720)")
     height: int = Field(default=1280, description="Canvas height in pixels (1280 = 9:16)")
     output_path: str | None = Field(default=None, description="Output path (defaults into output/video/)")
@@ -385,13 +385,13 @@ class CanvasLoopResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# A6 — Per-scene model routing
+# A6 -- Per-scene model routing
 # ---------------------------------------------------------------------------
 
 class RouteSceneRequest(BaseModel):
     """Request model for per-scene model routing (A6)."""
     section_type: str = Field(description="Scene/section type: intro|verse|pre_chorus|chorus|drop|bridge|outro")
-    energy: float | None = Field(default=None, description="Normalised energy 0–1 from audio analysis")
+    energy: float | None = Field(default=None, description="Normalised energy 0--1 from audio analysis")
     duration: float | None = Field(default=None, description="Scene duration in seconds")
     vram_available_mb: int | None = Field(default=None, description="Free VRAM at routing time (MB)")
 
@@ -480,8 +480,8 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
     """Create a Spotify Canvas loop from a video.
 
     Recipe (A4):
-    - 9:16 vertical (720×1280)
-    - 3–8s seamless loop
+    - 9:16 vertical (720x1280)
+    - 3--8s seamless loop
     - center-crop from source, with optional crossfade at the seam
     """
     try:
@@ -619,7 +619,7 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
 
 
 # ---------------------------------------------------------------------------
-# A3 — Beat-quantized assembler
+# A3 -- Beat-quantized assembler
 # ---------------------------------------------------------------------------
 
 class AssembleRequest(BaseModel):
@@ -686,14 +686,14 @@ async def assemble_beat_quantized(request: AssembleRequest) -> AssembleResponse:
 
 
 # ---------------------------------------------------------------------------
-# Lip-sync (D42) — local MuseTalk only. No API calls anywhere in this path.
+# Lip-sync (D42) -- local MuseTalk only. No API calls anywhere in this path.
 # ---------------------------------------------------------------------------
 
 class LipSyncRequest(BaseModel):
     """Request model for lip-syncing a clip to an audio track.
 
     Exactly one of video_path / image_path is required. For songs, pass the
-    isolated vocals stem as audio_path (POST /api/audio/separate) — the full
+    isolated vocals stem as audio_path (POST /api/audio/separate) -- the full
     mix syncs markedly worse. Scoped to close-ups/chorus per the knowledge
     library ("lip-sync only where it matters").
     """
@@ -706,7 +706,7 @@ class LipSyncRequest(BaseModel):
 
 
 class LipSyncResponse(BaseModel):
-    """Response model for lip-sync — returns the queued job for polling."""
+    """Response model for lip-sync -- returns the queued job for polling."""
     success: bool
     job_id: str | None = None
     output_path: str | None = None
@@ -720,7 +720,7 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
     """Enqueue a local lip-sync job (MuseTalk, D42).
 
     Fails fast with 503 + guidance when the local MuseTalk install is
-    incomplete (weights missing or inference.command unset) — the job never
+    incomplete (weights missing or inference.command unset) -- the job never
     enters the queue in that state. Poll the job via GET /api/jobs/{job_id}.
     """
     try:
@@ -739,7 +739,7 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
         if not status["installed"]:
             raise RuntimeError(
                 "MuseTalk is not ready on this machine: " + status["message"]
-                + " — see config/lipsync.json"
+                + " -- see config/lipsync.json"
             )
 
         audio_path = _resolve_lipsync_audio(request.audio_path, request.audio_filename)
@@ -773,7 +773,7 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 # ---------------------------------------------------------------------------
-# Lip-sync batch (D42 extension) — long audio -> chunks -> LIPSYNC jobs -> stitch
+# Lip-sync batch (D42 extension) -- long audio -> chunks -> LIPSYNC jobs -> stitch
 # ---------------------------------------------------------------------------
 
 def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -> str:
@@ -790,7 +790,7 @@ def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -
             if match.is_file():
                 return str(match)
     raise ValueError(
-        "audio_path is required — pass the isolated vocals stem "
+        "audio_path is required -- pass the isolated vocals stem "
         "(POST /api/audio/separate) for best results"
     )
 
@@ -882,7 +882,7 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
         if not status["installed"]:
             raise RuntimeError(
                 "MuseTalk is not ready on this machine: " + status["message"]
-                + " — see config/lipsync.json"
+                + " -- see config/lipsync.json"
             )
 
         audio_path = _resolve_lipsync_audio(request.audio_path, request.audio_filename)

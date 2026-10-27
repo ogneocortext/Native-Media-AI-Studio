@@ -46,10 +46,10 @@ def _model_factor_for_tier(tier: str, model_name: str) -> float:
     Lower = faster. Baseline SD1.5 = 1.0.
     """
     if tier in ("wan2_1_t2v_1_3b", "wan2_1_fun_inp_1_3b"):
-        # 1.3B is ~2x smaller than 5B — faster per step, fits 8GB at 832×480
+        # 1.3B is ~2x smaller than 5B -- faster per step, fits 8GB at 832x480
         return 1.6
     if tier in ("wan_ti2v_5b_gguf_q4", "wan_ti2v_5b_gguf_q5"):
-        # GGUF is quantized — ~2x slower than SD1.5 baseline but fits 8GB
+        # GGUF is quantized -- ~2x slower than SD1.5 baseline but fits 8GB
         return 2.2
     if tier == "wan_ti2v_5b_fp16":
         # FP16 needs 16-24GB VRAM
@@ -77,7 +77,7 @@ def estimate_generation_time(
 ) -> dict[str, Any]:
     """Estimate video generation time based on parameters.
 
-    Pure function — no I/O, safe to call from request handlers or tests.
+    Pure function -- no I/O, safe to call from request handlers or tests.
     """
     # Base seconds per frame for a 512x512 image at 20 steps on GTX 1070 Ti
     base_sec_per_frame = 2.5
@@ -152,7 +152,7 @@ def load_cloud_pricing() -> dict[str, Any]:
     """Load cloud pricing config from ``config/cloud_pricing.json``.
 
     Result is cached for the process lifetime. Returns a dict with a
-    ``models`` mapping (model_id → pricing info) and ``defaults``.
+    ``models`` mapping (model_id -> pricing info) and ``defaults``.
     """
     global _CLOUD_PRICING
     if _CLOUD_PRICING is not None:
@@ -163,7 +163,7 @@ def load_cloud_pricing() -> dict[str, Any]:
         raw = pricing_path.read_text(encoding="utf-8")
         _CLOUD_PRICING = json.loads(raw)
     except FileNotFoundError:
-        logger.warning("cloud_pricing.json not found at %s — cloud costs will be unavailable", pricing_path)
+        logger.warning("cloud_pricing.json not found at %s -- cloud costs will be unavailable", pricing_path)
         _CLOUD_PRICING = {"models": {}, "defaults": {"currency": "USD", "unit": "per_second"}}
     except json.JSONDecodeError as exc:
         logger.error("Failed to parse cloud_pricing.json: %s", exc)

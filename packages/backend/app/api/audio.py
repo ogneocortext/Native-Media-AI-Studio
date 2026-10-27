@@ -137,7 +137,7 @@ async def _store_upload(file: UploadFile) -> str:
     try:
         tmp_path.replace(final_path)  # atomic within the same volume
     except OSError:
-        # Cross-volume move (e.g. system temp on C:, repo on D:) — fall back
+        # Cross-volume move (e.g. system temp on C:, repo on D:) -- fall back
         # to copy + delete. Not atomic, but the unique temp name means a crash
         # still leaves nothing under a real filename.
         shutil.move(str(tmp_path), str(final_path))
@@ -221,7 +221,7 @@ def _cache_delete_by_content_id(content_id: str) -> None:
 
     Stored filenames are ``{content_id}_{original name}`` and cache keys are
     ``{stored filename}:{backend}``, so no single ``_cache_delete`` call can
-    evict a file's entries — the cleanup path tried exactly that with the
+    evict a file's entries -- the cleanup path tried exactly that with the
     bare content id and popped a key that never exists, leaving deleted
     analyses servable until they aged out of the cache. Match the
     stored-name prefix across all backends instead; this also covers
@@ -268,7 +268,7 @@ class AudioAnalysisResponse(BaseModel):
 
 
 class AudioAnalysisResult(BaseModel):
-    """Response model for completed audio analysis — now energy-aware (2026)"""
+    """Response model for completed audio analysis -- now energy-aware (2026)"""
 
     tempo_bpm: float
     duration_seconds: float
@@ -387,7 +387,7 @@ async def get_analysis_summary(filename: str):
 
 @router.post("/upload", response_model=AudioUploadResponse)
 async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
-    """Upload a track — audio is stored as-is; video is converted to .m4a.
+    """Upload a track -- audio is stored as-is; video is converted to .m4a.
 
     A dropped `.mp4` used to be rejected outright, which made Suno drafts
     invisible: the library listing and `analyze-all` both filter on
@@ -502,7 +502,7 @@ async def _store_track(file: UploadFile) -> tuple[str, bool, ExtractionResult | 
 
     Returns `(stored_filename, converted, extraction_result, deduplicated)`.
     Shared by /upload, /analyze and /analyze-cuda so a dropped .mp4 works on
-    every path — previously only /upload learned about video, so the analysis
+    every path -- previously only /upload learned about video, so the analysis
     routes still answered 400 for the same file.
     """
     ext = Path(file.filename or "").suffix.lower()
@@ -600,7 +600,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
 
         analyzer = AudioAnalyzer()
 
-        # Load the audio once and run the librosa/GPU passes on that buffer —
+        # Load the audio once and run the librosa/GPU passes on that buffer --
         # this used to decode + beat-track the whole file twice per request.
         try:
             from tools.lib.audio import load_audio as _load_audio
@@ -681,7 +681,7 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
         if cuda_result and cuda_result.get("computed_on") == "GPU":
             analysis_result["computed_on"] = "GPU"
             # Override the energy curve with CUDA spectral data when available
-            # (downsampled to the same contract length — it used to inject the
+            # (downsampled to the same contract length -- it used to inject the
             # full-resolution array here).
             if cuda_result.get("amplitude_envelope"):
                 analysis_result["energy_curve"] = [
@@ -763,7 +763,7 @@ async def get_timing_metadata(filename: str):
     tc = data.get("timing_contract")
     if not tc:
         raise HTTPException(
-            status_code=404, detail="No timing metadata found — run audio analysis first"
+            status_code=404, detail="No timing metadata found -- run audio analysis first"
         )
     return tc
 
@@ -801,7 +801,7 @@ async def get_spectral_timeline(
     """Get dense frame-accurate spectral timeline for visualization binding.
 
     Returns per-frame sub/mid/high band energies, transient flags, spectral
-    centroid, and RMS — the "data bridge" for Remotion/WebGL uniform binding.
+    centroid, and RMS -- the "data bridge" for Remotion/WebGL uniform binding.
     Deterministic per-frame, no real-time analysis bottleneck.
     """
     import urllib.parse
@@ -943,7 +943,7 @@ async def list_uploaded_audio():
                 and f.suffix.lower() in ALLOWED_EXTENSIONS
                 and not f.name.startswith(".")
             ):
-                # Deduplicate by display name — strip ALL 8-hex hash prefixes (files may have 2-3)
+                # Deduplicate by display name -- strip ALL 8-hex hash prefixes (files may have 2-3)
                 import re
 
                 display_name = re.sub(r"^([0-9a-f]{8}_)+", "", f.name, flags=re.IGNORECASE)
@@ -967,7 +967,7 @@ async def list_uploaded_audio():
 
 @router.post("/ensure-analysis")
 async def ensure_analysis(body: EnsureAnalysisRequest):
-    """Ensure analysis exists for a file — run analysis if not cached.
+    """Ensure analysis exists for a file -- run analysis if not cached.
     Used by frontend features that depend on analysis data."""
     filename = body.filename
     backend = body.backend
@@ -1022,7 +1022,7 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
 
     # Check if already cached on disk. This used to read `index.json` and serve
     # whatever it pointed at with no schema check, then `update_audio_analysis`
-    # wrote that result into the database — so a pre-v2 file was not merely
+    # wrote that result into the database -- so a pre-v2 file was not merely
     # served, it was persisted and became the sticky answer for every later
     # request, including the by-filename route. The resolver refuses unstamped
     # files, so a stale entry now falls through to a real analysis.
@@ -1114,7 +1114,7 @@ async def analyze_all_pending(backend: str = "sonara"):
 
     for file_path in audio_files:
         # Index keys are AUDIO_DIR-relative POSIX paths (same form the read
-        # endpoints normalize to) — previously basenames, which split the index
+        # endpoints normalize to) -- previously basenames, which split the index
         # for files in subdirectories like output/audio/Suno-V6-Mini/.
         filename = _relative_audio_path(file_path)
         # Skip if already analyzed in database
@@ -1296,7 +1296,7 @@ async def get_agent_profile(filename: str):
     """Return an agent-facing audio profile for *filename*.
 
     Compact, plain-language-friendly view of tempo, key, energy, spectral
-    balance, section labels, scene fit, and EQ suggestions — optimized for
+    balance, section labels, scene fit, and EQ suggestions -- optimized for
     AI agents that cannot process raw audio themselves.
     """
     import urllib.parse

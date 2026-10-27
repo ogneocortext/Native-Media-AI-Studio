@@ -108,7 +108,7 @@ class Job(BaseModel):
         """True when job can be retried (unsuccessful and under max retries).
 
         ``DEAD`` is included because ``POST /api/jobs/{id}/retry`` accepts both
-        ``FAILED`` and ``DEAD`` — this field used to contradict the endpoint.
+        ``FAILED`` and ``DEAD`` -- this field used to contradict the endpoint.
         """
         return (
             self.status in {JobStatus.FAILED, JobStatus.DEAD}

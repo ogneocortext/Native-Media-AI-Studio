@@ -1,5 +1,5 @@
 """
-Unity Control — web-friendly proxy to the Unity Pipeline server.
+Unity Control -- web-friendly proxy to the Unity Pipeline server.
 
 All requests are sent through the local go-gateway sidecar so the frontend
 never needs to know the dynamic Unity port or eval token. The eval token
@@ -85,7 +85,7 @@ async def _proxy_or_direct(
         token = info.get("evalToken") or info.get("eval_token")
 
     # 1) go-gateway. The gateway is a pass-through proxy and does not inject
-    #    auth, while the Pipeline server 401s every unauthenticated route —
+    #    auth, while the Pipeline server 401s every unauthenticated route --
     #    so forward the Authorization header through the gateway hop.
     gw_headers = {"Authorization": f"Bearer {token}"} if token else None
     gw = await proxy_request(

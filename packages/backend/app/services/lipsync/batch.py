@@ -208,7 +208,7 @@ def split_video_cmd(ffmpeg: str, src: str, start: float, length: float, dest: st
 def stitch_cmd(ffmpeg: str, list_file: str, dest: str, audio_in: str | None = None) -> list[str]:
     # All chunks share codec/container from the same inference run: -c copy.
     # Chunks are video-only by design (the model receives audio separately),
-    # so audio_in muxes the source track back — without it the master ships silent.
+    # so audio_in muxes the source track back -- without it the master ships silent.
     cmd = [
         ffmpeg,
         "-y",

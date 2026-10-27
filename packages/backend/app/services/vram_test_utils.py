@@ -1,10 +1,10 @@
 """
-VRAM test utilities — query GPU memory usage via nvidia-smi.
+VRAM test utilities -- query GPU memory usage via nvidia-smi.
 
 Used by ``tests/test_vram_leak.py`` to verify VRAM returns to baseline
 after each job type (V3 of the video-generation-e2e plan).
 
-All functions are pure/subprocess — no FastAPI, no database, safe to import
+All functions are pure/subprocess -- no FastAPI, no database, safe to import
 in any test context. Skipped gracefully when nvidia-smi is unavailable
 (non-NVIDIA machines, headless CI).
 """
@@ -16,7 +16,7 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
-#: VRAM tolerance in MB — a job may leave up to this much above baseline
+#: VRAM tolerance in MB -- a job may leave up to this much above baseline
 #: without counting as a leak (allows for driver overhead, cached allocations).
 VRAM_TOLERANCE_MB = 512
 

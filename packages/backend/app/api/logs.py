@@ -88,7 +88,7 @@ async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
 
         # Attribute every entry to the originating frontend module so the logs
         # UI and analytics can filter frontend noise by component. The entry's
-        # own `timestamp` is intentionally ignored — the app log formatter adds
+        # own `timestamp` is intentionally ignored -- the app log formatter adds
         # the authoritative receive-time prefix.
         source = entry.get("source", "unknown")
         message = f"[{source}] {message}"

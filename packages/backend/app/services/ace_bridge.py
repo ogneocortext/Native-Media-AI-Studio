@@ -4,7 +4,7 @@ ACE-Step Bridge Service.
 Isolates the Native Media AI Studio app from ACE-Step provider API changes.
 If ACE-Step is updated by the provider (new parameter names, changed response
 shapes, different model IDs), only the bridge config and this service need
-updating — the rest of the app keeps calling stable methods.
+updating -- the rest of the app keeps calling stable methods.
 
 Architecture:
   config/ace-step/           - Bridge directory (config, version tracking)
@@ -145,7 +145,7 @@ class ACEBridge:
     # ------------------------------------------------------------------
 
     def param_map(self) -> dict[str, str]:
-        """Return the app-facing → ACE-Step wire parameter name map.
+        """Return the app-facing -> ACE-Step wire parameter name map.
 
         App code uses canonical names (``cfg_scale``). If a provider update
         renames the wire parameter, add an entry here and the client
@@ -157,7 +157,7 @@ class ACEBridge:
         return self._param_map
 
     def response_map(self) -> dict[str, str]:
-        """Return the ACE-Step wire → app-facing response name map."""
+        """Return the ACE-Step wire -> app-facing response name map."""
         if self._response_map is None:
             compat = self.load_config().get("compatibility", {})
             self._response_map = compat.get("response_map", {})

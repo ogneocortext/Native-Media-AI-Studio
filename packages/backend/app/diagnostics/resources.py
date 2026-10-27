@@ -734,7 +734,7 @@ class ResourceMonitor:
         """Check all resources and return list of warnings"""
         warnings = []
 
-        # Check memory — auto-cleanup on critical
+        # Check memory -- auto-cleanup on critical
         mem_warning = await self.check_memory()
         if mem_warning:
             if mem_warning["level"] == WarningLevel.CRITICAL:
@@ -854,7 +854,7 @@ async def resource_monitoring_loop(interval_seconds: float = 30.0):
             warnings = await resource_monitor.check_all()
             if warnings:
                 await resource_monitor.broadcast_warnings(warnings)
-            # Persistent GPU trending — log snapshot to DB every cycle for pattern mapping
+            # Persistent GPU trending -- log snapshot to DB every cycle for pattern mapping
             try:
                 snap = await resource_monitor.get_gpu_snapshot()
                 if snap.get("available"):

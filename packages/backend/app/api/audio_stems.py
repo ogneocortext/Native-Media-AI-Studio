@@ -84,8 +84,8 @@ async def separate_audio(
       - segment_size: demucs --segment, in SECONDS. Smaller = less
         VRAM, more border artifacts. Clamped to the model's trained
         max (HTDemucs 7.8 s, MDX bags 44 s).
-      - overlap: 0.25–0.75 for quality vs speed.
-      - denoise: accepted but ignored — demucs has no --denoise flag.
+      - overlap: 0.25--0.75 for quality vs speed.
+      - denoise: accepted but ignored -- demucs has no --denoise flag.
       - mode: "single" (one-shot) or "hierarchical" (vocal MDX-Net first, then Demucs residual).
     """
     if not file.filename:
@@ -240,8 +240,8 @@ class SeparateFileRequest(BaseModel):
 async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResponse:
     """Separate a file already in the audio library via Demucs.
 
-    Powers Visualizer "Load Stems": separating a 2–4 min track takes a few
-    minutes (CUDA) — the request stays open up to 10 min like Demucs itself.
+    Powers Visualizer "Load Stems": separating a 2--4 min track takes a few
+    minutes (CUDA) -- the request stays open up to 10 min like Demucs itself.
     """
     from ..services.source_separation import SeparationOptions, SourceSeparator
 
@@ -263,7 +263,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
         raise HTTPException(status_code=400, detail=f"Invalid file type: {path.suffix}")
 
     # Guard: if stems already exist, return them immediately instead of
-    # re-running Demucs (a 2–10 minute operation on CPU).
+    # re-running Demucs (a 2--10 minute operation on CPU).
     # Compare against STEM_NAMES rather than a literal 4 so adding a stem does not
     # silently disable this guard.
     existing = await get_stems(body.filename)
@@ -350,7 +350,7 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
         raise HTTPException(status_code=400, detail="stem_name must be vocals|drums|bass|other")
     if format not in {"wav", "mp3"}:
         raise HTTPException(status_code=400, detail="format must be wav|mp3")
-    # Track dirs are derived from source stems — sanitize aggressively.
+    # Track dirs are derived from source stems -- sanitize aggressively.
     safe_track = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", track_name).strip()
     if not safe_track or ".." in safe_track:
         raise HTTPException(status_code=400, detail="Invalid track name")
@@ -376,7 +376,7 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     if not stem_path:
         raise HTTPException(
             status_code=404,
-            detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first",
+            detail=f"Stem not found: {safe_track}/{stem_name}.{format} -- run POST /api/audio/separate first",
         )
 
     if format == "mp3" and stem_path.suffix.lower() != ".mp3":
@@ -399,7 +399,7 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
     if not stem_path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Stem not found: {safe_track}/{stem_name}.{format} — run POST /api/audio/separate first",
+            detail=f"Stem not found: {safe_track}/{stem_name}.{format} -- run POST /api/audio/separate first",
         )
 
     media_type = "audio/mpeg" if format == "mp3" else "audio/wav"
@@ -447,7 +447,7 @@ async def check_stem_phase_mono(track_name: str, stem_name: str):
         raise HTTPException(
             status_code=404,
             detail=(
-                f"Stem not found: {safe_track}/{stem_name}.wav — "
+                f"Stem not found: {safe_track}/{stem_name}.wav -- "
                 "run POST /api/audio/separate-file first"
             ),
         )

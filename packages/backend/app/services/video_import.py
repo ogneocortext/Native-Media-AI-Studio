@@ -13,8 +13,8 @@ produces a real `.m4a` track. It lives in `services/` rather than in the route s
 the ffmpeg invocation is testable without HTTP (D14: pure logic in services,
 routes stay thin).
 
-Copy-first is deliberate. When the source audio is already AAC — which Suno
-output always is — `-c:a copy` remuxes without touching a single sample, so the
+Copy-first is deliberate. When the source audio is already AAC -- which Suno
+output always is -- `-c:a copy` remuxes without touching a single sample, so the
 m4a is bit-identical to the source track and costs no CPU. Re-encoding is a
 fallback for containers whose audio the MP4 muxer cannot carry (e.g. some
 `.webm`/Opus or `.mov`/PCM sources).

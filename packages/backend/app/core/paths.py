@@ -66,7 +66,7 @@ def comfyui_dir() -> Path:
 
     Resolution order:
     1. Derived from ``config.comfyui_output_dir`` when it points inside a
-       recognizable install (``<root>/output`` → ``<root>``), validated by
+       recognizable install (``<root>/output`` -> ``<root>``), validated by
        the presence of ``main.py``.
     2. ``<repo root>/../ComfyUI`` (the standard sibling checkout).
     """

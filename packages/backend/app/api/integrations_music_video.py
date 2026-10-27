@@ -54,7 +54,7 @@ class MusicVideoRequest(BaseModel):
     motion_module: str = "mm_sd_v15_v2.safetensors"
     genre: str | None = None
     track_name: str | None = None
-    on_source_failure: str = "auto"  # auto | fail (Q2 plan §2)
+    on_source_failure: str = "auto"  # auto | fail (Q2 plan section2)
 
 
 class PreviewGenerationRequest(BaseModel):
@@ -143,13 +143,13 @@ async def generate_music_video(request: MusicVideoRequest):
     fail_fast = request.on_source_failure == "fail"
     # The adapter counts as available only when it is registered AND connected.
     # A registered-but-disconnected adapter (ComfyUI stopped) must degrade the
-    # same way a missing adapter does (Q2 plan §4, acceptance criterion 1).
+    # same way a missing adapter does (Q2 plan section4, acceptance criterion 1).
     adapter_available = adapter is not None and adapter.get_status() == AdapterStatus.CONNECTED
     if not adapter_available:
         if fail_fast:
             logger.error("Video generation failed: ComfyUI adapter not available")
             raise HTTPException(status_code=503, detail="ComfyUI adapter not available")
-        logger.warning("ComfyUI adapter not available — queuing degraded visualization job")
+        logger.warning("ComfyUI adapter not available -- queuing degraded visualization job")
         degraded = True
         degraded_reason = "ComfyUI adapter not available"
     else:
@@ -183,7 +183,7 @@ async def generate_music_video(request: MusicVideoRequest):
     logger.info("Estimated generation time: %s seconds (%s min)", time_estimate["estimated_seconds"], time_estimate["estimated_minutes"])
 
     # Check VRAM availability. A shortfall degrades to the deterministic
-    # FFmpeg path the same way a missing adapter does (Q2 plan §4) — the
+    # FFmpeg path the same way a missing adapter does (Q2 plan section4) -- the
     # 503 survives only for on_source_failure="fail".
     vram_result = await ensure_vram_available(required_mb=4096)
     if not vram_result["available"]:
@@ -191,7 +191,7 @@ async def generate_music_video(request: MusicVideoRequest):
             logger.error("Video generation failed: insufficient VRAM - %s", vram_result["message"])
             raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
         if not degraded:
-            logger.warning("Insufficient VRAM (%s) — queuing degraded visualization job", vram_result["message"])
+            logger.warning("Insufficient VRAM (%s) -- queuing degraded visualization job", vram_result["message"])
             degraded = True
             degraded_reason = f"Insufficient VRAM: {vram_result['message']}"
         else:
@@ -364,7 +364,7 @@ class QuickVideoPreviewRequest(BaseModel):
     motion_lora_strength: float = 0.8
     duration: int = 5
     style: str = ""
-    # Advanced (previously hidden) — now surfaced in VideoGenerationPage
+    # Advanced (previously hidden) -- now surfaced in VideoGenerationPage
     scheduler: str = "normal"
     seed: int = -1
     fps: int = 8
@@ -396,7 +396,7 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
     if not vram_result["available"]:
         return {"success": False, "error": vram_result["message"]}
 
-    # Calculate parameters — respect advanced UI (previously hardcoded 240p/8fps and ignored scheduler/seed)
+    # Calculate parameters -- respect advanced UI (previously hardcoded 240p/8fps and ignored scheduler/seed)
     fps = max(1, min(30, int(request.fps))) if request.fps else 8
     res_map = {"240p": (426, 240), "360p": (640, 360), "480p": (832, 480), "720p": (1280, 720)}
     width, height = res_map.get(request.resolution, (426, 240))

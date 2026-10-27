@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-# Preset catalog — kept in sync with visualPresets.ts.
+# Preset catalog -- kept in sync with visualPresets.ts.
 # Only the fields needed for selection are listed here (id + genre tags).
 _PRESETS: list[dict[str, str | list[str]]] = [
     {
@@ -91,7 +91,7 @@ _KEYWORD_FALLBACKS: list[tuple[list[str], str]] = [
 def _normalize(text: str) -> str:
     """Lowercase, collapse separators to spaces, squeeze whitespace.
 
-    Keeps ``&`` and ``+`` so tokens like ``r&b`` and ``k-pop`` (→ ``k pop``)
+    Keeps ``&`` and ``+`` so tokens like ``r&b`` and ``k-pop`` (-> ``k pop``)
     stay matchable on both sides, matching the frontend's ``normalizeSearchText``.
     """
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9&+]+", " ", text.lower())).strip()
@@ -100,7 +100,7 @@ def _normalize(text: str) -> str:
 def _token_in(haystack: str, token: str) -> bool:
     """Padded-substring check on already-normalized text.
 
-    Prevents false matches like ``rap`` ⊂ ``grape``.
+    Prevents false matches like ``rap`` subset ``grape``.
     """
     if not token:
         return False
@@ -120,19 +120,19 @@ def select_fallback_preset(
     genre : str | None
         Primary genre tag (e.g. ``"trap metal"``).
     energy : float | None
-        Normalized energy curve mean, 0–1.
+        Normalized energy curve mean, 0--1.
     bpm : float | None
         Detected tempo in beats per minute.
     track_name : str | None
-        Track title — combined with *genre* into the match haystack,
-        mirroring the frontend's ``selectVisualPreset(trackName, genre, …)``.
+        Track title -- combined with *genre* into the match haystack,
+        mirroring the frontend's ``selectVisualPreset(trackName, genre, ...)``.
 
     Returns
     -------
     str
         Preset id (e.g. ``"dubstep"``, ``"ambient"``, ``"balanced"``).
 
-    Same inputs → same output (deterministic). Unknown or missing inputs
+    Same inputs -> same output (deterministic). Unknown or missing inputs
     fall through to ``"balanced"``.
     """
     haystack = _normalize(f"{genre or ''} {track_name or ''}")

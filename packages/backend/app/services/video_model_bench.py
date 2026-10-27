@@ -7,7 +7,7 @@ Run from ``packages/backend``:
     python -m app.services.video_model_bench --model ltxv_2b --precision fp8 --format safetensors
 
 Results are written to ``docs/knowledge-library/benchmarks/video-model-8gb-2026.json``
-(one record per model/resolution/frames/precision/format key — re-runs update in place).
+(one record per model/resolution/frames/precision/format key -- re-runs update in place).
 """
 
 from __future__ import annotations
@@ -507,7 +507,7 @@ def load_existing_results(path: Path = BENCHMARK_OUTPUT) -> list[dict[str, Any]]
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, list):
                 return data
-            logger.warning("Benchmark file %s is not a list — starting fresh", path)
+            logger.warning("Benchmark file %s is not a list -- starting fresh", path)
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Could not read existing results from %s: %s", path, exc)
     return []
@@ -599,7 +599,7 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
     start = time.time()
     try:
         run_result = _run_async(_submit_and_wait(workflow, base_url))
-    except Exception as exc:  # noqa: BLE001 — one failed entry must not abort the matrix
+    except Exception as exc:  # noqa: BLE001 -- one failed entry must not abort the matrix
         run_result = {"error": f"{type(exc).__name__}: {exc}"}
     finally:
         vram_peak = sampler.stop()
@@ -696,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
     for entry in entries:
         entry_key = _run_key(entry)
         if not args.dry_run and entry_key in succeeded:
-            logger.info("Skipping %s — already succeeded", entry_key)
+            logger.info("Skipping %s -- already succeeded", entry_key)
             continue
 
         logger.info("Benchmarking %s @ %s/%dfps %s", entry["model"], entry["resolution"], entry["fps"], entry["precision"])

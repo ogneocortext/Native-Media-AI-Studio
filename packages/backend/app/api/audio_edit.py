@@ -92,9 +92,9 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     """Extract a video's audio track to `output/audio/<name>.<ext>`.
 
     `format="original"` (default) probes the source audio codec first and
-    remuxes it bit-for-bit into a matching container — no quality loss,
+    remuxes it bit-for-bit into a matching container -- no quality loss,
     near-instant, no wasted runs. `format="mp3"` re-encodes with libmp3lame
-    at `bitrate`. Powers the Media Library "Extract Audio" panel — the result
+    at `bitrate`. Powers the Media Library "Extract Audio" panel -- the result
     lands in the audio library so it can be analyzed on the Audio Analysis page.
 
     Optional `start`/`end` (seconds) extract only that segment in one ffmpeg
@@ -135,7 +135,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     if seg_start is not None and seg_end is not None and seg_end <= seg_start:
         raise HTTPException(status_code=400, detail="end must be > start")
 
-    # Detect — don't guess: probe the actual audio codec before choosing a container.
+    # Detect -- don't guess: probe the actual audio codec before choosing a container.
     probe = await probe_media(src)
     audio_codec: str | None = None
     audio_rate: str | None = None
@@ -200,7 +200,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     if proc.returncode == 0:
         lossless = cmd_mode == "copy"
     elif cmd_mode == "copy":
-        # Container rejected the codec despite the map (e.g. odd muxer limits) —
+        # Container rejected the codec despite the map (e.g. odd muxer limits) --
         # one AAC-encode fallback so the user still gets audio.
         try:
             proc = await asyncio.to_thread(
@@ -311,8 +311,8 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
 
     `mode="keep"` saves a single `[start, end)` interval; `mode="remove"` cuts
     the given intervals out and concatenates what remains. Same container/codec
-    via stream copy (`-c:a copy`) — fast and lossless; cuts land on packet
-    boundaries. Powers the Audio Analysis "Trim" editor — the result lands back
+    via stream copy (`-c:a copy`) -- fast and lossless; cuts land on packet
+    boundaries. Powers the Audio Analysis "Trim" editor -- the result lands back
     in the audio library so it can be analyzed or sent to Kinetic Typography.
     """
     from ..services.ffmpeg_tools import probe_media
@@ -365,9 +365,9 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
         if duration - cursor > 0.01:
             kept.append((cursor, duration))
         if not kept:
-            raise HTTPException(status_code=400, detail="Removal covers the entire file — nothing left to save")
+            raise HTTPException(status_code=400, detail="Removal covers the entire file -- nothing left to save")
     if len(kept) == 1 and kept[0][0] <= 0.01 and kept[0][1] >= duration - 0.01:
-        raise HTTPException(status_code=400, detail="Edit covers the full file — nothing to change")
+        raise HTTPException(status_code=400, detail="Edit covers the full file -- nothing to change")
 
     stem = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", src.stem).strip() or "trimmed"
     ext = src.suffix.lower()

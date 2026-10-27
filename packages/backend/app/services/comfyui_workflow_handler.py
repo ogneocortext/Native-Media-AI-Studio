@@ -81,7 +81,7 @@ class ComfyUIWorkflowHandler:
                 "info": result.get("info", f"Generation completed. seed: {seed}"),
             }
 
-        # Image results come back as base64 — persist them to disk. Without
+        # Image results come back as base64 -- persist them to disk. Without
         # this the job would report an output_path that doesn't exist.
         image_b64 = result.get("image")
         if not image_b64:

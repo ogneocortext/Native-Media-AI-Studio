@@ -1,5 +1,5 @@
 """
-Native App Opens Repository — audit trail for Blender/Unity handoffs.
+Native App Opens Repository -- audit trail for Blender/Unity handoffs.
 
 Extracted from packages/backend/app/core/database.py (was 4121 lines).
 """

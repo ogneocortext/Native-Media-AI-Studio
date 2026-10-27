@@ -25,7 +25,7 @@ from .config import PROJECT_ROOT
 
 
 # ---------------------------------------------------------------------------
-# Database path — configurable for home-server deployments
+# Database path -- configurable for home-server deployments
 # ---------------------------------------------------------------------------
 def _resolve_db_path() -> Path:
     """Resolve the SQLite database file path.

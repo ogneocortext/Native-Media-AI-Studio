@@ -89,7 +89,7 @@ class ImageGenerationRequest(BaseModel):
         Consolidates the dict-building previously duplicated in
         ``generate_image`` and ``queue_image_job`` (which also drifted:
         the queue path used ``sampler`` while the adapter read
-        ``sampler_name`` — both keys are now emitted).
+        ``sampler_name`` -- both keys are now emitted).
         """
         params = {
             "prompt": self.prompt,

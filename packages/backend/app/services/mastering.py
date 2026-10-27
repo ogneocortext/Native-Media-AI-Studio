@@ -1,5 +1,5 @@
 """
-Mastering DSP service — measure, normalize, true-peak limit, and QC-report an
+Mastering DSP service -- measure, normalize, true-peak limit, and QC-report an
 audio file. New module per `audio-mastering-stem-quality-2026-10.md` (M1), which
 extends `studio-quality-2026-10.md` Phase 3 (Approved, blocked on nothing).
 
@@ -11,7 +11,7 @@ Measurement source: FFmpeg's ebur128 filter (the established pattern in
 services/ffmpeg_tools.py:compute_loudness). `pyloudnorm` (BS.1770) is NOT
 installed in this environment, so we reuse ebur128 for integrated loudness /
 LRA and add a scipy-based true-peak estimate. Do not "fix" this by installing
-pyloudnorm mid-session — the gate runner pins its own interpreter and a new
+pyloudnorm mid-session -- the gate runner pins its own interpreter and a new
 dependency would break the baseline until the env is rebuilt.
 
 True peak: ebur128 reports true peak directly, so we trust it for measurement
@@ -78,7 +78,7 @@ LOUDNESS_TOLERANCE_LU = 0.5
 MAX_GAIN_PASSES = 3
 
 # Manual trim: a user offset applied *after* normalization and *before* the
-# limiter. It deliberately does not participate in the target-matching loop —
+# limiter. It deliberately does not participate in the target-matching loop --
 # otherwise the loop would measure the trimmed file and gain it straight back,
 # making the control a no-op. Clamped to the same +/-12 dB as the auto gain.
 MAX_TRIM_DB = 12.0
@@ -109,7 +109,7 @@ class Pcm:
 async def _decode_audio(file_path: str | Path) -> Pcm:
     """Decode *file_path* to interleaved float32 PCM via FFmpeg rawaudio.
 
-    Never raises on decode failure — returns an empty Pcm with an error logged.
+    Never raises on decode failure -- returns an empty Pcm with an error logged.
     """
     ffmpeg = _find_binary("ffmpeg")
     if not ffmpeg:
@@ -384,7 +384,7 @@ async def master_file(
 
     Returns a QC report dict with before/after LUFS-TP-LRA, the mastered file
     path, and any error. Per D17's lesson: assert the artifact, not the intent
-    — the report numbers are re-measured from the written file, not asserted
+    -- the report numbers are re-measured from the written file, not asserted
     from the intent.
 
     ``gain_trim_db`` is a manual offset (clamped to +/-MAX_TRIM_DB) applied
@@ -393,8 +393,8 @@ async def master_file(
 
     Steps:
       1. Measure the source (LUFS / true peak / LRA).
-      2. Iteratively apply gain to hit *target_lufs*: measure → gain → encode
-         → re-measure → correct. Tone fixes (esp. the 4 kHz presence shelf)
+      2. Iteratively apply gain to hit *target_lufs*: measure -> gain -> encode
+         -> re-measure -> correct. Tone fixes (esp. the 4 kHz presence shelf)
          shift ebur128's K-weighted measurement, so one pass can land off
          target; we correct until within LOUDNESS_TOLERANCE_LU or
          MAX_GAIN_PASSES is reached.
@@ -432,8 +432,8 @@ async def master_file(
             "before": before,
         }
 
-    # Iterative gain tuning. Each pass: apply gain → tone → limit → encode to
-    # a temp file → measure → compute residual error → adjust gain.
+    # Iterative gain tuning. Each pass: apply gain -> tone -> limit -> encode to
+    # a temp file -> measure -> compute residual error -> adjust gain.
     import tempfile
 
     current_gain_db = target_lufs - before_lufs
@@ -449,7 +449,7 @@ async def master_file(
         samples = _true_peak_limit(samples, pcm.sample_rate, ceiling_dbtp)
 
         # Encode to a temp file for measurement (mkstemp gives a file path,
-        # not a directory — mkdtemp would fail with "Permission denied").
+        # not a directory -- mkdtemp would fail with "Permission denied").
         fd, tmp_path = tempfile.mkstemp(suffix=".mp3")
         import os
 

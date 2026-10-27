@@ -178,7 +178,7 @@ class HealthMonitor:
                 "response_time_ms": None
             }
 
-        # ComfyUI can be slow to respond when rendering at 100% GPU — give it more time
+        # ComfyUI can be slow to respond when rendering at 100% GPU -- give it more time
         timeout = self.comfyui_timeout if name == "comfyui" else self.default_timeout
         start_time = time.perf_counter()
         try:

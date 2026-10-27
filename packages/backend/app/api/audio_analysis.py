@@ -263,7 +263,7 @@ def _relative_audio_path(file_path: Path) -> str:
 def _spectral_summary(result) -> dict:
     """Compact spectral statistics (means), so agents can reason about timbre.
 
-    Only a handful of numbers per track — the full spectral curves stay in the
+    Only a handful of numbers per track -- the full spectral curves stay in the
     analyzer's own JSON, never in this API payload.
     """
     wf = getattr(result, "waveform", None)
@@ -295,7 +295,7 @@ def _suggest_visualization(tempo: float, duration: float, sections: list[dict], 
     has_chorus = any(s.get("type") == "chorus" for s in sections)
     spectral = spectral or {}
 
-    # Spectral brightness: high centroid + rolloff → bright/aggressive styles
+    # Spectral brightness: high centroid + rolloff -> bright/aggressive styles
     centroid_mean = spectral.get("centroid_mean")
     rolloff_mean = spectral.get("rolloff_mean")
     is_bright = (centroid_mean is not None and centroid_mean > 3000) or (rolloff_mean is not None and rolloff_mean > 8000)
@@ -480,7 +480,7 @@ def _generate_sections_from_analysis(
         if b - merged[-1] >= min_sec_dur:
             merged.append(b)
         else:
-            # Too short — absorb into previous section
+            # Too short -- absorb into previous section
             merged[-1] = round(b, 2)
     if merged[-1] < duration:
         merged.append(duration)
@@ -490,7 +490,7 @@ def _generate_sections_from_analysis(
     # up with a single entry. `all_energies` is then empty and the min/max below
     # raised `ValueError: min() arg is an empty sequence`, turning the whole
     # analysis request into a 500. min_sec_dur has an 8 s floor, so every clip
-    # under it — SFX, stingers, short intros — failed. Always keep two
+    # under it -- SFX, stingers, short intros -- failed. Always keep two
     # boundaries so a whole-track section is still produced.
     if len(merged) < 2:
         merged = [0.0, float(duration)] if duration > 0 else [0.0, 0.0]
@@ -600,7 +600,7 @@ def _section_models(default_model: str) -> list[str]:
     The configured default leads, then small fast fallbacks that are actually
     installed on this workstation (queried from ``/api/tags``). Models that
     report only ``decision`` capability (Ollama 0.35+ decision models) are
-    excluded — they are poor fits for fixed-schema JSON tasks. deepseek-r1:7b
+    excluded -- they are poor fits for fixed-schema JSON tasks. deepseek-r1:7b
     is not in the chain: it is a reasoning model, measured 89s cold, and a poor
     fit for fixed-schema JSON.
 
@@ -639,7 +639,7 @@ async def _generate_sections_llm(
     rms_energy: list[float],
     lyrics_hint: str = "",
 ) -> list[dict] | None:
-    """Try LLM (deepseek-r1:7b → qwen3.5:4b fallback) to label sections semantically.
+    """Try LLM (deepseek-r1:7b -> qwen3.5:4b fallback) to label sections semantically.
     Returns None on failure so caller can fall back to heuristic."""
     from ..core.config import config as app_config
 

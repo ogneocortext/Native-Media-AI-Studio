@@ -11,8 +11,8 @@ endpoint URLs previously duplicated across:
   URL builders here keep endpoint paths consistent.
 
 All calls share one module-level session (same rationale as
-``core/comfyui_client.get_shared_session`` — see
-knowledge-library/backend-debugging-guide.md § Adapter Connection Reuse).
+``core/comfyui_client.get_shared_session`` -- see
+knowledge-library/backend-debugging-guide.md section Adapter Connection Reuse).
 """
 
 from __future__ import annotations
@@ -288,7 +288,7 @@ async def chat_content(
         extra: Additional payload keys merged into the request body.
         think: Thinking mode (bool or ``"high"``/``"medium"``/``"low"``/``"max"``).
             Passed as the top-level ``think`` key. Use ``False`` to disable
-            thinking on thinking-capable models — measured ~65x faster on
+            thinking on thinking-capable models -- measured ~65x faster on
             section-labeling tasks (39.5s -> 0.6s on gemma4:e2b-it-qat).
     """
     payload: dict[str, Any] = {
@@ -326,13 +326,13 @@ async def generate_content(
 
     Args:
         prompt: The input prompt.
-        model: Model name (required — no default, since generate is used for
+        model: Model name (required -- no default, since generate is used for
             specific tasks rather than the default model).
         timeout: Request timeout in seconds.
         extra: Additional payload keys merged into the request body.
         think: Thinking mode (bool or ``"high"``/``"medium"``/``"low"``/``"max"``).
             Note: /api/generate does not honor ``think`` reliably for Qwen3.5/
-            DeepSeek models — prefer ``/api/chat`` with ``think=False`` for
+            DeepSeek models -- prefer ``/api/chat`` with ``think=False`` for
             those. See docs/knowledge-library/ollama-thinking-structured-outputs.md.
     """
     payload: dict[str, Any] = {

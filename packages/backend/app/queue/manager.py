@@ -13,8 +13,8 @@ from .db_manager import JobDatabaseManager
 logger = logging.getLogger(__name__)
 
 #: Statuses that mean "this job did not succeed". ``JobStatus.FAILED`` is never
-#: assigned by the processor — exhausted jobs are moved to the dead-letter queue
-#: (``JobStatus.DEAD``) — so anything counting only ``FAILED`` reports zero
+#: assigned by the processor -- exhausted jobs are moved to the dead-letter queue
+#: (``JobStatus.DEAD``) -- so anything counting only ``FAILED`` reports zero
 #: failures no matter how many jobs died.
 _UNSUCCESSFUL_STATUSES = (JobStatus.FAILED, JobStatus.DEAD)
 
@@ -31,7 +31,7 @@ _PARAM_OPTIONAL_JOB_TYPES: frozenset = frozenset()
 _LEASE_WINDOW_DEFAULT_SECONDS = 900
 
 #: Longer silence windows for job types whose handlers legitimately go quiet
-#: between visible milestones — a Wan or ComfyUI render can run 15+ minutes of
+#: between visible milestones -- a Wan or ComfyUI render can run 15+ minutes of
 #: GPU work per progress tick. Distinguishes "slow progress" from "no progress",
 #: which a longer flat age threshold cannot. Keep every entry well under the
 #: processor's HANDLER_TIMEOUT_SECONDS (3600): a job silent past its own abort
@@ -321,7 +321,7 @@ class QueueManager:
         Uses the same silence rule as the reaper (age AND quiet past the
         type's lease window), so a legitimately long render that keeps
         reporting progress no longer flips the queue to unhealthy while it is
-        still working — the exact false-red from the Q6 report.
+        still working -- the exact false-red from the Q6 report.
         """
         now = datetime.now()
         cutoff = now - timedelta(seconds=max_age_seconds)
@@ -398,7 +398,7 @@ class QueueManager:
 
 
     async def enqueue(self, request: JobCreateRequest) -> Job:
-        """Add a new job to the queue — checks system RAM first and auto-cleans if critical."""
+        """Add a new job to the queue -- checks system RAM first and auto-cleans if critical."""
         # System RAM guard: if >90% try cleanup, if still >92% warn
         try:
             import psutil
@@ -411,7 +411,7 @@ class QueueManager:
                 logger.warning(f"System RAM {mem.percent:.1f}% before enqueue, cleanup: {cleanup['actions']}")
                 mem2 = psutil.virtual_memory()
                 if mem2.percent >= 92:
-                    logger.warning(f"System RAM still {mem2.percent:.1f}% after cleanup — queueing anyway but may OOM")
+                    logger.warning(f"System RAM still {mem2.percent:.1f}% after cleanup -- queueing anyway but may OOM")
         except Exception as e:
             logger.debug(f"RAM check before enqueue failed: {e}")
 
@@ -594,7 +594,7 @@ class QueueManager:
             job.started_at = new_started_at
             job.completed_at = new_completed_at
 
-            # Any successful touch of a running job renews its progress lease —
+            # Any successful touch of a running job renews its progress lease --
             # the claim itself, a progress tick, even a message-only heartbeat
             # from a long poll loop. Leaving RUNNING drops the entry so the
             # table cannot grow with finished jobs.

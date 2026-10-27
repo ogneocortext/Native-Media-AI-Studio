@@ -17,7 +17,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 PREVIEW_DIR = PROJECT_ROOT / "output" / "previews"
 PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
-# Fallback preset → FFmpeg visualization style. Kept at module scope so the
+# Fallback preset -> FFmpeg visualization style. Kept at module scope so the
 # mapping is declared once rather than rebuilt on every degraded render.
 _FALLBACK_STYLE_MAP: dict[str, str] = {
     "phonk": "waveform",
@@ -35,7 +35,7 @@ _FALLBACK_STYLE_MAP: dict[str, str] = {
     "balanced": "waveform",
 }
 
-# Section-aware prompt suffixes — keeps one visual theme per song section
+# Section-aware prompt suffixes -- keeps one visual theme per song section
 # and makes the drop more energetic than intro (user advice: Wan 2.1 1.3B guide).
 # Used by ComfyUI paths; FFmpeg visualization uses palette logic below.
 _SECTION_PROMPT_SUFFIX: dict[str, str] = {
@@ -104,7 +104,7 @@ class MusicVideoHandler:
         audio_path = params.get("audio_path")
         logger.info("audio_path: '%s', is_preview: %s", audio_path, is_preview)
 
-        # Preview jobs don't require audio — they generate from text prompt only
+        # Preview jobs don't require audio -- they generate from text prompt only
         if not is_preview and not audio_path:
             raise ValueError("audio_path is required")
 
@@ -140,7 +140,7 @@ class MusicVideoHandler:
                     "num_beats": 0,
                 }
         else:
-            # Preview job without audio — use defaults
+            # Preview job without audio -- use defaults
             analysis = {
                 "audio_file": "",
                 "duration_seconds": params.get("duration", 5),
@@ -166,7 +166,7 @@ class MusicVideoHandler:
 
         # Cap preview duration to 5s (overnight batch still via full MUSIC_VIDEO jobs)
         # For preview, respect the advanced UI's resolution/FPS if the caller set them
-        # via job params (new path) — otherwise fall back to viz_config (legacy).
+        # via job params (new path) -- otherwise fall back to viz_config (legacy).
         if is_preview:
             duration_seconds = min(int(params.get("duration", duration_seconds)), 5)
             if "width" in params and "height" in params:
@@ -319,7 +319,7 @@ class MusicVideoHandler:
                 fallback_info["visual_source_used"] = method
                 return fallback_info
             except Exception as ai_exc:
-                # AI render failed — degrade to deterministic FFmpeg visualization
+                # AI render failed -- degrade to deterministic FFmpeg visualization
                 # so the job completes instead of erroring out.
                 genre = str(job.params.get("genre", "")).strip() or None
                 track_name = str(job.params.get("track_name", "")).strip() or None
@@ -335,12 +335,12 @@ class MusicVideoHandler:
                     genre=genre, energy=energy, bpm=bpm, track_name=track_name
                 )
                 logger.warning(
-                    "AI render failed for job %s (%s) — falling back to preset '%s' via FFmpeg: %s",
+                    "AI render failed for job %s (%s) -- falling back to preset '%s' via FFmpeg: %s",
                     job.id, method, preset, repr(ai_exc),
                 )
                 await self._update_progress(
                     job, 0.5,
-                    f"ComfyUI unavailable — using {preset} fallback",
+                    f"ComfyUI unavailable -- using {preset} fallback",
                 )
                 # Override viz_config so the FFmpeg path picks a style that matches
                 # the selected preset (waveform / spectrum / abstract).
@@ -353,8 +353,8 @@ class MusicVideoHandler:
                     "fallback_reason": str(ai_exc)[:500],
                 }
 
-        # Encoding: use CRF for size/quality (was ultrafast → 772MB for 4:24)
-        # Add -t to respect requested duration (was rendering full 4:24 for every 5s request → timeout)
+        # Encoding: use CRF for size/quality (was ultrafast -> 772MB for 4:24)
+        # Add -t to respect requested duration (was rendering full 4:24 for every 5s request -> timeout)
         vcodec_args = ["-c:v", "libx264", "-crf", "23", "-preset", "fast", "-pix_fmt", "yuv420p", "-maxrate", "8M", "-bufsize", "16M"]
         acodec_args = ["-c:a", "aac", "-b:a", "192k"]
         # Use -t to limit to requested duration (avoid 4:24 full render for 5s preview)
@@ -413,7 +413,7 @@ class MusicVideoHandler:
                 str(output_path),
             ]
         else:
-            # abstract — now energy/beat-reactive + genre-aware + efficient
+            # abstract -- now energy/beat-reactive + genre-aware + efficient
             # Palette selection based on style/section/energy; contrast/sat driven by analysis energy
             palettes = {
                 "waveform": "#8b5cf6|#06b6d4",
@@ -432,7 +432,7 @@ class MusicVideoHandler:
             elif section in palettes:
                 palette = palettes[section]
             else:
-                # Fallback by energy: high→chorus, mid→verse, low→bridge
+                # Fallback by energy: high->chorus, mid->verse, low->bridge
                 energy_peek = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
                 if energy_peek > 0.65:
                     palette = palettes["chorus"]
@@ -442,7 +442,7 @@ class MusicVideoHandler:
                     palette = palettes["abstract"]
 
             energy = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
-            # Map 0-1 energy → 1.2-1.6 contrast, 1.4-1.9 saturation
+            # Map 0-1 energy -> 1.2-1.6 contrast, 1.4-1.9 saturation
             contrast = 1.2 + energy * 0.4
             saturation = 1.4 + energy * 0.5
             # Use p2p for full-screen, beat-reactive via energy-driven eq
@@ -497,7 +497,7 @@ class MusicVideoHandler:
                 await self._update_progress(job, 1.0, "Music video complete (thread fallback)")
                 return fallback_info
 
-            # Read stderr streaming (FFmpeg uses \r for progress, not \n) while process runs, update progress 0.5→1.0
+            # Read stderr streaming (FFmpeg uses \r for progress, not \n) while process runs, update progress 0.5->1.0
             stderr_chunks = []
             frame_re = re.compile(r"frame=\s*(\d+)")
             time_re = re.compile(r"time=\s*(\d+):(\d+):(\d+\.\d+)")
@@ -608,7 +608,7 @@ class MusicVideoHandler:
             steps = int(job.params.get("steps", 10))
             cfg_scale = float(job.params.get("cfg_scale", 7.0))
             fps = int(job.params.get("fps", 8))
-            # Cap at 32 for AnimateDiff single-pass (verified live) — handler caps,
+            # Cap at 32 for AnimateDiff single-pass (verified live) -- handler caps,
             # adapter also warns, but don't let a 240-frame preview request OOM-fail.
             num_frames = min(32, max(8, int(job.params.get("num_frames", max(8, int(duration * fps))))))
             seed = int(job.params.get("seed", -1))
@@ -620,8 +620,8 @@ class MusicVideoHandler:
             if any(kw in raw_model for kw in ["mm_sd", "mm-stabilized", "motion"]):
                 motion_module = str(job.params.get("ckpt_name", job.params.get("model", ""))).strip()
 
-            # Progress heartbeat — ComfyUI sampling is opaque (no per-step callback),
-            # so tick from 0.5→0.95 over the estimated time to avoid a frozen 14m bar.
+            # Progress heartbeat -- ComfyUI sampling is opaque (no per-step callback),
+            # so tick from 0.5->0.95 over the estimated time to avoid a frozen 14m bar.
             import time as _time
 
             _start = _time.time()
@@ -708,7 +708,7 @@ class MusicVideoHandler:
                 raise RuntimeError("ComfyUI adapter not available")
 
             fps = min(60, max(1, int(job.params.get("fps", 8))))
-            # Cap frames at the adapter contract (256) — longer requests
+            # Cap frames at the adapter contract (256) -- longer requests
             # OOM even GGUF on 8GB; the mux loop repeats the clip to duration.
             num_frames = min(256, max(8, int(job.params.get("num_frames", max(8, int(duration * fps))))))
             raw_variant = str(job.params.get("model_variant", "gguf_q4")).lower()

@@ -216,7 +216,7 @@ def _safe_json_loads(val: str | None, default: Any = None) -> Any:
 #
 # All functions below use `json_extract(analysis_result, '$.path')` so the
 # database engine does the filtering. `analysis_result` is stored as TEXT,
-# which JSON1 handles natively — no schema change required.
+# which JSON1 handles natively -- no schema change required.
 
 
 def search_audio_by_analysis(

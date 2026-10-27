@@ -1,5 +1,5 @@
 """
-Database layer — re-export shim.
+Database layer -- re-export shim.
 
 This module re-exports all public names from the split-out core database modules
 so that existing imports like ``from .core.database import get_db`` continue to
@@ -8,24 +8,24 @@ work unchanged.
 The original ``database.py`` was 4121 lines (far over the 3k line limit) and has
 been split into focused modules:
 
-- ``connection.py``   — DB path, connection pool, ``get_db()`` context manager
-- ``migrations.py``   — All ``_migrate_v*`` schema migration functions
-- ``models.py``       — All ``@dataclass`` typed row models
-- ``media.py``        — Media favorites, collections, tags, trash CRUD
-- ``audio.py``        — Audio file CRUD
-- ``prompts.py``      — Prompt CRUD
-- ``sessions.py``     — Generation session CRUD
-- ``tracks.py``       — Track CRUD
-- ``visuals.py``      — AI visual CRUD
-- ``presets.py``      — Visualization preset CRUD
-- ``logs.py``         — Log ingestion and analytics
-- ``gpu.py``          — GPU telemetry CRUD
-- ``ollama.py``       — Ollama models and analysis CRUD
-- ``studio.py``       — Studio scene and character bible CRUD
-- ``vision.py``       — Vision OCR CRUD
-- ``preferences.py``  — Preference CRUD
-- ``benchmark.py``    — Benchmark CRUD
-- ``native_opens.py`` — Native app open logging
+- ``connection.py``   -- DB path, connection pool, ``get_db()`` context manager
+- ``migrations.py``   -- All ``_migrate_v*`` schema migration functions
+- ``models.py``       -- All ``@dataclass`` typed row models
+- ``media.py``        -- Media favorites, collections, tags, trash CRUD
+- ``audio.py``        -- Audio file CRUD
+- ``prompts.py``      -- Prompt CRUD
+- ``sessions.py``     -- Generation session CRUD
+- ``tracks.py``       -- Track CRUD
+- ``visuals.py``      -- AI visual CRUD
+- ``presets.py``      -- Visualization preset CRUD
+- ``logs.py``         -- Log ingestion and analytics
+- ``gpu.py``          -- GPU telemetry CRUD
+- ``ollama.py``       -- Ollama models and analysis CRUD
+- ``studio.py``       -- Studio scene and character bible CRUD
+- ``vision.py``       -- Vision OCR CRUD
+- ``preferences.py``  -- Preference CRUD
+- ``benchmark.py``    -- Benchmark CRUD
+- ``native_opens.py`` -- Native app open logging
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""MoviePy render engine — legacy baseline.
+"""MoviePy render engine -- legacy baseline.
 
 MoviePy is NOT installed in the studio env (nma-studio-cuda); the engine exists
 so the abstraction is complete per stack-extensions-2026.md and so the API
@@ -40,7 +40,7 @@ class MoviePyRenderer(VideoRenderer):
             self._load()
             return "moviepy importable"
         except Exception:
-            return "moviepy not installed (pip install moviepy) — not part of the studio env"
+            return "moviepy not installed (pip install moviepy) -- not part of the studio env"
 
     async def render(self, spec: RenderSpec) -> RenderResult:
         spec.validate()

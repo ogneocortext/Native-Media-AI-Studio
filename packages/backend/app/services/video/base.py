@@ -4,9 +4,9 @@ Every engine accepts the same `RenderSpec` and returns the same `RenderResult`,
 so callers (queue handlers, API routes, benchmarks) stay engine-agnostic.
 
 Spec kinds supported by all engines:
-    kind="color"  — solid-color clip (matches scripts/benchmark_video_tools.py)
-    kind="frames" — image sequence from a directory (frame_%04d.png style)
-    kind="image"  — single still image held for `duration` seconds
+    kind="color"  -- solid-color clip (matches scripts/benchmark_video_tools.py)
+    kind="frames" -- image sequence from a directory (frame_%04d.png style)
+    kind="image"  -- single still image held for `duration` seconds
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ class VideoRenderer(ABC):
 
     @staticmethod
     def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-        """'#00ff00' | '00ff00' | '#0f0' → (0, 255, 0)."""
+        """'#00ff00' | '00ff00' | '#0f0' -> (0, 255, 0)."""
         c = (color or "#000000").lstrip("#")
         if len(c) == 3:
             c = "".join(ch * 2 for ch in c)

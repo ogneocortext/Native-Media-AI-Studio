@@ -371,7 +371,7 @@ class HardwareBenchmarkRunner:
             "gpu_before": gpu_before,
             "gpu_after": gpu_after,
         }
-        # Robust latency stats (median + IQR) — resistant to cold-start outliers.
+        # Robust latency stats (median + IQR) -- resistant to cold-start outliers.
         if latencies:
             sorted_lat = sorted(latencies)
             mid = len(sorted_lat) // 2

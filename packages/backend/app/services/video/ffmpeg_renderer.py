@@ -1,4 +1,4 @@
-"""FFmpeg render engine — always-available fallback.
+"""FFmpeg render engine -- always-available fallback.
 
 Mirrors the filter-graph patterns proven in `tools/demos/compose_mv.py` and the
 music video handler: color sources, image sequences (image2 demuxer), stills,
@@ -141,7 +141,7 @@ class FFmpegRenderer(VideoRenderer):
 
         venc = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(spec.fps)]
         if has_audio:
-            # Pin 192k like every other pipeline path — bare `-c:a aac` falls
+            # Pin 192k like every other pipeline path -- bare `-c:a aac` falls
             # back to ffmpeg's ~128k default and needlessly caps render audio.
             cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k", "-shortest", *venc]
         else:
@@ -152,4 +152,4 @@ class FFmpegRenderer(VideoRenderer):
 
 # Class-style wrapper for the registry (mirrors other engines' interface)
 class FFmpegRendererCompat(FFmpegRenderer):
-    """Alias kept for registry symmetry — FFmpegRenderer implements the protocol directly."""
+    """Alias kept for registry symmetry -- FFmpegRenderer implements the protocol directly."""

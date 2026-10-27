@@ -2,7 +2,7 @@
 
 Lip-syncs a video clip (or still portrait) to an audio track using the local
 MuseTalk adapter. Long-running work goes through the queue, never ad-hoc
-threads. For songs, pass the isolated vocals stem as audio_path — the full
+threads. For songs, pass the isolated vocals stem as audio_path -- the full
 mix syncs markedly worse (research notes, D42).
 """
 
@@ -60,7 +60,7 @@ class LipSyncHandler:
             raise LipSyncNotConfiguredError(
                 "MuseTalk is not ready on this machine: "
                 + status.get("message", "unknown")
-                + " — see config/lipsync.json"
+                + " -- see config/lipsync.json"
             )
 
         output_path = params.get("output_path")

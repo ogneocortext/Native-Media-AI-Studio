@@ -38,7 +38,7 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
             except ValueError:
                 continue
 
-    # 2) Try FFmpeg extract — skip if no attached picture stream
+    # 2) Try FFmpeg extract -- skip if no attached picture stream
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:

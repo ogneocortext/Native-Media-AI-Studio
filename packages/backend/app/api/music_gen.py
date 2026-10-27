@@ -1,4 +1,4 @@
-"""Music Generation API — ACE-Step integration endpoints.
+"""Music Generation API -- ACE-Step integration endpoints.
 
 Provides REST API for:
 - Starting/stopping music generation services
@@ -419,7 +419,7 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
                     if created_temp:
                         temp_path.replace(dst)
 
-                    # File is now in place — mark it in the result so the
+                    # File is now in place -- mark it in the result so the
                     # frontend can play it, and invalidate the outputs cache
                     # so the media library lists it immediately instead of
                     # waiting up to the 30s cache TTL.
@@ -731,7 +731,7 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Planner endpoints – incremental style/lyrics drafting
+# Planner endpoints -- incremental style/lyrics drafting
 # The LM planner drafts style/lyrics without requiring finished strings upfront.
 # This surface exposes planning before generation.
 # ---------------------------------------------------------------------------

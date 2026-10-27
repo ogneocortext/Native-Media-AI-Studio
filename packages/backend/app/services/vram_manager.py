@@ -67,7 +67,7 @@ def set_last_model_provider(provider: Callable[[], str | None] | None) -> None:
 #: that wraps Ollama on port 1337; it loads its own model (e.g. qwen3.5) into
 #: the same 8 GB VRAM that Ollama uses. Without tracking this, the VRAM
 #: manager can offload Ollama's model while Atomic Chat's qwen3.5 stays
-#: resident, then reload Ollama's model on top — OOM on an 8 GB card.
+#: resident, then reload Ollama's model on top -- OOM on an 8 GB card.
 #: Wired once in `main.py`, same composition-root pattern as above.
 _LAST_ATOMIC_CHAT_MODEL_PROVIDER: Callable[[], str | None] | None = None
 
@@ -169,7 +169,7 @@ class VRAMManager:
         self._atomic_chat_loaded: bool = False
         self._comfyui_busy: bool = False
         # Whether ComfyUI is believed to hold loaded models on the GPU. Tracked
-        # separately from `_comfyui_busy`, which means "a prompt is running" —
+        # separately from `_comfyui_busy`, which means "a prompt is running" --
         # ComfyUI is idle-but-resident most of the time and still holds ~5 GB.
         self._comfyui_models_loaded: bool = True
         self._music_gen_running: bool = False
@@ -436,7 +436,7 @@ class VRAMManager:
                 "total_mb": 0,
                 "required_mb": required_mb,
                 "offloaded": False,
-                "message": "VRAM monitoring unavailable — proceeding",
+                "message": "VRAM monitoring unavailable -- proceeding",
             }
 
         free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
@@ -453,7 +453,7 @@ class VRAMManager:
         if free_mb >= required_mb:
             return result
 
-        # Not enough VRAM — offload backend models as a courtesy before reporting failure.
+        # Not enough VRAM -- offload backend models as a courtesy before reporting failure.
         try:
             ollama_unloaded = await _unload_ollama_models()
             ac_unloaded = await _unload_atomic_chat_models()
@@ -1274,7 +1274,7 @@ class VRAMManager:
                 "required_mb": required_mb,
                 "queued_reservation_mb": 0,
                 "total_required_mb": required_mb,
-                "message": "VRAM monitoring unavailable — proceeding",
+                "message": "VRAM monitoring unavailable -- proceeding",
             }
 
         free_mb = status.get("free_mb", status.get("memory_free_mb", 0))
@@ -1326,7 +1326,7 @@ class VRAMManager:
         if free_mb >= total_required:
             return result
 
-        # Not enough VRAM — offload backend models as a courtesy before reporting failure.
+        # Not enough VRAM -- offload backend models as a courtesy before reporting failure.
         try:
             ollama_unloaded = await _unload_ollama_models()
             ac_unloaded = await _unload_atomic_chat_models()
@@ -1418,7 +1418,7 @@ class VRAMManager:
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                 }
 
-            # Reconcile flags with /api/ps reality before trusting them — a
+            # Reconcile flags with /api/ps reality before trusting them -- a
             # stale flag can skip a needed unload and OOM the 8 GB card.
             await self.sync_resident_state()
 
@@ -1487,7 +1487,7 @@ class VRAMManager:
 def _unload_atomic_chat_models_sync() -> list[str]:
     """Unload Atomic Chat's resident model via Ollama's API.
 
-    Atomic Chat is a wrapper around Ollama — it loads its model through
+    Atomic Chat is a wrapper around Ollama -- it loads its model through
     Ollama's `/api/generate`. So unloading means calling Ollama's generate
     with `keep_alive: 0` for Atomic Chat's model name. Returns list of
     unloaded model names.
@@ -1500,7 +1500,7 @@ def _unload_atomic_chat_models_sync() -> list[str]:
         unloaded.append(model_name)
     else:
         # No provider registered or provider returned None. Do NOT fall back
-        # to scanning Ollama's process list — that could unload Ollama's own
+        # to scanning Ollama's process list -- that could unload Ollama's own
         # model (e.g. gemma4) thinking it belongs to Atomic Chat. Only the
         # provider knows which model Atomic Chat loaded.
         logger.debug(
@@ -1627,7 +1627,7 @@ def _unload_comfyui_models_sync() -> dict[str, Any]:
     of the audio-analysis budget, not just Ollama.
 
     ComfyUI reloads models lazily on the next prompt, so there is no matching
-    "reload" call to make — unlike Ollama, which keeps a resident model.
+    "reload" call to make -- unlike Ollama, which keeps a resident model.
     """
     import urllib.request
 

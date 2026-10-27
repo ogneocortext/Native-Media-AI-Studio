@@ -52,8 +52,8 @@ CANCELLATION_HEARTBEAT_INTERVAL = 5.0
 # The queue used to retry based on `any(sig in message)`, which is too blunt:
 # bare digits matched inside durations ("1502ms") and filenames ("clip_502.mp4"),
 # a 500 was retryable when its body said "Internal Server Error" but not when it
-# said "HTTP 500", and the most common transient failure in this stack â€” ComfyUI
-# refusing a busy queue â€” was not retryable at all. Classification is now
+# said "HTTP 500", and the most common transient failure in this stack aEUR" ComfyUI
+# refusing a busy queue aEUR" was not retryable at all. Classification is now
 # type-first, then status code, then phrase, and it yields a stable category code
 # that is stored with the job so the queue UI can explain *why* a job failed.
 
@@ -71,7 +71,7 @@ UNKNOWN = "unknown"
 #: be mistaken for a retryable response.
 _RETRYABLE_STATUSES = (429, 502, 503, 504)
 # Any *recognised* status outside that set (400/401/403/404/405/409/413/415/422/500)
-# is treated as deterministic — a code or request problem, not a blip.
+# is treated as deterministic -- a code or request problem, not a blip.
 _HTTP_CONTEXT_RE = re.compile(
     r"\b(?:https?|status(?:\s+code)?|code|error|err)\W{0,4}(\d{3})\b"
     r"|\b(\d{3})\s+(?:too many requests|bad gateway|service unavailable|gateway timeout"

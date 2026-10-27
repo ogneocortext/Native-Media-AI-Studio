@@ -1,5 +1,5 @@
 """
-Music Generation adapter — manages the ACE-Step subprocess service.
+Music Generation adapter -- manages the ACE-Step subprocess service.
 
 Each engine runs as a separate FastAPI subprocess on its own port,
 communicating via HTTP. The adapter coordinates with VRAM manager
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Shared aiohttp session for music-gen subprocess calls, backed by the
 # core.http registry ("music-gen" key: no total timeout, matching the
-# previous bare-ClientSession behavior — every call site passes an
+# previous bare-ClientSession behavior -- every call site passes an
 # explicit per-request timeout).
 _SESSION_KEY = "music-gen"
 
@@ -211,7 +211,7 @@ class MusicGenAdapter(BaseAdapter):
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
 
-        # Pascal (sm_61) environment hardening — inherited by the subprocess
+        # Pascal (sm_61) environment hardening -- inherited by the subprocess
         _env = os.environ.copy()
         _env.setdefault("TORCH_CUDA_ARCH_LIST", "6.1")
         _env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
@@ -219,7 +219,7 @@ class MusicGenAdapter(BaseAdapter):
 
         # Route subprocess output to a log file instead of PIPE. With PIPE and no
         # reader, a chatty subprocess (~64KB on Windows) fills the OS pipe buffer
-        # and deadlocks on its next write — the service then appears "stuck" and
+        # and deadlocks on its next write -- the service then appears "stuck" and
         # times out even though it was starting fine.
         log_dir = PROJECT_ROOT / "output" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -372,7 +372,7 @@ class MusicGenAdapter(BaseAdapter):
         if env_python and Path(env_python).exists():
             return Path(env_python)
 
-        # Fallback to system Python — warn because this may share deps with the backend
+        # Fallback to system Python -- warn because this may share deps with the backend
         logger.warning(
             "No dedicated music-gen Python environment found. "
             "Falling back to sys.executable=%s. Create a venv at "
@@ -410,7 +410,7 @@ class MusicGenAdapter(BaseAdapter):
 # Global adapter instances
 # ---------------------------------------------------------------------------
 
-# Lazy-initialized adapter — created on first access
+# Lazy-initialized adapter -- created on first access
 _ace_adapter: MusicGenAdapter | None = None
 
 

@@ -379,11 +379,11 @@ Generate 3-8 scenes based on the input theme or concept."""
         """Probe the Atomic Chat OpenAI-compatible endpoint.
 
         Atomic Chat is an optional routing target inside this adapter, so it
-        needs its own probe distinct from the Ollama adapter status — the
+        needs its own probe distinct from the Ollama adapter status -- the
         Settings page tests it independently of whether Ollama itself is up.
         Returns a structured result: ``reachable`` plus the served model
         count and first model id when the endpoint can run inference, or a
-        ``reason`` describing why it cannot. This is a pure probe — it does
+        ``reason`` describing why it cannot. This is a pure probe -- it does
         not mutate the adapter status (Atomic Chat being up says nothing
         about Ollama's own connectivity).
         """
@@ -479,7 +479,7 @@ Generate 3-8 scenes based on the input theme or concept."""
             if system:
                 payload["system"] = system
             if options:
-                # VRAM-aware clamp for generate too — consistent with chat: 8192 max on 8GB.
+                # VRAM-aware clamp for generate too -- consistent with chat: 8192 max on 8GB.
                 if "num_ctx" not in options:
                     options["num_ctx"] = 8192
                 else:
@@ -535,9 +535,9 @@ Generate 3-8 scenes based on the input theme or concept."""
             tools: Optional list of tool definitions for function calling
             stream: Whether to stream the response
             think: Enable thinking mode (bool or "high"/"medium"/"low"/"max")
-            format: Structured output format ("json" or JSON schema dict) — Ollama 0.33+
-            keep_alive: Keep model alive duration (e.g. "10m", 0, -1) — Ollama 0.33 caching
-            **options: Additional options (num_ctx, temperature, etc. — VRAM-aware caps apply)
+            format: Structured output format ("json" or JSON schema dict) -- Ollama 0.33+
+            keep_alive: Keep model alive duration (e.g. "10m", 0, -1) -- Ollama 0.33 caching
+            **options: Additional options (num_ctx, temperature, etc. -- VRAM-aware caps apply)
 
         Returns:
             Dictionary containing the response, or async iterator if streaming
@@ -555,7 +555,7 @@ Generate 3-8 scenes based on the input theme or concept."""
             try:
                 requested = int(options["num_ctx"])
                 if requested > 8192:
-                    logger.warning("num_ctx %d requested — capping to 8192 for 8GB VRAM", requested)
+                    logger.warning("num_ctx %d requested -- capping to 8192 for 8GB VRAM", requested)
                     options["num_ctx"] = 8192
             except Exception:
                 pass
@@ -1091,10 +1091,10 @@ Generate 3-8 scenes based on the input theme or concept."""
                     continue
                 full_path = path / entry
                 is_last = i == len(entries) - 1
-                connector = "└── " if is_last else "├── "
+                connector = "+--- " if is_last else "+--- "
                 lines.append(f"{prefix}{connector}{entry}")
                 if full_path.is_dir():
-                    extension = "    " if is_last else "│   "
+                    extension = "    " if is_last else "|   "
                     walk(full_path, prefix + extension, current_depth + 1)
 
         walk(root)

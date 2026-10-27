@@ -115,8 +115,8 @@ def is_local_origin(origin: str) -> bool:
 def is_public_origin(origin: str) -> bool:
     """Check whether *origin* is a trusted public tunnel origin.
 
-    Matches the same sources as :func:`get_public_origin_regex` — the known
-    tunnel providers plus any configured ``PUBLIC_ORIGIN(S)`` — so per-endpoint
+    Matches the same sources as :func:`get_public_origin_regex` -- the known
+    tunnel providers plus any configured ``PUBLIC_ORIGIN(S)`` -- so per-endpoint
     CORS helpers and ``CORSMiddleware`` agree. Prefer this over a raw
     ``in get_all_origins()`` check, which cannot match randomized tunnel
     hostnames.

@@ -47,7 +47,7 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
         return await vram_manager.preflight_check(required_mb)
     except Exception as exc:
         logger.warning("VRAM check failed: %s", exc)
-        return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable — proceeding"}
+        return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable -- proceeding"}
 
 
 @router.get("/system-resources")
@@ -73,7 +73,7 @@ async def get_system_resources() -> dict:
 
     try:
         # nvidia-smi is a blocking external call and this endpoint is polled
-        # by the dashboard — run it in a thread so the event loop (and the
+        # by the dashboard -- run it in a thread so the event loop (and the
         # SSE health stream) stays responsive.
         result = await run_subprocess_thread(
             ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu", "--format=csv,noheader,nounits"],
@@ -91,7 +91,7 @@ async def get_system_resources() -> dict:
         pass
 
     try:
-        # psutil.cpu_percent(interval=...) blocks for the interval — this
+        # psutil.cpu_percent(interval=...) blocks for the interval -- this
         # endpoint is polled, so keep it off the loop too.
         resources["cpu_percent"] = int(await asyncio.to_thread(psutil.cpu_percent, 0.1))
         ram = psutil.virtual_memory()
@@ -124,9 +124,9 @@ async def get_visualization_presets() -> dict:
     return {"presets": presets, "count": len(presets)}
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Model Verification — Known working models from empirical testing (2026-10-07)
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Model Verification -- Known working models from empirical testing (2026-10-07)
+# ------------------------------------------------------------------------------
 
 # Models verified to work correctly with all features (chat, tools, vision, blender)
 VERIFIED_WORKING_MODELS = {
@@ -160,17 +160,17 @@ BROKEN_MODELS = {
     # vision-only (no tools/thinking) and slow to cold-load.
     # Deleted 2026-10-22: too big for GTX 1070 Ti 8 GB VRAM (6.5 GB safe budget)
     # Do not re-download until GPU upgrade.
-    "glm-4.7-flash:latest": {"reason": "18 GB model — far exceeds 8 GB VRAM; OOM on load"},
-    "qwen3.5:9b": {"reason": "9B model, ~9-10 GB VRAM est. — exceeds 6.5 GB safe budget; OOM risk"},
-    "minicpm-v:8b": {"reason": "8B model, ~7.7 GB VRAM est. — exceeds 6.5 GB safe budget; was vision-only fallback"},
+    "glm-4.7-flash:latest": {"reason": "18 GB model -- far exceeds 8 GB VRAM; OOM on load"},
+    "qwen3.5:9b": {"reason": "9B model, ~9-10 GB VRAM est. -- exceeds 6.5 GB safe budget; OOM risk"},
+    "minicpm-v:8b": {"reason": "8B model, ~7.7 GB VRAM est. -- exceeds 6.5 GB safe budget; was vision-only fallback"},
     "minicpm-v:latest": {"reason": "alias tag for minicpm-v:8b; deleted with it"},
     "openbmb/minicpm-v4.6:q4_K_M": {"reason": "invalid Blender API output"},
-    # Deleted 2026-10-22: cloud models without a paid key — /api/show returns
+    # Deleted 2026-10-22: cloud models without a paid key -- /api/show returns
     # HTTP 402, they cannot run locally. Do not pull.
-    "glm-5.3:cloud": {"reason": "cloud model, no paid key — /api/show returns 402"},
-    "minimax-m3.1-flash:cloud": {"reason": "cloud model, no paid key — /api/show returns 402"},
-    "deepseek-v4.1-flash:cloud": {"reason": "cloud model, no paid key — /api/show returns 402"},
-    "deepseek-v4-flash:cloud": {"reason": "cloud model, no paid key — /api/show returns 402"},
+    "glm-5.3:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
+    "minimax-m3.1-flash:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
+    "deepseek-v4.1-flash:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
+    "deepseek-v4-flash:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
 }
 
 

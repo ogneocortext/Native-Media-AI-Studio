@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 _QUEUE_BACKLOG_TIMEOUT = 1800
 
 # Map UI sampler names to ComfyUI sampler names
-# Per knowledge-library/comfyui-workflows.md § Sampler Guide — cover all
+# Per knowledge-library/comfyui-workflows.md section Sampler Guide -- cover all
 # documented samplers so "DPM++ 3M SDE" etc. don't fall through to a
 # lowercased guess that ComfyUI rejects.
 SAMPLER_MAP = {
@@ -49,7 +49,7 @@ SAMPLER_MAP = {
     "Heun": "heun",
 }
 
-# Schedulers documented in comfyui-workflows.md — validated before submit so
+# Schedulers documented in comfyui-workflows.md -- validated before submit so
 # a typo doesn't become a silent ComfyUI node error.
 VALID_SCHEDULERS = {
     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform",
@@ -97,7 +97,7 @@ def _resolve_seed(seed: Any) -> int:
 
 
 def _sanitize_filename(filename: str) -> str:
-    """Back-compat alias — canonical impl lives in ``core.comfyui_client``."""
+    """Back-compat alias -- canonical impl lives in ``core.comfyui_client``."""
     return _cu.sanitize_filename(filename)
 
 
@@ -129,7 +129,7 @@ def _resolve_wan_assets(ckpt_name: str) -> tuple[str, str]:
 
     Wan 2.1 1.3B uses ``wan_2.1_vae``, 2.2 uses ``wan2.2_vae`` (verified via
     Comfy-Org repackaged). For the text encoder, prefer ``umt5_xxl_fp16`` when
-    present (11GB, CPU offload, no fp8 format issues) — the locally "de-scaled"
+    present (11GB, CPU offload, no fp8 format issues) -- the locally "de-scaled"
     ``umt5-xxl-plain-fp8`` often still carries fp8 tensor data that
     ``LoadWanVideoT5TextEncoder`` rejects ("fp8 scaled is not supported").
     """
@@ -203,7 +203,7 @@ class ComfyUIAdapter(BaseAdapter):
                 if preferred in self._available_checkpoints:
                     return preferred
             # Return first available that's not a 3D/video model
-            # (kandinsky/triposr/stable-fast are not SD-family either —
+            # (kandinsky/triposr/stable-fast are not SD-family either --
             # never auto-select them for txt2img)
             for cp in self._available_checkpoints:
                 if is_image_checkpoint(cp):
@@ -233,10 +233,10 @@ class ComfyUIAdapter(BaseAdapter):
         """Get the best available AnimateDiff motion module.
 
         Reads the live ``ADE_AnimateDiffLoaderWithContext`` option list
-        (fetched on connect) — never the checkpoint list. Prefers
+        (fetched on connect) -- never the checkpoint list. Prefers
         ``mm_sd_v15_v2.ckpt``: it is the only module both present on disk
         (1.7GB) AND listed by ComfyUI, and the motion LoRAs were designed
-        for v2 (see knowledge-library/hardware-verified-models.md §2).
+        for v2 (see knowledge-library/hardware-verified-models.md section2).
         """
         preferred_motion_modules = [
             "mm_sd_v15_v2.ckpt",
@@ -381,7 +381,7 @@ class ComfyUIAdapter(BaseAdapter):
         # AnimateDiff v2 motion modules cap a single batch at 32 frames
         # (verified live: "upper limit of 32 frames" without a context
         # window). Longer clips need multi-segment generation + FFmpeg
-        # concat/loop — warn instead of letting ComfyUI fail opaquely.
+        # concat/loop -- warn instead of letting ComfyUI fail opaquely.
         # Wan models (2.1 1.3B or 2.2 5B GGUF) handle 81-121 frames natively.
         if num_frames > 32 and not (
             str(model_variant).lower() in ("gguf_q4", "gguf_q5")
@@ -389,14 +389,14 @@ class ComfyUIAdapter(BaseAdapter):
         ):
             logger.warning(
                 "AnimateDiff batch of %d frames exceeds the v2 32-frame single-pass "
-                "limit — ComfyUI will reject it. Generate ≤32-frame segments and "
+                "limit -- ComfyUI will reject it. Generate <=32-frame segments and "
                 "concat/loop with FFmpeg, or use the Wan path.",
                 num_frames,
             )
 
         # Route to the appropriate workflow based on model variant.
         # The tier classifier (core/model_tiers.py) is the single authority
-        # for wan/gguf/ltx name-sniffing — shared with the /video-models endpoint
+        # for wan/gguf/ltx name-sniffing -- shared with the /video-models endpoint
         # tagging and the VRAM estimator.
         variant_lower = str(model_variant).lower()
         is_ltx = (
@@ -411,7 +411,7 @@ class ComfyUIAdapter(BaseAdapter):
         vae_name: str | None = None
 
         if is_ltx:
-            # LTX 2.3 distilled — ~4x faster than Wan 2.2 Q4, ~4.46 GB peak
+            # LTX 2.3 distilled -- ~4x faster than Wan 2.2 Q4, ~4.46 GB peak
             # VRAM on GTX 1070 Ti, fits 8GB with headroom. Resolution clamped
             # to 768x512 max; frames snap to 4n+1 for the LTX VAE patch grid.
             width, height = self._clamp_ltx_resolution(width, height)
@@ -475,7 +475,7 @@ class ComfyUIAdapter(BaseAdapter):
             if ckpt_name:
                 # The AnimateDiff path requires an SD1.5-family checkpoint.
                 # Known non-SD checkpoints (Kandinsky 5, Hunyuan3D DiT, etc.)
-                # would fail deep inside ComfyUI with an opaque loader error —
+                # would fail deep inside ComfyUI with an opaque loader error --
                 # reject them up front with an actionable message instead of
                 # silently ignoring the caller's selection.
                 # Wan names are routed away above; anything else non-SD
@@ -732,7 +732,7 @@ class ComfyUIAdapter(BaseAdapter):
                             if not filename:
                                 continue
                             # Skip video containers that occasionally surface
-                            # under "images" — the video waiter handles those.
+                            # under "images" -- the video waiter handles those.
                             if str(filename).lower().endswith((".mp4", ".webm", ".gif")):
                                 continue
                             return await self._fetch_image(
@@ -741,7 +741,7 @@ class ComfyUIAdapter(BaseAdapter):
             # Not finished yet. If the prompt is still sitting in the queue
             # behind other work, the budget is being spent waiting on someone
             # else's job, so extend once rather than time out and cancel.
-            # A transient queue-fetch failure must not decide the matter —
+            # A transient queue-fetch failure must not decide the matter --
             # treat it as "still here" so a dead /queue endpoint cannot
             # cancel a healthy job.
             if not extended:
@@ -804,7 +804,7 @@ class ComfyUIAdapter(BaseAdapter):
             ckpt_name = self._get_available_wan_gguf_checkpoint()
 
         # Map our variant label to the ComfyUI quantization option.
-        # Pascal (sm_61) CANNOT use fp8_e4m3fn_fast — _fast matmul modes
+        # Pascal (sm_61) CANNOT use fp8_e4m3fn_fast -- _fast matmul modes
         # require sm>=8.9 (comfy.icu WanVideoModelLoader docs). Both GGUF
         # quants use "disabled" (autoselect by weights = GGUF path).
         quant_map = {
@@ -828,12 +828,12 @@ class ComfyUIAdapter(BaseAdapter):
             vae_path = models_dir / "vae" / vae_name
             if not t5_path.exists():
                 logger.warning(
-                    "Wan T5 text encoder missing: %s — text conditioning will fail",
+                    "Wan T5 text encoder missing: %s -- text conditioning will fail",
                     t5_path,
                 )
             if not vae_path.exists():
                 logger.warning(
-                    "Wan VAE missing: %s — decode will produce corrupt output",
+                    "Wan VAE missing: %s -- decode will produce corrupt output",
                     vae_path,
                 )
         logger.info(
@@ -878,12 +878,12 @@ class ComfyUIAdapter(BaseAdapter):
                         "load_device": "offload_device",
                     },
                 },
-                # NOTE: no EmptyLatentImage — the official Kijai T2V example
+                # NOTE: no EmptyLatentImage -- the official Kijai T2V example
                 # leaves sampler `samples` UNCONNECTED; the sampler creates
                 # correctly-shaped Wan latents from the embeds. Wiring an SD
                 # 4ch latent crashes with a channel mismatch (verified live).
                 # Shape comes from node 9 (WanVideoEmptyEmbeds).
-                # 9: Empty image embeds (pure text-to-video path — no
+                # 9: Empty image embeds (pure text-to-video path -- no
                 # start/end image). Required input of WanVideoSampler.
                 "9": {
                     "class_type": "WanVideoEmptyEmbeds",
@@ -894,10 +894,10 @@ class ComfyUIAdapter(BaseAdapter):
                     },
                 },
                 # 5: Sample (requires `image_embeds` + `riflex_freq_index`;
-                # `samples` left unconnected per the official example —
+                # `samples` left unconnected per the official example --
                 # verified live via /object_info + example workflows).
                 # riflex_freq_index=6 is the Kijai-recommended default for
-                # standard 832×480 T2V; it controls the RIFLEx attention
+                # standard 832x480 T2V; it controls the RIFLEx attention
                 # recurrence interval and should not be raised above the
                 # frame-count/4 without benchmarking.
                 "5": {
@@ -982,14 +982,14 @@ class ComfyUIAdapter(BaseAdapter):
           UNETLoader -> KSampler -> VAEDecode <- LTXVConditioning
           EmptyLTXVLatentVideo -> KSampler (latent)
           VAELoader -> VAEDecode (vae)
-          VAEDecode → VHS_VideoCombine → output MP4
+          VAEDecode -> VHS_VideoCombine -> output MP4
         """
         # Resolve checkpoint: explicit ckpt_name first, then fall back to any
         # LTX checkpoint discoverable on the connected ComfyUI.
         if not ckpt_name:
             ckpt_name = self._get_available_ltx_checkpoint()
 
-        # Text encoder (T5-XXL fp8 — already staged on disk per decision-log).
+        # Text encoder (T5-XXL fp8 -- already staged on disk per decision-log).
         t5_name = "t5-xxl-fp8.safetensors"
         vae_name = "LTX23_video_vae_bf16.safetensors"
 
@@ -1033,7 +1033,7 @@ class ComfyUIAdapter(BaseAdapter):
                         "force_offload": True,
                     },
                 },
-                # 4: Sample — creates correctly-shaped LTX latents from embeds.
+                # 4: Sample -- creates correctly-shaped LTX latents from embeds.
                 # shift=5.0 is the Kijai-recommended default for LTX T2V.
                 "4": {
                     "class_type": "EmptyLTXVLatentVideo",
@@ -1182,7 +1182,7 @@ class ComfyUIAdapter(BaseAdapter):
         Uses the mm_sd15_v3 motion module and SD 1.5 checkpoint.
         Outputs as GIF via VideoHelperSuite or native GIF node.
         Honors an explicit motion_module/motion_lora when provided (see
-        knowledge-library/hardware-verified-models.md §2: 8 camera LoRAs,
+        knowledge-library/hardware-verified-models.md section2: 8 camera LoRAs,
         weight 0.7-1.0, best with mm_sd_v15_v2).
         """
         # Select checkpoint - prefer SD 1.5 for AnimateDiff. Honor an
@@ -1388,10 +1388,10 @@ class ComfyUIAdapter(BaseAdapter):
             #   else's work, so extend the deadline once rather than time
             #   out and cancel a job that never ran;
             # - gone from BOTH queue and history past the 60s pickup
-            #   grace period: cancelled or rejected — fail fast instead
+            #   grace period: cancelled or rejected -- fail fast instead
             #   of polling to the full timeout.
             # Transient queue-fetch failures are tolerated (treated as
-            # "still here") — a dead /queue endpoint must not cancel a
+            # "still here") -- a dead /queue endpoint must not cancel a
             # healthy job.
             try:
                 entry_now = await self._get_queue_status(prompt_id)
@@ -1410,12 +1410,12 @@ class ComfyUIAdapter(BaseAdapter):
                         )
             elif elapsed > 60:
                 logger.warning(
-                    "Prompt %s not in queue or history after %ds — may have "
+                    "Prompt %s not in queue or history after %ds -- may have "
                     "been cancelled", prompt_id, int(elapsed),
                 )
                 raise RuntimeError(
                     f"ComfyUI prompt {prompt_id} not found in queue or "
-                    "history — it may have been cancelled or rejected"
+                    "history -- it may have been cancelled or rejected"
                 )
             await asyncio.sleep(2)
 

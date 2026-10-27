@@ -261,7 +261,7 @@ class PortManager:
         4. If the default port is still unavailable after cleanup, raise instead
            of silently reassigning. Non-backend services may still fall back.
         """
-        # Step 1: Try default port first — prefer go-ports if available
+        # Step 1: Try default port first -- prefer go-ports if available
         go_ports_result = await self._check_port_via_go_ports(default_port)
         port_available = go_ports_result if go_ports_result is not None else self.is_port_available(default_port)
         if port_available:
@@ -269,7 +269,7 @@ class PortManager:
             self._save_state()
             return default_port
 
-        # Step 2: Port is occupied — check if our service is already there.
+        # Step 2: Port is occupied -- check if our service is already there.
         if await self._is_service_running(service, default_port):
             logger.info(
                 "%s already running on port %d; reusing existing instance",
@@ -280,7 +280,7 @@ class PortManager:
             self._save_state()
             return default_port
 
-        # Step 3: Port is occupied by something else — try to cleanup orphaned processes
+        # Step 3: Port is occupied by something else -- try to cleanup orphaned processes
         logger.info(
             "Port %d is occupied by another service, attempting to clean up orphaned processes...",
             default_port,
@@ -297,7 +297,7 @@ class PortManager:
                 self._save_state()
                 return default_port
 
-        # Step 4: Port still occupied — fall back to an alternate port so the
+        # Step 4: Port still occupied -- fall back to an alternate port so the
         # user does not have to reboot or manually free the port. This is the
         # only viable no-reboot path on Windows when a zombie listener has
         # active client connections that prevent force-release.
@@ -336,12 +336,12 @@ class PortManager:
     def _build_resolved_config(self, backend_port: int) -> dict[str, Any]:
         """Build the resolved port configuration dict for a given backend port.
 
-        This is the single source of truth for URL construction — used by both
+        This is the single source of truth for URL construction -- used by both
         :meth:`resolve_all_ports` (dynamic resolution) and :meth:`set_default_config`
         (static config at startup) so the two paths cannot drift.
         """
         # Every backend-derived URL must use the *resolved* port, not
-        # config.backend_port — resolve_port() may have fallen back (8000 -> 8001)
+        # config.backend_port -- resolve_port() may have fallen back (8000 -> 8001)
         # when the configured port was already occupied.
         return {
             "backend_url": backend_url(port=backend_port),

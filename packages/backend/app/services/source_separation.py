@@ -59,7 +59,7 @@ STEM_NAMES = ("vocals", "drums", "bass", "other")
 # htdemucs/htdemucs_ft/htdemucs_6s checkpoint), the MDX bags at the
 # 44 s default their yaml ships. The frontend's UVR5-style
 # "128/256/512" knob is in samples, so a raw 256 would be 256
-# *seconds* — far past the HTDemucs cap, which demucs rejects with
+# *seconds* -- far past the HTDemucs cap, which demucs rejects with
 # "Cannot use a Transformer model with a longer segment than it was
 # trained for" (demucs/apply.py). Clamp to the model's trained max.
 # MDX-Net vocal models (UVR-MDX-NET-Voc_FT, Kim_Vocal_2) are absent:
@@ -80,7 +80,7 @@ def clamp_segment_seconds(model: str, segment_size: int | None) -> int | None:
     """Clamp a demucs ``--segment`` value (seconds) to the model's max.
 
     Returns the clamped value, or ``None`` when no segment was
-    requested. Unknown models pass through unchanged — demucs itself
+    requested. Unknown models pass through unchanged -- demucs itself
     validates those. ``--segment`` is ``type=int``, so a fractional
     cap (HTDemucs' 7.8) truncates to 7, which is still under the
     limit demucs checks (``segment > max_allowed_segment``).
@@ -93,7 +93,7 @@ def clamp_segment_seconds(model: str, segment_size: int | None) -> int | None:
     clamped = int(min(segment_size, max_segment))
     if clamped != segment_size:
         logger.warning(
-            "segment_size=%d s exceeds what %s was trained for (max %s s) — capping to %d s",
+            "segment_size=%d s exceeds what %s was trained for (max %s s) -- capping to %d s",
             segment_size,
             model,
             max_segment,
@@ -233,7 +233,7 @@ async def normalize_audio_lufs(
     """Normalize *audio_path* to *target_lufs* using FFmpeg ebur128 + gain.
 
     Returns (normalized_path, did_normalize). On any failure returns the
-    original path with did_normalize=False — separation proceeds on the
+    original path with did_normalize=False -- separation proceeds on the
     unnormalized input rather than failing.
 
     Quiet inputs underperform Demucs (research in the mastering doc), so a
@@ -245,7 +245,7 @@ async def normalize_audio_lufs(
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
-        logger.warning("ffmpeg not on PATH — skipping pre-separation normalize")
+        logger.warning("ffmpeg not on PATH -- skipping pre-separation normalize")
         return audio_path, False
 
     from .ffmpeg_tools import compute_loudness
@@ -253,14 +253,14 @@ async def normalize_audio_lufs(
     loudness = await compute_loudness(audio_path)
     current_lufs = loudness.get("integrated_lufs")
     if current_lufs is None:
-        logger.debug("could not measure loudness for %s — skipping normalize", audio_path)
+        logger.debug("could not measure loudness for %s -- skipping normalize", audio_path)
         return audio_path, False
 
     gain_db = target_lufs - current_lufs
-    # Clamp to ±12 dB to avoid runaway gain on silent or extreme tracks.
+    # Clamp to +/-12 dB to avoid runaway gain on silent or extreme tracks.
     gain_db = max(-12.0, min(12.0, gain_db))
     if abs(gain_db) < 0.25:
-        # Within a quarter-LU of target — no normalize needed.
+        # Within a quarter-LU of target -- no normalize needed.
         return audio_path, False
 
     out_path = Path(tempfile.gettempdir()) / (
@@ -356,7 +356,7 @@ def encode_wav_to_mp3(wav_path: Path, mp3_path: Path | None = None) -> Path | No
     """
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
-        logger.warning("ffmpeg not on PATH — skipping MP3 encode for %s", wav_path)
+        logger.warning("ffmpeg not on PATH -- skipping MP3 encode for %s", wav_path)
         return None
     mp3_path = mp3_path or wav_path.with_suffix(".mp3")
     try:
@@ -439,9 +439,9 @@ class SourceSeparator:
       - ``segment_size``: demucs ``--segment``, in SECONDS.
         Smaller = less VRAM, more border artifacts. Clamped to
         the model's trained max (HTDemucs 7.8 s, MDX bags 44 s)
-        — see ``clamp_segment_seconds``.
-      - ``overlap``: 0.25–0.75. Higher improves seam quality at 2× compute.
-      - ``denoise``: accepted but ignored — demucs has no denoise flag.
+        -- see ``clamp_segment_seconds``.
+      - ``overlap``: 0.25--0.75. Higher improves seam quality at 2x compute.
+      - ``denoise``: accepted but ignored -- demucs has no denoise flag.
 
     Hierarchical mode (``mode="hierarchical"``):
       1. Run a dedicated vocal model (UVR-MDX-NET-Voc_FT / Kim_Vocal_2).
@@ -459,7 +459,7 @@ class SourceSeparator:
         "htdemucs_6s",
         "mdx_extra",
         "mdx_extra_q",
-        # MDX-Net vocal models (UVR5-style) — lightweight on 8 GB VRAM
+        # MDX-Net vocal models (UVR5-style) -- lightweight on 8 GB VRAM
         "UVR-MDX-NET-Voc_FT",
         "Kim_Vocal_2",
     ]
@@ -475,7 +475,7 @@ class SourceSeparator:
         self._device = device
         self._shifts = shifts
         self._segment_size = segment_size
-        # In-memory job queue: 1070 Ti runs ~30–90 s per track
+        # In-memory job queue: 1070 Ti runs ~30--90 s per track
         self._jobs: dict[str, SeparationJob] = {}
         self._queue: asyncio.Queue[SeparationJob] = asyncio.Queue()
         self._worker_task: asyncio.Task | None = None
@@ -614,7 +614,7 @@ class SourceSeparator:
                 )
         except ImportError:
             logger.warning(
-                "torchaudio not importable on Windows — Demucs decoding may fail. "
+                "torchaudio not importable on Windows -- Demucs decoding may fail. "
                 "Fix with: pip install torchaudio soundfile"
             )
         except Exception as exc:
@@ -716,7 +716,7 @@ class SourceSeparator:
             except Exception:
                 duration = 0.0
             logger.info(
-                "Cache hit for %s (key=%s) — skipping GPU", Path(audio_path).name, cache_key[:12]
+                "Cache hit for %s (key=%s) -- skipping GPU", Path(audio_path).name, cache_key[:12]
             )
             stems_mp3 = await self._encode_mp3_stems(cached)
             return SeparationResult(
@@ -790,7 +790,7 @@ class SourceSeparator:
         """
         job = self.enqueue(audio_path, options)
         job.mode = mode
-        # Wait for completion — frontend polls get_job for progress
+        # Wait for completion -- frontend polls get_job for progress
         while job.status not in ("done", "error") and not job.result:
             await asyncio.sleep(0.5)
         if job.error:
@@ -962,7 +962,7 @@ class SourceSeparator:
             )
         if opts.denoise:
             # demucs has no --denoise flag in any 4.x release.
-            logger.warning("denoise requested but demucs has no --denoise flag — ignoring")
+            logger.warning("denoise requested but demucs has no --denoise flag -- ignoring")
 
         try:
             returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
@@ -1022,7 +1022,7 @@ class SourceSeparator:
         purpose: `SeparationOptions` is the user-facing quality-knob bag
         (model, segment_size, overlap, denoise) and this is an internal
         control-flow detail of the two-step algorithm. It previously lived on
-        `opts`, where it was read as `opts.source_path` — an attribute the
+        `opts`, where it was read as `opts.source_path` -- an attribute the
         dataclass never defined, so *every* Demucs run raised `AttributeError`
         and was swallowed into `error="'SeparationOptions' object has no
         attribute 'source_path'"`. The hierarchical caller meanwhile passed
@@ -1035,7 +1035,7 @@ class SourceSeparator:
 
             if self._detect_suno_track(audio_path):
                 logger.info(
-                    "Suno track detected (%s) — model=%s shifts=%d",
+                    "Suno track detected (%s) -- model=%s shifts=%d",
                     Path(audio_path).name,
                     model,
                     self._shifts,
@@ -1043,7 +1043,7 @@ class SourceSeparator:
 
             # Source for hierarchical mode: the instrumental residual from
             # MDX-Net, else the original track. This is the line that raised
-            # AttributeError on every single-pass run — see the docstring.
+            # AttributeError on every single-pass run -- see the docstring.
             source = source_path or audio_path
             cmd = [
                 *demucs_cmd,
@@ -1077,7 +1077,7 @@ class SourceSeparator:
                 # demucs has no --denoise flag in any 4.x release; the
                 # knob is accepted by the API but this backend cannot
                 # honor it.
-                logger.warning("denoise requested but demucs has no --denoise flag — ignoring")
+                logger.warning("denoise requested but demucs has no --denoise flag -- ignoring")
 
             try:
                 returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
@@ -1288,7 +1288,7 @@ class SourceSeparator:
                     "mono_status": "ok",
                     "channels": 1,
                     "sample_rate": sr,
-                    "recommendations": ["Mono source — no phase issues possible"],
+                    "recommendations": ["Mono source -- no phase issues possible"],
                 }
 
             left = y[0]
@@ -1336,15 +1336,15 @@ class SourceSeparator:
             recommendations: list[str] = []
             if phase_status == "inverted":
                 recommendations.append(
-                    "Phase inverted between L/R — check polarity"
+                    "Phase inverted between L/R -- check polarity"
                 )
             elif phase_status == "wide":
                 recommendations.append(
-                    "Wide stereo image — verify mono collapse"
+                    "Wide stereo image -- verify mono collapse"
                 )
             if mono_status in ("risk", "cancel"):
                 recommendations.append(
-                    "Mono compatibility risk — elements may cancel in mono"
+                    "Mono compatibility risk -- elements may cancel in mono"
                 )
             if phase_status == "ok" and mono_status == "ok":
                 recommendations.append(

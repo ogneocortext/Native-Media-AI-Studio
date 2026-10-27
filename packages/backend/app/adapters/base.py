@@ -116,7 +116,7 @@ class BaseAdapter(ABC):
 
     async def generate_with_fallback(self, params: dict[str, Any]) -> dict[str, Any]:
         """
-        Generate content — now fails fast when service unavailable unless mock_mode=True.
+        Generate content -- now fails fast when service unavailable unless mock_mode=True.
 
         Previous behavior silently returned a 1x1 mock PNG when ComfyUI was down,
         masking failures. Per user request to replace mocks with functioning features,

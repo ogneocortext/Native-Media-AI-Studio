@@ -1,5 +1,5 @@
 """
-Media Library Repository — favorites, collections, tags, trash.
+Media Library Repository -- favorites, collections, tags, trash.
 
 Extracted from packages/backend/app/core/database.py (was 4121 lines).
 """

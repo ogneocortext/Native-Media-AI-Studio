@@ -35,9 +35,9 @@ try:
             torch.cuda.get_device_properties(0).total_memory // (1024 ** 2),
         )
     else:
-        logger.info("CUDA not available — using CPU fallback")
+        logger.info("CUDA not available -- using CPU fallback")
 except ImportError:
-    logger.info("PyTorch not installed — CUDA processing disabled")
+    logger.info("PyTorch not installed -- CUDA processing disabled")
 
 
 def cuda_available() -> bool:
@@ -72,7 +72,7 @@ class CudaAudioAnalyzer:
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.win_length = win_length or n_fft
-        # Cache Hann window + freqs per Guide 2.6 — avoid alloc every analyze()
+        # Cache Hann window + freqs per Guide 2.6 -- avoid alloc every analyze()
         self._window: torch.Tensor | None = None
         self._freqs: torch.Tensor | None = None
         if _CUDA_AVAILABLE:
@@ -112,10 +112,10 @@ class CudaAudioAnalyzer:
                 self._freqs = torch.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate).to(_DEVICE)
             freqs = self._freqs
 
-            # Use torchaudio Spectrogram — tested CUDA path, replaces manual torch.stft.
+            # Use torchaudio Spectrogram -- tested CUDA path, replaces manual torch.stft.
             # torchaudio 2.x builds the window via window_fn(win_length) with no
             # device argument, which puts the Hann window on CPU and makes every
-            # call raise "input and window must be on the same device" — silently
+            # call raise "input and window must be on the same device" -- silently
             # falling back to the manual-STFT path. Bind the device explicitly.
             spectrogram = torchaudio.transforms.Spectrogram(
                 n_fft=self.n_fft,
@@ -186,7 +186,7 @@ class CudaAudioAnalyzer:
         try:
             waveform = torch.as_tensor(np.asarray(audio, dtype=np.float32), device=_DEVICE)
 
-            # STFT on GPU — reuse cached window (Guide 2.6)
+            # STFT on GPU -- reuse cached window (Guide 2.6)
             if self._window is None or self._window.shape[0] != self.win_length:
                 self._window = torch.hann_window(self.win_length, device=_DEVICE)
             if self._freqs is None:

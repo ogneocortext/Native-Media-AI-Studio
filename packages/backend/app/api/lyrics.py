@@ -35,7 +35,7 @@ class LyricAnimationInput(BaseModel):
     enter: dict = {}
     exit: dict = {}
     loop: dict = {}
-    beatReact: dict = {}  # noqa: N815 — camelCase mirrors the frontend payload contract
+    beatReact: dict = {}  # noqa: N815 -- camelCase mirrors the frontend payload contract
     style: dict = {}
 
 
