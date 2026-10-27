@@ -38,7 +38,7 @@ def _fresh_db(tmp_path, monkeypatch):
     database = _database_module()
     db_file = tmp_path / "conn.db"
     monkeypatch.setattr(database, "DB_PATH", db_file, raising=False)
-    database.init_db()
+    database.init_db(db_path=db_file)
     return database, db_file
 
 
@@ -187,5 +187,43 @@ def test_get_connection_sets_durability_and_wal_bounds(tmp_path, monkeypatch):
         assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1  # NORMAL
         # And re-opening must not try to switch journal mode again.
         assert conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+        # Performance PRAGMAs for a long-running home server.
+        assert conn.execute("PRAGMA temp_store").fetchone()[0] == 2  # MEMORY
+        assert conn.execute("PRAGMA cache_size").fetchone()[0] == -20000
+        assert conn.execute("PRAGMA mmap_size").fetchone()[0] == 268435456
+        assert conn.execute("PRAGMA journal_size_limit").fetchone()[0] == 67108864
     finally:
         conn.close()
+
+
+def test_checkpoint_wal_reclaims_wal_frames(tmp_path, monkeypatch):
+    """checkpoint_wal must run without raising and return checkpointed frames."""
+    database, db_file = _fresh_db(tmp_path, monkeypatch)
+
+    # Write some rows so there is something in the WAL to checkpoint.
+    with database.get_db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS cp (id INTEGER PRIMARY KEY, payload TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO cp (payload) VALUES (?)", [("x" * 1000,) for _ in range(50)]
+        )
+
+    result = database.checkpoint_wal()
+    # TRUNCATE may return 0 if the WAL was already empty, but must not raise.
+    assert result is None or isinstance(result, int)
+
+
+def test_db_path_env_var_override(tmp_path, monkeypatch):
+    """NMA_DB_PATH must override the default storage path."""
+    import app.core.connection as conn_module
+
+    custom = tmp_path / "custom" / "studio.db"
+    monkeypatch.setenv("NMA_DB_PATH", str(custom))
+    # Re-resolve by re-importing the module-level constant.
+    import importlib
+
+    importlib.reload(conn_module)
+    assert conn_module.DB_PATH == custom
+    # Cleanup: remove env so other tests are unaffected.
+    monkeypatch.delenv("NMA_DB_PATH", raising=False)

@@ -1,23 +1,41 @@
 import { useMemo } from "react";
 import type { MediaFile, FilterState } from "./useMediaFiles";
+import type { Tag } from "../../../services/api";
 
-export function useFileFilters(files: MediaFile[], filter: FilterState) {
+export function useFileFilters(
+  files: MediaFile[],
+  filter: FilterState,
+  itemTags: Map<string, Tag[]>
+) {
   return useMemo(() => {
     let filtered = [...files];
 
-    // Filter by query
+    // Filter by query — matches filename, relative_path, OR any tag name
     if (filter.query) {
       const query = filter.query.toLowerCase();
-      filtered = filtered.filter(
-        (f) =>
+      filtered = filtered.filter((f) => {
+        const key = f.relative_path || f.filename;
+        const nameMatch =
           f.filename.toLowerCase().includes(query) ||
-          (f.relative_path && f.relative_path.toLowerCase().includes(query))
-      );
+          (f.relative_path && f.relative_path.toLowerCase().includes(query));
+        const tags = itemTags.get(key) ?? [];
+        const tagMatch = tags.some((t) => t.name.toLowerCase().includes(query));
+        return nameMatch || tagMatch;
+      });
     }
 
     // Filter by file type (single combined filter)
     if (filter.fileType !== "all") {
       filtered = filtered.filter((f) => f.file_type === filter.fileType);
+    }
+
+    // Filter by tag
+    if (filter.tagFilter) {
+      filtered = filtered.filter((f) => {
+        const key = f.relative_path || f.filename;
+        const tags = itemTags.get(key) ?? [];
+        return tags.some((t) => t.id === filter.tagFilter);
+      });
     }
 
     // Sort
@@ -40,5 +58,5 @@ export function useFileFilters(files: MediaFile[], filter: FilterState) {
     });
 
     return filtered;
-  }, [files, filter]);
+  }, [files, filter, itemTags]);
 }

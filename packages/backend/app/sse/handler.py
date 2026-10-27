@@ -16,6 +16,7 @@ Every outbound SSE message is serialized as::
 Frontend listeners receive the parsed ``data`` object (a dict with at
 least ``type`` and ``data`` keys, plus ``timestamp``).
 """
+
 import asyncio
 import collections
 import json
@@ -36,7 +37,7 @@ _go_dashboard_client: httpx.AsyncClient | None = None
 def _get_go_dashboard_client() -> httpx.AsyncClient | None:
     global _go_dashboard_client
     if _go_dashboard_client is None:
-        url = getattr(config, 'go_dashboard_url', '')
+        url = getattr(config, "go_dashboard_url", "")
         if url:
             _go_dashboard_client = httpx.AsyncClient(
                 base_url=url,
@@ -68,7 +69,9 @@ class SSEManager:
         self._replay_buffer: collections.deque = collections.deque(maxlen=100)
 
     @staticmethod
-    def _format_message(message_type: str, data: dict[str, Any], priority: str = "medium") -> dict[str, Any]:
+    def _format_message(
+        message_type: str, data: dict[str, Any], priority: str = "medium"
+    ) -> dict[str, Any]:
         """Wrap a payload in the standard SSE envelope."""
         return {
             "type": message_type,
@@ -83,14 +86,18 @@ class SSEManager:
         async with self._lock:
             if len(self._active_connections) >= self._max_connections:
                 # Put a sentinel so the client gets a clean close message
-                await queue.put({
-                    "id": "0",
-                    "data": json.dumps({
-                        "type": "error",
-                        "message": "Server at capacity, try again later",
-                        "priority": "urgent",
-                    }),
-                })
+                await queue.put(
+                    {
+                        "id": "0",
+                        "data": json.dumps(
+                            self._format_message(
+                                "error",
+                                {"message": "Server at capacity, try again later"},
+                                priority="urgent",
+                            )
+                        ),
+                    }
+                )
                 logger.warning("SSE connection rejected: at capacity (%d)", self._max_connections)
                 return queue
             self._active_connections.append(queue)
@@ -102,7 +109,9 @@ class SSEManager:
         async with self._lock:
             if queue in self._active_connections:
                 self._active_connections.remove(queue)
-        logger.debug("SSE client disconnected. Active connections: %d", len(self._active_connections))
+        logger.debug(
+            "SSE client disconnected. Active connections: %d", len(self._active_connections)
+        )
 
     async def send_message(self, message: dict[str, Any]):
         """Send a message to all connected clients, dropping slow consumers."""
@@ -151,40 +160,54 @@ class SSEManager:
 
     async def send_health_update(self, health: dict[str, Any]):
         """Send health update to all clients"""
-        await self.send_message(self._format_message(
-            "health_update",
-            health,
-            priority="medium",
-        ))
+        await self.send_message(
+            self._format_message(
+                "health_update",
+                health,
+                priority="medium",
+            )
+        )
 
     async def broadcast_health_status(self, status: dict[str, Any]):
         """Broadcast health status to all connected clients"""
         logger.debug("Broadcasting health status: %s", status.get("overall", "unknown"))
-        await self.send_message(self._format_message(
-            "system.health_changed",
-            status,
-            priority="medium",
-        ))
+        await self.send_message(
+            self._format_message(
+                "system.health_changed",
+                status,
+                priority="medium",
+            )
+        )
 
     async def send_queue_update(self, stats: dict[str, Any]):
         """Send queue stats update to all clients"""
-        await self.send_message(self._format_message(
-            "queue_update",
-            stats,
-            priority="low",
-        ))
+        await self.send_message(
+            self._format_message(
+                "queue_update",
+                stats,
+                priority="low",
+            )
+        )
 
     async def send_job_update(self, job: Job):
         """Send job update to all clients"""
         logger.debug("Broadcasting job update: %s", job.id)
-        priority = "urgent" if job.status in (JobStatus.FAILED, JobStatus.DEAD) else \
-                   "high" if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED) else \
-                   "medium" if job.status == JobStatus.RUNNING else "low"
-        await self.send_message(self._format_message(
-            "job_update",
-            {"job": job.model_dump(mode='json')},
-            priority=priority,
-        ))
+        priority = (
+            "urgent"
+            if job.status in (JobStatus.FAILED, JobStatus.DEAD)
+            else "high"
+            if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)
+            else "medium"
+            if job.status == JobStatus.RUNNING
+            else "low"
+        )
+        await self.send_message(
+            self._format_message(
+                "job_update",
+                {"job": job.model_dump(mode="json")},
+                priority=priority,
+            )
+        )
 
     async def broadcast(self, type: str, data: dict[str, Any], priority: str = "medium"):
         """Broadcast a message to all clients"""

@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..vram_manager import vram_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -195,12 +197,9 @@ class MuseTalkAdapter:
         workdir.mkdir(parents=True, exist_ok=True)
         try:
             wav = await asyncio.to_thread(self._prepare_audio, audio, workdir)
-            # VRAM handshake (D7) — deferred import keeps the module graph clean.
+            # VRAM handshake (D7) — preflighted through vram_manager.
             # Skipped in mock mode: there is no GPU to manage.
-            vram_manager = None
             if not mock:
-                from ..vram_manager import vram_manager
-
                 _note(0.15, "VRAM preflight")
                 begin = await vram_manager.begin_lipsync_generation(
                     vram_budget_mb=self.config.vram_budget_mb

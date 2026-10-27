@@ -35,7 +35,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -51,6 +51,7 @@ from app.agents.resilience import (
     make_idempotency_key,
     retry_with_backoff,
 )
+from app.services.agent_memory import AgentMemoryService
 
 
 class NMAAgent:
@@ -417,7 +418,414 @@ class NMAAgent:
             "generated_assets": len(self.state.get("generated_assets", [])),
             "errors": len(self.state.get("errors", [])),
             "warnings": len(self.state.get("warnings", [])),
+            "llm_driver": self.state.get("llm_driver"),
+            "llm_iterations": self.state.get("llm_iterations"),
+            "llm_aborted": self.state.get("llm_aborted"),
             "state_file": str(self.state.state_path),
+        }
+
+    # ------------------------------------------------------------------
+    # LLM decision loop (T-AGT-01 / T-AGT-02)
+    # ------------------------------------------------------------------
+    LLM_MAX_ITERATIONS = 12
+
+    def _llm_tool_definitions(self) -> list[dict[str, Any]]:
+        """Tool schemas the LLM can call, mapped to NMAApiClient methods."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "health",
+                    "description": "Check backend and adapter health status.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "audio_upload",
+                    "description": "Upload a local audio file to the backend.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string",
+                                "description": "Local path to the audio file.",
+                            }
+                        },
+                        "required": ["file_path"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "audio_analyze",
+                    "description": "Analyze audio: extract BPM, beats, sections, energy.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {
+                                "type": "string",
+                                "description": "Audio filename (already uploaded or in library).",
+                            }
+                        },
+                        "required": ["filename"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "audio_list",
+                    "description": "List all audio outputs.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "music_gen_status",
+                    "description": "Check ACE-Step generation service status.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "music_gen_start",
+                    "description": "Start the ACE-Step generation service.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "engine": {
+                                "type": "string",
+                                "description": "Engine name (default: ace).",
+                                "default": "ace",
+                            }
+                        },
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "music_gen_generate",
+                    "description": "Generate music from style and optional lyrics.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "style": {
+                                "type": "string",
+                                "description": "Generation style (e.g., cinematic, electronic).",
+                            },
+                            "lyrics": {
+                                "type": "string",
+                                "description": "Optional lyrics for generation.",
+                                "default": "",
+                            },
+                            "output_name": {
+                                "type": "string",
+                                "description": "Optional output name.",
+                            },
+                        },
+                        "required": ["style"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "remix_list",
+                    "description": "List existing remixes.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "remix_preview",
+                    "description": "Preview a mashup recipe before building.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "recipe": {
+                                "type": "object",
+                                "description": "Remix recipe with name, target_bpm, slots.",
+                            }
+                        },
+                        "required": ["recipe"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "remix_build",
+                    "description": "Build a remix from a recipe.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "recipe": {
+                                "type": "object",
+                                "description": "Remix recipe to build.",
+                            }
+                        },
+                        "required": ["recipe"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "remix_enhance",
+                    "description": "Master/enhance an existing remix.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Remix name to enhance.",
+                            }
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "media_list",
+                    "description": "List media files in outputs.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+        ]
+
+    _LLM_TOOL_METHODS: ClassVar[dict[str, Any]] = {
+        "health": lambda self: self.api.health(),
+        "audio_upload": lambda self, file_path: self.api.audio_upload(file_path),
+        "audio_analyze": lambda self, filename: self.api.audio_analyze(filename),
+        "audio_list": lambda self: self.api.audio_list(),
+        "music_gen_status": lambda self: self.api.music_gen_status(),
+        "music_gen_start": lambda self, engine="ace": self.api.music_gen_start(engine),
+        "music_gen_generate": lambda self, style, lyrics="", output_name=None: self.api.music_gen_generate(style, lyrics, output_name),
+        "remix_list": lambda self: self.api.remix_list(),
+        "remix_preview": lambda self, recipe: self.api.remix_preview(recipe),
+        "remix_build": lambda self, recipe: self.api.remix_build(recipe),
+        "remix_enhance": lambda self, name: self.api.remix_enhance(name),
+        "media_list": lambda self: self.api.media_list(),
+    }
+
+    async def run_llm_loop(
+        self,
+        goal: str,
+        audio_file: str | None = None,
+        max_iterations: int | None = None,
+    ) -> dict[str, Any]:
+        """Run the LLM-driven decision loop.
+
+        The LLM decides which NMAApiClient operations to call and in what
+        order to achieve ``goal``. Each tool result is fed back to the LLM
+        as an observation until the goal is reached or max iterations
+        exceeded.
+
+        Dual-process memory (System 1 + System 2):
+        - Before each LLM call, relevant memories are retrieved and injected
+          into the system prompt so Qwen doesn't start from scratch.
+        - After the loop completes, the episode is stored for reflection.
+
+        Args:
+            goal: High-level goal for the LLM (e.g. "analyze this track and
+                  preview a remix").
+            audio_file: Optional audio file to analyze first.
+            max_iterations: Override the default iteration cap (12).
+
+        Returns:
+            Dict with loop results, iterations used, and any errors.
+        """
+        import json
+
+        memory = AgentMemoryService()
+        max_iters = max_iterations or self.LLM_MAX_ITERATIONS
+        tools = self._llm_tool_definitions()
+        history: list[dict[str, Any]] = []
+        tool_call_log: list[dict[str, Any]] = []
+
+        # Build Qwen-optimized system prompt with retrieved memory context
+        memory_context = memory.build_qwen_context(goal)
+        base_system_prompt = (
+            "You are an agent driving the Native Media AI Studio pipeline. "
+            "You have callable tools for audio analysis, music generation, "
+            "and remix operations. Given a goal, decide which tools to call "
+            "and in what order. Call one tool at a time, wait for the result, "
+            "then decide the next step. When the goal is achieved, respond "
+            "with a summary and no tool calls. Do not invent results."
+        )
+        if memory_context:
+            system_prompt = f"{base_system_prompt}\n\n{memory_context}"
+        else:
+            system_prompt = base_system_prompt
+
+        if audio_file:
+            history.append({
+                "role": "user",
+                "content": f"The audio file to work with is: {audio_file}",
+            })
+
+        history.append({
+            "role": "user",
+            "content": goal,
+        })
+
+        self.state.update(llm_iterations=0, llm_aborted=False,
+                          llm_tool_calls=[])
+
+        start_ms = datetime.now(timezone.utc).timestamp() * 1000
+
+        for iteration in range(max_iters):
+            self.state.update(llm_iterations=iteration + 1)
+
+            response = await self.api.chat_with_tools(
+                message=history[-1]["content"] if history else goal,
+                tools=tools,
+                model="qwen3.5:4b",
+                system=system_prompt,
+                history=history[:-1] if len(history) > 1 else None,
+                max_tool_calls=5,
+            )
+
+            if response is None:
+                self._log("LLM chat failed — aborting loop", "error")
+                self.state.update(llm_aborted=True)
+                break
+
+            message = response.get("message", {})
+            tool_calls = message.get("tool_calls", [])
+            content = message.get("content", "")
+
+            # Record the assistant turn
+            assistant_turn: dict[str, Any] = {"role": "assistant"}
+            if content:
+                assistant_turn["content"] = content
+            if tool_calls:
+                assistant_turn["tool_calls"] = tool_calls
+            history.append(assistant_turn)
+
+            if not tool_calls:
+                # LLM says it's done — record final answer and exit
+                self._log(f"LLM loop complete after {iteration + 1} iterations")
+                self.state.update(llm_driver="atomic_chat")
+
+                # System 2: store the completed episode
+                end_ms = datetime.now(timezone.utc).timestamp() * 1000
+                memory.store_episode(
+                    session_id=self.session_id,
+                    goal=goal,
+                    approach="llm_tool_loop",
+                    result=content or "",
+                    success=True,
+                    duration_ms=int(end_ms - start_ms),
+                    tools_used=[tc.get("function", {}).get("name", "")
+                                for tc in tool_call_log],
+                    llm_driver="atomic_chat",
+                    iterations=iteration + 1,
+                )
+                return {
+                    "ok": True,
+                    "iterations": iteration + 1,
+                    "message": content,
+                    "tool_calls": tool_call_log,
+                    "aborted": False,
+                }
+
+            # Execute each tool call
+            for tc in tool_calls:
+                fn_name = tc.get("function", {}).get("name", "")
+                fn_args = tc.get("function", {}).get("arguments", {})
+                if isinstance(fn_args, str):
+                    fn_args = json.loads(fn_args)
+
+                call_record = {
+                    "iteration": iteration + 1,
+                    "tool": fn_name,
+                    "args": fn_args,
+                }
+
+                try:
+                    method = self._LLM_TOOL_METHODS.get(fn_name)
+                    if method is None:
+                        raise ValueError(f"Unknown tool: {fn_name}")
+                    result = await method(self, **fn_args)
+                    call_record["result"] = result
+                    call_record["error"] = None
+                    self._log(f"LLM tool call: {fn_name}({fn_args}) -> ok")
+
+                    # Feed result back as a tool message
+                    history.append({
+                        "role": "tool",
+                        "content": json.dumps(result) if not isinstance(result, str) else result,
+                        "tool_call_id": tc.get("id", ""),
+                    })
+                except Exception as e:  # noqa: BLE001
+                    call_record["result"] = None
+                    call_record["error"] = str(e)
+                    self._log(f"LLM tool call failed: {fn_name} -> {e}", "error")
+
+                    history.append({
+                        "role": "tool",
+                        "content": json.dumps({"error": str(e)}),
+                        "tool_call_id": tc.get("id", ""),
+                    })
+
+                tool_call_log.append(call_record)
+
+        # Max iterations reached without completion
+        self.state.update(llm_aborted=True, llm_driver="atomic_chat")
+        self._log(f"LLM loop aborted after {max_iters} iterations", "warning")
+
+        # System 2: store the aborted episode
+        end_ms = datetime.now(timezone.utc).timestamp() * 1000
+        memory.store_episode(
+            session_id=self.session_id,
+            goal=goal,
+            approach="llm_tool_loop",
+            result="Max iterations reached without goal completion",
+            success=False,
+            duration_ms=int(end_ms - start_ms),
+            tools_used=[tc.get("function", {}).get("name", "")
+                        for tc in tool_call_log],
+            error_message="max_iterations_exceeded",
+            llm_driver="atomic_chat",
+            iterations=max_iters,
+        )
+        return {
+            "ok": False,
+            "iterations": max_iters,
+            "message": "Max iterations reached without goal completion",
+            "tool_calls": tool_call_log,
+            "aborted": True,
         }
 
 

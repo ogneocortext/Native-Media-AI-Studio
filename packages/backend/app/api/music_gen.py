@@ -8,6 +8,7 @@ Provides REST API for:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import shutil
@@ -29,6 +30,7 @@ from ..adapters.music_gen import (
 )
 from ..core import database
 from ..core.config import PROJECT_ROOT
+from ..core.http_client import get_async_client
 from ..services.vram_manager import vram_manager
 from ..sse.handler import sse_manager
 
@@ -362,69 +364,79 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
         audio_path = result.get("audio_path")
         output_name = result.get("output_name") or req.output_name or ""
         if audio_path and output_name:
-            # Validate before doing any file/DB work so invalid names surface as 400.
+            # Validate before doing any file/DB work so invalid names surface as 400
+            # to the client instead of being silently swallowed.
             output_name = _validate_output_name(output_name)
-            try:
-                src = Path(audio_path)
-                if src.exists():
-                    dst_name = f"{output_name}.wav"
-                    dst = PROJECT_ROOT / "output" / "audio" / dst_name
-                    audio_dir = PROJECT_ROOT / "output" / "audio"
-                    if not str(dst.resolve()).startswith(str(audio_dir.resolve())):
-                        raise HTTPException(status_code=400, detail="Invalid output path")
-                    dst.parent.mkdir(parents=True, exist_ok=True)
 
-                    # Copy to a temp path first so we can clean up on DB failure
-                    # and avoid leaving half-registered files when metadata read
-                    # or save_audio_file raises.
-                    temp_path = dst.with_suffix(".tmp")
-                    created_temp = False
+            src = Path(audio_path)
+            if src.exists():
+                dst_name = f"{output_name}.wav"
+                dst = PROJECT_ROOT / "output" / "audio" / dst_name
+                audio_dir = PROJECT_ROOT / "output" / "audio"
+                if not str(dst.resolve()).startswith(str(audio_dir.resolve())):
+                    raise HTTPException(status_code=400, detail="Invalid output path")
+                dst.parent.mkdir(parents=True, exist_ok=True)
+
+                # Copy to a temp path first so we can clean up on DB failure
+                # and avoid leaving half-registered files when metadata read
+                # or save_audio_file raises.
+                temp_path = dst.with_suffix(".tmp")
+                created_temp = False
+                try:
+                    if not dst.exists():
+                        shutil.copy2(str(src), str(temp_path))
+                        created_temp = True
+
+                    file_size = temp_path.stat().st_size
+                    sample_rate = result.get("sample_rate", 48000)
+                    duration = 0.0
+                    channels = 2
                     try:
-                        if not dst.exists():
-                            shutil.copy2(str(src), str(temp_path))
-                            created_temp = True
+                        import soundfile as sf
 
-                        file_size = temp_path.stat().st_size
-                        sample_rate = result.get("sample_rate", 48000)
-                        duration = 0.0
-                        channels = 2
+                        info = sf.info(str(temp_path))
+                        duration = (
+                            float(info.frames) / float(info.samplerate) if info.samplerate else 0.0
+                        )
+                        channels = int(info.channels)
+                        sample_rate = int(info.samplerate) or sample_rate
+                    except Exception:
+                        pass
+
+                    # Register in the database off the event loop (SQLite is sync).
+                    await asyncio.to_thread(
+                        database.save_audio_file,
+                        filename=dst_name,
+                        original_name=dst_name,
+                        stored_path=f"output/audio/{dst_name}",
+                        file_size=file_size,
+                        duration=duration,
+                        sample_rate=sample_rate,
+                        channels=channels,
+                        format="wav",
+                    )
+                    # Atomic rename so the file appears only after DB registration.
+                    if created_temp:
+                        temp_path.replace(dst)
+
+                    # File is now in place — mark it in the result so the
+                    # frontend can play it, and invalidate the outputs cache
+                    # so the media library lists it immediately instead of
+                    # waiting up to the 30s cache TTL.
+                    result["relative_path"] = f"audio/{dst_name}"
+                    try:
+                        from ..api.outputs import _invalidate_cache
+
+                        _invalidate_cache()
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Could not invalidate outputs cache", exc_info=True)
+                except Exception:
+                    if created_temp and temp_path.exists():
                         try:
-                            import soundfile as sf
-
-                            info = sf.info(str(temp_path))
-                            duration = (
-                                float(info.frames) / float(info.samplerate)
-                                if info.samplerate
-                                else 0.0
-                            )
-                            channels = int(info.channels)
-                            sample_rate = int(info.samplerate) or sample_rate
+                            temp_path.unlink()
                         except Exception:
                             pass
-
-                        database.save_audio_file(
-                            filename=dst_name,
-                            original_name=dst_name,
-                            stored_path=f"output/audio/{dst_name}",
-                            file_size=file_size,
-                            duration=duration,
-                            sample_rate=sample_rate,
-                            channels=channels,
-                            format="wav",
-                        )
-                        # Atomic rename so the file appears only after DB registration.
-                        if created_temp:
-                            temp_path.replace(dst)
-                        result["relative_path"] = f"audio/{dst_name}"
-                    except Exception:
-                        if created_temp and temp_path.exists():
-                            try:
-                                temp_path.unlink()
-                            except Exception:
-                                pass
-                        raise
-            except Exception as exc:
-                logger.warning("Failed to register generated audio in media library: %s", exc)
+                    raise
 
         return result
     except HTTPException:
@@ -481,29 +493,39 @@ async def plan_style(request: dict[str, Any]) -> dict[str, Any]:
         # Build Chain-of-Thought prompt for the step
         cot_prompt = _build_cot_prompt(step, "style", user_description)
 
-        # Call LM planner service
+        # Call LM planner service using shared async client
         planner_url = PLANNER_BASE_URL
         if request.get("port"):
             planner_url = f"http://127.0.0.1:{request['port']}"
 
-        async with aiohttp.ClientSession() as http_session:
-            async with http_session.post(
+        http_client = await get_async_client()
+        try:
+            resp = await http_client.post(
                 f"{planner_url}/planning/style",
                 json={"step": step, "description": user_description, "cot_prompt": cot_prompt},
                 timeout=aiohttp.ClientTimeout(total=PLANNER_HEALTH_TIMEOUT),
-            ) as resp:
-                if resp.status == 200:
-                    result = await resp.json()
-                else:
-                    text = await resp.text()
-                    logger.warning("Planner style request failed (%s): %s", resp.status, text)
-                    result = {
-                        "style_tags": user_description[:50] if user_description else "pop",
-                        "mood": "neutral",
-                        "tempo_bpm": 120,
-                        "instrumentation": "synth, drums, bass",
-                        "vocal_style": "clean",
-                    }
+            )
+            if resp.status == 200:
+                result = await resp.json()
+            else:
+                text = await resp.text()
+                logger.warning("Planner style request failed (%s): %s", resp.status, text)
+                result = {
+                    "style_tags": user_description[:50] if user_description else "pop",
+                    "mood": "neutral",
+                    "tempo_bpm": 120,
+                    "instrumentation": "synth, drums, bass",
+                    "vocal_style": "clean",
+                }
+        except Exception as exc:
+            logger.warning("Planner style request error: %s", exc)
+            result = {
+                "style_tags": user_description[:50] if user_description else "pop",
+                "mood": "neutral",
+                "tempo_bpm": 120,
+                "instrumentation": "synth, drums, bass",
+                "vocal_style": "clean",
+            }
 
         # Store result in session
         if step == "init":
@@ -606,7 +628,11 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
     # Use or create session
     if session_id:
         if session_id not in PLANNER_SESSION_STORE:
-            PLANNER_SESSION_STORE[session_id] = {"blueprint": {}, "steps_completed": [], "sections": {}}
+            PLANNER_SESSION_STORE[session_id] = {
+                "blueprint": {},
+                "steps_completed": [],
+                "sections": {},
+            }
         session = PLANNER_SESSION_STORE[session_id]
     else:
         session_id = f"lyrics_{uuid.uuid4().hex[:8]}"
@@ -631,22 +657,35 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
         payload["sections"] = session["sections"]
 
     try:
-        async with aiohttp.ClientSession() as http_session:
-            async with http_session.post(
+        # Call LM planner service using shared async client
+        http_client = await get_async_client()
+        try:
+            resp = await http_client.post(
                 f"{planner_url}/planning/lyrics",
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=PLANNER_HEALTH_TIMEOUT),
-            ) as resp:
-                if resp.status == 200:
-                    result = await resp.json()
-                else:
-                    text = await resp.text()
-                    logger.warning("Planner lyrics request failed (%s): %s", resp.status, text)
-                    result = {
-                        "lyrics": partial_lyrics or context[:200] if partial_lyrics or context else "[Verse]\n",
-                        "confidence": 0.5,
-                        "needs_more": True,
-                    }
+            )
+            if resp.status == 200:
+                result = await resp.json()
+            else:
+                text = await resp.text()
+                logger.warning("Planner lyrics request failed (%s): %s", resp.status, text)
+                result = {
+                    "lyrics": partial_lyrics or context[:200]
+                    if partial_lyrics or context
+                    else "[Verse]\n",
+                    "confidence": 0.5,
+                    "needs_more": True,
+                }
+        except Exception as exc:
+            logger.warning("Planner lyrics request error: %s", exc)
+            result = {
+                "lyrics": partial_lyrics or context[:200]
+                if partial_lyrics or context
+                else "[Verse]\n",
+                "confidence": 0.5,
+                "needs_more": True,
+            }
     except Exception as exc:
         logger.error("Planner lyrics step %s failed: %s", step, exc)
         result = {

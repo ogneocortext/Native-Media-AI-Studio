@@ -56,117 +56,74 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    id: "home",
-    title: "Home",
-    items: [
-      { path: "/", label: "Dashboard", icon: <Home size={18} />, keywords: "home overview start" },
-      {
-        path: "/onboarding",
-        label: "Quick start",
-        icon: <Rocket size={18} />,
-        keywords: "quick start onboarding first clip guided",
-      },
-    ],
-  },
-  {
     id: "create",
     title: "Create",
     items: [
       {
-        path: "/music-video-wizard",
+        path: "/create/music-video",
         label: "Music Video",
         icon: <Wand2 size={18} />,
-        keywords: "wizard song video maker",
+        keywords: "wizard song video maker remotion",
       },
       {
-        path: "/three-js-studio",
-        label: "Three.js Studio",
-        icon: <Sparkles size={18} />,
-        keywords: "3d scene studio character",
+        path: "/create/video",
+        label: "Video Generation",
+        icon: <Clapperboard size={18} />,
+        keywords: "video generate motion remotion",
       },
       {
-        path: "/audio-analysis",
-        label: "Audio Analysis",
-        icon: <BarChart3 size={18} />,
-        keywords: "audio beat bpm analyze",
+        path: "/create/3d",
+        label: "3D Generation",
+        icon: <Box size={18} />,
+        keywords: "3d model mesh blender unity generate",
       },
       {
-        path: "/visualizer",
-        label: "Visualizer",
-        icon: <Zap size={18} />,
-        keywords: "visualizer shader realtime",
+        path: "/create/image",
+        label: "Image Generation",
+        icon: <Image size={18} />,
+        keywords: "image picture comfyui generate",
       },
       {
-        path: "/kinetic-typography",
+        path: "/create/typography",
         label: "Kinetic Type",
         icon: <Type size={18} />,
-        keywords: "lyrics kinetic typography text",
+        keywords: "lyrics kinetic typography text remotion",
       },
       {
-        path: "/hyperframes",
-        label: "HyperFrames",
-        icon: <Play size={18} />,
-        keywords: "hyperframes animation frames",
+        path: "/create/music",
+        label: "Music Gen",
+        icon: <Music size={18} />,
+        keywords: "music generation ace-step generate song",
       },
       {
-        path: "/ai-tools",
-        label: "AI Tools",
-        icon: <Brain size={18} />,
-        keywords: "ai tools models chat",
+        path: "/create/remix",
+        label: "Remix / Mashup",
+        icon: <Wand2 size={18} />,
+        keywords: "mashup stems remix audio",
       },
-       {
-         path: "/music-prompts",
-         label: "Music Prompts",
-         icon: <Mic size={18} />,
-         keywords: "music prompts lyrics suno",
-       },
-       {
-         path: "/unity",
+      {
+        path: "/create/animation",
+        label: "Animation Studio",
+        icon: <Film size={18} />,
+        keywords: "animation studio theatre keyframe remotion hyperframes",
+      },
+      {
+        path: "/create/unity",
         label: "Unity Control",
         icon: <Gamepad2 size={18} />,
         keywords: "unity editor control remote",
       },
       {
-        path: "/animation-studio",
-        label: "Animation Studio",
-        icon: <Film size={18} />,
-        keywords: "animation studio theatre keyframe",
+        path: "/create/hyperframes",
+        label: "HyperFrames",
+        icon: <Play size={18} />,
+        keywords: "hyperframes animation frames",
       },
     ],
   },
   {
-    id: "generate",
-    title: "Generate",
-    items: [
-      {
-        path: "/image-generation",
-        label: "Image Gen",
-        icon: <Image size={18} />,
-        keywords: "image picture comfyui",
-      },
-      {
-        path: "/video-generation",
-        label: "Video Gen",
-        icon: <Clapperboard size={18} />,
-        keywords: "video generate motion",
-      },
-      {
-        path: "/generate-3d",
-        label: "3D Gen",
-        icon: <Box size={18} />,
-        keywords: "3d model mesh generate",
-      },
-      {
-        path: "/music-gen",
-        label: "Music Gen",
-        icon: <Music size={18} />,
-        keywords: "music generation ace-step generate song",
-      },
-    ],
-  },
-  {
-    id: "manage",
-    title: "Manage",
+    id: "library",
+    title: "Library",
     items: [
       {
         path: "/library",
@@ -175,22 +132,64 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "library media files audio video image",
       },
       {
-        path: "/queue",
-        label: "Queue",
-        icon: <ListOrdered size={18} />,
-        keywords: "queue jobs tasks",
-      },
-      {
-        path: "/storyboards",
+        path: "/library/storyboards",
         label: "Storyboards",
         icon: <BookOpen size={18} />,
         keywords: "storyboard plan scenes",
       },
+    ],
+  },
+  {
+    id: "analyze",
+    title: "Analyze",
+    items: [
       {
-        path: "/data-management",
-        label: "Data Management",
-        icon: <FileText size={18} />,
-        keywords: "data management saved prompts visuals history",
+        path: "/analyze/audio",
+        label: "Audio Analysis",
+        icon: <BarChart3 size={18} />,
+        keywords: "audio beat bpm analyze",
+      },
+      {
+        path: "/analyze/ai",
+        label: "AI Tools",
+        icon: <Brain size={18} />,
+        keywords: "ai tools models chat",
+      },
+      {
+        path: "/analyze/chat",
+        label: "Ollama Chat",
+        icon: <Mic size={18} />,
+        keywords: "chat ollama model",
+      },
+      {
+        path: "/mastering",
+        label: "Mastering",
+        icon: <Settings size={18} />,
+        keywords: "loudness normalize master audio lufs true peak",
+      },
+    ],
+  },
+  {
+    id: "render",
+    title: "Render",
+    items: [
+      {
+        path: "/render/visualizer",
+        label: "Visualizer",
+        icon: <Zap size={18} />,
+        keywords: "visualizer shader realtime",
+      },
+      {
+        path: "/render/preview",
+        label: "Preview",
+        icon: <Film size={18} />,
+        keywords: "preview clip render output",
+      },
+      {
+        path: "/render/prompts",
+        label: "Music Prompts",
+        icon: <Mic size={18} />,
+        keywords: "music prompts lyrics suno",
       },
     ],
   },
@@ -200,34 +199,70 @@ const NAV_GROUPS: NavGroup[] = [
     collapsedByDefault: true,
     items: [
       {
-        path: "/health",
+        path: "/system",
+        label: "Dashboard",
+        icon: <Home size={18} />,
+        keywords: "home overview start",
+      },
+      {
+        path: "/system/queue",
+        label: "Queue",
+        icon: <ListOrdered size={18} />,
+        keywords: "queue jobs tasks",
+      },
+      {
+        path: "/system/settings",
+        label: "Settings",
+        icon: <Settings size={18} />,
+        keywords: "settings config preferences",
+      },
+      {
+        path: "/system/health",
         label: "Health",
         icon: <Activity size={18} />,
         keywords: "health status diagnostics adapters",
       },
       {
-        path: "/database",
+        path: "/system/data-management",
+        label: "Data Management",
+        icon: <FileText size={18} />,
+        keywords: "data management saved prompts visuals history",
+      },
+      {
+        path: "/system/database",
         label: "Database",
         icon: <Database size={18} />,
         keywords: "database sqlite tables schema vacuum integrity storage",
       },
       {
-        path: "/gpu",
+        path: "/system/gpu",
         label: "GPU",
         icon: <Thermometer size={18} />,
         keywords: "gpu vram cuda temperature",
       },
       {
-        path: "/log-analytics",
+        path: "/system/log-analytics",
         label: "Log Analytics",
         icon: <BarChart3 size={18} />,
         keywords: "logs analytics charts",
       },
       {
-        path: "/settings",
-        label: "Settings",
-        icon: <Settings size={18} />,
-        keywords: "settings config preferences",
+        path: "/system/notifications",
+        label: "Notifications",
+        icon: <Zap size={18} />,
+        keywords: "notifications alerts",
+      },
+      {
+        path: "/system/docs",
+        label: "Documentation",
+        icon: <FileText size={18} />,
+        keywords: "docs documentation help",
+      },
+      {
+        path: "/system/onboarding",
+        label: "Quick Start",
+        icon: <Rocket size={18} />,
+        keywords: "quick start onboarding first clip guided",
       },
     ],
   },
@@ -545,7 +580,7 @@ export function Sidebar() {
         <div className="sidebar-header">
           <div className="sidebar-header-inner">
             <Link
-              to="/"
+              to="/system"
               className={`sidebar-brand${collapsed && !isMobile ? " sidebar-brand-centered" : ""}`}
               title="Native Media AI Studio — home"
             >
@@ -580,7 +615,7 @@ export function Sidebar() {
             )}
           </div>
           {showText && (
-            <Link to="/music-video-wizard" className="sidebar-cta">
+            <Link to="/create/music-video" className="sidebar-cta">
               <Sparkles size={14} /> New Music Video
             </Link>
           )}
@@ -673,7 +708,7 @@ export function Sidebar() {
                       </div>
                     ))}
                   </div>
-                  <Link to="/health" className="sidebar-diagnostics-link">
+                  <Link to="/system/health" className="sidebar-diagnostics-link">
                     <Activity size={14} />
                     <span>View Diagnostics</span>
                   </Link>

@@ -71,11 +71,13 @@ export function MediaLibrary() {
   const [filter, setFilter] = useState<{
     query: string;
     fileType: string | "all";
+    tagFilter: string | null;
     sortBy: "name" | "size" | "date";
     sortOrder: "asc" | "desc";
   }>({
     query: "",
     fileType: "all",
+    tagFilter: null,
     sortBy: "name",
     sortOrder: "asc",
   });
@@ -104,7 +106,7 @@ export function MediaLibrary() {
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
 
-  const filteredFiles = useFileFilters(allFiles, filter);
+  const filteredFiles = useFileFilters(allFiles, filter, itemTags);
 
   // Apply favorites filter when in favorites view
   const filesForView =
@@ -246,6 +248,7 @@ export function MediaLibrary() {
   }, [
     filter.query,
     filter.fileType,
+    filter.tagFilter,
     filter.sortBy,
     filter.sortOrder,
     view,
@@ -419,7 +422,7 @@ export function MediaLibrary() {
         <div className="text-center py-12 text-muted">Loading…</div>
       ) : view === "library" || view === "favorites" ? (
         <>
-          <FilterBar filter={filter} onChange={setFilter} />
+          <FilterBar filter={filter} tags={tags} onChange={setFilter} />
 
           <FileGrid
             files={paginatedFiles}

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import socket
 import sys
 import time
@@ -22,6 +23,8 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,9 +34,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from .adapters.registry import adapter_registry
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
-from .core.database import init_db
+from .core.database import get_db, init_db
 from .core.logging_config import setup_logging
+from .core.metrics import MetricsMiddleware, metrics_endpoint
 from .core.port_manager import port_manager
+from .core.rate_limit import RateLimitMiddleware
+from .core.security_headers import SecurityHeadersMiddleware
 from .core.tracing import setup_tracing
 from .core.urls import atomic_chat_url
 from .diagnostics.health import health_monitor
@@ -108,6 +114,38 @@ def _get_atomic_chat_model() -> str | None:
     except Exception:
         pass
     return None
+
+
+def _verify_ace_bridge_startup() -> None:
+    """Verify ACE-Step bridge integrity on startup.
+
+    Module-level helper so lifespan() stays flat (no extra nesting).
+    A bridge issue is logged but never blocks startup — the app keeps
+    running with whatever ACE-Step is currently installed.
+    """
+    try:
+        from .services.ace_bridge import ace_bridge
+
+        integrity = ace_bridge.verify_bridge_integrity()
+        if integrity["valid"]:
+            logger.info(
+                "ACE-Step bridge verified: v%s model=%s api=%s",
+                integrity["tracked_version"],
+                integrity["tracked_model_id"],
+                integrity["api_compatibility"],
+            )
+        else:
+            for issue in integrity["issues"]:
+                logger.warning(f"ACE-Step bridge: {issue}")
+        if integrity["warnings"]:
+            for warning in integrity["warnings"]:
+                logger.info(f"ACE-Step bridge: {warning}")
+        if integrity["provider_update_detected"]:
+            logger.warning(
+                "ACE-Step provider update detected — review config/ace-step/bridge.json"
+            )
+    except Exception as e:
+        logger.warning(f"ACE-Step bridge verification skipped: {e}")
 
 
 async def _ensure_backend_port_free(port: int) -> None:
@@ -197,7 +235,7 @@ async def health_broadcast_loop():
             raise
         except Exception as e:
             consecutive_errors += 1
-            backoff = min(2 ** consecutive_errors, max_backoff)
+            backoff = min(2**consecutive_errors, max_backoff)
             logger.error(f"Health broadcast error ({consecutive_errors}): {e}")
             await asyncio.sleep(backoff)
 
@@ -279,7 +317,9 @@ async def lifespan(app: FastAPI):
         else:
             port_config = port_manager.get_resolved_config()
         logger.info(f"Backend port: {port_config['backend_port']}")
-        logger.info(f"SSE/events URL: {port_config.get('events_url') or port_config.get('sse_url')}")
+        logger.info(
+            f"SSE/events URL: {port_config.get('events_url') or port_config.get('sse_url')}"
+        )
         logger.info(f"Frontend port: {port_config['frontend_port']}")
     except Exception as e:
         logger.error(f"Port configuration failed: {e}")
@@ -292,6 +332,7 @@ async def lifespan(app: FastAPI):
             await connection_manager.send_job_update(job)
         except Exception:
             pass
+
     await queue_manager.subscribe(_fanout_job_update)
 
     # Start the processor
@@ -304,6 +345,7 @@ async def lifespan(app: FastAPI):
     # Start the stem separation worker (UVR5 hierarchical + Demucs queue)
     try:
         from .services.source_separation import source_separator
+
         await source_separator.start_worker()
         logger.info("Stem separation worker started")
     except Exception as e:
@@ -315,6 +357,7 @@ async def lifespan(app: FastAPI):
     # Previous fire-and-forget visualizer generation left models resident via keep_alive=30m
     try:
         from .services.vram_manager import _unload_ollama_models
+
         await _unload_ollama_models()
         logger.info("Ollama models unloaded at startup (manual trigger required)")
     except Exception as e:
@@ -327,6 +370,9 @@ async def lifespan(app: FastAPI):
             logger.info(f"{name}: {'healthy' if status else 'offline'}")
     except Exception as e:
         logger.warning(f"Adapter health check failed: {e}")
+
+    # Verify ACE-Step bridge integrity on startup.
+    _verify_ace_bridge_startup()
 
     # Start background tasks
     _background_tasks.append(asyncio.create_task(health_broadcast_loop()))
@@ -360,6 +406,7 @@ async def lifespan(app: FastAPI):
     # Release the shared httpx async client
     try:
         from .core.http_client import close_async_client
+
         await close_async_client()
     except Exception as e:
         logger.warning(f"Failed to close shared HTTP client: {e}")
@@ -367,6 +414,7 @@ async def lifespan(app: FastAPI):
     # Release the shared aiohttp sessions (ComfyUI + Ollama route clients)
     try:
         from .core import comfyui_client, ollama_client
+
         await comfyui_client.close_shared_session()
         await ollama_client.close_shared_session()
     except Exception as e:
@@ -382,17 +430,30 @@ async def lifespan(app: FastAPI):
     # Shutdown music generation services
     try:
         from .adapters.music_gen import close_shared_session, shutdown_music_gen_services
+
         await shutdown_music_gen_services()
         await close_shared_session()
         logger.info("Music generation services stopped")
     except Exception as e:
         logger.warning(f"Failed to stop music generation services: {e}")
 
+    # Checkpoint the WAL file before releasing connections so the -wal file does
+    # not keep growing between restarts on a long-running home server.
+    try:
+        from .core.database import checkpoint_wal
+
+        checkpointed = checkpoint_wal()
+        if checkpointed is not None:
+            logger.info("Checkpointed %d WAL frame(s) on shutdown", checkpointed)
+    except Exception as e:
+        logger.warning(f"Failed to checkpoint WAL on shutdown: {e}")
+
     # Release pooled SQLite connections so the process does not exit holding file
     # handles. On Windows an open handle blocks the database file from being
     # replaced, which would break a later compaction or restore.
     try:
         from .core.database import close_pooled_connections
+
         closed = close_pooled_connections()
         if closed:
             logger.info("Closed %d pooled database connection(s)", closed)
@@ -415,7 +476,10 @@ _OPENAPI_TAGS = [
     {"name": "Hardware", "description": "Hardware profile and benchmark operations."},
     {"name": "Integrations", "description": "External generation and media service integrations."},
     {"name": "Outputs", "description": "Generated media and output metadata operations."},
-    {"name": "Audio", "description": "Audio upload, analysis, separation, and conversion operations."},
+    {
+        "name": "Audio",
+        "description": "Audio upload, analysis, separation, and conversion operations.",
+    },
     {"name": "Transcription", "description": "Speech transcription operations."},
     {"name": "Lyrics", "description": "Lyric parsing and synchronization operations."},
     {"name": "ComfyUI", "description": "ComfyUI workflow and model operations."},
@@ -424,11 +488,17 @@ _OPENAPI_TAGS = [
     {"name": "Data", "description": "Application data and visualization preset operations."},
     {"name": "Video", "description": "Video generation and editing operations."},
     {"name": "Vision", "description": "Vision analysis and image operations."},
-    {"name": "Native Open", "description": "Local file and native application integration operations."},
+    {
+        "name": "Native Open",
+        "description": "Local file and native application integration operations.",
+    },
     {"name": "Docs", "description": "Application documentation operations."},
     {"name": "HyperFrames", "description": "HyperFrames composition and rendering operations."},
     {"name": "Media", "description": "Media inspection and file operations."},
-    {"name": "Media Library", "description": "Media library organization: favorites, collections, tags, trash."},
+    {
+        "name": "Media Library",
+        "description": "Media library organization: favorites, collections, tags, trash.",
+    },
     {"name": "Music Generation", "description": "Music generation engine operations."},
     {"name": "Music Prompts", "description": "Music prompt creation and management operations."},
     {"name": "Root", "description": "Application root and compatibility endpoints."},
@@ -461,8 +531,69 @@ app.add_middleware(
     allow_headers=["*"],
     # localtunnel/ngrok sit in front of the app, so responses pass through an
     # extra proxy. Reflect the real scheme/IP or the browser blocks them.
-    expose_headers=["X-Request-ID", "X-Response-Time"],
+    expose_headers=[
+        "X-Request-ID",
+        "X-Response-Time",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    ],
 )
+
+# TrustedHost middleware - validates the Host header to prevent HTTP Host header attacks.
+# In local dev, allow localhost and 127.0.0.1.  In production, restrict to known hosts.
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=[
+        "localhost",
+        "127.0.0.1",
+        "testserver",
+        "test",
+        "*.local",
+        "*.loca.lt",
+        "*.ngrok-free.app",
+        "*.ngrok.app",
+        "*.trycloudflare.com",
+    ],
+)
+
+# GZip compression for responses > 1KB (4-13% throughput improvement).
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# Rate limiting - protects against DoS and abusive clients.
+app.add_middleware(RateLimitMiddleware)
+
+# Security headers - HSTS, CSP, X-Frame-Options, etc.
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Prometheus RED metrics - Rate, Errors, Duration for observability.
+app.add_middleware(MetricsMiddleware)
+
+# Request size limit - protects against oversized uploads/DoS.
+# Default 100MB, configurable via NMA_MAX_REQUEST_SIZE_MB.
+_MAX_REQUEST_SIZE_MB = int(os.getenv("NMA_MAX_REQUEST_SIZE_MB", "100"))
+_MAX_REQUEST_SIZE_BYTES = _MAX_REQUEST_SIZE_MB * 1024 * 1024
+
+
+@app.middleware("http")
+async def request_size_limit(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            size = int(content_length)
+        except ValueError:
+            size = 0
+        if size > _MAX_REQUEST_SIZE_BYTES:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "error": {
+                        "code": "REQUEST_ENTITY_TOO_LARGE",
+                        "message": f"Request body exceeds {_MAX_REQUEST_SIZE_MB} MB limit",
+                    }
+                },
+            )
+    return await call_next(request)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -473,6 +604,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         try:
             from .core.logging_config import set_request_id
+
             set_request_id(request_id)
         except Exception:
             pass
@@ -483,7 +615,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             duration_ms = (time.perf_counter() - start) * 1000
             logger.exception(
                 "Request failed: %s %s (%.1fms, request_id=%s)",
-                request.method, request.url.path, duration_ms, request_id,
+                request.method,
+                request.url.path,
+                duration_ms,
+                request_id,
             )
             raise
         duration_ms = (time.perf_counter() - start) * 1000
@@ -534,13 +669,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         code = "GATEWAY_TIMEOUT"
     elif exc.status_code >= 500:
         code = "INTERNAL_ERROR"
-    return _error_response(exc.status_code, code, str(exc.detail) if exc.detail else "Request failed")
+    return _error_response(
+        exc.status_code, code, str(exc.detail) if exc.detail else "Request failed"
+    )
 
 
 @app.exception_handler(RequestValidationError)
-async def request_validation_exception_handler(
-    request: Request, exc: RequestValidationError
-):
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
     """Return validation failures through the same envelope as HTTP errors."""
     return _error_response(
         422,
@@ -555,9 +690,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", "-")
     logger.error(
         "Unhandled exception on %s %s (request_id=%s)",
-        request.method, request.url.path, request_id, exc_info=True,
+        request.method,
+        request.url.path,
+        request_id,
+        exc_info=True,
     )
     return _error_response(500, "INTERNAL_ERROR", "An unexpected error occurred.")
+
 
 from .api import (  # noqa: E402
     audio,
@@ -638,6 +777,7 @@ app.include_router(music_prompts.router)
 app.include_router(notifications.router)
 app.include_router(mcp_validate.router)
 
+
 # Additional root-level routes
 @app.get("/api/services/status", response_model=dict)
 async def get_service_status() -> dict:
@@ -648,16 +788,63 @@ async def get_service_status() -> dict:
         "connections": sse_manager.connection_count(),
     }
 
+
 @app.get("/api/render/health", response_model=dict)
 async def get_render_health() -> dict:
     """Get system health for rendering"""
     return await health_monitor.get_system_health()
 
 
+@app.get("/api/healthz", response_model=dict, tags=["Health"])
+async def healthz():
+    """Liveness probe - returns 200 if the process is alive.
+    Does NOT check dependencies (database, adapters, etc.) so that
+    load balancers can distinguish between "process is up" and "process
+    is ready to serve traffic".
+    """
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/readyz", response_model=dict, tags=["Health"])
+async def readyz():
+    """Readiness probe - returns 200 only when all dependencies are healthy.
+    Checks database connectivity and adapter health. Load balancers should
+    route traffic only to instances passing this check.
+    """
+    checks = {}
+    overall = "ok"
+
+    # Check database connectivity
+    try:
+        with get_db() as conn:
+            conn.execute("SELECT 1").fetchone()
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {e}"
+        overall = "degraded"
+
+    # Check adapter health
+    try:
+        service_health = await adapter_registry.check_all_health()
+        for name, status in service_health.items():
+            checks[name] = "ok" if status else "offline"
+            if not status:
+                overall = "degraded"
+    except Exception as e:
+        checks["adapters"] = f"error: {e}"
+        overall = "degraded"
+
+    return {"status": overall, "checks": checks, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/metrics", tags=["Health"])
+async def metrics():
+    """Prometheus metrics endpoint (Rate, Errors, Duration)."""
+    return await metrics_endpoint()
+
+
 _ERROR_RESPONSE_CONTENT = {
-    "application/json": {
-        "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-    }
+    "application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}
 }
 
 
@@ -668,9 +855,7 @@ def _register_error_schema(schema: dict) -> None:
     if "ErrorResponse" in schemas:
         return
 
-    error_schema = ErrorResponse.model_json_schema(
-        ref_template="#/components/schemas/{model}"
-    )
+    error_schema = ErrorResponse.model_json_schema(ref_template="#/components/schemas/{model}")
     for name, definition in error_schema.pop("$defs", {}).items():
         schemas.setdefault(name, definition)
     schemas["ErrorResponse"] = error_schema
@@ -700,12 +885,15 @@ def _operation_description(method: str, path: str, summary: str) -> str:
         ("POST", "/api/health/context"): "Set values in the shared MCP context.",
         ("GET", "/api/hyperframes/status"): "Get the HyperFrames project and engine status.",
         ("GET", "/api/hyperframes/examples"): "List available HyperFrames starter examples.",
-        ("POST", "/api/hyperframes/preview"): "Start a HyperFrames preview for the current composition.",
+        (
+            "POST",
+            "/api/hyperframes/preview",
+        ): "Start a HyperFrames preview for the current composition.",
         ("POST", "/api/hyperframes/render"): "Render the current HyperFrames composition.",
         ("GET", "/"): "Return application metadata and links to core endpoints.",
         ("GET", "/ws"): "Return an upgrade-required response for plain HTTP WebSocket clients.",
     }
-    return descriptions.get((method, path), f"{summary.rstrip('.')}." )
+    return descriptions.get((method, path), f"{summary.rstrip('.')}.")
 
 
 def _normalize_operations(schema: dict) -> None:
@@ -715,7 +903,16 @@ def _normalize_operations(schema: dict) -> None:
     tag_names = {tag["name"] for tag in schema.get("tags", [])}
     for path, path_item in schema.get("paths", {}).items():
         for method, operation in path_item.items():
-            if method.lower() not in {"get", "put", "post", "delete", "patch", "options", "head", "trace"}:
+            if method.lower() not in {
+                "get",
+                "put",
+                "post",
+                "delete",
+                "patch",
+                "options",
+                "head",
+                "trace",
+            }:
                 continue
 
             tags = operation.get("tags")
@@ -737,17 +934,16 @@ def _normalize_operations(schema: dict) -> None:
                     "description": "Internal server error",
                     "content": _ERROR_RESPONSE_CONTENT,
                 }
-            if (
-                "422" not in responses
-                and ("parameters" in operation or "requestBody" in operation)
-            ):
+            if "422" not in responses and ("parameters" in operation or "requestBody" in operation):
                 responses["422"] = {
                     "description": "Request validation failed",
                     "content": _ERROR_RESPONSE_CONTENT,
                 }
 
     existing_tags = {
-        tag["name"]: tag for tag in schema.get("tags", []) if isinstance(tag, dict) and tag.get("name")
+        tag["name"]: tag
+        for tag in schema.get("tags", [])
+        if isinstance(tag, dict) and tag.get("name")
     }
     for name in sorted(tag_names):
         existing_tags.setdefault(
@@ -838,19 +1034,35 @@ async def websocket_endpoint(websocket: WebSocket):
         return
     try:
         # Send initial hello so legacy clients know the protocol
-        await websocket.send_text(json.dumps({
-            "type": "connected",
-            "data": {"message": "Connected to Native Media AI Studio (WS compat layer). Prefer SSE at /api/events."},
-            "timestamp": datetime.now().isoformat(),
-        }))
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "connected",
+                    "data": {
+                        "message": "Connected to Native Media AI Studio (WS compat layer). Prefer SSE at /api/events."
+                    },
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
+        )
         # Keep connection alive — echo any client message and forward keepalives
         while True:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=30)
                 # Echo back for diagnostics; ignore unknown payloads
-                await websocket.send_text(json.dumps({"type": "echo", "data": {"received": msg[:500]}, "timestamp": datetime.now().isoformat()}))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "echo",
+                            "data": {"received": msg[:500]},
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
+                )
             except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({"type": "keepalive", "timestamp": datetime.now().isoformat()}))
+                await websocket.send_text(
+                    json.dumps({"type": "keepalive", "timestamp": datetime.now().isoformat()})
+                )
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -894,10 +1106,12 @@ async def sse_endpoint(request: Request):
             # Send initial connection event
             yield {
                 "event": "connected",
-                "data": json.dumps({
-                    "type": "connected",
-                    "timestamp": datetime.now().isoformat(),
-                }),
+                "data": json.dumps(
+                    {
+                        "type": "connected",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ),
             }
 
             while True:
@@ -916,10 +1130,12 @@ async def sse_endpoint(request: Request):
                     # Send keepalive comment to prevent connection timeout
                     yield {
                         "event": "keepalive",
-                        "data": json.dumps({
-                            "type": "keepalive",
-                            "timestamp": datetime.now().isoformat(),
-                        }),
+                        "data": json.dumps(
+                            {
+                                "type": "keepalive",
+                                "timestamp": datetime.now().isoformat(),
+                            }
+                        ),
                     }
         except asyncio.CancelledError:
             pass
@@ -950,9 +1166,7 @@ async def main():
     # guard that prevents duplicate backends when an agent re-invokes the
     # server while it is already running.
     if await port_manager.is_service_running("backend", port):
-        logger.info(
-            "Backend already running on port %d; skipping duplicate bind.", port
-        )
+        logger.info("Backend already running on port %d; skipping duplicate bind.", port)
         return
 
     # If we fell back to an alternate port (e.g. 8000 -> 8001) while the
@@ -962,9 +1176,7 @@ async def main():
     # canonical port still allows fallback: is_service_running only
     # returns True for a *responding* backend.
     canonical_port = config.backend_port
-    if port != canonical_port and await port_manager.is_service_running(
-        "backend", canonical_port
-    ):
+    if port != canonical_port and await port_manager.is_service_running("backend", canonical_port):
         logger.info(
             "Healthy backend already serving canonical port %d; "
             "refusing fallback duplicate on port %d.",

@@ -196,7 +196,7 @@ export async function getRemixSources(): Promise<RemixSource[]> {
 
 export async function probeRemixTrack(track: string): Promise<RemixProbe> {
   const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/probe/${encodeURIComponent(track)}`,
+    `${getApiBase()}/api/audio/remix/probe?track=${encodeURIComponent(track)}`,
     { timeout: 120000 },
   );
   return unwrap<RemixProbe>(res, `Failed to probe ${track}`);

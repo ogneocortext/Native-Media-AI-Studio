@@ -47,6 +47,8 @@ from typing import Any
 
 import soundfile as sf
 from acestep.handler import AceStepHandler
+from acestep.inference import create_sample, format_sample
+from acestep.llm_inference import LLMHandler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
@@ -104,6 +106,28 @@ class SongRequest(BaseModel):
         return v
 
 
+# ---------------------------------------------------------------------------
+# Planner request models
+# ---------------------------------------------------------------------------
+
+class PlanningStyleRequest(BaseModel):
+    step: str = Field("init", description="Planning step: init, develop, finalize")
+    description: str = Field("", description="Music style description")
+    cot_prompt: str | None = Field(None, description="Chain-of-thought prompt")
+
+
+class PlanningLyricsRequest(BaseModel):
+    step: str = Field("init", description="Planning step: init, add_verse, add_chorus, add_bridge, finalize")
+    context: str = Field("", description="Additional context (theme, story, etc.)")
+    partial_lyrics: str = Field("", description="Current partial lyrics")
+    cot_prompt: str | None = Field(None, description="Chain-of-thought prompt")
+
+
+# ---------------------------------------------------------------------------
+# Engine abstraction
+# ---------------------------------------------------------------------------
+
+
 class ACEngine:
     """ACE-Step 1.5 engine wrapper."""
 
@@ -114,6 +138,18 @@ class ACEngine:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.handler = AceStepHandler()
         self._loaded = False
+        self._llm_handler: LLMHandler | None = None
+
+    @property
+    def llm_handler(self) -> LLMHandler | None:
+        """Lazy-initialized LLM handler for planning endpoints."""
+        if self._llm_handler is None:
+            try:
+                self._llm_handler = LLMHandler()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("ACE-Step: LLM handler unavailable: %s", exc)
+                self._llm_handler = False  # type: ignore[assignment]
+        return self._llm_handler if self._llm_handler is not False else None
 
     async def load(self):
         """Load ACE-Step pipeline."""
@@ -385,6 +421,148 @@ def create_app(engine_type: str = "ace",
         except Exception as e:
             logger.error("Generation failed: %s", e, exc_info=True)
             raise HTTPException(500, str(e)) from e
+
+    # ---------------------------------------------------------------------------
+    # LM planner endpoints (for /api/music-gen/plan-style and /plan-lyrics)
+    # ---------------------------------------------------------------------------
+
+    @app.post("/planning/style")
+    async def planning_style(req: PlanningStyleRequest):
+        """Draft style text incrementally using the 5Hz LM.
+
+        Accepts a music style description and returns structured style metadata
+        (tags, mood, tempo, instrumentation, vocal style) suitable for feeding
+        into /generate.
+        """
+        engine = _engines.get(_active_engine)
+        if not engine:
+            raise HTTPException(503, "Engine not loaded")
+        llm = engine.llm_handler
+        if llm is None or not getattr(llm, "llm_initialized", False):
+            # Fallback when LM is unavailable
+            desc = req.description or "pop"
+            return {
+                "step": req.step,
+                "result": {
+                    "style_tags": desc[:50],
+                    "mood": "neutral",
+                    "tempo_bpm": 120,
+                    "instrumentation": "synth, drums, bass",
+                    "vocal_style": "clean",
+                },
+                "fallback": True,
+                "error": "LM handler not initialized",
+            }
+        try:
+            result = await asyncio.to_thread(
+                format_sample,
+                llm,
+                caption=req.description,
+                lyrics="",
+                use_constrained_decoding=True,
+            )
+            data = result.to_dict() if hasattr(result, "to_dict") else result
+            return {
+                "step": req.step,
+                "result": {
+                    "style_tags": data.get("caption", req.description)[:50],
+                    "mood": data.get("language", "neutral"),
+                    "tempo_bpm": data.get("bpm") or 120,
+                    "instrumentation": data.get("keyscale", "synth, drums, bass"),
+                    "vocal_style": data.get("timesignature", "clean"),
+                },
+                "fallback": not getattr(result, "success", True),
+                "error": getattr(result, "error", None),
+            }
+        except Exception as e:
+            logger.error("Planning style failed: %s", e, exc_info=True)
+            desc = req.description or "pop"
+            return {
+                "step": req.step,
+                "result": {
+                    "style_tags": desc[:50],
+                    "mood": "neutral",
+                    "tempo_bpm": 120,
+                    "instrumentation": "synth, drums, bass",
+                    "vocal_style": "clean",
+                },
+                "fallback": True,
+                "error": str(e),
+            }
+
+    @app.post("/planning/lyrics")
+    async def planning_lyrics(req: PlanningLyricsRequest):
+        """Draft lyrics incrementally via the 5Hz LM.
+
+        Accepts partial lyrics plus context and returns enhanced lyrics with
+        confidence and section information.
+        """
+        engine = _engines.get(_active_engine)
+        if not engine:
+            raise HTTPException(503, "Engine not loaded")
+        llm = engine.llm_handler
+        if llm is None or not getattr(llm, "llm_initialized", False):
+            lyrics = req.partial_lyrics or req.context[:200] if req.partial_lyrics or req.context else "[Verse]\n"
+            return {
+                "step": req.step,
+                "lyrics": lyrics,
+                "confidence": 0.5,
+                "needs_more": True,
+                "section_name": req.step,
+                "fallback": True,
+                "error": "LM handler not initialized",
+            }
+        try:
+            # Use format_sample to enhance existing lyrics, or create_sample
+            # to generate from context when no partial lyrics exist.
+            if req.partial_lyrics.strip():
+                result = await asyncio.to_thread(
+                    format_sample,
+                    llm,
+                    caption="",
+                    lyrics=req.partial_lyrics,
+                    use_constrained_decoding=True,
+                )
+                data = result.to_dict() if hasattr(result, "to_dict") else result
+                return {
+                    "step": req.step,
+                    "lyrics": data.get("lyrics", req.partial_lyrics),
+                    "confidence": 0.8,
+                    "needs_more": False,
+                    "section_name": req.step,
+                    "fallback": not getattr(result, "success", True),
+                    "error": getattr(result, "error", None),
+                }
+            else:
+                result = await asyncio.to_thread(
+                    create_sample,
+                    llm,
+                    query=req.context or "a song",
+                    instrumental=False,
+                    use_constrained_decoding=True,
+                )
+                data = result.to_dict() if hasattr(result, "to_dict") else result
+                return {
+                    "step": req.step,
+                    "lyrics": data.get("lyrics", ""),
+                    "confidence": 0.8,
+                    "needs_more": False,
+                    "section_name": req.step,
+                    "fallback": not getattr(result, "success", True),
+                    "error": getattr(result, "error", None),
+                }
+        except Exception as e:
+            logger.error("Planning lyrics failed: %s", e, exc_info=True)
+            lyrics = req.partial_lyrics or req.context[:200] if req.partial_lyrics or req.context else "[Verse]\n"
+            return {
+                "step": req.step,
+                "lyrics": lyrics,
+                "confidence": 0.5,
+                "needs_more": True,
+                "section_name": req.step,
+                "fallback": True,
+                "error": str(e),
+            }
 
     @app.post("/unload")
     async def unload():

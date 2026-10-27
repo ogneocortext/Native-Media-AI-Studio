@@ -34,6 +34,10 @@ class AgentStateData(BaseModel):
     video_path: str | None = None
     errors: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[dict[str, Any]] = Field(default_factory=list)
+    llm_driver: str | None = None  # "atomic_chat" | "ollama" | None
+    llm_iterations: int = 0
+    llm_tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    llm_aborted: bool = False
 
 
 class AgentState:

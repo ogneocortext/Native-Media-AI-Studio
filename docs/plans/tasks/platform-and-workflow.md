@@ -23,10 +23,38 @@ Rules: `docs/plans/tasks/README.md`
   2026-09).
 
 ### T-PLT-03 — Focus-map freshness spot-check
-- **Status:** todo
+- **Status:** done
 - **Goal:** Monthly: compare each area's State entry against the tree;
   fix drift in the same session.
 - **Files:** docs/plans/focus-areas-and-behavior-ledgers-2026-10.md
 - **Acceptance:** Every area entry either confirmed current or updated
   with a dated note.
-- **Last session:** —
+- **Last session:** Kilo, 2026-10-27 — Spot-check complete. Drift found
+  and fixed in 7 of 9 areas:
+  - 3.1 Library & Org: search/tag filter + vision polish done (T-LIB-01/02)
+  - 3.2 Music Gen: ACE-Step agent-drive A1–A4 complete (T-MUS-01–03)
+  - 3.4 Visualizer: Canvas2DVisualizer.tsx fully decomposed (T-VIZ-04–09)
+  - 3.5 Video: intro recipe schema done (T-VID-01), S1 spec done (T-VID-03)
+  - 3.6 Local Models: atomic_chat_enabled set to true (T-MOD-02), A/B done (T-MOD-01)
+  - 3.7 Agent: LLM loop spec + skeleton implemented (T-AGT-01/02)
+  - 3.8 Integrations: nav reorganized by job (T-INT-01/02)
+  Areas 3.3 (Audio/Remix) and 3.9 (Platform) confirmed current — no drift.
+  All entries updated with 2026-10-27 dates and status notes.
+
+### T-PLT-04 — SQLite home-server deployment improvements (new)
+- **Status:** done
+- **Goal:** Make `studio.db` relocatable, bound WAL/cache/mmap growth,
+  checkpoint WAL on shutdown, add JSON1 query functions for analysis results.
+- **Files:** packages/backend/app/core/connection.py, packages/backend/app/core/database.py,
+  packages/backend/app/main.py, packages/backend/tests/test_database_connections.py
+- **Acceptance:** `NMA_DB_PATH` env var overrides default path; every
+  connection gets temp_store/ cache_size/mmap_size/journal_size_limit;
+  `checkpoint_wal()` + `close_pooled_connections()` run on shutdown;
+  `search_audio_by_analysis()` and `get_audio_analysis_field()` use JSON1;
+  import cycle check 0 cycles; database tests pass.
+- **Last session:** Kilo, 2026-10-27 — Rewrote connection.py with configurable
+  DB_PATH (env var), performance PRAGMAs, checkpoint_wal(), close_pooled_connections().
+  Added WAL checkpoint + connection close to shutdown in main.py. Added
+  search_audio_by_analysis() and get_audio_analysis_field() to audio.py using
+  SQLite JSON1. Eliminated circular import between connection.py and database.py.
+  Verified: ruff clean, import-cycle check 0 cycles, database tests pass.

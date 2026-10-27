@@ -36,7 +36,7 @@ import logging
 import re
 from typing import Any
 
-from .stem_remixer import RemixLayer, RemixRecipe, RemixSlot
+from .stem_remixer import RemixLayer, RemixRecipe, RemixSlot, list_stem_sources
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,18 @@ STEM_NAMES = ("vocals", "drums", "bass", "other")
 # How a prompt may name each stem. Keys are the real stem names; values
 # are lowercase tokens that mean "use this stem" in free text.
 STEM_ALIASES: dict[str, tuple[str, ...]] = {
-    "vocals": ("vocal", "vocals", "voice", "voices", "singing", "rap", "acapella", "a capella", "lyric", "lyrics"),
+    "vocals": (
+        "vocal",
+        "vocals",
+        "voice",
+        "voices",
+        "singing",
+        "rap",
+        "acapella",
+        "a capella",
+        "lyric",
+        "lyrics",
+    ),
     "drums": ("drum", "drums", "beat", "beats", "percussion", "kit", "break"),
     "bass": ("bass", "bassline", "sub", "low end", "lowend"),
     "other": ("other", "music", "instrumental", "harmony", "keys", "melody", "synth", "chords"),
@@ -60,10 +71,40 @@ STEM_ALIASES: dict[str, tuple[str, ...]] = {
 # rather than behind a length filter: "Ad Nauseam" is a real identity and
 # "Ad" is only two characters.
 _STOP_TOKENS = {
-    "the", "a", "an", "and", "of", "for", "with", "to", "in", "on", "at", "by",
-    "from", "over", "under", "into", "using", "use", "v1", "v2", "v3", "v4",
-    "mini", "suno", "sunov6mini", "mix", "remix", "original", "final", "version",
-    "feat", "ft", "explicit", "clean",
+    "the",
+    "a",
+    "an",
+    "and",
+    "of",
+    "for",
+    "with",
+    "to",
+    "in",
+    "on",
+    "at",
+    "by",
+    "from",
+    "over",
+    "under",
+    "into",
+    "using",
+    "use",
+    "v1",
+    "v2",
+    "v3",
+    "v4",
+    "mini",
+    "suno",
+    "sunov6mini",
+    "mix",
+    "remix",
+    "original",
+    "final",
+    "version",
+    "feat",
+    "ft",
+    "explicit",
+    "clean",
 }
 
 # Adjective -> arrangement. B4 gave the adjectives parameters to land on:
@@ -139,7 +180,12 @@ MOOD_ARRANGEMENTS: dict[str, dict[str, Any]] = {
         "crossfade_bars": 2.0,
         "note": "heavy: bass and drums forward, dark",
     },
-    "vocal": {"stem_gain_db": {"vocals": 2.5}, "bars": 8, "crossfade_bars": 2.0, "note": "vocal-forward"},
+    "vocal": {
+        "stem_gain_db": {"vocals": 2.5},
+        "bars": 8,
+        "crossfade_bars": 2.0,
+        "note": "vocal-forward",
+    },
 }
 
 # Genre -> starting balance. Same philosophy as MOOD_ARRANGEMENTS: modest
@@ -525,7 +571,10 @@ def _stems_for(source: dict[str, Any], wanted: set[str]) -> tuple[list[str], str
     """
     available = {s for s in STEM_NAMES if source.get("stems", {}).get(s)}
     if not available:
-        return [], f"{source['track']}: no stems are separated yet (see GET /api/audio/remix/sources)"
+        return (
+            [],
+            f"{source['track']}: no stems are separated yet (see GET /api/audio/remix/sources)",
+        )
     if not wanted:
         return [s for s in ("drums", "bass", "vocals", "other") if s in available], None
     chosen = [s for s in STEM_NAMES if s in wanted and s in available]
@@ -576,7 +625,9 @@ def _slot_shape(moods: list[str], fallback_bars: int = 8) -> tuple[int, float]:
     return bars, xfade
 
 
-def build_heuristic_recipe(prompt: str, sources: list[dict[str, Any]]) -> tuple[RemixRecipe, list[str], str]:
+def build_heuristic_recipe(
+    prompt: str, sources: list[dict[str, Any]]
+) -> tuple[RemixRecipe, list[str], str]:
     """Deterministic draft when the model is unavailable (or unusable).
 
     Composes the plan's target scenario directly: every track the prompt
@@ -603,7 +654,9 @@ def build_heuristic_recipe(prompt: str, sources: list[dict[str, Any]]) -> tuple[
     bpm = _clamp_bpm(mentioned[0].get("bpm"), 120.0)
     bars, xfade = _slot_shape(moods)
     slots: list[RemixSlot] = []
-    for idx, source in enumerate(mentioned[:4]):  # the schema allows 64; a readable draft does not need them
+    for idx, source in enumerate(
+        mentioned[:4]
+    ):  # the schema allows 64; a readable draft does not need them
         wanted = wanted_per_source[idx] or global_stems
         stems, note = _stems_for(source, wanted)
         if note:
@@ -614,13 +667,23 @@ def build_heuristic_recipe(prompt: str, sources: list[dict[str, Any]]) -> tuple[
             RemixSlot(
                 bars=bars,
                 crossfade_bars=xfade,
-                layers=[apply_genre_gains(apply_moods_to_layer(RemixLayer(track=source["track"], stem=s), moods), genres) for s in stems],
+                layers=[
+                    apply_genre_gains(
+                        apply_moods_to_layer(RemixLayer(track=source["track"], stem=s), moods),
+                        genres,
+                    )
+                    for s in stems
+                ],
             )
         )
     if not slots:
-        raise ValueError("None of the mentioned tracks have stems separated yet (see GET /api/audio/remix/sources).")
+        raise ValueError(
+            "None of the mentioned tracks have stems separated yet (see GET /api/audio/remix/sources)."
+        )
     if len(mentioned) > 4:
-        warnings.append(f"{len(mentioned)} tracks mentioned; drafted the first 4 to keep the arrangement readable.")
+        warnings.append(
+            f"{len(mentioned)} tracks mentioned; drafted the first 4 to keep the arrangement readable."
+        )
     recipe = RemixRecipe(name="mashup-draft", target_bpm=bpm, slots=slots)
     explanation = (
         "Heuristic draft (Ollama unavailable): "
@@ -647,27 +710,27 @@ def recipe_to_request(recipe: RemixRecipe, overwrite: bool = False) -> dict[str,
         "beats_per_bar": recipe.beats_per_bar,
         "key": recipe.key,
         "overwrite": overwrite,
-    "slots": [
-        {
-            "bars": slot.bars,
-            "crossfade_bars": slot.crossfade_bars,
-            "layers": [
-                {
-                    "track": layer.track,
-                    "stem": layer.stem,
-                    "gain_db": layer.gain_db,
-                    "key_shift_semitones": layer.key_shift_semitones,
-                    "source_start_bar": layer.source_start_bar,
-                    # B4: None (not 0) so a build request omits them and the
-                    # renderer takes the untouched path.
-                    "lowpass_hz": layer.lowpass_hz,
-                    "brightness_db": layer.brightness_db,
-                }
-                for layer in slot.layers
-            ],
-        }
-        for slot in recipe.slots
-    ],
+        "slots": [
+            {
+                "bars": slot.bars,
+                "crossfade_bars": slot.crossfade_bars,
+                "layers": [
+                    {
+                        "track": layer.track,
+                        "stem": layer.stem,
+                        "gain_db": layer.gain_db,
+                        "key_shift_semitones": layer.key_shift_semitones,
+                        "source_start_bar": layer.source_start_bar,
+                        # B4: None (not 0) so a build request omits them and the
+                        # renderer takes the untouched path.
+                        "lowpass_hz": layer.lowpass_hz,
+                        "brightness_db": layer.brightness_db,
+                    }
+                    for layer in slot.layers
+                ],
+            }
+            for slot in recipe.slots
+        ],
     }
 
 
@@ -808,7 +871,9 @@ def parse_slot_bars(text: str) -> list[tuple[int, int, bool]]:
             out.append((int(match.group("slot1")) - 1, int(match.group("bars1")), True))
         elif match.group("slot2"):
             mult = match.group("mult").lower()
-            out.append((int(match.group("slot2")) - 1, 2 if mult in ("twice", "double") else 0, False))
+            out.append(
+                (int(match.group("slot2")) - 1, 2 if mult in ("twice", "double") else 0, False)
+            )
         elif match.group("slot3"):
             verb = match.group("verb").lower()
             out.append((int(match.group("slot3")) - 1, 2 if verb == "double" else 0, False))
@@ -827,12 +892,51 @@ _TRACK_REF_RE = re.compile(
 # is not a track claim, so it never warns. The single-word stem aliases
 # are included: "using The Last's drums" names the track, not the drums.
 _REF_FILLER = {
-    "the", "a", "an", "it", "its", "them", "that", "this", "there", "here",
-    "top", "start", "beginning", "middle", "end", "front", "back", "intro",
-    "outro", "first", "second", "third", "one", "two", "three", "half",
-    "twice", "double", "bit", "little", "more", "less", "again",
-    "up", "down", "quieter", "louder", "softer", "db", "slot", "slots",
-    "bar", "bars", "beat", "beats",
+    "the",
+    "a",
+    "an",
+    "it",
+    "its",
+    "them",
+    "that",
+    "this",
+    "there",
+    "here",
+    "top",
+    "start",
+    "beginning",
+    "middle",
+    "end",
+    "front",
+    "back",
+    "intro",
+    "outro",
+    "first",
+    "second",
+    "third",
+    "one",
+    "two",
+    "three",
+    "half",
+    "twice",
+    "double",
+    "bit",
+    "little",
+    "more",
+    "less",
+    "again",
+    "up",
+    "down",
+    "quieter",
+    "louder",
+    "softer",
+    "db",
+    "slot",
+    "slots",
+    "bar",
+    "bars",
+    "beat",
+    "beats",
 } | {alias for aliases in STEM_ALIASES.values() for alias in aliases if " " not in alias}
 
 # Articles are part of a name ("The Vow", "The Last"), so the leading trim
@@ -858,7 +962,11 @@ def _clean_track_reference(raw: str) -> str:
         if tok and tok not in _REF_FILLER and not tok.isdigit():
             break
         words.pop()
-    while words and first_token(words[0]) in _REF_FILLER and first_token(words[0]) not in _REF_ARTICLES:
+    while (
+        words
+        and first_token(words[0]) in _REF_FILLER
+        and first_token(words[0]) not in _REF_ARTICLES
+    ):
         words.pop(0)
     return " ".join(words).strip(" -—'\"")
 
@@ -917,8 +1025,12 @@ def request_to_recipe(data: dict[str, Any]) -> RemixRecipe:
                     gain_db=float(rl.get("gain_db", 0.0) or 0.0),
                     key_shift_semitones=float(rl.get("key_shift_semitones", 0.0) or 0.0),
                     source_start_bar=int(rl.get("source_start_bar", 0) or 0),
-                    lowpass_hz=(float(rl["lowpass_hz"]) if rl.get("lowpass_hz") is not None else None),
-                    brightness_db=(float(rl["brightness_db"]) if rl.get("brightness_db") is not None else None),
+                    lowpass_hz=(
+                        float(rl["lowpass_hz"]) if rl.get("lowpass_hz") is not None else None
+                    ),
+                    brightness_db=(
+                        float(rl["brightness_db"]) if rl.get("brightness_db") is not None else None
+                    ),
                 )
             )
         try:
@@ -941,7 +1053,9 @@ def request_to_recipe(data: dict[str, Any]) -> RemixRecipe:
         bpb = int(data.get("beats_per_bar", 4))
     except (TypeError, ValueError):
         bpb = 4
-    return RemixRecipe(name=name, target_bpm=bpm, beats_per_bar=bpb, key=data.get("key"), slots=slots)
+    return RemixRecipe(
+        name=name, target_bpm=bpm, beats_per_bar=bpb, key=data.get("key"), slots=slots
+    )
 
 
 def diff_recipes(base: RemixRecipe, revised: RemixRecipe) -> list[str]:
@@ -959,7 +1073,9 @@ def diff_recipes(base: RemixRecipe, revised: RemixRecipe) -> list[str]:
         if b_slot.bars != r_slot.bars:
             changes.append(f"{ref}: length {b_slot.bars} -> {r_slot.bars} bars")
         if abs(b_slot.crossfade_bars - r_slot.crossfade_bars) > 1e-9:
-            changes.append(f"{ref}: crossfade {b_slot.crossfade_bars:g} -> {r_slot.crossfade_bars:g} bars")
+            changes.append(
+                f"{ref}: crossfade {b_slot.crossfade_bars:g} -> {r_slot.crossfade_bars:g} bars"
+            )
         b_layers = {(layer.track.lower(), layer.stem): layer for layer in b_slot.layers}
         r_layers = {(layer.track.lower(), layer.stem): layer for layer in r_slot.layers}
         for key in b_layers:
@@ -971,13 +1087,21 @@ def diff_recipes(base: RemixRecipe, revised: RemixRecipe) -> list[str]:
                 continue
             b_layer = b_layers[key]
             if abs(b_layer.gain_db - r_layer.gain_db) > 1e-9:
-                changes.append(f"{ref}: {r_layer.stem} gain {b_layer.gain_db:g} -> {r_layer.gain_db:g} dB")
+                changes.append(
+                    f"{ref}: {r_layer.stem} gain {b_layer.gain_db:g} -> {r_layer.gain_db:g} dB"
+                )
             if abs(b_layer.key_shift_semitones - r_layer.key_shift_semitones) > 1e-9:
-                changes.append(f"{ref}: {r_layer.stem} key shift {b_layer.key_shift_semitones:g} -> {r_layer.key_shift_semitones:g} st")
+                changes.append(
+                    f"{ref}: {r_layer.stem} key shift {b_layer.key_shift_semitones:g} -> {r_layer.key_shift_semitones:g} st"
+                )
             if b_layer.source_start_bar != r_layer.source_start_bar:
-                changes.append(f"{ref}: {r_layer.stem} start bar {b_layer.source_start_bar} -> {r_layer.source_start_bar}")
+                changes.append(
+                    f"{ref}: {r_layer.stem} start bar {b_layer.source_start_bar} -> {r_layer.source_start_bar}"
+                )
             if (b_layer.lowpass_hz or None) != (r_layer.lowpass_hz or None):
-                changes.append(f"{ref}: {r_layer.stem} lowpass {b_layer.lowpass_hz} -> {r_layer.lowpass_hz} Hz")
+                changes.append(
+                    f"{ref}: {r_layer.stem} lowpass {b_layer.lowpass_hz} -> {r_layer.lowpass_hz} Hz"
+                )
             if abs((b_layer.brightness_db or 0.0) - (r_layer.brightness_db or 0.0)) > 1e-9:
                 b_tilt = b_layer.brightness_db or 0.0
                 r_tilt = r_layer.brightness_db or 0.0
@@ -1140,7 +1264,9 @@ def revise_heuristic_recipe(
         for layer in slot.layers:
             src = by_name.get(layer.track.lower()) or match_track(layer.track, sources)
             if src is None or not src.get("stems", {}).get(layer.stem):
-                warnings.append(f"slot {i + 1}: {layer.stem} from {layer.track} no longer resolves, dropped")
+                warnings.append(
+                    f"slot {i + 1}: {layer.stem} from {layer.track} no longer resolves, dropped"
+                )
                 continue
             layer.track = str(src["track"])
             kept.append(layer)
@@ -1153,7 +1279,9 @@ def revise_heuristic_recipe(
     return revised, warnings
 
 
-def _tone_field(raw: Any, lo: float, hi: float, label: str, warnings: list[str], ref: str) -> float | None:
+def _tone_field(
+    raw: Any, lo: float, hi: float, label: str, warnings: list[str], ref: str
+) -> float | None:
     """Clamp one B4 tone field from model output, warning on any change."""
     if raw is None:
         return None
@@ -1164,12 +1292,16 @@ def _tone_field(raw: Any, lo: float, hi: float, label: str, warnings: list[str],
         return None
     if not lo <= value <= hi:
         clamped = max(lo, min(hi, value))
-        warnings.append(f"{ref}: {label} {value:g} outside [{lo:g}, {hi:g}], clamped to {clamped:g}")
+        warnings.append(
+            f"{ref}: {label} {value:g} outside [{lo:g}, {hi:g}], clamped to {clamped:g}"
+        )
         return clamped
     return value
 
 
-def repair_recipe(data: dict[str, Any], sources: list[dict[str, Any]]) -> tuple[RemixRecipe, list[str]]:
+def repair_recipe(
+    data: dict[str, Any], sources: list[dict[str, Any]]
+) -> tuple[RemixRecipe, list[str]]:
     """Turn model JSON into a valid recipe, repairing what it got wrong.
 
     Every repair is reported, never silent: the caller is an agent
@@ -1210,7 +1342,9 @@ def repair_recipe(data: dict[str, Any], sources: list[dict[str, Any]]) -> tuple[
             ref = str(rl.get("track", "") or "")
             src = by_name.get(ref.lower()) or match_track(ref, sources)
             if src is None:
-                warnings.append(f"slot {i} layer {j}: track {ref!r} is not a separated source, dropped")
+                warnings.append(
+                    f"slot {i} layer {j}: track {ref!r} is not a separated source, dropped"
+                )
                 continue
             stem = str(rl.get("stem", "") or "").lower()
             if stem not in STEM_NAMES or not src.get("stems", {}).get(stem):
@@ -1227,10 +1361,20 @@ def repair_recipe(data: dict[str, Any], sources: list[dict[str, Any]]) -> tuple[
                 key_shift_semitones=float(rl.get("key_shift_semitones", 0.0) or 0.0),
                 source_start_bar=int(rl.get("source_start_bar", 0) or 0),
                 lowpass_hz=_tone_field(
-                    rl.get("lowpass_hz"), 200.0, 20000.0, "lowpass_hz", warnings, f"slot {i} layer {j}"
+                    rl.get("lowpass_hz"),
+                    200.0,
+                    20000.0,
+                    "lowpass_hz",
+                    warnings,
+                    f"slot {i} layer {j}",
                 ),
                 brightness_db=_tone_field(
-                    rl.get("brightness_db"), -12.0, 12.0, "brightness_db", warnings, f"slot {i} layer {j}"
+                    rl.get("brightness_db"),
+                    -12.0,
+                    12.0,
+                    "brightness_db",
+                    warnings,
+                    f"slot {i} layer {j}",
                 ),
             )
             layers.append(apply_moods_to_layer(layer, moods))
@@ -1245,7 +1389,9 @@ def repair_recipe(data: dict[str, Any], sources: list[dict[str, Any]]) -> tuple[
     if not slots:
         raise ValueError("No layer in the model's recipe resolved against the available sources")
     if dropped_layers:
-        warnings.append(f"Model returned up to 8 layers per slot; dropped {dropped_layers} excess layers.")
+        warnings.append(
+            f"Model returned up to 8 layers per slot; dropped {dropped_layers} excess layers."
+        )
 
     raw_bpm = data.get("target_bpm")
     bpm = _clamp_bpm(raw_bpm, 120.0)
@@ -1277,7 +1423,11 @@ def build_system_prompt(sources: list[dict[str, Any]]) -> str:
     ]
     for src in sources:
         stems = ", ".join(s for s in STEM_NAMES if src.get("stems", {}).get(s)) or "none"
-        extra = f" (bpm {src['bpm']:g}, {src['duration_sec']:.0f}s)" if src.get("bpm") and src.get("duration_sec") else ""
+        extra = (
+            f" (bpm {src['bpm']:g}, {src['duration_sec']:.0f}s)"
+            if src.get("bpm") and src.get("duration_sec")
+            else ""
+        )
         lines.append(f"- {src['track']}{extra}: {stems}")
     lines += [
         "",
@@ -1332,7 +1482,7 @@ def _extract_json(text: str) -> dict[str, Any]:
     decoder = json.JSONDecoder()
     for match in re.finditer(r"\{", raw):
         try:
-            data, _ = decoder.raw_decode(raw[match.start():])
+            data, _ = decoder.raw_decode(raw[match.start() :])
             if isinstance(data, dict):
                 return data
         except Exception:
@@ -1357,9 +1507,7 @@ async def draft_recipe_from_prompt(
     if not (prompt or "").strip():
         raise ValueError("Prompt is empty")
     if sources is None:
-        from . import stem_remixer
-
-        sources = stem_remixer.list_stem_sources()
+        sources = list_stem_sources()
 
     # B6 fixture guard: never let a test fixture into a draft, into the
     # model's context, or into the matching table. `excluded` is named in
@@ -1368,7 +1516,9 @@ async def draft_recipe_from_prompt(
     if not sources:
         raise ValueError("No library track has separated stems (see GET /api/audio/remix/sources).")
     fixture_warning = (
-        [f"Excluded test-fixture source(s): {', '.join(excluded_fixtures)}."] if excluded_fixtures else []
+        [f"Excluded test-fixture source(s): {', '.join(excluded_fixtures)}."]
+        if excluded_fixtures
+        else []
     )
     # The tracks the prompt actually named, from the available table. Any
     # track the recipe uses beyond these is the model substituting for a
@@ -1411,7 +1561,9 @@ async def draft_recipe_from_prompt(
     try:
         data = await _call(chosen)
     except Exception as exc:
-        logger.warning("Remix draft: primary model %s failed (%s), trying %s", chosen, exc, FALLBACK_MODEL)
+        logger.warning(
+            "Remix draft: primary model %s failed (%s), trying %s", chosen, exc, FALLBACK_MODEL
+        )
         if chosen != FALLBACK_MODEL:
             try:
                 data = await _call(FALLBACK_MODEL)
@@ -1423,7 +1575,9 @@ async def draft_recipe_from_prompt(
         return {
             "recipe": recipe_to_request(recipe),
             "explanation": explanation,
-            "warnings": fixture_warning + warnings + [f"Ollama unavailable ({used}); drafted deterministically without a model."],
+            "warnings": fixture_warning
+            + warnings
+            + [f"Ollama unavailable ({used}); drafted deterministically without a model."],
             "model_used": None,
             "source": "heuristic",
         }
@@ -1438,11 +1592,17 @@ async def draft_recipe_from_prompt(
         return {
             "recipe": recipe_to_request(recipe),
             "explanation": explanation,
-            "warnings": fixture_warning + warnings + ["Model's recipe did not resolve against the available sources; drafted deterministically."],
+            "warnings": fixture_warning
+            + warnings
+            + [
+                "Model's recipe did not resolve against the available sources; drafted deterministically."
+            ],
             "model_used": used,
             "source": "heuristic",
         }
-    explanation = str(data.get("explanation", "") or "").strip() or "No explanation returned by the model."
+    explanation = (
+        str(data.get("explanation", "") or "").strip() or "No explanation returned by the model."
+    )
     used_tracks = {layer.track.lower() for slot in recipe.slots for layer in slot.layers}
     substituted = sorted(used_tracks - mentioned_tracks)
     if substituted:
@@ -1477,15 +1637,15 @@ async def revise_recipe_from_prompt(
     if not (prompt or "").strip():
         raise ValueError("Prompt is empty")
     if sources is None:
-        from . import stem_remixer
-
-        sources = stem_remixer.list_stem_sources()
+        sources = list_stem_sources()
 
     sources, excluded_fixtures = draftable_sources(list(sources))
     if not sources:
         raise ValueError("No library track has separated stems (see GET /api/audio/remix/sources).")
     fixture_warning = (
-        [f"Excluded test-fixture source(s): {', '.join(excluded_fixtures)}."] if excluded_fixtures else []
+        [f"Excluded test-fixture source(s): {', '.join(excluded_fixtures)}."]
+        if excluded_fixtures
+        else []
     )
     try:
         base = request_to_recipe(base_recipe)
@@ -1501,7 +1661,8 @@ async def revise_recipe_from_prompt(
         return {
             "recipe": recipe_to_request(base),
             "explanation": f"Revision named track(s) with no separated stems: {names}.",
-            "warnings": fixture_warning + [f"Revision named unknown track(s): {names}; recipe left unchanged."],
+            "warnings": fixture_warning
+            + [f"Revision named unknown track(s): {names}; recipe left unchanged."],
             "model_used": None,
             "source": "heuristic",
             "changes": [],
@@ -1532,19 +1693,25 @@ async def revise_recipe_from_prompt(
     try:
         data = await _call(chosen)
     except Exception as exc:
-        logger.warning("Remix revision: primary model %s failed (%s), trying %s", chosen, exc, FALLBACK_MODEL)
+        logger.warning(
+            "Remix revision: primary model %s failed (%s), trying %s", chosen, exc, FALLBACK_MODEL
+        )
         if chosen != FALLBACK_MODEL:
             try:
                 data = await _call(FALLBACK_MODEL)
                 used = FALLBACK_MODEL
             except Exception as exc2:
-                logger.warning("Remix revision: fallback model failed too (%s); using heuristic", exc2)
+                logger.warning(
+                    "Remix revision: fallback model failed too (%s); using heuristic", exc2
+                )
     if data is None:
         revised, warnings = revise_heuristic_recipe(prompt, base, sources)
         return {
             "recipe": recipe_to_request(revised),
             "explanation": "Heuristic revision (Ollama unavailable).",
-            "warnings": fixture_warning + warnings + [f"Ollama unavailable ({used}); revised deterministically without a model."],
+            "warnings": fixture_warning
+            + warnings
+            + [f"Ollama unavailable ({used}); revised deterministically without a model."],
             "model_used": None,
             "source": "heuristic",
             "changes": diff_recipes(base, revised),
@@ -1558,12 +1725,18 @@ async def revise_recipe_from_prompt(
         return {
             "recipe": recipe_to_request(revised),
             "explanation": "Heuristic revision (model output unusable).",
-            "warnings": fixture_warning + warnings + ["Model's recipe did not resolve against the available sources; revised deterministically."],
+            "warnings": fixture_warning
+            + warnings
+            + [
+                "Model's recipe did not resolve against the available sources; revised deterministically."
+            ],
             "model_used": used,
             "source": "heuristic",
             "changes": diff_recipes(base, revised),
         }
-    explanation = str(data.get("explanation", "") or "").strip() or "No explanation returned by the model."
+    explanation = (
+        str(data.get("explanation", "") or "").strip() or "No explanation returned by the model."
+    )
     return {
         "recipe": recipe_to_request(revised),
         "explanation": explanation,

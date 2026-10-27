@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
@@ -50,51 +52,60 @@ class AppConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @field_validator('backend_port', 'frontend_port', 'ws_port')
+    @field_validator("backend_port", "frontend_port", "ws_port")
     @classmethod
     def validate_port(cls, v: int) -> int:
         """Validate that port is in valid range"""
         if not (1 <= v <= 65535):
-            raise ValueError(f'Port must be between 1 and 65535, got {v}')
+            raise ValueError(f"Port must be between 1 and 65535, got {v}")
         return v
 
-    @field_validator('backend_host')
+    @field_validator("backend_host")
     @classmethod
     def validate_host(cls, v: str) -> str:
         """Validate that host is not empty"""
         if not v or not v.strip():
-            raise ValueError('Host cannot be empty')
+            raise ValueError("Host cannot be empty")
         return v.strip()
 
-    @field_validator('comfyui_url', 'ollama_url', 'atomic_chat_url', 'go_dashboard_url', 'go_media_url', 'go_worker_url', 'go_gateway_url', 'go_ports_url')
+    @field_validator(
+        "comfyui_url",
+        "ollama_url",
+        "atomic_chat_url",
+        "go_dashboard_url",
+        "go_media_url",
+        "go_worker_url",
+        "go_gateway_url",
+        "go_ports_url",
+    )
     @classmethod
     def validate_url(cls, v: str) -> str:
         """Validate that URL is properly formatted"""
         if not v or not v.strip():
             raise ValueError("URL cannot be empty")
         v = v.strip()
-        if not v.startswith(('http://', 'https://')):
+        if not v.startswith(("http://", "https://")):
             raise ValueError(f"URL must start with http:// or https://, got {v}")
         return v
 
-    @field_validator('log_level')
+    @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
         """Validate that log level is valid"""
-        valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         v_upper = v.upper()
         if v_upper not in valid_levels:
-            raise ValueError(f'Log level must be one of {valid_levels}, got {v}')
+            raise ValueError(f"Log level must be one of {valid_levels}, got {v}")
         return v_upper
 
-    @field_validator('max_queue_workers')
+    @field_validator("max_queue_workers")
     @classmethod
     def validate_workers(cls, v: int) -> int:
         """Validate that worker count is reasonable"""
         if v < 1:
-            raise ValueError(f'Worker count must be at least 1, got {v}')
+            raise ValueError(f"Worker count must be at least 1, got {v}")
         if v > 10:
-            logger.warning(f'Worker count {v} is high, may impact performance')
+            logger.warning(f"Worker count {v} is high, may impact performance")
         return v
 
 
@@ -131,12 +142,18 @@ def load_config() -> AppConfig:
                     data["comfyui_port"] = ports_data.get("comfyui_port", 8188)
                     data["video_editor_port"] = ports_data.get("video_editor_port", 8080)
                     data["ollama_url"] = ports_data.get("ollama_url", "http://127.0.0.1:11434")
-                    data["atomic_chat_url"] = ports_data.get("atomic_chat_url", "http://127.0.0.1:1337")
+                    data["atomic_chat_url"] = ports_data.get(
+                        "atomic_chat_url", "http://127.0.0.1:1337"
+                    )
                     data["atomic_chat_enabled"] = ports_data.get("atomic_chat_enabled", False)
-                    data["go_dashboard_url"] = ports_data.get("go_dashboard_url", "http://127.0.0.1:3847")
+                    data["go_dashboard_url"] = ports_data.get(
+                        "go_dashboard_url", "http://127.0.0.1:3847"
+                    )
                     data["go_media_url"] = ports_data.get("go_media_url", "http://127.0.0.1:3848")
                     data["go_worker_url"] = ports_data.get("go_worker_url", "http://127.0.0.1:3849")
-                    data["go_gateway_url"] = ports_data.get("go_gateway_url", "http://127.0.0.1:3850")
+                    data["go_gateway_url"] = ports_data.get(
+                        "go_gateway_url", "http://127.0.0.1:3850"
+                    )
                     data["go_ports_url"] = ports_data.get("go_ports_url", "http://127.0.0.1:3851")
         except Exception as e:
             logger.warning(f"Could not load port defaults from {ports_file}: {e}")
@@ -176,4 +193,103 @@ def save_config(config: AppConfig) -> None:
         raise
 
 
+# ---------------------------------------------------------------------------
+# Config hot-reload
+# ---------------------------------------------------------------------------
+#
+# `settings.json` is edited by the Settings page and by operators directly.
+# Without hot-reload, a config change requires restarting the backend.
+# These functions let an operator (or an API endpoint) reload settings from
+# disk without restarting. Ports and URLs remain owned by `ports.json` and are
+# not reloaded here — changing those requires a restart anyway (the socket is
+# already bound).
+
+
+_CONFIG_MTIME: float | None = None
+
+
+def config_changed() -> bool:
+    """Return True if `settings.json` has been modified since last load.
+
+    Used by the Settings page or an API endpoint to detect out-of-band edits
+    (e.g. an operator editing `config/settings.json` with a text editor).
+    """
+    global _CONFIG_MTIME
+    settings_file = CONFIG_DIR / "settings.json"
+    try:
+        mtime = settings_file.stat().st_mtime
+    except FileNotFoundError:
+        return False
+    if _CONFIG_MTIME is None:
+        _CONFIG_MTIME = mtime
+        return False
+    return mtime != _CONFIG_MTIME
+
+
+def reload_config() -> AppConfig:
+    """Re-read `settings.json` and return a fresh `AppConfig`.
+
+    Updates the module-level `_CONFIG_MTIME` so subsequent `config_changed()`
+    calls return False until the file changes again. Ports/URLs are taken from
+    `ports.json` as in `load_config()`; only the settings.json-owned fields are
+    refreshed.
+    """
+    global config, _CONFIG_MTIME
+
+    settings_file = CONFIG_DIR / "settings.json"
+    data: dict[str, Any] = {}
+    if settings_file.exists():
+        try:
+            with open(settings_file) as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in config file {settings_file}: {e}")
+            logger.warning("Keeping existing configuration")
+            return config
+        except Exception as e:
+            logger.error(f"Error loading config from {settings_file}: {e}")
+            logger.warning("Keeping existing configuration")
+            return config
+
+    # Preserve port/URL ownership from ports.json (same as load_config).
+    ports_file = CONFIG_DIR / "ports.json"
+    if ports_file.exists():
+        try:
+            with open(ports_file) as f:
+                ports_data = json.load(f)
+            if isinstance(ports_data, dict):
+                data["backend_port"] = ports_data.get("backend_port", 8000)
+                data["frontend_port"] = ports_data.get("frontend_port", 5173)
+                data["ws_port"] = ports_data.get("ws_port", data["backend_port"])
+                data["comfyui_url"] = ports_data.get("comfyui_url", "http://127.0.0.1:8188")
+                data["comfyui_port"] = ports_data.get("comfyui_port", 8188)
+                data["video_editor_port"] = ports_data.get("video_editor_port", 8080)
+                data["ollama_url"] = ports_data.get("ollama_url", "http://127.0.0.1:11434")
+                data["atomic_chat_url"] = ports_data.get("atomic_chat_url", "http://127.0.0.1:1337")
+                data["atomic_chat_enabled"] = ports_data.get("atomic_chat_enabled", False)
+                data["go_dashboard_url"] = ports_data.get(
+                    "go_dashboard_url", "http://127.0.0.1:3847"
+                )
+                data["go_media_url"] = ports_data.get("go_media_url", "http://127.0.0.1:3848")
+                data["go_worker_url"] = ports_data.get("go_worker_url", "http://127.0.0.1:3849")
+                data["go_gateway_url"] = ports_data.get("go_gateway_url", "http://127.0.0.1:3850")
+                data["go_ports_url"] = ports_data.get("go_ports_url", "http://127.0.0.1:3851")
+        except Exception as e:
+            logger.warning(f"Could not load port defaults from {ports_file}: {e}")
+
+    try:
+        config = AppConfig(**data)
+        _CONFIG_MTIME = settings_file.stat().st_mtime if settings_file.exists() else None
+        logger.info("Configuration reloaded from settings.json")
+        return config
+    except Exception as e:
+        logger.error(f"Failed to rebuild config on reload: {e}")
+        return config
+
+
 config = load_config()
+_CONFIG_MTIME = (
+    (CONFIG_DIR / "settings.json").stat().st_mtime
+    if (CONFIG_DIR / "settings.json").exists()
+    else None
+)

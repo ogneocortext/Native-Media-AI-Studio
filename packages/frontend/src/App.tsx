@@ -35,6 +35,7 @@ const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: str
   );
 
 // Heavy pages loaded on-demand
+const MasteringPage = lazyNamed(() => import("./features/mastering/MasteringPage"), "MasteringPage");
 const HealthPage = lazyNamed(() => import("./features/health/HealthPage"), "HealthPage");
 const DataManagementPage = lazyNamed(
   () => import("./features/data-management/DataManagementPage"),
@@ -71,10 +72,6 @@ const VideoGenerationPage = lazyNamed(
   () => import("./features/video-generation/VideoGenerationPage"),
   "VideoGenerationPage",
 );
-const Generation3DPage = lazyNamed(
-  () => import("./features/generate3d/Generation3DPage"),
-  "Generation3DPage",
-);
 const DocsPage = lazyNamed(() => import("./features/docs/DocsPage"), "DocsPage");
 const StoryboardPage = lazyNamed(
   () => import("./features/storyboards/StoryboardPage"),
@@ -102,6 +99,7 @@ const MusicGenPage = lazyNamed(
   () => import("./features/music-gen/MusicGenPage"),
   "MusicGenPage",
 );
+const RemixPage = lazyNamed(() => import("./features/remix/RemixPage"), "RemixPage");
 const UnityControlPage = lazyNamed(
   () => import("./features/unity-control/UnityControlPage"),
   "UnityControlPage",
@@ -120,35 +118,35 @@ const OnboardingPage = lazyNamed(
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
 
 const ROUTE_TITLES: Record<string, string> = {
-  "/": "Dashboard",
-  "/queue": "Queue",
-  "/music-video-wizard": "Music Video Wizard",
-  "/three-js-studio": "Three.js Studio",
-  "/audio-analysis": "Audio Analysis",
-  "/video-generation": "Video Generation",
-  "/generate-3d": "3D Generation",
-  "/ai-tools": "AI Tools",
-  "/ollama-chat": "Ollama Chat",
-  "/docs": "Documentation",
-  "/storyboards": "Storyboards",
-  "/image-generation": "Image Generation",
-  "/visualizer": "Visualizer",
-  "/hyperframes": "HyperFrames",
-  "/music-prompts": "Music Prompts",
-  "/music-gen": "Music Gen",
+  "/system": "Dashboard",
+  "/system/onboarding": "Quick Start",
+  "/system/queue": "Queue",
+  "/system/settings": "Settings",
+  "/system/health": "Health",
+  "/system/data-management": "Data Management",
+  "/system/database": "Database",
+  "/system/log-analytics": "Log Analytics",
+  "/system/gpu": "GPU Monitor",
+  "/system/notifications": "Notifications",
+  "/system/docs": "Documentation",
+  "/create/music-video": "Music Video Wizard",
+  "/create/3d": "Three.js Studio",
+  "/create/video": "Video Generation",
+  "/create/image": "Image Generation",
+  "/create/typography": "Kinetic Typography",
+  "/create/music": "Music Gen",
+  "/create/remix": "Remix / Mashup",
+  "/create/animation": "Animation Studio",
+  "/create/unity": "Unity Control",
+  "/create/hyperframes": "HyperFrames",
   "/library": "Media Library",
-  "/settings": "Settings",
-  "/log-analytics": "Log Analytics",
-  "/health": "Health",
-  "/data-management": "Data Management",
-  "/database": "Database",
-  "/kinetic-typography": "Kinetic Typography",
-  "/gpu": "GPU Monitor",
-  "/unity": "Unity Control",
-  "/preview": "Preview",
-  "/notifications": "Notifications",
-  "/animation-studio": "Animation Studio",
-  "/onboarding": "Quick Start",
+  "/library/storyboards": "Storyboards",
+  "/analyze/audio": "Audio Analysis",
+  "/analyze/ai": "AI Tools",
+  "/analyze/chat": "Ollama Chat",
+  "/render/visualizer": "Visualizer",
+  "/render/preview": "Preview",
+  "/render/prompts": "Music Prompts",
 };
 
 function RouteTitle() {
@@ -180,8 +178,9 @@ function App() {
         <Layout>
           <Suspense fallback={<PageLoader />}>
             <Routes>
+              {/* System — dashboard root */}
               <Route
-                path="/"
+                path="/system"
                 element={withErrorBoundary(
                   <FirstRunGate>
                     <Dashboard />
@@ -189,50 +188,161 @@ function App() {
                 )}
               />
               <Route
-                path="/onboarding"
+                path="/system/onboarding"
                 element={withErrorBoundary(<OnboardingPage />)}
               />
-              <Route path="/queue" element={withErrorBoundary(<Queue />)} />
-              <Route path="/music-video-wizard" element={withErrorBoundary(<MusicVideoWizard />)} />
-              <Route path="/three-js-studio" element={withErrorBoundary(<ThreeJSStudio />)} />
-              <Route path="/audio-analysis" element={withErrorBoundary(<AudioAnalysisPage />)} />
+              <Route path="/system/queue" element={withErrorBoundary(<Queue />)} />
               <Route
-                path="/video-generation"
+                path="/system/settings"
+                element={withErrorBoundary(<Settings />)}
+              />
+              <Route
+                path="/system/health"
+                element={withErrorBoundary(<HealthPage />)}
+              />
+              <Route
+                path="/system/data-management"
+                element={withErrorBoundary(<DataManagementPage />)}
+              />
+              <Route
+                path="/system/database"
+                element={withErrorBoundary(<DatabasePage />)}
+              />
+              <Route
+                path="/system/log-analytics"
+                element={withErrorBoundary(<LogAnalyticsPage />)}
+              />
+              <Route path="/system/gpu" element={withErrorBoundary(<GpuMonitorPage />)} />
+              <Route
+                path="/system/notifications"
+                element={withErrorBoundary(<NotificationsPage />)}
+              />
+              <Route
+                path="/system/docs"
+                element={withErrorBoundary(<DocsPage />)}
+              />
+
+              {/* Create */}
+              <Route
+                path="/create/music-video"
+                element={withErrorBoundary(<MusicVideoWizard />)}
+              />
+              <Route
+                path="/create/3d"
+                element={withErrorBoundary(<ThreeJSStudio />)}
+              />
+              <Route
+                path="/create/video"
                 element={withErrorBoundary(<VideoGenerationPage />)}
               />
-              <Route path="/generate-3d" element={withErrorBoundary(<Generation3DPage />)} />
-              <Route path="/ai-tools" element={withErrorBoundary(<AIToolsPage />)} />
-              <Route path="/ollama-chat" element={withErrorBoundary(<OllamaChat />)} />
-              <Route path="/docs" element={withErrorBoundary(<DocsPage />)} />
-              <Route path="/storyboards" element={withErrorBoundary(<StoryboardPage />)} />
-              <Route path="/image-generation" element={withErrorBoundary(<ImageGeneration />)} />
-              <Route path="/visualizer" element={withErrorBoundary(<Visualizer />)} />
-              <Route path="/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
-               <Route path="/music-prompts" element={withErrorBoundary(<MusicPromptsWorkbench />)} />
-               <Route path="/music-gen" element={withErrorBoundary(<MusicGenPage />)} />
-              <Route path="/library" element={withErrorBoundary(<MediaLibrary />)} />
-              <Route path="/media-library" element={<Navigate to="/library" replace />} />
-              <Route path="/settings" element={withErrorBoundary(<Settings />)} />
-              <Route path="/logs" element={<Navigate to="/log-analytics" replace />} />
-              <Route path="/log-analytics" element={withErrorBoundary(<LogAnalyticsPage />)} />
-              <Route path="/health" element={withErrorBoundary(<HealthPage />)} />
-              <Route path="/data-management" element={withErrorBoundary(<DataManagementPage />)} />
-              <Route path="/database" element={withErrorBoundary(<DatabasePage />)} />
               <Route
-                path="/kinetic-typography"
+                path="/create/image"
+                element={withErrorBoundary(<ImageGeneration />)}
+              />
+              <Route
+                path="/create/typography"
                 element={withErrorBoundary(<KineticTypographyPage />)}
               />
-              <Route path="/gpu" element={withErrorBoundary(<GpuMonitorPage />)} />
-              <Route path="/unity" element={withErrorBoundary(<UnityControlPage />)} />
-              <Route path="/preview" element={withErrorBoundary(<Preview />)} />
-              <Route path="/preview/:clipId" element={withErrorBoundary(<Preview />)} />
-              <Route path="/notifications" element={withErrorBoundary(<NotificationsPage />)} />
-              <Route path="/animation-studio" element={withErrorBoundary(<AnimationStudio />)} />
+  <Route
+    path="/create/music"
+    element={withErrorBoundary(<MusicGenPage />)}
+  />
+  <Route
+    path="/create/remix"
+    element={withErrorBoundary(<RemixPage />)}
+  />
+              <Route
+                path="/create/animation"
+                element={withErrorBoundary(<AnimationStudio />)}
+              />
+              <Route
+                path="/create/unity"
+                element={withErrorBoundary(<UnityControlPage />)}
+              />
+              <Route
+                path="/create/hyperframes"
+                element={withErrorBoundary(<HyperFramesPage />)}
+              />
+
+              {/* Library */}
+              <Route
+                path="/library"
+                element={withErrorBoundary(<MediaLibrary />)}
+              />
+              <Route
+                path="/library/storyboards"
+                element={withErrorBoundary(<StoryboardPage />)}
+              />
+
+              {/* Analyze */}
+              <Route
+                path="/mastering"
+                element={withErrorBoundary(<MasteringPage />)}
+              />
+              <Route
+                path="/analyze/audio"
+                element={withErrorBoundary(<AudioAnalysisPage />)}
+              />
+              <Route
+                path="/analyze/ai"
+                element={withErrorBoundary(<AIToolsPage />)}
+              />
+              <Route
+                path="/analyze/chat"
+                element={withErrorBoundary(<OllamaChat />)}
+              />
+
+              {/* Render */}
+              <Route
+                path="/render/visualizer"
+                element={withErrorBoundary(<Visualizer />)}
+              />
+              <Route path="/render/preview" element={withErrorBoundary(<Preview />)} />
+              <Route path="/render/preview/:clipId" element={withErrorBoundary(<Preview />)} />
+              <Route
+                path="/render/prompts"
+                element={withErrorBoundary(<MusicPromptsWorkbench />)}
+              />
+
+              {/* Root redirect */}
+              <Route path="/" element={<Navigate to="/system" replace />} />
+
+              {/* Backward-compatible redirects (old → new) */}
+              <Route path="/onboarding" element={<Navigate to="/system/onboarding" replace />} />
+              <Route path="/queue" element={<Navigate to="/system/queue" replace />} />
+              <Route path="/music-video-wizard" element={<Navigate to="/create/music-video" replace />} />
+              <Route path="/three-js-studio" element={<Navigate to="/create/3d" replace />} />
+              <Route path="/audio-analysis" element={<Navigate to="/analyze/audio" replace />} />
+              <Route path="/video-generation" element={<Navigate to="/create/video" replace />} />
+              <Route path="/generate-3d" element={<Navigate to="/create/3d" replace />} />
+              <Route path="/ai-tools" element={<Navigate to="/analyze/ai" replace />} />
+              <Route path="/ollama-chat" element={<Navigate to="/analyze/chat" replace />} />
+              <Route path="/docs" element={<Navigate to="/system/docs" replace />} />
+              <Route path="/storyboards" element={<Navigate to="/library/storyboards" replace />} />
+              <Route path="/image-generation" element={<Navigate to="/create/image" replace />} />
+              <Route path="/visualizer" element={<Navigate to="/render/visualizer" replace />} />
+              <Route path="/hyperframes" element={<Navigate to="/create/hyperframes" replace />} />
+              <Route path="/music-prompts" element={<Navigate to="/render/prompts" replace />} />
+              <Route path="/music-gen" element={<Navigate to="/create/music" replace />} />
+              <Route path="/settings" element={<Navigate to="/system/settings" replace />} />
+              <Route path="/logs" element={<Navigate to="/system/log-analytics" replace />} />
+              <Route path="/log-analytics" element={<Navigate to="/system/log-analytics" replace />} />
+              <Route path="/health" element={<Navigate to="/system/health" replace />} />
+              <Route path="/data-management" element={<Navigate to="/system/data-management" replace />} />
+              <Route path="/database" element={<Navigate to="/system/database" replace />} />
+              <Route path="/kinetic-typography" element={<Navigate to="/create/typography" replace />} />
+              <Route path="/gpu" element={<Navigate to="/system/gpu" replace />} />
+              <Route path="/unity" element={<Navigate to="/create/unity" replace />} />
+              <Route path="/preview" element={<Navigate to="/render/preview" replace />} />
+              <Route path="/notifications" element={<Navigate to="/system/notifications" replace />} />
+              <Route path="/animation-studio" element={<Navigate to="/create/animation" replace />} />
+
               {/* Redirects for removed/merged routes */}
-              <Route path="/music-video" element={<Navigate to="/music-video-wizard" replace />} />
-              <Route path="/studio-3d" element={<Navigate to="/generate-3d" replace />} />
-              <Route path="/video-editor" element={<Navigate to="/video-generation" replace />} />
-              <Route path="/diagnostics" element={<Navigate to="/health" replace />} />
+              <Route path="/music-video" element={<Navigate to="/create/music-video" replace />} />
+              <Route path="/studio-3d" element={<Navigate to="/create/3d" replace />} />
+              <Route path="/video-editor" element={<Navigate to="/create/video" replace />} />
+              <Route path="/diagnostics" element={<Navigate to="/system/health" replace />} />
+              <Route path="/media-library" element={<Navigate to="/library" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

@@ -199,12 +199,16 @@ async def remix_sources() -> dict:
     return {"sources": stem_remixer.list_stem_sources()}
 
 
-@router.get("/probe/{track}")
+@router.get("/probe")
 async def remix_probe(track: str) -> dict:
     """Tempo and advisory key for one track.
 
     `key_confident` is reported rather than acted on: chroma flatness measured
     0.978-0.998 on this library, so the detected key is noise.
+
+    The track name is a query parameter (not a path segment) because track
+    names can contain colons, slashes, and other characters that break URL
+    path encoding.
     """
     try:
         return await asyncio.to_thread(stem_remixer.probe_track, track)

@@ -260,3 +260,43 @@ class NMAApiClient:
             ),
             circuit_name="audio_outputs",
         )
+
+    # ------------------------------------------------------------------
+    # LLM chat with tools (agent loop)
+    # ------------------------------------------------------------------
+    async def chat_with_tools(
+        self,
+        message: str,
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = "qwen3.5:4b",
+        system: str | None = None,
+        history: list[dict[str, Any]] | None = None,
+        max_tool_calls: int = 5,
+        think: bool | None = None,
+    ) -> dict[str, Any]:
+        """Chat with the LLM backend with tool-calling support.
+
+        Calls POST /api/ollama/chat. Returns the raw response dict which
+        includes ``message`` (with optional ``tool_calls``) and any
+        tool results already executed by the backend adapter.
+
+        The backend adapter routes to Atomic Chat when
+        ``atomic_chat_enabled`` is true, falling back to Ollama on error.
+        """
+        data: dict[str, Any] = {
+            "message": message,
+            "model": model,
+            "stream": False,
+            "max_tool_calls": max_tool_calls,
+        }
+        if tools is not None:
+            data["tools"] = tools
+        if system is not None:
+            data["system"] = system
+        if history is not None:
+            data["history"] = history
+        if think is not None:
+            data["think"] = think
+        return await self._request("POST", "/api/ollama/chat", data,
+                                   circuit_name="ollama_chat")
+

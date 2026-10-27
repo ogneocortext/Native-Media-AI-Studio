@@ -1,10 +1,12 @@
 import { ChangeEvent } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Tag as TagIcon } from "lucide-react";
 import { DS } from "../../../styles/designSystem";
+import type { Tag } from "../../../services/api";
 
 export interface FilterState {
   query: string;
   fileType: string | "all";
+  tagFilter: string | null;
   sortBy: "name" | "size" | "date";
   sortOrder: "asc" | "desc";
 }
@@ -19,17 +21,24 @@ const FILE_TYPE_OPTIONS: Array<{ value: string; label: string; icon?: string }> 
 
 interface FilterBarProps {
   filter: FilterState;
+  tags: Tag[];
   onChange: (filter: FilterState) => void;
 }
 
-export function FilterBar({ filter, onChange }: FilterBarProps) {
+export function FilterBar({ filter, tags, onChange }: FilterBarProps) {
   const handleQueryChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange({ ...filter, query: e.target.value });
   };
 
   const handleFileTypeChange = (fileType: string) => {
-    onChange({ ...filter, fileType });
+    onChange({ ...filter, fileType, tagFilter: null });
   };
+
+  const handleTagChange = (tagId: string | null) => {
+    onChange({ ...filter, tagFilter: tagId, fileType: "all" });
+  };
+
+  const selectedTag = tags.find((t) => t.id === filter.tagFilter);
 
   return (
     <div className={`${DS.card} p-4 space-y-3`}>
@@ -51,6 +60,41 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
             <X size={14} />
           </button>
         )}
+      </div>
+
+      {/* Tag filter */}
+      <div className="flex items-center gap-2">
+        <TagIcon size={16} className="text-muted" />
+        <span className="text-xs text-muted">Tag:</span>
+        <button
+          onClick={() => handleTagChange(null)}
+          className={`px-2.5 py-1 rounded-md text-sm font-medium ${
+            !filter.tagFilter
+              ? "bg-primary text-white border border-primary/50 shadow-sm"
+              : "bg-black/40 text-muted border border-transparent hover:bg-black/50 hover:text-white"
+          }`}
+        >
+          All
+        </button>
+        {tags.map((tag) => (
+          <button
+            key={tag.id}
+            onClick={() => handleTagChange(tag.id)}
+            className={`px-2.5 py-1 rounded-md text-sm font-medium ${
+              filter.tagFilter === tag.id
+                ? `bg-primary text-white border border-primary/50 shadow-sm`
+                : "bg-black/40 text-muted border border-transparent hover:bg-black/50 hover:text-white"
+            }`}
+            style={{ borderColor: tag.color }}
+            title={tag.name}
+          >
+            <span
+              className="inline-block w-3 h-3 rounded-full mr-1"
+              style={{ backgroundColor: tag.color }}
+            />
+            {tag.name}
+          </button>
+        ))}
       </div>
 
       {/* File type filter — single combined filter (Category + Type merged) */}
@@ -105,7 +149,9 @@ export function FilterBar({ filter, onChange }: FilterBarProps) {
         <span className="text-sm font-medium text-foreground">
           {filter.query
             ? `Results for "${filter.query}"`
-            : `Total files`}
+            : selectedTag
+              ? `Tag: "${selectedTag.name}"`
+              : `Total files`}
         </span>
       </div>
     </div>

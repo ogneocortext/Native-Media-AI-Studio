@@ -23,17 +23,9 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
-  asymmetricSmoothStep,
-  clamp,
-  easeOutBack,
   easeOutQuad,
-  fbm,
-  hexToRgb,
-  hslToRgb,
   lerpColor,
-  makeFreqMapper,
   normalizeHex,
-  sampleMappedBand,
   usesAsymmetricSmoothing,
   type PerceptualScale,
 } from "./canvas2dHelpers";
@@ -44,11 +36,23 @@ import {
   VIGNETTE_ALPHA_CEILING,
   type Canvas2DMode,
 } from "./canvas2dModeBudget";
-import { deterministicAudioFrame, frameReadiness } from "./services/analysisAudioFrame";
+import {
+  type Shockwave,
+  drawShockwaves,
+  spawnShockwave,
+  updateShockwaves,
+} from "./shockwaves";
+import {
+  type IdleParticle,
+  drawIdleParticles,
+  updateIdleParticles,
+} from "./idleParticles";
+import { type Particle } from "./particles";
+import { renderMode } from "./canvas2dModes";
+import { FrameAccurateCanvas2D } from "./services/frameAccurateCanvas2d";
 import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import type { AudioAnalysisData, AudioData } from "./types";
-import { createSeededRandom } from "../../shared/seededRandom";
 
 export interface Canvas2DVisualizerRef {
   captureScreenshot: () => string | null;
@@ -239,26 +243,19 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       let smoothed: Uint8Array | null = null;
       // Falling peak indicators for bars mode
       let barPeaks: number[] | null = null;
-      const PEAK_DECAY = 0.985;
 
-      // Plan 2.9 — deterministic export state.
-      //
-      // `exportActive` gates the live loop (a live frame mid-export would
-      // mutate particle/spring state and make two runs diverge, exactly as it
-      // did in the shader lane). `virtualTime` is the frame being rendered, or
-      // null for live frames. `virtualRandom` replaces Math.random, and
-      // `virtualAudio`/`virtualFreq`/`virtualWave` replace the analyser reads.
-      let exportActive = false;
-      let virtualTime: number | null = null;
-      let virtualRandom: (() => number) | null = null;
-      let virtualAudio: AudioData | null = null;
-      let virtualFreq: Uint8Array | null = null;
-      let virtualWave: Uint8Array | null = null;
+      // Plan 2.9 — deterministic export state, owned by FrameAccurateCanvas2D.
+      // The draw loop reads isExportActive/virtualTimeSec/virtualRand/
+      // virtualAudioData/virtualFreqBuffer/virtualWaveBuffer from the API
+      // instance; beginDeterministicRun/resetState/clearPools reset shared
+      // state so frame 0 starts clean.
+      let api: FrameAccurateCanvas2D | null = null;
 
       /** Random for the frame being drawn: seeded during export, live otherwise. */
-      const rand = (): number => virtualRandom?.() ?? Math.random();
+      const rand = (): number => api!.virtualRand?.() ?? Math.random();
       /** Wall clock for the frame being drawn: virtual time during export. */
-      const nowMs = (): number => (virtualTime !== null ? virtualTime * 1000 : performance.now());
+      const nowMs = (): number =>
+        api!.virtualTimeSec !== null ? api!.virtualTimeSec * 1000 : performance.now();
 
       // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
       let barVelocities: number[] | null = null;
@@ -274,154 +271,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       let waveEnvelope: number[] | null = null;
       let waveVelocities: number[] | null = null;
       // Drum shockwave state — expanding rings on kick/snare/hat transient
-      const shockwaves: {
-        x: number;
-        y: number;
-        radius: number;
-        maxRadius: number;
-        alpha: number;
-        hue: number;
-        lineWidth: number;
-        speed: number;
-        shear: number;
-      }[] = [];
-      const MAX_SHOCKWAVES = 8;
-      function spawnShockwave(w: number, h: number, drumType?: string) {
-        if (shockwaves.length >= MAX_SHOCKWAVES) return;
-        const cx = w / 2 + (rand() - 0.5) * w * 0.4;
-        const cy = h / 2 + (rand() - 0.5) * h * 0.3;
-
-        // Per-drum differentiation per 2026 research:
-        // kick = slower/thicker, snare = fast/sheared, hat = flash
-        let radius, maxRadius, alpha, hue, lineWidth, speed, shear;
-
-        if (drumType === "kick") {
-          radius = 4;
-          maxRadius = Math.min(w, h) * 0.5;
-          alpha = 0.6;
-          hue = 0;
-          lineWidth = 2.5;
-          speed = 0.08;
-          shear = 0;
-        } else if (drumType === "snare") {
-          radius = 2;
-          maxRadius = Math.min(w, h) * 0.35;
-          alpha = 0.45;
-          hue = 200;
-          lineWidth = 1.8;
-          speed = 0.12;
-          shear = 0.15;
-        } else if (drumType === "hat") {
-          radius = 1;
-          maxRadius = Math.min(w, h) * 0.2;
-          alpha = 0.7;
-          hue = 240;
-          lineWidth = 1.0;
-          speed = 0.2;
-          shear = 0;
-        } else {
-          // Fallback for unknown drum type
-          radius = 2;
-          maxRadius = Math.min(w, h) * 0.25;
-          alpha = 0.35;
-          hue = 180;
-          lineWidth = 1.5;
-          speed = 0.08;
-          shear = 0;
-        }
-
-        shockwaves.push({
-          x: cx,
-          y: cy,
-          radius,
-          maxRadius,
-          alpha,
-          hue,
-          lineWidth,
-          speed,
-          shear,
-        });
-      }
-      function updateShockwaves(motionScale: number) {
-        for (let i = shockwaves.length - 1; i >= 0; i--) {
-          const s = shockwaves[i];
-          s.radius += (s.maxRadius - s.radius) * s.speed * motionScale;
-          s.alpha -= 0.015 * motionScale;
-          if (s.alpha <= 0 || s.radius >= s.maxRadius) {
-            shockwaves.splice(i, 1);
-          }
-        }
-      }
-      function drawShockwaves(ctx: CanvasRenderingContext2D, dpr: number) {
-        for (const s of shockwaves) {
-          const rgb = hslToRgb(s.hue / 360, 0.8, 0.55);
-          ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(s.alpha, 0, 1)})`;
-          ctx.lineWidth = s.lineWidth * dpr;
-          ctx.beginPath();
-
-          if (s.shear > 0) {
-            // Apply shear transformation for snare (tangential shear effect)
-            ctx.save();
-            ctx.translate(s.x, s.y);
-            ctx.transform(1, s.shear, 0, 1, 0, 0);
-            ctx.translate(-s.x, -s.y);
-            ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-          } else {
-            ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-        }
-      }
+      const shockwaves: Shockwave[] = [];
 
       // Idle ambient particles — subtle floating motes when no track is playing
-      const idleParticles: {
-        x: number;
-        y: number;
-        vx: number;
-        vy: number;
-        life: number;
-        hue: number;
-        size: number;
-      }[] = [];
-      const MAX_IDLE_PARTICLES = 40;
-      function spawnIdleParticle(w: number, h: number) {
-        if (idleParticles.length >= MAX_IDLE_PARTICLES) return;
-        idleParticles.push({
-          x: rand() * w,
-          y: rand() * h,
-          vx: (rand() - 0.5) * 0.3,
-          vy: (rand() - 0.5) * 0.3,
-          life: 0.4 + rand() * 0.6,
-          hue: rand() * 360,
-          size: 0.8 + rand() * 1.2,
-        });
-      }
-      function updateIdleParticles(w: number, h: number, motionScale: number) {
-        // Spawn a gentle trickle
-        if (rand() < 0.06 * motionScale) spawnIdleParticle(w, h);
-        for (let i = idleParticles.length - 1; i >= 0; i--) {
-          const p = idleParticles[i];
-          p.x += p.vx * motionScale;
-          p.y += p.vy * motionScale;
-          p.life -= 0.002 * motionScale;
-          if (p.life <= 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
-            idleParticles.splice(i, 1);
-          }
-        }
-      }
-      function drawIdleParticles(ctx: CanvasRenderingContext2D, dpr: number) {
-        for (const p of idleParticles) {
-          const alpha = p.life * 0.25;
-          const rgb = hslToRgb(p.hue / 360, 0.6, 0.55);
-          ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * dpr, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
+      const idleParticles: IdleParticle[] = [];
       const palettes: Record<string, string[]> = {
         INTRO: ["#6366f1", "#818cf8", "#a5b4fc"],
         VERSE: ["#06b6d4", "#22d3ee", "#67e8f9"],
@@ -433,30 +286,28 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       };
 
       // Simple 2D particle system for particles mode
-      const particles: {
-        x: number;
-        y: number;
-        vx: number;
-        vy: number;
-        life: number;
-        hue: number;
-        size: number;
-      }[] = [];
-      const MAX_PARTICLES = 300;
-      function spawnParticle(w: number, h: number, energy: number, beat: boolean) {
-        if (particles.length >= MAX_PARTICLES) return;
-        const angle = rand() * Math.PI * 2;
-        const speed = 0.5 + rand() * 2 + energy * 3 + (beat ? 3 : 0);
-        particles.push({
-          x: w / 2 + (rand() - 0.5) * w * 0.5,
-          y: h / 2 + (rand() - 0.5) * h * 0.5,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          life: 1,
-          hue: rand() * 360,
-          size: 0.6 + rand() * 2.0,
-        });
-      }
+      const particles: Particle[] = [];
+
+      // Plan 2.9 — callbacks that reset shared state so frame 0 starts clean.
+      // Called by FrameAccurateCanvas2D.beginDeterministicRun before the first
+      // virtual frame renders.
+      const resetState = () => {
+        barVelocities = null;
+        smoothedBars = null;
+        smoothedStack = null;
+        barPeaks = null;
+        waveEnvelope = null;
+        waveVelocities = null;
+        smoothed = null;
+        phraseFlash = 0;
+        beatVignette = 0;
+        silentFrames = 0;
+      };
+      const clearPools = () => {
+        particles.length = 0;
+        idleParticles.length = 0;
+        shockwaves.length = 0;
+      };
 
       // Backing-store sizing driven by ResizeObserver: reading clientWidth /
       // clientHeight inside the 60 Hz draw loop forced a synchronous layout every
@@ -485,21 +336,22 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // rAF loop stays alive but renders nothing. A live frame would advance
         // particle/spring state between captures and make two runs diverge;
         // virtual frames run the same code path with `virtualTime` set.
-        if (exportActive && virtualTime === null) {
+        if (api?.isExportActive && api?.virtualTimeSec === null) {
           raf = requestAnimationFrame(draw);
           return;
         }
-        const isVirtual = virtualTime !== null;
+        const vTime = api?.virtualTimeSec;
+        const isVirtual = vTime !== null;
         const analyser = analyserRef.current;
-        const d = virtualAudio ?? audioData.current;
+        const d = api?.virtualAudioData ?? audioData.current;
         // Live per-frame sync preferred; React-state snapshot as fallback.
         // Virtual frames read the *deterministic* sampler: the live snapshot
         // describes now, so using it would tie an exported frame to when the
-        // export happened to run. (Checked on `virtualTime` directly, not on
+        // export happened to run. (Checked on `vTime` directly, not on
         // `isVirtual`, so TypeScript narrows the argument to a number.)
         const sync =
-          virtualTime !== null
-            ? (lrcSyncAtHolder.current?.(virtualTime) ?? null)
+          vTime != null
+            ? (lrcSyncAtHolder.current?.(vTime) ?? null)
             : (lrcSyncLiveHolder.current?.current ?? lrcSyncPropHolder.current);
         const section = sync?.currentSection || "VERSE";
         const target = palettes[section] || palettes.VERSE;
@@ -525,9 +377,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (!wave || wave.length !== (analyser?.fftSize ?? 2048)) {
           wave = new Uint8Array(analyser?.fftSize ?? 2048);
         }
-        if (isVirtual && virtualFreq && virtualWave) {
-          freq = virtualFreq;
-          wave = virtualWave;
+        if (isVirtual && api?.virtualFreqBuffer && api?.virtualWaveBuffer) {
+          freq = api.virtualFreqBuffer;
+          wave = api.virtualWaveBuffer;
         }
         if (!smoothed || smoothed.length !== wave.length) {
           smoothed = new Uint8Array(wave.length);
@@ -564,9 +416,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // them into the next beat's frame (and fills the 8-ring pool), so a
         // mode-switch away from `bars`/`radial` would show phantom rings.
         if (d.beat && allowsEffect(mode, "shockwaves")) {
-          spawnShockwave(w, h, d.drumType ?? undefined);
+          spawnShockwave(shockwaves, w, h, d.drumType ?? undefined, rand);
         }
-        updateShockwaves(motionScale);
+        updateShockwaves(shockwaves, motionScale);
 
         // Cached gradient helper: keyed by mode + palette + height so each
         // gradient-using mode avoids per-frame createLinearGradient allocation.
@@ -690,7 +542,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // Drum shockwaves — expanding rings, only on modes whose budget allows
         // them *this frame* (they are spawned further up, before this block).
         if (active.has("shockwaves")) {
-          drawShockwaves(ctx, dpr);
+          drawShockwaves(ctx, shockwaves, dpr);
         }
 
         // The idle branch fires when there is nothing to react to. A virtual
@@ -700,8 +552,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (!isVirtual && (!analyser || !isPlaying)) {
           // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
           // Ambient particle layer — soft floating motes that keep the canvas feeling alive
-          updateIdleParticles(w, h, motionScale);
-          drawIdleParticles(ctx, dpr);
+          updateIdleParticles(idleParticles, w, h, motionScale, rand);
+          drawIdleParticles(ctx, idleParticles, dpr);
           const idlePulse =
             phraseFlash * 0.3 +
             Math.sin(nowMs() * 0.002 * motionScale) * 0.08 * motionScale;
@@ -768,1011 +620,59 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           }
         }
 
-        if (mode === "bars") {
-          const barCount = 64;
-          const barW = w / barCount;
-          // Lazy-init falling-peak store + spring velocities
-          if (!barPeaks || barPeaks.length !== barCount) {
-            barPeaks = new Array(barCount).fill(0);
-          }
-          if (!barVelocities || barVelocities.length !== barCount) {
-            barVelocities = new Array(barCount).fill(0);
-          }
-          if (!smoothedBars || smoothedBars.length !== barCount) {
-            smoothedBars = new Array(barCount).fill(0);
-          }
-          const barGradients = getGradients(mode, colors);
-          const baseY = Math.round(h * 0.88);
-          // Perceptual frequency scale selection (2026 research)
-          const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
-          for (let i = 0; i < barCount; i++) {
-            const rawV = sampleMappedBand(freq, freqMap, i) / 255;
-            const boosted =
-              rawV +
-              phraseFlash * 0.35 +
-              (sync?.lineProgress ?? 0) * 0.1 +
-              d.bass * 0.08 +
-              (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            const targetNorm = boosted * energyMod;
-            let smoothH: number;
-            let springRising = false;
-            if (asymmetric) {
-              // Plan 2.1: envelope in normalized space (the helper clamps to
-              // [0,1], so the loudest peaks cap at the nominal 78% bar range),
-              // then scale to pixels. Fast attack 0.8 is the snap — the
-              // spring path's ease-out-back is not applied on this path.
-              smoothedBars[i] = asymmetricSmoothStep(smoothedBars[i], targetNorm);
-              smoothH = smoothedBars[i] * h * 0.78;
-            } else {
-              // Spring-physics smoothing: target → velocity → position with damping.
-              const targetH = targetNorm * h * 0.78;
-              const springK = 0.28;
-              const damping = 0.72;
-              const dt = 1;
-              const displacement = targetH - (barPeaks[i] || 0);
-              barVelocities[i] = (barVelocities[i] + springK * displacement * dt) * damping;
-              smoothH = Math.max(0, (barPeaks[i] || 0) + barVelocities[i] * dt);
-              springRising = barVelocities[i] > 0;
-            }
-            // Ease-out-back for punchy overshoot on rising transients (spring path).
-            const easeT = clamp(smoothH / Math.max(1, h * 0.78 * energyMod), 0, 1);
-            const easedH = asymmetric
-              ? smoothH
-              : smoothH * (1 + 0.08 * easeOutBack(easeT) * (springRising ? 1 : 0));
-            barPeaks[i] = smoothH;
-            const bh = easedH;
-            const x = Math.round(i * barW);
-            const y = Math.round(baseY - bh);
-            const bw = Math.round(barW) - 2;
-            const radius = Math.min(bw / 2, 3 * dpr);
-            const cIdx = Math.floor((i / barCount) * colors.length);
-            const warmMix = i / barCount < 0.3 ? d.bass * 0.35 : 0;
-            const coolMix = i / barCount > 0.7 ? d.treble * 0.35 : 0;
-            ctx.fillStyle = barGradients[cIdx % barGradients.length];
-            ctx.beginPath();
-            ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-            ctx.fill();
-            if (warmMix > 0.1) {
-              ctx.fillStyle = `rgba(255,120,40,${warmMix * 0.25})`;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-              ctx.fill();
-            }
-            if (coolMix > 0.1) {
-              ctx.fillStyle = `rgba(60,160,255,${coolMix * 0.25})`;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-              ctx.fill();
-            }
-            // Reflection below baseline
-            if (bh > 1) {
-              ctx.save();
-              ctx.globalAlpha = 0.18;
-              ctx.fillStyle = barGradients[cIdx % barGradients.length];
-              const refH = bh * 0.3;
-              const refY = baseY + 2 * dpr;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, refY, bw, refH, [0, 0, radius, radius]);
-              ctx.fill();
-              ctx.restore();
-            }
-            // Falling peak indicator
-            if (bh > barPeaks[i]) barPeaks[i] = bh;
-            else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
-            const peakY = Math.round(baseY - barPeaks[i]);
-            ctx.fillStyle = "rgba(255,255,255,0.85)";
-            ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
-            if (d.beat && rawV > 0.55) {
-              ctx.fillStyle = "#ffffff";
-              ctx.fillRect(x + 1, y - 3 * dpr, bw, 3 * dpr);
-              ctx.shadowColor = colors[cIdx % colors.length];
-              ctx.shadowBlur = 6 * dpr;
-              ctx.fillRect(x + 1, y - 1 * dpr, bw, 1 * dpr);
-              ctx.shadowBlur = 0;
-              if (audioData.current.isDownbeat) {
-                ctx.fillStyle = `rgba(255,255,255,${0.85})`;
-                ctx.beginPath();
-                ctx.arc(
-                  x + barW / 2,
-                  y - 6 * dpr - rand() * 6 * dpr,
-                  2 * dpr,
-                  0,
-                  Math.PI * 2,
-                );
-                ctx.fill();
-              }
-            }
-          }
-          // Secondary harmonic overlay
-          ctx.globalAlpha = 0.22 + d.treble * 0.25;
-          ctx.fillStyle = colors[2] || colors[1];
-          for (let i = 0; i < barCount; i++) {
-            const v2 = freq[Math.min(freq.length - 1, Math.floor((i * 1.5) % freq.length))] / 255;
-            if (v2 > 0.5) {
-              const h2 = v2 * h * 0.18;
-              ctx.fillRect(i * barW + barW * 0.35, h - h2 - 2 * dpr, barW * 0.3, h2);
-            }
-          }
-          ctx.globalAlpha = 1;
-        } else if (mode === "mirrored-bars") {
-          const barCount = 64;
-          const barW = w / barCount;
-          if (!barPeaks || barPeaks.length !== barCount) {
-            barPeaks = new Array(barCount).fill(0);
-          }
-          if (!barVelocities || barVelocities.length !== barCount) {
-            barVelocities = new Array(barCount).fill(0);
-          }
-          const barGradients = getGradients(mode, colors);
-          const centerY = Math.round(h * 0.5);
-          const maxBarH = h * 0.38;
-          const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
-          for (let i = 0; i < barCount; i++) {
-            const v = sampleMappedBand(freq, freqMap, i) / 255;
-            const boosted =
-              v +
-              phraseFlash * 0.35 +
-              (sync?.lineProgress ?? 0) * 0.1 +
-              d.bass * 0.08 +
-              (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            const targetH = boosted * maxBarH * energyMod;
-            const springK = 0.26;
-            const damping = 0.73;
-            const displacement = targetH - barPeaks[i];
-            barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-            const bh = Math.max(0, barPeaks[i] + barVelocities[i]);
-            if (bh > barPeaks[i]) barPeaks[i] = bh;
-            else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
-            const x = Math.round(i * barW);
-            const bw = Math.round(barW) - 2;
-            const radius = Math.min(bw / 2, 3 * dpr);
-            const cIdx = Math.floor((i / barCount) * colors.length);
-            const warmMix = i / barCount < 0.3 ? d.bass * 0.35 : 0;
-            const coolMix = i / barCount > 0.7 ? d.treble * 0.35 : 0;
-            // Upper bar
-            const upY = Math.round(centerY - bh);
-            ctx.fillStyle = "rgba(0,0,0,0.25)";
-            ctx.fillRect(x + 1 + 2 * dpr, upY + 2 * dpr, bw, bh);
-            ctx.fillStyle = barGradients[cIdx % barGradients.length];
-            ctx.beginPath();
-            ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-            ctx.fill();
-            if (warmMix > 0.1) {
-              ctx.fillStyle = `rgba(255,120,40,${warmMix * 0.25})`;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-              ctx.fill();
-            }
-            if (coolMix > 0.1) {
-              ctx.fillStyle = `rgba(60,160,255,${coolMix * 0.25})`;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-              ctx.fill();
-            }
-            // Lower mirrored bar
-            const lowY = centerY;
-            const lowH = bh * 0.6;
-            ctx.save();
-            ctx.globalAlpha = 0.35;
-            ctx.fillStyle = barGradients[cIdx % barGradients.length];
-            ctx.beginPath();
-            ctx.roundRect(x + 1, lowY, bw, lowH + 2 * dpr, [0, 0, radius, radius]);
-            ctx.fill();
-            ctx.restore();
-            // Peak indicator (upper)
-            const peakY = Math.round(centerY - barPeaks[i]);
-            ctx.fillStyle = "rgba(255,255,255,0.85)";
-            ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
-            // Lower mirrored peak indicator
-            const lowPeakH = barPeaks[i] * 0.6;
-            const lowPeakY = Math.round(centerY + lowPeakH);
-            ctx.fillStyle = "rgba(255,255,255,0.55)";
-            ctx.fillRect(x + 1, lowPeakY, bw, 1.5 * dpr);
-            if (d.beat && v > 0.55) {
-              ctx.fillStyle = "#ffffff";
-              ctx.fillRect(x + 1, upY - 3 * dpr, bw, 3 * dpr);
-              ctx.shadowColor = colors[cIdx % colors.length];
-              ctx.shadowBlur = 6 * dpr;
-              ctx.fillRect(x + 1, upY - 1 * dpr, bw, 1 * dpr);
-              ctx.shadowBlur = 0;
-            }
-          }
-        } else if (mode === "segmented-led-bars") {
-          const barCount = 64;
-          const barW = w / barCount;
-          const segmentsPerBar = 10;
-          const segH = 4 * dpr;
-          const gap = 2 * dpr;
-          const baseY = Math.round(h * 0.92);
-          const barGradients = getGradients(mode, colors);
-          if (!barVelocities || barVelocities.length !== barCount) {
-            barVelocities = new Array(barCount).fill(0);
-          }
-          const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
-          for (let i = 0; i < barCount; i++) {
-            const v = sampleMappedBand(freq, freqMap, i) / 255;
-            const boosted =
-              v +
-              phraseFlash * 0.35 +
-              (sync?.lineProgress ?? 0) * 0.1 +
-              d.bass * 0.08 +
-              (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            const targetSegs = boosted * segmentsPerBar * energyMod;
-            const springK = 0.24;
-            const damping = 0.74;
-            const displacement = targetSegs - barVelocities[i];
-            barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-            const activeSegments = Math.max(
-              0,
-              Math.min(segmentsPerBar, Math.round(barVelocities[i])),
-            );
-            const x = Math.round(i * barW);
-            const bw = Math.round(barW) - 2;
-            const cIdx = Math.floor((i / barCount) * colors.length);
-            for (let s = 0; s < segmentsPerBar; s++) {
-              const y = baseY - (s + 1) * (segH + gap);
-              if (s >= activeSegments) continue;
-              ctx.fillStyle = barGradients[cIdx % barGradients.length];
-              ctx.beginPath();
-              ctx.roundRect(x + 1, y, bw, segH, [1 * dpr, 1 * dpr, 1 * dpr, 1 * dpr]);
-              ctx.fill();
-              if (d.beat && s === activeSegments - 1) {
-                ctx.shadowColor = colors[cIdx % colors.length];
-                ctx.shadowBlur = 8 * dpr;
-                ctx.fillRect(x + 1, y, bw, segH);
-                ctx.shadowBlur = 0;
-              }
-            }
-          }
-        } else if (mode === "stereo-split-bars") {
-          const barCount = 48;
-          const barW = w / barCount;
-          const bands = [
-            { label: "low", start: 0, end: Math.floor(barCount * 0.25), color: colors[0] },
-            {
-              label: "mid",
-              start: Math.floor(barCount * 0.25),
-              end: Math.floor(barCount * 0.65),
-              color: colors[1],
-            },
-            {
-              label: "high",
-              start: Math.floor(barCount * 0.65),
-              end: barCount,
-              color: colors[2] || colors[1],
-            },
-          ];
-          const baseY = Math.round(h * 0.88);
-          // Lazy-init peaks + spring velocities for stereo-split
-          if (!barPeaks || barPeaks.length !== barCount) {
-            barPeaks = new Array(barCount).fill(0);
-          }
-          if (!barVelocities || barVelocities.length !== barCount) {
-            barVelocities = new Array(barCount).fill(0);
-          }
-          const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
-          for (const band of bands) {
-            ctx.fillStyle = band.color + "18";
-            ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
-            for (let i = band.start; i < band.end; i++) {
-              const v = sampleMappedBand(freq, freqMap, i) / 255;
-              const boosted =
-                v +
-                phraseFlash * 0.35 +
-                (sync?.lineProgress ?? 0) * 0.1 +
-                d.bass * 0.08 +
-                (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-              const targetH = boosted * h * 0.65 * energyMod;
-              const springK = 0.26;
-              const damping = 0.73;
-              const displacement = targetH - barPeaks[i];
-              barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-              const bh = Math.max(0, barPeaks[i] + barVelocities[i]);
-              // Update peak store separately so fallback uses the smoothed value.
-              if (bh > barPeaks[i]) barPeaks[i] = bh;
-              else barPeaks[i] = Math.max(bh, barPeaks[i] * PEAK_DECAY);
-              const x = Math.round(i * barW);
-              const y = Math.round(baseY - bh);
-              const bw = Math.round(barW) - 2;
-              const radius = Math.min(bw / 2, 3 * dpr);
-              ctx.fillStyle = band.color;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-              ctx.fill();
-              ctx.fillStyle = "rgba(255,255,255,0.12)";
-              ctx.fillRect(x + 1, y, bw, Math.max(1, bh * 0.25));
-              const peakY = Math.round(baseY - barPeaks[i]);
-              ctx.fillStyle = "rgba(255,255,255,0.7)";
-              ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
-              // Beat glow on active bar
-              if (d.beat && v > 0.4) {
-                ctx.shadowColor = band.color;
-                ctx.shadowBlur = 6 * dpr;
-                ctx.fillRect(x + 1, y, bw, bh + 2 * dpr);
-                ctx.shadowBlur = 0;
-              }
-            }
-          }
-        } else if (mode === "stacked-frequency-bands") {
-          const barCount = 48;
-          const step = Math.floor(freq.length / barCount);
-          const barW = w / barCount;
-          const baseY = Math.round(h * 0.88);
-          const layers = [
-            { name: "low", start: 0, end: Math.floor(step * barCount * 0.25), color: colors[0] },
-            {
-              name: "mid",
-              start: Math.floor(step * barCount * 0.25),
-              end: Math.floor(step * barCount * 0.65),
-              color: colors[1],
-            },
-            {
-              name: "high",
-              start: Math.floor(step * barCount * 0.65),
-              end: Math.floor(step * barCount * 1),
-              color: colors[2] || colors[1],
-            },
-          ];
-          // Lazy-init peaks + spring velocities for stacked bands
-          if (!barPeaks || barPeaks.length !== barCount) {
-            barPeaks = new Array(barCount).fill(0);
-          }
-          if (!barVelocities || barVelocities.length !== barCount) {
-            barVelocities = new Array(barCount).fill(0);
-          }
-          // Plan 2.1: one envelope value per layer per bar (low/mid/high).
-          if (!smoothedStack || smoothedStack.length !== barCount * layers.length) {
-            smoothedStack = new Array(barCount * layers.length).fill(0);
-          }
-          const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
-          for (let i = 0; i < barCount; i++) {
-            const x = Math.round(i * barW);
-            const bw = Math.round(barW) - 2;
-            const radius = Math.min(bw / 2, 3 * dpr);
-            let layerY = baseY;
-            let topY = baseY;
-            let stackH = 0;
-            for (let li = 0; li < layers.length; li++) {
-              const layer = layers[li];
-              const idx = Math.min(layer.start + i, freqLen - 1);
-              const logIdx = Math.min(freqLen - 1, Math.floor(freqMap(idx)));
-              const v = (freq?.[logIdx] || 0) / 255;
-              const boosted =
-                v +
-                phraseFlash * 0.35 +
-                (sync?.lineProgress ?? 0) * 0.1 +
-                d.bass * 0.08 +
-                (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-              let lh = boosted * h * 0.22 * energyMod;
-              if (asymmetric) {
-                // Plan 2.1: per-layer envelope in normalized space (helper
-                // clamps to [0,1] → ≤ 22% canvas per layer); the spring path
-                // draws the raw boosted height, unchanged.
-                const si = i * layers.length + li;
-                smoothedStack[si] = asymmetricSmoothStep(
-                  smoothedStack[si],
-                  boosted * energyMod,
-                );
-                lh = smoothedStack[si] * h * 0.22;
-              }
-              const ly = Math.round(layerY - lh);
-              ctx.fillStyle = layer.color;
-              ctx.beginPath();
-              ctx.roundRect(x + 1, ly, bw, lh + 2 * dpr, [radius, radius, 0, 0]);
-              ctx.fill();
-              ctx.fillStyle = "rgba(255,255,255,0.1)";
-              ctx.fillRect(x + 1, ly, bw, Math.max(1, lh * 0.25));
-              topY = ly;
-              layerY = ly;
-              stackH += lh;
-            }
-            // Envelope for the white peak-indicator dash.
-            let smoothStackH: number;
-            if (asymmetric) {
-              // Layers above are already asymmetric-smoothed; the peak hold
-              // below (PEAK_DECAY) supplies the falling tail.
-              smoothStackH = stackH;
-            } else {
-              // Spring-smoothed total stack height for peak tracking only.
-              const springK = 0.24;
-              const damping = 0.74;
-              const displacement = stackH - barPeaks[i];
-              barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-              smoothStackH = Math.max(0, barPeaks[i] + barVelocities[i]);
-            }
-            if (smoothStackH > barPeaks[i]) barPeaks[i] = smoothStackH;
-            else barPeaks[i] = Math.max(smoothStackH, barPeaks[i] * PEAK_DECAY);
-            const peakY = Math.round(baseY - barPeaks[i]);
-            ctx.fillStyle = "rgba(255,255,255,0.7)";
-            ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
-            // Beat glow on top layer
-            if (d.beat) {
-              const topLayer = layers[layers.length - 1];
-              const idx = Math.min(topLayer.start + i, freqLen - 1);
-              const v = (freq?.[idx] || 0) / 255;
-              if (v > 0.35) {
-                ctx.shadowColor = topLayer.color;
-                ctx.shadowBlur = 6 * dpr;
-                ctx.fillStyle = "rgba(255,255,255,0.15)";
-                ctx.fillRect(x + 1, topY, bw, baseY - topY);
-                ctx.shadowBlur = 0;
-              }
-            }
-          }
-        } else if (mode === "dot-peak-matrix") {
-          const barCount = 64;
-          const cols = barCount;
-          const rows = 12;
-          const cellW = w / cols;
-          const cellH = h / rows;
-          const dotR = Math.min(cellW, cellH) * 0.35;
-          const barGradients = getGradients(mode, colors);
-          if (!barVelocities || barVelocities.length !== barCount) {
-            barVelocities = new Array(barCount).fill(0);
-          }
-          const freqLen = freq?.length || 1024;
-          const freqMap = makeFreqMapper(perceptualScale, barCount, freqLen, analyser?.context?.sampleRate);
-          for (let i = 0; i < cols; i++) {
-            const v = sampleMappedBand(freq, freqMap, i) / 255;
-            const boosted =
-              v +
-              phraseFlash * 0.35 +
-              (sync?.lineProgress ?? 0) * 0.1 +
-              d.bass * 0.08 +
-              (d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0);
-            const targetRows = boosted * rows * energyMod;
-            const springK = 0.22;
-            const damping = 0.75;
-            const displacement = targetRows - barVelocities[i];
-            barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-            const activeRows = Math.max(0, Math.min(rows, Math.round(barVelocities[i])));
-            const cIdx = Math.floor((i / cols) * colors.length);
-            for (let r = 0; r < rows; r++) {
-              const cx = Math.round(i * cellW + cellW / 2);
-              const cy = Math.round(h - (r + 0.5) * cellH);
-              if (r < activeRows) {
-                ctx.fillStyle = barGradients[cIdx % barGradients.length];
-                ctx.beginPath();
-                ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
-                ctx.fill();
-                if (d.beat && r === activeRows - 1) {
-                  ctx.shadowColor = colors[cIdx % colors.length];
-                  ctx.shadowBlur = 6 * dpr;
-                  ctx.beginPath();
-                  ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
-                  ctx.fill();
-                  ctx.shadowBlur = 0;
-                }
-              } else {
-                ctx.fillStyle = "rgba(255,255,255,0.08)";
-                ctx.beginPath();
-                ctx.arc(cx, cy, dotR * 0.6, 0, Math.PI * 2);
-                ctx.fill();
-              }
-            }
-          }
-        } else if (mode === "waveform") {
-          // Depth grid behind waveform (vision: "faint 3D grid behind waves")
-          ctx.strokeStyle = colors[0] + "18";
-          ctx.lineWidth = dpr;
-          const gridStep = Math.max(1, Math.floor(w / 12));
-          for (let gx = 0; gx < w; gx += gridStep) {
-            ctx.beginPath();
-            ctx.moveTo(gx, h * 0.2);
-            ctx.lineTo(gx + 8 * dpr * Math.sin(nowMs() * 0.0003 + gx * 0.01), h * 0.8);
-            ctx.stroke();
-          }
-          for (let gy = h * 0.25; gy < h * 0.75; gy += h * 0.15) {
-            ctx.beginPath();
-            ctx.moveTo(0, gy);
-            ctx.lineTo(w, gy);
-            ctx.stroke();
-          }
-          // 2026 smooth: 3-point Gaussian-ish moving average (Ollama fix #2) + HSB hue drift
-          if (!smoothed || smoothed.length !== wave.length) {
-            smoothed = new Uint8Array(wave.length);
-          }
-          for (let i = 0; i < wave.length; i++) {
-            const prev = wave[Math.max(0, i - 1)];
-            const next = wave[Math.min(wave.length - 1, i + 1)];
-            smoothed[i] = prev * 0.25 + wave[i] * 0.5 + next * 0.25;
-          }
-          ctx.strokeStyle = colors[1];
-          ctx.lineWidth = 2.2 * dpr;
-          ctx.shadowColor = colors[0];
-          ctx.shadowBlur =
-            9 * dpr + phraseFlash * 14 + d.peak * 10 * dpr + effectiveEnergy * 8 * dpr;
-          ctx.beginPath();
-          const slice = w / smoothed.length;
-          // Spring-smoothed amplitude envelope for the waveform path.
-          const springK = 0.22;
-          const damping = 0.75;
-          if (!waveEnvelope || waveEnvelope.length !== smoothed.length) {
-            waveEnvelope = new Array(smoothed.length).fill(0);
-          }
-          if (!waveVelocities || waveVelocities.length !== smoothed.length) {
-            waveVelocities = new Array(smoothed.length).fill(0);
-          }
-          for (let i = 0; i < smoothed.length; i++) {
-            const x = i * slice;
-            const v = (smoothed[i] - 128) / 128;
-            const beatPhaseAnt =
-              d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.15 : 0;
-            const targetAmp =
-              v *
-              h *
-              0.35 *
-              (1 + effectiveEnergy * 0.85 + phraseFlash * 0.45 + d.bass * 0.25 + beatPhaseAnt);
-            const displacement = targetAmp - waveEnvelope[i];
-            waveVelocities[i] = (waveVelocities[i] + springK * displacement) * damping;
-            waveEnvelope[i] = waveEnvelope[i] + waveVelocities[i];
-            const y = h / 2 + waveEnvelope[i];
-            const xOff =
-              (sync?.lineProgress ?? 0) * 14 * dpr * Math.sin(i * 0.01 + nowMs() * 0.001);
-            if (i === 0) ctx.moveTo(x + xOff, y);
-            else ctx.lineTo(x + xOff, y);
-          }
-          ctx.stroke();
-          // Subtle gradient fill under the primary waveform for depth
-          ctx.globalAlpha = 0.12 + effectiveEnergy * 0.08;
-          const waveGrad = ctx.createLinearGradient(0, h / 2, 0, h);
-          waveGrad.addColorStop(0, colors[1] + "00");
-          waveGrad.addColorStop(0.5, colors[1] + "44");
-          waveGrad.addColorStop(1, colors[1] + "00");
-          ctx.fillStyle = waveGrad;
-          ctx.beginPath();
-          for (let i = 0; i < smoothed.length; i++) {
-            const x = i * slice;
-            const y = h / 2 + waveEnvelope![i];
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.lineTo(w, h / 2);
-          ctx.lineTo(0, h / 2);
-          ctx.closePath();
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          // Secondary harmonic faint line (vision: "secondary waveform")
-          ctx.strokeStyle = colors[2] + "88";
-          ctx.lineWidth = 1.2 * dpr;
-          ctx.shadowBlur = 0;
-          ctx.beginPath();
-          for (let i = 0; i < wave.length; i += 2) {
-            const x = i * slice;
-            const idx2 = (i * 3) % wave.length;
-            const v2 = (wave[idx2] - 128) / 128;
-            const y2 = h / 2 + v2 * h * 0.18 * (1 + d.treble * 0.6) * 0.5;
-            if (i === 0) ctx.moveTo(x, y2);
-            else ctx.lineTo(x, y2);
-          }
-          ctx.stroke();
-          // Peak particles — glowing dots along peaks (vision)
-          ctx.shadowBlur = 8 * dpr;
-          for (let i = 0; i < wave.length; i += 24) {
-            const v = (wave[i] - 128) / 128;
-            if (Math.abs(v) > 0.55) {
-              const x = i * slice;
-              const y = h / 2 + v * h * 0.35 * (1 + d.energy * 0.5);
-              ctx.fillStyle = d.beat ? "#ffffff" : colors[1];
-              ctx.shadowColor = colors[0];
-              ctx.beginPath();
-              ctx.arc(x, y, 2.5 * dpr + d.peak * 2 * dpr, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          }
-          ctx.shadowBlur = 0;
-        } else if (mode === "radial") {
-          const cx = w / 2,
-            cy = h / 2;
-          const baseR = Math.min(w, h) * 0.18;
-          const sectionRot = (sync?.sectionProgress ?? 0) * Math.PI * 0.5;
-          if (!barVelocities || barVelocities.length !== 64) {
-            barVelocities = new Array(64).fill(0);
-          }
-          for (let i = 0; i < 64; i++) {
-            const v = freq[Math.floor((i / 64) * freq.length * 0.6)] / 255;
-            const angle = (i / 64) * Math.PI * 2 + sectionRot;
-            const r0 = baseR;
-            const beatPhaseAnt =
-              d.beatPhase && d.beatPhase < 0.5 ? (1 - d.beatPhase * 2) * 0.12 : 0;
-            const targetR1 =
-              baseR +
-              v * baseR * 1.2 * (1 + phraseFlash * 0.6 + effectiveEnergy * 0.4 + beatPhaseAnt);
-            const springK = 0.24;
-            const damping = 0.74;
-            const displacement = targetR1 - (barVelocities[i] || 0);
-            barVelocities[i] = (barVelocities[i] + springK * displacement) * damping;
-            const r1 = Math.max(r0, barVelocities[i] + r0);
-            const x0 = cx + Math.cos(angle) * r0;
-            const y0 = cy + Math.sin(angle) * r0;
-            const x1 = cx + Math.cos(angle) * r1;
-            const y1 = cy + Math.sin(angle) * r1;
-            ctx.strokeStyle = colors[i % colors.length];
-            ctx.lineWidth = 2 * dpr + v * 4 * dpr;
-            ctx.globalAlpha = 0.7 + v * 0.3;
-            ctx.beginPath();
-            ctx.moveTo(x0, y0);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
-          }
-          ctx.globalAlpha = 1;
-          // Enhanced center anchor with glow and pulsing core (vision feedback)
-          const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + d.bass * 0.3);
-          const glowR = coreR * 3;
-          const grd = ctx.createRadialGradient(cx, cy, coreR * 0.2, cx, cy, glowR);
-          grd.addColorStop(0, colors[0] + "cc");
-          grd.addColorStop(0.4, colors[1] + "66");
-          grd.addColorStop(1, "transparent");
-          ctx.fillStyle = grd;
-          ctx.beginPath();
-          ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
-          ctx.fill();
-          // Secondary orbital ring
-          ctx.strokeStyle = colors[2] + "55";
-          ctx.lineWidth = 1.5 * dpr;
-          ctx.beginPath();
-          ctx.arc(cx, cy, coreR * 1.8 + d.energy * 8 * dpr, 0, Math.PI * 2);
-          ctx.stroke();
-          // Solid core
-          ctx.fillStyle = colors[0];
-          ctx.beginPath();
-          ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (mode === "spectrogram") {
-          const specW = w;
-          const specH = h;
-          const sliceW = Math.max(2, Math.round(2 * dpr));
-          // Blit existing canvas to the left by sliceW (GPU-accelerated, replaces costly CPU getImageData)
-          ctx.drawImage(canvas, sliceW, 0, specW - sliceW, specH, 0, 0, specW - sliceW, specH);
-          // Clear rightmost strip
-          ctx.fillStyle = bg;
-          ctx.fillRect(specW - sliceW, 0, sliceW, specH);
-          // Draw new slice on the right — perceptual (log) frequency mapping
-          const freqLen = freq?.length || 1024;
-          for (let py = 0; py < specH; py++) {
-            const t = py / specH; // 1 at top (high freq), 0 at bottom (low freq)
-            // Inverse log map: invert the logFreqMap curve to get linear Y → log bin
-            const minLog = Math.log(1);
-            const maxLog = Math.log(freqLen);
-            const logT = minLog + t * (maxLog - minLog);
-            const linearT = (Math.exp(logT) - 1) / (freqLen - 1);
-            const binIdx = Math.min(freqLen - 1, Math.max(0, Math.floor(linearT * freqLen)));
-            const v = (freq?.[binIdx] || 0) / 255;
-            if (v < 0.02) continue;
-            // Palette-aware coloring: blend between palette colors by amplitude
-            const colorIdx = clamp(v * (colors.length - 1), 0, colors.length - 1);
-            const ci = Math.floor(colorIdx);
-            const cf = colorIdx - ci;
-            const c1 = hexToRgb(colors[ci % colors.length]);
-            const c2 = hexToRgb(colors[(ci + 1) % colors.length]);
-            const r = Math.round(c1[0] + (c2[0] - c1[0]) * cf);
-            const g = Math.round(c1[1] + (c2[1] - c1[1]) * cf);
-            const b = Math.round(c1[2] + (c2[2] - c1[2]) * cf);
-            const alpha = clamp(0.3 + v * 0.7, 0, 1);
-            ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-            ctx.fillRect(specW - sliceW, py, sliceW, 1);
-          }
-          // Beat-reactive flash overlay on the new slice
-          if (d.beat && (d.bass || 0) > 0.4) {
-            ctx.fillStyle = `rgba(255,255,255,${clamp((d.bass || 0) * 0.2, 0, 0.3)})`;
-            ctx.fillRect(specW - sliceW, 0, sliceW, specH);
-          }
-          // Axis labels (frequency Hz on Y, time on X)
-          ctx.fillStyle = colors[0] + "90";
-          ctx.font = `${10 * dpr}px monospace`;
-          ctx.textAlign = "right";
-          const nyquist = 22050; // assume 44.1kHz sample rate
-          const maxFreq = Math.floor(nyquist / 2);
-          const labelCount = 5;
-          for (let i = 0; i <= labelCount; i++) {
-            const freqHz = Math.round((maxFreq / labelCount) * i);
-            // Map Hz to log position for label placement
-            const logHz = Math.log(1 + freqHz / 20);
-            const logMax = Math.log(1 + maxFreq / 20);
-            const y = specH - (logHz / logMax) * specH;
-            ctx.fillText(`${freqHz}Hz`, 28 * dpr, y + 3 * dpr);
-            ctx.fillRect(30 * dpr, y, specW - 32 * dpr, 0.5);
-          }
-          ctx.textAlign = "center";
-          ctx.fillText("Time →", specW / 2, specH - 4 * dpr);
-          if (phraseFlash > 0.05) {
-            ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.1})`;
-            ctx.fillRect(0, 0, w, h);
-          }
-        } else if (mode === "lissajous") {
-          const cx = w / 2,
-            cy = h / 2;
-          const bassIdx = Math.floor(freq.length * 0.1);
-          const midIdx = Math.floor(freq.length * 0.4);
-          const bassV = freq.slice(0, bassIdx).reduce((a, b) => a + b, 0) / (bassIdx * 255 || 1);
-          const midV =
-            freq.slice(bassIdx, midIdx).reduce((a, b) => a + b, 0) /
-            ((midIdx - bassIdx) * 255 || 1);
-          const ampX = w * 0.35 * (1 + bassV * 0.6 + effectiveEnergy * 0.3);
-          const ampY = h * 0.35 * (1 + midV * 0.6 + effectiveEnergy * 0.3);
-          const t = nowMs() * 0.001;
-          ctx.strokeStyle = colors[1];
-          ctx.lineWidth = 2 * dpr;
-          ctx.shadowColor = colors[0];
-          ctx.shadowBlur = 6 * dpr + phraseFlash * 10;
-          ctx.beginPath();
-          const steps = 256;
-          for (let i = 0; i < steps; i++) {
-            const frac = i / steps;
-            const angle = frac * Math.PI * 2 + t * (1 + d.bass);
-            const x = cx + Math.sin(angle * (1 + bassV * 3)) * ampX;
-            const y = cy + Math.cos(angle * (1 + midV * 2)) * ampY;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          // Draw current-point glow (must match the loop's angle math above)
-          const curAngle = t * (1 + d.bass);
-          const curX = cx + Math.sin(curAngle * (1 + bassV * 3)) * ampX;
-          const curY = cy + Math.cos(curAngle * (1 + midV * 2)) * ampY;
-          ctx.fillStyle = "#ffffff";
-          ctx.beginPath();
-          ctx.arc(curX, curY, 4 * dpr + phraseFlash * 6 * dpr, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (mode === "constellation") {
-          const points: { x: number; y: number; v: number }[] = [];
-          const step = 8;
-          for (let i = 0; i < freq.length; i += step) {
-            const v = freq[i] / 255;
-            if (v > 0.18) {
-              const x = (i / freq.length) * w;
-              const y = h - v * h * 0.85;
-              points.push({ x, y, v });
-              if (points.length >= 64) break;
-            }
-          }
-          // Draw connections - optimized: spatial partition to reduce O(n²) complexity
-          ctx.strokeStyle = colors[0] + "30";
-          ctx.lineWidth = dpr;
-          const maxPoints = points.length;
-          const gridStep = 60 * dpr;
-          // Use spatial grid to limit distance checks
-          const grid = new Map<string, number[]>();
-          for (let i = 0; i < maxPoints; i++) {
-            const p = points[i];
-            const gx = Math.floor(p.x / gridStep);
-            const gy = Math.floor(p.y / gridStep);
-            const key = `${gx},${gy}`;
-            if (!grid.has(key)) grid.set(key, []);
-            grid.get(key)!.push(i);
-          }
-          for (let i = 0; i < maxPoints; i++) {
-            const p = points[i];
-            const gx = Math.floor(p.x / gridStep);
-            const gy = Math.floor(p.y / gridStep);
-            // Check only neighboring grid cells
-            for (let dx = -1; dx <= 1; dx++) {
-              for (let dy = -1; dy <= 1; dy++) {
-                const neighborKey = `${gx + dx},${gy + dy}`;
-                const neighbors = grid.get(neighborKey);
-                if (neighbors) {
-                  for (const j of neighbors) {
-                    if (j <= i) continue; // Avoid duplicate checks
-                    const other = points[j];
-                    const dist = Math.hypot(p.x - other.x, p.y - other.y);
-                    if (dist < gridStep) {
-                      ctx.globalAlpha = (1 - dist / gridStep) * 0.4;
-                      ctx.beginPath();
-                      ctx.moveTo(p.x, p.y);
-                      ctx.lineTo(other.x, other.y);
-                      ctx.stroke();
-                    }
-                  }
-                }
-              }
-            }
-          }
-          ctx.globalAlpha = 1;
-          // Draw nodes with spring-smoothed radius per point.
-          const constellationSpringK = 0.22;
-          const constellationDamping = 0.75;
-          const pointVelocities = new Array(maxPoints).fill(0);
-          const pointRadii = new Array(maxPoints).fill(0);
-          for (let i = 0; i < maxPoints; i++) {
-            const p = points[i];
-            const targetR =
-              2 * dpr +
-              p.v * 5 * dpr +
-              (d.beat && p.v > 0.7 ? 3 * dpr : 0) +
-              analyzedPunch * 3 * dpr;
-            const displacement = targetR - pointRadii[i];
-            pointVelocities[i] =
-              (pointVelocities[i] + constellationSpringK * displacement) * constellationDamping;
-            pointRadii[i] = Math.max(0, pointRadii[i] + pointVelocities[i]);
-            const r = pointRadii[i];
-            ctx.fillStyle = colors[Math.floor(p.v * colors.length) % colors.length];
-            ctx.shadowColor = colors[0];
-            ctx.shadowBlur = 4 * dpr + p.v * 8 * dpr + analyzedPunch * 6 * dpr;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.shadowBlur = 0;
-        } else if (mode === "particles") {
-          const energy = effectiveEnergy;
-          const beat = d.beat;
-          const spawnCount = Math.floor(energy * 6 + analyzedPunch * 8 + (beat ? 14 : 0));
-          for (let i = 0; i < spawnCount; i++) spawnParticle(w, h, energy, beat);
-          for (let i = particles.length - 1; i >= 0; i--) {
-            const p = particles[i];
-            // Audio-reactive velocity: particles accelerate outward on beat/energy
-            const accel = 1 + energy * 0.5 + analyzedPunch * 0.6 + (beat ? 1.5 : 0);
-            p.vx *= accel;
-            p.vy *= accel;
-            // Slight drag to prevent runaway speeds
-            p.vx *= 0.995;
-            p.vy *= 0.995;
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= 0.012 + energy * 0.01;
-            if (p.life <= 0 || p.x < 0 || p.x > w || p.y < 0 || p.y > h) {
-              particles.splice(i, 1);
-              continue;
-            }
-            const alpha = p.life * 0.8;
-            const rgb = hslToRgb(p.hue / 360, 1, 0.5 + energy * 0.3);
-            ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
-            ctx.shadowColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha * 0.8})`;
-            ctx.shadowBlur = 6 * dpr + d.bass * 8 * dpr + analyzedPunch * 6 * dpr;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * dpr + d.bass * 2 * dpr, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.shadowBlur = 0;
-          // Center glow
-          const grd = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.min(w, h) * 0.3);
-          grd.addColorStop(
-            0,
-            colors[0] +
-              Math.floor(phraseFlash * 40 + d.bass * 60)
-                .toString(16)
-                .padStart(2, "0"),
-          );
-          grd.addColorStop(1, "transparent");
-          ctx.fillStyle = grd;
-          ctx.fillRect(0, 0, w, h);
-        } else if (mode === "aurora") {
-          // Domain-warped FBM aurora curtains — vertical color bands with
-          // audio-reactive brightness/height and slow horizontal drift.
-          const t = nowMs() * 0.0003;
-          const bandCount = 5;
-          const bandW = w / bandCount;
-          const bassEnergy = d.bass || 0;
-          const midEnergy = d.mid || 0;
-          const energy = effectiveEnergy;
-          for (let b = 0; b < bandCount; b++) {
-            const bx = b * bandW;
-            // Each band gets a slightly different warp seed for visual variety
-            const warpX = b * 0.37 + t * 0.4;
-            const hue = (b / bandCount + t * 0.05) % 1;
-            const sat = 0.55 + bassEnergy * 0.4;
-            const lightBase = 0.25 + midEnergy * 0.35;
-            const rgb = hslToRgb(hue, sat, lightBase);
-            // Sample FBM across the band height for curtain shape
-            const steps = Math.max(1, Math.floor(bandW));
-            for (let s = 0; s < steps; s++) {
-              const x = bx + (s / steps) * bandW;
-              const nx = x / w;
-              const warp = fbm(nx * 3 + warpX, b * 0.5, t, 4);
-              const curtainY = h * 0.15 + warp * h * 0.55 * (1 + energy * 0.6);
-              const alpha = 0.12 + warp * 0.25 + energy * 0.15;
-              ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(alpha, 0, 0.7)})`;
-              ctx.fillRect(x, curtainY, Math.ceil(bandW / steps), h - curtainY);
-            }
-            // Beat flash — bright pulse on transient
-            if (d.beat && bassEnergy > 0.35) {
-              const flashAlpha = 0.15 + bassEnergy * 0.2;
-              ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(flashAlpha, 0, 0.5)})`;
-              ctx.fillRect(bx, 0, bandW, h);
-            }
-          }
-          // Top vignette fade for cinematic aurora look
-          const topGrd = ctx.createLinearGradient(0, 0, 0, h * 0.3);
-          topGrd.addColorStop(0, bg + "AA");
-          topGrd.addColorStop(1, bg + "00");
-          ctx.fillStyle = topGrd;
-          ctx.fillRect(0, 0, w, h * 0.3);
-        }
-
+        renderMode(mode, dpr, w, h, {
+          ctx,
+          dpr,
+          w,
+          h,
+          canvas: canvasRef.current,
+          d,
+          syncLineProgress: sync?.lineProgress ?? 0,
+          sectionProgress: sync?.sectionProgress ?? 0,
+          colors,
+          perceptualScale,
+          freq,
+          wave,
+          bg: bgColor,
+          nowMs,
+          analyser: analyserRef.current,
+          motionScale,
+          phraseFlash,
+          energyMod,
+          analyzedPunch,
+          isDownbeat: audioData.current.isDownbeat ?? false,
+          rand,
+          getGradients,
+          asymmetric,
+        }, {
+          barVelocities,
+          barPeaks,
+          smoothedBars,
+          smoothedStack,
+          waveEnvelope,
+          waveVelocities,
+          smoothed,
+          particles,
+        });
         raf = requestAnimationFrame(draw);
       };
       raf = requestAnimationFrame(draw);
 
-      // Plan 2.9 — publish the deterministic render API. Re-published on every
-      // effect run so the closure always sees the current `draw`.
+      // Publish the deterministic render API. Re-published on every effect
+      // run so the closure always sees the current `draw` and `api`.
+      api = new FrameAccurateCanvas2D({
+        sampleSpectralTimeline,
+        spectralLoading,
+        analysisHolder,
+        analyserRef,
+        canvasRef,
+        draw,
+        resetState,
+        clearPools,
+      });
+
       if (frameAccurateApiRef) {
-        frameAccurateApiRef.current = {
-          readiness: () => {
-            // Sampled at the export's start, where frame 0 lands. A timeline
-            // still in flight reads as "not ready yet" rather than "no data",
-            // so the caller is told to retry instead of exporting blank.
-            const frame = sampleSpectralTimeline(0);
-            if (spectralLoading && !frame) {
-              return {
-                ok: false,
-                reason: "the analyzed timeline is still loading — try again in a moment",
-              };
-            }
-            return frameReadiness({
-              analysis: analysisHolder.current ?? null,
-              spectralFrame: frame,
-            });
-          },
-          beginDeterministicRun: () => {
-            exportActive = true;
-            // Every stateful driver returns to frame-0 state, or the export
-            // inherits whatever the live loop left behind and two runs diverge.
-            virtualRandom = createSeededRandom(0x5eed_2d01);
-            phraseFlash = 0;
-            beatVignette = 0;
-            silentFrames = 0;
-            barVelocities = null;
-            smoothedBars = null;
-            smoothedStack = null;
-            barPeaks = null;
-            waveEnvelope = null;
-            waveVelocities = null;
-            smoothed = null;
-            particles.length = 0;
-            idleParticles.length = 0;
-            shockwaves.length = 0;
-            currentPaletteRef.current = [];
-            targetPaletteRef.current = [];
-            paletteTRef.current = 1;
-            barGradientsCacheRef.current = null;
-          },
-          renderAtVirtualTime: (tSec: number) => {
-            const analyser = analyserRef.current;
-            const binCount = analyser?.frequencyBinCount ?? 1024;
-            const fftSize = analyser?.fftSize ?? 2048;
-            const sampleRate = analyser?.context?.sampleRate ?? 44100;
-            const frame = deterministicAudioFrame({
-              analysis: analysisHolder.current ?? null,
-              // Measured band energies when the track has a spectral
-              // timeline, the modelled tier otherwise. The timeline is
-              // sampled with the same index math the live path uses.
-              spectralFrame: sampleSpectralTimeline(tSec),
-              tSec,
-              binCount,
-              fftSize,
-              sampleRate,
-            });
-            virtualTime = tSec;
-            virtualAudio = frame.audio;
-            virtualFreq = frame.freq;
-            virtualWave = frame.wave;
-            try {
-              draw();
-            } finally {
-              // Cleared before the next frame so a throw cannot leave the
-              // live loop rendering a stale virtual frame.
-              virtualTime = null;
-              virtualAudio = null;
-              virtualFreq = null;
-              virtualWave = null;
-            }
-          },
-          endDeterministicRun: () => {
-            exportActive = false;
-            virtualRandom = null;
-          },
-          // The canvas these frames land on. The page always mounts a three-js
-          // canvas, and it can come first in document order — capturing "a
-          // canvas" from the DOM produced a valid 300-frame file of a blank
-          // one, which is the hardest kind of bug to notice.
-          canvas: () => canvasRef.current,
-        };
+        frameAccurateApiRef.current = api;
       }
 
       return () => {

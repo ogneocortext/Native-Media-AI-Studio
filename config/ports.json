@@ -32,7 +32,7 @@
   "comfyui_url": "http://127.0.0.1:8188",
   "ollama_url": "http://127.0.0.1:11434",
   "atomic_chat_url": "http://127.0.0.1:1337",
-  "atomic_chat_enabled": false,
+  "atomic_chat_enabled": true,
   "dashboard_port": 3847,
   "dashboard_url": "http://127.0.0.1:3847",
   "events_url": "http://127.0.0.1:3847/events",

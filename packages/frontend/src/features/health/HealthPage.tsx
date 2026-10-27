@@ -48,6 +48,7 @@ import {
   ComfyUICard,
   ResourceCard,
   GPUCard,
+  VRAMManagerCard,
   ActionLog,
   PerformanceHistoryCard,
   ServiceChecksCard,
@@ -421,6 +422,7 @@ export function HealthPage() {
               subtext={`${health?.disk?.free_gb?.toFixed(1)}GB free`}
             />
             <GPUCard />
+            <VRAMManagerCard />
           </div>
         </div>
       </div>

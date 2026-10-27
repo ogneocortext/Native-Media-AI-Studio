@@ -417,11 +417,12 @@ class VRAMManager:
         Unlike :meth:`begin_3d_generation` this never marks ComfyUI busy and
         never sets the workload state, so request handlers that only want to
         warn the user before enqueuing work can call it without a matching
-        :meth:`end_3d_generation` cleanup call.
+        :meth:`end_3d_generation` (or :meth:`end_music_generation`) cleanup call.
 
         When free VRAM is below ``required_mb`` the Ollama models are offloaded
         as a courtesy and ``_ollama_loaded`` is updated so a later
-        :meth:`end_3d_generation` (or the next 3D render) restores them.
+        :meth:`end_3d_generation` (or the next 3D render / music generation)
+        restores them.
 
         Returns:
             Dict with ``available``, ``free_mb``, ``total_mb``, ``required_mb``,
@@ -705,7 +706,7 @@ class VRAMManager:
                                      vram_budget_mb: int = 6144) -> dict[str, Any]:
         """
         Signal that music generation is starting.
-        Offloads Ollama and signals ComfyUI to pause if needed.
+        Offloads Ollama and ComfyUI (if idle) if VRAM is tight.
 
         Args:
             engine: Engine name ("ace") for logging
@@ -738,7 +739,32 @@ class VRAMManager:
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                 }
 
-            # Not enough VRAM - offload both backend models
+        # Not enough VRAM - wait for natural cleanup.
+        #
+        # Deliberately OUTSIDE self._lock. This wait can run for up to
+        # VRAM_WAIT_TIMEOUT (120s), and the same lock guards the begin/end of
+        # every other workload (3D generation, audio analysis, lipsync, and
+        # their completion handlers). Waiting while holding it blocked all of
+        # them for the full timeout on nothing but a GPU-memory condition.
+        logger.info("VRAM Manager: Low VRAM (%dMB free), waiting for cleanup...", free_mb)
+        waited = await self._wait_for_vram()
+
+        async with self._lock:
+            if waited:
+                vram = await self.get_vram_status()
+                actions.append({"action": "wait_for_vram", "success": True})
+                free_mb = vram.get("free_mb", 0)
+                if free_mb >= vram_budget_mb:
+                    logger.info("VRAM Manager: VRAM freed up naturally (%dMB free)", free_mb)
+                    return {
+                        "success": True,
+                        "vram_before": vram,
+                        "actions": actions,
+                        "ollama_loaded": self._ollama_loaded,
+                        "atomic_chat_loaded": self._atomic_chat_loaded,
+                    }
+
+            # Still not enough VRAM - offload both backend models
             if (self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)) and self._can_safely_offload():
                 logger.info("VRAM Manager: Offloading backend models for music generation")
                 ollama_unloaded = await _unload_ollama_models()
@@ -763,6 +789,28 @@ class VRAMManager:
                         "ollama_loaded": False,
                         "atomic_chat_loaded": False,
                     }
+
+            # Still short after offloading Ollama + Atomic Chat. ComfyUI holds
+            # far more (~5.3 GB measured) and ACE-Step needs 6 GB, so this is
+            # usually the tier that actually unblocks the GPU. Never touch it
+            # while it is running a prompt: unloading mid-render would strand a
+            # running prompt.
+            if free_mb < vram_budget_mb and self._comfyui_models_loaded:
+                if self._comfyui_busy or not await _comfyui_is_idle():
+                    logger.warning(
+                        "VRAM Manager: %dMB free is below the %dMB music budget "
+                        "and ComfyUI is busy; leaving its models loaded",
+                        free_mb, vram_budget_mb,
+                    )
+                else:
+                    logger.info("VRAM Manager: Offloading ComfyUI models for music generation")
+                    comfy = await _unload_comfyui_models()
+                    self._comfyui_models_loaded = False
+                    actions.append({
+                        "action": "offload_comfyui", **comfy,
+                    })
+                    vram = await self.get_vram_status()
+                    free_mb = vram.get("free_mb", 0)
 
             # Still not enough
             self._current_workload = GPUWorkload.IDLE
@@ -796,7 +844,7 @@ class VRAMManager:
             # Reload Ollama if it was offloaded
             if not self._ollama_loaded:
                 free_mb = vram.get("free_mb", 0)
-                if free_mb > self.MIN_VRAM_FOR_MUSIC:
+                if free_mb > self.MIN_VRAM_FOR_AUDIO:
                     logger.info("VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb)
                     from ..core.config import config as _cfg2
                     last_model = _resolve_last_model(_cfg2.default_model)
@@ -805,13 +853,17 @@ class VRAMManager:
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
                     actions.append({"action": "reload_ollama", "success": reload_ok, "model": last_model})
+                else:
+                    logger.info(
+                        "VRAM Manager: Leaving Ollama offloaded after music gen "
+                        "(free=%dMB, need >%dMB to reload)", free_mb, self.MIN_VRAM_FOR_AUDIO)
 
             # Reload Atomic Chat model if it was offloaded
             if not self._atomic_chat_loaded:
                 last_ac_model = _resolve_atomic_chat_model(None)
                 if last_ac_model:
                     free_mb = vram.get("free_mb", 0)
-                    if free_mb > self.MIN_VRAM_FOR_MUSIC:
+                    if free_mb > self.MIN_VRAM_FOR_AUDIO:
                         logger.info(
                             "VRAM Manager: Reloading Atomic Chat model %s "
                             "(free=%dMB)", last_ac_model, free_mb
@@ -825,6 +877,12 @@ class VRAMManager:
                             "success": reload_ok,
                             "model": last_ac_model,
                         })
+                    else:
+                        logger.info(
+                            "VRAM Manager: Leaving Atomic Chat offloaded after music gen "
+                            "(free=%dMB, need >%dMB to reload)",
+                            free_mb, self.MIN_VRAM_FOR_AUDIO,
+                        )
 
             return {
                 "success": True,

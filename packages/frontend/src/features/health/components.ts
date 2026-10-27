@@ -3,6 +3,7 @@ export { OllamaModelsCard } from "./OllamaModelsCard";
 export { LogsViewer } from "./LogsViewer";
 export { ResourceCard, type ResourceCardProps } from "./ResourceCard";
 export { GPUCard } from "./GPUCard";
+export { VRAMManagerCard } from "./VRAMManagerCard";
 export { PerformanceHistoryCard } from "./PerformanceHistoryCard";
 export { ServiceChecksCard } from "./ServiceChecksCard";
 export { ComfyUICard, type ComfyUICardProps } from "./ComfyUICard";

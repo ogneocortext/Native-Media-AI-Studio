@@ -8,6 +8,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 import uuid
 from typing import Any
 
@@ -668,7 +669,7 @@ class ComfyUIAdapter(BaseAdapter):
         this machine, ComfyUI completes images in ~11s median while the client
         waited 300s and then left the work behind.
         """
-        start = asyncio.get_event_loop().time()
+        start = time.monotonic()
         try:
             return await self._poll_image_result(prompt_id, timeout, start)
         except BaseException:
@@ -706,7 +707,7 @@ class ComfyUIAdapter(BaseAdapter):
         deadline = start + timeout
         extended = False
         while True:
-            if asyncio.get_event_loop().time() > deadline:
+            if time.monotonic() > deadline:
                 raise TimeoutError(
                     f"ComfyUI image generation timed out after "
                     f"{int(deadline - start)}s"
@@ -1305,7 +1306,7 @@ class ComfyUIAdapter(BaseAdapter):
         behind other work, the deadline is extended once so a queued job is not
         cancelled before it ever runs.
         """
-        start = asyncio.get_event_loop().time()
+        start = time.monotonic()
         try:
             return await self._poll_video_result(prompt_id, timeout, start)
         except BaseException:
@@ -1338,8 +1339,8 @@ class ComfyUIAdapter(BaseAdapter):
         deadline = start + timeout
         extended = False
         while True:
-            elapsed = asyncio.get_event_loop().time() - start
-            if asyncio.get_event_loop().time() > deadline:
+            elapsed = time.monotonic() - start
+            if time.monotonic() > deadline:
                 raise TimeoutError(
                     f"ComfyUI video generation timed out after "
                     f"{int(deadline - start)}s"

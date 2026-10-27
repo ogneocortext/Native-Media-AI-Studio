@@ -41,6 +41,7 @@ date: 2026-09-30
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
+- [[video-intro-recipe-schema-2026-10|🎬 Video Intro Recipe Schema 2026-10]] — Deterministic, parameterized 3–7 s video intro specification; brand elements explicit, nothing hard-coded per render (NEW 2026-10-27)
 
 ### 🛠️ Technical Implementation (Code & Systems)
 - [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
@@ -124,6 +125,7 @@ date: 2026-09-30
 - [[3d-generation-2026-updates|🧊 3D Generation 2026 Updates]] — Hunyuan3D 2.1 PBR breakthrough, Super 3D Pro local generation, VRAM optimization
 - [[video-generation-vram-2026|🎬 Video Generation VRAM 2026]] — 8GB GPU video generation with quantization breakthroughs
 - [[synced-technical-scan-sample-2026-10|🛰️ Synced Technical Scan Sample 2026-10]] — first 机器之心 (Synced) engineering scan: agent resource hijacking + the ResGate deterministic-authorization pattern (verdict: adopt), SpanUQ span-level uncertainty quantification (verdict: test), the week's lane-filtered yield, and the free-surface access report (NEW 2026-10-22)
+- [[agent-llm-loop-spec-2026-10|🤖 Agent LLM Loop Spec 2026-10]] — LLM-driven decision loop on top of the deterministic NMA agent pipeline; tool-calling over NMAApiClient (NEW 2026-10-27)
 
 ### 📊 Research & Reference (Industry & Analysis)
 
@@ -153,12 +155,12 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 14 documents |
+|| `#production/*` | Production workflow & creative guides | 15 documents |
 || `#technical/*` | System implementation & code | 16 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 15 documents |
+|| `#ai/*` | AI models, training & ML | 16 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 || `#research/*` | Industry trends & analysis | 16 documents |
 

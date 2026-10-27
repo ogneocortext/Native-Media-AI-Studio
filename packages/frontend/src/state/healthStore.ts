@@ -36,6 +36,7 @@ interface GranularHealthData {
   ollamaModels: Awaited<ReturnType<typeof getLoadedModels>> | null;
   comfyui: ComfyUIStatus | null;
   vram: VRAMStatus["vram"] | null;
+  manager: VRAMStatus["manager"] | null;
 }
 
 interface HealthState {
@@ -76,6 +77,7 @@ const EMPTY_GRANULAR: GranularHealthData = {
   ollamaModels: null,
   comfyui: null,
   vram: null,
+  manager: null,
 };
 
 export const useHealthStore = create<HealthState>((set, get) => ({
@@ -263,14 +265,38 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     try {
       const data = await getVRAMStatus();
       const vram = data.vram != null ? data.vram : null;
-      set((s) => ({ granular: { ...s.granular, vram } }));
+      const manager = data.manager != null ? data.manager : null;
+      set((s) => ({ granular: { ...s.granular, vram, manager } }));
       return vram;
     } catch {
-      set((s) => ({ granular: { ...s.granular, vram: null } }));
+      set((s) => ({ granular: { ...s.granular, vram: null, manager: null } }));
       return null;
     }
   },
 }));
+
+// ============================================================================
+// VRAM status polling — keeps the manager state fresh so any component
+// (VRAMManagerCard, HealthPage, etc.) can read it without competing intervals.
+// ============================================================================
+let vramPollInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startVRAMPolling(intervalMs = 5000) {
+  if (vramPollInterval) clearInterval(vramPollInterval);
+  vramPollInterval = setInterval(() => {
+    useHealthStore.getState().fetchVRAMStatus().catch(() => {});
+  }, intervalMs);
+}
+
+export function stopVRAMPolling() {
+  if (vramPollInterval) {
+    clearInterval(vramPollInterval);
+    vramPollInterval = null;
+  }
+}
+
+// Start polling immediately
+startVRAMPolling();
 
 // ============================================================================
 // Zustand v5 Selectors — Fine-grained re-rendering

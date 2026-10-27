@@ -44,12 +44,15 @@ backward** — the thing a changelog cannot show.
 ### 3.1 Library & Organization
 
 - **Scope:** media library, audio library, selectors, findability.
-- **State (2026-10-25):** favorites/collections/tags/trash landed
+- **State (2026-10-27):** favorites/collections/tags/trash landed
   Oct 24 (`fc3a318`) on SQLite keyed by relative path; behaviors
-  restored post-refactor (`c3cfab9`).
+  restored post-refactor (`c3cfab9`). **Search now matches tag names
+  in addition to filename/relative_path (T-LIB-01); tag filter pill
+  added to FilterBar (T-LIB-01); vision-loop polish confirmed no
+  actionable gaps (T-LIB-02).**
 - **Pain:** search quality unproven at real library scale; selector
   consistency depends on D16 discipline holding.
-- **Next moves:** search/index pass; keep polishing via the vision loop.
+- **Next moves:** keep polishing via the vision loop.
 - **Behavior ledger:**
   - [ ] Favorites persist across a backend restart
   - [ ] Collections create/rename/delete; drill-in lists its items
@@ -61,10 +64,16 @@ backward** — the thing a changelog cannot show.
 
 - **Scope:** ACE-Step service, generation UI, prompt presets, Suno-side
   workflow support.
-- **State:** service functional; agent-drive design exists
-  (`docs/knowledge-library/acestep-agent-drive-2026.md`).
+- **State (2026-10-27):** service functional; agent-drive design exists
+  (`docs/knowledge-library/acestep-agent-drive-2026.md`). **ACE-Step
+  agent-drive A1–A4 complete (T-MUS-01–03): A1 inspected vendored LM
+  task types (LLMHandler, /create_random_sample, /format_input) and
+  proposed /planning endpoints; A2 Windows smoke test completed
+  (generate → fetch → unload, ~2.7 GB VRAM peak on GTX 1070 Ti);
+  A3 duration control documented (model-config governed, no request
+  param); A4 thin CLI deferred (raw HTTP loop is not friction).**
 - **Pain:** generation is manual-step driven; no agent operation yet.
-- **Next moves:** complete ACE-Step agent-drive A1–A4 (see §3.7).
+- **Next moves:** agent LLM loop (see §3.7).
 - **Behavior ledger:**
   - [ ] Service status endpoint reports ACE-Step up/down accurately
   - [ ] A generation run produces a file that appears in the library
@@ -94,33 +103,27 @@ backward** — the thing a changelog cannot show.
 - **Scope:** `packages/frontend/src/features/visualizer/`, Canvas2D and
   WebAudio analysis/rendering. **Never `unity-visualizer/`** (separate
   project; hands off in refactors).
-- **State:** Visualizer.tsx decomposed — T-VIZ-02 done: `useVisualizerState`
-  hook extracted (~400 lines of shared state moved out), Visualizer.tsx
-  reduced from ~2,475 to ~2,400 lines. Canvas2DVisualizer.tsx ≈83 KB still
-  pending (T-VIZ-03+). Untouched by the Oct 24 refactor otherwise.
-  **Interaction-state vision analysis completed 2026-10-26:** 7 of 9
-  interaction states analyzed (modal closed, track dropdown open, focus tabs
-  Bass/Vocals/Highs, genre presets EDM/Phonk+Bass); findings documented in
-  `docs/knowledge-library/visualizer-ux-audit-2026-10.md` §5. Cross-state
-  patterns: no hover/focus states on any interactive element (7/7 states),
-  dense control panel without visual grouping (5/7), long dense sidebar (6/7),
-  missing visual feedback on state changes (4/7), contrast/WCAG concerns (4/7).
-  Two states (3D mode, 2D mode) could not be analyzed — VRAM pressure from
-  prior analyses caused Ollama 500 errors at 86% VRAM.
-- **Pain:** monolith size makes agent edits risky and review slow. Interaction
-  states reveal UX issues invisible to static screenshot review.
-- **Next moves:** decompose both files under the §2 refactor protocol
-  (tag first, ledger after). Follow `docs/architecture/visualizer.md`
-  (D14) for where new logic belongs. Apply interaction-state findings
-  (hover/focus states, panel grouping, collapsible sidebar, active-state
-  feedback) as implementation items.
+- **State (2026-10-27):** Visualizer.tsx decomposed — T-VIZ-02 done:
+  `useVisualizerState` hook extracted. **Canvas2DVisualizer.tsx fully
+  decomposed (T-VIZ-04–09): shockwaves.ts, idleParticles.ts, particles.ts,
+  canvas2dModes.ts (all 12 mode render functions),
+  services/frameAccurateCanvas2d.ts (Plan 2.9 deterministic API).
+  Canvas2DVisualizer.tsx is now orchestrator + JSX only (~1,000 lines
+  removed). All 601 vitest tests pass.**
+- **Pain:** interaction-state issues from vision analysis (Oct 26) still
+  pending implementation: no hover/focus states, dense control panel,
+  no collapsible sidebar, missing active-state feedback, contrast
+  concerns.
+- **Next moves:** apply interaction-state findings (hover/focus states,
+  panel grouping, collapsible sidebar, active-state feedback) as
+  implementation items.
 - **Behavior ledger:**
   - [x] Track change resets analysis state for the new track (no
     bleed-over smoothing/beat state) — verified present after T-VIZ-02
   - [x] Track names render via `optionLabel`/`cleanTrackName()` only —
     no local name regexes in components — verified present
   - [x] Playback, reactivity HUD, and presets behave as before the
-    decomposition, page by page — verified present after T-VIZ-02
+    decomposition, page by page — verified present after T-VIZ-02–09
   - [ ] No hover/focus states on interactive elements (sliders, buttons,
     sidebar items, mode icons, genre presets) — found missing in all 7
     analyzed interaction states
@@ -137,11 +140,17 @@ backward** — the thing a changelog cannot show.
 
 - **Scope:** storyboard enrichment, video generation E2E, Remotion
   composite, kinetic typography.
-- **State:** **music-video generation in Orion's environment is on
-  owner-directed hold** — no rendering there until the storyboard is
+- **State (2026-10-27):** **music-video generation in Orion's environment
+  is on owner-directed hold** — no rendering there until the storyboard is
   better. Local-platform work continues. Storyboard enrichment design:
   `docs/knowledge-library/storyboard-enrichment-from-track-practice-2026.md`
-  (S1–S4 are the music-video critical path).
+  (S1–S4 are the music-video critical path). **Video Intros (owner,
+  2026-10-25): intro recipe schema designed
+  (`docs/knowledge-library/video-intro-recipe-schema-2026-10.md`, T-VID-01);
+  S1 spec written
+  (`docs/plans/storyboard-enrichment-s1-spec-2026-10.md`, T-VID-03).
+  First template render (T-VID-02) blocked by hold until storyboard gate
+  lands.**
 - **Named initiative — Video Intros (owner, 2026-10-25):** custom intro
   logo effects for YouTube, built as a parameterized **recipe** (logo,
   palette, sting, motion curve) rendered through the existing pipeline
@@ -153,7 +162,7 @@ backward** — the thing a changelog cannot show.
   3. **Iteration speed:** 3–7 s pieces that must hook immediately are
      cheap to iterate — the intro line ships and matures **before**
      full music videos resume.
-- **Next moves:** intro recipe schema + first template render (local);
+- **Next moves:** first template render (local, after storyboard gate);
   S1–S4 storyboard enrichment after, as the music-video gate.
 - **Behavior ledger:**
   - [ ] Storyboard timings derive from the measured beat grid only
@@ -167,21 +176,25 @@ backward** — the thing a changelog cannot show.
 
 - **Scope:** Ollama + Atomic Chat routing, VRAM arbitration, vision
   analysis (`tools/vision/analyze.mjs`), prompt families.
-- **State:** adapter supports Atomic via OpenAI-compatible
+- **State (2026-10-27):** adapter supports Atomic via OpenAI-compatible
   `/v1/chat/completions` (127.0.0.1:1337) with Ollama fallback; VRAM
-  manager handles engine switching (`67c3a8f`, `c1872c1`). Committed
-  `config/ports.json`: `atomic_chat_enabled: false`.
-- **Pain:** Atomic-vs-Ollama speed is still an impression, not a
-  measurement; cloud callers time out on 9B cold loads.
-- **Next moves:** run the A/B (same prompt, cold, both engines:
-  cold-load-to-first-token, wall time, peak VRAM); set
-  `atomic_chat_enabled` from the result, deliberately.
+  manager handles engine switching (`67c3a8f`, `c1872c1`). **Committed
+  `config/ports.json`: `atomic_chat_enabled: true` (T-MOD-02). A/B
+  measurement complete (T-MOD-01): Atomic Chat wins cold first-token
+  (5,815ms vs 12,081ms for Ollama, 2.1x); Ollama wins total batch time
+  (17,327ms vs 26,292ms, 1.5x). Atomic Chat model is resident (no
+  separate load). Results appended to
+  `tools/model-reliability/observed.jsonl`.**
+- **Pain:** cloud callers time out on 9B cold loads.
+- **Next moves:** burst reliability testing for Atomic Chat under
+  concurrent calling; vision loop for remaining pages.
 - **Behavior ledger:**
   - [ ] Synchronous external callers get the 4B class by default
     (cold-start rule); 9B serves warm/batch only
   - [ ] After an engine switch, exactly one engine holds the model
     resident (VRAM manager arbitration)
-  - [ ] Atomic routing engages only when `atomic_chat_enabled` is true
+  - [x] Atomic routing engages when `atomic_chat_enabled` is true
+    (set 2026-10-27 per T-MOD-02 A/B result)
   - [ ] Vision modes (ui/responsive/regression/compare) return
     mode-specific structured findings, per-model prompt family
 
@@ -189,17 +202,19 @@ backward** — the thing a changelog cannot show.
 
 - **Scope:** `packages/backend/app/agents/` — the custom NMA agent;
   design in `docs/knowledge-library/custom-agent-design.md`.
-- **State:** deterministic pipeline orchestrator (fixed phases over the
-  REST API, file-based state in `output/agent-state/`, retry/circuit
-  breakers). **No LLM loop exists yet** — no model, prompt, or
-  tool-choice in the agent.
+- **State (2026-10-27):** deterministic pipeline orchestrator (fixed
+  phases over the REST API, file-based state in `output/agent-state/`,
+  retry/circuit breakers). **LLM loop spec written
+  (`docs/knowledge-library/agent-llm-loop-spec-2026-10.md`, T-AGT-01);
+  skeleton implemented (T-AGT-02): `run_llm_loop()` in nma_agent.py
+  with 12 tool schemas over NMAApiClient, `chat_with_tools()` on
+  NMAApiClient, LLM state fields (llm_driver, iterations, tool_calls,
+  aborted) in AgentStateData. First driver Qwen3.5-4B via Atomic Chat.
+  Acceptance test pending: one track driven analyze → plan by model
+  tool-calls, timed against the Ollama path.**
 - **Pain:** a pipeline is not an agent; tool operation still needs the
   owner in the loop for every judgment call.
-- **Next moves:** spec the LLM loop — adapter chat-with-tools over the
-  existing `NMAApiClient` operations; first driver Qwen3.5-4B via
-  Atomic Chat; acceptance = one track driven analyze → plan by model
-  tool-calls, timed against the Ollama path, result logged to
-  `observed.jsonl`.
+- **Next moves:** run the T-AGT-02 acceptance test against a live LLM.
 - **Behavior ledger:**
   - [ ] A run persists its state file and phase history
   - [ ] API failures surface as logged errors — never as silent success
@@ -209,16 +224,21 @@ backward** — the thing a changelog cannot show.
 ### 3.8 Integrations
 
 - **Scope:** ComfyUI bridge, Remotion, HyperFrames, MCP bridges.
-- **State:** ComfyUI bridge proven (`packages/backend/app/services/comfyui_bridge.py`,
+- **State (2026-10-27):** ComfyUI bridge proven
+  (`packages/backend/app/services/comfyui_bridge.py`,
   `config/comfyui/bridge.json`): core stays standalone/updatable,
-  custom nodes live in version control. Other tools sit in nav as
-  destinations, which they should not be.
+  custom nodes live in version control. **Nav reorganized by job
+  (T-INT-01/02): Sidebar.tsx NAV_GROUPS now Create / Library / Analyze /
+  Render / System (was Home / Create / Generate / Manage / System).
+  App.tsx routes updated with backward-compatible redirects for all 24
+  old routes. Engines demoted behind workflow (no engine names in URLs).
+  Other tools sit in nav as job-grouped destinations, not by vendor.**
 - **Principle:** integrate at arm's length, never in-place. The app
   owns the shell and the data; engines stay in their own homes behind
   a bridge; **nav is organized by job (Create / Library / Analyze /
   Render / System), not by vendor.**
-- **Next moves:** nav reorganization by job; Remotion/HyperFrames
-  demoted behind the Render workflow.
+- **Next moves:** Remotion/HyperFrames demoted behind the Render
+  workflow (already reflected in nav grouping).
 - **Behavior ledger:**
   - [ ] ComfyUI core updates via git pull without touching bridge
     config or custom nodes

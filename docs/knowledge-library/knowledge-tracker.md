@@ -37,7 +37,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (14/14 completed) ✅
+### 🎬 Production Pipeline (15/15 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -53,6 +53,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `ai-music-mastering-stems-2026.md`  → `#production`, `#audio`
 - ✅ `storyboard-enrichment-from-track-practice-2026.md`  → `#production`, `#audio`, `#visualization`
 - ✅ `acestep-agent-drive-2026.md`  → `#production`, `#audio`
+- ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 
 ### 🛠️ Technical Implementation (15/15 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
@@ -123,7 +124,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (15/15 completed) ✅
+### 🤖 AI & ML (16/16 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `vision-model-reliability-2026.md`  → `#ai`, `#hardware-8gb`
@@ -140,6 +141,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-generation-vram-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `synced-technical-scan-sample-2026-10.md`  → `#ai`
 - ✅ `custom-agent-design.md`  → `#ai`, `#technical`, `#documentation`
+- ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
 
 ### 📊 Research & Reference (17/17 completed)
 
