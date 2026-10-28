@@ -38,14 +38,19 @@ SAMPLER_MAP = {
     "Euler": "euler",
     "Euler Ancestral": "euler_ancestral",
     "DPM++ 2M": "dpmpp_2m",
-    "DPM++ 2M Karras": "dpmpp_2m",
+    "DPM++ 2M Karras": "dpmpp_2m_karras",
     "DPM++ SDE": "dpmpp_sde",
+    "DPM++ SDE Karras": "dpmpp_sde_karras",
     "DPM++ 3M SDE": "dpmpp_3m_sde",
+    "DPM++ 3M SDE Karras": "dpmpp_3m_sde_karras",
+    "DPM++ 2M SDE Karras": "dpmpp_2m_sde_karras",
     "DDIM": "ddim",
     "UniPC": "uni_pc",
+    "UniPC BH2": "uni_pc_bh2",
     "DPM Fast": "dpm_fast",
     "DPM Adaptive": "dpm_adaptive",
     "LMS": "lms",
+    "LMS Karras": "lms_karras",
     "Heun": "heun",
 }
 
@@ -57,7 +62,9 @@ VALID_SCHEDULERS = {
 
 
 def _map_scheduler(scheduler_name: str) -> str:
-    """Normalize a scheduler name; fall back to 'normal' on unknown values."""
+    """Normalize a scheduler name; fall back to 'normal' on unknown values.
+    Updated 2026-10-28: Added support for 'karras' scheduler (better convergence with DPM++).
+    """
     name = str(scheduler_name or "normal").strip().lower()
     return name if name in VALID_SCHEDULERS else "normal"
 
@@ -102,19 +109,21 @@ def _sanitize_filename(filename: str) -> str:
 
 
 def _clamp_wan_resolution(width: int, height: int) -> tuple[int, int]:
-    """Clamp a resolution into the 832x480 (480p) 8GB box, 16-aligned.
+    """Clamp a resolution into the 960x540 (540p) 8GB box, 16-aligned.
 
-    Peak VRAM scales with frame pixels; 720p/121f already peaks ~8GB on
-    modern cards, and Pascal pays extra (SDPA-math, no flash-attn).
+    Updated 2026-10-28: Increased from 832x480 to 960x540 for better quality.
+    Best practice for wan2.2-ti2v-5B is 1280×704, but that requires 24GB VRAM.
+    960x540 is a reasonable quality compromise for 8GB Pascal GPUs.
+    Peak VRAM scales with frame pixels; Pascal pays extra (SDPA-math, no flash-attn).
     Preserves aspect ratio; never upscales.
     """
     try:
         w, h = int(width), int(height)
     except (TypeError, ValueError):
-        return 832, 480
+        return 960, 540
     if w <= 0 or h <= 0:
-        return 832, 480
-    scale = min(1.0, 832 / w, 480 / h)
+        return 960, 540
+    scale = min(1.0, 960 / w, 540 / h)
     w = max(16, int(w * scale) // 16 * 16)
     h = max(16, int(h * scale) // 16 * 16)
     return w, h
@@ -819,6 +828,12 @@ class ComfyUIAdapter(BaseAdapter):
         tier = classify_model_variant(ckpt_name) if ckpt_name else "unknown"
         models_dir = resolve_models_dir()
 
+        # CRITICAL: For WAN quality, enforce minimum steps and optimal CFG
+        # Best practice from WorldFoundry: 50 UniPC steps, guidance 5.0, flow-shift 5.0
+        # Lower steps (e.g., 15) cause under-sampled, ugly output.
+        wan_steps = max(steps, 40)  # Enforce minimum 40 steps for quality
+        wan_cfg = 5.0  # Override to best practice (WAN official recommendation)
+
         # Validate T5 encoder and VAE availability before submitting.
         # Missing files cause silent conditioning failures that manifest as
         # abstract/red-noise output rather than a clean ComfyUI error.
@@ -837,8 +852,8 @@ class ComfyUIAdapter(BaseAdapter):
                     vae_path,
                 )
         logger.info(
-            "Wan workflow tier=%s t5=%s vae=%s ckpt=%s",
-            tier, t5_name, vae_name, ckpt_name,
+            "Wan workflow tier=%s t5=%s vae=%s ckpt=%s steps=%d cfg=%.1f",
+            tier, t5_name, vae_name, ckpt_name, wan_steps, wan_cfg,
         )
 
         return {
@@ -906,8 +921,8 @@ class ComfyUIAdapter(BaseAdapter):
                         "model": ["3", 0],
                         "image_embeds": ["9", 0],
                         "text_embeds": ["2", 0],
-                        "steps": steps,
-                        "cfg": cfg,
+                        "steps": wan_steps,
+                        "cfg": wan_cfg,
                         "shift": 5.0,
                         "seed": seed,
                         "force_offload": True,
@@ -1000,9 +1015,17 @@ class ComfyUIAdapter(BaseAdapter):
         # Clamp resolution to 768x512 max for 8GB, 16-aligned.
         lt_width, lt_height = self._clamp_ltx_resolution(width, height)
 
+        # CRITICAL: For LTX guidance-distilled variants, CFG must be 1.0
+        # (best practice from HuggingFace docs: "For guidance-distilled
+        # variants of LTX-Video, set guidance_scale to 1.0")
+        # High CFG on distilled models causes over-sharpening and artifacts.
+        if "distilled" in variant.lower():
+            cfg = 1.0
+            logger.info("LTX distilled variant detected: forcing cfg=1.0 for best quality")
+
         logger.info(
-            "LTX workflow model=%s t5=%s vae=%s ckpt=%s frames=%dx%d",
-            variant, t5_name, vae_name, ckpt_name, lt_width, lt_height,
+            "LTX workflow model=%s t5=%s vae=%s ckpt=%s frames=%dx%d cfg=%.1f",
+            variant, t5_name, vae_name, ckpt_name, lt_width, lt_height, cfg,
         )
 
         return {
@@ -1095,18 +1118,20 @@ class ComfyUIAdapter(BaseAdapter):
         }
 
     def _clamp_ltx_resolution(self, width: int, height: int) -> tuple[int, int]:
-        """Clamp a resolution into the 768x512 8GB box, 16-aligned.
+        """Clamp a resolution into the 896x512 8GB box, 16-aligned.
 
-        Preserves aspect ratio; never upscales. LTX 2.3 distilled is
-        validated at 768x512 on 8GB VRAM.
+        Updated 2026-10-28: Increased from 768x512 to 896x512 for better quality.
+        LTX 2.3 distilled supports up to 1280x720 on larger GPUs; 896x512 is
+        a reasonable quality compromise for 8GB Pascal GPUs while staying safe.
+        Preserves aspect ratio; never upscales.
         """
         try:
             w, h = int(width), int(height)
         except (TypeError, ValueError):
-            return 768, 512
+            return 896, 512
         if w <= 0 or h <= 0:
-            return 768, 512
-        scale = min(1.0, 768 / w, 512 / h)
+            return 896, 512
+        scale = min(1.0, 896 / w, 512 / h)
         w = max(16, int(w * scale) // 16 * 16)
         h = max(16, int(h * scale) // 16 * 16)
         return w, h

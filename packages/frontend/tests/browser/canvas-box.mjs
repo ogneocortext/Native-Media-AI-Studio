@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /** Print the visualizer canvas bounding box (CSS px) as JSON. */
 import { chromium } from 'playwright';
+import { launchChromium } from './browser-launch.mjs';
 const base = process.argv[2] || 'http://127.0.0.1:5173';
-const browser = await chromium.launch({ headless: true,
-  args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=angle', '--enable-unsafe-swiftshader'] });
+const browser = await launchChromium();
 try {
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
   await page.goto(`${base}/visualizer`, { waitUntil: 'domcontentloaded', timeout: 60000 });

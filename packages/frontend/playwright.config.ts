@@ -41,6 +41,14 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "off",
     trace: "on-first-retry",
+    launchOptions: {
+      args: [
+        '--use-gl=angle',
+        '--enable-unsafe-swiftshader',
+        '--enable-features=UnsafeSwiftshader',
+        '--autoplay-policy=no-user-gesture-required',
+      ],
+    },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

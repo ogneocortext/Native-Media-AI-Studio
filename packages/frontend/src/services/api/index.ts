@@ -402,6 +402,10 @@ export type {
   ExportMatrixResponse,
 } from "./video-render";
 
+// Image processing (ACE-Step bridge)
+// All functionality is now accessed directly via app/api/image-processing endpoints.
+// TypeScript types are defined inline in the image-processing module.
+
 // Docs
 export { searchDocs, getDocsBootstrap, getProjectStructure } from "./docs";
 

@@ -53,17 +53,31 @@ class VideoModelCapabilities(BaseModel):
 
 
 class ImageGenerationRequest(BaseModel):
-    """Request for image generation via ComfyUI or other backends."""
+    """Request for image generation via ComfyUI or other backends.
+
+    Quality-focused defaults (updated 2026-10-28):
+    - steps: 30 (was 20) - better quality, matches SD 1.5/SDXL best practice
+    - cfg_scale: 6.0 (was 7.0) - better balance, less oversaturation artifacts
+    - width/height: 768x512 (was 512x512) - higher resolution for better detail
+    - sampler: "DPM++ 2M Karras" (was "Euler a") - higher quality sampler
+    - scheduler: "karras" (was "normal") - better convergence with DPM++
+
+    Best practices from research:
+    - Standard models (SD 1.5, SDXL): 25-50 steps, 30 is optimal
+    - CFG 5-8 for SD 1.5, 5-7 for SDXL, 3.5-6 for newer models
+    - DPM++ 2M Karras is best all-around sampler for SDXL
+    - Karras scheduler improves convergence
+    """
 
     prompt: str
     negative_prompt: str = ""
-    steps: int = 20
-    cfg_scale: float = 7.0
-    width: int = 512
+    steps: int = 30
+    cfg_scale: float = 6.0
+    width: int = 768
     height: int = 512
     seed: int = -1
-    sampler: str = "Euler a"
-    scheduler: str = "normal"
+    sampler: str = "DPM++ 2M Karras"
+    scheduler: str = "karras"
     backend: str = "comfyui"
     ckpt_name: str = ""
     enrich_prompt: bool = False  # Explicit opt-in for LLM prompt enrichment
@@ -109,18 +123,29 @@ class ImageGenerationRequest(BaseModel):
 
 
 class VideoGenerationRequest(BaseModel):
-    """Request for video generation using AnimateDiff or Wan 2.2 GGUF."""
+    """Request for video generation using AnimateDiff or Wan 2.2 GGUF.
+
+    Quality-focused defaults (updated 2026-10-28):
+    - steps: 25 (was 15) - better quality, especially for WAN (best practice: 40-50)
+    - cfg_scale: 5.0 (was 7.0) - better for WAN (5.0) and closer to LTX needs (1.0 for distilled)
+    - width/height: 768x512 (was 512x512) - higher resolution quality
+    - num_frames: 25 (was 16) - more coherent motion
+    - fps: 12 (was 8) - smoother motion
+
+    Note: LTX distilled variants override cfg to 1.0 in the workflow builder.
+    WAN GGUF enforces minimum 40 steps in the workflow builder.
+    """
 
     prompt: str
     negative_prompt: str = ""
-    steps: int = 15
-    cfg_scale: float = 7.0
-    width: int = 512
+    steps: int = 25
+    cfg_scale: float = 5.0
+    width: int = 768
     height: int = 512
     seed: int = -1
     sampler: str = "Euler a"
-    num_frames: int = 16
-    fps: int = 8
+    num_frames: int = 25
+    fps: int = 12
     motion_module: str = "mm_sd_v15_v2.ckpt"
     motion_lora: str = ""
     motion_lora_strength: float = 0.8

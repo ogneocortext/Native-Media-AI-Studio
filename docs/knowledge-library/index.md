@@ -260,12 +260,12 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 90 (markdown) + 9 (JSON data files) = 99 total |
+|| Total Documents | 107 (markdown) + 11 (JSON data files) = 118 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-10 (vision model reliability + model pruning added) |
-|| Latest Add | 2026-10-10 (Vision Model Reliability 2026) |
+|| Last Updated | 2026-10-28 (documentation statistics updated) |
+|| Latest Add | 2026-10-27 (Video Intro Recipe Schema 2026-10) |
 
 ---
 
-_Last updated: 2026-10-10 (vision model reliability article + model pruning record)_
+_Last updated: 2026-10-28 (documentation statistics updated)_

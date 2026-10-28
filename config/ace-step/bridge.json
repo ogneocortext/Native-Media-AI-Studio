@@ -2,7 +2,11 @@
   "bridge": {
     "enabled": true,
     "service": "ace-step",
-    "description": "ACE-Step bridge: isolates app code from ACE-Step provider API changes"
+    "description": "ACE-Step bridge: isolates app code from ACE-Step provider API changes",
+    "tracked_provider": "ace-step/ACE-Step-1.5",
+    "homepage": "https://ace-step.club/",
+    "repository": "https://github.com/ace-step/ACE-Step-1.5",
+    "license": "MIT"
   },
   "service": {
     "base_url": "http://127.0.0.1:8201",
@@ -14,6 +18,10 @@
     "planning_style_endpoint": "/planning/style",
     "planning_lyrics_endpoint": "/planning/lyrics",
     "audio_endpoint": "/audio/{output_name}",
+    "remix_build_endpoint": "/api/audio/remix/build",
+    "remix_enhance_endpoint": "/api/audio/remix/{name}/enhance",
+    "remix_file_endpoint": "/api/audio/remix/{name}/file/{which}",
+    "remix_preview_endpoint": "/api/audio/remix/{name}/preview",
     "health_timeout": 5,
     "generate_timeout": 600,
     "unload_timeout": 10,
@@ -21,10 +29,15 @@
   },
   "version": {
     "tracked_ace_step_version": "1.5",
+    "tracked_ace_step_release": "v0.1.8",
     "tracked_model_id": "acestep-v15-sft",
+    "tracked_xl_model_id": "acestep-v15-xl-sft",
     "api_compatibility": "v1",
     "last_verified": null,
-    "provider_update_detected": false
+    "provider_update_detected": false,
+    "provider_update_available": false,
+    "latest_release_url": "https://github.com/ace-step/ACE-Step-1.5/releases/latest",
+    "docker_image": "ghcr.io/ace-step/ace-step-1.5:0.1.8"
   },
   "compatibility": {
     "parameter_map": {
@@ -33,13 +46,18 @@
       "cfg_scale": "guidance_scale",
       "inference_steps": "inference_steps",
       "seed": "seed",
-      "output_name": "output_name"
+      "output_name": "output_name",
+      "guidance_scale": "guidance_scale",
+      "retake_variance": "retake_variance",
+      "flow_edit_prompt": "flow_edit_prompt",
+      "planning_step": "planning_step"
     },
     "response_map": {
       "audio_path": "audio_path",
       "seed": "seed",
       "sample_rate": "sample_rate",
-      "engine": "engine"
+      "engine": "engine",
+      "engine_version": "engine_version"
     },
     "unsupported_features": [
       "bf16_quantization",
@@ -51,17 +69,16 @@
       "PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128",
       "TORCHINDUCTOR_USE_TRITON=0",
       "ACESTEP_DTYPE=float32"
-    ]
-  },
-  "startup": {
-    "verify_on_start": true,
-    "auto_detect_version": true,
-    "warn_on_version_mismatch": true
-  },
-  "paths": {
-    "server_script": "tools/music-gen/server.py",
-    "venv_python": "tools/music-gen/ACE-Step-1.5/.venv/Scripts/python.exe",
-    "output_dir": "output/music",
-    "log_dir": "output/logs"
+    ],
+    "startup": {
+      "verify_on_start": true,
+      "auto_detect_version": true,
+      "warn_on_version_mismatch": true
+    },
+    "paths": {
+      "server_script": "tools/music-gen/server.py",
+      "venv_python": "tools/music-gen/ACE-Step-1.5/.venv/Scripts/python.exe",
+      "output_dir": "output/music",
+      "log_dir": "output/logs"
+    }
   }
-}

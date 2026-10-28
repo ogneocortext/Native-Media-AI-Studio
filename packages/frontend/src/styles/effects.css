@@ -395,6 +395,95 @@ body::after {
   border: 1px solid color-mix(in oklch, var(--text-primary) 8%, transparent);
 }
 
+/* ===== CSS random() — Chrome 156+ =====
+   CSS random() generates random values without JavaScript.
+   Uses seed key so values are stable across frames within the same element. */
+
+/* Organic float using CSS random() — each element gets unique offset */
+@keyframes random-drift {
+  0% {
+    transform: translate(
+      random(-8px, 8px),
+      random(-8px, 8px)
+    );
+  }
+  33% {
+    transform: translate(
+      random(-12px, 4px),
+      random(-4px, 12px)
+    );
+  }
+  66% {
+    transform: translate(
+      random(-4px, 12px),
+      random(-12px, 4px)
+    );
+  }
+  100% {
+    transform: translate(
+      random(-8px, 8px),
+      random(-8px, 8px)
+    );
+  }
+}
+
+.animate-random-drift {
+  animation: random-drift 4s var(--ease-in-out) infinite;
+}
+
+/* Shimmer using CSS random() for unique sweep per element */
+@keyframes random-shimmer {
+  0% {
+    background-position: random(-200%, -100%) 0;
+  }
+  100% {
+    background-position: random(100%, 200%) 0;
+  }
+}
+
+.animate-random-shimmer {
+  background-image: linear-gradient(
+    90deg in oklch,
+    transparent 25%,
+    color-mix(in oklch, var(--text-primary) 8%, transparent) 50%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  animation: random-shimmer 3s linear infinite;
+}
+
+/* Particle float using CSS random() — organic per-element motion */
+@keyframes particle-float {
+  0% {
+    transform: translate3d(
+      random(-10px, 10px),
+      random(-10px, 10px),
+      0
+    );
+  }
+  50% {
+    transform: translate3d(
+      random(-15px, 5px),
+      random(-5px, 15px),
+      0
+    );
+  }
+  100% {
+    transform: translate3d(
+      random(-10px, 10px),
+      random(-10px, 10px),
+      0
+    );
+  }
+}
+
+.animate-particle-float {
+  animation: particle-float 5s var(--ease-in-out) infinite;
+}
+
+/* ===== END CSS random() ===== */
+
+
 /* ===== CONTAINER QUERY UTILITIES ===== */
 /* These allow child elements to respond to their container's size */
 .cq-contain {

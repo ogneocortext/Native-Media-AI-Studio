@@ -9,6 +9,7 @@ Provides REST API for:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import re
 import shutil
@@ -215,6 +216,7 @@ class GenerateRequest(BaseModel):
     cfg_scale: float = Field(7.0, ge=0.5, le=20.0, description="Classifier-free guidance")
     inference_steps: int = Field(8, ge=1, le=200, description="Diffusion steps")
     output_name: str | None = Field(None, description="Custom output filename")
+    display_name: str | None = Field(None, description="Human-friendly display name")
 
     @field_validator("output_name")
     @classmethod
@@ -349,6 +351,13 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
         raise HTTPException(503, detail="Service not running. Start it first with POST /start")
 
     try:
+        # Auto-generate a friendly output name when none provided.
+        # Format: ace-step-YYYYMMDD-HHMM (e.g., ace-step-20261028-1430)
+        output_name = req.output_name
+        if not output_name:
+            stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+            output_name = f"ace-step-{stamp}"
+
         result = await adapter.generate(
             {
                 "style": req.style,
@@ -356,21 +365,21 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
                 "seed": req.seed,
                 "cfg_scale": req.cfg_scale,
                 "inference_steps": req.inference_steps,
-                "output_name": req.output_name,
+                "output_name": output_name,
             }
         )
 
         # Register generated audio in the media library so the frontend can find/play it.
         audio_path = result.get("audio_path")
-        output_name = result.get("output_name") or req.output_name or ""
-        if audio_path and output_name:
+        result_output_name = result.get("output_name") or output_name or ""
+        if audio_path and result_output_name:
             # Validate before doing any file/DB work so invalid names surface as 400
             # to the client instead of being silently swallowed.
-            output_name = _validate_output_name(output_name)
+            result_output_name = _validate_output_name(result_output_name)
 
             src = Path(audio_path)
             if src.exists():
-                dst_name = f"{output_name}.wav"
+                dst_name = f"{result_output_name}.wav"
                 dst = PROJECT_ROOT / "output" / "audio" / dst_name
                 audio_dir = PROJECT_ROOT / "output" / "audio"
                 if not str(dst.resolve()).startswith(str(audio_dir.resolve())):
@@ -414,6 +423,7 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
                         sample_rate=sample_rate,
                         channels=channels,
                         format="wav",
+                        display_name=req.display_name or output_name,
                     )
                     # Atomic rename so the file appears only after DB registration.
                     if created_temp:
@@ -438,7 +448,10 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
                             pass
                     raise
 
-        return result
+        return {
+            **result,
+            "display_name": req.display_name or output_name,
+        }
     except HTTPException:
         raise
     except Exception as e:

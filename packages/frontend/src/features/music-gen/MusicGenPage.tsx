@@ -3,6 +3,7 @@ import { Music, Play, Square, Settings, Sparkles, RefreshCw, Info } from "lucide
 import { getApiBase } from "../../services/api/core";
 import { DS } from "../../styles/designSystem";
 import { Card, StatusBadge, EmptyState } from "../../components/common";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 
 export function MusicGenPage() {
   const [running, setRunning] = useState(false);
@@ -14,6 +15,8 @@ export function MusicGenPage() {
   const [error, setError] = useState("");
 
   const api = getApiBase();
+
+  const { refresh: refreshAudioLibrary } = useAudioLibrary();
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -73,12 +76,15 @@ export function MusicGenPage() {
           style,
           lyrics,
           output_name: outputName || undefined,
+          display_name: outputName || undefined,
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.detail || r.statusText);
       const name = j.output_name || outputName;
       if (name) setAudioUrl(`${api}/api/music-gen/audio/${name}`);
+      // Refresh the audio library so the new track appears in all selectors.
+      void refreshAudioLibrary();
     } catch (e) {
       setError(String(e));
     } finally {

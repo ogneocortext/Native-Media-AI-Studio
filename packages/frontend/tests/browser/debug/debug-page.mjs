@@ -22,7 +22,7 @@ try {
 const FRONTEND_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchChromium();
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();

@@ -48,11 +48,13 @@ import {
   updateIdleParticles,
 } from "./idleParticles";
 import { type Particle } from "./particles";
+import { getVisualizerMode, type VisualizerModeRenderContext, type VisualizerModeState } from "./visualizerModeRegistry";
 import { renderMode } from "./canvas2dModes";
 import { FrameAccurateCanvas2D } from "./services/frameAccurateCanvas2d";
 import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import type { AudioAnalysisData, AudioData } from "./types";
+import { HtmlCanvasRenderer } from "./HtmlCanvasRenderer";
 
 export interface Canvas2DVisualizerRef {
   captureScreenshot: () => string | null;
@@ -242,7 +244,6 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       let wave: Uint8Array | null = null;
       let smoothed: Uint8Array | null = null;
       // Falling peak indicators for bars mode
-      let barPeaks: number[] | null = null;
 
       // Plan 2.9 — deterministic export state, owned by FrameAccurateCanvas2D.
       // The draw loop reads isExportActive/virtualTimeSec/virtualRand/
@@ -262,15 +263,12 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       // Plan 2.1: asymmetric (0.8 attack / 0.12 release) envelope state for the
       // modes listed in ASYMMETRIC_SMOOTHING_MODES; null everywhere else.
       let smoothedBars: number[] | null = null;
-      let smoothedStack: number[] | null = null;
       // Consecutive all-silent frequency frames; used to detect a track switch
       // (see the reset in the draw loop). Not per-mode state.
       let silentFrames = 0;
       let beatVignette = 0;
       // Waveform spring envelope state
-      let waveEnvelope: number[] | null = null;
-      let waveVelocities: number[] | null = null;
-      // Drum shockwave state — expanding rings on kick/snare/hat transient
+
       const shockwaves: Shockwave[] = [];
 
       // Idle ambient particles — subtle floating motes when no track is playing
@@ -294,11 +292,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       const resetState = () => {
         barVelocities = null;
         smoothedBars = null;
-        smoothedStack = null;
-        barPeaks = null;
-        waveEnvelope = null;
-        waveVelocities = null;
-        smoothed = null;
+
         phraseFlash = 0;
         beatVignette = 0;
         silentFrames = 0;
@@ -611,8 +605,6 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (isSilent) {
             if (++silentFrames >= 2) {
               smoothedBars = null;
-              smoothedStack = null;
-              barPeaks = null;
               barVelocities = null;
             }
           } else {
@@ -620,7 +612,15 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           }
         }
 
-        renderMode(mode, dpr, w, h, {
+        // Render via registry (Chrome 157+ HTML-in-Canvas compatible). Looks up
+        // the mode render function from the registry; falls back to legacy
+        // renderMode for any mode not yet registered there.
+        const modeDef = getVisualizerMode(mode);
+        const modeRenderFn = modeDef
+          ? modeDef.render
+          : ((ctx2: CanvasRenderingContext2D, ctxInfo2: VisualizerModeRenderContext, state2: VisualizerModeState) =>
+              renderMode(mode, ctxInfo2.dpr, ctxInfo2.w, ctxInfo2.h, ctx2 as any, state2 as any));
+        modeRenderFn(ctx, {
           ctx,
           dpr,
           w,
@@ -630,7 +630,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           syncLineProgress: sync?.lineProgress ?? 0,
           sectionProgress: sync?.sectionProgress ?? 0,
           colors,
-          perceptualScale,
+          perceptualScale: perceptualScale as "bark" | "erb" | "mel" | "linear",
           freq,
           wave,
           bg: bgColor,
@@ -645,15 +645,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           getGradients,
           asymmetric,
         }, {
-          barVelocities,
-          barPeaks,
-          smoothedBars,
-          smoothedStack,
-          waveEnvelope,
-          waveVelocities,
           smoothed,
-          particles,
+          particles: particles as unknown as VisualizerModeState["particles"],
         });
+
         raf = requestAnimationFrame(draw);
       };
       raf = requestAnimationFrame(draw);
@@ -694,6 +689,13 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           className="absolute inset-0 w-full h-full"
           style={{ background: bgColor }}
         />
+        {/* HTML-in-Canvas rendered content when Chrome 157+, DOM overlay fallback when Chrome 156 */}
+        <HtmlCanvasRenderer canvas={canvasRef.current} x={0} y={0}>
+          <div className="text-white/80 text-[24px] font-semibold leading-tight text-center w-full">
+            <span className="block mb-2">{lrcSyncLive?.current?.currentSection?.toUpperCase() || "—"}</span>
+            <span className="block text-[18px]">{lrcSyncLive?.current?.sectionProgress}</span>
+          </div>
+        </HtmlCanvasRenderer>
         <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
           <button
             onClick={handleAnalyze}

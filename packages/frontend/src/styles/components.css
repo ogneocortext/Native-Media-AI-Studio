@@ -537,6 +537,77 @@ option {
   border: 1px solid color-mix(in oklch, var(--color-danger) 30%, transparent);
 }
 
+/* ===== MEDIA ELEMENT PSEUDO-CLASSES (Chrome 156+) =====
+   :playing, :paused, :seeking, :buffering, :stalled, :muted, :volume-locked
+   Style media elements based on their state without JavaScript state tracking. */
+
+/* Audio/video playing — subtle pulse */
+:root:has(audio:playing, video:playing) .media-playing-indicator {
+  box-shadow: 0 0 8px color-mix(in oklch, var(--color-accent) 40%, transparent);
+}
+
+/* Media element itself when playing */
+audio:playing,
+video:playing {
+  outline: 2px solid color-mix(in oklch, var(--color-accent) 30%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* Media paused — subtle dim */
+audio:paused:not([controls]),
+video:paused:not([controls]) {
+  opacity: 0.6;
+}
+
+/* Media seeking — faster pulse */
+audio:seeking,
+video:seeking {
+  box-shadow: 0 0 12px color-mix(in oklch, var(--color-primary) 30%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--color-primary) 40%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* Media buffering — spinner-like pulse */
+audio:buffering,
+video:buffering {
+  box-shadow: 0 0 16px color-mix(in oklch, var(--color-warning) 30%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--color-warning) 40%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+  animation: pulse-glow 1s ease-in-out infinite;
+}
+
+/* Media muted — subtle red indicator */
+audio:muted,
+video:muted {
+  outline: 2px solid color-mix(in oklch, var(--color-danger) 30%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+.media-muted-indicator {
+  color: color-mix(in oklch, var(--color-danger) 60%, transparent);
+  font-size: 0.85rem;
+}
+
+/* Media stalled — warning pulse */
+audio:stalled,
+video:stalled {
+  box-shadow: 0 0 12px color-mix(in oklch, var(--color-warning) 25%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--color-warning) 40%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Volume-locked indicator */
+.media-volume-locked {
+  color: color-mix(in oklch, var(--color-primary) 50%, transparent);
+  font-size: 0.85rem;
+}
+
 /* ===== SPINNERS ===== */
 @keyframes spin {
   to {
@@ -593,3 +664,4 @@ option {
 .stage-hero-sweep:hover {
   transform: scale(1.005);
 }
+

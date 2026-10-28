@@ -49,6 +49,10 @@ const ImageGeneration = lazyNamed(
   () => import("./features/image-generation/ImageGeneration"),
   "ImageGeneration",
 );
+const ImageProcessingPage = lazyNamed(
+  () => import("./features/image-processing/ImageProcessingPage"),
+  "ImageProcessingPage",
+);
 const MediaLibrary = lazyNamed(
   () => import("./features/media-library/MediaLibrary"),
   "MediaLibrary",
@@ -133,6 +137,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/create/3d": "Three.js Studio",
   "/create/video": "Video Generation",
   "/create/image": "Image Generation",
+  "/create/image-processing": "Image Processing",
   "/create/typography": "Kinetic Typography",
   "/create/music": "Music Gen",
   "/create/remix": "Remix / Mashup",
@@ -239,6 +244,10 @@ function App() {
               <Route
                 path="/create/image"
                 element={withErrorBoundary(<ImageGeneration />)}
+              />
+              <Route
+                path="/create/image-processing"
+                element={withErrorBoundary(<ImageProcessingPage />)}
               />
               <Route
                 path="/create/typography"

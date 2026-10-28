@@ -1,8 +1,9 @@
 import { chromium } from 'playwright';
+import { launchChromium } from './browser-launch.mjs';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-const browser = await chromium.launch({ headless: false });
+const browser = await launchChromium({ headless: false });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 console.log('Navigating to Remotion Studio...');

@@ -32,9 +32,11 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .adapters.registry import adapter_registry
+from .api.image_processing import router as image_processing_router
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
+from .core.idle_monitor import idle_monitor
 from .core.logging_config import setup_logging
 from .core.metrics import MetricsMiddleware, metrics_endpoint
 from .core.port_manager import port_manager
@@ -114,6 +116,22 @@ def _get_atomic_chat_model() -> str | None:
     except Exception:
         pass
     return None
+
+
+def _get_ollama_last_model() -> str | None:
+    """Return the last Ollama model loaded by the Ollama adapter.
+
+    Module-level helper so lifespan() stays flat (no nested function with an
+    inner try/if inside the database init try block). Returns None if the
+    Ollama adapter is not registered or has no last model recorded.
+    """
+    try:
+        adapter = adapter_registry.get_adapter("ollama")
+        if adapter is None:
+            return None
+        return getattr(adapter, "_last_model", None)
+    except Exception:
+        return None
 
 
 def _verify_ace_bridge_startup() -> None:
@@ -287,12 +305,7 @@ async def lifespan(app: FastAPI):
             set_last_model_provider,
         )
 
-        def _last_ollama_model() -> str | None:
-            from .adapters.ollama import ollama_adapter
-
-            return getattr(ollama_adapter, "_last_model", None)
-
-        set_last_model_provider(_last_ollama_model)
+        set_last_model_provider(_get_ollama_last_model)
 
         # Same pattern for Atomic Chat: it wraps Ollama on port 1337 and loads
         # its own model (e.g. qwen3.5) into the same 8 GB VRAM. The VRAM
@@ -353,16 +366,6 @@ async def lifespan(app: FastAPI):
 
     logger.info("Native Media AI Studio started successfully")
 
-    # Ensure Ollama starts idle -- don't auto-load any model on resume/crash.
-    # Previous fire-and-forget visualizer generation left models resident via keep_alive=30m
-    try:
-        from .services.vram_manager import _unload_ollama_models
-
-        await _unload_ollama_models()
-        logger.info("Ollama models unloaded at startup (manual trigger required)")
-    except Exception as e:
-        logger.debug(f"Startup Ollama unload skipped: {e}")
-
     # Check adapter health
     try:
         service_health = await adapter_registry.check_all_health()
@@ -381,6 +384,10 @@ async def lifespan(app: FastAPI):
     _background_tasks.append(asyncio.create_task(resource_monitoring_loop()))
     logger.info("Resource monitoring task started (30s interval)")
 
+    # Start the idle monitor that auto-unloads services after 15 minutes of inactivity
+    await idle_monitor.start()
+    logger.info("Idle monitor started (15-minute timeout)")
+
     yield
 
     logger.info("Shutting down Native Media AI Studio...")
@@ -388,6 +395,10 @@ async def lifespan(app: FastAPI):
     # Cancel all background tasks
     await _cancel_background_tasks()
     logger.info("Background tasks stopped")
+
+    # Stop the idle monitor
+    await idle_monitor.stop()
+    logger.info("Idle monitor stopped")
 
     # Remove the job-update fan-out subscription so a re-imported app
     # (e.g. tests that enter lifespan repeatedly) does not accumulate
@@ -411,12 +422,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close shared HTTP client: {e}")
 
-    # Release the shared aiohttp sessions (ComfyUI + Ollama route clients)
+    # Release the shared aiohttp sessions (ComfyUI route client)
     try:
-        from .core import comfyui_client, ollama_client
+        from .core import comfyui_client
 
         await comfyui_client.close_shared_session()
-        await ollama_client.close_shared_session()
     except Exception as e:
         logger.warning(f"Failed to close shared aiohttp sessions: {e}")
 
@@ -776,6 +786,7 @@ app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
 app.include_router(notifications.router)
 app.include_router(mcp_validate.router)
+app.include_router(image_processing_router)
 
 
 # Additional root-level routes

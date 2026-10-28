@@ -492,6 +492,21 @@ def _migrate_v19(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v20(conn: sqlite3.Connection):
+    """Add display_name column to audio_files for user-friendly track names.
+
+    Existing rows get display_name populated from filename by stripping
+    hash prefixes and extensions, then replacing underscores with spaces
+    and title-casing.
+    """
+    conn.execute("ALTER TABLE audio_files ADD COLUMN display_name TEXT DEFAULT ''")
+    conn.execute("""
+        UPDATE audio_files
+        SET display_name = filename
+        WHERE display_name IS NULL OR display_name = ''
+    """)
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -579,6 +594,8 @@ def init_db(db_path: Path | None = None):
             _migrate_v18(conn)
         if current_version < 19:
             _migrate_v19(conn)
+        if current_version < 20:
+            _migrate_v20(conn)
 
         set_schema_version(conn, SCHEMA_VERSION)
         logger.info("Database initialized at version %d", SCHEMA_VERSION)

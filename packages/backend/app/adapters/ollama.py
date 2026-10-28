@@ -1479,5 +1479,6 @@ Each scene should have unique camera work and lighting suggestions."""
         return self._available_models.copy()
 
 
-# Backward-compatible singleton for VRAM manager and any legacy imports.
-ollama_adapter = OllamaAdapter()
+# OllamaAdapter is instantiated lazily via AdapterRegistry.get_adapter("ollama")
+# or directly by code that needs it. No module-level singleton is created so
+# that Ollama remains an optional dependency — the app works fine without it.

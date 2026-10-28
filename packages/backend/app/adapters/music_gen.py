@@ -180,6 +180,27 @@ class MusicGenAdapter(BaseAdapter):
             logger.info("Music-gen service already running (pid=%d)", self._process.pid)
             return True
 
+        # Check if the service is already reachable on the port (e.g. started
+        # independently outside this backend adapter). If so, mark ourselves
+        # as connected without starting a duplicate subprocess.
+        try:
+            session = await _get_shared_session()
+            async with session.get(
+                f"{self.base_url}/health", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("loaded", False):
+                        self._ready = True
+                        self.set_status(AdapterStatus.CONNECTED)
+                        logger.info(
+                            "Music-gen service already reachable on %s (loaded=%s, model=%s)",
+                            self.base_url, data.get("loaded"), data.get("model")
+                        )
+                        return True
+        except Exception:
+            pass  # Service not reachable, proceed to start it
+
         # Note: vram_budget_mb is validated/enforced by the backend's VRAM
         # manager (begin_music_generation); the subprocess itself does not take
         # a VRAM CLI flag.
@@ -253,14 +274,17 @@ class MusicGenAdapter(BaseAdapter):
         return ready
 
     async def stop_service(self) -> bool:
-        """Stop the music generation subprocess."""
-        if not self._process:
-            return True
+        """Stop the music generation subprocess.
 
-        pid = self._process.pid
-        logger.info("Stopping music-gen service (pid=%d)", pid)
+        Handles both subprocesses started by this adapter and externally-running
+        services that were connected to via the health-check path in
+        ``start_service``. On Windows, kills the entire process tree so child
+        processes (e.g. PyTorch workers) do not become orphans.
+        """
+        pid = self._process.pid if self._process else None
 
-        # Try graceful shutdown via HTTP
+        # Try graceful shutdown via HTTP first (works for both our subprocess
+        # and externally-running services).
         try:
             session = await _get_shared_session()
             async with session.post(
@@ -274,30 +298,63 @@ class MusicGenAdapter(BaseAdapter):
         # Give it a moment to clean up
         await asyncio.sleep(2)
 
-        # Graceful terminate first, then force kill if still running
-        if self._process.poll() is None:
-            try:
-                self._process.terminate()
+        # If we started the subprocess ourselves, kill the process tree.
+        if self._process is not None:
+            pid = self._process.pid
+            if self._process.poll() is None:
                 try:
+                    self._process.terminate()
                     self._process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    logger.warning("Process %d did not exit after terminate, killing", pid)
-                    self._process.kill()
-                    # Reap the killed process so it does not linger as a zombie
-                    # and so the exit code is collected.
+                    logger.warning(
+                        "Process %d did not exit after terminate, killing process tree", pid
+                    )
+                    self._kill_process_tree(pid)
                     try:
                         self._process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         logger.error("Process %d did not exit even after kill", pid)
-            except Exception as e:
-                logger.warning("Failed to stop music-gen process: %s", e)
+                except Exception as e:
+                    logger.warning("Failed to stop music-gen process: %s", e)
 
+        # If we connected to an externally-running service (no _process), the
+        # HTTP /unload above should have stopped it. Mark as disconnected
+        # regardless so we don't think it's still ours.
         self._process = None
         self._close_log_file()
         self._ready = False
         self.set_status(AdapterStatus.DISCONNECTED)
         logger.info("Music-gen service stopped")
         return True
+
+    def _kill_process_tree(self, pid: int) -> None:
+        """Kill a process and all its descendants on Windows.
+
+        On Windows, ``terminate()``/``kill()`` only kills the immediate
+        process. ACE-Step spawns PyTorch child processes that would become
+        orphans without tree-killing. Uses ``taskkill /T /F`` which recursively
+        kills the entire process tree.
+        """
+        if sys.platform != "win32":
+            return
+        try:
+            import subprocess as _sp
+            result = _sp.run(
+                ["taskkill", "/T", "/F", "/PID", str(pid)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=10,
+            )
+            if result.returncode == 0:
+                logger.info("Killed process tree for PID %d", pid)
+            else:
+                logger.warning(
+                    "taskkill for PID %d returned %d: %s",
+                    pid, result.returncode, result.stderr.strip(),
+                )
+        except Exception as e:
+            logger.warning("Failed to kill process tree for PID %d: %s", pid, e)
 
     def _close_log_file(self) -> None:
         """Close the subprocess log file handle if open."""
@@ -393,12 +450,17 @@ class MusicGenAdapter(BaseAdapter):
                     return await resp.json()
         except Exception:
             pass
+        finally:
+            self.record_activity()
         return {"available": False}
 
     @property
     def is_running(self) -> bool:
-        """Check if the subprocess is still alive."""
-        return self._process is not None and self._process.poll() is None
+        """Check if the service is running, either as our subprocess or
+        externally reachable on the port."""
+        if self._process is not None and self._process.poll() is None:
+            return True
+        return self._ready
 
     @property
     def pid(self) -> int | None:

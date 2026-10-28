@@ -22,6 +22,7 @@ def save_audio_file(
     stored_path: str,
     file_size: int = 0,
     duration: float = 0.0,
+    display_name: str | None = None,
     **kwargs: Any,
 ) -> str:
     """Save audio file metadata and return its ID.
@@ -45,8 +46,8 @@ def save_audio_file(
                 INSERT INTO audio_files
                 (id, filename, original_name, stored_path, file_size, duration,
                  sample_rate, channels, format, bpm, key, genre, music_prompt_id,
-                 analysis_result, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 analysis_result, display_name, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     audio_id,
@@ -63,6 +64,7 @@ def save_audio_file(
                     kwargs.get("genre"),
                     kwargs.get("music_prompt_id"),
                     json.dumps(kwargs.get("analysis_result", {})),
+                    display_name,
                     now,
                 ),
             )
@@ -127,6 +129,7 @@ def _row_to_audio(row: sqlite3.Row) -> dict[str, Any]:
         "genre": row["genre"],
         "music_prompt_id": row["music_prompt_id"],
         "analysis_result": _safe_json_loads(row["analysis_result"], {}),
+        "display_name": row["display_name"] if "display_name" in row.keys() else None,
         "created_at": row["created_at"],
     }
 

@@ -12,12 +12,13 @@ date: 2026-09-20
 type: comparison
 ---
 
-# 🎬 Video Generation VRAM Requirements for 8GB GPUs (September 2026)
+# 🎬 Video Generation VRAM Requirements for 8GB GPUs (October 2026)
 
 > [!info] Scope
-> 2026 update on AI video generation capabilities for consumer GPUs (8GB VRAM).
-> Based on latest research into quantization techniques, GGUF models, and tiling strategies.
-> Corrects previous assumptions about what can run on GTX 1070 Ti-class hardware.
+> 2026-10-28 update: Quality-focused parameter tuning for LTX and WAN video generation.
+> Previous defaults (steps=15, cfg=7.0, 512x512) produced ugly, under-sampled output.
+> New defaults (steps=25-40, cfg=1.0-5.0, 768x512+) significantly improve quality on 8GB.
+> Based on best practices from LTX official docs and WorldFoundry WAN specifications.
 
 ---
 
@@ -46,23 +47,41 @@ type: comparison
 Our previous deletion of Wan 2.2 5B from comfyui-workflows was based on FP16 VRAM requirements (~16GB). However, **GGUF quantization brings it to 8GB**:
 
 ```bash
-# Wan 2.2 5B GGUF on 8GB VRAM
-Resolution: 480p @ 24fps
+# Wan 2.2 5B GGUF on 8GB VRAM (updated 2026-10-28)
+Resolution: 960x540 @ 12fps (improved from 832x480 @ 8fps)
 VRAM: ~6 GB
 Generation time: 2-10 minutes per clip
+Steps: 40 (minimum enforced, best practice: 50)
+CFG: 5.0 (best practice from WorldFoundry)
+Flow-shift: 5.0
 ```
+
+**Quality Improvements (2026-10-28):**
+
+- **Resolution clamp increased**: 832x480 → 960x540 (540p, 25% more pixels)
+- **Steps enforced**: minimum 40 steps (was 15, causing under-sampling)
+- **CFG override**: 5.0 (was 7.0, causing over-guidance artifacts)
+- **Default frames**: 25 (was 16, for more coherent motion)
+- **Default FPS**: 12 (was 8, for smoother motion)
 
 **Key Advantages:**
 
 - Hybrid text-to-video and image-to-video
 - Consumer champion designed for RTX 3060/4060 class GPUs
-- 720p@24fps output on RTX 3060, 480p on GTX 1070 Ti
+- 720p@24fps output on RTX 3060, 540p on GTX 1070 Ti
 - GGUF quantization reduces VRAM by 89%
+
+**Best Practice Parameters (WorldFoundry verified):**
+
+- **wan2.2-ti2v-5B**: 1280×704, 121f, 24fps, 50 steps, guidance 5.0, flow-shift 5.0
+- **Our 8GB compromise**: 960×540, 81f, 12fps, 40-50 steps, guidance 5.0, flow-shift 5.0
 
 **Implementation Path:**
 
 - Use GGUF quantized model (not FP16 weights)
-- Reduce resolution to 480p for 8GB safety
+- Resolution clamped to 960x540 for 8GB safety (540p)
+- Enforce minimum 40 steps (under-sampling causes ugly output)
+- Set CFG to 5.0 (7.0 causes over-sharpening artifacts)
 - Enable CPU offloading for intermediate frames
 - Consider as alternative to AnimateDiff for higher-quality motion
 
@@ -81,12 +100,28 @@ Speed: Fast generation (2-5 min per clip)
 Quality: Better than AnimateDiff, below Wan 14B
 ```
 
+**Quality Improvements (2026-10-28):**
+
+- **Resolution clamp increased**: 768x512 → 896x512 (17% more pixels)
+- **Steps default**: 25 (was 15, for better quality)
+- **CFG for distilled**: 1.0 (was 7.0, critical fix)
+- **Default frames**: 25 (was 16, matches LTX 4n+1 requirement)
+- **Default FPS**: 12 (was 8, smoother motion)
+
+**Critical CFG Fix:**
+
+- For LTX guidance-distilled variants, `guidance_scale` must be **1.0**
+- High CFG (7.0) on distilled models causes over-sharpening and artifacts
+- Code now auto-detects "distilled" in variant name and forces cfg=1.0
+- This matches HuggingFace docs: "For guidance-distilled variants of LTX-Video, set guidance_scale to 1.0"
+
 **Optimization Techniques:**
 
 - FP8 precision (8-bit floats)
 - Tiled rendering (split frames into tiles)
 - Aggressive tiling for 720p on 8GB
 - CPU offload for VAE decoding
+- T5 text encoder CPU offloaded on 8GB
 
 **Use Cases:**
 
@@ -343,7 +378,63 @@ Based on 2026 ComfyUI research:
 
 ---
 
-## 13. Sources
+## 13. Quality Parameter Tuning (2026-10-28)
+
+### Problem: Ugly Video Output
+
+Symptoms:
+- Blurry, under-sampled details
+- Over-sharpened artifacts
+- Choppy motion
+- Low perceived quality despite model capabilities
+
+### Root Causes Identified
+
+1. **Under-sampling**: steps=15 was too low for quality (especially WAN)
+2. **Wrong CFG**: cfg=7.0 caused over-guidance artifacts (LTX needs 1.0 for distilled)
+3. **Low resolution**: 512x512 too small for quality clips
+4. **Short clips**: 16 frames insufficient for coherent motion
+5. **Low FPS**: 8fps appeared choppy
+
+### Solutions Implemented
+
+**In VideoGenerationRequest (backend/app/models/generation.py):**
+```python
+steps: int = 25        # was 15 (minimum 40 enforced for WAN)
+cfg_scale: float = 5.0  # was 7.0 (1.0 auto-applied for LTX distilled)
+width: int = 768       # was 512
+height: int = 512      # was 512
+num_frames: int = 25   # was 16
+fps: int = 12          # was 8
+```
+
+**In comfyui.py workflow builders:**
+- LTX: Auto-detect "distilled" variant → force cfg=1.0
+- WAN: Enforce minimum 40 steps, override cfg to 5.0
+- Resolution clamps increased: LTX 768→896, WAN 832→960
+
+### Best Practice References
+
+**LTX Video (from HuggingFace docs):**
+- Guidance-distilled variants: `guidance_scale = 1.0`
+- Non-distilled: `guidance_scale = 5.0` (or higher)
+- High CFG on distilled = over-sharpening artifacts
+
+**WAN 2.2 (from WorldFoundry):**
+- wan2.2-ti2v-5B: 50 steps, guidance 5.0, flow-shift 5.0
+- Resolution: 1280×704 (24GB) → 960×540 (8GB compromise)
+- Steps < 40 = under-sampled, ugly output
+
+### Quality Presets
+
+Future work: add "quality_preset" parameter:
+- "fast": steps=15, 480p, 16f (quick drafts)
+- "quality": steps=40-50, 540p+, 25f (production)
+- "high": steps=50+, 720p (if VRAM allows)
+
+---
+
+## 14. Sources
 
 - [WillItRunAI Video Generation GPU Guide 2026](https://willitrunai.com/blog/video-generation-gpu-guide-2026)
 - [Wan 2.2 VRAM Requirements](https://wan-ai.app/wan-vram-requirements)
@@ -366,4 +457,4 @@ Based on 2026 ComfyUI research:
 
 ---
 
-_Last updated: 2026-09-20 — Major update reflecting quantization breakthroughs and corrected Wan 2.2 5B 8GB feasibility_
+_Last updated: 2026-10-28 — Quality parameter tuning implemented (steps, CFG, resolution, frame count, FPS); based on LTX official docs and WorldFoundry WAN specifications_

@@ -9,7 +9,7 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D43 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D52 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 
 ## Decided
 

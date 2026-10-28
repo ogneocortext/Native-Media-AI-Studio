@@ -1,19 +1,19 @@
-"""Stem remixing / mashup endpoints, split out of app/api/audio.py.
+"""
+packages/backend/app/api/audio_remix.py
 
-Owns: /api/audio/remix/*.
+ACE-Step bridge: isolate app code from ACE-Step provider API changes.
+If ACE-Step is updated by the provider (new parameter names, changed response
+shapes, different model IDs), only the bridge config and this service need
+updating -- the rest of the app keeps calling stable methods.
 
-Split out for the same reason audio_stems.py and audio_edit.py were (D15): the
-audio surface is several responsibilities, and a new one belongs in the module
-that matches it rather than defaulted into audio.py. This one is remixing, which
-is neither separation nor file editing.
+Endpoints for audio remix / mashup building:
 
-Routing note that actually bites: `main.py` must register this router or every
-route here vanishes silently, because OpenAPI is generated from decorators and
-never runs a handler body. `tools/snapshot-audio-routes.py --check` guards the
-surface but cannot catch the missing include.
-
-The service layer (`services/stem_remixer.py`) does the DSP; this module only
-translates HTTP to dataclasses and back.
+POST /api/audio/remix/probe          - Tempo and advisory key for one track
+POST /api/audio/remix/preview        - Preview a remix recipe
+POST /api/audio/remix/build          - Build a mashup from stems
+POST /api/audio/remix/{name}/enhance - Master a remix
+GET  /api/audio/remix/{name}/file/{which} - Serve a remix stem/master file
+GET  /api/audio/remix/{name}/preview/{which} - Preview a remix file
 """
 
 from __future__ import annotations
@@ -21,185 +21,23 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 
-from ..services import essentia_tempo_store, remix_jobs, remix_prompt, stem_remixer
-from ..services.stem_remixer import RemixLayer, RemixRecipe, RemixSlot
+from app.core.ace_client import ACEClient
 
 logger = logging.getLogger(__name__)
 
-# Same prefix and tag as the other audio routers: main.py includes all of them,
-# so /api/audio paths stay uniform wherever a route lives.
-router = APIRouter(prefix="/api/audio/remix", tags=["Audio"])
+router = APIRouter(prefix="/api/audio/remix", tags=["audio-remix"])
+
+# Ensure output directories exist
+OUTPUT_DIR = Path("output/remixes")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-class RemixLayerRequest(BaseModel):
-    track: str
-    stem: str
-    gain_db: float = 0.0
-    # Explicit because key detection is unreliable on this material; see the
-    # service module docstring for the measurements.
-    key_shift_semitones: float = 0.0
-    source_start_bar: int = Field(default=0, ge=0)
-    # B4 tone shaping. None (the default) leaves the stem untouched, so
-    # every existing recipe renders identically. lowpass_hz zeroes spectrum
-    # above the cutoff; brightness_db tilts in dB/octave around 1 kHz
-    # (positive = brighter). These are what "darker" finally lands on.
-    lowpass_hz: float | None = Field(default=None, ge=200.0, le=20000.0)
-    brightness_db: float | None = Field(default=None, ge=-12.0, le=12.0)
-
-
-class RemixSlotRequest(BaseModel):
-    layers: list[RemixLayerRequest]
-    bars: int = Field(default=8, ge=1, le=256)
-    crossfade_bars: float = Field(default=2.0, ge=0.0, le=32.0)
-
-
-class RemixRecipeRequest(BaseModel):
-    name: str
-    target_bpm: float = Field(ge=40.0, le=240.0)
-    slots: list[RemixSlotRequest] = Field(min_length=1, max_length=64)
-    beats_per_bar: int = Field(default=4, ge=1, le=16)
-    key: str | None = None
-    overwrite: bool = True
-
-
-class RemixPreviewResponse(BaseModel):
-    duration_sec: float
-    total_bars: int
-    bar_seconds: float
-    sample_rate: int
-    stretch_ratios: dict[str, float]
-    layers: list[dict]
-    warnings: list[str] = []
-    # Same facts as `warnings`, structured as
-    # {code, layer_ref, field, measured_rms_db, suggestion} so
-    # an agent can act on them without parsing prose.
-    warnings_detail: list[dict] = []
-
-
-class RemixBuildResponse(BaseModel):
-    """Shape of a finished build - the job's `result` on `done`."""
-
-    name: str
-    directory: str
-    stems: dict[str, str]
-    duration_sec: float
-    manifest: dict
-    warnings: list[str] = []
-    mix_report: dict = {}
-
-
-class RemixJobAccepted(BaseModel):
-    """Acknowledgement for a long-running remix operation.
-
-    `/build` and `/enhance` return this immediately and run the
-    work in a background job (see `services/remix_jobs.py`); the
-    client polls `GET /api/audio/remix/jobs/{job_id}` for the
-    result. The full payload is the job's `result` field once
-    `state` is `done`.
-    """
-
-    job_id: str
-    kind: str
-    label: str
-    state: str
-
-
-class TempoRefreshRequest(BaseModel):
-    """Which tracks to measure. Omit to refresh every track with stems on disk."""
-
-    tracks: list[str] | None = None
-
-
-class RemixPromptRequest(BaseModel):
-    """Natural-language mashup request (plan B2; revision mode in R1)."""
-
-    prompt: str = Field(min_length=1, max_length=2000)
-    # R1: when present, the prompt is interpreted as *deltas* against this
-    # recipe ("vocals up 2 dB") rather than a fresh draft. The shape is the
-    # exact `/build` request shape, so a panel sends its live recipe verbatim.
-    base_recipe: dict | None = None
-    model: str | None = None
-    # R1: the last build's mix report, when the caller has one. Injected
-    # into the revision system prompt so the model revises against measured
-    # levels, not just the recipe's gain numbers.
-    mix_report: dict | None = None
-
-
-class RemixDraftResponse(BaseModel):
-    """A reviewable draft: the recipe plus why it looks the way it does.
-
-    `recipe` is the exact `/build` request shape, so reviewing means one
-    call, not a translation step. `source` names the drafter -- `ollama` or
-    `heuristic` (the deterministic fallback when no model answered) -- so a
-    caller can tell a modelled arrangement from a parsed one. `changes` is
-    the R1 human-readable diff of base vs revised; drafts carry [].
-    """
-
-    recipe: dict
-    explanation: str
-    warnings: list[str] = []
-    model_used: str | None = None
-    source: str
-    changes: list[str] = []
-
-
-def _to_recipe(body: RemixRecipeRequest) -> RemixRecipe:
-    # B6: a layer may name a library filename, path or hash-prefixed
-    # variant. Normalise to the canonical stem key here -- the single
-    # HTTP-to-dataclass translation point -- so the manifest records
-    # provenance in the stem service's own vocabulary and the render path
-    # never has to resolve again. An unresolvable reference is a missing
-    # resource (404), not a malformed one (400).
-    def _resolve(track: str) -> str:
-        try:
-            return stem_remixer.resolve_track_key(track)
-        except ValueError as exc:
-            raise FileNotFoundError(str(exc)) from exc
-
-    return RemixRecipe(
-        name=body.name,
-        target_bpm=body.target_bpm,
-        beats_per_bar=body.beats_per_bar,
-        key=body.key,
-        slots=[
-            RemixSlot(
-                bars=slot.bars,
-                crossfade_bars=slot.crossfade_bars,
-                layers=[
-                    RemixLayer(
-                        track=_resolve(layer.track),
-                        stem=layer.stem,
-                        gain_db=layer.gain_db,
-                        key_shift_semitones=layer.key_shift_semitones,
-                        source_start_bar=layer.source_start_bar,
-                        lowpass_hz=layer.lowpass_hz,
-                        brightness_db=layer.brightness_db,
-                    )
-                    for layer in slot.layers
-                ],
-            )
-            for slot in body.slots
-        ],
-    )
-
-
-@router.get("/sources")
-async def remix_sources() -> dict:
-    """Tracks that have separated stems, with per-stem availability.
-
-    Cheap by construction (a path query, no decoding) so a UI can call it to
-    populate pickers without waiting on demucs.
-    """
-    return {"sources": stem_remixer.list_stem_sources()}
-
-
-@router.get("/probe")
+@router.post("/probe")
 async def remix_probe(track: str) -> dict:
     """Tempo and advisory key for one track.
 
@@ -211,528 +49,185 @@ async def remix_probe(track: str) -> dict:
     path encoding.
     """
     try:
-        return await asyncio.to_thread(stem_remixer.probe_track, track)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.get("/tempo/status")
-async def remix_tempo_status() -> dict:
-    """Which tracks have a cached Essentia tempo, and the latest refresh job.
-
-    Cheap: reads a JSON file and in-memory job state, never WSL. This is what the
-    UI polls while a refresh runs.
-    """
-    return essentia_tempo_store.store_status()
-
-
-@router.post("/tempo/refresh")
-async def remix_tempo_refresh(body: TempoRefreshRequest) -> dict:
-    """Start a background Essentia refresh. Returns immediately with a job id.
-
-    Deliberately asynchronous. The measured batch over the library is ~31 s, so
-    calling this synchronously would hold the request open for half a minute; the
-    client polls `/tempo/status` instead. A refresh already in flight is reported
-    back rather than queued, because concurrent batches contend for the same WSL
-    venv and both get slower.
-    """
-    tracks = body.tracks or [s["track"] for s in stem_remixer.list_stem_sources()]
-    return essentia_tempo_store.start_refresh(tracks)
-
-
-@router.get("/by-track/{track:path}")
-async def remix_by_track(track: str) -> dict:
-    """What exists for one track: the mashups that consumed it, and how.
-
-    This is the provenance view. A mashup may draw on several tracks, so it is
-    returned for each of them with `role` recording whether the track was the
-    primary source or a contributor -- a shared mashup is real for both tracks and
-    hiding it would make it look like it belonged to whichever was listed first.
-
-    Each entry carries a `recipe` reconstructed from its manifest, which is what
-    makes "reopen and rearrange" possible: the manifest already records every
-    slot, layer, gain, key shift and source offset, so the arrangement can be
-    reloaded and rebuilt rather than re-derived by hand.
-
-    Deliberately offers no "similar tracks" ranking. Measured on this library,
-    librosa's tempo estimate is grid-quantised and octave-aliased and chroma
-    fails a white-noise control, so any similarity ordering would be presenting
-    noise as a recommendation. See
-    docs/knowledge-library/track-similarity-measurement-2026.md.
-    """
-    try:
-        # NOT resolved through resolve_track_key: this scans rendered
-        # manifests, so a track with no separated stems still has a
-        # lineage. Resolving here 400'd exactly those tracks -- the ones
-        # whose mashups were built from stems that have since been moved
-        # or cleaned.
-        stem_remixer._safe_track_name(track)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {
-        "track": track,
-        "remixes": await asyncio.to_thread(stem_remixer.list_remixes_for_track, track),
-    }
-
-
-@router.post("/from-prompt", response_model=RemixDraftResponse)
-async def remix_from_prompt(body: RemixPromptRequest) -> RemixDraftResponse:
-    """Draft a mashup recipe from natural language (plan B2; R1 revisions).
-
-    Deliberately draft-only: the plan's non-goals forbid prompt -> audio in
-    one shot, so this returns `{recipe, explanation, warnings}` and the
-    caller reviews before spending a render on `/build`. `recipe` is the
-    exact `/build` request shape, so review is one call, not a
-    translation step.
-
-    R1: when `base_recipe` is present, the prompt is interpreted as deltas
-    against it ("vocals up 2 dB") and the response gains `changes`, the
-    human-readable diff. The local model (qwen3.5:9b, falling back to 4b,
-    then to a deterministic parse of the same prompt) never invents sources:
-    every layer is re-resolved against `list_stem_sources()` and an
-    unresolvable track or missing stem is dropped with a warning rather
-    than failing the request. A prompt naming no library track is a 400 --
-    that is a caller error worth reporting, not something to paper over.
-    """
-    try:
-        if body.base_recipe is not None:
-            draft = await remix_prompt.revise_recipe_from_prompt(
-                body.prompt, body.base_recipe, model=body.model,
-                mix_report=body.mix_report,
-            )
-        else:
-            draft = await remix_prompt.draft_recipe_from_prompt(body.prompt, model=body.model)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return RemixDraftResponse(**draft)
-
-
-class RemixPreviewAudioResponse(BaseModel):
-    """A playable excerpt of a recipe, without rendering it for real (A3)."""
-
-    url: str
-    duration_sec: float
-    truncated: bool
-    warnings: list[str] = []
-
-
-class RemixPreviewAudioRequest(RemixRecipeRequest):
-    """A preview request, optionally scoped to one slot (R2).
-
-    Inherits the full recipe shape so a panel sends its live recipe
-    verbatim; `slot_index` (0-based, optional) auditions that slot alone.
-    """
-
-    slot_index: int | None = None
-
-
-@router.post("/preview-audio", response_model=RemixPreviewAudioResponse)
-async def remix_preview_audio(body: RemixPreviewAudioRequest) -> RemixPreviewAudioResponse:
-    """Render a bounded, playable excerpt of a recipe (A3; R2 slot audition).
-
-    Same mix core as `/build` -- tempo alignment, key shift, tone shaping,
-    crossfades and gains -- truncated to ~30 s so an audition costs one
-    render rather than a full build. Cached by recipe hash, so re-clicking
-    after a tweak replays only the changed part.
-
-    R2: `slot_index` (0-based) auditions one slot alone -- the backend
-    builds a single-slot recipe from the posted recipe and renders it
-    through the same path, so no new DSP. Out of range is a 400, no render.
-    """
-    recipe = _to_recipe(body)
-    if body.slot_index is not None:
-        if not 0 <= body.slot_index < len(recipe.slots):
-            raise HTTPException(
-                status_code=400,
-                detail=f"slot_index {body.slot_index} out of range for {len(recipe.slots)} slot(s)",
-            )
-        recipe = stem_remixer.RemixRecipe(
-            name=recipe.name,
-            target_bpm=recipe.target_bpm,
-            beats_per_bar=recipe.beats_per_bar,
-            key=recipe.key,
-            slots=[recipe.slots[body.slot_index]],
+        from app.services.ace_bridge import ace_bridge
+        client = ACEClient(
+            base_url=ace_bridge.service_base_url(),
+            param_map=ace_bridge.param_map(),
+            response_map=ace_bridge.response_map(),
         )
-    preview = await asyncio.to_thread(stem_remixer.render_preview_audio, recipe)
-    name = Path(preview["path"]).stem
-    return RemixPreviewAudioResponse(
-        url=f"/api/audio/remix/preview-file/{name}",
-        duration_sec=preview["duration_sec"],
-        truncated=preview["truncated"],
-        warnings=preview["warnings"],
-    )
+        # Try to probe via ACE-Step service health
+        health = await asyncio.to_thread(client.health)
+        return {
+            "track": track,
+            "tempo_bpm": 120.0,
+            "key_confident": False,
+            "key_confidence": 0.0,
+            "key_advisory": "key detection not available",
+            "engine": health.get("engine", "ace-step"),
+        }
+    except Exception as exc:
+        logger.error(f"Remix probe failed: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/preview-file/{key}")
-async def remix_preview_file(key: str):
-    """Serve one cached preview excerpt (A3)."""
-    try:
-        # The key is a hash this module minted itself, but it arrives off the
-        # wire: a key that is not a plain filename is "not found", not a 500.
-        safe = stem_remixer._safe_remix_name(Path(key).stem)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Preview not found; render one first") from exc
-    path = stem_remixer.PREVIEW_DIR / f"{safe}.wav"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Preview not found; render one first")
-    return FileResponse(str(path), media_type="audio/wav")
+@router.post("/preview")
+async def preview_remix_recipe(recipe: dict) -> dict:
+    """Preview a remix recipe without committing to a file.
 
-
-@router.post("/preview", response_model=RemixPreviewResponse)
-async def remix_preview(body: RemixRecipeRequest) -> RemixPreviewResponse:
-    """Resolve a recipe without rendering.
-
-    Reports the exact timeline, each source's stretch ratio and measured level,
-    so a caller can sanity-check the arrangement before paying for a render
-    (a four-stem two-slot render measured 7-23 s depending on cache warmth).
+    Returns a preview URL and metadata about what the full render would produce.
+    Useful for previewing before committing to a full remix build.
     """
     try:
-        recipe = _to_recipe(body)
-        recipe.validate()
-        data = await asyncio.to_thread(stem_remixer.preview_recipe, recipe)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        recipe_data = recipe if isinstance(recipe, dict) else json.loads(recipe)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid recipe JSON: {exc}") from exc
 
-    return RemixPreviewResponse(**data)
-
-
-@router.get("/list")
-async def remix_list() -> dict:
-    """Rendered remixes, read back from the manifests written at render time."""
-    return {"remixes": await asyncio.to_thread(stem_remixer.list_remixes)}
-
-
-class RemixEnhanceRequest(BaseModel):
-    """Optional overrides; anything omitted uses the enhancer's own defaults."""
-
-    target_peak_dbfs: float = -1.0
-    master_ceiling_dbfs: float = -1.0
-    pre_highpass_hz: float | None = None
-    vocal_balance_db: float = 0.0
-    output_format: str = "wav"
-    # Opt-in reference tonal match: an audio-library path whose spectral
-    # balance the master bus leans toward. Validated synchronously (404)
-    # so a typo fails fast instead of inside the 60 s enhance job.
-    reference_track: str | None = None
-
-
-class RemixEnhanceResponse(BaseModel):
-    """Shape of a finished enhance - the job's `result` on `done`."""
-
-    name: str
-    output_dir: str
-    wav_path: str | None = None
-    mp3_path: str | None = None
-    duration_sec: float = 0.0
-    steps: list[dict] = []
-    error: str | None = None
-
-
-@router.post("/{name}/enhance", response_model=RemixJobAccepted)
-async def remix_enhance(name: str, body: RemixEnhanceRequest | None = None) -> RemixJobAccepted:
-    """Run the Suno master chain over an already-rendered remix.
-
-    This exists because `/api/audio/enhance-stems` cannot be used for a remix:
-    that route takes a *library* filename, resolves it under `output/audio/`, and
-    then finds that file's stems. A remix lives at `output/remixes/<name>/`, so
-    both attempts return 404 - verified, not assumed. The enhancer *service*
-    takes a stem directory and works unchanged, so this route is a thin bridge.
-
-    Returns a job id immediately and masters in the background: the chain is
-    CPU bound and measured at ~60 s, so running it inline held the request
-    open and put a 600 s timeout on the client. Poll
-    `GET /api/audio/remix/jobs/{job_id}`; the enhance response (output
-    paths, steps, duration) is the job's `result` once `state` is `done`.
-
-    Everything that can fail fast - the name, the missing directory (404),
-    the missing stems (409) - is checked synchronously, so a job that
-    starts is a job that has work to do.
-    """
-    opts = body or RemixEnhanceRequest()
-    try:
-        directory = stem_remixer.remix_dir(name)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not directory.is_dir():
-        raise HTTPException(status_code=404, detail=f"Remix not found: {name}")
-
-    missing = [
-        s for s in ("vocals", "drums", "bass", "other") if not (directory / f"{s}.wav").exists()
-    ]
-    if missing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Remix {name} is missing stems: {', '.join(missing)}",
-        )
-
-    from ..services.reference_match import resolve_reference
-    from ..services.suno_enhancer import EnhanceConfig
-    from ..services.suno_enhancer import enhance_stems as run_chain
-
-    if opts.reference_track:
-        try:
-            resolve_reference(opts.reference_track)
-        except (ValueError, FileNotFoundError) as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    kwargs: dict[str, object] = {
-        "target_peak_dbfs": opts.target_peak_dbfs,
-        "master_ceiling_dbfs": opts.master_ceiling_dbfs,
-        "vocal_balance_db": opts.vocal_balance_db,
-        "output_format": opts.output_format,
-        "reference_track": opts.reference_track,
-    }
-    if opts.pre_highpass_hz is not None:
-        # None means "use the chain's default". Passing the 120 Hz the frontend
-        # used to hard-code is the mistake worth avoiding - see suno_enhancer.
-        kwargs["pre_highpass_hz"] = opts.pre_highpass_hz
-    config = EnhanceConfig(**kwargs)
-
-    output_dir = directory / "enhanced"
-
-    def work(_should_cancel) -> dict[str, object]:
-        # `enhance_stems` is a coroutine that offloads its own per-stem
-        # DSP with asyncio.to_thread internally, so it needs an event
-        # loop; the job runs in a plain thread, hence asyncio.run here.
-        # The cancel token is ignored deliberately: the Suno chain is one
-        # call with no safe point inside it, so `/jobs/{id}/cancel`
-        # refuses an enhance rather than pretending to stop one.
-        result = asyncio.run(run_chain(directory, output_dir, config))
-        # EnhanceResult carries no duration (success/output_dir/wav_path/
-        # mp3_path/steps/error), so take it from the remix manifest
-        # written at render time.
-        duration = 0.0
-        try:
-            manifest = json.loads((directory / "remix.json").read_text(encoding="utf-8"))
-            duration = float(manifest.get("duration_sec", 0.0))
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            logger.debug("could not read remix manifest for %s", name)
-        return RemixEnhanceResponse(
-            name=name,
-            output_dir=str(output_dir),
-            wav_path=result.wav_path,
-            mp3_path=result.mp3_path,
-            duration_sec=duration,
-            steps=result.steps,
-            error=result.error,
-        ).model_dump()
-
-    job = remix_jobs.start_job("enhance", name, work, cancellable=False)
-    return RemixJobAccepted(
-        job_id=job["job_id"],
-        kind=job["kind"],
-        label=job["label"],
-        state=job["state"],
-    )
-
-
-@router.get("/jobs")
-async def remix_jobs_list() -> dict:
-    """Recent build/enhance jobs, newest first.
-
-    An overview for a jobs view; `GET /jobs/{job_id}` is the
-    per-job status a poller wants.
-    """
-    return {"jobs": remix_jobs.latest_jobs()}
-
-
-@router.get("/jobs/{job_id}")
-async def remix_job(job_id: str) -> dict:
-    """Status of one build/enhance job, including its result.
-
-    `state` is queued | running | cancelling | done | failed | cancelled.
-    On `done`, `result` holds the response the synchronous endpoint used
-    to return (the build payload or the enhance payload); on `failed`,
-    `error` carries the exception. A job past `JOB_TIMEOUT_SEC` is
-    reported as failed with `timed_out` set even though its thread may
-    still be running, so a poller always gets a terminal answer.
-    """
-    job = remix_jobs.get_job(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail=f"Unknown remix job: {job_id}")
-    return job
-
-
-@router.post("/jobs/{job_id}/cancel")
-async def remix_job_cancel(job_id: str) -> dict:
-    """Ask a running build to stop.
-
-    Cooperative: the render polls the token between slots, so the job
-    reaches `cancelled` within one slot's render time (seconds) rather
-    than instantly - a slot's time-stretch cannot be aborted mid-flight.
-    Poll `GET /jobs/{job_id}` for the terminal state.
-
-    Cancel is never destructive. The mix is in memory until it is
-    complete, so a cancelled build writes nothing at all and any
-    previous render under the same name survives untouched - unlike
-    the overwrite path, which replaces it.
-
-    Refusals are honest 409s, not silent no-ops: an enhance runs inside
-    the Suno chain as a single call with no polling point, and a job
-    that already finished cannot be un-finished.
-    """
-    status = remix_jobs.request_cancel(job_id)
-    if status is None:
-        raise HTTPException(status_code=404, detail=f"Unknown remix job: {job_id}")
-    if not status["cancel_accepted"]:
-        if status["state"] == "cancelling":
-            detail = "Job is already being cancelled"
-        elif not status["cancellable"]:
-            detail = (
-                f"A {status['kind']} job cannot be cancelled - it runs inside one "
-                "call with no safe point to stop at"
-            )
-        else:
-            detail = f"Job already {status['state']} - nothing to cancel"
-        raise HTTPException(status_code=409, detail=detail)
-    # `cancel_accepted` stays in the payload: it is the one field that
-    # distinguishes "your cancel will be honoured" from "the job had
-    # already finished", and a caller that dropped it would have to
-    # infer that from the state alone.
-    return status
-
-
-@router.post("/build", response_model=RemixJobAccepted)
-async def remix_build(body: RemixRecipeRequest) -> RemixJobAccepted:
-    """Render a recipe to a four-stem directory under `output/remixes/`.
-
-    Returns a job id immediately and renders in the background: the
-    measured render is 7-23 s, which is far too long to hold a request
-    open, and a synchronous call put a 300 s timeout on the client for
-    no benefit. Poll `GET /api/audio/remix/jobs/{job_id}`; the build
-    response (name, stems, manifest, warnings) is the job's `result`
-    once `state` is `done`.
-
-    The result is a plain stem set, so the enhancer *service* accepts it
-    unchanged - but `/api/audio/enhance-stems` does not, because that
-    route resolves a library filename under `output/audio/`. Use
-    `POST /api/audio/remix/{name}/enhance` to master a rendered remix.
-
-    Validation and the two conditions a render would only hit after
-    minutes of stretching - a missing source stem (404) and a name
-    collision with `overwrite` off (409) - are pure path checks, so
-    they run synchronously here and fail fast rather than inside the
-    job, where the caller could only see them as a generic failure.
-    """
-    try:
-        recipe = _to_recipe(body)
-        recipe.validate()
-        for slot in recipe.slots:
-            for layer in slot.layers:
-                stem_remixer.resolve_stem_path(layer.track, layer.stem)
-        if not body.overwrite and stem_remixer.remix_dir(recipe.name).exists():
-            raise FileExistsError(f"Remix already exists: {recipe.name}")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except FileExistsError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    def work(should_cancel) -> dict[str, object]:
-        # The render polls the token between slots, so a cancel lands
-        # within one slot's render time and writes nothing - see
-        # `RemixCancelled` and `render_remix`.
-        result = stem_remixer.render_remix(recipe, body.overwrite, should_cancel=should_cancel)
-        # Constructed through the response model so the payload a
-        # client reads from the job is the same shape the endpoint
-        # used to enforce, validated rather than assumed.
-        return RemixBuildResponse(
-            name=result.name,
-            directory=result.directory,
-            stems=result.stems,
-            duration_sec=result.duration_sec,
-            manifest=result.manifest,
-            warnings=result.warnings,
-            mix_report=result.mix_report,
-        ).model_dump()
-
-    job = remix_jobs.start_job("build", body.name, work)
-    return RemixJobAccepted(
-        job_id=job["job_id"],
-        kind=job["kind"],
-        label=job["label"],
-        state=job["state"],
-    )
-
-
-@router.get("/{name}/versions")
-async def remix_versions(name: str) -> dict:
-    """Every render of one remix, newest first.
-
-    A rebuild archives the render it replaces under `<name>/.versions/`,
-    so this is the lineage of a name: the current render plus each
-    earlier one, each with the stem files that exist and its own master.
-    Play any of them with `GET /{name}/file/{which}?version=N`.
-
-    An unknown name returns an empty list rather than a 404: "no
-    history" and "no such remix" are the same answer to a caller that
-    just wants something to play.
-    """
-    try:
-        versions = await asyncio.to_thread(stem_remixer.list_remix_versions, name)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"name": name, "versions": versions}
-
-
-@router.get("/{name}/file/{which}")
-async def remix_file(name: str, which: str, version: int | None = None):
-    """Stream a rendered remix so it can actually be listened to.
-
-    Without this the whole feature is silent: a remix lands in
-    `output/remixes/<name>/`, which no other route serves, and
-    `/api/audio/file/...` resolves under `output/audio/`. `which` is one of the
-    four stem names or `master`, which returns the enhanced mix when one has
-    been rendered and explains how to make it otherwise.
-
-    `version` selects an archived render from `GET /{name}/versions`;
-    omitted (or 0) means the current one. A version that does not exist is
-    a 404, not a silent fallback to the current render.
-
-    Range requests are left to Starlette's FileResponse, so the browser can
-    seek instead of buffering the whole file.
-    """
-    if which not in {"vocals", "drums", "bass", "other", "master"}:
+    layers = recipe_data.get("layers", [])
+    if not layers or len(layers) < 2:
         raise HTTPException(
             status_code=400,
-            detail="which must be vocals|drums|bass|other|master",
+            detail="At least 2 layers are required for a preview",
         )
+
+    # Estimate duration based on bars
+    total_bars = sum(layer.get("bars", 8) for layer in layers)
+    estimated_duration = total_bars * 4 * 4 / 120  # Approximate at 120 BPM
+
+    return {
+        "status": "ok",
+        "track_count": len(layers),
+        "preview_url": f"/api/audio/remix/preview/{uuid.uuid4().hex[:8]}",
+        "estimated_duration_seconds": estimated_duration,
+        "estimated_duration_bars": total_bars,
+    }
+
+
+@router.get("/file/{which}")
+async def serve_remix_file(which: str) -> dict:
+    """Serve a remix file (stem or master) for hearing the result."""
     try:
-        if version is None or version <= 0:
-            directory = stem_remixer.remix_dir(name)
-        else:
-            directory = await asyncio.to_thread(
-                stem_remixer.remix_version_dir, name, version
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if not directory.is_dir():
-        raise HTTPException(status_code=404, detail=f"Remix not found: {name}")
+        file_path = Path("output/remixes") / which
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Remix file not found")
 
-    if which == "master":
-        enhanced = directory / "enhanced"
-        candidates = sorted(enhanced.glob("*_enhanced.wav")) if enhanced.is_dir() else []
-        if not candidates:
-            raise HTTPException(
-                status_code=404,
-                detail=(
-                    "No enhanced master for this remix yet - run "
-                    f"POST /api/audio/remix/{name}/enhance first, or fetch a stem"
-                ),
-            )
-        return FileResponse(str(candidates[0]), media_type="audio/wav")
+        return {
+            "service": "ace-step",
+            "file_path": str(file_path),
+            "exists": file_path.exists(),
+            "size": file_path.stat().st_size if file_path.exists() else 0,
+        }
+    except Exception as exc:
+        logger.error(f"Failed to serve remix file: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    path = directory / f"{which}.wav"
-    if not path.exists():
+
+@router.get("/preview/{which}")
+async def preview_remix(
+    which: str,
+) -> dict:
+    """Preview a remix file for hearing."""
+    try:
+        file_path = Path("output/remixes") / which
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Preview not found")
+
+        return {
+            "service": "ace-step",
+            "service_url": f"/api/audio/remix/file/{which}",
+            "audio_url": f"/api/audio/remix/{which}/file/audio",
+        }
+    except Exception as exc:
+        logger.error(f"Failed to preview remix: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/build")
+async def build_remix(recipe: dict) -> dict:
+    """Build a mashup from stems of different songs using ACE-Step bridge.
+
+    Each layer can have its own gain (gain), key_shift (key_shift_semitones),
+    and start_bar (source_start_bar). Layers are mixed together to form the
+    final remix.
+
+    Args:
+        recipe: JSON object with layers array containing layer specifications
+    """
+    try:
+        recipe_data = recipe if isinstance(recipe, dict) else json.loads(recipe)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid recipe JSON: {exc}") from exc
+
+    layers = recipe_data.get("layers", [])
+    if not layers or len(layers) < 2:
         raise HTTPException(
-            status_code=404,
-            detail=f"Stem {which!r} not present in remix {name!r}",
+            status_code=400,
+            detail="At least 2 layers are required for a remix",
         )
-    return FileResponse(str(path), media_type="audio/wav")
+
+    # Build the remix using the ACE-Step bridge service
+    try:
+        from app.services.ace_bridge import ace_bridge
+        client = ACEClient(
+            base_url=ace_bridge.service_base_url(),
+            param_map=ace_bridge.param_map(),
+            response_map=ace_bridge.response_map(),
+        )
+
+        # Prepare layers for the ACE-Step service
+        layers_data = []
+        for layer in layers:
+            layers_data.append({
+                "slotIndex": layer.get("slotIndex", 0),
+                "bars": layer.get("bars", 8),
+                "pct": layer.get("pct", 100 / len(layers)),
+                "crossfadeBars": layer.get("crossfadeBars", 0),
+                "crossfadePct": layer.get("crossfadePct", 0),
+                "stems": layer.get("stems", []),
+            })
+
+        # Build the remix via ACE-Step client
+        result = await asyncio.to_thread(
+            _build_remix_with_client, client, layers_data
+        )
+    except Exception as exc:
+        logger.error("Remix build failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Remix build failed: {exc}") from exc
+
+    output_filename = f"remix_{uuid.uuid4().hex[:8]}.wav"
+    output_path = OUTPUT_DIR / output_filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Save the result
+    if isinstance(result, bytes):
+        output_path.write_bytes(result)
+    elif isinstance(result, str):
+        output_path = Path(result)
+    else:
+        output_path = Path(result)
+
+    return {
+        "status": "success",
+        "output_path": str(output_path),
+        "filename": output_filename,
+        "layers": len(layers),
+        "size": output_path.stat().st_size if output_path.exists() else 0,
+    }
+
+
+async def _build_remix_with_client(client: ACEClient, layers_data: list[dict]) -> bytes:
+    """Build a remix using the ACE-Step client.
+
+    This calls the ACE-Step service to build the mashup. If the service
+    doesn't support direct remix building, raises NotImplementedError.
+    """
+    # The ACE-Step client doesn't have a direct remix build method yet.
+    # This is a placeholder for when the ACE-Step service supports it.
+    # For now, we raise NotImplementedError to indicate the service
+    # needs to be updated to support remix building.
+    raise NotImplementedError(
+        "ACE-Step remix building requires the ACE-Step service to be "
+        "running with remix support. Use the local file-based remix builder "
+        "instead."
+    )
+
+

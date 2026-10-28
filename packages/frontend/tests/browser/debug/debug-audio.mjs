@@ -2,12 +2,9 @@ import { pathToFileURL } from 'url';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { launchChromium } from '../../browser-launch.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PLAYWRIGHT_DIR = path.resolve(__dirname, '..', '..', '..', 'node_modules', 'playwright');
-const playwrightMod = await import(pathToFileURL(path.join(PLAYWRIGHT_DIR, 'index.mjs')).href);
-const { chromium } = playwrightMod;
-
 const PORTS_PATH = path.resolve(__dirname, '..', '..', '..', '..', '..', 'config', 'ports.json');
 let ports = {};
 try {
@@ -17,7 +14,7 @@ try {
 } catch { /* ignore */ }
 const FRONTEND_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1:${ports.frontend_port || 5173}`;
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launchChromium();
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();

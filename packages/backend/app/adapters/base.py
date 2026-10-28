@@ -3,6 +3,7 @@ Base adapter interface for external AI services.
 """
 import functools
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
@@ -74,6 +75,9 @@ class BaseAdapter(ABC):
         self._status = AdapterStatus.DISCONNECTED
         self._mock_mode = mock_mode
         self._session: aiohttp.ClientSession | None = None
+        # Tracks the last time this adapter was used (generate or health_check).
+        # Used by the idle monitor to auto-unload services after 15 minutes.
+        self._last_activity: float | None = None
 
     @abstractmethod
     async def health_check(self) -> bool:
@@ -137,6 +141,7 @@ class BaseAdapter(ABC):
 
         try:
             result = await self.generate(params)
+            self.record_activity()
             self.set_status(AdapterStatus.CONNECTED)
             return result
         except Exception as e:
@@ -155,6 +160,23 @@ class BaseAdapter(ABC):
     def is_mock_mode(self) -> bool:
         """Check if running in mock mode"""
         return self._mock_mode
+
+    def record_activity(self) -> None:
+        """Record that this adapter was just used."""
+        self._last_activity = time.monotonic()
+
+    def idle_seconds(self) -> float | None:
+        """Return seconds since last activity, or None if never active."""
+        if self._last_activity is None:
+            return None
+        return time.monotonic() - self._last_activity
+
+    def is_idle(self, threshold_seconds: float) -> bool:
+        """Return True if this adapter has been idle longer than threshold."""
+        idle = self.idle_seconds()
+        if idle is None:
+            return False
+        return idle > threshold_seconds
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create a shared aiohttp session for this adapter."""

@@ -57,7 +57,9 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
 
   const ensureAudioContext = useCallback(async () => {
     if (!audioCtxRef.current) {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
+        renderSizeHint: "hardware",
+      } as any);
       audioCtxRef.current = ctx;
       latencyRef.current = estimateOutputLatency(ctx);
       const analyser = ctx.createAnalyser();

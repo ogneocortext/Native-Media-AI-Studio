@@ -39,9 +39,9 @@ os.environ.setdefault("TORCHINDUCTOR_USE_TRITON", "0")
 os.environ.setdefault("ACESTEP_DTYPE", "float32")
 
 import asyncio
+import datetime
 import logging
 import random
-import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -239,7 +239,8 @@ class ACEngine:
         if req.output_name is not None:
             output_name = _validate_output_name(req.output_name)
         else:
-            output_name = f"ace_{uuid.uuid4().hex[:8]}"
+            stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+            output_name = f"ace-step-{stamp}"
         out_path = (self.output_dir / output_name).resolve()
         # Defense-in-depth: even with the charset check above, never let an
         # output directory escape the configured output root.

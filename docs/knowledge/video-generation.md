@@ -80,7 +80,11 @@ Backend checks `ensure_vram_available(required_mb=4096)` before enqueue. Fronten
 ## Known Limitations
 - Style preview generation (`style-preview` endpoint) requires ComfyUI and 2GB+ free VRAM — can timeout on busy machines
 - Wan 2.2 TI2V-5B GGUF (Q4/Q5 + CPU T5 offload) is the practical quality ceiling for GTX 1070 Ti 8GB; 1080p+ requires cloud or 16GB+ GPU
-- `num_frames` defaults to 16 in the Pydantic model but is overwritten by `target_duration * fps` in the handler
+- `num_frames` defaults to 25 in the Pydantic model (updated 2026-10-28 from 16 for better quality)
+- Video quality parameters updated 2026-10-28: steps=25, cfg=5.0, 768x512, 25f@12fps (was 15/7.0/512x512/16f@8fps)
+- Image quality parameters updated 2026-10-28: steps=30, cfg=6.0, 768x512, sampler="DPM++ 2M Karras", scheduler="karras" (was 20/7.0/512x512/"Euler a"/"normal")
+- LTX distilled variants auto-force cfg=1.0 (was 7.0, causing artifacts)
+- WAN enforces minimum 40 steps (was 15, causing under-sampling)
 - Preview generation is synchronous (returns after render); no async polling for preview jobs
 
 ## Related Files

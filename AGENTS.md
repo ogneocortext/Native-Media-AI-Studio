@@ -1,6 +1,6 @@
 # AGENTS.md — Native Media AI Studio
 
-> **Last Updated:** 2026-10-10
+> **Last Updated:** 2026-10-28
 > **Status:** Active Development (Phase 1+2)
 > **Platform:** Windows 11 local development machine
 
@@ -35,7 +35,7 @@
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
 > directory and says which are authoritative. Then read
 > `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D41 — do not re-litigate) and open questions
+> stack/architecture decisions (D1–D52 — do not re-litigate) and open questions
 > (Q1–Q6). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
@@ -65,10 +65,10 @@
 > `tools/model-reliability/observed.jsonl` -- that observed layer is tracked and
 > is the only handoff state a new agent cannot rebuild for itself.
 >
-> **Finding documentation:** the tree is 156 markdown files across 14
+> **Finding documentation:** the tree is 197 markdown files across 13
 > directories, so searching blind returns the wrong document. `docs/README.md`
 > is the index; `docs/knowledge-library/index.md` is the entry point for the
-> 89-article research library. Note that `docs/knowledge/` is a _separate_ doc
+> 107-article research library. Note that `docs/knowledge/` is a _separate_ doc
 > set from the library and `docs/notes/` and `docs/scratch/` are explicitly not
 > authoritative (D12).
 

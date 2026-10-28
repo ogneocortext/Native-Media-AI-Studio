@@ -5,7 +5,6 @@ import threading
 from ..core.config import config
 from .base import BaseAdapter
 from .comfyui import ComfyUIAdapter
-from .ollama import OllamaAdapter
 
 
 class AdapterRegistry:
@@ -29,12 +28,29 @@ class AdapterRegistry:
                 config.comfyui_url,
                 mock_mode=self._mock_mode or not self._is_service_available("comfyui")
             )
-            self._adapters["ollama"] = OllamaAdapter(
+            # Ollama is optional — only initialize when explicitly requested
+            # via get_adapter("ollama"). It's an added bonus for agentic
+            # creative work, not a core dependency.
+            self._initialized = True
+
+    def get_adapter(self, name: str) -> BaseAdapter | None:
+        """Get an adapter by name.
+
+        Ollama is lazily initialized on first request — it's an optional
+        dependency for agentic creative work, not a core requirement.
+        """
+        self._ensure_init()
+        adapter = self._adapters.get(name)
+        if adapter is None and name == "ollama":
+            # Lazily create Ollama adapter on first request
+            from .ollama import OllamaAdapter
+            adapter = OllamaAdapter(
                 config.ollama_url,
-                mock_mode=False,  # Ollama doesn't need mock mode
+                mock_mode=False,
                 atomic_chat_url=getattr(config, "atomic_chat_url", None),
             )
-            self._initialized = True
+            self._adapters["ollama"] = adapter
+        return adapter
 
     def _is_service_available(self, service: str) -> bool:
         """Check if a service should be available based on configuration."""
@@ -50,17 +66,12 @@ class AdapterRegistry:
         self._adapters = {}
 
     def is_mock_mode(self) -> bool:
-        """Check if registry is in mock mode."""
+        """Check if running in mock mode"""
         return self._mock_mode
 
     def get(self, name: str) -> BaseAdapter | None:
         """Get an adapter by name (alias for get_adapter)."""
         return self.get_adapter(name)
-
-    def get_adapter(self, name: str) -> BaseAdapter | None:
-        """Get an adapter by name."""
-        self._ensure_init()
-        return self._adapters.get(name)
 
     def get_all_adapters(self) -> dict[str, BaseAdapter]:
         """Get all registered adapters."""

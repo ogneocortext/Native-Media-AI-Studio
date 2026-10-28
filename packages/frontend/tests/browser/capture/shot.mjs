@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { launchChromium } from './browser-launch.mjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -15,7 +16,7 @@ const BASE_URL = process.env.VITE_URL || ports.frontend_url || `http://127.0.0.1
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launchChromium();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 

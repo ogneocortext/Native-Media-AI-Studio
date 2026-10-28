@@ -5,7 +5,7 @@ const PLAYWRIGHT_DIR = 'D:\\Backup of Important Data for Windows 11 Upgrade\\Nat
 const playwrightMod = await import(pathToFileURL(path.join(PLAYWRIGHT_DIR, 'index.mjs')).href);
 const { chromium } = playwrightMod;
 
-const browser = await chromium.launch({ headless: true });
+const browser = await launchChromium();
 const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 const page = await context.newPage();
 

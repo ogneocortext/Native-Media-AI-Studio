@@ -58,11 +58,27 @@ export function stripAudioExtension(name: string): string {
 /**
  * The human label for a library entry: no folder, no hash prefixes, no
  * extension. This is what every selector should render.
+ *
+ * Also strips technical prefixes (ace_, ace-step-) and replaces underscores
+ * with spaces for readability. Dashes are preserved because they are part of
+ * intentional names (e.g. "NeoCortext - I Won't Ride").
  */
 export function audioDisplayName(file: AudioLibraryFile | string): string {
   const raw = typeof file === "string" ? file : file.filename;
   const base = raw.split("/").pop() ?? raw;
-  return stripAudioExtension(stripHashPrefixes(base));
+  const noExt = stripAudioExtension(base);
+  const noHash = stripHashPrefixes(noExt);
+  // Strip technical ACE-Step prefixes and replace underscores with spaces.
+  // Dashes are preserved — they are part of intentional names like
+  // "NeoCortext - I Won't Ride". Original casing is preserved so proper
+  // names like "NeoCortext" are not destroyed.
+  const friendly = noHash
+    .replace(/^ace[-_]?(step[-_]?)?/i, "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!friendly) return noHash;
+  return friendly;
 }
 
 /**

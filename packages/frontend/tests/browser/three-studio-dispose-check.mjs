@@ -1,7 +1,8 @@
 ﻿import { chromium } from "playwright";
+import { launchChromium } from "./browser-launch.mjs";
 const base = process.argv[2] || "http://127.0.0.1:5173";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ headless: true, args: ["--use-gl=angle", "--enable-unsafe-swiftshader"] });
+const browser = await launchChromium();
 const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
 await page.goto(`${base}/three-js-studio`, { waitUntil: "domcontentloaded" });
 await page.waitForSelector("canvas");

@@ -335,7 +335,8 @@ export function useStemMixer({
     const created: LoadedStem[] = [];
     (async () => {
       try {
-        const ctx = sharedAudioContext ?? new AudioContext();
+        const ctx =
+          sharedAudioContext ?? (new AudioContext({ renderSizeHint: "hardware" } as any));
         ctxRef.current = ctx;
         for (const name of STEM_NAMES) {
           const raw = stems[name];
