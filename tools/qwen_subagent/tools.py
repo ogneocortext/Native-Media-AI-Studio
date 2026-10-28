@@ -14,7 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from config import REPO_ROOT, TOOL_TIMEOUT_SECONDS
+try:
+    from .config import REPO_ROOT, TOOL_TIMEOUT_SECONDS
+except ImportError:
+    from config import REPO_ROOT, TOOL_TIMEOUT_SECONDS
 from qwen_agent.tools.base import BaseTool, register_tool
 
 

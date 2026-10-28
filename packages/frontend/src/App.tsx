@@ -72,6 +72,7 @@ const AudioAnalysisPage = lazyNamed(
 );
 const AIToolsPage = lazyNamed(() => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
 const OllamaChat = lazyNamed(() => import("./features/ollama-chat/OllamaChat"), "OllamaChat");
+const SubAgentChat = lazyNamed(() => import("./features/sub-agent/SubAgentChat"), "SubAgentChat");
 const VideoGenerationPage = lazyNamed(
   () => import("./features/video-generation/VideoGenerationPage"),
   "VideoGenerationPage",
@@ -149,6 +150,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/analyze/audio": "Audio Analysis",
   "/analyze/ai": "AI Tools",
   "/analyze/chat": "Ollama Chat",
+  "/analyze/agent": "Local Sub-Agent",
   "/mastering": "Mastering",
   "/render/visualizer": "Visualizer",
   "/render/preview": "Preview",
@@ -300,6 +302,10 @@ function App() {
               <Route
                 path="/analyze/chat"
                 element={withErrorBoundary(<OllamaChat />)}
+              />
+              <Route
+                path="/analyze/agent"
+                element={withErrorBoundary(<SubAgentChat />)}
               />
 
               {/* Render */}

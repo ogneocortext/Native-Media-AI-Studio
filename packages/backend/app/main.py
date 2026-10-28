@@ -33,6 +33,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .adapters.registry import adapter_registry
 from .api.image_processing import router as image_processing_router
+from .api.sub_agent import router as sub_agent_router
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
@@ -787,6 +788,7 @@ app.include_router(music_prompts.router)
 app.include_router(notifications.router)
 app.include_router(mcp_validate.router)
 app.include_router(image_processing_router)
+app.include_router(sub_agent_router)
 
 
 # Additional root-level routes

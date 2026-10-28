@@ -348,6 +348,20 @@ export type {
   AIGeneratedPreset,
 } from "./ollama";
 
+// Sub-agent (local Qwen agent via Ollama)
+export {
+  runSubAgentTask,
+  getSubAgentTaskStatus,
+  listSubAgentTasks,
+  subscribeToSubAgentStream,
+} from "./sub-agent";
+export type {
+  SubAgentTask,
+  SubAgentRunRequest,
+  SubAgentRunResponse,
+  SubAgentEvent,
+} from "./sub-agent";
+
 // Integrations
 export {
   getComfyUIStatus,

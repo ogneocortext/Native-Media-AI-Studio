@@ -26,10 +26,15 @@ import json
 import sys
 from typing import Any
 
-from config import DEFAULT_MODEL, FALLBACK_MODEL, OLLAMA_API_BASE, OLLAMA_API_KEY
-from openai import OpenAI
+try:
+    from .config import DEFAULT_MODEL, FALLBACK_MODEL, OLLAMA_API_BASE, OLLAMA_API_KEY
+    from .tools import TOOL_NAMES, TOOLS
+except ImportError:
+    from config import DEFAULT_MODEL, FALLBACK_MODEL, OLLAMA_API_BASE, OLLAMA_API_KEY
 
-from tools import TOOL_NAMES, TOOLS
+    from tools import TOOL_NAMES, TOOLS
+
+from openai import OpenAI
 
 SYSTEM_MESSAGE = """You are a local software-engineering sub-agent for the Native Media AI Studio repository.
 
