@@ -128,35 +128,42 @@ def load_config() -> AppConfig:
     # It is written by port_manager at startup with resolved values, and also
     # contains the project-wide defaults when the backend has not yet run.
     ports_file = CONFIG_DIR / "ports.json"
+    ports_data: dict | None = None
     if ports_file.exists():
         try:
             with open(ports_file) as f:
                 ports_data = json.load(f)
-                if isinstance(ports_data, dict):
-                    # Ports/URLs always come from ports.json; settings.json overrides
-                    # are intentionally ignored for these fields to prevent drift.
-                    data["backend_port"] = ports_data.get("backend_port", 8000)
-                    data["frontend_port"] = ports_data.get("frontend_port", 5173)
-                    data["ws_port"] = ports_data.get("ws_port", data["backend_port"])
-                    data["comfyui_url"] = ports_data.get("comfyui_url", "http://127.0.0.1:8188")
-                    data["comfyui_port"] = ports_data.get("comfyui_port", 8188)
-                    data["video_editor_port"] = ports_data.get("video_editor_port", 8080)
-                    data["ollama_url"] = ports_data.get("ollama_url", "http://127.0.0.1:11434")
-                    data["atomic_chat_url"] = ports_data.get(
-                        "atomic_chat_url", "http://127.0.0.1:1337"
-                    )
-                    data["atomic_chat_enabled"] = ports_data.get("atomic_chat_enabled", False)
-                    data["go_dashboard_url"] = ports_data.get(
-                        "go_dashboard_url", "http://127.0.0.1:3847"
-                    )
-                    data["go_media_url"] = ports_data.get("go_media_url", "http://127.0.0.1:3848")
-                    data["go_worker_url"] = ports_data.get("go_worker_url", "http://127.0.0.1:3849")
-                    data["go_gateway_url"] = ports_data.get(
-                        "go_gateway_url", "http://127.0.0.1:3850"
-                    )
-                    data["go_ports_url"] = ports_data.get("go_ports_url", "http://127.0.0.1:3851")
         except Exception as e:
             logger.warning(f"Could not load port defaults from {ports_file}: {e}")
+
+    if isinstance(ports_data, dict):
+        # Ports/URLs always come from ports.json; settings.json overrides
+        # are intentionally ignored for these fields to prevent drift.
+        data["backend_port"] = ports_data.get("backend_port", 8000)
+        data["frontend_port"] = ports_data.get("frontend_port", 5173)
+        data["ws_port"] = ports_data.get("ws_port", data["backend_port"])
+        data["comfyui_url"] = ports_data.get("comfyui_url", "http://127.0.0.1:8188")
+        data["comfyui_port"] = ports_data.get("comfyui_port", 8188)
+        data["video_editor_port"] = ports_data.get("video_editor_port", 8080)
+        data["ollama_url"] = ports_data.get("ollama_url", "http://127.0.0.1:11434")
+        data["atomic_chat_url"] = ports_data.get(
+            "atomic_chat_url", "http://127.0.0.1:1337"
+        )
+        data["go_dashboard_url"] = ports_data.get(
+            "go_dashboard_url", "http://127.0.0.1:3847"
+        )
+        data["go_media_url"] = ports_data.get("go_media_url", "http://127.0.0.1:3848")
+        data["go_worker_url"] = ports_data.get("go_worker_url", "http://127.0.0.1:3849")
+        data["go_gateway_url"] = ports_data.get(
+            "go_gateway_url", "http://127.0.0.1:3850"
+        )
+        data["go_ports_url"] = ports_data.get("go_ports_url", "http://127.0.0.1:3851")
+
+    # atomic_chat_enabled is a user feature flag saved to settings.json via
+    # the settings API. Only fall back to ports.json if settings.json doesn't
+    # have it, so a user's toggle survives restart.
+    if "atomic_chat_enabled" not in data and isinstance(ports_data, dict):
+        data["atomic_chat_enabled"] = ports_data.get("atomic_chat_enabled", False)
 
     return AppConfig(**data)
 
@@ -177,7 +184,11 @@ def save_config(config: AppConfig) -> None:
                 "video_editor_port",
                 "ollama_url",
                 "atomic_chat_url",
-                "atomic_chat_enabled",
+                # atomic_chat_enabled is intentionally NOT excluded here:
+                # it is a user feature flag that must survive restart.  It is
+                # still owned by ports.json at load time (load_config overrides
+                # it from ports.json), but saving it here lets an operator's
+                # settings-api change persist across restarts.
                 "go_dashboard_url",
                 "go_media_url",
                 "go_worker_url",

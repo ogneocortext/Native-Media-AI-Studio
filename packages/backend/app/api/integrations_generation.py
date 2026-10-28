@@ -21,6 +21,7 @@ from ..core.model_tiers import VRAM_REQUIREMENTS, classify_model_variant
 from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
+from ..services.llm_loop import run_llm_loop
 
 # tools/scripts lives at the project root, outside the backend package.
 # PROJECT_ROOT is the repo root (packages/backend/app/core/config.py), so the
@@ -1428,6 +1429,65 @@ async def list_ollama_tools() -> dict:
     except Exception as e:
         logger.error("Failed to list Ollama tools: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class LLMLoopRequest(BaseModel):
+    """Request to run the LLM tool-calling loop.
+
+    Body: { "system_prompt": "...", "user_message": "...", "model?: "...",
+            "max_iterations?: 10 }
+    """
+
+    system_prompt: str
+    user_message: str
+    model: str | None = None
+    max_iterations: int = 10
+
+
+@router.post("/ollama/loop")
+async def run_llm_loop_endpoint(body: LLMLoopRequest) -> dict:
+    """Run the LLM tool-calling loop with file-inventory grounding.
+
+    At loop start, calls ``audio_list()`` and ``media_list()`` once and
+    injects the results into the system prompt so the model never invents
+    paths. Enforces tool ordering:
+    ``music_gen_status`` before ``music_gen_generate``;
+    ``remix_preview`` before ``remix_build``.
+    """
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+
+    tools = adapter.get_tool_definitions()
+
+    async def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        from ..services.llm_loop import audio_list as _al
+        from ..services.llm_loop import media_list as _ml
+
+        if name == "audio_list":
+            return {"files": _al()}
+        if name == "media_list":
+            return {"files": _ml()}
+        return {
+            "ok": False,
+            "error": f"Tool {name!r} not implemented in loop executor",
+        }
+
+    try:
+        result = await run_llm_loop(
+            adapter=adapter,
+            system_prompt=body.system_prompt,
+            user_message=body.user_message,
+            tools=tools,
+            model=body.model,
+            max_iterations=body.max_iterations,
+            execute_tool=execute_tool,
+        )
+        return result
+    except Exception as e:
+        logger.error("LLM loop error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 # ============================================================================
 # Benchmark Endpoints (restored -- frontend still calls these)
 # ============================================================================

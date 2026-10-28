@@ -337,6 +337,30 @@ Generate 3-8 scenes based on the input theme or concept."""
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "audio_list",
+                    "description": "List all available audio files in the studio output/audio directory. Returns filenames and relative paths that can be used as inputs to audio analysis or upload tools.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "media_list",
+                    "description": "List all available media files (video, images) in the studio output directory. Returns filenames and relative paths.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
         ]
 
     async def health_check(self) -> bool:
@@ -609,13 +633,18 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     @staticmethod
     def _to_atomic_chat_model(model: str) -> str:
-        """Translate Ollama model IDs to Atomic Chat format."""
+        """Pass model name through to Atomic Chat unchanged.
+
+        Atomic Chat is an OpenAI-compatible proxy that serves models under
+        its own IDs. Rewriting Ollama IDs (e.g. ``qwen3.5:4b`` →
+        ``ollama/qwen3.5-4b``) sends a name Atomic almost certainly doesn't
+        recognize, and the resulting error is silently swallowed by the
+        fallback-to-Ollama path. The correct model ID is discovered via the
+        ``/v1/models`` health check (see ``atomic_chat_health``); this
+        pass-through keeps the caller's intent intact.
+        """
         if not model or not isinstance(model, str):
             return model
-        if model.startswith("ollama/"):
-            return model
-        if ":" in model:
-            return "ollama/" + model.replace(":", "-")
         return model
 
     async def _atomic_chat_request(
