@@ -1,3 +1,5 @@
+from typing import Final
+
 """
 NMA Stem Router Node - Custom ComfyUI node for the Native Media AI Studio.
 
@@ -34,7 +36,7 @@ class NMAStemRouterNode:
     OUTPUT_NODE = False
 
     # Per-channel modulation factors applied to amplitude.
-    _CHANNEL_FACTOR = {
+    _CHANNEL_FACTOR: Final[dict[str, float]] = {
         "color": 1.0,
         "motion": 1.2,
         "opacity": 0.8,

@@ -77,12 +77,10 @@ class NMAAudioSyncNode:
             section = sections[section_index] if isinstance(sections[section_index], dict) else {}
             section_name = str(section.get("type", "unknown"))
             start_time = float(section.get("start", 0.0))
-            end_time = float(section.get("end", start_time))
             energy = float(section.get("energy", 0.5))
         else:
             section_name = "outro"
             start_time = 0.0
-            end_time = 0.0
             energy = 0.0
 
         # Blend in energy curve if provided
