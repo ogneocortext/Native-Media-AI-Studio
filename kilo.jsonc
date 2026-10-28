@@ -3,7 +3,9 @@
   "subagent_depth": 1,
   "model": "kilo-auto/free",
   "default_agent": "code",
-  "instructions": ["AGENTS.md"],
+  "instructions": [
+    "AGENTS.md"
+  ],
   "snapshot": false,
   "compaction": {
     "auto": true,
@@ -25,6 +27,26 @@
     },
     "comfyui": {
       "enabled": true
+    }
+  },
+  "provider": {
+    "atomic": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Atomic Chat (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:1337/v1",
+        "apiKey": "local"
+      },
+      "models": {
+        "<ATOMIC_MODEL_ID>": {
+          "name": "Qwen3.5-4B (Atomic)",
+          "tool_call": true,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
     }
   }
 }
