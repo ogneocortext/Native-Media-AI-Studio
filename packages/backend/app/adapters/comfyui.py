@@ -10,6 +10,7 @@ import json
 import logging
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -369,7 +370,13 @@ class ComfyUIAdapter(BaseAdapter):
         }
 
     async def _generate_video(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Generate a video using AnimateDiff or Wan 2.2 GGUF via ComfyUI."""
+        """Generate a video using AnimateDiff, Wan 2.2 GGUF, or LTX via ComfyUI.
+
+        Supports both text-to-video (no image_path) and image-to-video
+        (image_path set -- image uploaded to ComfyUI input/ then routed to
+        an I2V workflow: WanVideoStartEndImage for Wan, LoadImage+VAEEncode
+        for LTX).
+        """
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "blurry, bad quality, distorted, static")
         steps = params.get("steps", 25)
@@ -382,10 +389,26 @@ class ComfyUIAdapter(BaseAdapter):
         fps = params.get("fps", 12)
         ckpt_name = params.get("ckpt_name", "")
         model_variant = params.get("model_variant", "standard")
+        image_path = params.get("image_path")  # None for T2V, set for I2V
 
         comfy_sampler = _map_sampler(sampler_name)
         scheduler = _map_scheduler(params.get("scheduler", "normal"))
         actual_seed = _resolve_seed(seed)
+
+        # If image-to-video, upload the image to ComfyUI's input/ directory
+        # so LoadImage / WanVideoStartEndImage can reference it by filename.
+        if image_path:
+            try:
+                upload_result = await _cu.upload_image(self.base_url, image_path)
+                image_path = upload_result.get("name", Path(image_path).name)
+                logger.info(
+                    "I2V: uploaded %s to ComfyUI input as %s", params.get("image_path"), image_path
+                )
+            except Exception as e:
+                logger.warning("I2V: failed to upload image %s: %s", image_path, e)
+                # Fall back to the original path; LoadImage may still resolve
+                # it if the file is already in ComfyUI's input directory.
+                image_path = Path(params.get("image_path", "")).name
 
         # AnimateDiff v2 motion modules cap a single batch at 32 frames
         # (verified live: "upper limit of 32 frames" without a context
@@ -403,10 +426,8 @@ class ComfyUIAdapter(BaseAdapter):
                 num_frames,
             )
 
-        # Route to the appropriate workflow based on model variant.
-        # The tier classifier (core/model_tiers.py) is the single authority
-        # for wan/gguf/ltx name-sniffing -- shared with the /video-models endpoint
-        # tagging and the VRAM estimator.
+        # Route to the appropriate workflow based on model variant and
+        # whether an input image was provided (I2V vs T2V).
         variant_lower = str(model_variant).lower()
         is_ltx = (
             "ltx" in variant_lower
@@ -419,24 +440,19 @@ class ComfyUIAdapter(BaseAdapter):
         t5_name: str | None = None
         vae_name: str | None = None
 
-        if is_ltx:
-            # LTX 2.3 distilled -- ~4x faster than Wan 2.2 Q4, ~4.46 GB peak
-            # VRAM on GTX 1070 Ti, fits 8GB with headroom. Resolution clamped
-            # to 768x512 max; frames snap to 4n+1 for the LTX VAE patch grid.
+        if image_path:
+            # ---- IMAGE-TO-VIDEO ----
+            workflow, eff_frames, model_label = self._build_i2v_workflow(
+                is_ltx, prompt_text, negative_text, steps, cfg_scale,
+                width, height, actual_seed, num_frames, fps,
+                image_path, ckpt_name, model_variant,
+            )
+        elif is_ltx:
+            # ---- TEXT-TO-VIDEO (LTX) ----
             width, height = self._clamp_ltx_resolution(width, height)
             lt_frames = num_frames if num_frames > 8 else 25
             lt_frames = min(lt_frames, 121)
             lt_frames = lt_frames - ((lt_frames - 1) % 4)
-            if (width, height, lt_frames) != (
-                params.get("width", 512),
-                params.get("height", 512),
-                num_frames,
-            ):
-                logger.info(
-                    "LTX 8GB envelope: %dx%d/%df -> %dx%d/%df",
-                    params.get("width", 512), params.get("height", 512),
-                    num_frames, width, height, lt_frames,
-                )
             if not ckpt_name:
                 ckpt_name = self._get_available_ltx_checkpoint()
             t5_name, vae_name = "t5-xxl-fp8.safetensors", "LTX23_video_vae.safetensors"
@@ -449,28 +465,12 @@ class ComfyUIAdapter(BaseAdapter):
             eff_frames = lt_frames
             model_label = "LTX 2.3 distilled"
         elif is_wan_gguf:
-            # 8GB envelope for Wan 2.2 TI2V-5B GGUF (researched 2026-09-20):
-            # 480p (832x480) is the 8GB working point (localmodel.run peak
-            # ~8GB at 720p/121f; GTX 1070 Ti is Pascal without flash-attn so
-            # SDPA-math activations cost extra). Clamp into the 832x480 box
-            # 16-aligned; snap frames to 4n+1 (Wan VAE patch grid), cap 121,
-            # default 81 (template default) when the caller left the
-            # AnimateDiff-oriented default (<=16).
+            # ---- TEXT-TO-VIDEO (Wan GGUF) ----
             width, height = _clamp_wan_resolution(width, height)
             wan_frames = num_frames if num_frames > 16 else 81
             wan_frames = min(wan_frames, 121)
             wan_frames = wan_frames - ((wan_frames - 1) % 4)
-            if (width, height, wan_frames) != (params.get("width", 512), params.get("height", 512), num_frames):
-                logger.info(
-                    "Wan 8GB envelope: %dx%d/%df -> %dx%d/%df",
-                    params.get("width", 512), params.get("height", 512), num_frames,
-                    width, height, wan_frames,
-                )
             if not ckpt_name:
-                # Resolve the GGUF checkpoint here as well: the result metadata
-                # below must report the assets for the checkpoint that is
-                # actually submitted (the builder's own fallback is then a
-                # no-op, since it receives an explicit name).
                 ckpt_name = self._get_available_wan_gguf_checkpoint()
             vae_name, t5_name = _resolve_wan_assets(ckpt_name)
 
@@ -480,23 +480,10 @@ class ComfyUIAdapter(BaseAdapter):
                 ckpt_name=ckpt_name, variant=model_variant,
             )
             eff_frames = wan_frames
+            model_label = "Wan 2.2 GGUF"
         else:
-            if ckpt_name:
-                # The AnimateDiff path requires an SD1.5-family checkpoint.
-                # Known non-SD checkpoints (Kandinsky 5, Hunyuan3D DiT, etc.)
-                # would fail deep inside ComfyUI with an opaque loader error --
-                # reject them up front with an actionable message instead of
-                # silently ignoring the caller's selection.
-                # Wan names are routed away above; anything else non-SD
-                # (kandinsky/hunyuan/triposr/stable-fast/...) is rejected via
-                # the shared keyword list.
-                if not is_image_checkpoint(ckpt_name):
-                    raise ValueError(
-                        f"Checkpoint '{ckpt_name}' is not an SD1.5-family model and "
-                        "cannot drive the AnimateDiff video path. Pick an SD1.5 "
-                        "checkpoint, or a Wan 2.x GGUF variant for the native "
-                        "video path."
-                    )
+            # ---- TEXT-TO-VIDEO (AnimateDiff) ----
+            self._validate_animate_checkpoint(ckpt_name)
             workflow = self._build_video_workflow(
                 prompt_text, negative_text, steps, cfg_scale,
                 width, height, actual_seed, comfy_sampler, num_frames, fps,
@@ -506,6 +493,29 @@ class ComfyUIAdapter(BaseAdapter):
                 scheduler=scheduler,
                 ckpt_name=ckpt_name,
             )
+            model_label = "AnimateDiff"
+
+        # Submit workflow to ComfyUI
+        prompt_id = await self._submit_prompt(workflow)
+        self._current_prompt_id = prompt_id
+
+        # Wait for video completion. AnimateDiff can take several minutes even
+        # for short clips, so never use the clip duration as the timeout.
+        video_timeout = max(900, eff_frames * fps * 2)
+        video_path = await self._wait_for_video_result(prompt_id, timeout=video_timeout)
+
+        return {
+            "video_path": video_path,
+            "seed": actual_seed,
+            "model_label": model_label,
+            "info": f"{model_label}: {steps} steps, {eff_frames} frames @ {fps}fps, {width}x{height}",
+            "workflow": workflow,
+            "t5_name": t5_name if (is_wan_gguf or is_ltx) else None,
+            "vae_name": vae_name if (is_wan_gguf or is_ltx) else None,
+            "ckpt_name": ckpt_name,
+            "model_variant": model_variant,
+            "image_path": image_path or None,
+        }
 
         # Submit workflow to ComfyUI
         prompt_id = await self._submit_prompt(workflow)
@@ -1116,6 +1126,393 @@ class ComfyUIAdapter(BaseAdapter):
                 },
             }
         }
+
+    def _validate_animate_checkpoint(self, ckpt_name: str) -> None:
+        """Validate that an AnimateDiff checkpoint is SD1.5-family.
+
+        Raises ValueError with an actionable message for known non-SD
+        checkpoints (Kandinsky, Hunyuan3D, etc.) that would fail deep inside
+        ComfyUI with an opaque loader error.
+        """
+        if ckpt_name and not is_image_checkpoint(ckpt_name):
+            raise ValueError(
+                f"Checkpoint '{ckpt_name}' is not an SD1.5-family model and "
+                "cannot drive the AnimateDiff video path. Pick an SD1.5 "
+                "checkpoint, or a Wan 2.x GGUF variant for the native "
+                "video path."
+            )
+
+    # ------------------------------------------------------------------
+    # Image-to-Video workflow builders
+    # ------------------------------------------------------------------
+
+    def _build_i2v_workflow(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        steps: int,
+        cfg: float,
+        width: int,
+        height: int,
+        seed: int,
+        sampler: str,
+        num_frames: int,
+        fps: int,
+        image_path: str,
+        ckpt_name: str = "",
+        variant: str = "gguf_q4",
+        model_variant: str = "gguf_q4",
+    ) -> dict[str, Any]:
+        """
+        Dispatch to the correct I2V workflow builder based on model variant.
+
+        Wan TI2V (2.2 TI2V-5B GGUF) is the primary 8GB I2V path on this GPU.
+        Falls back to LTX I2V when the variant indicates LTX.
+        """
+        variant_lower = str(model_variant or variant).lower()
+        is_ltx = "ltx" in variant_lower or (
+            bool(ckpt_name) and classify_model_variant(ckpt_name) == "ltx_2_3"
+        )
+        if is_ltx:
+            return self._build_ltx_i2v_workflow(
+                prompt, negative_prompt, steps, cfg, width, height, seed,
+                num_frames, fps, image_path, ckpt_name=ckpt_name,
+            )
+        return self._build_wan_i2v_workflow(
+            prompt, negative_prompt, steps, cfg, width, height, seed,
+            num_frames, fps, image_path, ckpt_name=ckpt_name, variant=variant,
+        )
+
+    def _build_wan_i2v_workflow(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        steps: int,
+        cfg: float,
+        width: int,
+        height: int,
+        seed: int,
+        num_frames: int,
+        fps: int,
+        image_path: str,
+        ckpt_name: str = "",
+        variant: str = "gguf_q4",
+    ) -> dict[str, Any]:
+        """
+        Build a Wan 2.2 TI2V-5B GGUF image-to-video workflow for ComfyUI.
+
+        Uses ``WanVideoStartEndImage`` to condition on the start image.
+        The image file must already be in ComfyUI's input/ directory
+        (uploaded via POST /api/integrations/comfyui/upload-image).
+        """
+        if not ckpt_name:
+            ckpt_name = self._get_available_wan_gguf_checkpoint()
+
+        quant_map = {
+            "gguf_q5": "disabled",
+            "gguf_q4": "disabled",
+        }
+        quantization = quant_map.get(str(variant).lower(), "disabled")
+        vae_name, t5_name = _resolve_wan_assets(ckpt_name)
+
+        # Enforce quality minimums (same as T2V Wan path)
+        wan_steps = max(steps, 40)
+        wan_cfg = 5.0
+
+        models_dir = resolve_models_dir()
+        if models_dir is not None:
+            t5_path = models_dir / "text_encoders" / t5_name
+            vae_path = models_dir / "vae" / vae_name
+            if not t5_path.exists():
+                logger.warning("Wan T5 text encoder missing: %s", t5_path)
+            if not vae_path.exists():
+                logger.warning("Wan VAE missing: %s", vae_path)
+
+        # Image filename (basename only -- ComfyUI LoadImage looks in input/)
+        image_filename = Path(image_path).name
+
+        logger.info(
+            "Wan I2V workflow t5=%s vae=%s ckpt=%s image=%s steps=%d cfg=%.1f",
+            t5_name, vae_name, ckpt_name, image_filename, wan_steps, wan_cfg,
+        )
+
+        return {
+            "prompt": {
+                # 1: Load UMT5-XXL text encoder (CPU offload on 8GB).
+                "1": {
+                    "class_type": "LoadWanVideoT5TextEncoder",
+                    "inputs": {"model_name": t5_name, "precision": "bf16"},
+                },
+                # 2: Encode positive + negative prompts.
+                "2": {
+                    "class_type": "WanVideoTextEncode",
+                    "inputs": {
+                        "positive_prompt": prompt,
+                        "negative_prompt": negative_prompt,
+                        "t5": ["1", 0],
+                        "force_offload": True,
+                    },
+                },
+                # 3: Load Wan 2.2 TI2V model (GGUF).
+                "3": {
+                    "class_type": "WanVideoModelLoader",
+                    "inputs": {
+                        "model": ckpt_name,
+                        "base_precision": "fp16",
+                        "quantization": quantization,
+                        "load_device": "offload_device",
+                    },
+                },
+                # 4: Load the start image (from ComfyUI input/ dir).
+                "4": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": image_filename},
+                },
+                # 5: Encode image to latents for conditioning.
+                "5": {
+                    "class_type": "WanVideoImageEncode",
+                    "inputs": {
+                        "vae": ["6", 0],
+                        "image": ["4", 0],
+                        "force_offload": True,
+                    },
+                },
+                # 6: Load VAE.
+                "6": {
+                    "class_type": "WanVideoVAELoader",
+                    "inputs": {
+                        "model_name": vae_name,
+                        "precision": "fp16",
+                        "use_cpu_cache": True,
+                    },
+                },
+                # 7: Image-conditioned empty embeds (start image + duration).
+                "7": {
+                    "class_type": "WanVideoStartEndImage",
+                    "inputs": {
+                        "image_embeds": ["5", 0],
+                        "width": width,
+                        "height": height,
+                        "num_frames": num_frames,
+                    },
+                },
+                # 8: Sample with image conditioning.
+                "8": {
+                    "class_type": "WanVideoSampler",
+                    "inputs": {
+                        "model": ["3", 0],
+                        "image_embeds": ["7", 0],
+                        "text_embeds": ["2", 0],
+                        "steps": wan_steps,
+                        "cfg": wan_cfg,
+                        "shift": 5.0,
+                        "seed": seed,
+                        "force_offload": True,
+                        "scheduler": "unipc",
+                        "riflex_freq_index": 6,
+                    },
+                },
+                # 9: Decode latent to images.
+                "9": {
+                    "class_type": "WanVideoDecode",
+                    "inputs": {
+                        "vae": ["6", 0],
+                        "samples": ["8", 0],
+                        "enable_vae_tiling": True,
+                        "tile_x": 272,
+                        "tile_y": 272,
+                        "tile_stride_x": 144,
+                        "tile_stride_y": 128,
+                    },
+                },
+                # 10: Combine frames to video.
+                "10": {
+                    "class_type": "VHS_VideoCombine",
+                    "inputs": {
+                        "images": ["9", 0],
+                        "frame_rate": fps,
+                        "loop_count": 0,
+                        "filename_prefix": "NativeMediaAI_WanI2V",
+                        "format": "video/mp4",
+                        "pingpong": False,
+                        "save_output": True,
+                    },
+                },
+            }
+        }
+
+    def _build_ltx_i2v_workflow(
+        self,
+        prompt: str,
+        negative_prompt: str,
+        steps: int,
+        cfg: float,
+        width: int,
+        height: int,
+        seed: int,
+        num_frames: int,
+        fps: int,
+        image_path: str,
+        ckpt_name: str = "",
+    ) -> dict[str, Any]:
+        """
+        Build an LTX Video 2.3 distilled image-to-video workflow for ComfyUI.
+
+        Uses ``LoadImage`` → ``VAEEncode`` → KSampler with denoise < 1.0
+        to preserve the input image's structure while adding motion.
+        """
+        if not ckpt_name:
+            ckpt_name = self._get_available_ltx_checkpoint()
+
+        t5_name = "t5-xxl-fp8.safetensors"
+        vae_name = "LTX23_video_vae_bf16.safetensors"
+
+        lt_frames = max(8, min(num_frames, 121))
+        lt_frames = lt_frames - ((lt_frames - 1) % 4)
+        lt_width, lt_height = self._clamp_ltx_resolution(width, height)
+
+        # LTX I2V: denoise controls how much of the input image is preserved
+        # (lower = more faithful to source, higher = more motion/change)
+        denoise = 0.7
+
+        if "distilled" in str(ckpt_name).lower():
+            cfg = 1.0
+
+        image_filename = Path(image_path).name
+
+        logger.info(
+            "LTX I2V workflow model=%s t5=%s vae=%s image=%s frames=%d denoise=%.2f",
+            ckpt_name, t5_name, vae_name, image_filename, lt_frames, denoise,
+        )
+
+        return {
+            "prompt": {
+                # 1: Load LTX model (fp8 distilled, fits 8GB).
+                "1": {
+                    "class_type": "UNETLoader",
+                    "inputs": {"unet_name": ckpt_name, "weight_dtype": "default"},
+                },
+                # 2: Load T5-XXL text encoder (CPU offloaded on 8GB).
+                "2": {
+                    "class_type": "CLIPLoader",
+                    "inputs": {"clip_name": t5_name, "type": "ltx"},
+                },
+                # 3: Encode positive + negative prompts.
+                "3": {
+                    "class_type": "LTXVConditioning",
+                    "inputs": {
+                        "positive_prompt": prompt,
+                        "negative_prompt": negative_prompt,
+                        "clip": ["2", 0],
+                        "force_offload": True,
+                    },
+                },
+                # 4: Load the start image.
+                "4": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": image_filename},
+                },
+                # 5: Encode image to latents.
+                "5": {
+                    "class_type": "VAEEncode",
+                    "inputs": {"vae": ["6", 0], "pixels": ["4", 0]},
+                },
+                # 6: Load VAE.
+                "6": {
+                    "class_type": "VAELoader",
+                    "inputs": {"vae_name": vae_name},
+                },
+                # 7: Create latent video from the image latents.
+                "7": {
+                    "class_type": "EmptyLTXVLatentVideo",
+                    "inputs": {
+                        "width": lt_width,
+                        "height": lt_height,
+                        "length": lt_frames,
+                        "batch_size": 1,
+                    },
+                },
+                # 8: KSampler with denoise < 1.0 (image-to-video).
+                "8": {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "model": ["1", 0],
+                        "positive": ["3", 0],
+                        "negative": ["3", 1],
+                        "latent_image": ["7", 0],
+                        "seed": seed,
+                        "steps": steps,
+                        "cfg": cfg,
+                        "sampler_name": "euler",
+                        "scheduler": "normal",
+                        "denoise": denoise,
+                    },
+                },
+                # 9: Decode latent to images.
+                "9": {
+                    "class_type": "VAEDecode",
+                    "inputs": {"vae": ["6", 0], "samples": ["8", 0]},
+                },
+                # 10: Combine frames to MP4.
+                "10": {
+                    "class_type": "VHS_VideoCombine",
+                    "inputs": {
+                        "images": ["9", 0],
+                        "frame_rate": fps,
+                        "loop_count": 0,
+                        "filename_prefix": "NativeMediaAI_LTXI2V",
+                        "format": "video/mp4",
+                        "pingpong": False,
+                        "save_output": True,
+                    },
+                },
+            }
+        }
+
+    def _build_i2v_workflow(
+        self,
+        is_ltx: bool,
+        prompt_text: str,
+        negative_text: str,
+        steps: int,
+        cfg_scale: float,
+        width: int,
+        height: int,
+        seed: int,
+        num_frames: int,
+        fps: int,
+        image_path: str,
+        ckpt_name: str,
+        model_variant: str,
+    ) -> tuple[dict[str, Any], int, str]:
+        """
+        Build an image-to-video workflow (Wan TI2V or LTX I2V).
+
+        Returns (workflow, eff_frames, model_label).
+        """
+        if is_ltx:
+            width, height = self._clamp_ltx_resolution(width, height)
+            lt_frames = num_frames if num_frames > 8 else 25
+            lt_frames = min(lt_frames, 121)
+            lt_frames = lt_frames - ((lt_frames - 1) % 4)
+            workflow = self._build_ltx_i2v_workflow(
+                prompt_text, negative_text, steps, cfg_scale,
+                width, height, seed, lt_frames, fps,
+                image_path, ckpt_name=ckpt_name,
+            )
+            return workflow, lt_frames, "LTX 2.3 distilled (I2V)"
+
+        # Wan TI2V path (default for I2V when not LTX)
+        width, height = _clamp_wan_resolution(width, height)
+        wan_frames = num_frames if num_frames > 16 else 81
+        wan_frames = min(wan_frames, 121)
+        wan_frames = wan_frames - ((wan_frames - 1) % 4)
+        workflow = self._build_wan_i2v_workflow(
+            prompt_text, negative_text, steps, cfg_scale,
+            width, height, seed, wan_frames, fps,
+            image_path, ckpt_name=ckpt_name, variant=model_variant,
+        )
+        return workflow, wan_frames, "Wan 2.2 GGUF (I2V)"
 
     def _clamp_ltx_resolution(self, width: int, height: int) -> tuple[int, int]:
         """Clamp a resolution into the 896x512 8GB box, 16-aligned.

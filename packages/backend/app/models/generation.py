@@ -9,6 +9,7 @@ from here so validation rules cannot drift between routers.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, field_validator
 
@@ -153,6 +154,7 @@ class VideoGenerationRequest(BaseModel):
     # Wan 2.2 GGUF additions
     model_variant: VideoModelVariant = VideoModelVariant.STANDARD
     ckpt_name: str = ""  # explicit checkpoint override for Wan/other pipelines
+    image_path: str | None = None  # image-to-video: path to input image (uploaded via /api/integrations/comfyui/upload-image)
 
     @field_validator("steps")
     @classmethod
@@ -186,7 +188,7 @@ class VideoGenerationRequest(BaseModel):
     def to_adapter_params(self) -> dict:
         """Single conversion from video request to adapter params."""
         variant = self.model_variant.value if hasattr(self.model_variant, "value") else str(self.model_variant)
-        return {
+        params: dict[str, Any] = {
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,
             "steps": self.steps,
@@ -206,3 +208,6 @@ class VideoGenerationRequest(BaseModel):
             "model_variant": variant,
             "ckpt_name": self.ckpt_name,
         }
+        if self.image_path:
+            params["image_path"] = self.image_path
+        return params

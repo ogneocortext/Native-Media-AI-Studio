@@ -44,6 +44,7 @@ __all__ = [
     "find_queue_entry",
     "fetch_view_bytes",
     "submit_prompt",
+    "upload_image",
     "is_reachable",
     "fetch_object_info",
     "resolve_comfyui_dir",
@@ -286,6 +287,41 @@ async def submit_prompt(
         if not prompt_id:
             raise RuntimeError("ComfyUI returned no prompt_id")
         return prompt_id
+
+
+async def upload_image(
+    base_url: str,
+    image_path: str | Path,
+    session: aiohttp.ClientSession | None = None,
+    timeout: float = 30,
+) -> dict[str, Any]:
+    """Upload an image file to ComfyUI's ``/upload/image`` endpoint.
+
+    Saves the file into ComfyUI's ``input/`` directory so that ``LoadImage``
+    nodes can reference it by filename in workflows. Returns the ComfyUI
+    upload response (typically ``{"name": "filename.png", ...}``).
+
+    The uploaded filename is what downstream ``LoadImage`` nodes use as their
+    ``image`` input.
+    """
+    sess = session or await get_shared_session()
+    path = Path(image_path)
+    form = aiohttp.FormData()
+    form.add_field(
+        "image",
+        path.read_bytes(),
+        filename=path.name,
+        content_type="image/png",
+    )
+    async with sess.post(
+        f"{base_url.rstrip('/')}/upload/image",
+        data=form,
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        if resp.status != 200:
+            body = await resp.text()
+            raise RuntimeError(f"ComfyUI /upload/image returned {resp.status}: {body[:200]}")
+        return await resp.json()
 
 
 async def cancel_prompt(

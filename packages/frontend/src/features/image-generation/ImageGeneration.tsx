@@ -28,6 +28,7 @@ import {
   RectangleVertical,
   RectangleHorizontal,
   Crown,
+  SkipForward,
 } from "lucide-react";
 import { Card, LoadingSpinner, EmptyState, StatusBadge, ErrorState } from "../../components/common";
 import * as api from "../../services/api";
@@ -867,6 +868,25 @@ export function ImageGeneration() {
                     <Download size={14} />
                     Download
                   </a>
+                  <button
+                    className="btn btn-sm btn-accent flex-1 flex items-center justify-center gap-1"
+                    onClick={() => {
+                      // Store image path in localStorage for the video page to pick up
+                      try {
+                        localStorage.setItem(
+                          "nma:i2v:image",
+                          result.output_path.split(/[/\\]/).pop() || "",
+                        );
+                      } catch {
+                        // localStorage unavailable — proceed without cross-page handoff
+                      }
+                      // Navigate to video page
+                      window.location.href = "/create/video";
+                    }}
+                  >
+                    <SkipForward size={14} />
+                    Send to Video
+                  </button>
                   <button
                     className="btn btn-sm btn-ghost flex items-center justify-center gap-1"
                     onClick={handleGenerate}

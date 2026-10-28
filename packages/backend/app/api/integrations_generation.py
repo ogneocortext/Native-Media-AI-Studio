@@ -500,6 +500,45 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+@router.post("/comfyui/upload-image")
+async def upload_image_to_comfyui(request: Request) -> dict:
+    """Upload an image to ComfyUI's input directory for I2V workflows.
+
+    Accepts multipart/form-data with an ``image`` field. Saves the file to
+    ComfyUI's input/ directory via the /upload/image endpoint so that
+    LoadImage nodes can reference it by filename.
+
+    Returns the uploaded filename and ComfyUI's response.
+    """
+    form = await request.form()
+    image_file = form.get("image")
+    if image_file is None:
+        raise HTTPException(status_code=400, detail="No image field in request")
+
+    # Read the uploaded bytes
+    image_bytes = await image_file.read()
+    filename = image_file.filename or "uploaded.png"
+
+    # Save to a temp file then upload via the shared client helper
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as tmp:
+        tmp.write(image_bytes)
+        tmp_path = tmp.name
+
+    try:
+        base_url = config.comfyui_url
+        result = await _cu.upload_image(base_url, tmp_path)
+        return {
+            "success": True,
+            "filename": result.get("name", filename),
+            "comfyui_response": result,
+            "message": f"Image uploaded to ComfyUI input directory: {result.get('name', filename)}",
+        }
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
 @router.post("/{service_name}/job")
 async def queue_image_job(service_name: str, request: ImageGenerationRequest) -> dict:
     """Queue an image generation job"""

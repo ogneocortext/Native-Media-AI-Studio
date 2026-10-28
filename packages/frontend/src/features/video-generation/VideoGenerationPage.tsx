@@ -1,11 +1,26 @@
 ﻿/**
- * VideoGenerationPage — render a video section from audio + prompt.
+ * VideoGenerationPage — text-to-video and image-to-video generation.
+ *
+ * Supports three modes:
+ *  - Text-to-Video (T2V): prompt only, no input image
+ *  - Image-to-Video (I2V): prompt + uploaded start image (Wan TI2V / LTX I2V)
  *
  * Main orchestrator — composes extracted components and delegates
  * stateful logic to custom hooks.
  */
 import { useState, useCallback, useEffect } from "react";
-import { Film, Wand2, Loader2, Download, RefreshCw, AlertTriangle, RectangleHorizontal } from "lucide-react";
+import {
+  Film,
+  Wand2,
+  Loader2,
+  Download,
+  RefreshCw,
+  AlertTriangle,
+  RectangleHorizontal,
+  Image as ImageIcon,
+  Play,
+  SkipForward,
+} from "lucide-react";
 import { DS } from "../../styles/designSystem";
 import { StatusBadge } from "../../components/common";
 import { useVideoModels } from "./hooks/useVideoModels";
@@ -19,6 +34,8 @@ interface VideoGenerationResult {
   job_id: string;
   status: string;
   output_path?: string;
+  image_path?: string;
+  mode?: "t2v" | "i2v";
 }
 
 interface ExamplePrompt {
@@ -43,7 +60,7 @@ const RESOLUTION_PRESETS = [
  * Main orchestrator for the video generation page.
  *
  * Responsibilities:
- * - Compose UI sections (model selector, form, results, queue)
+ * - Compose UI sections (mode toggle, model selector, form, results, queue)
  * - Delegate state management to hooks
  * - Handle cross-component coordination (e.g., progress polling)
  */
@@ -75,6 +92,9 @@ export function VideoGenerationPage() {
   const [resolution, setResolution] = useState("480p");
   const [batchCount, setBatchCount] = useState(1);
   const [selectedAspect, setSelectedAspect] = useState("480p");
+  const [mode, setMode] = useState<"t2v" | "i2v">("t2v");
+  const [inputImagePreview, setInputImagePreview] = useState<string | null>(null);
+  const [uploadedImagePath, setUploadedImagePath] = useState<string | null>(null);
 
   // Auto-select first 8GB-safe video model on load
   useEffect(() => {
@@ -85,6 +105,44 @@ export function VideoGenerationPage() {
       }
     }
   }, [videoModels, selectedModel]);
+
+  // Pick up a pending I2V image sent from the Image Generation page
+  useEffect(() => {
+    try {
+      const pending = localStorage.getItem("nma:i2v:image");
+      if (pending && mode === "t2v") {
+        setMode("i2v");
+      }
+    } catch {
+      // localStorage unavailable — ignore and proceed without pending I2V image
+    }
+  }, []);
+
+  // Upload image to backend ComfyUI input directory when mode switches to I2V
+  const handleImageUpload = useCallback(async (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => setInputImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    const form = new FormData();
+    form.append("image", file);
+    try {
+      const res = await fetch("/api/integrations/comfyui/upload-image", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) throw new Error(`Image upload failed: ${res.status}`);
+      const data = await res.json();
+      setUploadedImagePath(data.filename);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Image upload failed");
+    }
+  }, []);
+
+  const clearInputImage = useCallback(() => {
+    setInputImagePreview(null);
+    setUploadedImagePath(null);
+  }, []);
 
   // Get selected model info for VRAM warning
   const selectedModelInfo = videoModels.find((m) => m.name === selectedModel);
@@ -103,27 +161,36 @@ export function VideoGenerationPage() {
     setGenerating(true);
     setError(null);
     try {
+      const body: Record<string, any> = {
+        prompt,
+        negative_prompt: negativePrompt,
+        model: selectedModel,
+        duration,
+        vertical_first: verticalFirst,
+        scheduler,
+        fps,
+        resolution,
+        batch_count: batchCount,
+        width: RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w || 832,
+        height: RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h || 480,
+        enrich_prompt: false,
+      };
+      // Pass image_path for I2V mode (already uploaded to ComfyUI input/)
+      if (mode === "i2v" && uploadedImagePath) {
+        body.image_path = uploadedImagePath;
+      }
+
       const res = await fetch("/api/video/generate-section", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          negative_prompt: negativePrompt,
-          model: selectedModel,
-          duration,
-          vertical_first: verticalFirst,
-          scheduler,
-          fps,
-          resolution,
-          batch_count: batchCount,
-          width: RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w || 832,
-          height: RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h || 480,
-          enrich_prompt: false,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`Generation failed: ${res.status}`);
       const data = await res.json();
-      setResults((prev) => [...prev, { ...data, status: "queued" }]);
+      setResults((prev) => [
+        ...prev,
+        { ...data, status: "queued", mode },
+      ]);
       startProgressPolling(data.job_id);
       setGenerating(false);
     } catch (e) {
@@ -175,6 +242,38 @@ export function VideoGenerationPage() {
         </div>
       )}
 
+      {/* Mode Toggle: T2V / I2V */}
+      <div className={DS.card} style={{ padding: 16 }}>
+        <div className="flex items-center gap-2 mb-3">
+          <ImageIcon size={16} />
+          <h3 className="text-sm font-semibold text-foreground">Generation Mode</h3>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setMode("t2v")}
+            className={`p-3 rounded-lg border text-center transition-all font-medium ${
+              mode === "t2v"
+                ? "border-accent bg-violet-500/20 text-violet-400 shadow-sm"
+                : "border-border bg-surface hover:border-border/80"
+            }`}
+          >
+            <Play size={14} />
+            <div className="mt-1 text-xs">Text → Video</div>
+          </button>
+          <button
+            onClick={() => setMode("i2v")}
+            className={`p-3 rounded-lg border text-center transition-all font-medium ${
+              mode === "i2v"
+                ? "border-accent bg-violet-500/20 text-violet-400 shadow-sm"
+                : "border-border bg-surface hover:border-border/80"
+            }`}
+          >
+            <ImageIcon size={14} />
+            <div className="mt-1 text-xs">Image → Video</div>
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left — Controls */}
         <div className="space-y-4">
@@ -185,6 +284,48 @@ export function VideoGenerationPage() {
             selected={selectedModel}
             onChange={setSelectedModel}
           />
+
+          {/* Image upload (I2V only) */}
+          {mode === "i2v" && (
+            <div className={DS.card} style={{ padding: 16 }}>
+              <div className="flex items-center gap-2 mb-3">
+                <ImageIcon size={16} />
+                <h3 className="text-sm font-semibold text-foreground">Start Image</h3>
+              </div>
+              {inputImagePreview ? (
+                <div className="space-y-2">
+                  <img
+                    src={inputImagePreview}
+                    alt="Start image preview"
+                    className="w-full h-48 object-cover rounded-lg border border-border bg-surface"
+                  />
+                  <button
+                    onClick={clearInputImage}
+                    className="text-xs text-destructive hover:text-destructive/80 underline"
+                  >
+                    Remove image
+                  </button>
+                </div>
+              ) : (
+                <label className="block cursor-pointer border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-accent/50 hover:bg-accent/5 transition-colors">
+                  <ImageIcon size={24} className="mx-auto mb-2 text-muted" />
+                  <p className="text-sm text-foreground font-medium mb-1">Click to upload image</p>
+                  <p className="text-xs text-muted">
+                    Uploaded to ComfyUI input directory for I2V
+                  </p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          )}
 
           <div className={DS.card} style={{ padding: 16 }}>
             <div className="flex items-center gap-2 mb-3">
@@ -269,7 +410,12 @@ export function VideoGenerationPage() {
 
           <button
             onClick={handleGenerate}
-            disabled={generating || !prompt.trim() || comfyStatus === "offline"}
+            disabled={
+              generating ||
+              !prompt.trim() ||
+              comfyStatus === "offline" ||
+              (mode === "i2v" && !uploadedImagePath)
+            }
             className={DS.btnFull}
           >
             {generating ? (
@@ -279,8 +425,17 @@ export function VideoGenerationPage() {
               </>
             ) : (
               <>
-                <Wand2 size={18} />
-                Generate Video
+                {mode === "i2v" ? (
+                  <>
+                    <SkipForward size={18} />
+                    Image → Video
+                  </>
+                ) : (
+                  <>
+                    <Wand2 size={18} />
+                    Generate Video
+                  </>
+                )}
               </>
             )}
           </button>
@@ -288,7 +443,7 @@ export function VideoGenerationPage() {
           {/* Estimated time */}
           <div className={DS.cardWarning}>
             <span className="text-xs text-muted">
-              ⏱ Estimated: ~{estimatedSeconds()}s • Model: {selectedModelInfo?.type || "unknown"}
+              ⏱ Estimated: ~{estimatedSeconds()}s • Mode: {mode.toUpperCase()} • Model: {selectedModelInfo?.type || "unknown"}
             </span>
           </div>
         </div>
@@ -311,6 +466,7 @@ export function VideoGenerationPage() {
             )}
             {results.map((r: VideoGenerationResult, idx: number) => {
               const isCompleted = r.status === "completed";
+              const isI2V = r.mode === "i2v";
               return (
                 <div
                   key={r.job_id || idx}
@@ -321,6 +477,11 @@ export function VideoGenerationPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">
                         {r.job_id}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                        isI2V ? "border-violet-500 text-violet-400 bg-violet-500/10" : "border-blue-500 text-blue-400 bg-blue-500/10"
+                      }`}>
+                        {isI2V ? "I2V" : "T2V"}
                       </span>
                       <StatusBadge status={r.status} />
                     </div>
