@@ -566,9 +566,9 @@ class ComfyUIManager:
 
             requirements_file = node_dir / "requirements.txt"
 
-            # git pull
+            # git pull — use --no-rebase for the same reason as core updates
             pull = await _run_subprocess(
-                [git_exe, "pull"],
+                [git_exe, "pull", "--no-rebase"],
                 cwd=str(node_dir),
                 capture_output=True,
             )
@@ -689,10 +689,12 @@ class ComfyUIManager:
                     "hint": "Run 'git stash' or commit your changes, then retry the update",
                 }
 
-            # Git pull
-            logger.info("Running git pull in %s", COMFYUI_DIR)
+            # Git pull — use --no-rebase because ComfyUI's default pull.rebase
+            # config can fail with "Cannot rebase onto multiple branches" on
+            # some setups (observed in production).
+            logger.info("Running git pull --no-rebase in %s", COMFYUI_DIR)
             pull_result = await _run_subprocess(
-                [git_exe, "pull"],
+                [git_exe, "pull", "--no-rebase"],
                 cwd=str(COMFYUI_DIR),
                 capture_output=True,
                 env=env,
