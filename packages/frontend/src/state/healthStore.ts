@@ -17,6 +17,9 @@ import {
   getLoadedModels,
   getComfyUIStatus,
   getVRAMStatus,
+  startComfyUI,
+  stopComfyUI,
+  restartComfyUI,
   AggregateHealth,
   AdapterHealth,
   SystemHealth,
@@ -50,6 +53,8 @@ interface HealthState {
   error: string | null;
   sseConnected: boolean;
   granular: GranularHealthData;
+  comfyuiLoading: boolean;
+  comfyuiAction: string | null;
 
   // Actions
   setHealth: (health: AggregateHealth) => void;
@@ -63,6 +68,9 @@ interface HealthState {
   fetchOllamaModels: () => Promise<void>;
   fetchComfyUIStatus: () => Promise<void>;
   fetchVRAMStatus: () => Promise<Record<string, unknown> | null>;
+  startComfyUI: (port?: number) => Promise<void>;
+  stopComfyUI: () => Promise<void>;
+  restartComfyUI: (port?: number) => Promise<void>;
 }
 
 // SSE subscriptions installed by connectSSE (released on disconnect).
@@ -91,6 +99,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   error: null,
   sseConnected: false,
   granular: EMPTY_GRANULAR,
+  comfyuiLoading: false,
+  comfyuiAction: null,
 
   setHealth: (health: AggregateHealth) => {
     set({
@@ -273,6 +283,44 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       return null;
     }
   },
+
+  // ComfyUI lifecycle management — start/stop/restart via backend API.
+  startComfyUI: async (port = 8188) => {
+    set({ comfyuiLoading: true, comfyuiAction: "start" });
+    try {
+      await startComfyUI(port);
+      // Refresh status after start attempt
+      await get().fetchComfyUIStatus();
+    } catch {
+      // Error is surfaced via toast by the caller; status stays as-is.
+    } finally {
+      set({ comfyuiLoading: false, comfyuiAction: null });
+    }
+  },
+
+  stopComfyUI: async () => {
+    set({ comfyuiLoading: true, comfyuiAction: "stop" });
+    try {
+      await stopComfyUI();
+      await get().fetchComfyUIStatus();
+    } catch {
+      // Error surfaced via toast by caller.
+    } finally {
+      set({ comfyuiLoading: false, comfyuiAction: null });
+    }
+  },
+
+  restartComfyUI: async (port = 8188) => {
+    set({ comfyuiLoading: true, comfyuiAction: "restart" });
+    try {
+      await restartComfyUI(port);
+      await get().fetchComfyUIStatus();
+    } catch {
+      // Error surfaced via toast by caller.
+    } finally {
+      set({ comfyuiLoading: false, comfyuiAction: null });
+    }
+  },
 }));
 
 // ============================================================================
@@ -297,6 +345,31 @@ export function stopVRAMPolling() {
 
 // Start polling immediately
 startVRAMPolling();
+
+// ============================================================================
+// ComfyUI status polling — keeps comfyui state fresh so any component
+// (ComfyUICard, ImageGeneration page, etc.) can read it without competing
+// intervals. Polls every 30s — long enough not to spam the backend, short
+// enough to notice when ComfyUI comes or goes.
+// ============================================================================
+let comfyuiPollInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startComfyUIPolling(intervalMs = 30000) {
+  if (comfyuiPollInterval) clearInterval(comfyuiPollInterval);
+  comfyuiPollInterval = setInterval(() => {
+    useHealthStore.getState().fetchComfyUIStatus().catch(() => {});
+  }, intervalMs);
+}
+
+export function stopComfyUIPolling() {
+  if (comfyuiPollInterval) {
+    clearInterval(comfyuiPollInterval);
+    comfyuiPollInterval = null;
+  }
+}
+
+// Start polling immediately
+startComfyUIPolling();
 
 // ============================================================================
 // Zustand v5 Selectors — Fine-grained re-rendering
@@ -334,3 +407,9 @@ export const useSystemHealth = () => useHealthStore((state) => state.systemHealt
 
 /** Subscribe to adapter service status only */
 export const useServiceStatus = () => useHealthStore((state) => state.serviceStatus);
+
+/** Subscribe to ComfyUI loading/action state only */
+export const useComfyUILoading = () => useHealthStore((state) => ({
+  loading: state.comfyuiLoading,
+  action: state.comfyuiAction,
+}));

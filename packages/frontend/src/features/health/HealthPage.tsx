@@ -39,6 +39,7 @@ import { useHealthStore } from "../../state/healthStore";
 import {
   startComfyUI,
   stopComfyUI,
+  restartComfyUI,
   updateComfyUI,
   cleanupSystemMemory,
   type ComfyUIStatus,
@@ -120,12 +121,21 @@ export function HealthPage() {
   // Clear logs
   const clearLogs = () => setActionLog([]);
 
-  const handleComfyUIAction = async (action: "start" | "stop" | "update") => {
+  const handleComfyUIAction = async (action: "start" | "stop" | "restart" | "update") => {
     setComfyuiLoading(true);
     setComfyuiAction(action);
     addLog(`Starting ${action}...`, "info");
     try {
-      let result;
+      let result: {
+        success?: boolean;
+        message?: string;
+        suggestion?: string;
+        output?: string;
+        was_running?: boolean;
+        restarted?: { success?: boolean; message?: string };
+        errors?: string[];
+        hint?: string;
+      };
       switch (action) {
         case "start":
           addLog("Checking VRAM availability...", "info");
@@ -161,6 +171,18 @@ export function HealthPage() {
           result = await stopComfyUI();
           if (result.success) {
             addLog(`ComfyUI stopped: ${result.message}`, "success");
+          } else {
+            addLog(`Failed: ${result.message}`, "error");
+          }
+          break;
+        case "restart":
+          addLog("Restarting ComfyUI...", "info");
+          result = (await restartComfyUI()) as {
+            success?: boolean;
+            message?: string;
+          };
+          if (result.success) {
+            addLog(`ComfyUI restarted: ${result.message}`, "success");
           } else {
             addLog(`Failed: ${result.message}`, "error");
           }

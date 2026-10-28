@@ -7,6 +7,7 @@ import {
   Wifi,
   WifiOff,
   CheckCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Card } from "../../components/common";
 import { parseVRAMStatus } from "./utils";
@@ -17,7 +18,7 @@ export interface ComfyUICardProps {
   loading: boolean;
   action: string | null;
   vramStatus: Record<string, unknown> | null;
-  onAction: (action: "start" | "stop" | "update") => void;
+  onAction: (action: "start" | "stop" | "restart" | "update") => void;
 }
 
 export function ComfyUICard({ status, loading, action, vramStatus, onAction }: ComfyUICardProps) {
@@ -41,12 +42,16 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
           <div>
             <h3 className="font-semibold text-sm">ComfyUI</h3>
             <p className="text-xs text-muted">
-              {status.running ? `Running on port ${status.port}` : "Not running"}
+              {status.running
+                ? `Running on port ${status.port}`
+                : status.installed && !status.running
+                  ? "Not running — click Start below"
+                  : "Not installed"}
               {status.version?.version && ` • v${status.version.version.replace(/^v+/, "")}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {!status.running ? (
             <button
               onClick={() => onAction("start")}
@@ -61,18 +66,33 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
               Start
             </button>
           ) : (
-            <button
-              onClick={() => onAction("stop")}
-              disabled={loading}
-              className="btn btn-secondary btn-sm flex items-center gap-2"
-            >
-              {loading && action === "stop" ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Square size={14} />
-              )}
-              Stop
-            </button>
+            <>
+              <button
+                onClick={() => onAction("stop")}
+                disabled={loading}
+                className="btn btn-secondary btn-sm flex items-center gap-2"
+              >
+                {loading && action === "stop" ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Square size={14} />
+                )}
+                Stop
+              </button>
+              <button
+                onClick={() => onAction("restart")}
+                disabled={loading}
+                className="btn btn-secondary btn-sm flex items-center gap-2"
+                title="Restart ComfyUI"
+              >
+                {loading && action === "restart" ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                Restart
+              </button>
+            </>
           )}
           <button
             onClick={() => onAction("update")}
@@ -124,6 +144,12 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
                   Uptime: {Math.floor(status.uptime_seconds / 60)}m{" "}
                   {Math.floor(status.uptime_seconds % 60)}s{status.pid && ` • PID: ${status.pid}`}
                 </span>
+              )}
+              {!status.running && status.installed && (
+                <>
+                  <AlertTriangle size={12} className="text-amber-400" />
+                  <span className="ml-1">ComfyUI is offline — image/video generation will fail</span>
+                </>
               )}
             </div>
             {vram && (

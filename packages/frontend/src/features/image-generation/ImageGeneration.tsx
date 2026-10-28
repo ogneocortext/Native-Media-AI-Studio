@@ -33,6 +33,8 @@ import {
 import { Card, LoadingSpinner, EmptyState, StatusBadge, ErrorState } from "../../components/common";
 import * as api from "../../services/api";
 import { getLogger } from "../../services/logger";
+import { startComfyUI } from "../../services/api";
+import { WifiOff } from "lucide-react";
 
 const logger = getLogger("image-generation");
 
@@ -249,6 +251,27 @@ export function ImageGeneration() {
   const [promptId, setPromptId] = useState<string | null>(null);
   const [models, setModels] = useState<CheckpointModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
+  const [comfyUiStatus, setComfyUiStatus] = useState<{ running: boolean; port?: number } | null>(null);
+
+  // Fetch ComfyUI status so we can show a Start button inline when it's offline.
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch("/api/services/comfyui/status", { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          setComfyUiStatus({ running: data.running ?? false, port: data.port });
+        } else {
+          setComfyUiStatus({ running: false });
+        }
+      } catch {
+        setComfyUiStatus({ running: false });
+      }
+    };
+    fetchStatus();
+    const id = setInterval(fetchStatus, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // Fetch available checkpoint models (filtered to image models only)
   useEffect(() => {
@@ -494,6 +517,27 @@ export function ImageGeneration() {
           Reset
         </button>
       </div>
+
+      {/* ComfyUI status banner — inline start when offline */}
+      {comfyUiStatus !== null && !comfyUiStatus.running && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 flex items-center gap-3">
+          <WifiOff size={18} className="text-amber-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-200">ComfyUI is offline</p>
+            <p className="text-xs text-amber-300/80">
+              Image generation will fail until ComfyUI is running on port{
+                comfyUiStatus.port ? ` ${comfyUiStatus.port}` : ""
+              }.
+            </p>
+          </div>
+          <button
+            onClick={() => startComfyUI(comfyUiStatus.port || 8188)}
+            className="btn btn-primary btn-sm flex items-center gap-2 whitespace-nowrap"
+          >
+            Start ComfyUI
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-1 md:grid-cols-2 gap-6">
         {/* Generation Options */}
@@ -782,7 +826,7 @@ export function ImageGeneration() {
             <button
               className="btn btn-primary flex-1 flex items-center justify-center gap-2"
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || !comfyUiStatus?.running}
             >
               {generating ? (
                 <>
