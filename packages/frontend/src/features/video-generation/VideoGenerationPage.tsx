@@ -51,7 +51,7 @@ export function VideoGenerationPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [scheduler, setScheduler] = useState("normal");
-  const [fps, setFps] = useState(8);
+  const [fps, setFps] = useState(12);
   const [resolution, setResolution] = useState("480p");
   const [batchCount, setBatchCount] = useState(1);
 

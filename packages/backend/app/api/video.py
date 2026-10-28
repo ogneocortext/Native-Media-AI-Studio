@@ -24,8 +24,8 @@ class VideoGenerateRequest(BaseModel):
     """Request model for video section generation -- real queue, no mock"""
     prompt: str
     negative_prompt: str = ""
-    steps: int = 20
-    cfg_scale: float = 7.0
+    steps: int = 25
+    cfg_scale: float = 5.0
     seed: int = -1
     section: str = "full"
     duration: float = 10.0

@@ -108,12 +108,12 @@ interface GenerationOptions {
 const defaultOptions: GenerationOptions = {
   prompt: "",
   negativePrompt: "",
-  steps: 20,
-  cfgScale: 7.0,
-  width: 512,
+  steps: 30,
+  cfgScale: 6.0,
+  width: 768,
   height: 512,
   seed: -1,
-  sampler: "Euler a",
+  sampler: "DPM++ 2M Karras",
   model: "",
 };
 
@@ -132,7 +132,7 @@ const presets: GenerationPreset[] = [
     name: "Quick Preview",
     description: "Fast iteration, low quality",
     icon: <Zap size={16} />,
-    settings: { steps: 10, cfgScale: 7, width: 512, height: 512, sampler: "Euler a" },
+    settings: { steps: 10, cfgScale: 5, width: 512, height: 512, sampler: "Euler a" },
     color: "amber",
   },
   {
@@ -140,7 +140,7 @@ const presets: GenerationPreset[] = [
     name: "Standard",
     description: "Balanced speed and quality",
     icon: <Square size={16} />,
-    settings: { steps: 20, cfgScale: 7, width: 512, height: 512, sampler: "Euler a" },
+    settings: { steps: 30, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras" },
     color: "blue",
   },
   {
@@ -148,7 +148,7 @@ const presets: GenerationPreset[] = [
     name: "High Quality",
     description: "Detailed, slower generation",
     icon: <Gem size={16} />,
-    settings: { steps: 30, cfgScale: 7, width: 768, height: 768, sampler: "DPM++ 2M" },
+    settings: { steps: 40, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras" },
     color: "purple",
   },
   {
@@ -625,6 +625,7 @@ export function ImageGeneration() {
                 >
                   <option value="Euler a">Euler a</option>
                   <option value="Euler">Euler</option>
+                  <option value="DPM++ 2M Karras">DPM++ 2M Karras</option>
                   <option value="DPM++ 2M">DPM++ 2M</option>
                   <option value="DPM++ SDE">DPM++ SDE</option>
                 </select>

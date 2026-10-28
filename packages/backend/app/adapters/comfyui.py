@@ -305,9 +305,9 @@ class ComfyUIAdapter(BaseAdapter):
         logger.debug("submit_only called with params=%s", params)
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "")
-        steps = params.get("steps", 20)
-        cfg_scale = params.get("cfg_scale", 7.0)
-        width = params.get("width", 512)
+        steps = params.get("steps", 30)
+        cfg_scale = params.get("cfg_scale", 6.0)
+        width = params.get("width", 768)
         height = params.get("height", 512)
         # Accept both "sampler_name" (adapter convention) and "sampler"
         # (queue job convention) so queued jobs don't silently fall back.
@@ -337,9 +337,9 @@ class ComfyUIAdapter(BaseAdapter):
         """Generate a still image using ComfyUI."""
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "")
-        steps = params.get("steps", 20)
-        cfg_scale = params.get("cfg_scale", 7.0)
-        width = params.get("width", 512)
+        steps = params.get("steps", 30)
+        cfg_scale = params.get("cfg_scale", 6.0)
+        width = params.get("width", 768)
         height = params.get("height", 512)
         sampler_name = params.get("sampler_name", params.get("sampler", "euler_ancestral"))
 
@@ -372,9 +372,9 @@ class ComfyUIAdapter(BaseAdapter):
         """Generate a video using AnimateDiff or Wan 2.2 GGUF via ComfyUI."""
         prompt_text = params.get("prompt", "")
         negative_text = params.get("negative_prompt", "blurry, bad quality, distorted, static")
-        steps = params.get("steps", 15)
-        cfg_scale = params.get("cfg_scale", 7.0)
-        width = params.get("width", 512)
+        steps = params.get("steps", 25)
+        cfg_scale = params.get("cfg_scale", 5.0)
+        width = params.get("width", 768)
         height = params.get("height", 512)
         seed = params.get("seed", -1)
         sampler_name = params.get("sampler_name", params.get("sampler", "euler_ancestral"))

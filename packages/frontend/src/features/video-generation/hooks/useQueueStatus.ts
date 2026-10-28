@@ -6,10 +6,14 @@ function useQueueStatus() {
 
   const fetchQueueStatus = useCallback(async () => {
     try {
-      const res = await fetchWithTimeout("/api/integrations/music-video/queue", { timeout: 10000 });
+      const res = await fetchWithTimeout("/api/health/queue", { timeout: 10000 });
       if (res.ok) {
         const data = await res.json();
-        setQueueInfo(data);
+        const stats = data.stats || data;
+        setQueueInfo({
+          running: stats.running ?? 0,
+          pending: stats.pending ?? 0,
+        });
       }
     } catch {
       // Queue status fetch failure — ignore
