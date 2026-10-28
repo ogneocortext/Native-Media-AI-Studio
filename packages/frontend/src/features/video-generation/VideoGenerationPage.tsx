@@ -37,7 +37,7 @@ import { DS } from "../../styles/designSystem";
 import { StatusBadge } from "../../components/common";
 import { Link } from "react-router-dom";
 import { useVideoModels } from "./hooks/useVideoModels";
-import { useJobProgress, useQueueStatus } from "./hooks";
+import { useQueueStatus } from "./hooks";
 import { QueueStatus } from "./components/QueueStatus";
 import { ModelSelector } from "./components/ModelSelector";
 import { AdvancedSettings } from "./components/AdvancedSettings";
@@ -144,7 +144,6 @@ export function VideoGenerationPage() {
     refetch: refetchModels,
   } = useVideoModels();
 
-  const { startProgressPolling } = useJobProgress();
   const { queueInfo } = useQueueStatus();
 
   const [prompt, setPrompt] = useState("");
@@ -253,27 +252,28 @@ export function VideoGenerationPage() {
     setGenerating(true);
     setError(null);
     try {
+      const width = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w || 832;
+      const height = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h || 480;
       const body = {
-        prompt: promptEnhance ? `[enhanced] ${prompt}` : prompt,
+        prompt, // No [enhanced] prepend — backend enriches via enrich_prompt=true
         negative_prompt: negativePrompt,
-        model: selectedModel,
-        duration,
-        vertical_first: verticalFirst,
-        scheduler,
+        steps: 25,
+        cfg_scale: 5.0,
+        seed: -1,
+        num_frames: duration * fps,
         fps,
-        resolution,
-        batch_count: batchCount,
-        width: RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w || 832,
-        height: RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h || 480,
-        enrich_prompt: promptEnhance,
-        // I2V-specific fields
+        width,
+        height,
+        ckpt_name: selectedModel,
+        model_variant: "standard",
         image_path: mode === "i2v" && uploadedImagePath ? uploadedImagePath : undefined,
         image_role: mode === "i2v" ? imageRole : undefined,
         camera_motion: cameraMotion,
         motion_strength: motionStrength,
+        enrich_prompt: promptEnhance,
       };
 
-      const res = await fetch("/api/video/generate-section", {
+      const res = await fetch("/api/integrations/comfyui/generate-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -282,9 +282,16 @@ export function VideoGenerationPage() {
       const data = await res.json();
       setResults((prev) => [
         ...prev,
-        { ...data, status: "queued", mode, created_at: Date.now() },
+        {
+          ...data,
+          status: data.output_path ? "completed" : "queued",
+          mode,
+          created_at: Date.now(),
+          job_id: data.prompt_id,
+        },
       ]);
-      startProgressPolling(data.job_id);
+      // Progress is polled via /api/integrations/comfyui/progress/{prompt_id}
+      // (adapter.generate blocks until done, so response is already final)
       setGenerating(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");

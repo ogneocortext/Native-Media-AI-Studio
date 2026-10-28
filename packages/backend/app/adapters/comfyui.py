@@ -1132,43 +1132,6 @@ class ComfyUIAdapter(BaseAdapter):
     # Image-to-Video workflow builders
     # ------------------------------------------------------------------
 
-    def _build_i2v_workflow(
-        self,
-        prompt: str,
-        negative_prompt: str,
-        steps: int,
-        cfg: float,
-        width: int,
-        height: int,
-        seed: int,
-        sampler: str,
-        num_frames: int,
-        fps: int,
-        image_path: str,
-        ckpt_name: str = "",
-        variant: str = "gguf_q4",
-        model_variant: str = "gguf_q4",
-    ) -> dict[str, Any]:
-        """
-        Dispatch to the correct I2V workflow builder based on model variant.
-
-        Wan TI2V (2.2 TI2V-5B GGUF) is the primary 8GB I2V path on this GPU.
-        Falls back to LTX I2V when the variant indicates LTX.
-        """
-        variant_lower = str(model_variant or variant).lower()
-        is_ltx = "ltx" in variant_lower or (
-            bool(ckpt_name) and classify_model_variant(ckpt_name) == "ltx_2_3"
-        )
-        if is_ltx:
-            return self._build_ltx_i2v_workflow(
-                prompt, negative_prompt, steps, cfg, width, height, seed,
-                num_frames, fps, image_path, ckpt_name=ckpt_name,
-            )
-        return self._build_wan_i2v_workflow(
-            prompt, negative_prompt, steps, cfg, width, height, seed,
-            num_frames, fps, image_path, ckpt_name=ckpt_name, variant=variant,
-        )
-
     def _build_wan_i2v_workflow(
         self,
         prompt: str,
