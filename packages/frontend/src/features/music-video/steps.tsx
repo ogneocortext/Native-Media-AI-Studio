@@ -34,15 +34,12 @@ import {
   Eye,
   FileWarning,
   CheckCircle2,
-  Calculator,
   Scissors,
   Activity,
 } from "lucide-react";
 import type { AudioAnalysis, GenerationConfig } from "./types";
 import { VISUAL_TREATMENTS } from "./types";
 import {
-  estimateRenderCost,
-  type CostEstimate,
   createCanvasLoop,
   routeScene,
   assembleBeatQuantized,
@@ -633,9 +630,6 @@ export function GenerateStep({
   onStart: () => void;
   onConfigChange: (c: GenerationConfig) => void;
 }) {
-  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
-  const [estimating, setEstimating] = useState(false);
-  const [estimateError, setEstimateError] = useState<string | null>(null);
   const [sectionRoutes, setSectionRoutes] = useState<
     Record<string, { model: string; tier: string; reason: string }>
   >({});
@@ -653,7 +647,6 @@ export function GenerateStep({
   const [stemVizError, setStemVizError] = useState<string | null>(null);
 
   const sections = analysis?.sections ?? [];
-  const duration = analysis?.duration_seconds ?? 0;
 
   // A6: route each section to its best model
   const loadRouting = async () => {
@@ -772,42 +765,6 @@ export function GenerateStep({
     }
   };
 
-  const handleEstimate = async () => {
-    if (!duration) return;
-    setEstimating(true);
-    setEstimateError(null);
-    try {
-      const width = config.verticalFirst ? 1080 : 1920;
-      const height = config.verticalFirst ? 1920 : 1080;
-      // Build per-shot manifest from analysis sections (A2 per-shot breakdown)
-      const shot_manifest = (analysis?.sections ?? []).map((s, i) => ({
-        id: `section-${i}`,
-        section: s.type,
-        duration_seconds: s.end - s.start,
-        model: s.type === "chorus" ? "wan2.2-5b" : s.type === "intro" ? "wan2.1-1.3b" : "wan2.2-5b",
-        width,
-        height,
-        fps: 24,
-        steps: config.steps,
-      }));
-      const estimate = await estimateRenderCost({
-        steps: config.steps,
-        width,
-        height,
-        fps: 24,
-        duration_seconds: duration,
-        model: "wan2.2-5b",
-        shot_manifest: shot_manifest.length > 0 ? shot_manifest : undefined,
-        default_model: "wan2.2-5b",
-      });
-      setCostEstimate(estimate);
-    } catch (err) {
-      setEstimateError(err instanceof Error ? err.message : "Failed to estimate");
-    } finally {
-      setEstimating(false);
-    }
-  };
-
   return (
     <div className="p-6 md:p-8">
       <div className="text-center max-w-2xl mx-auto">
@@ -823,110 +780,6 @@ export function GenerateStep({
             : "Each section gets its treatment. We generate sequentially (1 at a time = no 8GB OOM) with beat-synced cameras."}
         </p>
       </div>
-
-      {!costEstimate && !estimating && !generating && (
-        <div className="mt-6 max-w-xl mx-auto">
-          <button
-            onClick={handleEstimate}
-            className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl flex items-center justify-center gap-2 font-semibold border border-gray-600"
-          >
-            <Calculator size={18} /> Estimate Render Cost
-          </button>
-        </div>
-      )}
-
-      {estimating && (
-        <div className="mt-6 max-w-xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 text-violet-400 text-sm">
-            <Loader2 size={18} className="animate-spin" /> Calculating estimate…
-          </div>
-        </div>
-      )}
-
-      {estimateError && (
-        <div className="mt-4 max-w-xl mx-auto text-center text-xs text-red-400">
-          {estimateError}
-        </div>
-      )}
-
-      {costEstimate && !generating && (
-        <div className="mt-6 max-w-xl mx-auto bg-gray-900 border border-gray-700 rounded-xl p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="text-center">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Est. Time</p>
-              <p className="text-lg font-extrabold text-white">
-                {costEstimate.estimated_minutes.toFixed(1)}
-                <span className="text-xs font-normal text-gray-500"> min</span>
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Peak VRAM</p>
-              <p className="text-lg font-extrabold text-white">
-                {costEstimate.vram_peak_gb ?? costEstimate.vram_estimate_gb}
-                <span className="text-xs font-normal text-gray-500"> GB</span>
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Frames</p>
-              <p className="text-lg font-extrabold text-white">{costEstimate.total_frames}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">
-                {costEstimate.cloud_cost_usd !== null && costEstimate.cloud_cost_usd !== undefined
-                  ? "Cloud"
-                  : "Cost (local)"}
-              </p>
-              <p className="text-lg font-extrabold text-white">
-                {costEstimate.cloud_cost_usd !== null && costEstimate.cloud_cost_usd !== undefined
-                  ? `$${costEstimate.cloud_cost_usd.toFixed(2)}`
-                  : "$0.00 Free"}
-              </p>
-            </div>
-          </div>
-          {costEstimate.shots && costEstimate.shots.length > 0 && (
-            <div className="mt-3 border-t border-gray-700 pt-3">
-              <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-2">
-                Per-shot breakdown
-              </p>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {costEstimate.shots.map((shot, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 text-xs bg-gray-800/60 rounded-lg px-2.5 py-2"
-                  >
-                    <span className="text-gray-500 shrink-0">#{i + 1}</span>
-                    <span className="text-white font-medium truncate flex-1">{shot.shot_id}</span>
-                    <span className="text-gray-400 shrink-0">
-                      {shot.duration_seconds.toFixed(1)}s
-                    </span>
-                    <span className="text-gray-500 shrink-0">{shot.total_frames}f</span>
-                    <span className="text-violet-300 shrink-0">
-                      {shot.estimated_seconds.toFixed(1)}s
-                    </span>
-                    {shot.cloud_cost_usd !== undefined && shot.cloud_cost_usd !== null && (
-                      <span className="text-emerald-400 shrink-0" title="Cloud-burst estimate">
-                        ${shot.cloud_cost_usd.toFixed(3)}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-3 flex items-center justify-between text-[11px] text-gray-500">
-            <span>
-              {costEstimate.sec_per_frame.toFixed(2)}s/frame •{" "}
-              {costEstimate.estimated_seconds.toFixed(0)}s total
-            </span>
-            <button
-              onClick={() => setCostEstimate(null)}
-              className="text-violet-300 hover:text-violet-200"
-            >
-              Recalculate
-            </button>
-          </div>
-        </div>
-      )}
 
       {!generating ? (
         <>

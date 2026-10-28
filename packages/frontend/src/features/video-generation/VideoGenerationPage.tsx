@@ -6,9 +6,8 @@
  *  - Image-to-Video (I2V): prompt + uploaded start image (Wan TI2V / LTX I2V)
  *
  * Design follows Oct 2026 AI video generation UI best practices:
- *  - Sources, motion, format, duration, cost remain visible as separate decisions
+ *  - Sources, motion, format, duration remain visible as separate decisions
  *  - Progress shown as named stages (queued → uploading → planning → rendering → ready)
- *  - Credit cost shown before rendering
  *  - Input validation checklist before upload
  *  - Result gallery with variation support
  *  - Inspiration gallery in empty state
@@ -31,8 +30,6 @@ import {
   RefreshCcw,
   Sparkles,
   Grid,
-  CreditCard,
-  Clock,
   Camera,
   ArrowRight,
 } from "lucide-react";
@@ -52,7 +49,6 @@ interface VideoGenerationResult {
   image_path?: string;
   mode?: "t2v" | "i2v";
   created_at?: number;
-  estimatedCredits?: number;
 }
 
 interface ExamplePrompt {
@@ -231,23 +227,6 @@ export function VideoGenerationPage() {
     (selectedModelInfo.supports_8gb === false ||
       (selectedModelInfo.vram_mb && selectedModelInfo.vram_mb > 8000));
 
-  const estimatedSeconds = useCallback(() => {
-    // Rough estimate: LTX ~210s for 25 frames, Wan ~300-600s
-    const base = selectedModelInfo?.type?.includes("LTX") ? 210 : 400;
-    return Math.round((base / 25) * (duration * (fps / 12)));
-  }, [selectedModelInfo, duration, fps]);
-
-  // Credit cost estimate based on duration, resolution, model type
-  const estimatedCredits = useMemo(() => {
-    const w = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w || 832;
-    const h = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h || 480;
-    const megapixels = (w * h) / 1_000_000;
-    const modelMultiplier = selectedModelInfo?.type?.includes("LTX") ? 0.8 : 1.2;
-    const motionMultiplier = 1 + motionStrength / 20;
-    const baseCredits = duration * megapixels * modelMultiplier * motionMultiplier;
-    return Math.ceil(baseCredits * 10) / 10;
-  }, [duration, selectedAspect, selectedModelInfo, motionStrength]);
-
   // Map job status to named stage for progress display
   const stageForStatus = useCallback((status: string | undefined): string => {
     switch (status) {
@@ -292,7 +271,6 @@ export function VideoGenerationPage() {
         image_role: mode === "i2v" ? imageRole : undefined,
         camera_motion: cameraMotion,
         motion_strength: motionStrength,
-        estimated_credits: estimatedCredits,
       };
 
       const res = await fetch("/api/video/generate-section", {
@@ -304,7 +282,7 @@ export function VideoGenerationPage() {
       const data = await res.json();
       setResults((prev) => [
         ...prev,
-        { ...data, status: "queued", mode, created_at: Date.now(), estimatedCredits },
+        { ...data, status: "queued", mode, created_at: Date.now() },
       ]);
       startProgressPolling(data.job_id);
       setGenerating(false);
@@ -438,32 +416,6 @@ export function VideoGenerationPage() {
             <div className="mt-1 text-xs">Image → Video</div>
           </button>
         </div>
-      </div>
-
-      {/* Credit Estimator Banner */}
-      <div className={DS.card} style={{ padding: 12 }}>
-        <div className="flex items-center gap-3">
-          <CreditCard size={16} className="text-violet-400" />
-          <div className="flex-1">
-            <div className="text-xs font-semibold text-foreground mb-0.5">Estimated cost</div>
-            <div className="text-sm font-mono text-foreground">
-              {estimatedCredits} credits
-            </div>
-            <div className="text-[10px] text-muted">
-              ~{estimatedSeconds()}s render • {selectedModelInfo?.type || "unknown"} model
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs font-semibold text-foreground">Duration</div>
-            <div className="text-sm font-mono text-foreground">{duration}s</div>
-          </div>
-        </div>
-        {validationIssues.length > 0 && (
-          <div className="mt-2 flex items-center gap-1">
-            <AlertTriangle size={12} className="text-amber-400" />
-            <span className="text-xs text-amber-300">{validationIssues.join(", ")}</span>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -693,16 +645,8 @@ export function VideoGenerationPage() {
             )}
           </button>
 
-          {/* Estimated time */}
-          <div className={DS.cardWarning}>
-            <span className="text-xs text-muted">
-              <Clock size={12} className="mr-1" />
-              ⏱ Estimated: ~{estimatedSeconds()}s • Mode: {mode.toUpperCase()} • Model: {selectedModelInfo?.type || "unknown"}
-            </span>
-          </div>
+          {/* Right — Results & Queue */}
         </div>
-
-        {/* Right — Results & Queue */}
         <div className="space-y-4">
           <QueueStatus info={queueInfo} />
 
@@ -766,8 +710,8 @@ export function VideoGenerationPage() {
                   <div className="bg-violet-500 h-2 rounded-full" style={{ width: "30%" }} />
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted">
-                  <span>Estimated time remaining</span>
-                  <span>{estimatedSeconds()}s</span>
+                  <span>Time remaining</span>
+                  <span>—</span>
                 </div>
               </div>
             </div>
@@ -850,10 +794,6 @@ export function VideoGenerationPage() {
                           <span className="text-muted">Duration</span>
                           <span className="text-foreground">{duration}s</span>
                         </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted">Credits</span>
-                          <span className="font-mono">{r.estimatedCredits}</span>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -908,12 +848,6 @@ export function VideoGenerationPage() {
                   <div className="bg-surface rounded-lg p-2">
                     <div className="text-[10px] text-muted">Duration</div>
                     <div className="text-sm text-foreground">{duration}s</div>
-                  </div>
-                  <div className="bg-surface rounded-lg p-2">
-                    <div className="text-[10px] text-muted">Credits</div>
-                    <div className="text-sm font-mono text-foreground">
-                      {results.find((r) => r.job_id === selectedResult)?.estimatedCredits}
-                    </div>
                   </div>
                 </div>
                 <button

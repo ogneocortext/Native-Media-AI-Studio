@@ -76,60 +76,6 @@ export interface ExportMatrixResponse {
   message: string;
 }
 
-export interface CostEstimate {
-  estimated_seconds: number;
-  estimated_minutes: number;
-  estimated_end_time: string;
-  sec_per_frame: number;
-  total_frames: number;
-  vram_estimate_mb: number;
-  vram_estimate_gb: number;
-  cloud_cost_usd: number | null;
-  cloud_price_per_second: number | null;
-  factors: Record<string, unknown> | null;
-  // A2 per-shot breakdown
-  total_shots?: number | null;
-  total_duration_seconds?: number | null;
-  vram_peak_mb?: number | null;
-  vram_peak_gb?: number | null;
-  shots?: Array<{
-    shot_id: string;
-    model: string;
-    duration_seconds: number;
-    estimated_seconds: number;
-    estimated_minutes: number;
-    total_frames: number;
-    vram_estimate_mb: number;
-    vram_estimate_gb: number;
-    cloud_cost_usd?: number | null;
-  }>;
-}
-
-export async function estimateRenderCost(params: {
-  steps: number;
-  width: number;
-  height: number;
-  fps: number;
-  duration_seconds: number;
-  model: string;
-  cloud_price_per_second?: number | null;
-  shot_manifest?: Array<Record<string, unknown>> | null;
-  default_model?: string;
-}): Promise<CostEstimate> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/estimate-cost`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 30000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Cost estimation failed");
-  }
-  return res.json();
-}
-
 export async function buildExportMatrix(params: {
   source_path: string;
   beat_times?: number[];
