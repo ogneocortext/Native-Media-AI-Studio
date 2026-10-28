@@ -84,10 +84,6 @@ export interface CostEstimate {
   total_frames: number;
   vram_estimate_mb: number;
   vram_estimate_gb: number;
-  // Local-compute estimate ($0.01/min by default from cloud_pricing.json
-  // defaults.local_compute_cost_per_second) -- always present for local runs.
-  local_cost_usd: number | null;
-  local_price_per_second: number | null;
   cloud_cost_usd: number | null;
   cloud_price_per_second: number | null;
   factors: Record<string, unknown> | null;
@@ -105,7 +101,6 @@ export interface CostEstimate {
     total_frames: number;
     vram_estimate_mb: number;
     vram_estimate_gb: number;
-    local_cost_usd?: number | null;
     cloud_cost_usd?: number | null;
   }>;
 }

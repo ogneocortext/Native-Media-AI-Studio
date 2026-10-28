@@ -134,15 +134,10 @@ def estimate_render_cost(
     pixel_count = width * height
     vram_mb = int((pixel_count * 4 * 3) / (1024 * 1024) + 1500 + 500)
 
-    local_rate = _local_price_per_second()
-    local_cost = time_est["estimated_seconds"] * local_rate
-
     result: dict[str, Any] = {
         **time_est,
         "vram_estimate_mb": vram_mb,
         "vram_estimate_gb": round(vram_mb / 1024, 1),
-        "local_price_per_second": local_rate,
-        "local_cost_usd": round(local_cost, 4),
     }
 
     if cloud_price_per_second is not None:
@@ -174,33 +169,11 @@ def load_cloud_pricing() -> dict[str, Any]:
         _CLOUD_PRICING = json.loads(raw)
     except FileNotFoundError:
         logger.warning("cloud_pricing.json not found at %s -- cloud costs will be unavailable", pricing_path)
-        _CLOUD_PRICING = {
-            "models": {},
-            "defaults": {"currency": "USD", "unit": "per_second", "local_compute_cost_per_second": 0.0001},
-        }
+        _CLOUD_PRICING = {"models": {}, "defaults": {"currency": "USD", "unit": "per_second"}}
     except json.JSONDecodeError as exc:
         logger.error("Failed to parse cloud_pricing.json: %s", exc)
-        _CLOUD_PRICING = {
-            "models": {},
-            "defaults": {"currency": "USD", "unit": "per_second", "local_compute_cost_per_second": 0.0001},
-        }
+        _CLOUD_PRICING = {"models": {}, "defaults": {"currency": "USD", "unit": "per_second"}}
     return _CLOUD_PRICING
-
-
-def _local_price_per_second() -> float:
-    """Local-compute $/sec from pricing config defaults ($0.01/min by default).
-
-    This is what a local-only run is actually billed in GPU electricity +
-    depreciation terms. Read from ``config/cloud_pricing.json`` so the owner
-    can re-rate it without a code change; never silently substituted for a
-    cloud price.
-    """
-    pricing = load_cloud_pricing()
-    try:
-        rate = float(pricing.get("defaults", {}).get("local_compute_cost_per_second", 0.0001))
-    except (TypeError, ValueError):
-        rate = 0.0001
-    return max(rate, 0.0)
 
 
 def _resolve_cloud_price(
@@ -282,7 +255,6 @@ def estimate_cost_from_manifest(
     total_seconds = 0.0
     total_frames = 0
     total_cloud_cost = 0.0
-    total_local_cost = 0.0
     max_vram_mb = 0
     any_cloud = False
 
@@ -299,7 +271,6 @@ def estimate_cost_from_manifest(
         shot_estimates.append(est)
         total_seconds += est.get("duration_seconds", 0.0)
         total_frames += est.get("total_frames", 0)
-        total_local_cost += est.get("local_cost_usd", 0.0)
         if "cloud_cost_usd" in est:
             total_cloud_cost += est["cloud_cost_usd"]
             any_cloud = True
@@ -316,6 +287,5 @@ def estimate_cost_from_manifest(
         "vram_peak_mb": max_vram_mb,
         "vram_peak_gb": round(max_vram_mb / 1024, 1),
         "cloud_cost_usd": round(total_cloud_cost, 4) if any_cloud else None,
-        "local_cost_usd": round(total_local_cost, 4),
         "shots": shot_estimates,
     }

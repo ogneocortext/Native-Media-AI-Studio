@@ -215,10 +215,10 @@ class EstimateCostRequest(BaseModel):
 class EstimateCostResponse(BaseModel):
     """Response model for render cost estimation.
 
-    ``local_cost_usd`` is always populated (local-compute rate from
-    ``config/cloud_pricing.json`` defaults, $0.01/min). ``cloud_cost_usd`` is
-    only populated when an explicit ``cloud_price_per_second`` was requested --
-    cloud pricing is opt-in per request (D9), never assumed for a local run.
+    Local runs cost nothing -- ``cloud_cost_usd`` is only populated when an
+    explicit ``cloud_price_per_second`` was requested (cloud pricing is
+    opt-in per request, D9). For a local-only estimate the cost fields are
+    absent (frontend shows "Free").
     """
     estimated_seconds: float
     estimated_minutes: float
@@ -227,8 +227,6 @@ class EstimateCostResponse(BaseModel):
     total_frames: int
     vram_estimate_mb: int
     vram_estimate_gb: float
-    local_cost_usd: float | None = None
-    local_price_per_second: float | None = None
     cloud_cost_usd: float | None = None
     cloud_price_per_second: float | None = None
     # Per-shot breakdown fields
@@ -376,8 +374,6 @@ async def estimate_cost(request: EstimateCostRequest) -> EstimateCostResponse:
             )
             return EstimateCostResponse(
                 **agg,
-                local_cost_usd=breakdown["local_cost_usd"],
-                local_price_per_second=agg["local_price_per_second"],
                 total_shots=breakdown["total_shots"],
                 total_duration_seconds=breakdown["total_duration_seconds"],
                 vram_peak_mb=breakdown["vram_peak_mb"],
