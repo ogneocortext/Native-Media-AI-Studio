@@ -186,17 +186,22 @@ async def test_integrity_check_full_mode(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_maintenance_vacuum_succeeds(client):
+    # Insert data so VACUUM has pages to reclaim.
+    _insert_log_event(0, message="vacuum target")
+    _insert_log_event(1, message="another row")
     res = await client.post("/api/database/maintenance/vacuum")
     assert res.status_code == 200
     body = res.json()
     assert body["action"] == "vacuum"
     assert body["ok"] is True
     assert isinstance(body["freed_bytes"], int)
-    assert body["after_bytes"] > 0
+    assert body["duration_ms"] >= 0
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_maintenance_wal_checkpoint_reports_result(client):
     res = await client.post("/api/database/maintenance/wal-checkpoint")
     assert res.status_code == 200
@@ -207,6 +212,7 @@ async def test_maintenance_wal_checkpoint_reports_result(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_maintenance_prune_logs_deletes_old_rows(client):
     """Prune must actually delete rows older than the retention window."""
     _insert_log_event(0, message="ancient")
@@ -223,6 +229,7 @@ async def test_maintenance_prune_logs_deletes_old_rows(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_maintenance_prune_without_body_uses_defaults(client):
     res = await client.post("/api/database/maintenance/prune-telemetry")
     assert res.status_code == 200

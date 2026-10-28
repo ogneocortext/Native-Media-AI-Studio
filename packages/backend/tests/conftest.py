@@ -100,6 +100,11 @@ def pytest_report_header(config: pytest.Config) -> str:
 def temp_db(tmp_path, monkeypatch):
     """Point the database at a throwaway file for the test duration.
 
+    Kept function-scoped so each test gets an isolated database — a
+    session-scoped fixture would let tests leak state into each other
+    (e.g. ``test_safe_vacuum_reclaims_pages`` sees tables dropped by
+    earlier VACUUM tests).
+
     Usage::
 
         def test_something(temp_db):

@@ -8,6 +8,9 @@ version = "1.8.0"
 description = "Native Media AI Studio FastAPI backend"
 requires-python = ">=3.10"
 readme = "README.md"
+dependencies = [
+    "pytest-timeout>=2.3.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
