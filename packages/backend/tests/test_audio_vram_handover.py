@@ -36,6 +36,15 @@ def _manager(free_mb, ollama_loaded=True, can_offload=True):
     m._comfyui_busy = False
     m._can_safely_offload = lambda: can_offload
 
+    # Stub resident-state reconciliation: these tests drive _ollama_loaded
+    # directly and must not talk to a real Ollama /api/ps (see the module
+    # docstring). sync_resident_state would otherwise hit the network and
+    # overwrite the flags these tests set up.
+    async def _no_sync_resident_state():
+        return None
+
+    m.sync_resident_state = _no_sync_resident_state
+
     free = {"value": free_mb}
 
     async def status():

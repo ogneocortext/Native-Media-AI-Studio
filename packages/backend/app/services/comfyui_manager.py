@@ -262,24 +262,22 @@ class ComfyUIManager:
                     "available": False,
                     "error": str(e),
                 }
-            result = await asyncio.create_subprocess_exec(
-                python_exe,
-                "-c",
-                "import torch; print('cuda_available:', torch.cuda.is_available()); print('device_count:', torch.cuda.device_count())",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            result = await _run_subprocess(
+                [
+                    python_exe,
+                    "-c",
+                    "import torch; print('cuda_available:', torch.cuda.is_available()); print('device_count:', torch.cuda.device_count())",
+                ],
+                capture_output=True,
             )
-            stdout, stderr = await result.communicate()
-            output = stdout.decode("utf-8", errors="replace").strip()
+            stdout = result.stdout.decode("utf-8", errors="replace").strip() if isinstance(result.stdout, bytes) else (result.stdout or "").strip()
+            output = stdout
 
             if "cuda_available: True" in output:
                 return {"available": True}
             else:
-                error_msg = stderr.decode("utf-8", errors="replace").strip()[-200:]
-                # Never return a bare detail: an empty stdout+stderr with no
-                # exception means the probe produced nothing (observed once
-                # with a stale backend whose child stdio was broken) -- say so
-                # with the return code instead of silence.
+                # stderr not captured separately by _run_subprocess; use
+                # returncode + stdout for diagnostics instead.
                 detail = (
                     f"torch={output or '<no stdout>'} "
                     f"rc={result.returncode} exe={python_exe}"
@@ -287,7 +285,7 @@ class ComfyUIManager:
                 logger.warning("ComfyUI CUDA check failed: %s", detail)
                 return {
                     "available": False,
-                    "error": error_msg or "PyTorch CUDA not available",
+                    "error": "PyTorch CUDA not available",
                     "detail": detail,
                 }
         except Exception as e:

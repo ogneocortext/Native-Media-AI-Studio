@@ -1,38 +1,12 @@
 {
   "backend_host": "127.0.0.1",
+  "comfyui_output_dir": null,
   "max_queue_workers": 1,
   "output_dir": "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\output",
   "log_level": "INFO",
   "default_model": "gemma4:e2b-it-qat",
   "vision_model": "gemma4:e2b-it-qat",
-  "vision_backend": "auto",
   "embedding_model": "nomic-embed-text:v1.5",
-  "_ollama_notes": {
-    "default_model": "gemma4:e2b-it-qat is the 8GB-VRAM-safe quant; gemma4 native multimodal is also available for higher-VRAM systems",
-    "recommended_models": [
-      "gemma4:e2b-it-qat (8GB VRAM, vision)",
-      "gemma4 (native multimodal, needs >8GB)",
-      "qwen3.5:4b (text, tool use, reasoning)",
-      "ibm/granite4.2:3b (lightweight text, no thinking)"
-    ],
-    "api_version": "0.40.10",
-    "features": [
-      "/api/chat is the recommended endpoint for multimodal",
-      "think parameter supports extended reasoning (0.21.3+)",
-      "format=json_schema enables structured output (0.33+)",
-      "keep_alive caches model metadata for ~50% faster TTFT",
-      "/api/show advertises per-model thinking controls and capabilities (0.34.3+)",
-      "/api/tags entries carry capabilities and details.runner (0.34.1+/0.40.0)",
-      "structured outputs on thinking models apply in a single pass (0.34.4+)",
-      "typical_p is deprecated - do not send it (0.34.1+, warning since 0.35.0)",
-      "Windows: ollama 0.40.6 prevents orphaned runners after server crash (win fix)",
-      "gguf: q2_0 tensor and file types now supported (0.40.6+)",
-      "/api/show exposes renderer, parser, and template_source fields per model (0.40.7+)",
-      "Responses API: thinking/no-thinking model switches no longer fail mid-conversation (0.40.7+)",
-      "Flint coding model supported on Windows (0.40.9); Recursive MoE, 262K context",
-      "d3 decision models (classify/yes-no/score) via /v1/systemone (0.40.9)",
-      "Nemotron 3.5 Bolt E4B: Gemma 4-based vision-language model, 128K context, DFlash speculative decoding (0.40.10)"
-    ],
-    "platform_note": "The 0.40.0 headline (MLX default on Apple Silicon) does not apply to this Windows/llama.cpp build - local models report runner=ggml. Windows orphaned-runner fix landed in 0.40.6."
-  }
+  "default_workflow": "default",
+  "output_node_id": "9"
 }

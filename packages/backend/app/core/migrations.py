@@ -9,12 +9,19 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import time
 from pathlib import Path
 
 from .connection import DB_PATH, SCHEMA_VERSION, close_pooled_connections, get_db
 from .logs import cleanup_old_log_events
 
 logger = logging.getLogger(__name__)
+
+# Retry configuration for "database is locked" errors during init.
+# SQLite's busy_timeout covers most contention, but startup races between
+# multiple backend processes or threads can still produce locked errors.
+INIT_DB_MAX_RETRIES = 5
+INIT_DB_BASE_DELAY = 0.5  # seconds, doubles each retry
 
 
 def _migrate_v1(conn: sqlite3.Connection):
@@ -534,84 +541,106 @@ def init_db(db_path: Path | None = None):
     """
     target = db_path or DB_PATH
 
-    # A pooled connection may already be open against this path with the
-    # pre-migration schema. Drop it so the first query after init_db sees the
-    # new schema rather than whatever the pooled connection cached.
-    try:
-        close_pooled_connections()
-    except Exception:  # pragma: no cover - defensive
-        pass
+    for attempt in range(INIT_DB_MAX_RETRIES):
+        try:
+            # A pooled connection may already be open against this path with the
+            # pre-migration schema. Drop it so the first query after init_db sees the
+            # new schema rather than whatever the pooled connection cached.
+            try:
+                close_pooled_connections()
+            except Exception:  # pragma: no cover - defensive
+                pass
 
-    current_db_path = str(target)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with sqlite3.connect(current_db_path, timeout=10.0) as setup:
-            mode = setup.execute("PRAGMA journal_mode=WAL").fetchone()[0]
-            if str(mode).lower() != "wal":
-                # A reader can hold the file in its current mode momentarily.
-                logger.warning("journal_mode is %s, expected WAL", mode)
-    except sqlite3.Error as exc:
-        logger.warning("Could not set WAL mode: %s", exc)
+            current_db_path = str(target)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                with sqlite3.connect(current_db_path, timeout=10.0) as setup:
+                    mode = setup.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+                    if str(mode).lower() != "wal":
+                        # A reader can hold the file in its current mode momentarily.
+                        logger.warning("journal_mode is %s, expected WAL", mode)
+            except sqlite3.Error as exc:
+                logger.warning("Could not set WAL mode: %s", exc)
 
-    with get_db() as conn:
-        current_version = get_schema_version(conn)
+            with get_db() as conn:
+                current_version = get_schema_version(conn)
 
-        if current_version < 1:
-            _migrate_v1(conn)
-        if current_version < 2:
-            _migrate_v2(conn)
-        if current_version < 3:
-            _migrate_v3(conn)
-        if current_version < 4:
-            _migrate_v4(conn)
-        if current_version < 5:
-            _migrate_v5(conn)
-        if current_version < 6:
-            _migrate_v6(conn)
-        if current_version < 7:
-            _migrate_v7(conn)
-        if current_version < 8:
-            _migrate_v8(conn)
-        if current_version < 9:
-            _migrate_v9(conn)
-        if current_version < 10:
-            _migrate_v10(conn)
-        if current_version < 11:
-            _migrate_v11(conn)
-        if current_version < 12:
-            _migrate_v12(conn)
-        if current_version < 13:
-            _migrate_v13(conn)
-        if current_version < 14:
-            _migrate_v14(conn)
-        if current_version < 15:
-            _migrate_v15(conn)
-        if current_version < 16:
-            _migrate_v16(conn)
-        if current_version < 17:
-            _migrate_v17(conn)
-        if current_version < 18:
-            _migrate_v18(conn)
-        if current_version < 19:
-            _migrate_v19(conn)
-        if current_version < 20:
-            _migrate_v20(conn)
+                if current_version < 1:
+                    _migrate_v1(conn)
+                if current_version < 2:
+                    _migrate_v2(conn)
+                if current_version < 3:
+                    _migrate_v3(conn)
+                if current_version < 4:
+                    _migrate_v4(conn)
+                if current_version < 5:
+                    _migrate_v5(conn)
+                if current_version < 6:
+                    _migrate_v6(conn)
+                if current_version < 7:
+                    _migrate_v7(conn)
+                if current_version < 8:
+                    _migrate_v8(conn)
+                if current_version < 9:
+                    _migrate_v9(conn)
+                if current_version < 10:
+                    _migrate_v10(conn)
+                if current_version < 11:
+                    _migrate_v11(conn)
+                if current_version < 12:
+                    _migrate_v12(conn)
+                if current_version < 13:
+                    _migrate_v13(conn)
+                if current_version < 14:
+                    _migrate_v14(conn)
+                if current_version < 15:
+                    _migrate_v15(conn)
+                if current_version < 16:
+                    _migrate_v16(conn)
+                if current_version < 17:
+                    _migrate_v17(conn)
+                if current_version < 18:
+                    _migrate_v18(conn)
+                if current_version < 19:
+                    _migrate_v19(conn)
+                if current_version < 20:
+                    _migrate_v20(conn)
 
-        set_schema_version(conn, SCHEMA_VERSION)
-        logger.info("Database initialized at version %d", SCHEMA_VERSION)
+                set_schema_version(conn, SCHEMA_VERSION)
+                logger.info("Database initialized at version %d", SCHEMA_VERSION)
 
-        # Ensure performance indexes exist on hot telemetry tables (idempotent).
-        conn.executescript("""
-            CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_name
-                ON gpu_telemetry(gpu_name);
-            CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_ts_name
-                ON gpu_telemetry(ts_ms, gpu_name);
-            CREATE INDEX IF NOT EXISTS idx_user_preferences_category
-                ON user_preferences(category);
-            CREATE INDEX IF NOT EXISTS idx_visualization_presets_track_name
-                ON visualization_presets(track_name);
-        """)
+                # Ensure performance indexes exist on hot telemetry tables (idempotent).
+                conn.executescript("""
+                    CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_name
+                        ON gpu_telemetry(gpu_name);
+                    CREATE INDEX IF NOT EXISTS idx_gpu_telemetry_ts_name
+                        ON gpu_telemetry(ts_ms, gpu_name);
+                    CREATE INDEX IF NOT EXISTS idx_user_preferences_category
+                        ON user_preferences(category);
+                    CREATE INDEX IF NOT EXISTS idx_visualization_presets_track_name
+                        ON visualization_presets(track_name);
+                """)
 
-        # Prune stale log analytics rows on startup so the store stays lean.
-        # Reuse the same connection to avoid nested SQLite writer locks.
-        cleanup_old_log_events(keep_days=30, conn=conn)
+                # Prune stale log analytics rows on startup so the store stays lean.
+                # Reuse the same connection to avoid nested SQLite writer locks.
+                cleanup_old_log_events(keep_days=30, conn=conn)
+
+            # Success - exit retry loop
+            return
+
+        except sqlite3.OperationalError as exc:
+            if "database is locked" not in str(exc).lower():
+                raise
+            if attempt < INIT_DB_MAX_RETRIES - 1:
+                delay = INIT_DB_BASE_DELAY * (2 ** attempt)
+                logger.warning(
+                    "Database locked on init attempt %d/%d, retrying in %.1fs: %s",
+                    attempt + 1, INIT_DB_MAX_RETRIES, delay, exc,
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    "Database initialization failed after %d attempts: %s",
+                    INIT_DB_MAX_RETRIES, exc,
+                )
+                raise

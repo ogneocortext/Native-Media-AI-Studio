@@ -17,6 +17,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 PREVIEW_DIR = PROJECT_ROOT / "output" / "previews"
 PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
+logger = logging.getLogger(__name__)
+
 # Fallback preset -> FFmpeg visualization style. Kept at module scope so the
 # mapping is declared once rather than rebuilt on every degraded render.
 _FALLBACK_STYLE_MAP: dict[str, str] = {
@@ -82,9 +84,7 @@ class MusicVideoHandler:
 
     async def process_job(self, job: Job) -> dict[str, Any]:
         """Process a music video generation job."""
-        import logging
         import traceback as tb_module
-        logger = logging.getLogger(__name__)
         try:
             return await self._process_job_inner(job)
         except Exception as e:
@@ -93,8 +93,6 @@ class MusicVideoHandler:
 
     async def _process_job_inner(self, job: Job) -> dict[str, Any]:
         """Inner implementation of job processing."""
-        import logging
-        logger = logging.getLogger(__name__)
 
         params = job.params
         # Check if this is a preview job (handle both string and enum comparison)
@@ -308,7 +306,6 @@ class MusicVideoHandler:
             "visual_source_used": method,
             "fallback_reason": None,
         }
-        logger = logging.getLogger(__name__)
 
         if method in ("comfyui", "comfyui_wan_gguf"):
             try:
@@ -487,8 +484,7 @@ class MusicVideoHandler:
                 await self._update_progress(job, 0.9, "FFmpeg finished (thread fallback)")
                 if returncode != 0:
                     tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
-                    import logging as _logging2
-                    _logging2.getLogger(__name__).error("FFmpeg full stderr (thread fallback):\n%s", stderr_text)
+                    logger.error("FFmpeg full stderr (thread fallback):\n%s", stderr_text)
                     raise RuntimeError(f"FFmpeg failed: {tail}") from _ne
                 # Ensure output exists
                 if not Path(output_path).exists():
@@ -576,9 +572,7 @@ class MusicVideoHandler:
             stderr_text = "".join(stderr_chunks)
             if process.returncode != 0:
                 tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
-                import logging as _logging
-
-                _logging.getLogger(__name__).error("FFmpeg full stderr:\n%s", stderr_text)
+                logger.error("FFmpeg full stderr:\n%s", stderr_text)
                 raise RuntimeError(f"FFmpeg failed: {tail}")
         except asyncio.TimeoutError:
             raise

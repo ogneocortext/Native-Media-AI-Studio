@@ -154,10 +154,10 @@ async def test_ltx_video_route_builds_ltx_workflow(
 
 
 @pytest.mark.asyncio
-async def test_ltx_resolution_clamped_to_768x512(
+async def test_ltx_resolution_clamped_to_896x512(
     adapter: ComfyUIAdapter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """LTX enforces the 768x512 max-resolution 8GB envelope."""
+    """LTX enforces the 896x512 max-resolution 8GB envelope (16-aligned)."""
     _stub_network(adapter, monkeypatch)
 
     result = await adapter._generate_video(
@@ -171,7 +171,7 @@ async def test_ltx_resolution_clamped_to_768x512(
         }
     )
 
-    # Clamped to 768x512 (16-aligned, aspect preserved).
+    # Clamped to 896x512 (16-aligned, aspect preserved).
     workflow = result["workflow"]
     dim_nodes = [
         node for node in workflow["prompt"].values()
@@ -182,7 +182,7 @@ async def test_ltx_resolution_clamped_to_768x512(
     assert dim_nodes, "No dimension-carrying nodes found"
     for node in dim_nodes:
         inputs = node["inputs"]
-        assert inputs["width"] <= 768, f"width {inputs['width']} exceeds 768"
+        assert inputs["width"] <= 896, f"width {inputs['width']} exceeds 896"
         assert inputs["height"] <= 512, f"height {inputs['height']} exceeds 512"
 
 

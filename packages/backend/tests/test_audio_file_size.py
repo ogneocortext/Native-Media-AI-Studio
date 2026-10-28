@@ -29,11 +29,15 @@ def _database_module():
 def _with_temp_db(tmp_path, monkeypatch):
     """Point the database module at a throwaway file and create the schema."""
     database = _database_module()
+    from app.core import connection
+
     db_file = tmp_path / "test.db"
-    # DB_PATH is a Path (get_connection does DB_PATH.parent.mkdir), so patch in
-    # a Path rather than a string.
-    monkeypatch.setattr(database, "DB_PATH", db_file, raising=False)
-    database.init_db()
+    # `connection.DB_PATH` is the single canonical path: `init_db` resolves it
+    # and `get_db()`/`update_audio_analysis` read it via `get_connection()`.
+    # Patch that one global so schema creation and the analysis write hit the
+    # same throwaway file, then pass the path explicitly to init_db (D50).
+    monkeypatch.setattr(connection, "DB_PATH", db_file, raising=False)
+    database.init_db(db_path=db_file)
     return database, db_file
 
 
