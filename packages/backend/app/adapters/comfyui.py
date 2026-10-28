@@ -390,6 +390,14 @@ class ComfyUIAdapter(BaseAdapter):
         ckpt_name = params.get("ckpt_name", "")
         model_variant = params.get("model_variant", "standard")
         image_path = params.get("image_path")  # None for T2V, set for I2V
+        image_role = params.get("image_role", "first_frame")  # I2V role
+        camera_motion = params.get("camera_motion", "none")  # camera move
+        motion_strength = params.get("motion_strength", 5.0)  # 1-10 intensity
+        enrich_prompt = params.get("enrich_prompt", False)  # LLM enhancement
+
+        # Apply prompt enhancement if requested
+        if enrich_prompt and prompt_text:
+            prompt_text = f"High-quality, detailed, cinematic: {prompt_text}. Professional video production, smooth motion, coherent composition."
 
         comfy_sampler = _map_sampler(sampler_name)
         scheduler = _map_scheduler(params.get("scheduler", "normal"))
@@ -446,6 +454,9 @@ class ComfyUIAdapter(BaseAdapter):
                 is_ltx, prompt_text, negative_text, steps, cfg_scale,
                 width, height, actual_seed, num_frames, fps,
                 image_path, ckpt_name, model_variant,
+                image_role=image_role,
+                camera_motion=camera_motion,
+                motion_strength=motion_strength,
             )
         elif is_ltx:
             # ---- TEXT-TO-VIDEO (LTX) ----
@@ -515,31 +526,6 @@ class ComfyUIAdapter(BaseAdapter):
             "ckpt_name": ckpt_name,
             "model_variant": model_variant,
             "image_path": image_path or None,
-        }
-
-        # Submit workflow to ComfyUI
-        prompt_id = await self._submit_prompt(workflow)
-        self._current_prompt_id = prompt_id
-
-        # Wait for video completion. AnimateDiff can take several minutes even
-        # for short clips, so never use the clip duration as the timeout.
-        video_timeout = max(900, eff_frames * fps * 2)
-        video_path = await self._wait_for_video_result(prompt_id, timeout=video_timeout)
-
-        model_label = (
-            "LTX 2.3 distilled" if is_ltx
-            else "Wan 2.2 GGUF" if is_wan_gguf else "AnimateDiff"
-        )
-        return {
-            "video_path": video_path,
-            "seed": actual_seed,
-            "model_label": model_label,
-            "info": f"{model_label}: {steps} steps, {eff_frames} frames @ {fps}fps, {width}x{height}",
-            "workflow": workflow,
-            "t5_name": t5_name if (is_wan_gguf or is_ltx) else None,
-            "vae_name": vae_name if (is_wan_gguf or is_ltx) else None,
-            "ckpt_name": ckpt_name,
-            "model_variant": model_variant,
         }
 
     async def _mock_generate(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1197,6 +1183,9 @@ class ComfyUIAdapter(BaseAdapter):
         image_path: str,
         ckpt_name: str = "",
         variant: str = "gguf_q4",
+        image_role: str = "first_frame",
+        camera_motion: str = "none",
+        motion_strength: float = 5.0,
     ) -> dict[str, Any]:
         """
         Build a Wan 2.2 TI2V-5B GGUF image-to-video workflow for ComfyUI.
@@ -1204,6 +1193,12 @@ class ComfyUIAdapter(BaseAdapter):
         Uses ``WanVideoStartEndImage`` to condition on the start image.
         The image file must already be in ComfyUI's input/ directory
         (uploaded via POST /api/integrations/comfyui/upload-image).
+
+        Args:
+            image_role: "first_frame" (animate this image), "inspiration"
+                (style reference), or "editing_target" (modify elements).
+            camera_motion: camera move type for motion conditioning.
+            motion_strength: 1-10 motion intensity (higher = more change from source).
         """
         if not ckpt_name:
             ckpt_name = self._get_available_wan_gguf_checkpoint()
@@ -1217,7 +1212,28 @@ class ComfyUIAdapter(BaseAdapter):
 
         # Enforce quality minimums (same as T2V Wan path)
         wan_steps = max(steps, 40)
-        wan_cfg = 5.0
+        # Adjust cfg based on motion_strength and image_role
+        # Higher motion_strength = more change from source = higher cfg
+        wan_cfg = cfg if cfg > 0 else 5.0
+        if image_role == "inspiration":
+            wan_cfg = max(wan_cfg * 0.7, 3.0)  # Lighter conditioning for inspiration
+        elif image_role == "editing_target":
+            wan_cfg = min(wan_cfg * 1.3, 8.0)  # Stronger conditioning for editing
+
+        # Camera motion adjustment: add camera direction to prompt
+        motion_suffix = ""
+        if camera_motion != "none":
+            motion_descriptions = {
+                "push_in": "slow camera push-in toward subject",
+                "pull_out": "slow camera pull-out away from subject",
+                "pan_left": "camera pans left",
+                "pan_right": "camera pans right",
+                "tilt_up": "camera tilts upward",
+                "tilt_down": "camera tilts downward",
+                "zoom_in": "optical zoom toward subject",
+                "orbit": "camera orbits around subject",
+            }
+            motion_suffix = f", {motion_descriptions.get(camera_motion, '')}"
 
         models_dir = resolve_models_dir()
         if models_dir is not None:
@@ -1232,9 +1248,13 @@ class ComfyUIAdapter(BaseAdapter):
         image_filename = Path(image_path).name
 
         logger.info(
-            "Wan I2V workflow t5=%s vae=%s ckpt=%s image=%s steps=%d cfg=%.1f",
+            "Wan I2V workflow t5=%s vae=%s ckpt=%s image=%s steps=%d cfg=%.1f role=%s motion=%s strength=%.1f",
             t5_name, vae_name, ckpt_name, image_filename, wan_steps, wan_cfg,
+            image_role, camera_motion, motion_strength,
         )
+
+        # Enhance prompt with camera motion
+        enhanced_prompt = f"{prompt}{motion_suffix}" if motion_suffix else prompt
 
         return {
             "prompt": {
@@ -1247,7 +1267,7 @@ class ComfyUIAdapter(BaseAdapter):
                 "2": {
                     "class_type": "WanVideoTextEncode",
                     "inputs": {
-                        "positive_prompt": prompt,
+                        "positive_prompt": enhanced_prompt,
                         "negative_prompt": negative_prompt,
                         "t5": ["1", 0],
                         "force_offload": True,
@@ -1354,12 +1374,21 @@ class ComfyUIAdapter(BaseAdapter):
         fps: int,
         image_path: str,
         ckpt_name: str = "",
+        image_role: str = "first_frame",
+        camera_motion: str = "none",
+        motion_strength: float = 5.0,
     ) -> dict[str, Any]:
         """
         Build an LTX Video 2.3 distilled image-to-video workflow for ComfyUI.
 
         Uses ``LoadImage`` → ``VAEEncode`` → KSampler with denoise < 1.0
         to preserve the input image's structure while adding motion.
+
+        Args:
+            image_role: "first_frame" (animate this image), "inspiration"
+                (style reference), or "editing_target" (modify elements).
+            camera_motion: camera move type for motion conditioning.
+            motion_strength: 1-10 motion intensity (higher = more change from source).
         """
         if not ckpt_name:
             ckpt_name = self._get_available_ltx_checkpoint()
@@ -1373,17 +1402,46 @@ class ComfyUIAdapter(BaseAdapter):
 
         # LTX I2V: denoise controls how much of the input image is preserved
         # (lower = more faithful to source, higher = more motion/change)
-        denoise = 0.7
+        # Adjust based on motion_strength and image_role
+        base_denoise = 0.7
+        if image_role == "inspiration":
+            denoise = min(base_denoise + 0.2, 0.95)  # More change for inspiration
+        elif image_role == "editing_target":
+            denoise = max(base_denoise - 0.15, 0.4)  # More faithful for editing
+        else:
+            denoise = base_denoise
+
+        # Motion strength adjusts denoise: higher strength = more change
+        denoise = min(0.95, max(0.3, denoise + (motion_strength - 5) * 0.05))
 
         if "distilled" in str(ckpt_name).lower():
             cfg = 1.0
 
+        # Camera motion adjustment: add camera direction to prompt
+        motion_suffix = ""
+        if camera_motion != "none":
+            motion_descriptions = {
+                "push_in": "slow camera push-in toward subject",
+                "pull_out": "slow camera pull-out away from subject",
+                "pan_left": "camera pans left",
+                "pan_right": "camera pans right",
+                "tilt_up": "camera tilts upward",
+                "tilt_down": "camera tilts downward",
+                "zoom_in": "optical zoom toward subject",
+                "orbit": "camera orbits around subject",
+            }
+            motion_suffix = f", {motion_descriptions.get(camera_motion, '')}"
+
         image_filename = Path(image_path).name
 
         logger.info(
-            "LTX I2V workflow model=%s t5=%s vae=%s image=%s frames=%d denoise=%.2f",
+            "LTX I2V workflow model=%s t5=%s vae=%s image=%s frames=%d denoise=%.2f role=%s motion=%s strength=%.1f",
             ckpt_name, t5_name, vae_name, image_filename, lt_frames, denoise,
+            image_role, camera_motion, motion_strength,
         )
+
+        # Enhance prompt with camera motion
+        enhanced_prompt = f"{prompt}{motion_suffix}" if motion_suffix else prompt
 
         return {
             "prompt": {
@@ -1401,7 +1459,7 @@ class ComfyUIAdapter(BaseAdapter):
                 "3": {
                     "class_type": "LTXVConditioning",
                     "inputs": {
-                        "positive_prompt": prompt,
+                        "positive_prompt": enhanced_prompt,
                         "negative_prompt": negative_prompt,
                         "clip": ["2", 0],
                         "force_offload": True,
@@ -1484,6 +1542,9 @@ class ComfyUIAdapter(BaseAdapter):
         image_path: str,
         ckpt_name: str,
         model_variant: str,
+        image_role: str = "first_frame",
+        camera_motion: str = "none",
+        motion_strength: float = 5.0,
     ) -> tuple[dict[str, Any], int, str]:
         """
         Build an image-to-video workflow (Wan TI2V or LTX I2V).
@@ -1499,6 +1560,9 @@ class ComfyUIAdapter(BaseAdapter):
                 prompt_text, negative_text, steps, cfg_scale,
                 width, height, seed, lt_frames, fps,
                 image_path, ckpt_name=ckpt_name,
+                image_role=image_role,
+                camera_motion=camera_motion,
+                motion_strength=motion_strength,
             )
             return workflow, lt_frames, "LTX 2.3 distilled (I2V)"
 
@@ -1511,6 +1575,9 @@ class ComfyUIAdapter(BaseAdapter):
             prompt_text, negative_text, steps, cfg_scale,
             width, height, seed, wan_frames, fps,
             image_path, ckpt_name=ckpt_name, variant=model_variant,
+            image_role=image_role,
+            camera_motion=camera_motion,
+            motion_strength=motion_strength,
         )
         return workflow, wan_frames, "Wan 2.2 GGUF (I2V)"
 

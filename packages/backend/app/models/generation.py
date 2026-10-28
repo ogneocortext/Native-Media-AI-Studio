@@ -155,6 +155,10 @@ class VideoGenerationRequest(BaseModel):
     model_variant: VideoModelVariant = VideoModelVariant.STANDARD
     ckpt_name: str = ""  # explicit checkpoint override for Wan/other pipelines
     image_path: str | None = None  # image-to-video: path to input image (uploaded via /api/integrations/comfyui/upload-image)
+    image_role: str | None = None  # I2V role: "first_frame", "inspiration", or "editing_target"
+    camera_motion: str = "none"  # camera move: "none", "push_in", "pull_out", "pan_left", "pan_right", "tilt_up", "tilt_down", "zoom_in", "orbit"
+    motion_strength: float = 5.0  # 1-10 motion intensity for I2V
+    enrich_prompt: bool = False  # LLM prompt enhancement
 
     @field_validator("steps")
     @classmethod
@@ -210,4 +214,10 @@ class VideoGenerationRequest(BaseModel):
         }
         if self.image_path:
             params["image_path"] = self.image_path
+        if self.image_role:
+            params["image_role"] = self.image_role
+        if self.camera_motion:
+            params["camera_motion"] = self.camera_motion
+        params["motion_strength"] = self.motion_strength
+        params["enrich_prompt"] = self.enrich_prompt
         return params
