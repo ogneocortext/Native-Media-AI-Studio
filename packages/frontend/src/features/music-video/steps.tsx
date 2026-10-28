@@ -871,11 +871,17 @@ export function GenerateStep({
               <p className="text-lg font-extrabold text-white">{costEstimate.total_frames}</p>
             </div>
             <div className="text-center">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Cloud</p>
+              <p className="text-[11px] text-gray-500 uppercase tracking-wide">
+                {costEstimate.cloud_cost_usd !== null && costEstimate.cloud_cost_usd !== undefined
+                  ? "Cloud"
+                  : "Local (est.)"}
+              </p>
               <p className="text-lg font-extrabold text-white">
                 {costEstimate.cloud_cost_usd !== null && costEstimate.cloud_cost_usd !== undefined
                   ? `$${costEstimate.cloud_cost_usd.toFixed(2)}`
-                  : "—"}
+                  : costEstimate.local_cost_usd !== null && costEstimate.local_cost_usd !== undefined
+                    ? `$${costEstimate.local_cost_usd.toFixed(2)}`
+                    : "—"}
               </p>
             </div>
           </div>
@@ -899,8 +905,13 @@ export function GenerateStep({
                     <span className="text-violet-300 shrink-0">
                       {shot.estimated_seconds.toFixed(1)}s
                     </span>
+                    {shot.local_cost_usd !== undefined && shot.local_cost_usd !== null && (
+                      <span className="text-blue-400 shrink-0" title="Local compute estimate">
+                        ${shot.local_cost_usd.toFixed(3)}
+                      </span>
+                    )}
                     {shot.cloud_cost_usd !== undefined && shot.cloud_cost_usd !== null && (
-                      <span className="text-emerald-400 shrink-0">
+                      <span className="text-emerald-400 shrink-0" title="Cloud-burst estimate">
                         ${shot.cloud_cost_usd.toFixed(3)}
                       </span>
                     )}
