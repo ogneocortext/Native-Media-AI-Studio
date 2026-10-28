@@ -102,7 +102,9 @@ interface GenerationOptions {
   height: number;
   seed: number;
   sampler: string;
+  scheduler: string;
   model: string;
+  enrichPrompt: boolean;
 }
 
 const defaultOptions: GenerationOptions = {
@@ -114,7 +116,9 @@ const defaultOptions: GenerationOptions = {
   height: 512,
   seed: -1,
   sampler: "DPM++ 2M Karras",
+  scheduler: "karras",
   model: "",
+  enrichPrompt: false,
 };
 
 interface GenerationPreset {
@@ -122,7 +126,7 @@ interface GenerationPreset {
   name: string;
   description: string;
   icon: React.ReactNode;
-  settings: Pick<GenerationOptions, "steps" | "cfgScale" | "width" | "height" | "sampler">;
+  settings: Pick<GenerationOptions, "steps" | "cfgScale" | "width" | "height" | "sampler" | "scheduler">;
   color: string;
 }
 
@@ -132,7 +136,7 @@ const presets: GenerationPreset[] = [
     name: "Quick Preview",
     description: "Fast iteration, low quality",
     icon: <Zap size={16} />,
-    settings: { steps: 10, cfgScale: 5, width: 512, height: 512, sampler: "Euler a" },
+    settings: { steps: 10, cfgScale: 5, width: 512, height: 512, sampler: "Euler a", scheduler: "normal" },
     color: "amber",
   },
   {
@@ -140,7 +144,7 @@ const presets: GenerationPreset[] = [
     name: "Standard",
     description: "Balanced speed and quality",
     icon: <Square size={16} />,
-    settings: { steps: 30, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras" },
+    settings: { steps: 30, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras", scheduler: "karras" },
     color: "blue",
   },
   {
@@ -148,7 +152,7 @@ const presets: GenerationPreset[] = [
     name: "High Quality",
     description: "Detailed, slower generation",
     icon: <Gem size={16} />,
-    settings: { steps: 40, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras" },
+    settings: { steps: 40, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras", scheduler: "karras" },
     color: "purple",
   },
   {
@@ -156,7 +160,7 @@ const presets: GenerationPreset[] = [
     name: "Portrait",
     description: "512 x 768 — vertical images",
     icon: <RectangleVertical size={16} />,
-    settings: { steps: 25, cfgScale: 7, width: 512, height: 768, sampler: "Euler a" },
+    settings: { steps: 25, cfgScale: 7, width: 512, height: 768, sampler: "Euler a", scheduler: "normal" },
     color: "pink",
   },
   {
@@ -164,7 +168,7 @@ const presets: GenerationPreset[] = [
     name: "Landscape",
     description: "768 x 512 — wide images",
     icon: <RectangleHorizontal size={16} />,
-    settings: { steps: 25, cfgScale: 7, width: 768, height: 512, sampler: "Euler a" },
+    settings: { steps: 25, cfgScale: 7, width: 768, height: 512, sampler: "Euler a", scheduler: "normal" },
     color: "emerald",
   },
   {
@@ -172,7 +176,7 @@ const presets: GenerationPreset[] = [
     name: "Maximum",
     description: "Best quality, very slow",
     icon: <Crown size={16} />,
-    settings: { steps: 50, cfgScale: 7, width: 1024, height: 1024, sampler: "DPM++ 2M" },
+    settings: { steps: 50, cfgScale: 7, width: 1024, height: 1024, sampler: "DPM++ 2M", scheduler: "karras" },
     color: "red",
   },
 ];
@@ -410,7 +414,9 @@ export function ImageGeneration() {
           height: options.height,
           seed: options.seed,
           sampler: options.sampler,
+          scheduler: options.scheduler,
           ckpt_name: options.model || undefined,
+          enrich_prompt: options.enrichPrompt,
         }),
       });
 
@@ -640,6 +646,54 @@ export function ImageGeneration() {
                   onChange={(e) => setOptions({ ...options, seed: Number(e.target.value) })}
                 />
               </div>
+
+              {/* Enrich prompt toggle */}
+              <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <input
+                  type="checkbox"
+                  checked={options.enrichPrompt}
+                  onChange={(e) => setOptions({ ...options, enrichPrompt: e.target.checked })}
+                  className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500"
+                />
+                <label className="text-sm text-foreground">LLM prompt enrichment</label>
+                <span className="text-xs text-muted ml-2">Uses Ollama to expand your prompt before generation</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Aspect Ratio Quick Select */}
+          <Card title="Aspect Ratio" icon={<RectangleHorizontal size={18} />}>
+            <p className="text-xs text-muted mb-3">
+              Quick-select common aspect ratios. Width and height stay divisible by 8.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "1:1", w: 768, h: 768 },
+                { label: "16:9", w: 768, h: 432 },
+                { label: "4:3", w: 768, h: 576 },
+                { label: "3:2", w: 768, h: 512 },
+                { label: "9:16", w: 432, h: 768 },
+                { label: "3:4", w: 576, h: 768 },
+                { label: "2:3", w: 512, h: 768 },
+                { label: "21:9", w: 768, h: 328 },
+              ].map((ratio) => (
+                <button
+                  key={ratio.label}
+                  onClick={() =>
+                    setOptions({ ...options, width: ratio.w, height: ratio.h })
+                  }
+                  className={`p-2 rounded-lg border text-center transition-all duration-200 text-xs font-medium ${
+                    options.width === ratio.w && options.height === ratio.h
+                      ? "border-accent bg-accent/20 text-accent shadow-sm"
+                      : "border-border bg-background hover:border-border/80 hover:bg-white/5"
+                  }`}
+                >
+                  {ratio.label}
+                  <span className="block text-[10px] text-muted/60 mt-1">
+                    {ratio.w}×{ratio.h}
+                  </span>
+                </button>
+              ))}
             </div>
           </Card>
 

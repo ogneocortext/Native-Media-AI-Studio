@@ -13,28 +13,56 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/video", tags=["Video"])
 
 
+def _check_steps(v: int) -> int:
+    if v < 1 or v > 150:
+        raise ValueError("steps must be between 1 and 150")
+    return v
+
+
+def _check_cfg(v: float) -> float:
+    if v < 0.0 or v > 30.0:
+        raise ValueError("cfg_scale must be between 0.0 and 30.0")
+    return v
+
+
+def _check_dimension(v: int) -> int:
+    if v < 64 or v > 4096 or v % 8 != 0:
+        raise ValueError("dimensions must be between 64 and 4096 and divisible by 8")
+    return v
+
+
 class VideoGenerateRequest(BaseModel):
     """Request model for video section generation -- real queue, no mock"""
+
     prompt: str
     negative_prompt: str = ""
-    steps: int = 25
-    cfg_scale: float = 5.0
+    steps: int = Field(default=25, ge=1, le=150)
+    cfg_scale: float = Field(default=5.0, ge=0.0, le=30.0)
     seed: int = -1
     section: str = "full"
-    duration: float = 10.0
+    duration: float = Field(default=10.0, gt=0, le=3600)
     vertical_first: bool = False
     audio_path: str | None = None
     audio_filename: str | None = None
     method: str = "visualization"
     model: str = ""
     visualization: dict[str, Any] | None = None
+    width: int = Field(default=768, ge=64, le=4096)
+    height: int = Field(default=512, ge=64, le=4096)
+    scheduler: str = "normal"
+    enrich_prompt: bool = False
+
+    @field_validator("width", "height")
+    @classmethod
+    def validate_dimension(cls, v: int) -> int:
+        return _check_dimension(v)
 
 
 class VideoGenerateResponse(BaseModel):
@@ -131,6 +159,10 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                 "visualization": viz_config,
                 "method": request.method,
                 "vertical_first": request.vertical_first,
+                "width": request.width,
+                "height": request.height,
+                "scheduler": request.scheduler,
+                "enrich_prompt": request.enrich_prompt,
             },
             "max_retries": 1,
         }
