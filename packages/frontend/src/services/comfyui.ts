@@ -3,6 +3,7 @@
  * Connects to the local ComfyUI instance via dynamic URL from ports.json/env.
  */
 
+import { getApiBase } from "./api/core";
 import { getComfyuiUrl, getComfyuiWsUrl } from "./portConfig";
 import { fetchWithTimeout } from "./fetchWithTimeout";
 
@@ -365,6 +366,165 @@ export function getWebSocketUrl(): string {
   return getComfyuiWsUrl();
 }
 
+export interface ComfyUIInputFile {
+  name: string;
+  path: string;
+  size_mb: number;
+  type: string;
+  modified: number;
+}
+
+export interface ComfyUIInputListing {
+  input_files: ComfyUIInputFile[];
+  directory: string;
+  exists: boolean;
+}
+
+export interface ComfyUIOutputFile {
+  name: string;
+  path: string;
+  size_mb: number;
+  type: string;
+  modified: number;
+}
+
+export interface ComfyUIOutputListing {
+  output_files: ComfyUIOutputFile[];
+  directory: string;
+  exists: boolean;
+}
+
+export interface ComfyUIInterruptResult {
+  interrupted: boolean;
+  base_url: string;
+}
+
+/**
+ * Interrupt/cancel the currently running ComfyUI prompt via the backend.
+ */
+export async function interrupt(): Promise<ComfyUIInterruptResult> {
+  const base = getApiBase();
+  const response = await fetchWithTimeout(`${base}/api/services/comfyui/interrupt`, {
+    method: "POST",
+    timeout: 15000,
+  });
+  if (!response.ok) {
+    throw new ComfyUIError(`ComfyUI interrupt failed: ${response.statusText}`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * List files in ComfyUI's input/ directory (uploads for I2V, audio, video).
+ */
+export async function listInput(): Promise<ComfyUIInputListing> {
+  const base = getApiBase();
+  const response = await fetchWithTimeout(`${base}/api/services/comfyui/input`, {
+    timeout: 10000,
+  });
+  if (!response.ok) {
+    throw new ComfyUIError(`ComfyUI input listing failed: ${response.statusText}`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * List files in ComfyUI's output/ directory (generated images/video).
+ */
+export async function listOutput(): Promise<ComfyUIOutputListing> {
+  const base = getApiBase();
+  const response = await fetchWithTimeout(`${base}/api/services/comfyui/output`, {
+    timeout: 10000,
+  });
+  if (!response.ok) {
+    throw new ComfyUIError(`ComfyUI output listing failed: ${response.statusText}`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * Upload an audio file to ComfyUI's input directory for LoadAudio nodes.
+ */
+export async function uploadAudio(
+  file: File,
+): Promise<{ success: boolean; filename: string; comfyui_response: unknown; message: string }> {
+  const base = getApiBase();
+  const form = new FormData();
+  form.append("audio", file);
+  const response = await fetchWithTimeout(`${base}/api/integrations/comfyui/upload-audio`, {
+    method: "POST",
+    body: form,
+    timeout: 120000,
+  });
+  if (!response.ok) {
+    throw new ComfyUIError(`ComfyUI audio upload failed: ${response.statusText}`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * Upload a video file to ComfyUI's input directory for LoadVideo nodes.
+ */
+export async function uploadVideo(
+  file: File,
+): Promise<{ success: boolean; filename: string; comfyui_response: unknown; message: string }> {
+  const base = getApiBase();
+  const form = new FormData();
+  form.append("video", file);
+  const response = await fetchWithTimeout(`${base}/api/integrations/comfyui/upload-video`, {
+    method: "POST",
+    body: form,
+    timeout: 300000,
+  });
+  if (!response.ok) {
+    throw new ComfyUIError(`ComfyUI video upload failed: ${response.statusText}`, response.status);
+  }
+  return response.json();
+}
+
+/**
+ * Subscribe to ComfyUI progress via WebSocket.
+ *
+ * Calls `onProgress` with { status, step, total_steps, prompt_id } on each
+ * update. Returns an unsubscribe function.
+ */
+export function subscribeToProgress(
+  promptId: string,
+  onProgress: (update: {
+    status: string;
+    step?: number;
+    total_steps?: number;
+    prompt_id?: string;
+    outputs?: string[];
+    error?: string;
+  }) => void,
+): () => void {
+  const wsUrl = getComfyuiWsUrl();
+  const ws = new WebSocket(`${wsUrl}?prompt_id=${promptId}`);
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onProgress(data);
+    } catch {
+      // Ignore malformed messages
+    }
+  };
+
+  ws.onerror = (err) => {
+    console.warn("ComfyUI WebSocket error:", err);
+    onProgress({ status: "error", prompt_id: promptId, error: "WebSocket connection error" });
+  };
+
+  ws.onclose = () => {
+    onProgress({ status: "closed", prompt_id: promptId });
+  };
+
+  return () => {
+    ws.close();
+  };
+}
+
 export default {
   queuePrompt,
   getQueueStatus,
@@ -375,5 +535,11 @@ export default {
   getImage,
   revokeImage,
   getWebSocketUrl,
+  interrupt,
+  listInput,
+  listOutput,
+  uploadAudio,
+  uploadVideo,
+  subscribeToProgress,
   ComfyUIError,
 };

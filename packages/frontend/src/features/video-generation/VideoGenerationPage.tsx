@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { DS } from "../../styles/designSystem";
 import { StatusBadge } from "../../components/common";
+import { Link } from "react-router-dom";
 import { useVideoModels } from "./hooks/useVideoModels";
 import { useJobProgress, useQueueStatus } from "./hooks";
 import { QueueStatus } from "./components/QueueStatus";
@@ -347,6 +348,24 @@ export function VideoGenerationPage() {
 
   return (
     <div className={DS.page}>
+      {/* ComfyUI Offline Banner — prominent placement at top */}
+      {comfyStatus === "offline" && (
+        <div className={DS.cardError}>
+          <AlertTriangle size={20} />
+          <div>
+            <div className="text-sm font-semibold text-red-300">ComfyUI is offline</div>
+            <div className="text-xs text-red-200">
+              Video generation requires ComfyUI to be running. Start it first, then return here to generate.
+            </div>
+          </div>
+          <button
+            onClick={refetchModels}
+            className="text-xs underline text-red-200 hover:text-white ml-auto"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {modelsError && (
         <div className={DS.cardError}>
           <span>Failed to load models</span>
@@ -361,6 +380,19 @@ export function VideoGenerationPage() {
       {error && (
         <div className={DS.cardError}>{error}</div>
       )}
+
+      {/* View context breadcrumb */}
+      <nav className="flex items-center gap-2 text-xs text-muted mb-4">
+        <span className="text-violet-400">Video Generation</span>
+        <span className="text-muted">/</span>
+        <Link
+          to="/library"
+          className="text-violet-400 hover:underline hover:text-violet-300"
+          title="Go to Media Library"
+        >
+          Media Library
+        </Link>
+      </nav>
 
       {/* VRAM Warning Banner */}
       {vramWarning && (
@@ -392,11 +424,15 @@ export function VideoGenerationPage() {
           </button>
           <button
             onClick={() => setMode("i2v")}
-            className={`p-3 rounded-lg border text-center transition-all font-medium ${
+            disabled={comfyStatus === "offline"}
+            className={`p-3 rounded-lg border text-center transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
               mode === "i2v"
                 ? "border-accent bg-violet-500/20 text-violet-400 shadow-sm"
-                : "border-border bg-surface hover:border-border/80"
+                : comfyStatus === "offline"
+                  ? "border-border bg-surface/50 text-muted"
+                  : "border-border bg-surface hover:border-border/80"
             }`}
+            title={comfyStatus === "offline" ? "ComfyUI is offline — start it first" : undefined}
           >
             <ImageIcon size={14} />
             <div className="mt-1 text-xs">Image → Video</div>
@@ -512,13 +548,13 @@ export function VideoGenerationPage() {
             />
             <div className="mt-2 flex gap-2">
               {EXAMPLE_PROMPTS.map((ex) => (
-                <button
-                  key={ex.label}
-                  onClick={() => setPrompt(ex.prompt)}
-                  className="text-xs text-muted hover:text-violet-400 underline underline-offset-4"
-                >
-                  {ex.label}
-                </button>
+                  <button
+                    key={ex.label}
+                    onClick={() => setPrompt(ex.prompt)}
+                    className="text-xs text-muted hover:text-violet-400 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 rounded"
+                  >
+                    {ex.label}
+                  </button>
               ))}
               <button
                 onClick={() => setPromptEnhance((v) => !v)}
@@ -680,7 +716,7 @@ export function VideoGenerationPage() {
               <p className="text-xs text-muted mb-3">
                 Click an example to load it into the prompt field
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {INSPIRATION_GALLERY.map((item) => (
                   <button
                     key={item.id}
@@ -688,23 +724,25 @@ export function VideoGenerationPage() {
                       setPrompt(item.prompt);
                       setMode(item.mode);
                     }}
-                    className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-surface hover:border-accent/50 transition-colors"
+                    className="group relative rounded-xl overflow-hidden border border-border bg-surface hover:border-accent/60 hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
                   >
                     <img
                       src={item.thumbnail}
                       alt={item.label}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <div className="absolute inset-0 bg-black/40 flex flex-col justify-center p-2">
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center group-hover:bg-black/60 transition-colors duration-300">
+                      <PlayCircle size={24} className="text-white/95 bg-black/70 rounded-full p-2 shadow-lg" />
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-transparent to-transparent">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-white">{item.label}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          item.mode === "i2v" ? "border-violet-500 text-violet-400 bg-violet-500/10" : "border-blue-500 text-blue-400 bg-blue-500/10"
+                        <span className="text-sm font-medium text-white">{item.label}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded ${
+                          item.mode === "i2v" ? "border-violet-500 text-violet-400 bg-violet-500/20" : "border-blue-500 text-blue-400 bg-blue-500/20"
                         }`}>
                           {item.mode.toUpperCase()}
                         </span>
                       </div>
-                      <PlayCircle size={16} className="absolute bottom-2 right-2 text-white/90 bg-black/60 rounded-full p-1" />
                     </div>
                   </button>
                 ))}

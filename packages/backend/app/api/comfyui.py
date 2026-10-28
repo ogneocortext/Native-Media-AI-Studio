@@ -5,9 +5,12 @@ and to manage the ComfyUI bridge (custom nodes, workflows, config).
 """
 
 import asyncio
+from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
+from ..core import comfyui_client as _cu
+from ..core.config import config
 from ..services.comfyui_bridge import comfyui_bridge
 from ..services.comfyui_manager import comfyui_manager
 
@@ -76,6 +79,22 @@ async def update_comfyui() -> dict:
 async def get_version() -> dict:
     """Get ComfyUI version information."""
     return await asyncio.to_thread(comfyui_manager.get_version)
+
+
+@router.post("/interrupt")
+async def interrupt_comfyui() -> dict:
+    """Interrupt/cancel the currently running ComfyUI prompt.
+
+    Calls ComfyUI's native ``POST /interrupt`` endpoint, which aborts
+    whatever prompt is executing right now (not just queued ones).
+    Returns whether the interrupt was accepted.
+    """
+    base_url = config.comfyui_url
+    try:
+        interrupted = await _cu.interrupt_current(base_url)
+        return {"interrupted": interrupted, "base_url": base_url}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Interrupt failed: {e}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +176,68 @@ async def bridge_models() -> dict:
     return {"models": comfyui_bridge.get_models()}
 
 
+# ---------------------------------------------------------------------------
+# ComfyUI file browsing (input/output directories)
+# ---------------------------------------------------------------------------
+
+
+def _list_dir(directory: Path) -> list[dict]:
+    """List files in a directory with name, size_mb, type, modified."""
+    if not directory.exists() or not directory.is_dir():
+        return []
+    entries = []
+    for f in sorted(directory.rglob("*")):
+        if not f.is_file():
+            continue
+        try:
+            rel = f.relative_to(directory)
+        except ValueError:
+            continue
+        entries.append({
+            "name": f.name,
+            "path": str(rel).replace("\\", "/"),
+            "size_mb": round(f.stat().st_size / (1024 * 1024), 2),
+            "type": f.suffix.lstrip(".") or "file",
+            "modified": f.stat().st_mtime,
+        })
+    return entries
+
+
+@router.get("/input")
+async def list_input() -> dict:
+    """List files in ComfyUI's ``input/`` directory (uploads for I2V etc.)."""
+    from ..core.comfyui_client import resolve_models_dir
+
+    models_dir = resolve_models_dir()
+    if not models_dir:
+        return {"input_files": [], "directory": ""}
+    input_dir = models_dir.parent / "input"
+    return {
+        "input_files": _list_dir(input_dir),
+        "directory": str(input_dir),
+        "exists": input_dir.exists(),
+    }
+
+
+@router.get("/output")
+async def list_output() -> dict:
+    """List files in ComfyUI's ``output/`` directory (generated images/video)."""
+    from ..core.comfyui_client import resolve_models_dir
+
+    models_dir = resolve_models_dir()
+    if not models_dir:
+        return {"output_files": [], "directory": ""}
+    output_dir = models_dir.parent / "output"
+    return {
+        "output_files": _list_dir(output_dir),
+        "directory": str(output_dir),
+        "exists": output_dir.exists(),
+    }
+
+
 # Video models endpoint is provided by /api/integrations/comfyui/video-models
+# Progress and result endpoints moved to integrations_generation.py
+# to be under /api/integrations/comfyui/ prefix
 
 
 # Progress and result endpoints moved to integrations_generation.py

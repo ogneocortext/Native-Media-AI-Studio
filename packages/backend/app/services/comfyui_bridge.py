@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 # Bridge directory layout
 BRIDGE_DIR = Path("config/comfyui")
 BRIDGE_CONFIG_FILE = BRIDGE_DIR / "bridge.json"
-BRIDGE_CUSTOM_NODES_DIR = BRIDGE_DIR / "custom_nodes"
-BRIDGE_WORKFLOWS_DIR = BRIDGE_DIR / "workflows"
-BRIDGE_MODELS_DIR = BRIDGE_DIR / "models"
+BRIDGE_CUSTOM_NODES_DIR = Path("custom_nodes")
+BRIDGE_WORKFLOWS_DIR = Path("workflows")
+BRIDGE_MODELS_DIR = Path("models")
 
 
 class ComfyUIBridgeError(Exception):
@@ -231,8 +231,8 @@ class ComfyUIBridge:
                 failed.append({"node": node_name, "reason": "source not found"})
                 continue
 
-            # Use the directory name as the link target name
-            node_dir_name = source_path.parent.name
+            # Use the source filename as the link target name
+            node_dir_name = source_file
             if self.link_node(node_dir_name):
                 linked.append(node_dir_name)
             else:

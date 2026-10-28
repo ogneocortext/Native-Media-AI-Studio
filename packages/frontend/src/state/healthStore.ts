@@ -20,6 +20,8 @@ import {
   startComfyUI,
   stopComfyUI,
   restartComfyUI,
+  getSettings,
+  updateSettings,
   AggregateHealth,
   AdapterHealth,
   SystemHealth,
@@ -28,6 +30,7 @@ import {
   type VRAMStatus,
 } from "../services/api";
 import { sseService } from "../services/sseService";
+import { showToast } from "../utils/toast";
 
 interface GranularHealthData {
   gpu: {
@@ -87,6 +90,32 @@ const EMPTY_GRANULAR: GranularHealthData = {
   vram: null,
   manager: null,
 };
+
+/**
+ * Sync the `atomic_chat_enabled` setting with ComfyUI lifecycle.
+ * When ComfyUI starts, Atomic Chat is disabled to free GPU VRAM.
+ * When ComfyUI stops, Atomic Chat is re-enabled.
+ * Best-effort: failures are silently ignored so ComfyUI lifecycle is not blocked.
+ */
+async function syncAtomicChat(enable: boolean): Promise<void> {
+  try {
+    const current = await getSettings();
+    if (current.atomic_chat_enabled === enable) return; // no change needed
+    await updateSettings({ atomic_chat_enabled: enable });
+    showToast(
+      enable
+        ? "Atomic Chat re-enabled — ComfyUI stopped, GPU resources freed"
+        : "Atomic Chat disabled — ComfyUI started, reserving GPU resources",
+      {
+        type: "info",
+        duration: 6000,
+        key: `atomic-chat-${enable ? "enabled" : "disabled"}`,
+      }
+    );
+  } catch {
+    // Silently fail — settings sync is best-effort
+  }
+}
 
 export const useHealthStore = create<HealthState>((set, get) => ({
   backend: "offline",
@@ -291,6 +320,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       await startComfyUI(port);
       // Refresh status after start attempt
       await get().fetchComfyUIStatus();
+      // Disable Atomic Chat to free GPU VRAM for ComfyUI
+      await syncAtomicChat(false);
     } catch {
       // Error is surfaced via toast by the caller; status stays as-is.
     } finally {
@@ -303,6 +334,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     try {
       await stopComfyUI();
       await get().fetchComfyUIStatus();
+      // Re-enable Atomic Chat now that ComfyUI is stopped
+      await syncAtomicChat(true);
     } catch {
       // Error surfaced via toast by caller.
     } finally {
@@ -315,6 +348,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     try {
       await restartComfyUI(port);
       await get().fetchComfyUIStatus();
+      // Disable Atomic Chat to free GPU VRAM for ComfyUI
+      await syncAtomicChat(false);
     } catch {
       // Error surfaced via toast by caller.
     } finally {

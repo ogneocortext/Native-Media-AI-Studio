@@ -68,7 +68,7 @@ export function ModelSelector({
         placeholder="Search models..."
         value={query}
         onChange={handleQueryChange}
-        className={`${DS.input} mb-2 w-full`}
+        className={`${DS.input} mb-2 w-full focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2`}
       />
 
       <div className="max-h-48 overflow-y-auto space-y-1">
@@ -76,7 +76,7 @@ export function ModelSelector({
           <button
             key={model.name}
             onClick={() => onChange(model.name)}
-            className={`w-full text-left p-2 rounded ${
+            className={`w-full text-left p-2 rounded focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors ${
               selected === model.name
                 ? "bg-primary/20 border border-primary/40"
                 : "bg-black/30 hover:bg-black/50 border border-transparent"

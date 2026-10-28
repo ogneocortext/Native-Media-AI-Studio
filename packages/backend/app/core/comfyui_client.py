@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,8 @@ __all__ = [
     "fetch_view_bytes",
     "submit_prompt",
     "upload_image",
+    "upload_audio",
+    "upload_video",
     "is_reachable",
     "fetch_object_info",
     "resolve_comfyui_dir",
@@ -322,6 +325,62 @@ async def upload_image(
             body = await resp.text()
             raise RuntimeError(f"ComfyUI /upload/image returned {resp.status}: {body[:200]}")
         return await resp.json()
+
+
+async def _upload_media(
+    base_url: str,
+    file_path: str | Path,
+    media_type: str,
+    session: aiohttp.ClientSession | None = None,
+    timeout: float = 60,
+) -> dict[str, Any]:
+    """Upload a media file (audio/video) to ComfyUI's input directory.
+
+    ComfyUI's native HTTP API only supports ``/upload/image`` in v0.43.0.
+    For audio/video, we write directly to ComfyUI's ``input/`` directory so
+    that ``LoadAudio`` / ``LoadVideo`` nodes can reference the file by name.
+
+    Returns the ComfyUI-style upload response (``{"name": filename, ...}``).
+    """
+    path = Path(file_path)
+    models_dir = resolve_models_dir()
+    if not models_dir:
+        raise RuntimeError("ComfyUI models directory not found")
+    input_dir = models_dir.parent / "input"
+    input_dir.mkdir(parents=True, exist_ok=True)
+
+    dest = input_dir / path.name
+    shutil.copy2(path, dest)
+
+    return {"name": path.name, "path": str(dest), "type": media_type}
+
+
+async def upload_audio(
+    base_url: str,
+    audio_path: str | Path,
+    session: aiohttp.ClientSession | None = None,
+    timeout: float = 60,
+) -> dict[str, Any]:
+    """Upload an audio file to ComfyUI's ``/upload/audio`` endpoint.
+
+    Use ``LoadAudio`` nodes in ComfyUI workflows to reference the uploaded
+    file by filename.
+    """
+    return await _upload_media(base_url, audio_path, "audio", session, timeout)
+
+
+async def upload_video(
+    base_url: str,
+    video_path: str | Path,
+    session: aiohttp.ClientSession | None = None,
+    timeout: float = 120,
+) -> dict[str, Any]:
+    """Upload a video file to ComfyUI's ``/upload/video`` endpoint.
+
+    Use ``LoadVideo`` nodes in ComfyUI workflows to reference the uploaded
+    file by filename.
+    """
+    return await _upload_media(base_url, video_path, "video", session, timeout)
 
 
 async def cancel_prompt(

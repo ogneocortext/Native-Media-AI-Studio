@@ -457,12 +457,17 @@ Frontend (React) → Backend (FastAPI) → ComfyUI REST API (port 8188)
 | `/api/services/comfyui/restart`                  | POST   | Restart ComfyUI                              |
 | `/api/services/comfyui/update`                   | POST   | Git pull + restart                           |
 | `/api/services/comfyui/version`                  | GET    | Git version info                             |
+| `/api/services/comfyui/interrupt`                | POST   | Interrupt/cancel running prompt              |
+| `/api/services/comfyui/input`                    | GET    | List files in ComfyUI `input/` directory     |
+| `/api/services/comfyui/output`                   | GET    | List files in ComfyUI `output/` directory    |
 | `/api/integrations/{service}/generate`           | POST   | Submit image generation job                  |
 | `/api/integrations/{service}/result/{prompt_id}` | GET    | Get completed result                         |
 | `/api/integrations/comfyui/progress/{prompt_id}` | GET    | Poll generation progress                     |
 | `/api/integrations/{service}/generate-video`     | POST   | Submit video generation job                  |
 | `/api/integrations/comfyui/checkpoints`          | GET    | List available checkpoints                   |
 | `/api/integrations/comfyui/video-models`         | GET    | List video motion modules                    |
+| `/api/integrations/comfyui/upload-audio`         | POST   | Upload audio file to ComfyUI `input/`        |
+| `/api/integrations/comfyui/upload-video`         | POST   | Upload video file to ComfyUI `input/`        |
 
 ### Input Validation
 
@@ -560,7 +565,89 @@ Generation requests are validated at the API layer:
 
 ---
 
-_Last updated: 2026-10-22 — Sep 2026 sweep: Gemma 4 native (E2B 8GB), Hunyuan3D 3.0, VOID/BiRefNet, Subgraphs, 8GB-capped tables_
+## Bridge Linking Fix — 2026-10-28
+
+### Problem
+
+Custom node linking from `config/comfyui/custom_nodes/` into ComfyUI's
+`custom_nodes/` directory was failing with "source not found" for all three
+configured nodes (NMA Audio Sync, NMA Stem Router, NMA Remix Controller).
+
+### Root Cause
+
+`comfyui_bridge.py` used `source_path.parent.name` as the link target name.
+Since the source files are flat `.py` files (not in subdirectories),
+`source_path.parent.name` resolved to `"custom_nodes"` — the directory name,
+not the actual filename.
+
+### Fix
+
+Changed `BRIDGE_CUSTOM_NODES_DIR`, `BRIDGE_WORKFLOWS_DIR`, and
+`BRIDGE_MODELS_DIR` from `BRIDGE_DIR / "custom_nodes"` etc. (which nested
+`config/comfyui/` twice) to just `Path("custom_nodes")`, `Path("workflows")`,
+`Path("models")` — joined correctly with `self.bridge_dir` to resolve
+`config/comfyui/custom_nodes/` as intended.
+
+### Result
+
+All three custom nodes now link successfully on ComfyUI startup:
+
+```
+"linked": ["audio_sync_node.py", "stem_router_node.py", "remix_controller_node.py"],
+"failed": []
+```
+
+---
+
+## Atomic Chat ↔ ComfyUI Mutual Exclusion — 2026-10-28
+
+### Problem
+
+ComfyUI and Atomic Chat both compete for the same GTX 1070 Ti GPU VRAM
+(8GB). Running both simultaneously causes OOM errors and generation failures.
+
+### Solution
+
+Added automatic mutual exclusion in `healthStore.ts` (frontend state):
+
+- **`startComfyUI()`** → disables Atomic Chat (`atomic_chat_enabled: false`)
+  via `updateSettings()` POST
+- **`stopComfyUI()`** → re-enables Atomic Chat (`atomic_chat_enabled: true`)
+- **`restartComfyUI()`** → disables Atomic Chat
+
+Best-effort: settings sync failures are silently ignored so ComfyUI lifecycle
+is never blocked. Info toasts notify the user on each change.
+
+### Files
+
+- `packages/frontend/src/state/healthStore.ts` — `syncAtomicChat()` helper +
+  lifecycle action wiring
+- `packages/frontend/src/services/api/settings.ts` — `updateSettings()`
+  partial-update API function
+- `packages/frontend/src/services/api/index.ts` — exports `updateSettings`
+
+---
+
+## New API Endpoints — 2026-10-28
+
+| Endpoint                                         | Method | Description                                  |
+| ------------------------------------------------ | ------ | -------------------------------------------- |
+| `/api/services/comfyui/interrupt`                | POST   | Interrupt/cancel running ComfyUI prompt      |
+| `/api/services/comfyui/input`                    | GET    | List files in ComfyUI `input/` directory     |
+| `/api/services/comfyui/output`                   | GET    | List files in ComfyUI `output/` directory    |
+| `/api/integrations/comfyui/upload-audio`         | POST   | Upload audio file to ComfyUI `input/`        |
+| `/api/integrations/comfyui/upload-video`         | POST   | Upload video file to ComfyUI `input/`        |
+
+Audio/video uploads write directly to ComfyUI's `input/` directory (filesystem
+copy) because ComfyUI v0.43.0 only exposes `/upload/image` via HTTP —
+`/upload/audio` and `/upload/video` are not supported by the native API.
+Uploaded files are immediately referenceable by `LoadAudio` / `LoadVideo`
+nodes in ComfyUI workflows.
+
+---
+
+_Last updated: 2026-10-28 — Added interrupt/input/output/audio-video endpoints,
+bridge linking fix, Atomic Chat mutual exclusion_
 
 ---
 

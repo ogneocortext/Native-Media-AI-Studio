@@ -539,6 +539,72 @@ async def upload_image_to_comfyui(request: Request) -> dict:
         Path(tmp_path).unlink(missing_ok=True)
 
 
+@router.post("/comfyui/upload-audio")
+async def upload_audio_to_comfyui(request: Request) -> dict:
+    """Upload an audio file to ComfyUI's ``input/`` directory for LoadAudio nodes.
+
+    Accepts multipart/form-data with an ``audio`` field.
+    """
+    form = await request.form()
+    audio_file = form.get("audio")
+    if audio_file is None:
+        raise HTTPException(status_code=400, detail="No audio field in request")
+
+    audio_bytes = await audio_file.read()
+    filename = audio_file.filename or "uploaded_audio.wav"
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as tmp:
+        tmp.write(audio_bytes)
+        tmp_path = tmp.name
+
+    try:
+        base_url = config.comfyui_url
+        result = await _cu.upload_audio(base_url, tmp_path)
+        return {
+            "success": True,
+            "filename": result.get("name", filename),
+            "comfyui_response": result,
+            "message": f"Audio uploaded to ComfyUI input directory: {result.get('name', filename)}",
+        }
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+@router.post("/comfyui/upload-video")
+async def upload_video_to_comfyui(request: Request) -> dict:
+    """Upload a video file to ComfyUI's ``input/`` directory for LoadVideo nodes.
+
+    Accepts multipart/form-data with a ``video`` field.
+    """
+    form = await request.form()
+    video_file = form.get("video")
+    if video_file is None:
+        raise HTTPException(status_code=400, detail="No video field in request")
+
+    video_bytes = await video_file.read()
+    filename = video_file.filename or "uploaded_video.mp4"
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as tmp:
+        tmp.write(video_bytes)
+        tmp_path = tmp.name
+
+    try:
+        base_url = config.comfyui_url
+        result = await _cu.upload_video(base_url, tmp_path)
+        return {
+            "success": True,
+            "filename": result.get("name", filename),
+            "comfyui_response": result,
+            "message": f"Video uploaded to ComfyUI input directory: {result.get('name', filename)}",
+        }
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
 @router.post("/{service_name}/job")
 async def queue_image_job(service_name: str, request: ImageGenerationRequest) -> dict:
     """Queue an image generation job"""

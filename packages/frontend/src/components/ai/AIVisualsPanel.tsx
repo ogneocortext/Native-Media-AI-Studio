@@ -2,7 +2,7 @@
  * AI Visuals Panel — Generate AI images/video for music videos using ComfyUI.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Sparkles,
   Download,
@@ -18,6 +18,12 @@ import {
   generateText2Image,
   getImage,
   isComfyUIAlive,
+  interrupt,
+  listInput,
+  listOutput,
+  subscribeToProgress,
+  uploadAudio,
+  uploadVideo,
   type ComfyUIImage,
 } from "../../services/comfyui";
 import { getComfyuiUrl } from "../../services/portConfig";
@@ -144,6 +150,45 @@ export function AIVisualsPanel({
   const [previews, setPreviews] = useState<StylePreview[]>([]);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [showPreviews, setShowPreviews] = useState(false);
+  const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{
+    status: string;
+    step?: number;
+    total_steps?: number;
+    prompt_id?: string;
+    error?: string;
+  } | null>(null);
+  const [progressSub, setProgressSub] = useState<(() => void) | null>(null);
+  const [outputFiles, setOutputFiles] = useState<{ name: string; path: string; size_mb: number; type: string; modified: number }[]>([]);
+  const [inputFiles, setInputFiles] = useState<{ name: string; path: string; size_mb: number; type: string; modified: number }[]>([]);
+
+  // Clean up WebSocket subscription on unmount or prompt change
+  useEffect(() => {
+    return () => {
+      progressSub?.();
+    };
+  }, [progressSub]);
+
+  const handleInterrupt = useCallback(async () => {
+    if (!currentPromptId) return;
+    setError(null);
+    try {
+      const result = await interrupt();
+      if (result.interrupted) {
+        setProgress({ status: "interrupted", prompt_id: currentPromptId });
+        setError("Generation interrupted by user");
+      } else {
+        setProgress({ status: "interrupt_failed", prompt_id: currentPromptId });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Interrupt failed");
+    } finally {
+      progressSub?.();
+      setProgressSub(null);
+      setCurrentPromptId(null);
+      setIsGenerating(false);
+    }
+  }, [currentPromptId, progressSub]);
 
   const checkConnection = useCallback(async () => {
     const alive = await isComfyUIAlive();
@@ -279,6 +324,12 @@ export function AIVisualsPanel({
 
     setError(null);
     setIsGenerating(true);
+    setProgress(null);
+    setCurrentPromptId(null);
+
+    // Clean up any previous WebSocket subscription
+    progressSub?.();
+    setProgressSub(null);
 
     try {
       const alive = await checkConnection();
@@ -297,14 +348,32 @@ export function AIVisualsPanel({
         cfg,
       });
 
-      // Poll for completion (simplified — in production use WebSocket)
+      setCurrentPromptId(result.prompt_id);
+
+      // Subscribe to real-time progress via WebSocket
+      const unsubscribe = subscribeToProgress(result.prompt_id, (update) => {
+        setProgress(update);
+        if (update.status === "completed" || update.status === "error" || update.status === "interrupted") {
+          unsubscribe();
+          setProgressSub(null);
+          setCurrentPromptId(null);
+        }
+      });
+      setProgressSub(unsubscribe);
+
+      // Fallback: poll history (in case WebSocket doesn't deliver)
       let completed = false;
       let attempts = 0;
       const maxAttempts = 120; // 2 minutes
 
-      while (!completed && attempts < maxAttempts) {
+      while (!completed && attempts < maxAttempts && currentPromptId) {
         await new Promise((r) => setTimeout(r, 1000));
         attempts++;
+
+        // If WebSocket already reported completion, stop polling
+        if (progress?.status === "completed" || progress?.status === "error" || progress?.status === "interrupted") {
+          break;
+        }
 
         try {
           const historyRes = await fetch(`${getComfyuiUrl()}/history/${result.prompt_id}`);
@@ -334,15 +403,18 @@ export function AIVisualsPanel({
         }
       }
 
-      if (!completed) {
+      if (!completed && !progress?.status) {
         setError("Generation timed out. Check ComfyUI for results.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
+      progressSub?.();
+      setProgressSub(null);
+      setCurrentPromptId(null);
       setIsGenerating(false);
     }
-  }, [prompt, negativePrompt, width, height, steps, cfg, checkConnection]);
+  }, [prompt, negativePrompt, width, height, steps, cfg, checkConnection, progressSub, progress]);
 
   const handleSelectImage = useCallback(
     (imageUrl: string) => {
@@ -590,24 +662,73 @@ export function AIVisualsPanel({
         </div>
       </div>
 
-      {/* Generate Button */}
-      <button
-        onClick={handleGenerate}
-        disabled={isGenerating || !prompt.trim()}
-        className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded font-medium flex items-center justify-center gap-2 transition-colors"
-      >
-        {isGenerating ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Sparkles className="w-4 h-4" />
-            Generate AI Visual
-          </>
-        )}
-      </button>
+      {/* Progress Indicator */}
+      {progress && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
+            <span>
+              {progress.status === "running" ? "⏳" : progress.status === "pending" ? "⏸" : "•"}
+              {progress.status}
+            </span>
+            {progress.step && progress.total_steps && (
+              <span>{progress.step}/{progress.total_steps}</span>
+            )}
+          </div>
+          {progress.step && progress.total_steps && (
+            <div className="w-full bg-gray-700 rounded-full h-1">
+              <div
+                className="bg-blue-500 h-1 rounded-full transition-all"
+                style={{ width: `${Math.min(100, (progress.step / progress.total_steps) * 100)}%` }}
+              />
+            </div>
+          )}
+          {progress.error && (
+            <p className="text-[10px] text-red-400">{progress.error}</p>
+          )}
+        </div>
+      )}
+
+      {/* Generate / Interrupt Buttons */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={handleInterrupt}
+          disabled={!currentPromptId}
+          className={`w-full py-2 px-4 ${
+            currentPromptId
+              ? "bg-red-600 hover:bg-red-700 text-white rounded font-medium transition-colors"
+              : "bg-gray-700 text-gray-500 disabled:hover:bg-gray-700 disabled:text-gray-600 rounded font-medium transition-colors"
+          }`}
+        >
+          {currentPromptId ? (
+            <>
+              <AlertCircle className="w-4 h-4" />
+              Interrupt
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-4 h-4 opacity-50" />
+              Interrupt
+            </>
+          )}
+        </button>
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerating || !prompt.trim() || !!currentPromptId}
+          className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded font-medium flex items-center justify-center gap-2 transition-colors"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Generate AI Visual
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Error */}
       {error && (
@@ -641,6 +762,137 @@ export function AIVisualsPanel({
           </div>
         </div>
       )}
+
+      {/* Output/Input File Browser */}
+      <details className="space-y-2">
+        <summary className="cursor-pointer text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1">
+          <span>📁</span>
+          Browse ComfyUI Files
+        </summary>
+        <div className="space-y-3 pt-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const listing = await listOutput();
+                  setOutputFiles(listing.output_files);
+                  setInputFiles([]);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Failed to list outputs");
+                }
+              }}
+              className="w-full py-1 px-2 bg-gray-800/50 border border-gray-700 rounded text-xs text-white hover:bg-gray-700 transition-colors"
+            >
+              🖼 Outputs
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const listing = await listInput();
+                  setInputFiles(listing.input_files);
+                  setOutputFiles([]);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Failed to list inputs");
+                }
+              }}
+              className="w-full py-1 px-2 bg-gray-800/50 border border-gray-700 rounded text-xs text-white hover:bg-gray-700 transition-colors"
+            >
+              📥 Inputs
+            </button>
+          </div>
+          {outputFiles.length > 0 && (
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              <h5 className="text-[10px] text-gray-500 mb-1">Generated Outputs</h5>
+              {outputFiles.map((f) => (
+                <div
+                  key={f.path}
+                  className="flex items-center gap-2 p-1 bg-gray-800/30 rounded text-[10px] text-gray-300"
+                >
+                  <span className="flex-1 truncate">{f.name}</span>
+                  <span className="text-gray-600">{f.size_mb} MB</span>
+                  <button
+                    onClick={() => {
+                      if (f.type === "png" || f.type === "jpg" || f.type === "jpeg" || f.type === "webp") {
+                        const url = getComfyuiUrl();
+                        window.open(`${url}/view?filename=${encodeURIComponent(f.name)}&type=output`, "_blank");
+                      }
+                    }}
+                    className="text-blue-400 hover:text-blue-300 text-[9px]"
+                    title="Open in new tab"
+                  >
+                    Open
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {inputFiles.length > 0 && (
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              <h5 className="text-[10px] text-gray-500 mb-1">Uploaded Inputs</h5>
+              {inputFiles.map((f) => (
+                <div
+                  key={f.path}
+                  className="flex items-center gap-2 p-1 bg-gray-800/30 rounded text-[10px] text-gray-300"
+                >
+                  <span className="flex-1 truncate">{f.name}</span>
+                  <span className="text-gray-600">{f.size_mb} MB</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {outputFiles.length === 0 && inputFiles.length === 0 && (
+            <p className="text-[10px] text-gray-500">Click a button to browse files</p>
+          )}
+        </div>
+      </details>
+
+      {/* Audio/Video Upload */}
+      <details className="space-y-2">
+        <summary className="cursor-pointer text-xs font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1">
+          <span>📤</span>
+          Upload Media for ComfyUI
+        </summary>
+        <div className="space-y-3 pt-2">
+          <div className="space-y-2">
+            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Audio (WAV/MP3/OGG)</label>
+            <input
+              type="file"
+              accept=".wav,.mp3,.ogg,.m4a,.flac,.aac"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  uploadAudio(file).catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : "Audio upload failed");
+                  });
+                  e.target.value = "";
+                }
+              }}
+              className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Video (MP4/WebM/MOV)</label>
+            <input
+              type="file"
+              accept=".mp4,.webm,.mov,.avi,.mkv,.m4v"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  uploadVideo(file).catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : "Video upload failed");
+                  });
+                  e.target.value = "";
+                }
+              }}
+              className="w-full px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <p className="text-[10px] text-gray-500">
+            Uploaded files appear in ComfyUI's input/ directory and can be
+            referenced by LoadAudio / LoadVideo nodes.
+          </p>
+        </div>
+      </details>
     </div>
   );
 }

@@ -69,6 +69,7 @@ class ResourceMonitor:
         self._broadcast_interval_seconds = 60.0
         self._gpustat_available = False
         self._nvml_available = False
+        self._win32pdh_available: bool | None = None  # cached availability probe
 
         # Try to import GPU monitoring libraries
         self._init_gpu_monitoring()
@@ -447,35 +448,18 @@ class ResourceMonitor:
         - Ollama model size from Ollama API (accurate for llama-server.exe)
         """
         processes = []
-        try:
-            import win32pdh
-
-            # Query all available counters for better accuracy
-            hq = win32pdh.OpenQuery()
+        # Cache the win32pdh availability probe so we don't retry (and re-log)
+        # every monitoring cycle on systems where pywin32 is not installed.
+        if self._win32pdh_available is None:
             try:
-                hc = win32pdh.AddCounter(hq, r"\GPU Process Memory(*)\Dedicated Usage")
-                try:
-                    win32pdh.CollectQueryData(hq)
-                    items = win32pdh.GetFormattedCounterArray(hc, win32pdh.PDH_FMT_LONG)
-                    for instance, mem_bytes in items.items():
-                        pid_str = instance.split("_")[1] if "_" in instance else None
-                        if not pid_str:
-                            continue
-                        try:
-                            pid = int(pid_str)
-                        except ValueError:
-                            continue
-                        if mem_bytes <= 0 or mem_bytes >= 2**31:
-                            continue
-                        mem_mb = max(0, mem_bytes // (1024 * 1024))
-                        name = self._get_process_name(pid)
-                        processes.append({"pid": pid, "name": name, "mem_mb": mem_mb})
-                finally:
-                    win32pdh.RemoveCounter(hc)
-            finally:
-                win32pdh.CloseQuery(hq)
-        except Exception as e:
-            logger.debug(f"GPU process counter query failed: {e}")
+                import win32pdh  # noqa: F401
+                self._win32pdh_available = True
+            except ImportError:
+                self._win32pdh_available = False
+                logger.debug("win32pdh not available; GPU process memory via "
+                             "Windows Performance Counters will be disabled")
+        if self._win32pdh_available:
+            processes.extend(self._query_win32pdh_gpu_processes())
 
         # Hybrid: Query Ollama API for actual model VRAM usage
         ollama_vram = await self._get_ollama_vram_usage()
@@ -490,6 +474,54 @@ class ResourceMonitor:
                 processes.append({"pid": 0, "name": "ollama (model)", "mem_mb": ollama_vram})
 
         processes.sort(key=lambda p: p["mem_mb"], reverse=True)
+        return processes
+
+    def _query_win32pdh_gpu_processes(self) -> list[dict]:
+        """Query GPU process memory via Windows Performance Counters.
+
+        Best-effort: returns empty list if pywin32 is not installed or the
+        counter query fails. Availability is cached so we don't retry (and
+        re-log) every monitoring cycle.
+        """
+        processes = []
+        try:
+            import win32pdh
+
+            # Query all available counters for better accuracy
+            hq = win32pdh.OpenQuery()
+            try:
+                hc = win32pdh.AddCounter(
+                    hq, r"\GPU Process Memory(*)\Dedicated Usage"
+                )
+                try:
+                    win32pdh.CollectQueryData(hq)
+                    items = win32pdh.GetFormattedCounterArray(
+                        hc, win32pdh.PDH_FMT_LONG
+                    )
+                    for instance, mem_bytes in items.items():
+                        pid_str = (
+                            instance.split("_")[1] if "_" in instance else None
+                        )
+                        if not pid_str:
+                            continue
+                        try:
+                            pid = int(pid_str)
+                        except ValueError:
+                            continue
+                        if mem_bytes <= 0 or mem_bytes >= 2**31:
+                            continue
+                        mem_mb = max(0, mem_bytes // (1024 * 1024))
+                        name = self._get_process_name(pid)
+                        processes.append(
+                            {"pid": pid, "name": name, "mem_mb": mem_mb}
+                        )
+                finally:
+                    win32pdh.RemoveCounter(hc)
+            finally:
+                win32pdh.CloseQuery(hq)
+        except Exception as e:
+            logger.debug(f"GPU process counter query failed: {e}")
+
         return processes
 
     async def _get_ollama_vram_usage(self) -> int:

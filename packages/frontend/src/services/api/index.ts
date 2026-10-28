@@ -27,7 +27,7 @@ export type { Job, QueueStats } from "./jobs";
 export { ping, healthCheck, getSystemHealth, getServiceStatus } from "./health";
 
 // Settings
-export { getSettings } from "./settings";
+export { getSettings, updateSettings } from "./settings";
 export type { AppSettings } from "./settings";
 
 // Generation

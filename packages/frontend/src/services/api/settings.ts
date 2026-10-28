@@ -21,3 +21,15 @@ export async function getSettings(): Promise<AppSettings> {
   if (!res.ok) throw new Error("Failed to get settings");
   return res.json();
 }
+
+export async function updateSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/config/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+    timeout: 30000,
+  });
+  if (!res.ok) throw new Error("Failed to update settings");
+  return res.json();
+}
