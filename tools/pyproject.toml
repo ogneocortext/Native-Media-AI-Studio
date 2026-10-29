@@ -37,17 +37,55 @@ asyncio_mode = "auto"
 testpaths = ["tools/tests"]
 
 [tool.ruff]
+# Pin ruff version to avoid surprise breakage from default-rule changes
+# (ruff v0.16+ enabled 413 rules by default, up from 59).
+required-version = ">=0.14.0,<0.18.0"
 line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "C4"]
-ignore = ["E501"]
+# Use `extend-select` to add to Ruff's curated defaults rather than
+# replacing them wholesale with `select`.
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "W",   # pycodestyle warnings
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    # --- added after measuring each family against this tree ---
+    "D",      # pydocstyle: docstring conventions
+    "ERA",    # eradicate: commented-out code
+    "FBT",    # flake8-boolean-trap: no boolean positional args (AI-friendly)
+    "FURB",   # refurb: modern idioms (all auto-fixable)
+    "PIE",    # misc: unnecessary `pass`, `startswith` against a tuple
+    "RSE",    # flake8-raise: needless parens on raised exceptions
+    "RUF012", # mutable class-attribute default (real aliasing bug class)
+    "TCH",    # type-checking imports: don't import heavy modules at runtime
+]
+# Ignored deliberately, each measured rather than assumed:
+#   DTZ - naive datetime.
+#   SIM/RET/PERF - pure style churn, hundreds of hits.
+#   ARG/PL/TRY/COM/D/TID/EM/G/BLE - hundreds each; noise buries real bugs.
+#   T201 - `print` is legitimate in CLI scripts.
+ignore = ["E501", "N999"]  # Line too long (handled by formatter); N999 invalid module name on hyphenated tool script names
+
+# Allow `--fix` to correct every enabled rule; mark bugbear as unfixable
+# so humans review bug-prone patterns.
+fixable = ["ALL"]
+unfixable = ["B"]
+
+# Opt into newer rules and formatter changes as they land.
+preview = true
 
 [tool.ruff.lint.per-file-ignores]
 # Tools scripts use hyphenated names (e.g. check-docs-map.py) for CLI
 # discoverability; they are not importable modules, so N999 does not apply.
 "*.py" = ["N999"]
+# Test files don't need docstring conventions.
+"**/tests/**" = ["D"]
 # analyze.py stages its heavy imports on purpose: librosa loads only after
 # the ffmpeg decode (a missing ffmpeg then fails fast, before the slow
 # import), and matplotlib loads in the visuals section so
@@ -60,3 +98,19 @@ ignore = ["E501"]
 # names; renaming them to CapWords would collide with other addons'
 # operators, so the prefix is Blender's convention, not a lint miss.
 "blender_mcp_addon.py" = ["N801"]
+
+[tool.ruff.lint.flake8-boolean-trap]
+# AI agents love passing bare booleans; force named arguments or enums instead.
+extend-allowed-calls = []
+
+[tool.ruff.lint.isort]
+# Known first-party modules for the tools package.
+known-first-party = ["tools"]
+known-third-party = ["mido", "python-osc", "mcp"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

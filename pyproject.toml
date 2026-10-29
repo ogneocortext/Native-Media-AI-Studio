@@ -57,11 +57,17 @@ ignore_missing_imports = true
 exclude = ["third_party", "runtime"]
 
 [tool.ruff]
+# Pin ruff version to avoid surprise breakage from default-rule changes
+# (ruff v0.16+ enabled 413 rules by default, up from 59).
+required-version = ">=0.14.0,<0.18.0"
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 exclude = ["third_party", "runtime", "node_modules"]
 
 [tool.ruff.lint]
+# Use `extend-select` to add to Ruff's curated defaults rather than
+# replacing them wholesale with `select`. Categories below are measured
+# against this tree — see ignore list for deliberate exclusions.
 select = [
     "E",   # pycodestyle errors
     "F",   # Pyflakes
@@ -71,12 +77,15 @@ select = [
     "UP",  # pyupgrade
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
-    # --- added after measuring each family against this tree (see ignore below) ---
-    "ERA",    # eradicate: commented-out code. 3 hits, all genuinely dead.
-    "FURB",   # refactor: modern idioms (removeprefix, re.IGNORECASE, ternary->or).
-    "PIE",    # misc: unnecessary `pass`, `startswith` against a tuple.
-    "RSE",    # flake8-raise: needless parens on a raised exception.
-    "RUF012", # mutable class-attribute default; a real aliasing bug class.
+    # --- added after measuring each family against this tree ---
+    "D",      # pydocstyle: docstring conventions (google style configured below)
+    "ERA",    # eradicate: commented-out code
+    "FBT",    # flake8-boolean-trap: no boolean positional args (AI-friendly)
+    "FURB",   # refurb: modern idioms (all auto-fixable)
+    "PIE",    # misc: unnecessary `pass`, `startswith` against a tuple
+    "RSE",    # flake8-raise: needless parens on raised exceptions
+    "RUF012", # mutable class-attribute default (real aliasing bug class)
+    "TCH",    # type-checking imports: don't import heavy modules at runtime
 ]
 # Ignored deliberately, each measured rather than assumed:
 #   DTZ - naive datetime. 66 sites, mostly `datetime.now()` as a local wall-clock
@@ -89,6 +98,14 @@ select = [
 #        churn against an intentional house style, not a defect.
 ignore = ["E501", "N999"]  # Line too long (handled by formatter); N999 invalid module name on hyphenated tool script names (intentional CLI naming)
 
+# Allow `--fix` to correct every enabled rule; mark the few we never want
+# auto-fixed as unfixable.
+fixable = ["ALL"]
+unfixable = ["B"]  # flake8-bugbear: prefer human review for bug-prone patterns
+
+# Opt into newer rules and formatter changes as they land.
+preview = true
+
 [tool.ruff.lint.per-file-ignores]
 # Test suites inject the backend root into sys.path before importing `app.*`,
 # which necessarily places those imports after executable statements.
@@ -99,6 +116,11 @@ ignore = ["E501", "N999"]  # Line too long (handled by formatter); N999 invalid 
 # Tools scripts use hyphenated names (e.g. check-docs-map.py) for CLI
 # discoverability; they are not importable modules, so N999 does not apply.
 "tools/**" = ["N999"]
+# Test files don't need docstring conventions.
+"**/tests/**" = ["D"]
+# __init__.py files are package markers; module-import-not-at-top-of-file
+# doesn't apply there.
+"**/__init__.py" = ["E402"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI/Starlette inspect these callables inside argument defaults —
@@ -111,6 +133,16 @@ extend-immutable-calls = [
     "fastapi.Header",
     "fastapi.Form",
 ]
+
+[tool.ruff.lint.flake8-boolean-trap]
+# AI agents love passing bare booleans; force named arguments or enums instead.
+extend-allowed-calls = []
+
+[tool.ruff.lint.isort]
+# Known modules for the Native Media AI Studio codebase — helps AI agents
+# place imports in the right section instead of defaulting to third_party.
+known-first-party = ["app", "tools"]
+known-third-party = ["fastapi", "uvicorn", "pydantic", "librosa", "soundfile", "websockets", "numpy", "httpx", "python-dotenv", "sse-starlette", "gpustat", "nvidia-ml-py", "pytest", "mypy", "ruff"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

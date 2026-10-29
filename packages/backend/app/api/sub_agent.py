@@ -1,5 +1,4 @@
-"""
-Sub-agent API endpoints for Native Media AI Studio.
+"""Sub-agent API endpoints for Native Media AI Studio.
 
 Exposes the local Qwen sub-agent (tools/qwen_subagent/) via REST + SSE so the
 frontend can submit tasks and stream the agent's ReAct loop output in real time.
@@ -18,7 +17,7 @@ import asyncio
 import json
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +53,7 @@ def _log_session_outcome(model: str, worked: bool, note: str) -> None:
     """
     try:
         entry = {
-            "date": datetime.now(timezone.utc).isoformat()[:10],
+            "date": datetime.now(UTC).isoformat()[:10],
             "model": model,
             "route": "subagent",
             "worked": worked,
@@ -88,7 +87,7 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
             "status": "running",
             "result": None,
             "error": None,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "iterations": [],
             "model": model or DEFAULT_MODEL,
             "cancelled": False,
@@ -110,7 +109,7 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
                     {
                         "task_id": task_id,
                         "text": text,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     },
                 )
             ),
@@ -161,7 +160,7 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
                     "task_id": task_id,
                     "result": result,
                     "metrics": metrics,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )
         )
@@ -190,7 +189,7 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
                     "task_id": task_id,
                     "error": error_msg,
                     "error_detail": error_detail,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )
         )
@@ -242,7 +241,7 @@ async def cancel_sub_agent(task_id: str) -> dict[str, Any]:
             "agent_cancelled",
             {
                 "task_id": task_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         )
     )
@@ -286,7 +285,7 @@ async def stream_sub_agent(task_id: str) -> EventSourceResponse:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
                     yield event
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send a keep-alive comment
                     yield ":keep-alive\n\n"
         finally:
