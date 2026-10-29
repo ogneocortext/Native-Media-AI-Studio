@@ -5,7 +5,7 @@ Rules: `docs/plans/tasks/README.md`
 Principle: integrate at arm's length, never in-place; nav by job, not
 by vendor.
 
-### T-INT-01 — Nav-by-job reorganization design
+### T-INT-01 — Design the nav-by-job reorganization (Create / Library / Analyze / Render / System)
 - **Status:** done
 - **Goal:** A written mapping of every current nav destination into
   Create / Library / Analyze / Render / System, with engines (Remotion,
@@ -20,7 +20,7 @@ by vendor.
   names in paths). Backward-compatible redirects for all old routes.
   Ready for owner approval before T-INT-02.
 
-### T-INT-02 — Implement the nav regrouping
+### T-INT-02 — Implement the nav-by-job regrouping in Sidebar and routes
 - **Status:** done
 - **Goal:** T-INT-01's mapping implemented.
 - **Files:** packages/frontend/src/App.tsx, packages/frontend/src/components/layout/Sidebar.tsx

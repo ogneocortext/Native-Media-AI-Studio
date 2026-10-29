@@ -4,7 +4,7 @@ Area map + behavior ledger: `docs/plans/focus-areas-and-behavior-ledgers-2026-10
 Rules: `docs/plans/tasks/README.md`
 Design: `docs/knowledge-library/acestep-agent-drive-2026.md`
 
-### T-MUS-01 — ACE-Step agent-drive step A1
+### T-MUS-01 — Add ACE-Step style & lyrics planning (step A1)
 - **Status:** done
 - **Goal:** Step A1 implemented as defined in the agent-drive design doc.
 - **Files:** docs/knowledge-library/acestep-agent-drive-2026.md §A1,
@@ -32,7 +32,7 @@ Design: `docs/knowledge-library/acestep-agent-drive-2026.md`
       when the planner is unreachable — now they work end-to-end.
   **Agent-as-planner pattern (§4) stands as the fallback design.**
 
-### T-MUS-02 — ACE-Step agent-drive step A2
+### T-MUS-02 — Smoke-test ACE-Step generation end to end (step A2)
 - **Status:** done
 - **Goal:** Step A2 implemented as defined in the agent-drive design doc.
 - **Files:** docs/knowledge-library/acestep-agent-drive-2026.md §A2
@@ -52,7 +52,7 @@ Design: `docs/knowledge-library/acestep-agent-drive-2026.md`
   generation completed within the 10-minute command timeout.
   Replaces the §6 estimate ("~75 s song ≈ 3 minutes") with a local measurement.
 
-### T-MUS-03 — ACE-Step agent-drive steps A3–A4
+### T-MUS-03 — Review ACE-Step duration control & agent CLI (steps A3–A4)
 - **Status:** done
 - **Goal:** Steps A3 and A4 implemented (split this item in two if either
   step exceeds the size rule).
@@ -74,7 +74,7 @@ Design: `docs/knowledge-library/acestep-agent-drive-2026.md`
   simple curl commands (start → generate → fetch → unload). A4 deferred —
   not needed in practice.
 
-### T-MUS-04 — VRAM management for ACE-Step (new)
+### T-MUS-04 — Add VRAM headroom for ACE-Step music generation
 - **Status:** done
 - **Goal:** Updated `packages/backend/app/services/vram_manager.py` to
   properly accommodate ACE-Step's 6 GB VRAM requirement on the GTX 1070 Ti
@@ -97,7 +97,7 @@ Design: `docs/knowledge-library/acestep-agent-drive-2026.md`
   (4) All 19 VRAM tests pass (1 pre-existing unrelated failure in
       test_3d_generation_cycle).
 
-### T-MUS-05 — ACE-Step bridge isolation layer (new)
+### T-MUS-05 — Add ACE-Step isolation layer (provider updates are config-only)
 - **Status:** done
 - **Goal:** Build an isolation layer between app code and ACE-Step so provider
   updates require only config changes, not code changes (same pattern as the

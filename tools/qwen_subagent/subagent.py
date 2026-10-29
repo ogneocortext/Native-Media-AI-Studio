@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from typing import Any
 
 try:
@@ -108,6 +109,7 @@ def _run_react_loop(
     model: str,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     stream: bool = True,
+    on_output: Callable[[str], None] | None = None,
 ) -> str:
     """Manual ReAct loop with non-streaming OpenAI chat completions.
 
@@ -117,11 +119,17 @@ def _run_react_loop(
          as a ``tool`` role message.
       3. Repeat until the LLM gives a final text answer (no tool calls) or
          max_iterations is reached.
+
+    Args:
+        on_output: Optional callback called with each piece of output text
+            (assistant content and tool results). Used for SSE streaming.
     """
     final = ""
     for iteration in range(max_iterations):
         if stream:
             print(f"\n[iteration {iteration + 1}/{max_iterations}] ", end="", flush=True)
+            if on_output:
+                on_output(f"\n[iteration {iteration + 1}/{max_iterations}] ")
 
         response = client.chat.completions.create(
             model=model,
@@ -152,10 +160,20 @@ def _run_react_loop(
 
         if content and stream:
             print(content, end="", flush=True)
+        if content and on_output:
+            on_output(content)
         final = content
 
         if not tool_calls:
-            # No tool calls -> final answer
+            # No tool calls. If content is empty, the model may have gotten
+            # stuck (e.g. Qwen3 thinking mode produced no output). Prompt it
+            # once more to produce a final answer based on tool results.
+            if not content.strip() and iteration < max_iterations - 1:
+                messages.append({
+                    "role": "system",
+                    "content": "You must provide a final text answer summarizing the tool results above. Do not make further tool calls."
+                })
+                continue
             break
 
         # Execute each tool call and feed results back
@@ -180,6 +198,8 @@ def _run_react_loop(
             truncated = _truncate(result_str)
             if stream:
                 print(f"\n[tool: {name}] {truncated}", end="", flush=True)
+            if on_output:
+                on_output(f"\n[tool: {name}] {truncated}")
 
             messages.append({
                 "role": "tool",
@@ -190,6 +210,8 @@ def _run_react_loop(
 
     if stream:
         print()
+    if on_output:
+        on_output("\n")
     return final
 
 
@@ -198,6 +220,7 @@ def run_task(
     model: str | None = None,
     stream: bool = True,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    on_output: Callable[[str], None] | None = None,
 ) -> str:
     """Run a single task through the sub-agent and return the final response."""
     model = model or DEFAULT_MODEL
@@ -211,7 +234,7 @@ def run_task(
     ]
 
     try:
-        return _run_react_loop(client, tools_map, openai_tools, messages, model, max_iterations, stream)
+        return _run_react_loop(client, tools_map, openai_tools, messages, model, max_iterations, stream, on_output)
     except Exception as exc:  # noqa: BLE001
         print(f"\n[subagent] Error: {exc}", file=sys.stderr)
         print(f"[subagent] Falling back to {FALLBACK_MODEL}...", file=sys.stderr)
@@ -220,7 +243,7 @@ def run_task(
             {"role": "system", "content": SYSTEM_MESSAGE},
             {"role": "user", "content": task},
         ]
-        return _run_react_loop(client, tools_map, openai_tools, messages, FALLBACK_MODEL, max_iterations, stream)
+        return _run_react_loop(client, tools_map, openai_tools, messages, FALLBACK_MODEL, max_iterations, stream, on_output)
 
 
 def main(argv: list[str] | None = None) -> int:

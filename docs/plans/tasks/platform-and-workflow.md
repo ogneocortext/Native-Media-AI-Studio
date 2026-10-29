@@ -3,7 +3,7 @@
 Area map + behavior ledger: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md` §3.9
 Rules: `docs/plans/tasks/README.md`
 
-### T-PLT-01 — Task-file system adopted
+### T-PLT-01 — Adopt the task-file system for session state
 - **Status:** done
 - **Goal:** `docs/plans/tasks/` exists with template, per-area files,
   and the AGENTS.md bootstrap pointer.
@@ -12,7 +12,7 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Orion, 2026-10-25 — system created and seeded from
   the focus map's Next Moves.
 
-### T-PLT-02 — Install git hooks on the Windows clone
+### T-PLT-02 — Install git hooks on the Windows clone (trailer / move / orphan guards)
 - **Status:** blocked
 - **Goal:** `bash scripts/install-git-hooks.sh` run once on the owner's
   Windows clone so trailer/move/orphan guards are live at commit time.
@@ -22,7 +22,7 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Blocked on owner (one local run; pending since
   2026-09).
 
-### T-PLT-03 — Focus-map freshness spot-check
+### T-PLT-03 — Spot-check focus-map freshness against the tree
 - **Status:** done
 - **Goal:** Monthly: compare each area's State entry against the tree;
   fix drift in the same session.
@@ -41,7 +41,7 @@ Rules: `docs/plans/tasks/README.md`
   Areas 3.3 (Audio/Remix) and 3.9 (Platform) confirmed current — no drift.
   All entries updated with 2026-10-27 dates and status notes.
 
-### T-PLT-04 — SQLite home-server deployment improvements (new)
+### T-PLT-04 — Make studio.db relocatable with bounded WAL/cache growth
 - **Status:** done
 - **Goal:** Make `studio.db` relocatable, bound WAL/cache/mmap growth,
   checkpoint WAL on shutdown, add JSON1 query functions for analysis results.

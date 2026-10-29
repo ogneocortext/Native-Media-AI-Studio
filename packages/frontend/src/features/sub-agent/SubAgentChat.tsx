@@ -48,13 +48,14 @@ export function SubAgentChat() {
 
   // Clean up EventSource on unmount
   useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      if (abortRef.current) abortRef.current.abort();
-    };
+  return () => {
+    // Don't close the EventSource here — React 18 StrictMode mounts/unmounts/
+    // remounts components in development, which would close the SSE connection
+    // before the task completes. The backend closes the connection when the
+    // task finishes (agent_done event). The EventSource is also cleaned up
+    // when the page unloads or the user navigates away.
+    if (abortRef.current) abortRef.current.abort();
+  };
   }, []);
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -129,10 +130,10 @@ export function SubAgentChat() {
             setLoading(false);
           }
         },
-        (err: Event) => {
-          console.error("SSE error:", err);
-          setLoading(false);
-        },
+  (err: Event) => {
+    console.log("[sub-agent] onError callback:", err);
+    setLoading(false);
+  },
       );
 
       eventSourceRef.current = es;
@@ -212,7 +213,7 @@ export function SubAgentChat() {
                 }
               }}
               placeholder="e.g. 'run the ruff gate on the backend and report any violations' or 'read packages/backend/tests/conftest.py and report the fixture scope'"
-              disabled={loading || !input.trim()}
+              disabled={loading}
               className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-muted focus:outline-none focus:border-violet-500 disabled:opacity-50"
             />
             <button
@@ -244,15 +245,13 @@ export function SubAgentChat() {
               <div>
                 <Bot size={40} className="text-muted/30 mx-auto mb-3" />
                 <p className="text-sm text-muted">Submit a task to get started</p>
-                <p className="text-xs text-muted mt-1">
-                  Examples:
-                  <ul className="text-left mt-1 space-y-1 text-xs">
-                    <li>"run the ruff gate on the backend and report violations"</li>
-                    <li>"read packages/backend/tests/conftest.py and report fixture scope"</li>
-                    <li>"grep for init_db across the backend tests directory"</li>
-                    <li>"run pytest on test_audio_file_size.py and report results"</li>
-                  </ul>
-                </p>
+                <p className="text-xs text-muted mt-1">Examples:</p>
+                <ul className="text-left mt-1 space-y-1 text-xs">
+                  <li>"run the ruff gate on the backend and report violations"</li>
+                  <li>"read packages/backend/tests/conftest.py and report fixture scope"</li>
+                  <li>"grep for init_db across the backend tests directory"</li>
+                  <li>"run pytest on test_audio_file_size.py and report results"</li>
+                </ul>
               </div>
             </div>
           )}

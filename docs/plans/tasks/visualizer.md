@@ -6,7 +6,7 @@ to every item here: tag first, ledger report after.**
 Module map: `docs/architecture/visualizer.md` (D14). Never touch
 `unity-visualizer/`.
 
-### T-VIZ-01 — Tag + decomposition plan for Visualizer.tsx
+### T-VIZ-01 — Tag Visualizer.tsx and plan its slice decomposition
 - **Status:** done
 - **Goal:** `pre-refactor` tag placed; a written slice plan exists that
   splits Visualizer.tsx (≈104 KB) into ≤40-minute items in this file.
@@ -17,7 +17,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   and pushed to remote. File read in full (2,475 lines). Slice plan written
   with 7 slices (T-VIZ-02–T-VIZ-08), each with files + acceptance.
 
-### T-VIZ-02 — Extract `useVisualizerState` hook
+### T-VIZ-02 — Extract the useVisualizerState hook from Visualizer.tsx
 - **Status:** done
 - **Goal:** All `useState`/`useRef` declarations extracted from Visualizer.tsx
   into a new `useVisualizerState.ts` hook. Returns state + setters + refs.
@@ -31,7 +31,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   shadowed hook refs; converted useState-based refs to proper useRef; removed
   dead proMixerStems state from hook; tsc + vitest + eslint all pass.
 
-### T-VIZ-03 — Decompose Canvas2DVisualizer.tsx — slice plan
+### T-VIZ-03 — Plan the Canvas2DVisualizer.tsx slice decomposition
 - **Status:** done
 - **Goal:** Write the slice plan for splitting Canvas2DVisualizer.tsx
   (≈83 KB, 1823 lines) into ≤40-minute items per the D14 module map.
@@ -45,7 +45,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Kilo, 2026-10-26 — slice plan written with 7 slices
   (T-VIZ-04–T-VIZ-09), each with files + acceptance.
 
-### T-VIZ-04 — Extract shockwave system
+### T-VIZ-04 — Extract shockwave system into shockwaves.ts
 - **Status:** done
 - **Goal:** Move spawnShockwave, updateShockwaves, drawShockwaves,
   shockwaves array, MAX_SHOCKWAVES to a new module
@@ -60,7 +60,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   imports from it; call sites pass `shockwaves` array and `rand` fn.
   tsc + lint + 601 vitest all pass.
 
-### T-VIZ-05 — Extract idle particle system
+### T-VIZ-05 — Extract idle particle system into idleParticles.ts
 - **Status:** done
 - **Goal:** Move idleParticles array, spawnIdleParticle, updateIdleParticles,
   drawIdleParticles, MAX_IDLE_PARTICLES to `idleParticles.ts`.
@@ -74,7 +74,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   imports from it; call sites pass `idleParticles` array and `rand` fn.
   tsc + lint + 601 vitest all pass.
 
-### T-VIZ-06 — Extract particle system (particles mode)
+### T-VIZ-06 — Extract particle render system into particles.ts
 - **Status:** done
 - **Goal:** Move particles array, spawnParticle, and the particles-mode
   render block to `particles.ts`. Canvas2DVisualizer.tsx delegates to it.
@@ -87,7 +87,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   Canvas2DVisualizer.tsx imports from it; particles mode render block
   replaced with a single call. tsc + lint + 601 vitest all pass.
 
-### T-VIZ-07 — Extract per-mode render functions (bars group)
+### T-VIZ-07 — Extract bar-style mode renderers into canvas2dModes.ts
 - **Status:** done
 - **Goal:** Extract bars, mirrored-bars, segmented-led-bars,
   stereo-split-bars, stacked-frequency-bands, dot-peak-matrix render
@@ -103,7 +103,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   now calls renderBarMode once instead of the 6-mode if/else chain (~490 lines
   removed). tsc + lint + 601 vitest all pass.
 
-### T-VIZ-08 — Extract per-mode render functions (remaining group)
+### T-VIZ-08 — Extract remaining mode renderers into canvas2dModes.ts
 - **Status:** done
 - **Goal:** Extract waveform, radial, spectrogram, lissajous, constellation,
   aurora render blocks to `canvas2dModes.ts`.
@@ -117,7 +117,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   replaced all inline mode blocks in Canvas2DVisualizer.tsx with a single
   renderMode call (~430 lines removed). tsc + lint + 601 vitest all pass.
 
-### T-VIZ-09 — Extract Plan 2.9 deterministic API + final wire-up
+### T-VIZ-09 — Extract Plan 2.9 deterministic render API into its own module
 - **Status:** done
 - **Goal:** Extract readiness/beginDeterministicRun/renderAtVirtualTime/
   endDeterministicRun to a focused module; remove inline mode blocks from
@@ -151,19 +151,3 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   integration fixed (fuzzy model matching + backend-aware routing) but not used
   for analysis due to VRAM constraints.
 
-### Interaction-State Vision Analysis (completed 2026-10-26)
-- **Status:** done
-- **Goal:** Capture interaction-state screenshots of /visualizer (modal closed,
-  track dropdown open, focus tabs Bass/Vocals/Highs, genre presets EDM/Phonk+Bass,
-  mode toggles 3D/2D) and analyze each with a vision model to reveal issues a
-  static screenshot misses.
-- **Files:** 9 screenshots in `.playwright-mcp/` (interaction-*.png); findings
-  documented in `docs/knowledge-library/visualizer-ux-audit-2026-10.md` §5.
-- **Acceptance:** Cross-state patterns identified (no hover/focus states,
-  dense control panel, long sidebar, missing state feedback, contrast concerns);
-  prioritized recommendations written; resource-budgeting rules added
-  (check VRAM before analysis, skip if >70%, one at a time).
-- **Last session:** Kilo, 2026-10-26 — 7 of 9 states analyzed (2 blocked by
-  Ollama 500 under VRAM pressure); Gemma4 via Ollama used; Atomic Chat Qwen
-  integration fixed (fuzzy model matching + backend-aware routing) but not used
-  for analysis due to VRAM constraints.

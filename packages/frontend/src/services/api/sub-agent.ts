@@ -3,9 +3,13 @@
  *
  * Communicates with the backend sub-agent endpoints:
  *   POST   /api/sub-agent/run        - Start a task, returns { task_id }
- *   GET    /api/sub-agent/stream/{task_id}  - SSE stream of agent output
  *   GET    /api/sub-agent/status/{task_id}  - Get task status
  *   GET    /api/sub-agent/tasks      - List all tasks
+ *
+ * Uses HTTP polling instead of SSE/EventSource for reliability: EventSource
+ * connections from React components can be fragile due to StrictMode
+ * remounting, CORS preflight, and Vite dev-proxy buffering of long-lived
+ * streams. Polling is simpler and more robust for local development.
  */
 
 import { getApiBase } from "./core";
@@ -79,56 +83,38 @@ export async function listSubAgentTasks(): Promise<{ tasks: SubAgentTask[] }> {
 }
 
 /**
- * Open an SSE stream for a sub-agent task. Yields parsed SSE events.
- * Caller is responsible for closing the EventSource.
+ * Poll the task status endpoint at regular intervals, invoking onEvent
+ * with each status change. Returns an interval id that can be passed to
+ * clearInterval to stop polling.
  */
-export function subscribeToSubAgentStream(
+export function subscribeToSubAgentPoll(
   taskId: string,
   onEvent: (event: SubAgentEvent) => void,
-  onError?: (error: Event) => void,
-): EventSource {
-  const base = getApiBase();
-  const es = new EventSource(`${base}/api/sub-agent/stream/${taskId}`);
+  onError?: (error: Error) => void,
+  intervalMs: number = 2000,
+): number {
+  let lastStatus: string | undefined;
 
-  es.addEventListener("agent_output", (e: MessageEvent) => {
+  const poll = async () => {
     try {
-      const data = JSON.parse(e.data);
-      onEvent({ type: "agent_output", data, timestamp: data.timestamp });
-    } catch {
-      onEvent({ type: "agent_output", data: e.data });
+      const task = await getSubAgentTaskStatus(taskId);
+      if (task.status !== lastStatus) {
+        lastStatus = task.status;
+        onEvent({
+          type: task.status as "agent_output" | "agent_done" | "agent_error",
+          data: task,
+          timestamp: task.created_at,
+        });
+      }
+      if (task.status === "completed" || task.status === "failed") {
+        clearInterval(intervalId);
+      }
+    } catch (err) {
+      onError?.(err as Error);
     }
-  });
+  }
 
-  es.addEventListener("agent_done", (e: MessageEvent) => {
-    try {
-      const data = JSON.parse(e.data);
-      onEvent({ type: "agent_done", data, timestamp: data.timestamp });
-    } catch {
-      onEvent({ type: "agent_done", data: e.data });
-    }
-  });
-
-  es.addEventListener("agent_error", (e: MessageEvent) => {
-    try {
-      const data = JSON.parse(e.data);
-      onEvent({ type: "agent_error", data, timestamp: data.timestamp });
-    } catch {
-      onEvent({ type: "agent_error", data: e.data });
-    }
-  });
-
-  es.addEventListener("error", (e: MessageEvent) => {
-    try {
-      const data = JSON.parse(e.data);
-      onEvent({ type: "error", data });
-    } catch {
-      onError?.(e);
-    }
-  });
-
-  es.onerror = (err) => {
-    onError?.(err as Event);
-  };
-
-  return es;
+  poll(); // Run immediately
+  const intervalId = setInterval(poll, intervalMs);
+  return intervalId;
 }

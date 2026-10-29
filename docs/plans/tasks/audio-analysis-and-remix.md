@@ -3,7 +3,7 @@
 Area map + behavior ledger: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md` §3.3
 Rules: `docs/plans/tasks/README.md`
 
-### T-AUD-01 — Mastering follow-through (roadmap M-series)
+### T-AUD-01 — Ship M1 mastering (loudness measure, normalize, true-peak limit)
 - **Status:** done
 - **Goal:** The next unlanded mastering item from
   `docs/plans/feature-roadmap-2026-10.md` implemented and verified.
@@ -19,7 +19,7 @@ Rules: `docs/plans/tasks/README.md`
   Endpoint verified live: returns 404 for missing file (route registered).
   Loudness measured via ffmpeg ebur128 per D15/D17 patterns. Acceptance met.
 
-### T-AUD-02 — Probe-cache hygiene check
+### T-AUD-02 — Confirm probe caches live only in output/remixes/.probes/
 - **Status:** done
 - **Goal:** Confirm probe caches live only in `output/remixes/.probes/`
   and no code path writes them beside stems.
@@ -28,7 +28,7 @@ Rules: `docs/plans/tasks/README.md`
   outside the sanctioned location.
 - **Last session:** Cline, 2026-10-26 — verified. PROBE_CACHE_DIR = output/remixes/.probes/ only definition (stem_remixer.py:74-75). audio_analysis.py has no .probes references. On disk, only output/remixes/.probes/ exists; none beside stems under output/stems/. Acceptance passed.
 
-### T-AUD-03 — Remix probe API route fix + JSON1 audio search (new)
+### T-AUD-03 — Fix colon in remix track probe names; add JSON1 audio search
 - **Status:** done
 - **Goal:** Fix `GET /api/audio/remix/probe/{track}` breaking on track names
   containing colons (e.g. `norm_StillIRise_V4b_preview_1.4dB:0`); add

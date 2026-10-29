@@ -3,7 +3,7 @@
 Area map + behavior ledger: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md` §3.6
 Rules: `docs/plans/tasks/README.md`
 
-### T-MOD-01 — Atomic Chat vs Ollama A/B measurement
+### T-MOD-01 — Measure Atomic Chat vs Ollama cold first-token time (A/B)
 - **Status:** done
 - **Goal:** Same prompt set run cold on both engines (Qwen3.5-4B):
   cold-load-to-first-token, total wall time, peak VRAM recorded
@@ -23,7 +23,7 @@ Rules: `docs/plans/tasks/README.md`
   4B callers per focus map §3.6); Ollama wins total batch time 1.5x.
   Both entries appended to observed.jsonl.
 
-### T-MOD-02 — Set atomic_chat_enabled from the A/B result
+### T-MOD-02 — Set atomic_chat_enabled based on the A/B result
 - **Status:** done
 - **Goal:** `config/ports.json` `atomic_chat_enabled` set deliberately —
   on if Atomic wins cold *and* stays reliable under bursty agent

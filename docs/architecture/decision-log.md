@@ -1728,7 +1728,7 @@
 - **Consequences:** Do not reintroduce per-run full interpreter probing, serial lanes as default, or report-only checkers inside every docs gate run without -v. The cache is bounded: an entry older than the TTL is re-probed, so repairing a broken env needs no cache clearing.
 
 
-### D49 — SQLite home-server deployment improvements (2026-10-27)
+### D49 — Make studio.db relocatable with bounded WAL/cache growth (2026-10-27)
 
 - **Status:** Decided
 - **Context:** `storage/studio.db` ran on a long-lived home server with no way to relocate it, no bounding PRAGMAs for WAL/cache/mmap, and no WAL checkpoint on shutdown — so the `-wal` file grew unboundedly between restarts and the DB path was baked into code.
@@ -1746,7 +1746,7 @@
 - **Consequences:** `tools/check-import-cycles.py` still reports 0 cycles / 0 inversions, but now with zero deferred imports hiding anything. `init_db` accepts an optional `db_path` for testability. No runtime behavior change — all import graphs were already acyclic; deferred imports were removed as a hygiene measure per the D32 principle ("Do not 'fix' a cycle by adding another deferred import").
 
 
-### D51 — ACE-Step bridge isolation layer (2026-10-27)
+### D51 — Add ACE-Step isolation layer (provider updates are config-only) (2026-10-27)
 
 - **Status:** Decided
 - **Context:** ACE-Step is downloaded from GitHub and may be updated by the provider at any time, changing request/response parameter names, response shapes, or model IDs. The app needs an isolation layer so that a provider update requires only config changes, not code changes — the same pattern used by the ComfyUI bridge.

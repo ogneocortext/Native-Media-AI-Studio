@@ -67,12 +67,15 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
         }
 
     iteration_outputs: list[str] = []
+    # Capture the running event loop so the on_output callback (invoked from a
+    # thread executor) can schedule SSE messages on the main loop.
+    main_loop = asyncio.get_running_loop()
 
     def on_output(text: str) -> None:
         """Callback called by the sub-agent for each iteration/tool result."""
         iteration_outputs.append(text)
-        # Fire-and-forget: push to SSE queue (non-blocking)
-        asyncio.create_task(
+        # Schedule the SSE message on the main event loop from the worker thread.
+        asyncio.run_coroutine_threadsafe(
             sse_manager.send_message(
                 _make_sse_event(
                     "agent_output",
@@ -82,14 +85,16 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                 )
-            )
+            ),
+            main_loop,
         )
 
     try:
-        # Run the sub-agent in a thread to avoid blocking the event loop
+        # Run the sub-agent in a thread to avoid blocking the event loop.
+        # Pass on_output so each iteration/tool result is streamed via SSE.
         result = await asyncio.get_event_loop().run_in_executor(
             None,
-            lambda: run_task(task, model=model, stream=False),
+            lambda: run_task(task, model=model, stream=False, on_output=on_output),
         )
 
         async with _tasks_lock:

@@ -5,7 +5,7 @@ Rules: `docs/plans/tasks/README.md`
 **Hold:** no music-video generation/rendering in Orion's environment
 until the storyboard gate (T-VID-03) lands. Local-platform work only.
 
-### T-VID-01 — Video Intros: recipe schema design
+### T-VID-01 — Design the video intro recipe schema
 - **Status:** done
 - **Goal:** A written intro-recipe schema (logo, palette, sting source,
   motion curve, duration 3–7 s) that the render pipeline can consume;
@@ -21,7 +21,7 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   motion (curve/intro_animation/logo_dwell_sec). Includes validation rules,
   determinism guarantee, and field reference. Ready for T-VID-02 render.
 
-### T-VID-02 — Video Intros: first template render (local)
+### T-VID-02 — Render a local video intro template from the recipe
 - **Status:** todo
 - **Goal:** One intro rendered locally from the T-VID-01 recipe, sting
   synced to the measured beat grid, watermark/branding baked in from
@@ -31,14 +31,14 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   before it becomes the template.
 - **Last session:** —
 
-### T-VID-04 — Fix "estimated cost" showing cloud-burst USD on a local-only tool
+### T-VID-04 — Never show silent cloud-burst cost on local-only video estimates
 - **Status:** done
 - **Goal:** `POST /api/video/estimate-cost` and the wizard estimate card never show a silent cloud-burst cost for a local-only run: local-compute cost (`defaults.local_compute_cost_per_second`, $0.01/min) is always shown; `cloud_cost_usd` appears only when an explicit cloud price is requested (D9 opt-in).
 - **Files:** packages/backend/app/services/generation_estimator.py, packages/backend/app/api/video.py, packages/frontend/src/services/api/video-render.ts, packages/frontend/src/features/music-video/steps.tsx
 - **Acceptance:** estimate with no cloud price returns `local_cost_usd` and no `cloud_cost_usd`; estimate with explicit price returns both; wizard card labels local vs cloud correctly; pytest test_generation_estimator + ruff + tsc/eslint gates pass on changed paths.
 - **Last session:** Cline, 2026-10-28 — done. Committed as 7d5ceec: estimates always report local_cost_usd ($0.0001/s from config defaults); cloud_cost_usd only with an explicit price; wizard card labels Local (est.) vs Cloud. Verified: backend behavior script, test_generation_estimator (4 passed), ruff, targeted eslint, tsc -b, pre-commit check-all.
 
-### T-VID-03 — Storyboard enrichment S1 (spec for implementation)
+### T-VID-03 — Spec storyboard enrichment S1 (measured-beat-grid input)
 - **Status:** done
 - **Goal:** S1 from
   `docs/knowledge-library/storyboard-enrichment-from-track-practice-2026.md`

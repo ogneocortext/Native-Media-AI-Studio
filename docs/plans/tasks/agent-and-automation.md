@@ -5,7 +5,7 @@ Rules: `docs/plans/tasks/README.md`
 Design: `docs/knowledge-library/custom-agent-design.md`
 Code: `packages/backend/app/agents/`
 
-### T-AGT-01 — Spec the agent LLM loop
+### T-AGT-01 — Design the agent LLM decision loop
 - **Status:** done
 - **Goal:** A written spec for the LLM decision loop on top of the
   existing pipeline: adapter chat-with-tools over `NMAApiClient`
@@ -24,7 +24,7 @@ Code: `packages/backend/app/agents/`
   tool_calls, aborted), and acceptance test (one track analyze→plan, timed
   vs Ollama path).
 
-### T-AGT-02 — Implement the LLM loop skeleton
+### T-AGT-02 — Build the agent LLM decision loop
 - **Status:** done
 - **Goal:** The T-AGT-01 spec implemented to its acceptance test.
 - **Files:** packages/backend/app/agents/, packages/backend/app/adapters/ollama.py

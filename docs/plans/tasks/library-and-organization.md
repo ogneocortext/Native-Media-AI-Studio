@@ -3,7 +3,7 @@
 Area map + behavior ledger: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md` §3.1
 Rules: `docs/plans/tasks/README.md`
 
-### T-LIB-01 — Search quality pass at real library scale
+### T-LIB-01 — Make media-library search reliable at real scale
 - **Status:** done
 - **Goal:** Media-library search finds items by name/tag reliably at the
   owner's real library size; no silent zero-result traps.
@@ -18,7 +18,7 @@ Rules: `docs/plans/tasks/README.md`
   MediaLibrary; added tagFilter to page-reset effect deps. tsc + lint +
   891 vitest all pass.
 
-### T-LIB-02 — Vision-loop polish pass on the media library
+### T-LIB-02 — Fix vision-review findings on media library pages
 - **Status:** done
 - **Goal:** One screenshot → vision-analyze → fix → re-verify cycle on the
   media library pages in their post-Oct-24 state.
