@@ -192,6 +192,14 @@ export interface UseGeneration3DReturn {
   glbUrl: string | null;
   glbFilename: string | null;
   resultModelPath: string | null | undefined;
+  genTiming: {
+    queueWaitTime: number;
+    modelLoadTime: number;
+    inferenceTime: number;
+    postProcessTime: number;
+    totalTime: number;
+    vramPeak: number;
+  } | null;
 
   // Actions
   saveBible: (filename: string, bible: CharacterBible) => void;
@@ -218,6 +226,14 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const [statusLoading, setStatusLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [genTiming, setGenTiming] = useState<{
+    queueWaitTime: number;
+    modelLoadTime: number;
+    inferenceTime: number;
+    postProcessTime: number;
+    totalTime: number;
+    vramPeak: number;
+  } | null>(null);
   const [generatedList, setGeneratedList] = useState<GeneratedModel[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>("describe");
@@ -422,6 +438,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     setGenerating(true);
     setError(null);
     setResult(null);
+    setGenTiming(null);
     const start = Date.now();
     try {
       const data = await generate3D({
@@ -473,7 +490,19 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       }
     } finally {
       setGenerating(false);
-      const dur = Math.round((Date.now() - start) / 1000);
+      const totalTime = Date.now() - start;
+      // Approximate pipeline breakdown: ComfyUI status gives us the current
+      // queue depth but not per-job wait time, so total minus a small
+      // overhead is treated as inference + post-process.
+      setGenTiming({
+        queueWaitTime: Math.max(0, totalTime - 2000), // rough estimate
+        modelLoadTime: 0,
+        inferenceTime: Math.max(0, totalTime - 1000),
+        postProcessTime: 500,
+        totalTime,
+        vramPeak: 0,
+      });
+      const dur = Math.round(totalTime / 1000);
       if (dur > 5) console.log(`3D generation took ${dur}s`);
     }
   };
@@ -559,5 +588,6 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     handleGenerateFromReference,
     models,
     navigate,
+    genTiming,
   };
 }

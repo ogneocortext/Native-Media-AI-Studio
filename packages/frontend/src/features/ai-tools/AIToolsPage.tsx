@@ -17,6 +17,7 @@ import {
   Cpu,
   Code2,
 } from "lucide-react";
+import { ToolExecutionCard } from "../../components/ToolExecutionCard";
 import {
   getOllamaModels,
   ollamaChatStream,
@@ -610,6 +611,8 @@ export function AIToolsPage() {
               </div>
             </div>
           )}
+          {/* Tool Execution Metrics */}
+          <ToolExecutionCard />
         </div>
 
         {/* Sidebar */}

@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useHealth } from "../../hooks";
 import { useHealthStore } from "../../state/healthStore";
+import { useNetworkMetrics } from "../../hooks/useNetworkMetrics";
 import {
   startComfyUI,
   stopComfyUI,
@@ -57,6 +58,9 @@ import {
   LogsViewer,
   GoServicesCard,
 } from "./components";
+import { ApiPerformanceCard } from "../../components/ApiPerformanceCard";
+import { MemoryMetricsCard } from "../../components/MemoryMetricsCard";
+import { NetworkMetricsCard } from "../../components/NetworkMetricsCard";
 import { showToast } from "../../utils/toast";
 
 export function HealthPage() {
@@ -71,6 +75,7 @@ export function HealthPage() {
   const [pendingHighVram, setPendingHighVram] = useState<number | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const networkMetrics = useNetworkMetrics();
 
   const fetchComfyUI = useHealthStore((s) => s.fetchComfyUIStatus);
   const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
@@ -456,6 +461,21 @@ export function HealthPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <PerformanceHistoryCard />
         <ServiceChecksCard />
+      </div>
+
+      {/* Frontend & Network Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <ApiPerformanceCard />
+        <MemoryMetricsCard />
+        <NetworkMetricsCard
+          uptime={networkMetrics.metrics.uptime}
+          reconnectionCount={networkMetrics.metrics.reconnectionCount}
+          averageLatency={networkMetrics.metrics.averageLatency}
+          bytesReceived={networkMetrics.metrics.bytesReceived}
+          bytesSent={networkMetrics.metrics.bytesSent}
+          messageDropRate={networkMetrics.metrics.messageDropRate}
+          connected={networkMetrics.metrics.connected}
+        />
       </div>
 
       {/* Services Status */}

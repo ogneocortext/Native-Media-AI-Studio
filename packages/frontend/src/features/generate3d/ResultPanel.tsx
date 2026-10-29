@@ -3,13 +3,14 @@ import { AlertCircle, CheckCircle, Box, Download, ArrowRight, Layers, Loader2 } 
 import { ModelPreview } from "./ModelPreview";
 import type { UseGeneration3DReturn } from "./useGeneration3D";
 import { openInBlender, openInUnity } from "../../services/api";
+import { GenerationTimingCard } from "../../components/GenerationTimingCard";
 
 interface ResultPanelProps {
   hook: UseGeneration3DReturn;
 }
 
 export function ResultPanel({ hook }: ResultPanelProps) {
-  const { result, error, setError, glbUrl, glbFilename, sendToStudio, navigate } = hook;
+  const { result, error, setError, glbUrl, glbFilename, sendToStudio, navigate, genTiming } = hook;
   const [opening, setOpening] = useState<null | "blender" | "unity">(null);
 
   if (!result && !error) return null;
@@ -189,6 +190,18 @@ export function ResultPanel({ hook }: ResultPanelProps) {
             </>
           )}
         </div>
+      )}
+
+      {/* Generation Timing Metrics */}
+      {genTiming && (
+        <GenerationTimingCard
+          queueWaitTime={genTiming.queueWaitTime}
+          modelLoadTime={genTiming.modelLoadTime}
+          inferenceTime={genTiming.inferenceTime}
+          postProcessTime={genTiming.postProcessTime}
+          totalTime={genTiming.totalTime}
+          vramPeak={genTiming.vramPeak}
+        />
       )}
     </>
   );

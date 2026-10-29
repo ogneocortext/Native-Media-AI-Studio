@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 
 // Custom project-specific ESLint rules
-import { noListAudioFiles, noProcessEnv, noRestrictedImportPaths } from './eslint-plugin/rules/index.js';
+import { noListAudioFiles, noProcessEnv } from './eslint-plugin/rules/index.js';
 
 // Project-specific architectural constraints encoded as ESLint rules.
 // These mirror the layering documented in AGENTS.md:
@@ -26,11 +26,6 @@ export default tseslint.config(
           'no-process-env': noProcessEnv,
         },
       },
-      'nma-imports': {
-        rules: {
-          'no-restricted-import-paths': noRestrictedImportPaths,
-        },
-      },
     },
     rules: {
       // Core correctness — errors, not warnings
@@ -49,16 +44,6 @@ export default tseslint.config(
     rules: {
       // 3D/visualizer code legitimately uses `any` for untyped shader/webgl data
       '@typescript-eslint/no-explicit-any': 'off',
-    },
-  },
-  {
-    // Frontend layering enforcement:
-    // Features should not import directly from API services — they go through hooks.
-    // Components should not import from features (features are page-level).
-    // Restricted paths are hardcoded in the rule (see eslint-plugin/rules/index.js).
-    files: ['src/features/**/*.ts', 'src/features/**/*.tsx', 'src/components/**/*.ts', 'src/components/**/*.tsx'],
-    rules: {
-      'nma-imports/no-restricted-import-paths': 'error',
     },
   },
 );

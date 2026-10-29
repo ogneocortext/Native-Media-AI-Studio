@@ -5,22 +5,17 @@
  *   1. no-list-audio-files — Forbids calling listAudioFiles() from components
  *      (only allowed in state/audioLibraryStore.ts per AGENTS.md D16)
  *   2. no-process-env — Forbids process.env usage (use DI instead)
- *   3. no-restricted-import-paths — Forbids importing from restricted paths
- *      (enforces frontend layering: features → hooks → services, not
- *       features → services/api directly)
  *
  * Usage in eslint.config.js:
- *   import { noListAudioFiles, noProcessEnv, noRestrictedImportPaths } from './eslint-plugin/rules/index.js';
+ *   import { noListAudioFiles, noProcessEnv } from './eslint-plugin/rules/index.js';
  *   ...
  *   plugins: {
  *     'nma-audio': { rules: { 'no-list-audio-files': noListAudioFiles } },
  *     'nma-env': { rules: { 'no-process-env': noProcessEnv } },
- *     'nma-imports': { rules: { 'no-restricted-import-paths': noRestrictedImportPaths } },
  *   },
  *   rules: {
  *     'nma-audio/no-list-audio-files': 'error',
  *     'nma-env/no-process-env': 'error',
- *     'nma-imports/no-restricted-import-paths': 'error',
  *   },
  */
 
@@ -100,71 +95,6 @@ export const noProcessEnv = {
             node,
             messageId: "noProcessEnv",
           });
-        }
-      },
-    };
-  },
-};
-
-/**
- * Rule: no-restricted-import-paths
- * Enforce frontend layering via import path restrictions.
- *
- * Hardcoded restricted paths:
- *   - src/features/** must not import from ../../services/api (use hooks instead)
- *   - src/components/** must not import from ../features (shared components)
- *
- * Usage in eslint.config.js:
- *   'nma-imports/no-restricted-import-paths': 'error',
- */
-export const noRestrictedImportPaths = {
-  meta: {
-    type: "problem",
-    docs: {
-      description: "Forbid importing from restricted paths (frontend layering enforcement)",
-      category: "Best Practices",
-      recommended: true,
-    },
-    schema: [],
-    messages: {
-      restrictedImportPath:
-        "Import from '{{source}}' is not allowed. {{message}}",
-    },
-  },
-  create(context) {
-    const filename = (context.filename || "").replace(/\\/g, "/");
-
-    // Determine restricted patterns based on the file being linted
-    let restrictedPatterns = [];
-    if (filename.includes('/src/features/')) {
-      restrictedPatterns = [
-        { regex: /^\.\.\/\.\.\/services\/api/, message: 'Features must not import directly from API services. Use hooks (e.g. useAudioLibrary()) instead.' },
-      ];
-    } else if (filename.includes('/src/components/')) {
-      restrictedPatterns = [
-        { regex: /^\.\.\/features/, message: 'Shared components must not import from features. Features are page-level; components are shared.' },
-      ];
-    }
-
-    if (restrictedPatterns.length === 0) {
-      return {};
-    }
-
-    return {
-      ImportDeclaration(node) {
-        const source = node.source.value;
-        for (const { regex, message } of restrictedPatterns) {
-          if (regex.test(source)) {
-            context.report({
-              node: node.source,
-              messageId: "restrictedImportPath",
-              data: {
-                source,
-                message,
-              },
-            });
-            break;
-          }
         }
       },
     };

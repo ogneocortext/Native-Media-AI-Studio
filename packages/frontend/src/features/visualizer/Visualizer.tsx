@@ -62,6 +62,8 @@ import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTransport } from "../../components/audio";
 import { AudioFileBrowser } from "./components/AudioFileBrowser";
+import { AudioLatencyCard } from "../../components/AudioLatencyCard";
+import { FrameRateCard } from "../../components/FrameRateCard";
 import type {
   AudioAnalysisData,
   AudioData,
@@ -2246,6 +2248,19 @@ export function Visualizer() {
               activeGenrePresetId={activeGenrePresetId}
               onGenrePresetSelect={handleGenrePresetSelect}
               vizMode={vizMode}
+            />
+          </div>
+
+          {/* Audio Latency & Frame Rate Metrics */}
+          <div className="absolute top-3 right-3 z-40 pointer-events-none max-w-xs">
+            <AudioLatencyCard audioCtx={audioCtxRef.current} />
+            <FrameRateCard
+              fps={renderStats?.fps ?? 0}
+              frameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
+              jankCount={0}
+              droppedFrames={0}
+              p95FrameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
+              isMonitoring={visualsVisible}
             />
           </div>
         </div>
