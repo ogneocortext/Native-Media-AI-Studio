@@ -95,7 +95,7 @@ export function BeatTimeline({
       const response = await fetch(audioElement.src);
       const arrayBuffer = await response.arrayBuffer();
 
-      const audioCtx = new AudioContext({ renderSizeHint: "hardware" } as any);
+      const audioCtx = new AudioContext({ renderSizeHint: "hardware" } as AudioContextOptions);
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
       // Get the first channel's audio data

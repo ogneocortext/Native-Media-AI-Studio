@@ -67,7 +67,7 @@ export interface ImageCapabilities {
   service: string;
   pillow_version: string;
   features: Record<string, boolean>;
-  operations: Record<string, any>;
+  operations: Record<string, unknown>;
   max_image_size: { width: number; height: number };
   max_file_size_mb: number;
 }

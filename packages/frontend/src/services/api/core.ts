@@ -14,7 +14,7 @@ export async function withDirectBackendFallback<T>(
 ): Promise<T> {
   try {
     return await proxyCall();
-  } catch (error) {
+  } catch {
     const cached = getCachedConfig();
     const backendUrl = cached?.backend_url || getBackendUrl();
     const directUrl = `${backendUrl.replace(/\/$/, "")}${directPath}`;

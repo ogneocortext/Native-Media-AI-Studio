@@ -54,6 +54,8 @@
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/ui": "^5.0.5",
     "eslint": "catalog:",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
     "playwright": "1.65.0-alpha-2026-10-28",
     "postcss-modules-values": "^4.0.0",
     "prettier": "3.9.9",

@@ -80,7 +80,7 @@ export function SubAgentChat() {
         ...prev,
       ]);
 
-      let currentMetrics: any = null;
+      let currentMetrics: { tool_calls?: number; iterations?: number; tool_usage?: Record<string, number>; context_truncations?: number; simulated_context_window?: number; dry_run?: boolean } | null | undefined = null;
 
       // Subscribe to SSE stream for real-time output
       const eventSource = subscribeToSubAgentSSE(
