@@ -141,6 +141,34 @@ keeps `-y` only because it runs unattended **and** the version is pinned
 | `packages/video-editor/opencode.json` | `npx -y @remotion/mcp@latest` | `npx --no --offline @remotion/mcp@1.0.0` |
 | `docs/knowledge-library/mcp-registry.json` | `npx comfyui-mcp ...`, `npx -y @remotion/mcp@latest` | `npx --no --offline comfyui-mcp@1.0.0 ...`, `npx --no --offline @remotion/mcp@1.0.0` |
 
+## ESLint MCP server (AI agent lint access)
+
+ESLint v10 supports `--mcp` (added in v9.26.0), which exposes ESLint as a
+Model Context Protocol server. This lets AI agents run lint directly through
+MCP tool calls instead of shelling out.
+
+Since ESLint is already a devDependency in this repo, use `pnpm exec` rather
+than `npx` (which would violate our npx hardening):
+
+```bash
+# Secure: uses locally installed ESLint, no network fetch
+pnpm exec eslint --mcp
+
+# Anti-pattern: npx would download eslint from the registry at runtime
+npx eslint --mcp
+```
+
+Add to `opencode.json` MCP server config if you want AI agents to invoke lint
+through MCP:
+
+```json
+"eslint-lint": {
+  "type": "local",
+  "command": ["pnpm", "exec", "eslint", "--mcp"],
+  "enabled": true
+}
+```
+
 ## Pre-install checklist
 
 Before running any `npx --no --offline` command, the package must be

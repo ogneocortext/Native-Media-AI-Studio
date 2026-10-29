@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run ESLint + Prettier only on staged frontend files.
+# This is scoped to packages/frontend so it doesn't slow down
+# backend-only commits. Works alongside the repo's existing
+# scripts/git-hooks/pre-commit (docs/repo hygiene checks).
+pnpm --filter native-media-ai-studio-frontend exec lint-staged
