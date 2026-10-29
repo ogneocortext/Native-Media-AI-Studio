@@ -29,7 +29,10 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.3.0",
     "httpx>=0.26.0",
+    "openai>=1.0.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
 ]
@@ -150,3 +153,41 @@ convention = "google"
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["packages/backend/tests"]
+pythonpath = ["packages/backend"]
+
+# Strictness — catches AI agent mistakes early (unknown markers, bad config)
+strict_markers = true
+strict_config = true
+
+# Async support (pytest-asyncio auto mode — no @pytest.mark.asyncio needed)
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Default options: short tracebacks, quiet, show 10 slowest tests
+addopts = ["--tb=short", "-q", "--durations=10"]
+
+# Global timeout — prevents AI-generated tests from hanging indefinitely.
+# Requires pytest-timeout plugin (listed in [project.optional-dependencies] dev).
+timeout = 120
+timeout_method = "thread"
+
+# Register custom markers so --strict-markers doesn't reject them.
+markers = [
+    "asyncio: mark test as async (auto-applied by pytest-asyncio in auto mode)",
+    "slow: slow-running tests; exclude with -m 'not slow'",
+    "integration: cross-component integration tests",
+    "network: tests requiring network access",
+    "gpu: GPU-specific tests",
+]
+
+# Turn common warning categories into errors — catches AI-generated test
+# issues like deprecated APIs and resource leaks early.
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::PendingDeprecationWarning",
+    "default::ResourceWarning",
+]

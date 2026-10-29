@@ -27,6 +27,8 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
+# Configuration values (no external dependencies).
+# Relative import when used as a package, absolute when run as a script.
 try:
     from .config import (
         CONTEXT_WINDOW_TOKENS,
@@ -38,7 +40,6 @@ try:
         OLLAMA_API_KEY,
         SIMULATE_CONTEXT_WINDOW,
     )
-    from .tools import TOOL_NAMES, TOOLS
 except ImportError:
     from config import (
         CONTEXT_WINDOW_TOKENS,
@@ -51,7 +52,17 @@ except ImportError:
         SIMULATE_CONTEXT_WINDOW,
     )
 
-    from tools import TOOL_NAMES, TOOLS
+# Tool definitions (requires qwen_agent package).
+# Fails gracefully when qwen_agent isn't installed — subagent then
+# runs with an empty tool set rather than crashing on import.
+try:
+    from .tools import TOOL_NAMES, TOOLS
+except ImportError:
+    try:
+        from tools import TOOL_NAMES, TOOLS
+    except ImportError:
+        TOOL_NAMES = []
+        TOOLS = []
 
 from openai import OpenAI
 
