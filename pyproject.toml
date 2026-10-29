@@ -81,7 +81,12 @@ select = [
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     # --- added after measuring each family against this tree ---
-    "D",      # pydocstyle: docstring conventions (google style configured below)
+    # "D" (pydocstyle) was evaluated and REJECTED: enabling it surfaces
+    # 382 pre-existing docstring issues across the backend API layer
+    # (missing argument descriptions, blank-line-after-summary,
+    # undocumented public classes, etc.). The project has no pydocstyle
+    # tradition and enforcing it would block development. Keep FBT/FURB/
+    # TC003 instead — they're targeted, valuable, and don't create churn.
     "ERA",    # eradicate: commented-out code
     "FBT",    # flake8-boolean-trap: no boolean positional args (AI-friendly)
     "FURB",   # refurb: modern idioms (all auto-fixable)
@@ -119,8 +124,6 @@ preview = true
 # Tools scripts use hyphenated names (e.g. check-docs-map.py) for CLI
 # discoverability; they are not importable modules, so N999 does not apply.
 "tools/**" = ["N999"]
-# Test files don't need docstring conventions.
-"**/tests/**" = ["D"]
 # __init__.py files are package markers; module-import-not-at-top-of-file
 # doesn't apply there.
 "**/__init__.py" = ["E402"]
@@ -146,9 +149,6 @@ extend-allowed-calls = []
 # place imports in the right section instead of defaulting to third_party.
 known-first-party = ["app", "tools"]
 known-third-party = ["fastapi", "uvicorn", "pydantic", "librosa", "soundfile", "websockets", "numpy", "httpx", "python-dotenv", "sse-starlette", "gpustat", "nvidia-ml-py", "pytest", "mypy", "ruff"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
 
 [tool.ruff.format]
 quote-style = "double"

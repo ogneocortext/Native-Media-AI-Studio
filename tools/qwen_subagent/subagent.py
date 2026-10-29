@@ -24,8 +24,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Configuration values (no external dependencies).
 # Relative import when used as a package, absolute when run as a script.
@@ -194,6 +196,7 @@ def _run_react_loop(
     messages: list[dict[str, Any]],
     model: str,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    *,
     stream: bool = True,
     on_output: Callable[[str], None] | None = None,
 ) -> tuple[str, dict[str, Any]]:
@@ -350,6 +353,7 @@ def _run_react_loop(
 def run_task(
     task: str,
     model: str | None = None,
+    *,
     stream: bool = True,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     on_output: Callable[[str], None] | None = None,

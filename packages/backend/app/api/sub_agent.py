@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import operator
 import sys
 import uuid
 from datetime import UTC, datetime
@@ -45,7 +46,7 @@ _tasks_lock = asyncio.Lock()
 _OBSERVED_LOG = _repo_root / "tools" / "model-reliability" / "observed.jsonl"
 
 
-def _log_session_outcome(model: str, worked: bool, note: str) -> None:
+def _log_session_outcome(model: str, *, worked: bool, note: str) -> None:
     """Append a session outcome to the model reliability log.
 
     Per AGENTS.md D21: append one line per session to observed.jsonl.
@@ -225,7 +226,7 @@ async def cancel_sub_agent(task_id: str) -> dict[str, Any]:
         task_state = _tasks.get(task_id)
     if task_state is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    if task_state["status"] not in ("running",):
+    if task_state["status"] != "running":
         raise HTTPException(
             status_code=400,
             detail=f"Task {task_id} is {task_state['status']} and cannot be cancelled",
@@ -324,4 +325,4 @@ async def list_tasks() -> dict[str, Any]:
             }
             for tid, t in _tasks.items()
         ]
-    return {"tasks": sorted(tasks, key=lambda x: x["created_at"], reverse=True)}
+    return {"tasks": sorted(tasks, key=operator.itemgetter("created_at"), reverse=True)}

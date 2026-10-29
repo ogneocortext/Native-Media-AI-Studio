@@ -56,7 +56,10 @@ select = [
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     # --- added after measuring each family against this tree ---
-    "D",      # pydocstyle: docstring conventions
+    # "D" (pydocstyle) was evaluated and REJECTED: enabling it surfaces
+    # pre-existing docstring issues across the codebase. The project has
+    # no pydocstyle tradition and enforcing it would block development.
+    # Keep FBT/FURB/TC003 instead — targeted, valuable, no churn.
     "ERA",    # eradicate: commented-out code
     "FBT",    # flake8-boolean-trap: no boolean positional args (AI-friendly)
     "FURB",   # refurb: modern idioms (all auto-fixable)
@@ -84,8 +87,6 @@ preview = true
 # Tools scripts use hyphenated names (e.g. check-docs-map.py) for CLI
 # discoverability; they are not importable modules, so N999 does not apply.
 "*.py" = ["N999"]
-# Test files don't need docstring conventions.
-"**/tests/**" = ["D"]
 # analyze.py stages its heavy imports on purpose: librosa loads only after
 # the ffmpeg decode (a missing ffmpeg then fails fast, before the slow
 # import), and matplotlib loads in the visuals section so
@@ -107,9 +108,6 @@ extend-allowed-calls = []
 # Known first-party modules for the tools package.
 known-first-party = ["tools"]
 known-third-party = ["mido", "python-osc", "mcp"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
 
 [tool.ruff.format]
 quote-style = "double"
