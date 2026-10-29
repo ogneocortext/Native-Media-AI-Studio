@@ -736,6 +736,7 @@ from .api import (  # noqa: E402
     native_open,
     notifications,
     outputs,
+    retrieval,
     transcription,
     treblo_tags,
     unity_control,
@@ -789,6 +790,7 @@ app.include_router(notifications.router)
 app.include_router(mcp_validate.router)
 app.include_router(image_processing_router)
 app.include_router(sub_agent_router)
+app.include_router(retrieval.router)
 
 
 # Additional root-level routes
