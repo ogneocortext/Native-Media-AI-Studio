@@ -89,6 +89,17 @@
         "HYPERFRAMES_PROJECT": "tools/hyperframes-test"
       },
       "enabled": true
+    },
+    "playwright-mcp": {
+      "type": "local",
+      "command": [
+        "npx",
+        "--no",
+        "--offline",
+        "@playwright/mcp@0.0.83"
+      ],
+      "enabled": true,
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @playwright/mcp@0.0.83' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
     }
   }
 }

@@ -20,6 +20,17 @@
         "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
       },
       "security_note": "Local blender-mcp-server.exe — consider migrating to uvx mcp-for-blender@2.0.0 (blender-mcp was renamed)."
+    },
+    "playwright-mcp": {
+      "type": "local",
+      "command": [
+        "npx",
+        "--no",
+        "--offline",
+        "@playwright/mcp@0.0.83"
+      ],
+      "enabled": true,
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @playwright/mcp@0.0.83' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
     }
   }
 }

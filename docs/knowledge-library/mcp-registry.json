@@ -717,6 +717,180 @@
           "description": "Analyze image via Ollama VLM"
         }
       }
+    },
+    "playwright-mcp": {
+      "command": [
+        "npx",
+        "--no",
+        "--offline",
+        "@playwright/mcp@0.0.83"
+      ],
+      "protocol": "stdio",
+      "description": "Playwright MCP - browser automation and testing (navigate, click, fill, screenshot, network inspection, etc.)",
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @playwright/mcp@0.0.83' then run offline. See docs/knowledge-library/npx-best-practices-2026.md.",
+      "tools": {
+        "browser_navigate": {
+          "params": {
+            "url": "str",
+            "waitUntil": "str|optional"
+          },
+          "description": "Navigate to a URL in the browser"
+        },
+        "browser_snapshot": {
+          "params": {
+            "target": "str|optional"
+          },
+          "description": "Capture accessibility snapshot of the current page"
+        },
+        "browser_click": {
+          "params": {
+            "target": "str",
+            "button": "str|optional",
+            "doubleClick": "bool|optional",
+            "modifiers": "array|optional"
+          },
+          "description": "Perform click on a web page"
+        },
+        "browser_fill_form": {
+          "params": {
+            "fields": "array"
+          },
+          "description": "Fill multiple form fields"
+        },
+        "browser_take_screenshot": {
+          "params": {
+            "target": "str|optional",
+            "type": "str|optional",
+            "filename": "str|optional",
+            "fullPage": "bool|optional",
+            "scale": "str|optional"
+          },
+          "description": "Take a screenshot of the current page"
+        },
+        "browser_console_messages": {
+          "params": {
+            "level": "str|optional",
+            "all": "bool|optional",
+            "filename": "str|optional"
+          },
+          "description": "Returns all console messages"
+        },
+        "browser_network_requests": {
+          "params": {
+            "static": "bool|optional",
+            "filter": "str|optional",
+            "filename": "str|optional"
+          },
+          "description": "Returns a numbered list of network requests since loading the page"
+        },
+        "browser_evaluate": {
+          "params": {
+            "function": "str",
+            "element": "str|optional",
+            "filename": "str|optional"
+          },
+          "description": "Evaluate JavaScript expression on page or element"
+        },
+        "browser_wait_for": {
+          "params": {
+            "text": "str|optional",
+            "textGone": "str|optional",
+            "time": "number|optional"
+          },
+          "description": "Wait for text to appear or disappear or a specified time to pass"
+        },
+        "browser_press_key": {
+          "params": {
+            "key": "str"
+          },
+          "description": "Press a key on the keyboard"
+        },
+        "browser_select_option": {
+          "params": {
+            "target": "str",
+            "values": "array"
+          },
+          "description": "Select an option in a dropdown"
+        },
+        "browser_hover": {
+          "params": {
+            "target": "str"
+          },
+          "description": "Hover over element on page"
+        },
+        "browser_drag": {
+          "params": {
+            "startTarget": "str",
+            "endTarget": "str",
+            "startElement": "str|optional",
+            "endElement": "str|optional"
+          },
+          "description": "Perform drag and drop between two elements"
+        },
+        "browser_drop": {
+          "params": {
+            "target": "str",
+            "paths": "array|optional",
+            "data": "object|optional"
+          },
+          "description": "Drop files or MIME-typed data onto an element"
+        },
+        "browser_file_upload": {
+          "params": {
+            "paths": "array|optional"
+          },
+          "description": "Upload one or multiple files"
+        },
+        "browser_handle_dialog": {
+          "params": {
+            "accept": "bool",
+            "promptText": "str|optional"
+          },
+          "description": "Handle a dialog"
+        },
+        "browser_network_request": {
+          "params": {
+            "index": "number",
+            "part": "str|optional",
+            "filename": "str|optional"
+          },
+          "description": "Returns full details of a single network request"
+        },
+        "browser_close": {
+          "params": {},
+          "description": "Close the page"
+        },
+        "browser_emulate_media": {
+          "params": {
+            "colorScheme": "str|optional",
+            "reducedMotion": "str|optional",
+            "forcedColors": "str|optional",
+            "contrast": "str|optional",
+            "media": "str|optional"
+          },
+          "description": "Emulate CSS media features for the page"
+        },
+        "browser_get_config": {
+          "params": {},
+          "description": "Get the final resolved MCP server config"
+        },
+        "browser_start_recording": {
+          "params": {},
+          "description": "Start recording user actions in the browser"
+        },
+        "browser_stop_recording": {
+          "params": {},
+          "description": "Stop recording user actions in the browser"
+        },
+        "browser_video_show_actions": {
+          "params": {},
+          "description": "Overlay action annotations on the recorded video"
+        },
+        "browser_video_hide_actions": {
+          "params": {},
+          "description": "Hide action annotations on the recorded video"
+        }
+      }
     }
   },
   "usage_patterns": {
