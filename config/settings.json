@@ -8,5 +8,66 @@
   "vision_model": "gemma4:e2b-it-qat",
   "embedding_model": "nomic-embed-text:v1.5",
   "default_workflow": "default",
-  "output_node_id": "9"
+  "output_node_id": "9",
+  "performance": {
+    "torch": {
+      "cuda_arch_list": "6.1",
+      "cuda_alloc_conf": "max_split_size_mb:128,garbage_collection_threshold:0.8",
+      "default_dtype": "float16",
+      "num_threads": 12,
+      "omp_num_threads": 12,
+      "mkl_num_threads": 12
+    },
+    "ollama": {
+      "num_gpu": 99,
+      "max_vram_gb": 7,
+      "num_ctx": 8192,
+      "keep_alive": "10m",
+      "flash_attention": true,
+      "preferred_model": "qwen3.5:4b",
+      "fallback_model": "qwen3:8b"
+    },
+    "comfyui": {
+      "precision": "fp16",
+      "max_width": 768,
+      "max_height": 768,
+      "default_steps": 20,
+      "default_cfg": 7.0,
+      "vae_tiling": true,
+      "attention_slicing": true,
+      "cpu_offload_text_encoders": true,
+      "launch_args": [
+        "--use-cpu-attributes",
+        "--lowvram"
+      ]
+    },
+    "ffmpeg": {
+      "threads": 12,
+      "nvenc_preset": "slow",
+      "max_concurrent": 2,
+      "codec": "h264_nvenc"
+    },
+    "vram": {
+      "total_mb": 8192,
+      "safety_margin_mb": 1536,
+      "warning_percent": 92.0,
+      "critical_percent": 98.0,
+      "critical_utilization_percent": 70.0,
+      "critical_temperature_c": 85.0
+    },
+    "cpu": {
+      "name": "AMD Ryzen 5 5500",
+      "physical_cores": 6,
+      "logical_cores": 12,
+      "max_concurrent_benchmarks": 1
+    },
+    "memory": {
+      "total_gb": 32,
+      "ddr_speed_mhz": 3200
+    },
+    "storage": {
+      "type": "SATA SSD",
+      "interface": "SATA 6 Gb/s"
+    }
+  }
 }

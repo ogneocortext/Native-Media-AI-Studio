@@ -14,7 +14,10 @@
       },
       "precision": "fp16",
       "attention_slicing": true,
-      "memory_efficient_attention": true
+      "memory_efficient_attention": true,
+      "vae_tiling": true,
+      "cpu_offload_text_encoders": true,
+      "lowvram_mode": true
     },
     "model_loading": {
       "lazy_loading": true,
@@ -23,16 +26,65 @@
     }
   },
   "gtx_1070_ti_specific": {
+    "architecture": "Pascal (sm_61)",
+    "vram_total_gb": 8,
+    "vram_safety_margin_gb": 1.5,
     "recommended_batch_size": 1,
     "max_resolution": {
       "width": 768,
       "height": 768
     },
-    "vram_safety_margin_gb": 1.5,
     "optimal_steps": 20,
     "cfg_range": {
       "min": 6.0,
       "max": 8.0
+    },
+    "precision_notes": "Pascal has no Tensor Cores and no BF16/FP8 support. Use fp16 only. Flash Attention unavailable.",
+    "launch_args": [
+      "--use-cpu-attributes",
+      "--lowvram",
+      "--fp16",
+      "--no-half-vae"
+    ],
+    "avoid_models": [
+      "flux",
+      "sdxl",
+      "stable-diffusion-xl",
+      "playground-v2",
+      "juggernaut-xl"
+    ],
+    "recommended_models": [
+      "wan2.1-1.3b",
+      "wan2.2-5b",
+      "animate-diff-sd15",
+      "ltx-video-2b"
+    ]
+  },
+  "workload_tuning": {
+    "llm_inference": {
+      "ollama_num_gpu": 99,
+      "ollama_max_vram_gb": 7,
+      "ollama_num_ctx": 8192,
+      "keep_alive": "10m",
+      "preferred_model": "qwen3.5:4b",
+      "flash_attention": true
+    },
+    "music_generation": {
+      "ace_step_vram_mb": 6144,
+      "ace_step_precision": "fp16",
+      "ace_step_backend": "sdpa"
+    },
+    "audio_analysis": {
+      "cuda_backend": true,
+      "librosa_sr": 22050,
+      "fallback_to_cpu": true
+    },
+    "ffmpeg": {
+      "threads": 12,
+      "nvenc_codec": "h264_nvenc",
+      "nvenc_preset": "slow",
+      "max_concurrent": 2,
+      "avoid_codecs": ["hevc_nvenc", "av1_nvenc"]
     }
   }
 }

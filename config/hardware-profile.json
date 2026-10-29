@@ -1,32 +1,103 @@
 {
-  "version": 1,
+  "version": 2,
   "profile_name": "nma-gtx-1070ti-workstation",
+  "hardware_class": "8gb-pascal-workstation",
   "manual_overrides": {
     "cpu": {
       "name": "AMD Ryzen 5 5500",
       "physical_cores": 6,
-      "logical_cores": 12
+      "logical_cores": 12,
+      "frequency_mhz": 3650
     },
     "memory": {
-      "total_mb": 32768
+      "total_mb": 32768,
+      "speed_mhz": 3200,
+      "type": "DDR4"
+    },
+    "storage": {
+      "root": "D:",
+      "type": "SATA SSD",
+      "interface_gbps": 6
     },
     "gpus": [
       {
         "name": "NVIDIA GeForce GTX 1070 Ti",
-        "memory_total_mb": 8192
+        "index": 0,
+        "compute_capability": "6.1",
+        "architecture": "Pascal",
+        "memory_total_mb": 8192,
+        "supports_bf16": false,
+        "supports_fp16": true,
+        "supports_fp8": false,
+        "supports_tensor_cores": false,
+        "supports_flash_attention": false,
+        "nvenc_codecs": ["h264"],
+        "nvenc_presets": ["slow", "medium", "fast", "hp", "hq", "bd", "ll", "llh", "llhp"]
       }
     ]
   },
   "limits": {
     "max_concurrent_benchmarks": 1,
-    "ollama_context_tokens": 4096,
+    "ollama_context_tokens": 8192,
     "ollama_max_output_tokens": 900,
+    "ollama_num_gpu": 99,
+    "ollama_max_vram_gb": 7,
     "comfyui_width": 768,
     "comfyui_height": 768,
     "comfyui_steps": 20,
     "comfyui_cfg": 7.0,
+    "comfyui_precision": "fp16",
+    "comfyui_vae_tiling": true,
+    "comfyui_attention_slicing": true,
     "benchmark_timeout_seconds": 300,
-    "vram_safety_margin_mb": 1536
+    "vram_safety_margin_mb": 1536,
+    "ffmpeg_threads": 12,
+    "ffmpeg_nvenc_preset": "slow",
+    "ffmpeg_max_concurrent": 2,
+    "torch_num_threads": 12,
+    "torch_cuda_arch_list": "6.1",
+    "torch_cuda_alloc_conf": "max_split_size_mb:128,garbage_collection_threshold:0.8"
+  },
+  "optimizations": {
+    "pytorch": {
+      "target_arch": "sm_61",
+      "precision": "fp16",
+      "memory_fragmentation_mitigation": "max_split_size_mb:128",
+      "cpu_threads": 12
+    },
+    "ollama": {
+      "all_layers_to_gpu": true,
+      "keep_alive": "10m",
+      "flash_attention": true,
+      "resident_models": ["qwen3.5:4b"],
+      "context_window": 8192
+    },
+    "comfyui": {
+      "lowvram_mode": true,
+      "cpu_offload_text_encoders": true,
+      "max_resolution_megapixels": 0.59,
+      "recommended_models": [
+        "wan2.1-1.3b",
+        "wan2.2-5b",
+        "animate-diff-sd15"
+      ],
+      "avoid_models": [
+        "flux",
+        "sdxl",
+        "stable-diffusion-xl"
+      ]
+    },
+    "ffmpeg": {
+      "threads": 12,
+      "nvenc_preset": "slow",
+      "max_concurrent": 2,
+      "avoid_codecs": ["hevc_nvenc", "av1_nvenc"]
+    }
+  },
+  "risks": {
+    "vram": "8 GB is tight for ComfyUI + Ollama coexistence; VRAM manager offloads Ollama before ComfyUI loads.",
+    "storage": "SATA SSD limits parallel write throughput; keep concurrent encodes to 2.",
+    "cpu": "Ryzen 5 5500 has no AVX-512; some PyTorch ops fall back to AVX2."
   },
   "_ollama_0.40_notes": {
     "api_endpoint": "/api/chat is the recommended endpoint for multimodal vision (replaces /api/generate for images)",
