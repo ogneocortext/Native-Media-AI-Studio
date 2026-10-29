@@ -353,7 +353,7 @@ export {
   runSubAgentTask,
   getSubAgentTaskStatus,
   listSubAgentTasks,
-  subscribeToSubAgentStream,
+  subscribeToSubAgentPoll,
 } from "./sub-agent";
 export type {
   SubAgentTask,

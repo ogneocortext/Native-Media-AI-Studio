@@ -12,7 +12,7 @@ import { Card } from "../../components/common";
 import {
   runSubAgentTask,
   listSubAgentTasks,
-  subscribeToSubAgentStream,
+  subscribeToSubAgentPoll,
   type SubAgentTask,
   type SubAgentEvent,
 } from "../../services/api";
@@ -23,7 +23,7 @@ export function SubAgentChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("qwen3.5:4b");
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const iterationsEndRef = useRef<HTMLDivElement>(null);
 
@@ -46,16 +46,15 @@ export function SubAgentChat() {
     iterationsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [iterations]);
 
-  // Clean up EventSource on unmount
+  // Clean up polling on unmount
   useEffect(() => {
-  return () => {
-    // Don't close the EventSource here — React 18 StrictMode mounts/unmounts/
-    // remounts components in development, which would close the SSE connection
-    // before the task completes. The backend closes the connection when the
-    // task finishes (agent_done event). The EventSource is also cleaned up
-    // when the page unloads or the user navigates away.
-    if (abortRef.current) abortRef.current.abort();
-  };
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, []);
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -81,75 +80,74 @@ export function SubAgentChat() {
         ...prev,
       ]);
 
-      // Open SSE stream for real-time output
+      // Poll task status for real-time output
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const es = subscribeToSubAgentStream(
+      const intervalId = subscribeToSubAgentPoll(
         taskId,
         (event: SubAgentEvent) => {
           if (controller.signal.aborted) return;
 
-          if (event.type === "agent_output") {
-            const data = event.data as { text?: string };
+          const task = event.data as SubAgentTask;
+
+          if (event.type === "completed") {
             setIterations((prev) => [
               ...prev,
-              { id: crypto.randomUUID(), text: data.text || "", type: "output" },
-            ]);
-          } else if (event.type === "agent_done") {
-            const data = event.data as { result?: string };
-            setIterations((prev) => [
-              ...prev,
-              { id: crypto.randomUUID(), text: `\n✅ Task completed.\n\nResult:\n${data.result || "(no output)"}`, type: "done" },
+              {
+                id: crypto.randomUUID(),
+                text: `\n✅ Task completed.\n\nResult:\n${task.result || "(no output)"}`,
+                type: "done",
+              },
             ]);
             setLoading(false);
-            if (eventSourceRef.current) {
-              eventSourceRef.current.close();
-              eventSourceRef.current = null;
-            }
+            pollIntervalRef.current = null;
             // Refresh task list
             listSubAgentTasks()
               .then(({ tasks: t }) => setTasks(t))
               .catch(() => {});
-          } else if (event.type === "agent_error") {
-            const data = event.data as { error?: string };
+          } else if (event.type === "failed") {
             setIterations((prev) => [
               ...prev,
-              { id: crypto.randomUUID(), text: `\n❌ Task failed: ${data.error || "unknown error"}`, type: "error" },
+              {
+                id: crypto.randomUUID(),
+                text: `\n❌ Task failed: ${task.error || "unknown error"}`,
+                type: "error",
+              },
             ]);
             setLoading(false);
-            if (eventSourceRef.current) {
-              eventSourceRef.current.close();
-              eventSourceRef.current = null;
-            }
-          } else if (event.type === "error") {
+            pollIntervalRef.current = null;
+          } else if (event.type === "running") {
             setIterations((prev) => [
               ...prev,
-              { id: crypto.randomUUID(), text: `\n⚠️ Stream error`, type: "error" },
+              { id: crypto.randomUUID(), text: "▶ Task started...\n", type: "output" },
             ]);
-            setLoading(false);
           }
         },
-  (err: Event) => {
-    console.log("[sub-agent] onError callback:", err);
-    setLoading(false);
-  },
+        (err: Error) => {
+          console.log("[sub-agent] poll error:", err);
+          setLoading(false);
+        },
       );
 
-      eventSourceRef.current = es;
+      pollIntervalRef.current = intervalId;
     } catch (err) {
       setIterations((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), text: `❌ Failed to start task: ${err instanceof Error ? err.message : "unknown error"}`, type: "error" },
+        {
+          id: crypto.randomUUID(),
+          text: `❌ Failed to start task: ${err instanceof Error ? err.message : "unknown error"}`,
+          type: "error",
+        },
       ]);
       setLoading(false);
     }
   };
 
   const handleCancel = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
     }
     if (abortRef.current) abortRef.current.abort();
     setLoading(false);

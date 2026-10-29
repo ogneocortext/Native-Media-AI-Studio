@@ -92,7 +92,7 @@ export function subscribeToSubAgentPoll(
   onEvent: (event: SubAgentEvent) => void,
   onError?: (error: Error) => void,
   intervalMs: number = 2000,
-): number {
+): ReturnType<typeof setInterval> {
   let lastStatus: string | undefined;
 
   const poll = async () => {
