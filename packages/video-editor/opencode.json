@@ -7,10 +7,10 @@
         "npx",
         "--no",
         "--offline",
-        "@remotion/mcp@1.0.0"
+        "@remotion/mcp@4.0.539"
       ],
-      "enabled": true,
-      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @remotion/mcp@1.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+      "enabled": false,
+      "security_note": "DEPRECATED: Remotion MCP server shut down Oct 26, 2026. Use Remotion Agent Skills and /remotion-docs instead: https://www.remotion.dev/docs/ai/skills"
     },
     "blender": {
       "type": "local",
@@ -18,7 +18,8 @@
       "enabled": true,
       "environment": {
         "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
-      }
+      },
+      "security_note": "Local blender-mcp-server.exe — consider migrating to uvx mcp-for-blender@2.0.0 (blender-mcp was renamed)."
     }
   }
 }

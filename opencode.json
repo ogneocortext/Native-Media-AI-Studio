@@ -37,10 +37,10 @@
         "npx",
         "--no",
         "--offline",
-        "@remotion/mcp@1.0.0"
+        "@remotion/mcp@4.0.539"
       ],
-      "enabled": true,
-      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @remotion/mcp@1.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+      "enabled": false,
+      "security_note": "DEPRECATED: Remotion MCP server shut down Oct 26, 2026. Use Remotion Agent Skills and /remotion-docs instead: https://www.remotion.dev/docs/ai/skills"
     },
     "comfyui": {
       "type": "local",
@@ -48,24 +48,25 @@
         "npx",
         "--no",
         "--offline",
-        "comfyui-mcp@1.0.0",
+        "comfyui-mcp@0.52.206",
         "--comfyui-url",
         "http://127.0.0.1:8188",
         "--force-remote"
       ],
       "enabled": true,
-      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D comfyui-mcp@1.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+      "security_note": "Version-pinned MCP server. comfyui-mcp@1.0.0 does not exist; pinned to latest 0.52.206. Pre-install with 'pnpm add -D comfyui-mcp@0.52.206' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
     },
     "blender": {
       "type": "local",
       "command": [
         "uvx",
-        "blender-mcp"
+        "mcp-for-blender@2.0.0"
       ],
       "environment": {
         "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
       },
-      "enabled": true
+      "enabled": true,
+      "security_note": "Version-pinned MCP server. blender-mcp was renamed to mcp-for-blender@2.0.0. Pre-install with 'uv pip install mcp-for-blender==2.0.0' then run offline."
     },
     "unity": {
       "type": "local",
