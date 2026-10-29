@@ -141,6 +141,10 @@ keeps `-y` only because it runs unattended **and** the version is pinned
 | `packages/video-editor/opencode.json` | `npx -y @remotion/mcp@latest` | `npx --no --offline @remotion/mcp@1.0.0` |
 | `docs/knowledge-library/mcp-registry.json` | `npx comfyui-mcp ...`, `npx -y @remotion/mcp@latest` | `npx --no --offline comfyui-mcp@1.0.0 ...`, `npx --no --offline @remotion/mcp@1.0.0` |
 
+## Remotion Agent Skills
+
+The deprecated `@remotion/mcp` MCP server (shut down Oct 26, 2026) has been replaced with Remotion Agent Skills. See [[remotion-agent-skills-2026]] for the full migration guide and skill reference.
+
 ## ESLint MCP server (AI agent lint access)
 
 ESLint v10 supports `--mcp` (added in v9.26.0), which exposes ESLint as a

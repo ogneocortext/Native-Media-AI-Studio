@@ -156,7 +156,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 15 documents |
-|| `#technical/*` | System implementation & code | 17 documents |
+|| `#technical/*` | System implementation & code | 18 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
