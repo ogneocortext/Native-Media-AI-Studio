@@ -50,8 +50,13 @@ backward** — the thing a changelog cannot show.
   in addition to filename/relative_path (T-LIB-01); tag filter pill
   added to FilterBar (T-LIB-01); vision-loop polish confirmed no
   actionable gaps (T-LIB-02). All five behavior-ledger items verified
-  live against the running backend 2026-10-29.**
-- **Pain:** selector consistency depends on D16 discipline holding.
+  live against the running backend 2026-10-29. Audio selector display
+  names now strip stacked content-hash prefixes via `audioDisplayName`
+  (D16), and the scoped `/library/audio` page hides its file-type chips
+  (T-LIB-03; verified live 2026-10-29).**
+- **Pain:** selector consistency depends on D16 discipline holding —
+  FileCard now centralizes display-name cleaning so hash prefixes can't
+  leak back into selectors.
 - **Next moves:** keep polishing via the vision loop.
 - **Behavior ledger:**
   - [x] Favorites persist across a backend restart — verified: POST

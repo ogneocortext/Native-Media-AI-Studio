@@ -33,3 +33,22 @@ Rules: `docs/plans/tasks/README.md`
   (3) Footer/bottom nav redundancy — DEFERRED: pre-existing design concern
   outside scope of this polish pass. (4) Top "Library" icon vs bottom
   "Media Library" text — DEFERRED: pre-existing design concern.
+
+### T-LIB-03 — Strip hash prefixes from audio selector display names
+- **Status:** done
+- **Goal:** Audio files carrying stacked content-hash prefixes (e.g.
+  `5eab45eb_3a288113_music_video.m4a`) render as cleaned names
+  (`music video`) in FileCard via the shared `audioDisplayName` helper
+  (D16 selector consistency); raw filename preserved on tooltip and in
+  rename. Scoped `/library/audio` page hides its file-type chips since it
+  is already audio-scoped.
+- **Files:** packages/frontend/src/features/media-library/components/FileCard.tsx,
+  packages/frontend/src/features/media-library/components/FilterBar.tsx,
+  packages/frontend/src/features/media-library/MediaLibraryView.tsx
+- **Acceptance:** /library/audio shows cleaned audio names with raw name
+  preserved in title/aria-label; file-type chips hidden on the scoped
+  audio page; tsc + eslint + vitest all pass; verified live against the
+  running backend (82 audio files, pagination + playback working).
+- **Last session:** Cline, 2026-10-29 — vision-reviewed /library/audio,
+  found raw hash names displayed and type chips shown on scoped page;
+  applied all three fixes; verified live.

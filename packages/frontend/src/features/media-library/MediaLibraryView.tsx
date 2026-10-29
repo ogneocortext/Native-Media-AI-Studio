@@ -442,6 +442,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           <FilterBar
             filter={filter}
             tags={tags}
+            hideFileTypeFilter={isTypeScoped}
             onChange={(next) =>
               setFilter({
                 ...next,

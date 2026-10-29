@@ -23,9 +23,11 @@ interface FilterBarProps {
   filter: FilterState;
   tags: Tag[];
   onChange: (filter: FilterState) => void;
+  /** Hide the file-type filter chips (used when the page is already scoped to one type). */
+  hideFileTypeFilter?: boolean;
 }
 
-export function FilterBar({ filter, tags, onChange }: FilterBarProps) {
+export function FilterBar({ filter, tags, onChange, hideFileTypeFilter = false }: FilterBarProps) {
   const handleQueryChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange({ ...filter, query: e.target.value });
   };
@@ -97,24 +99,26 @@ export function FilterBar({ filter, tags, onChange }: FilterBarProps) {
         ))}
       </div>
 
-      {/* File type filter — single combined filter (Category + Type merged) */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted">Type:</span>
-        {FILE_TYPE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => handleFileTypeChange(opt.value)}
-            className={`px-2.5 py-1 rounded-md text-sm font-medium ${
-              filter.fileType === opt.value
-                ? "bg-primary text-white border border-primary/50 shadow-sm"
-                : "bg-black/40 text-muted border border-transparent hover:bg-black/50 hover:text-white"
-            }`}
-            title={opt.label}
-          >
-            {opt.icon} {opt.label}
-          </button>
-        ))}
-      </div>
+      {!hideFileTypeFilter && (
+        // File type filter — single combined filter (Category + Type merged)
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted">Type:</span>
+          {FILE_TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => handleFileTypeChange(opt.value)}
+              className={`px-2.5 py-1 rounded-md text-sm font-medium ${
+                filter.fileType === opt.value
+                  ? "bg-primary text-white border border-primary/50 shadow-sm"
+                  : "bg-black/40 text-muted border border-transparent hover:bg-black/50 hover:text-white"
+              }`}
+              title={opt.label}
+            >
+              {opt.icon} {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Sort */}
       <div className="flex justify-between items-center">

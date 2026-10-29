@@ -8,6 +8,7 @@ import {
 import { getOutputUrl } from "../../../utils/url";
 import { Heart, Pause, Play, Image, RefreshCw } from "lucide-react";
 import { getMediaWaveform } from "../../../services/api/media";
+import { audioDisplayName } from "../../../state/audioNaming";
 
 const FILE_TYPE_COLORS: Record<string, string> = {
   audio: "bg-violet-500/20 text-violet-300 border-violet-500/30",
@@ -289,6 +290,11 @@ export function FileCard({
       : formatFileSize(file.size ?? 0);
   const typeColor = FILE_TYPE_COLORS[file.file_type] || "bg-gray-500/20";
   const typeIcon = FILE_TYPE_ICONS[file.file_type] || "📁";
+  // Audio files carry stacked content-hash prefixes (e.g. `5eab45eb_3a288113_`
+  // `music_video.m4a`) that must be stripped for display — the raw filename is
+  // kept on the `title` attribute and used for rename so the real file is
+  // untouched. Non-audio types keep their filename unchanged.
+  const displayName = isAudio ? audioDisplayName(file.filename) : file.filename;
   const durationLabel = file.duration != null ? file.duration.toFixed(0) + "s" : "";
 
   const handleCardClick = () => {
@@ -550,7 +556,7 @@ export function FileCard({
             className="text-base font-semibold text-white truncate leading-tight"
             title={file.filename}
           >
-            {file.filename}
+            {displayName}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted truncate">
             <span className={`inline-flex items-center gap-1 px-1.5 py-0 rounded ${typeColor}`}>
