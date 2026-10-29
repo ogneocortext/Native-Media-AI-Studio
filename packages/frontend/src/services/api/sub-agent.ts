@@ -3,13 +3,16 @@
  *
  * Communicates with the backend sub-agent endpoints:
  *   POST   /api/sub-agent/run        - Start a task, returns { task_id }
+ *   POST   /api/sub-agent/cancel/{task_id}  - Cancel a running task
+ *   GET    /api/sub-agent/stream/{task_id}  - SSE stream of agent iterations
  *   GET    /api/sub-agent/status/{task_id}  - Get task status
  *   GET    /api/sub-agent/tasks      - List all tasks
  *
- * Uses HTTP polling instead of SSE/EventSource for reliability: EventSource
- * connections from React components can be fragile due to StrictMode
- * remounting, CORS preflight, and Vite dev-proxy buffering of long-lived
- * streams. Polling is simpler and more robust for local development.
+ * SSE Event Types:
+ *   - agent_output: Agent iteration/tool result text
+ *   - agent_done: Task completed successfully
+ *   - agent_error: Task failed with error
+ *   - agent_cancelled: Task was cancelled by user
  */
 
 import { getApiBase } from "./core";
@@ -17,10 +20,12 @@ import { fetchWithTimeout } from "../fetchWithTimeout";
 
 export interface SubAgentTask {
   task_id: string;
-  status: "running" | "completed" | "failed";
+  status: "running" | "completed" | "failed" | "cancelled";
   result?: string;
   error?: string;
+  error_detail?: string;
   created_at: string;
+  model?: string;
   has_result?: boolean;
   has_error?: boolean;
 }
@@ -33,11 +38,19 @@ export interface SubAgentRunRequest {
 export interface SubAgentRunResponse {
   task_id: string;
   status: string;
+  model?: string;
 }
 
 export interface SubAgentEvent {
-  type: string;
-  data: unknown;
+  type: "agent_output" | "agent_done" | "agent_error" | "agent_cancelled";
+  data: {
+    task_id: string;
+    text?: string;
+    result?: string;
+    error?: string;
+    error_detail?: string;
+    timestamp: string;
+  };
   timestamp?: string;
 }
 
@@ -54,6 +67,21 @@ export async function runSubAgentTask(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail || `Failed to start sub-agent task (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function cancelSubAgentTask(
+  taskId: string,
+): Promise<{ task_id: string; status: string }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/sub-agent/cancel/${taskId}`, {
+    method: "POST",
+    timeout: 10000,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Failed to cancel sub-agent task (${res.status})`);
   }
   return res.json();
 }
@@ -83,38 +111,62 @@ export async function listSubAgentTasks(): Promise<{ tasks: SubAgentTask[] }> {
 }
 
 /**
- * Poll the task status endpoint at regular intervals, invoking onEvent
- * with each status change. Returns an interval id that can be passed to
- * clearInterval to stop polling.
+ * Subscribe to SSE stream for a sub-agent task.
+ * Returns an EventSource that can be closed to stop receiving events.
  */
-export function subscribeToSubAgentPoll(
+export function subscribeToSubAgentSSE(
   taskId: string,
   onEvent: (event: SubAgentEvent) => void,
   onError?: (error: Error) => void,
-  intervalMs: number = 2000,
-): ReturnType<typeof setInterval> {
-  let lastStatus: string | undefined;
+): EventSource {
+  const base = getApiBase();
+  const url = `${base}/api/sub-agent/stream/${taskId}`;
 
-  const poll = async () => {
+  const eventSource = new EventSource(url);
+
+  eventSource.addEventListener("agent_output", (e) => {
     try {
-      const task = await getSubAgentTaskStatus(taskId);
-      if (task.status !== lastStatus) {
-        lastStatus = task.status;
-        onEvent({
-          type: task.status as "agent_output" | "agent_done" | "agent_error",
-          data: task,
-          timestamp: task.created_at,
-        });
-      }
-      if (task.status === "completed" || task.status === "failed") {
-        clearInterval(intervalId);
-      }
+      const data = JSON.parse(e.data);
+      onEvent({ type: "agent_output", data, timestamp: data.timestamp });
     } catch (err) {
-      onError?.(err as Error);
+      onError?.(new Error(`Failed to parse agent_output event: ${err}`));
     }
-  }
+  });
 
-  poll(); // Run immediately
-  const intervalId = setInterval(poll, intervalMs);
-  return intervalId;
+  eventSource.addEventListener("agent_done", (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      onEvent({ type: "agent_done", data, timestamp: data.timestamp });
+      eventSource.close(); // Close on completion
+    } catch (err) {
+      onError?.(new Error(`Failed to parse agent_done event: ${err}`));
+    }
+  });
+
+  eventSource.addEventListener("agent_error", (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      onEvent({ type: "agent_error", data, timestamp: data.timestamp });
+      eventSource.close(); // Close on error
+    } catch (err) {
+      onError?.(new Error(`Failed to parse agent_error event: ${err}`));
+    }
+  });
+
+  eventSource.addEventListener("agent_cancelled", (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      onEvent({ type: "agent_cancelled", data, timestamp: data.timestamp });
+      eventSource.close(); // Close on cancellation
+    } catch (err) {
+      onError?.(new Error(`Failed to parse agent_cancelled event: ${err}`));
+    }
+  });
+
+  eventSource.addEventListener("error", (e) => {
+    onError?.(new Error(`SSE connection error: ${e}`));
+    eventSource.close();
+  });
+
+  return eventSource;
 }

@@ -6,6 +6,7 @@ frontend can submit tasks and stream the agent's ReAct loop output in real time.
 
 Endpoints:
   POST   /api/sub-agent/run        - Start a sub-agent task, returns { task_id }
+  POST   /api/sub-agent/cancel/{task_id}  - Cancel a running task
   GET    /api/sub-agent/stream/{task_id}  - SSE stream of agent iterations
   GET    /api/sub-agent/status/{task_id}  - Get task status
   GET    /api/sub-agent/tasks      - List all tasks
@@ -36,10 +37,35 @@ from ..sse.handler import sse_manager  # noqa: E402
 
 router = APIRouter(prefix="/api/sub-agent", tags=["sub-agent"])
 
-# In-memory task store: task_id -> { status, result, error, created_at }
+# In-memory task store: task_id -> { status, result, error, created_at, model, cancelled }
 # In production this would be backed by a database or Redis.
 _tasks: dict[str, dict[str, Any]] = {}
 _tasks_lock = asyncio.Lock()
+
+# Path to model reliability log
+_OBSERVED_LOG = _repo_root / "tools" / "model-reliability" / "observed.jsonl"
+
+
+def _log_session_outcome(model: str, worked: bool, note: str) -> None:
+    """Append a session outcome to the model reliability log.
+
+    Per AGENTS.md D21: append one line per session to observed.jsonl.
+    This is the only handoff state that a new agent cannot rebuild for itself.
+    """
+    try:
+        entry = {
+            "date": datetime.now(timezone.utc).isoformat()[:10],
+            "model": model,
+            "route": "subagent",
+            "worked": worked,
+            "note": note,
+        }
+        # Use utf-8-sig to handle BOM if present (see score.py for rationale)
+        with open(_OBSERVED_LOG, "a", encoding="utf-8-sig") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        # Logging failures should not break the sub-agent endpoint
+        pass
 
 
 class SubAgentTaskError(Exception):
@@ -64,6 +90,8 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
             "error": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "iterations": [],
+            "model": model or DEFAULT_MODEL,
+            "cancelled": False,
         }
 
     iteration_outputs: list[str] = []
@@ -90,6 +118,12 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
         )
 
     try:
+        # Check if cancelled before starting
+        async with _tasks_lock:
+            if _tasks[task_id].get("cancelled", False):
+                _tasks[task_id]["status"] = "cancelled"
+                return
+
         # Run the sub-agent in a thread to avoid blocking the event loop.
         # Pass on_output so each iteration/tool result is streamed via SSE.
         result = await asyncio.get_event_loop().run_in_executor(
@@ -97,10 +131,23 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
             lambda: run_task(task, model=model, stream=False, on_output=on_output),
         )
 
+        # Check if cancelled after completion
+        async with _tasks_lock:
+            if _tasks[task_id].get("cancelled", False):
+                _tasks[task_id]["status"] = "cancelled"
+                return
+
         async with _tasks_lock:
             _tasks[task_id]["status"] = "completed"
             _tasks[task_id]["result"] = result
             _tasks[task_id]["iterations"] = iteration_outputs
+
+        # Log successful session to model reliability tracker
+        _log_session_outcome(
+            model or DEFAULT_MODEL,
+            worked=True,
+            note=f"Task completed successfully via sub-agent (task_id: {task_id})",
+        )
 
         # Send completion event
         await sse_manager.send_message(
@@ -116,15 +163,28 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
 
     except Exception as exc:  # noqa: BLE001
         error_msg = str(exc)
+        import traceback
+
+        error_detail = traceback.format_exc()
         async with _tasks_lock:
             _tasks[task_id]["status"] = "failed"
             _tasks[task_id]["error"] = error_msg
+            _tasks[task_id]["error_detail"] = error_detail
+
+        # Log failed session to model reliability tracker
+        _log_session_outcome(
+            model or DEFAULT_MODEL,
+            worked=False,
+            note=f"Task failed: {error_msg[:200]} (task_id: {task_id})",
+        )
+
         await sse_manager.send_message(
             _make_sse_event(
                 "agent_error",
                 {
                     "task_id": task_id,
                     "error": error_msg,
+                    "error_detail": error_detail,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
@@ -148,7 +208,41 @@ async def run_sub_agent(task: dict[str, Any]) -> dict[str, Any]:
     # Fire the agent in the background
     asyncio.create_task(_run_sub_agent_task(task_id, task_text, model))
 
-    return {"task_id": task_id, "status": "running"}
+    return {"task_id": task_id, "status": "running", "model": model}
+
+
+@router.post("/cancel/{task_id}")
+async def cancel_sub_agent(task_id: str) -> dict[str, Any]:
+    """Cancel a running sub-agent task.
+
+    Returns: { "task_id": "...", "status": "cancelled" }
+    """
+    async with _tasks_lock:
+        task_state = _tasks.get(task_id)
+    if task_state is None:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    if task_state["status"] not in ("running",):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task {task_id} is {task_state['status']} and cannot be cancelled",
+        )
+
+    async with _tasks_lock:
+        _tasks[task_id]["cancelled"] = True
+        _tasks[task_id]["status"] = "cancelled"
+
+    # Send cancellation event
+    await sse_manager.send_message(
+        _make_sse_event(
+            "agent_cancelled",
+            {
+                "task_id": task_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    )
+
+    return {"task_id": task_id, "status": "cancelled"}
 
 
 @router.get("/stream/{task_id}")
@@ -157,6 +251,7 @@ async def stream_sub_agent(task_id: str) -> EventSourceResponse:
 
     Connect with EventSource to receive real-time agent output.
     """
+
     async def event_generator():
         # Send any existing task state first
         async with _tasks_lock:

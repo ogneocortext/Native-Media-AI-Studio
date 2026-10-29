@@ -11,8 +11,9 @@ import { Loader2, Bot, Wrench, Shield, AlertCircle, ChevronDown, Play, StopCircl
 import { Card } from "../../components/common";
 import {
   runSubAgentTask,
+  cancelSubAgentTask,
   listSubAgentTasks,
-  subscribeToSubAgentPoll,
+  subscribeToSubAgentSSE,
   type SubAgentTask,
   type SubAgentEvent,
 } from "../../services/api";
@@ -23,8 +24,7 @@ export function SubAgentChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("qwen3.5:4b");
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const iterationsEndRef = useRef<HTMLDivElement>(null);
 
   // Load available tasks on mount
@@ -46,14 +46,13 @@ export function SubAgentChat() {
     iterationsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [iterations]);
 
-  // Clean up polling on unmount
+  // Clean up SSE connection on unmount
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
-      if (abortRef.current) abortRef.current.abort();
     };
   }, []);
 
@@ -76,61 +75,81 @@ export function SubAgentChat() {
           task_id: taskId,
           status: "running",
           created_at: new Date().toISOString(),
+          model: selectedModel,
         },
         ...prev,
       ]);
 
-      // Poll task status for real-time output
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      const intervalId = subscribeToSubAgentPoll(
+      // Subscribe to SSE stream for real-time output
+      const eventSource = subscribeToSubAgentSSE(
         taskId,
         (event: SubAgentEvent) => {
-          if (controller.signal.aborted) return;
-
-          const task = event.data as SubAgentTask;
-
-          if (event.type === "completed") {
+          if (event.type === "agent_output") {
             setIterations((prev) => [
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: `\n✅ Task completed.\n\nResult:\n${task.result || "(no output)"}`,
+                text: event.data.text || "",
+                type: "output",
+              },
+            ]);
+          } else if (event.type === "agent_done") {
+            setIterations((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                text: `\n✅ Task completed.\n\nResult:\n${event.data.result || "(no output)"}`,
                 type: "done",
               },
             ]);
             setLoading(false);
-            pollIntervalRef.current = null;
+            eventSourceRef.current = null;
             // Refresh task list
             listSubAgentTasks()
               .then(({ tasks: t }) => setTasks(t))
               .catch(() => {});
-          } else if (event.type === "failed") {
+          } else if (event.type === "agent_error") {
             setIterations((prev) => [
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: `\n❌ Task failed: ${task.error || "unknown error"}`,
+                text: `\n❌ Task failed: ${event.data.error || "unknown error"}${
+                  event.data.error_detail ? `\n\nDetails:\n${event.data.error_detail}` : ""
+                }`,
                 type: "error",
               },
             ]);
             setLoading(false);
-            pollIntervalRef.current = null;
-          } else if (event.type === "running") {
+            eventSourceRef.current = null;
+          } else if (event.type === "agent_cancelled") {
             setIterations((prev) => [
               ...prev,
-              { id: crypto.randomUUID(), text: "▶ Task started...\n", type: "output" },
+              {
+                id: crypto.randomUUID(),
+                text: "\n⏹️ Task cancelled by user.",
+                type: "error",
+              },
             ]);
+            setLoading(false);
+            eventSourceRef.current = null;
           }
         },
         (err: Error) => {
-          console.log("[sub-agent] poll error:", err);
+          console.log("[sub-agent] SSE error:", err);
+          setIterations((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              text: `❌ Connection error: ${err.message}`,
+              type: "error",
+            },
+          ]);
           setLoading(false);
+          eventSourceRef.current = null;
         },
       );
 
-      pollIntervalRef.current = intervalId;
+      eventSourceRef.current = eventSource;
     } catch (err) {
       setIterations((prev) => [
         ...prev,
@@ -144,17 +163,48 @@ export function SubAgentChat() {
     }
   };
 
-  const handleCancel = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+  const handleCancel = async () => {
+    // Find the running task ID
+    const runningTask = tasks.find((t) => t.status === "running");
+    if (!runningTask) {
+      // No running task, just clear state
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setLoading(false);
+      setIterations((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), text: "\n⏹️ Task cancelled by user.", type: "error" },
+      ]);
+      return;
     }
-    if (abortRef.current) abortRef.current.abort();
-    setLoading(false);
-    setIterations((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), text: "\n⏹️ Task cancelled by user.", type: "error" },
-    ]);
+
+    try {
+      await cancelSubAgentTask(runningTask.task_id);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setLoading(false);
+      setIterations((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), text: "\n⏹️ Task cancelled by user.", type: "error" },
+      ]);
+      // Refresh task list
+      listSubAgentTasks()
+        .then(({ tasks: t }) => setTasks(t))
+        .catch(() => {});
+    } catch (err) {
+      setIterations((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          text: `❌ Failed to cancel task: ${err instanceof Error ? err.message : "unknown error"}`,
+          type: "error",
+        },
+      ]);
+    }
   };
 
   const formatIterationText = (text: string, type: string) => {
@@ -314,6 +364,8 @@ export function SubAgentChat() {
                           ? "bg-emerald-500/20 text-emerald-300"
                           : t.status === "failed"
                           ? "bg-red-500/20 text-red-300"
+                          : t.status === "cancelled"
+                          ? "bg-yellow-500/20 text-yellow-300"
                           : "bg-white/10 text-gray-400"
                       }`}
                     >

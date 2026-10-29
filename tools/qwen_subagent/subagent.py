@@ -77,15 +77,17 @@ def tools_to_openai_format(tools: list[Any]) -> list[dict[str, Any]]:
     """
     out = []
     for t in tools:
-        out.append({
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": t.description or "",
-                "parameters": t.parameters if isinstance(t.parameters, dict) else {},
-                "strict": True,
-            },
-        })
+        out.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description or "",
+                    "parameters": t.parameters if isinstance(t.parameters, dict) else {},
+                    "strict": True,
+                },
+            }
+        )
     return out
 
 
@@ -98,7 +100,9 @@ def _truncate(text: str, max_chars: int = TOOL_RESULT_TRUNCATE) -> str:
     """Truncate a tool result to keep context window manageable."""
     if len(text) <= max_chars:
         return text
-    return text[: max_chars - 50] + f"\n... [truncated, {len(text) - max_chars + 50} more chars] ..."
+    return (
+        text[: max_chars - 50] + f"\n... [truncated, {len(text) - max_chars + 50} more chars] ..."
+    )
 
 
 def _run_react_loop(
@@ -169,10 +173,12 @@ def _run_react_loop(
             # stuck (e.g. Qwen3 thinking mode produced no output). Prompt it
             # once more to produce a final answer based on tool results.
             if not content.strip() and iteration < max_iterations - 1:
-                messages.append({
-                    "role": "system",
-                    "content": "You must provide a final text answer summarizing the tool results above. Do not make further tool calls."
-                })
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": "You must provide a final text answer summarizing the tool results above. Do not make further tool calls.",
+                    }
+                )
                 continue
             break
 
@@ -201,12 +207,14 @@ def _run_react_loop(
             if on_output:
                 on_output(f"\n[tool: {name}] {truncated}")
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "name": name,
-                "content": truncated,
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "name": name,
+                    "content": truncated,
+                }
+            )
 
     if stream:
         print()
@@ -234,7 +242,9 @@ def run_task(
     ]
 
     try:
-        return _run_react_loop(client, tools_map, openai_tools, messages, model, max_iterations, stream, on_output)
+        return _run_react_loop(
+            client, tools_map, openai_tools, messages, model, max_iterations, stream, on_output
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"\n[subagent] Error: {exc}", file=sys.stderr)
         print(f"[subagent] Falling back to {FALLBACK_MODEL}...", file=sys.stderr)
@@ -243,7 +253,16 @@ def run_task(
             {"role": "system", "content": SYSTEM_MESSAGE},
             {"role": "user", "content": task},
         ]
-        return _run_react_loop(client, tools_map, openai_tools, messages, FALLBACK_MODEL, max_iterations, stream, on_output)
+        return _run_react_loop(
+            client,
+            tools_map,
+            openai_tools,
+            messages,
+            FALLBACK_MODEL,
+            max_iterations,
+            stream,
+            on_output,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,7 +297,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.interactive:
         return _interactive(args.model or DEFAULT_MODEL, args.max_iterations)
     if args.task:
-        run_task(args.task, model=args.model, stream=not args.no_stream, max_iterations=args.max_iterations)
+        run_task(
+            args.task,
+            model=args.model,
+            stream=not args.no_stream,
+            max_iterations=args.max_iterations,
+        )
         return 0
     parser.print_help()
     return 1
@@ -311,7 +335,9 @@ def _interactive(model: str, max_iterations: int) -> int:
             continue
         messages.append({"role": "user", "content": user})
         print("agent> ", end="", flush=True)
-        _run_react_loop(client, tools_map, openai_tools, messages, model, max_iterations, stream=True)
+        _run_react_loop(
+            client, tools_map, openai_tools, messages, model, max_iterations, stream=True
+        )
         print()
     return 0
 
