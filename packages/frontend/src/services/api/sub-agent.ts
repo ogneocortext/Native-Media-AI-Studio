@@ -28,6 +28,14 @@ export interface SubAgentTask {
   model?: string;
   has_result?: boolean;
   has_error?: boolean;
+  metrics?: {
+    tool_calls: number;
+    iterations: number;
+    tool_usage: Record<string, number>;
+    context_truncations: number;
+    simulated_context_window?: number;
+    dry_run: boolean;
+  };
 }
 
 export interface SubAgentRunRequest {
@@ -49,6 +57,14 @@ export interface SubAgentEvent {
     result?: string;
     error?: string;
     error_detail?: string;
+    metrics?: {
+      tool_calls: number;
+      iterations: number;
+      tool_usage: Record<string, number>;
+      context_truncations: number;
+      simulated_context_window?: number;
+      dry_run: boolean;
+    };
     timestamp: string;
   };
   timestamp?: string;

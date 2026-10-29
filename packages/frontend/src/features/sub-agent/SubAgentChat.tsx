@@ -80,6 +80,8 @@ export function SubAgentChat() {
         ...prev,
       ]);
 
+      let currentMetrics: any = null;
+
       // Subscribe to SSE stream for real-time output
       const eventSource = subscribeToSubAgentSSE(
         taskId,
@@ -94,11 +96,15 @@ export function SubAgentChat() {
               },
             ]);
           } else if (event.type === "agent_done") {
+            currentMetrics = event.data.metrics;
+            const metricsText = currentMetrics
+              ? `\n\nMetrics:\n- Tool calls: ${currentMetrics.tool_calls}\n- Iterations: ${currentMetrics.iterations}\n- Context truncations: ${currentMetrics.context_truncations}\n- Tool usage: ${JSON.stringify(currentMetrics.tool_usage)}`
+              : "";
             setIterations((prev) => [
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: `\n✅ Task completed.\n\nResult:\n${event.data.result || "(no output)"}`,
+                text: `\n✅ Task completed.\n\nResult:\n${event.data.result || "(no output)"}${metricsText}`,
                 type: "done",
               },
             ]);

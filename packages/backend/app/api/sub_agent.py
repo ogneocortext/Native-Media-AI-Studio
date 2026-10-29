@@ -126,7 +126,7 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
 
         # Run the sub-agent in a thread to avoid blocking the event loop.
         # Pass on_output so each iteration/tool result is streamed via SSE.
-        result = await asyncio.get_event_loop().run_in_executor(
+        result, metrics = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: run_task(task, model=model, stream=False, on_output=on_output),
         )
@@ -141,21 +141,26 @@ async def _run_sub_agent_task(task_id: str, task: str, model: str | None) -> Non
             _tasks[task_id]["status"] = "completed"
             _tasks[task_id]["result"] = result
             _tasks[task_id]["iterations"] = iteration_outputs
+            _tasks[task_id]["metrics"] = metrics
 
-        # Log successful session to model reliability tracker
+        # Log successful session to model reliability tracker with metrics
+        metrics_note = (
+            f"Task completed successfully via sub-agent (task_id: {task_id}). Metrics: {metrics}"
+        )
         _log_session_outcome(
             model or DEFAULT_MODEL,
             worked=True,
-            note=f"Task completed successfully via sub-agent (task_id: {task_id})",
+            note=metrics_note,
         )
 
-        # Send completion event
+        # Send completion event with metrics
         await sse_manager.send_message(
             _make_sse_event(
                 "agent_done",
                 {
                     "task_id": task_id,
                     "result": result,
+                    "metrics": metrics,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )

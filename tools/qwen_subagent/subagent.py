@@ -28,10 +28,28 @@ from collections.abc import Callable
 from typing import Any
 
 try:
-    from .config import DEFAULT_MODEL, FALLBACK_MODEL, OLLAMA_API_BASE, OLLAMA_API_KEY
+    from .config import (
+        CONTEXT_WINDOW_TOKENS,
+        DEFAULT_MODEL,
+        DRY_RUN,
+        FALLBACK_MODEL,
+        MAX_TOOL_CALLS,
+        OLLAMA_API_BASE,
+        OLLAMA_API_KEY,
+        SIMULATE_CONTEXT_WINDOW,
+    )
     from .tools import TOOL_NAMES, TOOLS
 except ImportError:
-    from config import DEFAULT_MODEL, FALLBACK_MODEL, OLLAMA_API_BASE, OLLAMA_API_KEY
+    from config import (
+        CONTEXT_WINDOW_TOKENS,
+        DEFAULT_MODEL,
+        DRY_RUN,
+        FALLBACK_MODEL,
+        MAX_TOOL_CALLS,
+        OLLAMA_API_BASE,
+        OLLAMA_API_KEY,
+        SIMULATE_CONTEXT_WINDOW,
+    )
 
     from tools import TOOL_NAMES, TOOLS
 
@@ -49,18 +67,35 @@ Available tools:
 - run_pytest(paths?, timeout?): Run backend pytest on specific test files.
 - run_cmd(command, cwd?): Run an allow-listed command (python, pnpm, node, npm, npx, curl).
 
-Rules:
+CRITICAL RULES:
 1. Always verify your work by running gates or tests after making changes.
 2. Prefer read_file + grep_search to understand code before editing.
-3. Do not invent commands outside the allow-listed binaries.
+3. Do not invent commands outside the allow-listed binaries (python, pnpm, node, npm, npx, curl).
 4. All paths are repository-relative (e.g. 'packages/backend/app/core/migrations.py').
-5. Report concrete results: command run, return code, and key output lines.
-6. If a tool returns an error, analyze it and try a corrected approach rather than repeating the same call.
+5. NEVER guess file or directory names - use list_directory to verify paths exist before reading them.
+6. Report concrete results: command run, return code, and key output lines.
+7. If a tool returns an error, analyze it and try a corrected approach rather than repeating the same call.
+8. When you get "File not found" or "Directory not found", IMMEDIATELY use list_directory to check what actually exists.
+
+Examples of BAD patterns to avoid:
+- Don't: read_file("packages/backend/tests/conftest.py") without first checking if tests/ exists
+- Don't: grep_search("foo", "packages/backend/unknown/") without listing directories first
+- Don't: Run the same command repeatedly if it fails with a syntax error
+- Don't: Assume file structure based on patterns - always verify with list_directory
+
+Examples of GOOD patterns:
+- list_directory("packages/backend") → see what's there → read_file only existing files
+- grep_search with broad pattern first → narrow down based on results
+- If read_file fails with "not found", immediately list_directory to find the correct path
+
+You have limited context. Be efficient: read only what you need, summarize long outputs, and focus on the task at hand.
 
 Be concise. Do not claim success without evidence from a tool result."""
 
 DEFAULT_MAX_ITERATIONS = 10
 TOOL_RESULT_TRUNCATE = 2000  # chars per tool result to keep context manageable
+# Context window simulation: estimate 4 chars per token
+SIMULATED_CONTEXT_CHARS = CONTEXT_WINDOW_TOKENS * 4 if SIMULATE_CONTEXT_WINDOW else None
 
 
 def build_client() -> OpenAI:
@@ -105,6 +140,42 @@ def _truncate(text: str, max_chars: int = TOOL_RESULT_TRUNCATE) -> str:
     )
 
 
+def _simulate_context_window(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Simulate limited context window by truncating message history.
+
+    Keeps system message and most recent messages within simulated token budget.
+    """
+    if not SIMULATED_CONTEXT_CHARS:
+        return messages
+
+    # Keep system message and user task
+    system_msg = messages[0]
+    user_msg = messages[1]
+
+    # Estimate character count for remaining messages
+    # Start from the end and keep adding until we hit the budget
+    trimmed = [system_msg, user_msg]
+    char_count = len(str(system_msg)) + len(str(user_msg))
+
+    for msg in reversed(messages[2:]):
+        msg_chars = len(str(msg))
+        if char_count + msg_chars > SIMULATED_CONTEXT_CHARS:
+            break
+        trimmed.insert(2, msg)
+        char_count += msg_chars
+
+    if len(trimmed) < len(messages):
+        # Add a note that context was truncated
+        trimmed.append(
+            {
+                "role": "system",
+                "content": f"[Context truncated to simulate {CONTEXT_WINDOW_TOKENS} token window. Some earlier tool results are omitted.]",
+            }
+        )
+
+    return trimmed
+
+
 def _run_react_loop(
     client: OpenAI,
     tools_map: dict[str, Any],
@@ -114,7 +185,7 @@ def _run_react_loop(
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     stream: bool = True,
     on_output: Callable[[str], None] | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     """Manual ReAct loop with non-streaming OpenAI chat completions.
 
     Pattern (from Qwen-Agent examples/function_calling.py):
@@ -127,9 +198,23 @@ def _run_react_loop(
     Args:
         on_output: Optional callback called with each piece of output text
             (assistant content and tool results). Used for SSE streaming.
+
+    Returns:
+        Tuple of (final_answer, metrics_dict) where metrics includes tool_calls,
+        iterations, context_truncations, etc.
     """
     final = ""
+    tool_call_count = 0
+    tool_usage: dict[str, int] = {}
+    context_truncations = 0
+
     for iteration in range(max_iterations):
+        # Simulate context window before each LLM call
+        messages_before = len(messages)
+        messages = _simulate_context_window(messages)
+        if len(messages) < messages_before:
+            context_truncations += 1
+
         if stream:
             print(f"\n[iteration {iteration + 1}/{max_iterations}] ", end="", flush=True)
             if on_output:
@@ -184,6 +269,18 @@ def _run_react_loop(
 
         # Execute each tool call and feed results back
         for tc in tool_calls:
+            tool_call_count += 1
+
+            # Check tool call budget
+            if tool_call_count > MAX_TOOL_CALLS:
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": f"Tool call budget exceeded ({MAX_TOOL_CALLS} calls). Provide a final answer based on the results you have so far. Do not make further tool calls.",
+                    }
+                )
+                break
+
             name = tc.function.name
             raw_args = tc.function.arguments or "{}"
             try:
@@ -195,10 +292,16 @@ def _run_react_loop(
             if tool is None:
                 result = f"ERROR: Unknown tool '{name}'."
             else:
-                try:
-                    result = tool.call(args)
-                except Exception as exc:  # noqa: BLE001
-                    result = f"ERROR: Tool '{name}' raised: {exc}"
+                # Track tool usage
+                tool_usage[name] = tool_usage.get(name, 0) + 1
+
+                if DRY_RUN:
+                    result = f"[DRY RUN] Would call {name} with args: {args}"
+                else:
+                    try:
+                        result = tool.call(args)
+                    except Exception as exc:  # noqa: BLE001
+                        result = f"ERROR: Tool '{name}' raised: {exc}"
 
             result_str = str(result)
             truncated = _truncate(result_str)
@@ -220,7 +323,17 @@ def _run_react_loop(
         print()
     if on_output:
         on_output("\n")
-    return final
+
+    metrics = {
+        "tool_calls": tool_call_count,
+        "iterations": iteration + 1,
+        "tool_usage": tool_usage,
+        "context_truncations": context_truncations,
+        "simulated_context_window": CONTEXT_WINDOW_TOKENS if SIMULATE_CONTEXT_WINDOW else None,
+        "dry_run": DRY_RUN,
+    }
+
+    return final, metrics
 
 
 def run_task(
@@ -229,8 +342,12 @@ def run_task(
     stream: bool = True,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     on_output: Callable[[str], None] | None = None,
-) -> str:
-    """Run a single task through the sub-agent and return the final response."""
+) -> tuple[str, dict[str, Any]]:
+    """Run a single task through the sub-agent and return the final response.
+
+    Returns:
+        Tuple of (final_answer, metrics_dict)
+    """
     model = model or DEFAULT_MODEL
     client = build_client()
     tools_map = build_tools_map(TOOLS)
@@ -266,6 +383,7 @@ def run_task(
 
 
 def main(argv: list[str] | None = None) -> int:
+    global SIMULATE_CONTEXT_WINDOW, CONTEXT_WINDOW_TOKENS, DRY_RUN
     parser = argparse.ArgumentParser(
         description="Local Qwen sub-agent for Native Media AI Studio.",
     )
@@ -292,17 +410,57 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_MAX_ITERATIONS,
         help=f"Maximum ReAct loop iterations (default: {DEFAULT_MAX_ITERATIONS}).",
     )
+    parser.add_argument(
+        "--simulate-context",
+        action="store_true",
+        help="Simulate limited context window (default: uses config setting).",
+    )
+    parser.add_argument(
+        "--no-simulate-context",
+        action="store_true",
+        help="Disable context window simulation.",
+    )
+    parser.add_argument(
+        "--context-window",
+        type=int,
+        default=None,
+        help=f"Context window size in tokens (default: {CONTEXT_WINDOW_TOKENS if SIMULATE_CONTEXT_WINDOW else 'disabled'}).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview tool calls without executing them.",
+    )
     args = parser.parse_args(argv)
+
+    # Override config settings based on CLI flags
+    if args.no_simulate_context:
+        SIMULATE_CONTEXT_WINDOW = False
+    elif args.simulate_context:
+        SIMULATE_CONTEXT_WINDOW = True
+    if args.context_window is not None:
+        CONTEXT_WINDOW_TOKENS = args.context_window
+    if args.dry_run:
+        DRY_RUN = True
 
     if args.interactive:
         return _interactive(args.model or DEFAULT_MODEL, args.max_iterations)
     if args.task:
-        run_task(
+        result, metrics = run_task(
             args.task,
             model=args.model,
             stream=not args.no_stream,
             max_iterations=args.max_iterations,
         )
+        print("\n\n=== METRICS ===")
+        print(f"Tool calls: {metrics['tool_calls']}")
+        print(f"Iterations: {metrics['iterations']}")
+        print(f"Context truncations: {metrics['context_truncations']}")
+        print(f"Tool usage: {metrics['tool_usage']}")
+        if metrics.get("simulated_context_window"):
+            print(f"Simulated context window: {metrics['simulated_context_window']} tokens")
+        if metrics.get("dry_run"):
+            print(f"Dry run: {metrics['dry_run']}")
         return 0
     parser.print_help()
     return 1
@@ -314,6 +472,11 @@ def _interactive(model: str, max_iterations: int) -> int:
     openai_tools = tools_to_openai_format(TOOLS)
     print(f"Local Qwen sub-agent ready. Model: {model}")
     print(f"Max iterations: {max_iterations}")
+    print(
+        f"Context simulation: {SIMULATE_CONTEXT_WINDOW} ({CONTEXT_WINDOW_TOKENS} tokens if enabled)"
+    )
+    print(f"Tool call budget: {MAX_TOOL_CALLS}")
+    print(f"Dry run: {DRY_RUN}")
     print("Tools: " + ", ".join(TOOL_NAMES))
     print("Type 'exit' or 'quit' to leave. Type 'help' for this message.\n")
     messages: list[dict[str, Any]] = [
@@ -335,9 +498,14 @@ def _interactive(model: str, max_iterations: int) -> int:
             continue
         messages.append({"role": "user", "content": user})
         print("agent> ", end="", flush=True)
-        _run_react_loop(
+        result, metrics = _run_react_loop(
             client, tools_map, openai_tools, messages, model, max_iterations, stream=True
         )
+        print("\n=== METRICS ===")
+        print(f"Tool calls: {metrics['tool_calls']}")
+        print(f"Iterations: {metrics['iterations']}")
+        print(f"Context truncations: {metrics['context_truncations']}")
+        print(f"Tool usage: {metrics['tool_usage']}")
         print()
     return 0
 

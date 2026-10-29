@@ -351,9 +351,10 @@ export type {
 // Sub-agent (local Qwen agent via Ollama)
 export {
   runSubAgentTask,
+  cancelSubAgentTask,
   getSubAgentTaskStatus,
   listSubAgentTasks,
-  subscribeToSubAgentPoll,
+  subscribeToSubAgentSSE,
 } from "./sub-agent";
 export type {
   SubAgentTask,

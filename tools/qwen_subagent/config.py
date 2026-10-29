@@ -13,6 +13,14 @@ Important notes for Qwen3 thinking models:
 - For reliable tool execution, set thinking off via generate_cfg or the
   model's Ollama config. Qwen3 in thinking mode can plan a tool call but
   fail to emit it (~60% failure per QwenLM/Qwen3#1817).
+
+Model Evaluation Mode:
+- SIMULATE_CONTEXT_WINDOW: If True, truncates tool results to simulate
+  limited context windows (default: 8k tokens). This helps evaluate
+  how models behave under realistic constraints.
+- MAX_TOOL_CALLS: Maximum number of tool calls per task to prevent
+  infinite loops and simulate token budget constraints.
+- DRY_RUN: If True, previews tool calls without executing them.
 """
 
 from pathlib import Path
@@ -29,6 +37,12 @@ OLLAMA_API_KEY = "ollama"  # dummy key; Ollama ignores it
 # fallback already loaded on this machine.
 DEFAULT_MODEL = "qwen3.5:4b"
 FALLBACK_MODEL = "qwen3:8b"
+
+# Model evaluation settings
+SIMULATE_CONTEXT_WINDOW = True  # Simulate limited context windows
+CONTEXT_WINDOW_TOKENS = 8192  # Simulated context window size (8k tokens)
+MAX_TOOL_CALLS = 15  # Maximum tool calls per task
+DRY_RUN = False  # Preview tool calls without execution
 
 # LLM config passed to Qwen-Agent's get_chat_model / Assistant
 # IMPORTANT: model_type='oai' forces the OpenAI-compatible (Ollama) path.
