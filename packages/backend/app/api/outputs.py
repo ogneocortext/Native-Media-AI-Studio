@@ -193,6 +193,66 @@ def _is_cover_sidecar(file_path: Path, media_stems: set[str] | None = None) -> b
     return False
 
 
+def _extract_audio_fields(metadata: dict | None) -> dict:
+    """Extract duration, loudness, and downsampled waveform from sidecar metadata.
+
+    Sidecar JSON (written by go-worker or Python analysis) may contain:
+      - duration_seconds: float
+      - loudness_lufs or integrated_lufs: float
+      - waveform: { amplitude_envelope: [...], rms_energy: [...], sample_rate: int }
+      - or flattened: amplitude_envelope: [...], rms_energy: [...]
+
+    The waveform is downsampled to ~50 points to keep the listing response small.
+    Returns a dict with keys: duration_seconds, loudness_lufs, waveform.
+    """
+    result: dict = {}
+    if not metadata:
+        return result
+
+    # Duration
+    for key in ("duration_seconds", "duration"):
+        if key in metadata and metadata[key] is not None:
+            try:
+                result["duration_seconds"] = float(metadata[key])
+                break
+            except (TypeError, ValueError):
+                pass
+
+    # Loudness (LUFS)
+    for key in ("loudness_lufs", "integrated_lufs", "loudness"):
+        if key in metadata and metadata[key] is not None:
+            try:
+                result["loudness_lufs"] = float(metadata[key])
+                break
+            except (TypeError, ValueError):
+                pass
+
+    # Waveform: try nested object first, then flattened
+    envelope: list | None = None
+    if metadata.get("waveform") and isinstance(metadata["waveform"], dict):
+        wf = metadata["waveform"]
+        for key in ("amplitude_envelope", "rms_energy", "envelope"):
+            if key in wf and isinstance(wf[key], list):
+                envelope = wf[key]
+                break
+    if envelope is None:
+        for key in ("amplitude_envelope", "rms_energy", "envelope", "waveform"):
+            if key in metadata and isinstance(metadata[key], list):
+                envelope = metadata[key]
+                break
+
+    if envelope:
+        # Downsample to ~50 points for a compact listing response
+        n = len(envelope)
+        if n > 50:
+            indices = [int(i * n / 50) for i in range(50)]
+            result["waveform"] = [float(envelope[i]) for i in indices]
+        else:
+            result["waveform"] = [float(v) for v in envelope]
+
+    return result
+
+
 def _iter_media_files(dir_path: Path):
     """Yield media files under dir_path, recursing into subdirectories."""
     try:
@@ -273,6 +333,10 @@ def _scan_with_cache() -> list[dict]:
             metadata = load_sidecar_metadata(file_path)
             file_type = get_file_type(file_path.name)
             rel_path = file_path.relative_to(output_base).as_posix()
+            cover_rel = _find_cover_cached(file_path, subdir, output_base)
+
+            # Extract audio analysis fields from sidecar metadata
+            audio_fields = _extract_audio_fields(metadata) if file_type == "audio" else {}
 
             all_outputs.append(
                 OutputFile(
@@ -283,10 +347,11 @@ def _scan_with_cache() -> list[dict]:
                     size_bytes=stat.st_size,
                     created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
                     modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    cover_image=None,
-                    has_cover=_has_cover_cached(file_path, subdir),
+                    cover_image=cover_rel,
+                    has_cover=cover_rel is not None,
                     metadata=metadata,
                     job_id=metadata.get("job_id") if metadata else None,
+                    **audio_fields,
                 )
             )
 
@@ -337,25 +402,39 @@ def _invalidate_cache() -> None:
         pass
 
 
-def _has_cover_cached(file_path: Path, subdir: str) -> bool:
-    """Check if a cover image exists (without FFmpeg).
+def _find_cover_cached(file_path: Path, subdir: str, output_base: Path) -> str | None:
+    """Find an existing cover/thumbnail sidecar image path.
 
-    Only top-level audio/video files get FFmpeg cover extraction (see
-    ``scan_output_directory``), so only those report has_cover=True.
+    Only top-level audio/video files get cover detection here (see
+    ``scan_output_directory``). Returns the relative path from output_base
+    if a sidecar exists, else None.
     """
     if subdir not in ("audio", "video"):
-        return False
+        return None
     try:
         if file_path.parent.name != subdir:
-            return False
+            return None
     except Exception:
-        pass
+        return None
     for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        if file_path.with_suffix(ext).exists():
-            return True
-        if file_path.with_name(file_path.stem + ext).exists():
-            return True
-    return False
+        cand = file_path.with_suffix(ext)
+        if cand.exists():
+            try:
+                return cand.relative_to(output_base).as_posix()
+            except ValueError:
+                pass
+        cand2 = file_path.with_name(file_path.stem + ext)
+        if cand2.exists():
+            try:
+                return cand2.relative_to(output_base).as_posix()
+            except ValueError:
+                pass
+    return None
+
+
+def _has_cover_cached(file_path: Path, subdir: str, output_base: Path) -> bool:
+    """Check if a cover image exists (without FFmpeg)."""
+    return _find_cover_cached(file_path, subdir, output_base) is not None
 
 
 class OutputFile(BaseModel):
@@ -372,6 +451,10 @@ class OutputFile(BaseModel):
     has_cover: bool = False  # Whether a thumbnail/cover exists
     metadata: dict | None = None
     job_id: str | None = None
+    # Audio analysis fields (populated from sidecar metadata when available)
+    duration_seconds: float | None = None
+    loudness_lufs: float | None = None
+    waveform: list[float] | None = None  # Downsampled amplitude envelope (~50 points)
 
 
 class OutputsResponse(BaseModel):

@@ -57,6 +57,10 @@ router = APIRouter(prefix="/api/audio", tags=["Audio"])
 
 AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+# Audio extracted/converted from video lives in its own subfolder so it is not
+# mixed with native audio library files.
+VIDEO_EXTRACTED_AUDIO_DIR = AUDIO_DIR / "video-extracted"
+VIDEO_EXTRACTED_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
@@ -257,6 +261,8 @@ class AudioUploadResponse(BaseModel):
     #: True when an existing library file with the same content was reused
     #: instead of writing a new copy.
     deduplicated: bool = False
+    #: Output-relative path (e.g. "audio/video-extracted/x.m4a") for serving.
+    relative_path: str = ""
 
 
 class AudioAnalysisResponse(BaseModel):
@@ -399,8 +405,12 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
         raise HTTPException(status_code=400, detail="No filename provided")
 
     safe_name, was_converted, extraction, deduped = await _store_track(file)
-    file_path = AUDIO_DIR / safe_name
+    # Video conversions land in the video-extracted subfolder, not AUDIO_DIR.
+    file_dir = VIDEO_EXTRACTED_AUDIO_DIR if was_converted else AUDIO_DIR
+    file_path = file_dir / safe_name
     size = file_path.stat().st_size
+    root = PROJECT_ROOT.resolve()
+    rel = file_path.resolve().relative_to(root).as_posix().removeprefix("output/")
 
     if not was_converted:
         return AudioUploadResponse(
@@ -410,6 +420,7 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
             size_bytes=size,
             message=f"Audio file uploaded successfully ({size // 1024} KB)",
             deduplicated=deduped,
+            relative_path=rel,
         )
 
     how = "stream copy" if extraction and extraction.lossless else "re-encoded to AAC"
@@ -424,6 +435,7 @@ async def upload_audio(file: UploadFile = File(...)) -> AudioUploadResponse:
         source_filename=file.filename,
         lossless=bool(extraction and extraction.lossless),
         deduplicated=deduped,
+        relative_path=rel,
     )
 
 
@@ -474,11 +486,11 @@ async def _store_video_as_audio(file: UploadFile) -> tuple[str, ExtractionResult
         # Content-address the result, then reuse an identical existing track
         # rather than writing a second copy of the same audio.
         audio_id = hashlib.sha256(converted.read_bytes()).hexdigest()[:8]
-        existing = _find_by_content_id(AUDIO_DIR, audio_id)
+        existing = _find_by_content_id(VIDEO_EXTRACTED_AUDIO_DIR, audio_id)
         if existing is not None:
             deduped = True
         else:
-            final_path = AUDIO_DIR / f"{audio_id}_{stem}.m4a"
+            final_path = VIDEO_EXTRACTED_AUDIO_DIR / f"{audio_id}_{stem}.m4a"
             converted.replace(final_path)
             deduped = False
 

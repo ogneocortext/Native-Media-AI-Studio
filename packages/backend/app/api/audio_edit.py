@@ -37,6 +37,10 @@ logger = logging.getLogger(__name__)
 # Mirrors audio.py - same values, same derivation. Must not drift.
 AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+# Audio extracted from video lives in its own subfolder so it is not mixed
+# with native audio library files.
+VIDEO_EXTRACTED_AUDIO_DIR = AUDIO_DIR / "video-extracted"
+VIDEO_EXTRACTED_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
 
 router = APIRouter(prefix="/api/audio", tags=["Audio"])
@@ -166,11 +170,11 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
         cmd_mode = "copy" if ext else "encode-fallback"
         if not ext:
             ext = ".m4a"  # AAC-encode fallback below
-    dst = AUDIO_DIR / f"{stem}{ext}"
+    dst = VIDEO_EXTRACTED_AUDIO_DIR / f"{stem}{ext}"
     n = 1
     while dst.exists():
         n += 1
-        dst = AUDIO_DIR / f"{stem}_{n}{ext}"
+        dst = VIDEO_EXTRACTED_AUDIO_DIR / f"{stem}_{n}{ext}"
 
     def _cmd(mode: str) -> list[str]:
         # Segment flags go before -i for fast seek; for stream copy this is

@@ -282,6 +282,9 @@ class NMAApiClient:
 
         The backend adapter routes to Atomic Chat when
         ``atomic_chat_enabled`` is true, falling back to Ollama on error.
+        Atomic Chat is served by a separate ``AtomicChatAdapter``
+        (:class:`app.adapters.atomic_chat.AtomicChatAdapter`) distinct from
+        ``OllamaAdapter``.
         """
         data: dict[str, Any] = {
             "message": message,

@@ -713,6 +713,15 @@
 
 ---
 
+### D55 — Atomic Chat adapter split into its own file (2026-10-29)
+
+- **Status:** Decided
+- **Context:** `adapters/ollama.py` contained both Ollama and Atomic Chat integration logic (~1,470 lines, with Atomic Chat routing, health checks, model discovery, and OpenAI-compatible chat/stream requests interleaved). Atomic Chat is a separate desktop app (Electron-based, port 1337) that serves its own model (Qwen3.5 GGUF) into the same 8 GB VRAM as Ollama. Routing through OllamaAdapter meant caller-supplied model names (e.g. `gemma4:e2b-it-qat`) were passed to Atomic Chat, which rejected them as `model_not_found`, and the fallback-to-Ollama path silently swallowed the error.
+- **Decision:** Split Atomic Chat into `adapters/atomic_chat.py` with its own `AtomicChatAdapter` (lazy-loaded via `adapter_registry.get("atomic-chat")`). `OllamaAdapter` is Ollama-only. `registry.py` lazily initialises both adapters on first request. `integrations_generation.py` routes to Atomic Chat when `atomic_chat_enabled` is true, falling back to Ollama. Atomic Chat discovers its resident model via `/v1/models` rather than accepting caller-supplied names. Tool execution still uses `OllamaAdapter` regardless of which LLM serves chat. VRAM manager tracks both Ollama and Atomic Chat last-loaded models via separate providers.
+- **Files:** packages/backend/app/adapters/atomic_chat.py (new), packages/backend/app/adapters/ollama.py (Atomic Chat code removed), packages/backend/app/adapters/registry.py (lazy-load AtomicChatAdapter), packages/backend/app/api/integrations_generation.py (route by flag), packages/backend/app/agents/api_client.py (docstring), scripts/manage-servers.ps1 (atomic-chat service entry), scripts/start-services.ps1 (atomic-chat in default list), scripts/shared-utils.ps1 (atomic_chat_port).
+- **Consequences:** Ollama and Atomic Chat are fully separable. Each adapter owns its model discovery and health check. No more silent model_not_found fallbacks. Import cycle gate (check-import-cycles.py) still reports 0 cycles / 0 inversions.
+
+
 ## Open questions
 
 ### Q1 — 3D path convergence: Unity vs Blender vs Three.js
@@ -1777,4 +1786,6 @@
 - **Decision:** (1) Root `opencode.json` and `packages/video-editor/opencode.json`: replaced `npx -y <pkg>@latest` with `npx --no --offline <pkg>@<version>` for all MCP servers; pre-install + offline mode is now the required pattern. (2) `scripts/start-tunnel.ps1`: pinned `localtunnel@2.0.2` and added `-y` (safe because version is pinned; script runs unattended). (3) `packages/backend/app/api/hyperframes.py`: replaced `npx hyperframes` with `pnpm exec hyperframes` (project-local, lockfile-pinned, zero network) with `npx --no --offline` fallback; version pinned to `0.8.73`. (4) New documentation at [[npx-best-practices-2026]]. (5) `docs/knowledge-library/mcp-registry.json`: updated command strings to pinned `--no --offline` form with security notes.
 - **Files:** opencode.json, packages/video-editor/opencode.json, scripts/start-tunnel.ps1, packages/backend/app/api/hyperframes.py, docs/knowledge-library/npx-best-practices-2026.md (new), docs/knowledge-library/mcp-registry.json, docs/architecture/decision-log.md (this entry).
 - **Consequences:** No runtime network fetching from the npm registry via npx. All package executions are version-pinned and lockfile-verified. MCP servers can no longer silently auto-update to malicious versions. Users must pre-install packages (`pnpm add -D <pkg>@<version>`) before running `npx --no --offline`. Known limitation: documentation examples across the repo still show unpinned `npx` patterns (e.g. `npx playwright test`, `npx remotion render`) — these should be migrated to `pnpm exec` or pinned `--no --offline` form as they are touched.
+
+
 

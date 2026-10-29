@@ -8,17 +8,36 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	sse "github.com/r3labs/sse/v2"
+)
+
+const (
+	serviceName = "go-media"
+	version     = "0.3"
+	buildTime   = "unknown"
+)
+
+var (
+	eventBus   = sse.New()
+	jobStore   = make(map[string]*MediaJob)
+	jobCancels = make(map[string]context.CancelFunc)
+	jobMu      sync.Mutex
+	jobSlots   = make(chan struct{}, 4)
+	logger     = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
 )
 
 // MediaJob represents a media processing job.
@@ -30,14 +49,6 @@ type MediaJob struct {
 	Start     string `json:"start,omitempty"`
 	Duration  string `json:"duration,omitempty"`
 }
-
-var (
-	eventBus   = sse.New()
-	jobStore   = make(map[string]*MediaJob)
-	jobCancels = make(map[string]context.CancelFunc)
-	jobMu      sync.Mutex
-	jobSlots   = make(chan struct{}, 4)
-)
 
 func lookFFmpeg() (string, error) {
 	if p, err := exec.LookPath("ffmpeg"); err == nil {
@@ -56,9 +67,10 @@ func lookFFmpeg() (string, error) {
 	return "", fmt.Errorf("ffmpeg not found on PATH")
 }
 
-func mustLookFFmpeg() string {
+func ffmpegPath() string {
 	p, err := lookFFmpeg()
 	if err != nil {
+		logger.Warn("ffmpeg not found", "error", err)
 		return "missing"
 	}
 	return p
@@ -130,18 +142,14 @@ func run(ctx context.Context, job MediaJob) error {
 	return cmd.Run()
 }
 
-// JSON status output for programmatic callers.
-func init() {
-	if len(os.Args) > 1 && os.Args[1] == "--json" {
-		status := map[string]string{
-			"status":  "ok",
-			"ffmpeg":  mustLookFFmpeg(),
-			"version": "0.3",
-		}
-		b, _ := json.MarshalIndent(status, "", "  ")
-		fmt.Println(string(b))
-		os.Exit(0)
+func printStatusJSON() {
+	status := map[string]string{
+		"status":  "ok",
+		"ffmpeg":  ffmpegPath(),
+		"version": version,
 	}
+	b, _ := json.MarshalIndent(status, "", "  ")
+	fmt.Println(string(b))
 }
 
 func main() {
@@ -199,10 +207,25 @@ func runMediaServer(port string) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
-			"service": "go-media",
-			"ffmpeg":  mustLookFFmpeg(),
+			"service": serviceName,
+			"version": version,
+			"ffmpeg":  ffmpegPath(),
+		})
+	})
+
+	r.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"service":   serviceName,
+			"version":   version,
+			"buildTime": buildTime,
+			"goVersion": runtime.Version(),
 		})
 	})
 
@@ -217,6 +240,7 @@ func runMediaServer(port string) {
 		}
 		var job MediaJob
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&job); err != nil {
+			logger.Warn("invalid process payload", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -244,6 +268,7 @@ func runMediaServer(port string) {
 		jobMu.Unlock()
 
 		emitProgress(jobID, "started", 0.0)
+		logger.Info("media job started", "jobID", jobID, "operation", job.Operation)
 
 		select {
 		case jobSlots <- struct{}{}:
@@ -257,10 +282,11 @@ func runMediaServer(port string) {
 				jobMu.Unlock()
 				if err != nil {
 					emitProgress(jobID, "error", 0.0)
-					log.Printf("job %s failed: %v", jobID, err)
+					logger.Error("media job failed", "jobID", jobID, "error", err)
 					return
 				}
 				emitProgress(jobID, "done", 1.0)
+				logger.Info("media job completed", "jobID", jobID)
 			}()
 		default:
 			jobMu.Lock()
@@ -272,7 +298,8 @@ func runMediaServer(port string) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "accepted", "job_id": jobID})
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted", "job_id": jobID})
 	})
 
 	r.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
@@ -287,7 +314,7 @@ func runMediaServer(port string) {
 			list = append(list, j)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(list)
+		_ = json.NewEncoder(w).Encode(list)
 	})
 
 	r.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
@@ -310,7 +337,7 @@ func runMediaServer(port string) {
 		}
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(job)
+			_ = json.NewEncoder(w).Encode(job)
 			return
 		}
 		if r.Method == http.MethodDelete && cancelOK {
@@ -342,17 +369,37 @@ func runMediaServer(port string) {
 		}
 	}()
 
-	log.Printf("go-media listening on :%s", port)
-	server := &http.Server{Addr: ":" + port, Handler: r, ReadHeaderTimeout: 5 * time.Second, MaxHeaderBytes: 1 << 20}
-	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go func() {
-		<-shutdown.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = server.Shutdown(ctx)
-	}()
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+
+	log.Printf("go-media listening on :%s", port)
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	logger.Info("shutdown signal received, draining...")
+
+	stop() // restore default signal behavior so a second Ctrl+C force-kills
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server shutdown failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("server stopped gracefully")
 }

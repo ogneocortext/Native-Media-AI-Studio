@@ -29,6 +29,7 @@ import {
   Gamepad2,
   Film,
   Rocket,
+  Video,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -130,6 +131,18 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Media Library",
         icon: <FolderOpen size={18} />,
         keywords: "library media files audio video image",
+      },
+      {
+        path: "/library/video",
+        label: "Video Library",
+        icon: <Video size={18} />,
+        keywords: "video library movies clips manage",
+      },
+      {
+        path: "/library/audio",
+        label: "Audio Library",
+        icon: <Music size={18} />,
+        keywords: "audio library music tracks manage",
       },
       {
         path: "/library/storyboards",

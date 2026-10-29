@@ -43,6 +43,8 @@ export interface AudioUploadResponse {
   lossless?: boolean;
   /** True when an existing library file with the same content was reused. */
   deduplicated?: boolean;
+  /** Output-relative path (e.g. "audio/video-extracted/x.m4a") for serving. */
+  relative_path: string;
 }
 
 export async function uploadAudioFile(file: File): Promise<AudioUploadResponse> {

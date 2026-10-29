@@ -102,6 +102,23 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
     });
 }
 
+export async function ollamaEngineStatus(): Promise<{
+  online: boolean;
+  engine: string;
+}> {
+  const base = getApiBase();
+  try {
+    const res = await fetchWithTimeout(`${base}/api/health/ollama/models`, {
+      timeout: 5000,
+    });
+    if (!res.ok) return { online: false, engine: "ollama" };
+    const data = (await res.json()) as { loaded?: boolean };
+    return { online: Boolean(data.loaded), engine: "ollama" };
+  } catch {
+    return { online: false, engine: "ollama" };
+  }
+}
+
 export interface OllamaBenchmarkResult {
   model: string;
   success: boolean;

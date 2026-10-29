@@ -3,23 +3,28 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	sse "github.com/r3labs/sse/v2"
 )
 
+const (
+	serviceName = "go-dashboard"
+	version     = "0.3"
+	buildTime   = "unknown"
+)
+
 var (
 	eventServer = sse.New()
-	health      = map[string]string{
-		"status":  "ok",
-		"service": "go-dashboard",
-		"version": "0.3",
-	}
+	logger      = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
 )
 
 func cors(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +43,12 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(health)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"service": serviceName,
+		"version": version,
+	})
 }
 
 func publishHandler(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +62,7 @@ func publishHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var payload map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		logger.Warn("invalid publish payload", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -65,7 +76,8 @@ func publishHandler(w http.ResponseWriter, r *http.Request) {
 		Data:  data,
 	})
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "queued"})
 }
 
 func eventsHandler(w http.ResponseWriter, r *http.Request) {
@@ -80,11 +92,28 @@ func eventsHandler(w http.ResponseWriter, r *http.Request) {
 	eventServer.ServeHTTP(w, r)
 }
 
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	cors(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"service":   serviceName,
+		"version":   version,
+		"buildTime": buildTime,
+		"goVersion": runtime.Version(),
+	})
+}
+
 func main() {
 	eventServer.CreateStream("events")
-	http.HandleFunc("/api/health", healthHandler)
-	http.HandleFunc("/publish", publishHandler)
-	http.HandleFunc("/events", eventsHandler)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/health", healthHandler)
+	mux.HandleFunc("/publish", publishHandler)
+	mux.HandleFunc("/events", eventsHandler)
+	mux.HandleFunc("/version", versionHandler)
 
 	// Heartbeat every 15s to keep intermediary connections alive
 	go func() {
@@ -99,17 +128,42 @@ func main() {
 		}
 	}()
 
-	log.Println("go-dashboard listening on 127.0.0.1:3847")
-	server := &http.Server{Addr: "127.0.0.1:3847", Handler: nil, ReadHeaderTimeout: 5 * time.Second, MaxHeaderBytes: 1 << 20}
-	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	go func() {
-		<-shutdown.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = server.Shutdown(ctx)
-	}()
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	port := os.Getenv("GO_DASHBOARD_PORT")
+	if port == "" {
+		port = "3847"
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	srv := &http.Server{
+		Addr:              "127.0.0.1:" + port,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+
+	go func() {
+		logger.Info("go-dashboard listening", "port", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	logger.Info("shutdown signal received, draining...")
+
+	stop() // restore default signal behavior so a second Ctrl+C force-kills
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server shutdown failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("server stopped gracefully")
 }

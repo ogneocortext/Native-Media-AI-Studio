@@ -322,6 +322,7 @@ export type { MemoryDiagnostics, DiagnosticsModelsResponse } from "./diagnostics
 // Ollama
 export {
   getOllamaModels,
+  ollamaEngineStatus,
   getBenchmarkResults,
   getHardwareBenchmarks,
   runBenchmark,

@@ -22,7 +22,7 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'update-comfyui')]
     [string]$Action,
 
-    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')]
+    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')]
     [string[]]$Services = @('all')
 )
 
@@ -125,6 +125,17 @@ $ServiceConfig = @{
         # Fallback: the package-local remotion CLI does not need a global npm.
         LocalCmd = Join-Path -Path $ProjectRoot -ChildPath 'packages', 'video-editor', 'node_modules', '.bin', 'remotion.cmd'
         LocalArgs = @('studio')
+    }
+    'atomic-chat' = @{
+        Name = 'Atomic Chat'
+        Port = $Ports.atomic_chat_port
+        HealthPath = '/v1/models'
+        LogFile = 'atomic-chat.log'
+        # Atomic Chat is a desktop app (Electron/Jan-based) that exposes an
+        # OpenAI-compatible API on port 1337. It is a native binary, not
+        # Python or Node, so we launch it via LocalCmd with no args.
+        LocalCmd = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Atomic Chat\Atomic-Chat.exe'
+        LocalArgs = @()
     }
     'go-dashboard' = @{
         Name = 'Go Dashboard'
@@ -425,7 +436,7 @@ function Start-StudioService {
 # Determine which services to manage
 # $Services is a string array: a single -Services all, a comma list, or
 # the array start-services.ps1 passes all bind correctly.
-$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports')
+$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')
 $serviceList = if ($Services -contains 'all') { $allServices } else { $Services }
 
 switch ($Action) {

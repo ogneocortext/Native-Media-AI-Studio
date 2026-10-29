@@ -16,7 +16,9 @@ export interface MediaFile {
   size?: number; // backward-compat alias for size_bytes
   modified_time?: string; // backward-compat alias for modified_at
   duration?: number;
+  duration_seconds?: number;
   loudness?: number;
+  loudness_lufs?: number;
   waveform?: number[];
   analysis?: Record<string, unknown>;
   thumbnail?: string;
@@ -61,8 +63,8 @@ export function useMediaFiles() {
         job_id: f.job_id ?? null,
         size: f.size_bytes ?? f.size ?? 0,
         modified_time: f.modified_at || f.modified_time || undefined,
-        duration: f.duration,
-        loudness: f.loudness,
+        duration: f.duration_seconds ?? f.duration,
+        loudness: f.loudness_lufs ?? f.loudness,
         waveform: f.waveform,
         analysis: f.analysis,
         thumbnail: f.thumbnail,

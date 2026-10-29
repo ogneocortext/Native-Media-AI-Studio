@@ -4,20 +4,26 @@
  *
  * Exposes the Pillow 13.0 image processing API through a web UI:
  *   - Beat-synced displacement (ImageChops.offset - 46x faster)
-   - EQ-reactive filters (Image.filter - 3.5x faster)
-   - Mirror/flip effects (Image.transpose - 10x faster)
-   - Posterize, invert, solarize (now work on P mode images)
-   - Auto-crop (Image.getbbox - 24x faster)
-   - Blur, sharpen, edge detection, grayscale, sepia, emboss
-   - Color adjustments (brightness, contrast, saturation, hue)
-   - Blend modes
-   - Batch processing of multiple images
-   - Before/after comparison
-   - Preset management
-   - Image gallery for recent edits
+ *   - EQ-reactive filters (Image.filter - 3.5x faster)
+ *   - Mirror/flip effects (Image.transpose - 10x faster)
+ *   - Posterize, invert, solarize (now work on P mode images)
+ *   - Auto-crop (Image.getbbox - 24x faster)
+ *   - Blur, sharpen, edge detection, grayscale, sepia, emboss
+ *   - Color adjustments (brightness, contrast, saturation, hue)
+ *   - Blend modes
+ *   - Batch processing of multiple images
+ *   - Before/after comparison
+ *   - Preset management
+ *   - Image gallery for recent edits
  *
  * All processing happens on the backend using Pillow 13.0 with WAL mode,
  * performance PRAGMAs, and proper resource management.
+ *
+ * NOTE: This page is a standalone artistic image-effects tool. It is NOT
+ * connected to the media library and does not generate thumbnails for
+ * media library items. Media library thumbnails (video poster frames,
+ * audio cover art) are generated via `POST /api/media/thumbnail` (FFmpeg)
+ * and rendered by `FileCard` in the media library.
  */
 
 import { useState, useRef } from "react";

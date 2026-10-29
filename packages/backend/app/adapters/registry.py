@@ -36,8 +36,9 @@ class AdapterRegistry:
     def get_adapter(self, name: str) -> BaseAdapter | None:
         """Get an adapter by name.
 
-        Ollama is lazily initialized on first request — it's an optional
-        dependency for agentic creative work, not a core requirement.
+        Ollama and Atomic Chat are lazily initialized on first request — they
+        are optional dependencies for agentic creative work, not core
+        requirements.
         """
         self._ensure_init()
         adapter = self._adapters.get(name)
@@ -47,9 +48,16 @@ class AdapterRegistry:
             adapter = OllamaAdapter(
                 config.ollama_url,
                 mock_mode=False,
-                atomic_chat_url=getattr(config, "atomic_chat_url", None),
             )
             self._adapters["ollama"] = adapter
+        elif adapter is None and name in ("atomic-chat", "atomic_chat"):
+            # Lazily create Atomic Chat adapter on first request
+            from .atomic_chat import AtomicChatAdapter
+            adapter = AtomicChatAdapter(
+                config.atomic_chat_url,
+                mock_mode=False,
+            )
+            self._adapters["atomic-chat"] = adapter
         return adapter
 
     def _is_service_available(self, service: str) -> bool:

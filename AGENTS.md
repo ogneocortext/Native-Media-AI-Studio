@@ -493,9 +493,13 @@ they are not part of this project and should never be invoked for repo tasks.
 - Interactive: `scripts\start-studio.ps1`
 - Ports: `scripts\check_ports.ps1`
 
+Atomic Chat starts automatically with `start-services -Services all` (it's in the default service list). It runs on port 1337 (`atomic_chat_url` in `config/ports.json`) and serves your unsloth Qwen GGUF model (`unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M`). Ollama runs separately on port 11434. The backend chat endpoint routes through Atomic Chat when `atomic_chat_enabled` is true, falling back to Ollama on error.
+
 ### Critical Notes
 
 - **Never commit/hand-edit** compiled `vite.config.js` / `vite.config.d.ts` in `packages/frontend/` — it shadows `vite.config.ts`.
+
+- **Installation policy:** AI models must only install applications the user has explicitly requested. Before any download or install, first check what is already installed on this machine (e.g. Atomic Chat, Ollama, Unity, ComfyUI, Blender, Remotion). Do not re-download, re-install, or suggest alternatives to software the user maintains themselves. Atomic Chat is already installed and self-maintained — do not download `Atomic.Chat_2.1.2_x64-setup.exe` or any other installer without an explicit user request.
 
 ## Music Video Pipeline
 

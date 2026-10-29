@@ -57,6 +57,14 @@ const MediaLibrary = lazyNamed(
   () => import("./features/media-library/MediaLibrary"),
   "MediaLibrary",
 );
+const VideoLibrary = lazyNamed(
+  () => import("./features/media-library/VideoLibrary"),
+  "VideoLibrary",
+);
+const AudioLibrary = lazyNamed(
+  () => import("./features/media-library/AudioLibrary"),
+  "AudioLibrary",
+);
 const MusicVideoWizard = lazyNamed(
   () => import("./features/music-video/MusicVideoWizard"),
   "MusicVideoWizard",
@@ -146,6 +154,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/create/unity": "Unity Control",
   "/create/hyperframes": "HyperFrames",
   "/library": "Media Library",
+  "/library/video": "Video Library",
+  "/library/audio": "Audio Library",
   "/library/storyboards": "Storyboards",
   "/analyze/audio": "Audio Analysis",
   "/analyze/ai": "AI Tools",
@@ -280,6 +290,14 @@ function App() {
               <Route
                 path="/library"
                 element={withErrorBoundary(<MediaLibrary />)}
+              />
+              <Route
+                path="/library/video"
+                element={withErrorBoundary(<VideoLibrary />)}
+              />
+              <Route
+                path="/library/audio"
+                element={withErrorBoundary(<AudioLibrary />)}
               />
               <Route
                 path="/library/storyboards"

@@ -10,6 +10,7 @@ interface FileGridProps {
   onDelete?: (file: MediaFile) => void | Promise<void>;
   onRename?: (file: MediaFile) => void | Promise<void>;
   onSendToWizard?: (file: MediaFile) => void;
+  onGenerateThumbnail?: (file: MediaFile) => void;
   selectedPaths: Set<string>;
   favoritedPaths?: Set<string>;
   itemCollections?: Map<string, Collection[]>;
@@ -25,6 +26,7 @@ export function FileGrid({
   onDelete,
   onRename,
   onSendToWizard,
+  onGenerateThumbnail,
   selectedPaths,
   favoritedPaths = new Set(),
   itemCollections = new Map(),
@@ -56,6 +58,7 @@ export function FileGrid({
         onRename={onRename}
         onSendToWizard={onSendToWizard}
         onToggleFavorite={onToggleFavorite}
+        onGenerateThumbnail={onGenerateThumbnail}
         className={
           viewMode === "list"
             ? "flex items-center gap-3 p-2 hover:bg-black/40 rounded"

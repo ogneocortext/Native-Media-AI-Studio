@@ -1,17 +1,27 @@
 package main
 
 import (
+	"context"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	serviceName = "go-gateway"
+	version     = "0.4"
+	buildTime   = "unknown"
 )
 
 var (
@@ -21,9 +31,19 @@ var (
 		"comfyui": "http://127.0.0.1:8188",
 		"ollama":  "http://127.0.0.1:11434",
 	}
+	// bridgeHealthPaths maps bridge name to its health check path.
+	// Ollama uses /api/tags instead of /api/health.
+	bridgeHealthPaths = map[string]string{
+		"ollama": "/api/tags",
+	}
 	requestTimeout = 15 * time.Second
-	healthClient   = &http.Client{Timeout: 2 * time.Second}
+	healthTimeout  = 2 * time.Second
+	healthClient   = &http.Client{Timeout: healthTimeout}
 	proxyClient    = &http.Client{Timeout: requestTimeout}
+	logger         = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	shutdownSignals = make(chan os.Signal, 1)
 )
 
 func init() {
@@ -36,22 +56,43 @@ func init() {
 				if name != "" {
 					if parsed, err := url.Parse(value); err == nil && parsed.Scheme != "" && parsed.Host != "" {
 						bridgeEndpoints[name] = value
+						logger.Info("bridge endpoint configured", "name", name, "url", value)
 					} else {
-						log.Printf("ignoring invalid MCP_BRIDGE_ENDPOINTS entry %q", name)
+						logger.Warn("ignoring invalid MCP_BRIDGE_ENDPOINTS entry", "entry", pair)
 					}
+				}
+			}
+		}
+	}
+	if hp := os.Getenv("MCP_BRIDGE_HEALTH_PATHS"); hp != "" {
+		for _, pair := range strings.Split(hp, ",") {
+			kv := strings.SplitN(pair, "=", 2)
+			if len(kv) == 2 {
+				name := strings.TrimSpace(kv[0])
+				path := strings.TrimSpace(kv[1])
+				if name != "" && path != "" {
+					if !strings.HasPrefix(path, "/") {
+						path = "/" + path
+					}
+					bridgeHealthPaths[name] = path
 				}
 			}
 		}
 	}
 }
 
-func bridgeHealth(target string) map[string]interface{} {
-	healthURL := target + "/api/health"
-	if target == "http://127.0.0.1:11434" {
-		healthURL = target + "/api/tags"
+func bridgeHealth(target, name string) map[string]interface{} {
+	healthPath := "/api/health"
+	if p, ok := bridgeHealthPaths[name]; ok {
+		healthPath = p
 	}
+	healthURL := target + healthPath
 	start := time.Now()
-	resp, err := healthClient.Get(healthURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, healthURL, nil)
+	if err != nil {
+		return map[string]interface{}{"url": target, "status": "down", "latency_ms": 0, "error": err.Error()}
+	}
+	resp, err := healthClient.Do(req)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		return map[string]interface{}{"url": target, "status": "down", "latency_ms": latency, "error": err.Error()}
@@ -74,7 +115,7 @@ func healthHandler(c *gin.Context) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result := bridgeHealth(target)
+			result := bridgeHealth(target, name)
 			mu.Lock()
 			results[name] = result
 			mu.Unlock()
@@ -83,7 +124,8 @@ func healthHandler(c *gin.Context) {
 	wg.Wait()
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"service": "go-gateway",
+		"service": serviceName,
+		"version": version,
 		"bridges": results,
 	})
 }
@@ -101,7 +143,10 @@ func proxyHandler(c *gin.Context) {
 		url += "?" + c.Request.URL.RawQuery
 	}
 
-	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, url, c.Request.Body)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, c.Request.Method, url, c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -128,7 +173,7 @@ func proxyHandler(c *gin.Context) {
 	c.Status(resp.StatusCode)
 	_, copyErr := io.Copy(c.Writer, resp.Body)
 	if copyErr != nil {
-		log.Printf("go-gateway proxy copy error: %v", copyErr)
+		logger.Warn("proxy copy error", "bridge", bridge, "error", copyErr)
 	}
 }
 
@@ -146,9 +191,18 @@ func bridgesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"bridges": list})
 }
 
-func main() {
-	r := gin.Default()
+func versionHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"service":   serviceName,
+		"version":   version,
+		"buildTime": buildTime,
+		"goVersion": runtime.Version(),
+	})
+}
 
+func main() {
+	r := gin.New()
+	r.Use(gin.Recovery())
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		if c.Request.Method == "OPTIONS" {
@@ -161,13 +215,44 @@ func main() {
 	r.GET("/health", healthHandler)
 	r.Any("/proxy/:bridge/*path", proxyHandler)
 	r.GET("/bridges", bridgesHandler)
+	r.GET("/version", versionHandler)
 
 	port := os.Getenv("GO_GATEWAY_PORT")
 	if port == "" {
 		port = "3850"
 	}
-	log.Printf("go-gateway listening on :%s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatal(err)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
+
+	go func() {
+		logger.Info("go-gateway listening", "port", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	logger.Info("shutdown signal received, draining...")
+
+	stop() // restore default signal behavior so a second Ctrl+C force-kills
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server shutdown failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("server stopped gracefully")
 }

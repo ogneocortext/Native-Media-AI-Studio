@@ -5,16 +5,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
+
+const (
+	serviceName = "go-ports"
+	version     = "0.1"
+	buildTime   = "unknown"
+)
+
+var logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	Level: slog.LevelInfo,
+}))
 
 func main() {
 	port := os.Getenv("GO_PORTS_PORT")
@@ -39,9 +51,24 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status":  "ok",
-			"service": "go-ports",
+			"service": serviceName,
+			"version": version,
+		})
+	})
+
+	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		cors(w, r)
+		if r.Method == "OPTIONS" {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"service":   serviceName,
+			"version":   version,
+			"buildTime": buildTime,
+			"goVersion": runtime.Version(),
 		})
 	})
 
@@ -62,7 +89,7 @@ func main() {
 		}
 		isOpen := isPortInUse(p)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"port":     p,
 			"in_use":   isOpen,
 			"protocol": "tcp",
@@ -112,7 +139,7 @@ func main() {
 		}
 		wg.Wait()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"ports": results,
 			"total": len(results),
 		})
@@ -123,6 +150,8 @@ func main() {
 		Addr:              "127.0.0.1:" + port,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
 	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -1,17 +1,21 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Loader2, Bot, User, ChevronDown, Wrench, Shield, Eye, Cpu, AlertCircle } from "lucide-react";
+import { Send, Loader2, Bot, User, ChevronDown, Wrench, Shield, Eye, Cpu, AlertCircle, Wifi, WifiOff, Music, Download } from "lucide-react";
 import { Card } from "../../components/common";
+import { AudioTransport } from "../../components/audio";
 import {
   getApiBase,
   getOllamaModels,
   ollamaChatStream,
+  ollamaEngineStatus,
   parseOllamaStream,
+  uploadAudioFile,
   getBenchmarkResults,
   type ChatMessage,
   type OllamaModel,
   type ToolDefinition,
   type OllamaBenchmarkResult,
 } from "../../services/api";
+import { getOutputUrl } from "../../utils/url";
 
 export function OllamaChat() {
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -25,9 +29,56 @@ export function OllamaChat() {
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [engineStatus, setEngineStatus] = useState<"online" | "offline" | "checking">("checking");
+  const [extractRunning, setExtractRunning] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractResult, setExtractResult] = useState<{
+    filename: string;
+    relative_path: string;
+    stored_path: string;
+    size_bytes: number;
+    message: string;
+    converted: boolean | undefined;
+    source_filename: string | null | undefined;
+    lossless: boolean | undefined;
+  } | null>(null);
+
+  async function checkEngineStatus() {
+    try {
+      const status = await ollamaEngineStatus();
+      setEngineStatus(status.online ? "online" : "offline");
+    } catch {
+      setEngineStatus("offline");
+    }
+  }
+
+  const handleVideoUpload = async (file: File) => {
+    setExtractRunning(true);
+    setExtractError(null);
+    setExtractResult(null);
+    try {
+      const res = await uploadAudioFile(file);
+      setExtractResult({
+        filename: res.filename,
+        relative_path: res.relative_path,
+        stored_path: res.stored_path,
+        size_bytes: res.size_bytes,
+        message: res.message,
+        converted: res.converted,
+        source_filename: res.source_filename,
+        lossless: res.lossless,
+      });
+    } catch (e) {
+      setExtractError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExtractRunning(false);
+    }
+  };
 
   useEffect(() => {
     async function loadModels() {
+      // Detect which inference engine is running before allowing messages.
+      await checkEngineStatus();
       try {
         const [data, toolsData] = await Promise.all([
           getOllamaModels(true),
@@ -84,6 +135,8 @@ export function OllamaChat() {
   };
 
   const handleSend = async () => {
+    if (engineStatus === "offline") return;
+    if (engineStatus === "checking") return;
     if (!input.trim() || !selectedModel || loading) return;
     const userMsg: ChatMessage = { role: "user", content: input.trim(), timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -209,7 +262,13 @@ export function OllamaChat() {
     <div className="p-6 flex flex-col h-[calc(100vh-0px)] max-h-screen">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold">Ollama Chat</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            Ollama Chat
+            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${engineStatus === "online" ? "bg-green-900/30 text-green-400 border-green-900/50" : engineStatus === "offline" ? "bg-red-900/30 text-red-400 border-red-900/50" : "bg-muted/50 text-muted border-muted/50"}`}>
+              {engineStatus === "checking" ? <Wifi size={12} className="mr-1.5 animate-pulse" /> : engineStatus === "online" ? <Wifi size={12} className="mr-1.5" /> : <WifiOff size={12} className="mr-1.5" />}
+              {engineStatus === "checking" ? "Checking engine…" : engineStatus === "online" ? "Ollama online" : "Ollama offline"}
+            </span>
+          </h1>
           <p className="text-sm text-muted mt-1">
             Chat with local LLM models via Ollama (streaming + tools)
           </p>
@@ -245,7 +304,7 @@ export function OllamaChat() {
                   let badge = "";
                   if (score !== null && score >= 0) {
                     const s = Math.round(score);
-                    const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
+                    const ok = success === false ? "FAIL" : s >= 70 ? "OK" : s >= 40 ? "WARN" : "FAIL";
                     badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
                   } else if (score === null) {
                     badge = " [—]";
@@ -253,8 +312,8 @@ export function OllamaChat() {
                   const isBest = models[0]?.name === m.name && score !== null && score >= 60;
                   return (
                     <option key={m.name} value={m.name}>
-                      {m.name}{m.verified ? " ✅" : " ⚠️"}{badge}
-                      {isBest ? " ★ Best" : ""}
+                      {m.name}{m.verified ? " [verified]" : " [unverified]"}{badge}
+                      {isBest ? " [best]" : ""}
                     </option>
                   );
                 })
@@ -290,6 +349,89 @@ export function OllamaChat() {
           </div>
         </div>
       </div>
+
+      {engineStatus === "offline" && (
+        <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-900/30 flex items-center gap-3">
+          <AlertCircle size={18} className="text-red-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-red-300">Inference engine is offline</p>
+            <p className="text-xs text-red-200/70">
+              Ollama is not running, so messages cannot be sent. Start Ollama and refresh this page, or check
+              the <a href="/system/health" className="text-red-300 underline">Health page</a> for service status.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Video → Audio upload */}
+      <Card className="mb-4 shrink-0">
+        <div className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Music size={16} className="text-emerald-400" />
+            <h3 className="text-sm font-semibold text-white">Video → Audio</h3>
+          </div>
+          <p className="text-xs text-muted mb-3">
+            Upload a video file to extract its audio track. The result is saved to your audio library
+            and can be played below or analyzed on the Audio Analysis page.
+          </p>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white hover:bg-white/10 transition-colors">
+              <span>Choose video…</span>
+              <input
+                type="file"
+                accept=".mp4,.mov,.mkv,.webm,.m4v,.avi"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleVideoUpload(file);
+                  e.target.value = "";
+                }}
+                className="sr-only"
+                aria-label="Select a video file to extract audio"
+              />
+            </label>
+
+            {extractRunning && (
+              <div className="flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin text-muted" />
+                <span className="text-xs text-muted">Extracting audio…</span>
+              </div>
+            )}
+
+            {extractError && (
+              <p className="text-xs text-red-400 flex items-center gap-1" role="alert">
+                <AlertCircle size={12} /> {extractError}
+              </p>
+            )}
+
+            {extractResult && (
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <div className="flex items-center gap-2 text-xs text-emerald-400 font-mono">
+                  {extractResult.converted ? "Converted" : "Uploaded"} · {extractResult.message}
+                </div>
+                <div className="flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                  <p className="text-xs text-white font-mono truncate" title={extractResult.filename}>
+                    {extractResult.filename}
+                  </p>
+                  <a
+                    href={getOutputUrl(extractResult.relative_path)}
+                    download
+                    className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white shrink-0"
+                    title="Download audio file"
+                  >
+                    <Download size={13} />
+                  </a>
+                </div>
+                <AudioTransport
+                  src={getOutputUrl(extractResult.relative_path)}
+                  className="w-full"
+                  ariaLabel={`Play ${extractResult.filename}`}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* Chat Messages */}
       <Card className="flex-1 min-h-0 flex flex-col">
@@ -369,12 +511,12 @@ export function OllamaChat() {
                 }
               }}
               placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}
-              disabled={!selectedModel || loading}
+              disabled={!selectedModel || loading || engineStatus !== "online"}
               className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-muted focus:outline-none focus:border-violet-500 disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || !selectedModel || loading}
+              disabled={!input.trim() || !selectedModel || loading || engineStatus !== "online"}
               className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

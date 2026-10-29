@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 from fastapi import APIRouter, HTTPException, Request
@@ -18,10 +19,12 @@ from ..adapters.registry import adapter_registry
 from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
 from ..core.model_tiers import VRAM_REQUIREMENTS, classify_model_variant
-from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
 from ..services.llm_loop import run_llm_loop
+
+if TYPE_CHECKING:
+    from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 
 # tools/scripts lives at the project root, outside the backend package.
 # PROJECT_ROOT is the repo root (packages/backend/app/core/config.py), so the
@@ -31,6 +34,8 @@ if str(PROJECT_ROOT) not in sys.path:
 logger = logging.getLogger(__name__)
 # Router without prefix - included by main integrations.py with prefix "/api/integrations"
 router = APIRouter(tags=["Integrations-Generation"])
+
+
 @router.get("/models/status")
 async def get_models_status() -> dict:
     """Get status of model availability for all image generation services"""
@@ -51,6 +56,8 @@ async def get_models_status() -> dict:
             "has_models": len(comfyui_models_list) > 0,
         },
     }
+
+
 @router.get("/comfyui/checkpoints")
 async def list_comfyui_checkpoints() -> dict:
     """List available checkpoint models from ComfyUI's checkpoints folder.
@@ -73,6 +80,8 @@ async def list_comfyui_checkpoints() -> dict:
             return {"checkpoints": checkpoints, "directory": str(ckpt_dir)}
 
     return {"checkpoints": [], "directory": ""}
+
+
 ANIMATEDIFF_DIRS = ("animatediff", "animatediff_models", "animatediff_motion_lora")
 VIDEO_MODEL_SUFFIXES = (".safetensors", ".ckpt")
 VIDEO_DIFFUSION_SUFFIXES = (".safetensors", ".ckpt", ".gguf")
@@ -95,6 +104,8 @@ WAN_VARIANT_LABELS = {
     "wan2_1_t2v_1_3b": "1.3B",
     "wan2_1_fun_inp_1_3b": "1.3B",
 }
+
+
 def _wan_variant_fields(name: str) -> dict[str, Any]:
     """VRAM badges for a Wan model, via the shared tier classifier.
     Extracted from `get_video_models`, where the if/elif chain sat four levels
@@ -110,12 +121,15 @@ def _wan_variant_fields(name: str) -> dict[str, Any]:
         "requires_cpu_offload": tier in WAN_OFFLOAD_VARIANTS,
         "vram_mb": vram.get("recommended_mb", 20000),
     }
+
+
 def _scan_model_dir(
     directory,
     root,
     suffixes: tuple[str, ...],
     min_size: int,
     entry_type: str,
+    *,
     keyword_filter: bool = False,
 ) -> list[dict[str, Any]]:
     """Collect model files under `directory`, one level of logic instead of five."""
@@ -138,6 +152,8 @@ def _scan_model_dir(
             entry.update(_wan_variant_fields(f.name))
         found.append(entry)
     return found
+
+
 @router.get("/comfyui/video-models")
 async def get_video_models() -> dict:
     """Get video generation models including motion modules and checkpoints."""
@@ -180,6 +196,8 @@ async def get_video_models() -> dict:
         )
     )
     return {"video_models": video_models}
+
+
 @router.post("/{service_name}/generate")
 async def generate_image(service_name: str, request: ImageGenerationRequest) -> dict:
     """Generate an image using the specified backend"""
@@ -251,6 +269,8 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         logger.debug("exception in generate_image: %s", e)
         logger.error("Generate endpoint error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/{service_name}/result/{prompt_id}")
 async def _save_comfyui_asset(
     item: dict,
@@ -284,8 +304,7 @@ async def _save_comfyui_asset(
         filepath = _cu.safe_join(output_dir, filename)
     except ValueError:
         return {"status": "error", "error": "Invalid output path", "prompt_id": prompt_id}
-    with open(filepath, "wb") as f:
-        f.write(data)
+    Path(filepath).write_bytes(data)
     return {
         "status": "completed",
         "success": True,
@@ -293,6 +312,8 @@ async def _save_comfyui_asset(
         "prompt_id": prompt_id,
         "kind": kind,
     }
+
+
 async def _collect_comfyui_outputs(
     outputs: dict,
     output_key: str,
@@ -318,6 +339,8 @@ async def _collect_comfyui_outputs(
             if result is not None:
                 return result
     return None
+
+
 async def get_result(service_name: str, prompt_id: str) -> dict:
     """Get the final result of a generation."""
     if service_name != "comfyui":
@@ -343,6 +366,8 @@ async def get_result(service_name: str, prompt_id: str) -> dict:
         return {"status": "error", "error": "No outputs found in result", "prompt_id": prompt_id}
     except Exception as e:
         return {"status": "error", "error": str(e), "prompt_id": prompt_id}
+
+
 @router.get("/comfyui/progress/{prompt_id}")
 async def get_progress(prompt_id: str) -> dict:
     """Get generation progress for a prompt."""
@@ -412,6 +437,8 @@ async def get_progress(prompt_id: str) -> dict:
             "prompt_id": prompt_id,
             "error": str(e),
         }
+
+
 @router.get("/comfyui/preview/{prompt_id}")
 async def get_preview(prompt_id: str) -> dict:
     """Get the latest intermediate preview image for a running prompt."""
@@ -438,6 +465,8 @@ async def get_preview(prompt_id: str) -> dict:
         return {"error": "No preview available"}
     except Exception as e:
         return {"error": str(e)}
+
+
 @router.get("/comfyui/view/{prompt_id}/{filename}")
 async def view_preview(request: Request, prompt_id: str, filename: str):
     """Proxy endpoint to serve preview images from ComfyUI."""
@@ -461,6 +490,7 @@ async def view_preview(request: Request, prompt_id: str, filename: str):
             origin = request.headers.get("origin", "*")
             content_type = resp.content_type or "image/png"
             chunks = [chunk async for chunk in resp.content.iter_any()]
+
         async def stream_generator():
             for chunk in chunks:
                 yield chunk
@@ -473,6 +503,8 @@ async def view_preview(request: Request, prompt_id: str, filename: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch image: {e}") from e
+
+
 @router.post("/{service_name}/generate-video")
 async def generate_video(service_name: str, request: VideoGenerationRequest) -> dict:
     """Generate a video using AnimateDiff via ComfyUI"""
@@ -536,6 +568,8 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/comfyui/upload-image")
 async def upload_image_to_comfyui(request: Request) -> dict:
     """Upload an image to ComfyUI's input directory for I2V workflows.
@@ -654,6 +688,8 @@ async def queue_image_job(service_name: str, request: ImageGenerationRequest) ->
         )
     )
     return {"job_id": job.id, "status": job.status}
+
+
 @router.post("/ollama/embed")
 async def ollama_embed(body: OllamaEmbedRequest) -> dict:
     """Generate embedding via nomic-embed-text. Uses config.embedding_model by default."""
@@ -671,6 +707,8 @@ async def ollama_embed(body: OllamaEmbedRequest) -> dict:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/ollama/search")
 async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     """Semantic search over tracks/visuals using nomic embeddings."""
@@ -691,7 +729,7 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     try:
         tracks = db.get_all_tracks() if hasattr(db, "get_all_tracks") else []
         for t in (tracks or [])[:200]:
-            text = f"{t.get('title','')} {t.get('artist','')} {t.get('music_prompt','')} {t.get('lyrics','')[:200]}"
+            text = f"{t.get('title', '')} {t.get('artist', '')} {t.get('music_prompt', '')} {t.get('lyrics', '')[:200]}"
             candidates.append({"type": "track", "id": t.get("id"), "text": text, "meta": t})
     except Exception:
         pass
@@ -701,22 +739,25 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     import asyncio as _asyncio
     candidates = candidates[: min(len(candidates), limit * 5)]  # cap to 5x limit before embedding
     sem = _asyncio.Semaphore(5)
+
     async def _embed_one(c):
         async with sem:
             try:
                 emb = await _oc.embed_text(c["text"][:800], model=model, timeout=15)
                 if emb is None:
                     return None
-                dot = sum(a*b for a, b in zip(qemb, emb, strict=True))
-                nq = math.sqrt(sum(a*a for a in qemb))
-                nb = math.sqrt(sum(a*a for a in emb))
-                sim = dot / (nq*nb) if nq and nb else 0
+                dot = sum(a * b for a, b in zip(qemb, emb, strict=True))
+                nq = math.sqrt(sum(a * a for a in qemb))
+                nb = math.sqrt(sum(a * a for a in emb))
+                sim = dot / (nq * nb) if nq and nb else 0
                 return {**c, "score": round(sim, 4)}
             except Exception:
                 return None
     results = [r for r in await _asyncio.gather(*[_embed_one(c) for c in candidates]) if r is not None]
-    results.sort(key=lambda x: x["score"], reverse=True)
+    results.sort(key=operator.itemgetter("score"), reverse=True)
     return {"query": query, "model": model, "results": results[:limit]}
+
+
 @router.get("/vram/status")
 async def get_vram_status() -> dict:
     """Get current VRAM status and GPU workload information"""
@@ -727,6 +768,8 @@ async def get_vram_status() -> dict:
         "vram": vram,
         "manager": status,
     }
+
+
 @router.post("/vram/offload-ollama")
 async def offload_ollama() -> dict:
     """Manually offload Ollama models from GPU to free VRAM"""
@@ -736,12 +779,16 @@ async def offload_ollama() -> dict:
     # are based on /api/ps truth, not a stale boolean.
     vram_manager._ollama_loaded = False
     return result
+
+
 @router.post("/vram/reload-ollama")
 async def reload_ollama() -> dict:
     """Manually reload Ollama models to GPU"""
     from ..services.vram_manager import _reload_ollama_models
     result = await _reload_ollama_models(config.default_model)
     return {"success": result, "model": config.default_model}
+
+
 @router.post("/vram/switch-backend-model")
 async def switch_backend_model(body: dict) -> dict:
     """Coordinated model switch across Ollama and Atomic Chat backends.
@@ -761,18 +808,39 @@ async def switch_backend_model(body: dict) -> dict:
             "error": "Request body must include 'backend' and 'model'",
         }
     return await vram_manager.switch_backend_model(backend, model)
+
+
 @router.post("/ollama/chat")
 async def ollama_chat(body: OllamaChatRequest) -> dict:
     """
-    Chat with Ollama using the /api/chat endpoint with tool calling support.
+    Chat with Ollama or Atomic Chat using the /api/chat endpoint with tool calling support.
+    When ``atomic_chat_enabled`` is true, routes through Atomic Chat (Qwen) instead of Ollama (gemma4).
     """
     import logging
     logger = logging.getLogger(__name__)
-    adapter = adapter_registry.get("ollama")
+    # Choose the adapter based on the Atomic Chat feature flag.
+    # Atomic Chat (Qwen) and Ollama (gemma4) are separate adapters in separate files.
+    if config.atomic_chat_enabled:
+        adapter = adapter_registry.get("atomic-chat")
+        if not adapter:
+            # Atomic Chat not available — fall back to Ollama
+            adapter = adapter_registry.get("ollama")
+    else:
+        adapter = adapter_registry.get("ollama")
     if not adapter:
-        raise HTTPException(status_code=404, detail="Ollama not available")
+        raise HTTPException(status_code=404, detail="No LLM adapter available")
+    # Tool execution is handled by OllamaAdapter regardless of which LLM
+    # serves the chat (scene manipulation, system info, etc. are backend
+    # operations independent of the chat model).
+    tool_adapter = adapter_registry.get("ollama")
     message = body.message
-    model = body.model or config.default_model
+    # When Atomic Chat is the active engine, don't pass a default model name —
+    # the adapter discovers the resident model from /v1/models. Ollama needs
+    # an explicit default (gemma4:e2b-it-qat).
+    if config.atomic_chat_enabled:
+        model = body.model
+    else:
+        model = body.model or config.default_model
     history = body.history or []
     think = body.think
     stream = body.stream
@@ -844,6 +912,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
         if stream:
             # Streaming response with SSE
             from sse_starlette.sse import EventSourceResponse
+
             async def event_generator():
                 try:
                     # Send initial event to confirm connection
@@ -888,7 +957,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                     "tool_calls": tool_calls,
                                 })
                                 for tc in tool_calls:
-                                    result = await adapter.execute_tool_call(
+                                    result = await tool_adapter.execute_tool_call(
                                         tc["function"]["name"],
                                         tc["function"]["arguments"],
                                         {},
@@ -942,7 +1011,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                         "event": "tool_calls",
                                         "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
                                     }
-                                    result = await adapter.execute_tool_call(name, args, {})
+                                    result = await tool_adapter.execute_tool_call(name, args, {})
                                     yield {
                                         "event": "tool_result",
                                         "data": json.dumps({"name": name, "result": result}),
@@ -994,7 +1063,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
         else:
             # Non-streaming response with agent loop
             tool_call_count = 0
-            current_messages = messages[:]
+            current_messages = messages.copy()
             last_response = ""
             tool_details = []
             # Loop until the model produces a final answer. The bound is
@@ -1026,7 +1095,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     })
                     # Execute each tool and add results
                     for tc in tool_calls:
-                        tool_result = await adapter.execute_tool_call(
+                        tool_result = await tool_adapter.execute_tool_call(
                             tc["function"]["name"],
                             tc["function"]["arguments"],
                             {},
@@ -1055,6 +1124,8 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
         adapter.clear_activity(model)
         logger.error("Ollama chat error: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/ollama/generate")
 async def ollama_generate(prompt: str, model: str = "llama2") -> dict:
     """Generate text using Ollama (legacy endpoint)"""
@@ -1066,6 +1137,8 @@ async def ollama_generate(prompt: str, model: str = "llama2") -> dict:
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 # ============================================================================
 # Audio Analysis (Librosa)
 # ============================================================================
@@ -1074,15 +1147,21 @@ class AudioAnalysisRequest(BaseModel):
     audio_path: str
     hop_length: int = 512
     frame_length: int = 1024
+
+
 class OllamaEmbedRequest(BaseModel):
     """Request for generating embeddings via Ollama."""
     text: str
     model: str | None = None
+
+
 class OllamaSemanticSearchRequest(BaseModel):
     """Request for semantic search over tracks/visuals."""
     query: str
     limit: int = 10
     model: str | None = None
+
+
 class OllamaChatRequest(BaseModel):
     """Request for Ollama chat with tool calling support."""
     message: str
@@ -1094,18 +1173,24 @@ class OllamaChatRequest(BaseModel):
     options: dict | None = None
     system: str | None = None
     tools: bool | list | None = None
+
+
 class GenerateVisualizerPresetRequest(BaseModel):
     """Request for generating a visualizer preset from natural language."""
     description: str
     model: str | None = None
     temperature: float = 0.7
     track: dict | None = None
+
+
 class AudioAnalysisJobRequest(BaseModel):
     """Request to queue an audio analysis job"""
     audio_path: str
     hop_length: int = 512
     frame_length: int = 1024
     max_retries: int = 3
+
+
 @router.post("/audio/analyze")
 async def analyze_audio(request: AudioAnalysisRequest):
     """
@@ -1142,6 +1227,8 @@ async def analyze_audio(request: AudioAnalysisRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/audio/analyze/job")
 async def create_audio_analysis_job(request: AudioAnalysisJobRequest):
     """Queue an audio analysis job to extract beat markers and waveform features."""
@@ -1157,6 +1244,8 @@ async def create_audio_analysis_job(request: AudioAnalysisJobRequest):
         )
     )
     return {"job_id": job.id, "status": str(job.status)}
+
+
 # ============== Music Video Generation ==============
 @router.get("/ollama/scene-state")
 async def get_scene_state() -> dict:
@@ -1165,6 +1254,8 @@ async def get_scene_state() -> dict:
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
     return adapter._scene_state
+
+
 @router.post("/ollama/scene-clear")
 async def clear_scene() -> dict:
     """Clear the AI-generated scene state."""
@@ -1181,6 +1272,8 @@ async def clear_scene() -> dict:
         "keyframes": [],
     }
     return {"status": "cleared"}
+
+
 # ============== AI Visualizer Preset Generation ==============
 VISUALIZER_PRESET_SCHEMA = {
     "version": "1.0",
@@ -1253,6 +1346,8 @@ RULES:
 SCHEMA:
 {schema}
 Respond with ONLY the JSON object, no markdown fences, no explanation."""
+
+
 @router.post("/ollama/visualizer")
 async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> dict:
     """Generate a visualizer preset from a natural language description using Ollama."""
@@ -1372,6 +1467,8 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         adapter.clear_activity(model)
+
+
 @router.get("/ollama/visualizer/presets")
 async def list_visualizer_presets() -> dict:
     """List persisted visualizer presets (DB + file)."""
@@ -1383,6 +1480,8 @@ async def list_visualizer_presets() -> dict:
     file_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
     files = [p.name for p in file_dir.glob("*.json")] if file_dir.exists() else []
     return {"presets": presets, "files": files, "count": len(presets)}
+
+
 @router.get("/ollama/visualizer/preset/{track_hash}")
 async def get_visualizer_preset(track_hash: str) -> dict:
     """Retrieve a persisted preset by track_hash."""
@@ -1399,6 +1498,8 @@ async def get_visualizer_preset(track_hash: str) -> dict:
         return {"preset": _json.loads(file_path.read_text(encoding="utf-8")), "meta": {"source": "file"}}
     from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Preset not found")
+
+
 @router.delete("/ollama/visualizer/preset/{preset_id}")
 async def delete_visualizer_preset(preset_id: str) -> dict:
     """Delete a saved preset by id."""
@@ -1418,6 +1519,8 @@ async def delete_visualizer_preset(preset_id: str) -> dict:
         except Exception:
             pass
     return {"deleted": preset_id}
+
+
 @router.get("/ollama/tools")
 async def list_ollama_tools() -> dict:
     """Return the built-in tool definitions from the Ollama adapter."""
@@ -1488,6 +1591,7 @@ async def run_llm_loop_endpoint(body: LLMLoopRequest) -> dict:
         logger.error("LLM loop error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
+
 # ============================================================================
 # Benchmark Endpoints (restored -- frontend still calls these)
 # ============================================================================
@@ -1500,6 +1604,8 @@ async def get_benchmark_results() -> dict:
     except Exception as e:
         logger.error("Failed to load benchmark results: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/ollama/benchmark/run")
 async def run_benchmark(body: dict | None = None) -> dict:
     """Run Ollama Three.js scene benchmark and return results."""
@@ -1523,6 +1629,8 @@ async def run_benchmark(body: dict | None = None) -> dict:
     except Exception as e:
         logger.error("Benchmark run failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/ollama/benchmark/best")
 async def get_best_benchmark() -> dict:
     """Get the best model from cached Ollama Three.js scene benchmarks."""
@@ -1538,6 +1646,8 @@ async def get_best_benchmark() -> dict:
     except Exception as e:
         logger.error("Failed to get best benchmark model: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/ollama/coding-benchmark/results")
 async def get_coding_benchmark_results() -> dict:
     """Get cached coding benchmark results."""
@@ -1547,6 +1657,8 @@ async def get_coding_benchmark_results() -> dict:
     except Exception as e:
         logger.error("Failed to load coding benchmark results: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/ollama/coding-benchmark/run")
 async def run_coding_benchmark(body: dict | None = None) -> dict:
     """Run coding benchmark and return results."""
@@ -1576,6 +1688,8 @@ async def run_coding_benchmark(body: dict | None = None) -> dict:
     except Exception as e:
         logger.error("Coding benchmark run failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/ollama/coding-benchmark/best")
 async def get_best_coding_benchmark() -> dict:
     """Get the best model from cached coding benchmarks."""
@@ -1591,6 +1705,8 @@ async def get_best_coding_benchmark() -> dict:
     except Exception as e:
         logger.error("Failed to get best coding benchmark model: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 # ---------------------------------------------------------------------------
 # Upscale -- 4x post-process pass (ai-video-trends-2026 Trend 4,
 # comfyui-workflows section5). ComfyUI 4x-ClearRealityV1 when reachable,
@@ -1602,6 +1718,8 @@ class UpscaleRequest(BaseModel):
     model: str = "4x-ClearRealityV1.safetensors"  # exact ComfyUI-registered name; fuzzy-matched as fallback
     scale: int = 4              # 2 | 4
     prefer_comfyui: bool = True
+
+
 @router.post("/upscale")
 async def upscale_image_endpoint(request: UpscaleRequest) -> dict:
     """Upscale an image 2x/4x for YouTube 4K export without 4K render cost."""

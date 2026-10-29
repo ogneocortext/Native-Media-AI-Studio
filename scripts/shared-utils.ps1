@@ -99,6 +99,7 @@ function Get-PortsConfig {
         go_worker_port    = 3849
         go_gateway_port   = 3850
         go_ports_port     = 3851
+        atomic_chat_port  = 1337
     }
 
     $portsFile = Join-Path $ProjectRoot 'config\ports.json'
@@ -116,6 +117,7 @@ function Get-PortsConfig {
                 go_worker_port    = Get-PortFromUrl -Url $json['go_worker_url'] -Default $defaults.go_worker_port
                 go_gateway_port   = Get-PortFromUrl -Url $json['go_gateway_url'] -Default $defaults.go_gateway_port
                 go_ports_port     = Get-PortFromUrl -Url $json['go_ports_url'] -Default $defaults.go_ports_port
+                atomic_chat_port  = Get-PortFromUrl -Url $json['atomic_chat_url'] -Default $defaults.atomic_chat_port
             }
         } catch {
             Write-Warn "Failed to parse config/ports.json ($($_.Exception.Message)) - using defaults"
