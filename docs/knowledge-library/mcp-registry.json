@@ -440,10 +440,11 @@
       "notes": "Addon: Interface: Blender MCP v1.5. localhost TCP 9876. Tools: execute_code, get_scene_info, get_object_info, get_viewport_screenshot."
     },
     "comfyui": {
-      "command": "npx comfyui-mcp --comfyui-url http://localhost:8188 --force-remote",
+      "command": "npx --no --offline comfyui-mcp@1.0.0 --comfyui-url http://localhost:8188 --force-remote",
       "port": 8188,
       "protocol": "HTTP API",
       "description": "ComfyUI integration for AI image/video/3D generation via custom workflows",
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D comfyui-mcp@1.0.0' then run offline. npx downloads and executes arbitrary code from the registry with no lockfile; see docs/knowledge-library/npx-best-practices-2026.md.",
       "tools": {
         "workflows": {
           "list_workflows": {
@@ -602,9 +603,10 @@
       "notes": "Uses --force-remote even for local ComfyUI (comfyui-mcp remote mode)."
     },
     "remotion": {
-      "command": "npx -y @remotion/mcp@latest",
+      "command": "npx --no --offline @remotion/mcp@1.0.0",
       "protocol": "stdio",
       "description": "Remotion documentation and best-practices integration for video compositing",
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @remotion/mcp@1.0.0' then run offline. npx downloads and executes arbitrary code from the registry with no lockfile; see docs/knowledge-library/npx-best-practices-2026.md.",
       "tools": {
         "documentation": {
           "search_docs": {

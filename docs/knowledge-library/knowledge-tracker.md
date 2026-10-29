@@ -22,8 +22,8 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 92 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
-**Migrated:** 89 (100%)
+**Documents in library:** 93 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Migrated:** 90 (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux/audit-report.md`, which is tagged but lives
@@ -55,7 +55,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `acestep-agent-drive-2026.md`  → `#production`, `#audio`
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 
-### 🛠️ Technical Implementation (15/15 completed) ✅
+### 🛠️ Technical Implementation (16/16 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
 
 - ✅ `technical-reference.md`  → `#technical`, `#platform-comfyui`, `#platform-blender`, `#hardware-8gb`
@@ -72,6 +72,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `tagging-guide.md`  → `#technical`, `#documentation`, `#tagging`
 - ✅ `hyperframes-results-improvement-2026.md`  → `#technical`, `#creative`, `#performance`
 - ✅ `wangp-local-video-generation-2026.md`  → `#technical`, `#ai`, `#performance`
+- ✅ `npx-best-practices-2026.md`  → `#technical`, `#security`, `#nodejs`, `#npx`, `#supply-chain`
 
 ### 🎮 MCP & Platform Integrations (12/12 completed) ✅
 

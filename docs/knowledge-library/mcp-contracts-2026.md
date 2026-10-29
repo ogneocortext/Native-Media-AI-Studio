@@ -838,7 +838,7 @@ reopen-and-rearrange view).
 **Server**: `tools/mcp/hyperframes-mcp.mjs`  
 **Transport**: stdio  
 **Version**: 2.0.0 (bridge)  
-**Dependencies**: `npx hyperframes`, `tools/hyperframes-test/` project
+**Dependencies**: `npx hyperframes`, `tools/hyperframes-test/` project. See [[npx-best-practices-2026]] for secure invocation patterns.
 
 ### 5.1 `hyperframes_init`
 

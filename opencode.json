@@ -35,22 +35,26 @@
       "type": "local",
       "command": [
         "npx",
-        "-y",
-        "@remotion/mcp@latest"
+        "--no",
+        "--offline",
+        "@remotion/mcp@1.0.0"
       ],
-      "enabled": true
+      "enabled": true,
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @remotion/mcp@1.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
     },
     "comfyui": {
       "type": "local",
       "command": [
         "npx",
-        "-y",
-        "comfyui-mcp",
+        "--no",
+        "--offline",
+        "comfyui-mcp@1.0.0",
         "--comfyui-url",
         "http://127.0.0.1:8188",
         "--force-remote"
       ],
-      "enabled": true
+      "enabled": true,
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D comfyui-mcp@1.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
     },
     "blender": {
       "type": "local",

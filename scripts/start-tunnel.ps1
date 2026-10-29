@@ -115,8 +115,14 @@ function Start-LocaltunnelTunnel {
     # cmd wrapper PID, so stop-tunnel.ps1 never killed the real node process
     # and repeated start/stop cycles leaked orphaned tunnels that stayed bound
     # to the public hostname. Track the node PID too and kill the whole tree.
+    #
+    # SECURITY: localtunnel version is pinned (@2.0.2) so npx cannot silently
+    # pull a newly published malicious version. -y suppresses the interactive
+    # install prompt because this script runs unattended. With a pinned
+    # version, -y is safe: we know exactly what code will execute.
+    # See docs/knowledge-library/npx-best-practices-2026.md.
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList @(
-        '/c', "npx localtunnel --port $Port"
+        '/c', "npx -y localtunnel@2.0.2 --port $Port"
     ) -NoNewWindow -PassThru -RedirectStandardOutput $logFile -RedirectStandardError $errFile
 
     Write-Log "Started localtunnel for $Label (cmd PID $($proc.Id), port $Port)"

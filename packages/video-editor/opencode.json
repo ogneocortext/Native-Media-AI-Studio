@@ -3,8 +3,14 @@
   "mcp": {
     "remotion-documentation": {
       "type": "local",
-      "command": ["npx", "-y", "@remotion/mcp@latest"],
-      "enabled": true
+      "command": [
+        "npx",
+        "--no",
+        "--offline",
+        "@remotion/mcp@1.0.0"
+      ],
+      "enabled": true,
+      "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @remotion/mcp@1.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
     },
     "blender": {
       "type": "local",
