@@ -162,7 +162,7 @@ date: 2026-09-30
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 16 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
-|| `#research/*` | Industry trends & analysis | 16 documents |
+|| `#research/*` | Industry trends & analysis | 17 documents |
 
 ### Cross-Cutting Tags
 
@@ -178,7 +178,7 @@ date: 2026-09-30
 || `#mcp` | Model Context Protocol | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
-|| `#audio` | Audio analysis & processing | 22 documents |
+|| `#audio` | Audio analysis & processing | 23 documents |
 || `#visualization` | Visualization techniques | 17 documents |
 || `#3d` | 3D generation & rendering | 13 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |

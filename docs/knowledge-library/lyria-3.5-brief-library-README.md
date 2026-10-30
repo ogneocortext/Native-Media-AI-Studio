@@ -1,7 +1,19 @@
+---
+tags:
+  - research
+  - audio
+aliases:
+  - Lyria 3.5 Brief Library
+cssclasses:
+  - research-guide
+date: 2026-10-29
+type: concept
+---
+
 # Lyria 3.5 Brief Library
 
-Built 2026-10-29. Companion to the [Suno v6 tag library](suno-v6-style-tags.json) — same
-idea, opposite shape. Machine-readable copy: `lyria-3.5-brief-library.json` in this folder.
+Built 2026-10-29. Companion to the [[suno-v6-style-tags-README|Suno v6 tag library]] (data:
+`suno-v6-style-tags.json`) — same idea, opposite shape. Machine-readable copy: `lyria-3.5-brief-library.json` in this folder.
 
 ## Why this is prose, not tags
 

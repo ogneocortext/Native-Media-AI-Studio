@@ -20,6 +20,9 @@ A curated, deduplicated library of Suno style descriptors and lyric metatags, co
 
 Every effect note in `library.json` comes from one of these sources — nothing is invented. Confidence: **community-verified** (multiple users, production testing, or measurement in the sources), **documented** (Suno's glossary or an established entry in a maintained guide), **anecdotal** (single report, or tested only on retired v5/v5.5 and flagged "re-test on v6").
 
+Companion library: [[lyria-3.5-brief-library-README]] — the Lyria 3.5 side
+(prose brief blocks with measured grades, not tag stacks).
+
 ## Counts
 
 | Category | Tags |
