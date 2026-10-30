@@ -23,6 +23,13 @@ Rules: `docs/plans/tasks/README.md`
   4B callers per focus map §3.6); Ollama wins total batch time 1.5x.
   Both entries appended to observed.jsonl.
 
+### T-MOD-03 — Consolidate vram_manager.py onto extracted vram_* modules
+- **Status:** done
+- **Goal:** vram_manager.py imports enums, provider infra, resident cache, monitor and adapter functions from its already-extracted siblings (vram_types, vram_providers, vram_config, vram_monitor, vram_adapters) instead of defining them twice; keeps only the VRAMManager orchestration class, the `vram_manager` singleton, and the re-exports callers/tests depend on.
+- **Files:** packages/backend/app/services/vram_manager.py
+- **Acceptance:** vram_manager.py contains no duplicated enum/provider/adapters/monitor definitions; `ruff check` clean; `tools/check-import-cycles.py` reports 0 cycles; `pytest test_vram_manager.py test_vram_comfyui.py test_vram_leak.py test_audio_vram_handover.py test_timing_and_resource_protocols.py test_lipsync.py` passes.
+- **Last session:** Kilo, 2026-10-30 — consolidated vram_manager.py onto extracted vram_* modules; removed duplicated enums/providers/resident-cache/adapter/monitor definitions (~1200 lines); kept VRAMManager class, `vram_manager` singleton and caller/test re-exports. `ruff check` baseline-parity (2 pre-existing TC003), `check-import-cycles.py` clean, 40/42 VRAM tests pass (2 failures are pre-existing/environmental: confirmed failing on unmodified baseline).
+
 ### T-MOD-02 — Set atomic_chat_enabled based on the A/B result
 - **Status:** done
 - **Goal:** `config/ports.json` `atomic_chat_enabled` set deliberately —

@@ -14,154 +14,53 @@ Strategy:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 import time
 from collections.abc import Awaitable, Callable
-from enum import Enum
 from typing import Any
 
-from ..core.urls import comfyui_url, ollama_url
+from .vram_adapters import (
+    _comfyui_is_idle,
+    _comfyui_is_idle_sync,
+    _comfyui_queue_depth_sync,
+    _load_model_for_backend,
+    _reload_ollama_models,
+    _reload_ollama_models_sync,
+    _unload_atomic_chat_models,
+    _unload_comfyui_models,
+    _unload_comfyui_models_sync,
+    _unload_ollama_models,
+)
+from .vram_config import (
+    MAX_SYSTEM_RAM_PERCENT,
+    MIN_SYSTEM_RAM_FOR_OFFLOAD,
+    MIN_VRAM_FOR_3D,
+    MIN_VRAM_FOR_AUDIO,
+    MIN_VRAM_FOR_LIPSYNC,
+    MIN_VRAM_FOR_MUSIC,
+    VRAM_AVAILABLE,
+    VRAM_CRITICAL,
+    VRAM_POLL_INTERVAL,
+    VRAM_WAIT_TIMEOUT,
+    VRAM_WARNING,
+)
+from .vram_monitor import (
+    _fetch_resident_models,
+    classify_resident_models,
+)
+from .vram_monitor import (
+    get_vram_status as _monitor_get_vram_status,
+)
+from .vram_providers import (
+    _resolve_atomic_chat_model,
+    _resolve_last_model,
+    _resolve_ollama_model,
+    set_last_atomic_chat_model_provider,
+    set_last_model_provider,
+)
+from .vram_types import GPUState, GPUWorkload
 
 logger = logging.getLogger(__name__)
-
-
-class GPUWorkload(str, Enum):
-    """Types of GPU workloads"""
-    IDLE = "idle"
-    LLM_INFERENCE = "llm_inference"
-    RENDER_3D = "render_3d"
-    IMAGE_GENERATION = "image_generation"
-    MUSIC_GENERATION = "music_generation"
-    AUDIO_ANALYSIS = "audio_analysis"
-    LIPSYNC = "lipsync"
-
-
-class GPUState(str, Enum):
-    """States of GPU resource allocation"""
-    AVAILABLE = "available"
-    BUSY = "busy"
-    CRITICAL = "critical"
-
-
-#: Set by `set_last_model_provider`. Answers "which model did Ollama last
-#: load?" without this module importing `adapters.ollama` - that import closed
-#: the last cycle in the codebase:
-#:   services.vram_manager -> adapters.ollama -> queue.manager
-#:   -> diagnostics.resources -> services.vram_manager
-#: It was open 4 times as a deferred import, each also re-reading a *private*
-#: attribute (`_last_model`) across a module boundary and re-implementing the
-#: same "llama" sanitisation. Wired once in `main.py`.
-_LAST_MODEL_PROVIDER: Callable[[], str | None] | None = None
-
-
-def set_last_model_provider(provider: Callable[[], str | None] | None) -> None:
-    """Register the source of "last loaded Ollama model"."""
-    global _LAST_MODEL_PROVIDER
-    _LAST_MODEL_PROVIDER = provider
-
-
-#: Set by `set_last_atomic_chat_model_provider`. Answers "which model did
-#: Atomic Chat last load into VRAM?" Atomic Chat is a separate desktop app
-#: that wraps Ollama on port 1337; it loads its own model (e.g. qwen3.5) into
-#: the same 8 GB VRAM that Ollama uses. Without tracking this, the VRAM
-#: manager can offload Ollama's model while Atomic Chat's qwen3.5 stays
-#: resident, then reload Ollama's model on top -- OOM on an 8 GB card.
-#: Wired once in `main.py`, same composition-root pattern as above.
-_LAST_ATOMIC_CHAT_MODEL_PROVIDER: Callable[[], str | None] | None = None
-
-
-#: Cache of what Ollama's /api/ps actually reports as resident, refreshed on
-#: every verification.  The boolean flags (_ollama_loaded, _atomic_chat_loaded)
-#: can drift from reality (e.g. startup unloads Ollama but never flips the flag,
-#: or an external process unloads a model).  Always verify against /api/ps
-#: before making load/unload decisions on an 8 GB card where a wrong assumption
-#: means a 10.8 GB OOM.
-_resident_cache: list[str] = []
-_resident_cache_ts: float = 0.0
-_RESIDENT_CACHE_TTL_S = 2.0
-
-
-async def _fetch_resident_models() -> list[str]:
-    """Return model names Ollama actually has resident on the GPU right now.
-
-    Never raises: network/parse errors return an empty list and leave the
-    cache untouched.  Results are cached for _RESIDENT_CACHE_TTL_S to avoid
-    hammering /api/ps on every call.
-    """
-    import time
-    global _resident_cache, _resident_cache_ts
-    now = time.monotonic()
-    if now - _resident_cache_ts < _RESIDENT_CACHE_TTL_S and _resident_cache:
-        return list(_resident_cache)
-    try:
-        import urllib.request
-        req = urllib.request.Request(ollama_url("/api/ps"))
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-        models = [m.get("name", "") for m in (data.get("models") or []) if m.get("name")]
-        _resident_cache = models
-        _resident_cache_ts = now
-        return models
-    except Exception:
-        return []
-
-
-def _base_name(name: str) -> str:
-    """Strip quant suffix and lowercase for model-name comparison."""
-    return str(name or "").split(":")[0].lower()
-
-
-def set_last_atomic_chat_model_provider(
-    provider: Callable[[], str | None] | None
-) -> None:
-    """Register the source of "last loaded Atomic Chat model"."""
-    global _LAST_ATOMIC_CHAT_MODEL_PROVIDER
-    _LAST_ATOMIC_CHAT_MODEL_PROVIDER = provider
-
-
-def _resolve_ollama_model(default_model: str) -> str:
-    """Resolve and sanitize the last Ollama model name.
-
-    If the last model is a llama variant that isn't the default, fall back to
-    the default. Keeps the reload call sites flat (no extra if inside try).
-    """
-    last_model = _resolve_last_model(default_model)
-    if "llama" in last_model.lower() and last_model != default_model:
-        last_model = default_model
-    return last_model
-
-
-def _resolve_last_model(default: str | None) -> str | None:
-    """Last loaded Ollama model, or `default` when unknown/unavailable.
-
-    Never raises: a missing or broken provider must not stop a VRAM reload, so
-    failures fall back to the default rather than propagating.
-    """
-    if _LAST_MODEL_PROVIDER is None:
-        return default
-    try:
-        value = _LAST_MODEL_PROVIDER()
-    except Exception as exc:
-        logger.debug("last-model provider unavailable: %s", exc)
-        return default
-    return value or default
-
-
-def _resolve_atomic_chat_model(default: str | None) -> str | None:
-    """Last loaded Atomic Chat model, or `default` when unknown/unavailable.
-
-    Same contract as `_resolve_last_model` but for Atomic Chat's model.
-    """
-    if _LAST_ATOMIC_CHAT_MODEL_PROVIDER is None:
-        return default
-    try:
-        value = _LAST_ATOMIC_CHAT_MODEL_PROVIDER()
-    except Exception as exc:
-        logger.debug("atomic-chat model provider unavailable: %s", exc)
-        return default
-    return value or default
 
 
 class VRAMManager:
@@ -209,13 +108,7 @@ class VRAMManager:
         wrong assumption means a ~10.8 GB OOM (gemma4 ~6 GB + qwen3.5 ~4.8 GB).
         """
         resident = await _fetch_resident_models()
-        names = {_base_name(m) for m in resident}
-        self._ollama_loaded = any(
-            n.startswith(("gemma4", "llama")) for n in names
-        )
-        self._atomic_chat_loaded = any(
-            n.startswith("qwen3") or "qwen3_5" in n for n in names
-        )
+        self._ollama_loaded, self._atomic_chat_loaded = classify_resident_models(resident)
 
     def set_queue_provider(
         self, provider: Callable[[], Awaitable[list[Any]]] | None
@@ -233,38 +126,27 @@ class VRAMManager:
         return await self._queue_provider()
 
     def _init_thresholds(self) -> None:
-        # Thresholds for GTX 1070 Ti (8GB VRAM)
+        # Thresholds and per-workload budgets for the GTX 1070 Ti (8GB VRAM).
+        # Constants live in vram_config.py; instance attributes mirror them so
+        # tests can override (test_timing_and_resource_protocols).
         self.thresholds = {
-            "vram_warning": 85.0,      # Start considering offload
-            "vram_critical": 92.0,     # Must offload immediately
-            "vram_available": 50.0,    # Safe to reload Ollama
+            "vram_warning": VRAM_WARNING,      # Start considering offload
+            "vram_critical": VRAM_CRITICAL,    # Must offload immediately
+            "vram_available": VRAM_AVAILABLE,  # Safe to reload Ollama
         }
 
-        # Minimum free VRAM needed for 3D generation (in MB)
-        self.MIN_VRAM_FOR_3D = 4000  # 4GB for Hunyuan3D-2mini
-        # Minimum free VRAM needed for music generation (in MB)
-        # ACE-Step 1.5 Tier 3 on GTX 1070 Ti: 2B turbo DiT + 0.6B LM, INT8, CPU offload
-        self.MIN_VRAM_FOR_MUSIC = 6144
-        # Minimum free VRAM for the CUDA audio spectral pass.
-        # Measured 0.3s on the GPU against ~92s CPU-bound on this card, so the
-        # offload is worth far more here per second spent than for other
-        # workloads. 1200 MB is the measured peak of one STFT plus its feature
-        # stack on a full track, with headroom; Ollama holds ~1573 MB, which is
-        # what pushes an 8 GB card over without this.
-        self.MIN_VRAM_FOR_AUDIO = 1200
-        # Minimum free VRAM for local lip-sync (MuseTalk v1.5, D42).
-        # Official 4GB minimum; 256px face crop keeps it well under 8GB.
-        self.MIN_VRAM_FOR_LIPSYNC = 4096
+        self.MIN_VRAM_FOR_3D = MIN_VRAM_FOR_3D      # 4GB for Hunyuan3D-2mini
+        self.MIN_VRAM_FOR_MUSIC = MIN_VRAM_FOR_MUSIC  # ACE-Step needs 6 GB
+        self.MIN_VRAM_FOR_AUDIO = MIN_VRAM_FOR_AUDIO  # CUDA audio spectral pass
+        self.MIN_VRAM_FOR_LIPSYNC = MIN_VRAM_FOR_LIPSYNC  # MuseTalk v1.5 D42
 
         # Safety margins for system stability
-        # Don't offload to CPU if system RAM is below this threshold
-        self.MIN_SYSTEM_RAM_FOR_OFFLOAD = 4096  # 4GB free RAM required
-        # Maximum system RAM usage percentage for safe offload
-        self.MAX_SYSTEM_RAM_PERCENT = 75.0
+        self.MIN_SYSTEM_RAM_FOR_OFFLOAD = MIN_SYSTEM_RAM_FOR_OFFLOAD
+        self.MAX_SYSTEM_RAM_PERCENT = MAX_SYSTEM_RAM_PERCENT
         # Wait up to this long for VRAM to free up naturally
-        self.VRAM_WAIT_TIMEOUT = 120  # 2 minutes
+        self.VRAM_WAIT_TIMEOUT = VRAM_WAIT_TIMEOUT  # 2 minutes
         # Poll interval when waiting
-        self.VRAM_POLL_INTERVAL = 5  # 5 seconds
+        self.VRAM_POLL_INTERVAL = VRAM_POLL_INTERVAL  # 5 seconds
         self._init_gpu_monitoring()
 
     def _init_gpu_monitoring(self):
@@ -297,134 +179,16 @@ class VRAMManager:
         return self._ollama_loaded
 
     async def get_vram_status(self) -> dict[str, Any]:
-        """Get current VRAM usage statistics."""
-        # Try gpustat / NVML first
-        if self._gpustat_available or self._nvml_available:
-            try:
-                if self._gpustat_available:
-                    return await self._get_vram_gpustat()
-                elif self._nvml_available:
-                    return await self._get_vram_nvml()
-            except Exception as e:
-                logger.warning("Failed to get VRAM status via gpustat/nvml: %s", e)
+        """Get current VRAM usage statistics.
 
-        # Fallback: torch.cuda (works on WDDM/system python without NVSMI dll)
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                free, total = torch.cuda.mem_get_info(0)
-                used = total - free
-                percent = (used / total) * 100 if total else 0
-                props = torch.cuda.get_device_properties(0)
-                try:
-                    temp = 0
-                    util = 0
-                    import pynvml as _pynvml
-
-                    try:
-                        _pynvml.nvmlInit()
-                        h = _pynvml.nvmlDeviceGetHandleByIndex(0)
-                        temp = _pynvml.nvmlDeviceGetTemperature(h, _pynvml.NVML_TEMPERATURE_GPU)
-                        util = _pynvml.nvmlDeviceGetUtilizationRates(h).gpu
-                    except Exception:
-                        pass
-                except Exception:
-                    temp = 0
-                    util = 0
-                return {
-                    "available": True,
-                    "total_mb": int(total // (1024 * 1024)),
-                    "used_mb": int(used // (1024 * 1024)),
-                    "free_mb": int(free // (1024 * 1024)),
-                    "percent": round(percent, 1),
-                    "gpu_utilization": util,
-                    "temperature": temp,
-                    "state": self._determine_state(percent),
-                    "fallback": "torch.cuda",
-                    "name": props.name,
-                }
-        except Exception as e:
-            logger.debug(f"torch.cuda fallback failed: {e}")
-
-        return {"available": False}
-
-    def _get_vram_gpustat_sync(self) -> dict[str, Any]:
-        """Get VRAM stats via gpustat (sync version for asyncio.to_thread)."""
-        import gpustat
-
-        stats = gpustat.new_query()
-        if not stats.gpus:
-            return {"available": False}
-
-        gpu = stats.gpus[0]
-        if hasattr(gpu, "memory_total"):
-            total_mb = gpu.memory_total
-            used_mb = gpu.memory_used
-            free_mb = gpu.memory_free
-        elif hasattr(gpu, "memory") and hasattr(gpu.memory, "total"):
-            total_mb = gpu.memory.total
-            used_mb = gpu.memory.used
-            free_mb = gpu.memory.free
-        elif isinstance(getattr(gpu, "entry", None), dict):
-            total_mb = int(gpu.entry.get("memory.total", 0))
-            used_mb = int(gpu.entry.get("memory.used", 0))
-            free_mb = int(gpu.entry.get("memory.total", 0)) - used_mb
-        else:
-            return {"available": False}
-        percent = (used_mb / total_mb) * 100 if total_mb > 0 else 0
-
-        return {
-            "available": True,
-            "total_mb": int(total_mb),
-            "used_mb": int(used_mb),
-            "free_mb": int(free_mb),
-            "percent": round(percent, 1),
-            "gpu_utilization": getattr(gpu, "utilization", 0) or 0,
-            "temperature": getattr(gpu, "temperature", 0) or 0,
-            "state": self._determine_state(percent),
-        }
-
-    def _get_vram_nvml_sync(self) -> dict[str, Any]:
-        """Get VRAM stats via pynvml (sync version for asyncio.to_thread)."""
-        import pynvml
-
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-
-        total_mb = info.total / (1024 * 1024)
-        used_mb = info.used / (1024 * 1024)
-        free_mb = info.free / (1024 * 1024)
-        percent = (used_mb / total_mb) * 100 if total_mb > 0 else 0
-
-        return {
-            "available": True,
-            "total_mb": int(total_mb),
-            "used_mb": int(used_mb),
-            "free_mb": int(free_mb),
-            "percent": round(percent, 1),
-            "gpu_utilization": util.gpu,
-            "temperature": int(temp),
-            "state": self._determine_state(percent),
-        }
-
-    async def _get_vram_gpustat(self) -> dict[str, Any]:
-        """Get VRAM stats via gpustat."""
-        return await asyncio.to_thread(self._get_vram_gpustat_sync)
-
-    async def _get_vram_nvml(self) -> dict[str, Any]:
-        """Get VRAM stats via pynvml."""
-        return await asyncio.to_thread(self._get_vram_nvml_sync)
-
-    def _determine_state(self, percent: float) -> str:
-        """Determine GPU state based on VRAM usage percentage."""
-        if percent >= self.thresholds["vram_critical"]:
-            return GPUState.CRITICAL.value
-        elif percent >= self.thresholds["vram_warning"]:
-            return GPUState.BUSY.value
-        return GPUState.AVAILABLE.value
+        Delegates to :func:`vram_monitor.get_vram_status` (gpustat / NVML /
+        torch.cuda fallback). Kept as a method so tests and callers can
+        monkeypatch or replace it on the instance.
+        """
+        return await _monitor_get_vram_status(
+            gpustat_available=self._gpustat_available,
+            nvml_available=self._nvml_available,
+        )
 
     async def preflight_check(self, required_mb: int = 4096) -> dict[str, Any]:
         """Advisory, read-only VRAM availability check.
@@ -1521,299 +1285,20 @@ class VRAMManager:
             }
 
 
-def _unload_atomic_chat_models_sync() -> list[str]:
-    """Unload Atomic Chat's resident model via Ollama's API.
-
-    Atomic Chat is a wrapper around Ollama -- it loads its model through
-    Ollama's `/api/generate`. So unloading means calling Ollama's generate
-    with `keep_alive: 0` for Atomic Chat's model name. Returns list of
-    unloaded model names.
-    """
-    import urllib.request
-
-    unloaded: list[str] = []
-    model_name = _resolve_atomic_chat_model(None)
-    if model_name:
-        unloaded.append(model_name)
-    else:
-        # No provider registered or provider returned None. Do NOT fall back
-        # to scanning Ollama's process list -- that could unload Ollama's own
-        # model (e.g. gemma4) thinking it belongs to Atomic Chat. Only the
-        # provider knows which model Atomic Chat loaded.
-        logger.debug(
-            "VRAM Manager: No Atomic Chat model name available; skipping "
-            "atomic-chat unload to avoid unloading Ollama's model"
-        )
-
-    for name in unloaded:
-        try:
-            data = json.dumps(
-                {"model": name, "prompt": " ", "keep_alive": 0}
-            ).encode()
-            req = urllib.request.Request(
-                ollama_url("/api/generate"),
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=5):
-                pass
-            logger.info(
-                "VRAM Manager: Unloaded Atomic Chat model: %s", name
-            )
-        except Exception:
-            pass  # Timeout is expected since we're unloading
-
-    return unloaded
-
-
-async def _unload_atomic_chat_models() -> list[str]:
-    """Async wrapper to unload Atomic Chat models without blocking."""
-    return await asyncio.to_thread(_unload_atomic_chat_models_sync)
-
-
-def _load_model_for_backend_sync(
-    backend: str, model: str
-) -> bool:
-    """Load a model for a given backend via Ollama's API.
-
-    Both Ollama and Atomic Chat load models through Ollama's `/api/generate`
-    with `keep_alive` set. The difference is only which model name and which
-    backend flag gets updated.
-    """
-    import os
-    import urllib.request
-
-    from ..core.config import config as _cfg
-
-    # Don't infinite-pin models; respect OLLAMA_KEEP_ALIVE
-    keep_alive = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
-
-    # Sanitize: never load a non-default llama as the resident model
-    if "llama" in model.lower() and model != _cfg.default_model:
-        logger.info(
-            "VRAM Manager: Skipping load of non-default llama model %s "
-            "(default is %s)",
-            model,
-            _cfg.default_model,
-        )
-        return False
-
-    data = json.dumps(
-        {"model": model, "prompt": " ", "keep_alive": keep_alive}
-    ).encode()
-
-    req = urllib.request.Request(
-        ollama_url("/api/generate"),
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            resp.read()
-        logger.info(
-            "VRAM Manager: Loaded model %s for backend %s", model, backend
-        )
-        return True
-    except Exception as exc:
-        logger.warning(
-            "VRAM Manager: Failed to load model %s for backend %s: %s",
-            model,
-            backend,
-            exc,
-        )
-        return False
-
-
-async def _load_model_for_backend(backend: str, model: str) -> bool:
-    """Async wrapper to load a model without blocking the event loop."""
-    return await asyncio.to_thread(_load_model_for_backend_sync, backend, model)
-
-
-def _comfyui_queue_depth_sync() -> tuple[int, int]:
-    """Return (running, pending) prompt counts. Zeros if ComfyUI is unreachable.
-
-    Used as the safety gate before freeing its models: unloading mid-render
-    would strand the running prompt and lose the job, which is not a trade this
-    manager is allowed to make on the user's behalf.
-    """
-    import urllib.request
-
-    try:
-        req = urllib.request.Request(comfyui_url("/queue"))
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-        return (
-            len(data.get("queue_running") or []),
-            len(data.get("queue_pending") or []),
-        )
-    except Exception:
-        # Unreachable ComfyUI holds no models we can evict, and guessing "0"
-        # here would let us POST /free at an unknown server.
-        return (0, 0)
-
-
-def _unload_comfyui_models_sync() -> dict[str, Any]:
-    """Ask ComfyUI to drop its loaded models and free cached allocator memory.
-
-    Measured on this machine: 1796 MB free -> 7145 MB free, i.e. ~5.3 GB
-    reclaimed. That is roughly triple what offloading Ollama returns (~1.7 GB),
-    so ComfyUI is the dominant VRAM consumer by a wide margin and has to be part
-    of the audio-analysis budget, not just Ollama.
-
-    ComfyUI reloads models lazily on the next prompt, so there is no matching
-    "reload" call to make -- unlike Ollama, which keeps a resident model.
-    """
-    import urllib.request
-
-    running, pending = _comfyui_queue_depth_sync()
-    if running or pending:
-        return {
-            "success": False,
-            "skipped": "busy",
-            "running": running,
-            "pending": pending,
-        }
-
-    try:
-        payload = json.dumps(
-            {"unload_models": True, "free_memory": True}
-        ).encode()
-        req = urllib.request.Request(
-            comfyui_url("/free"),
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-        logger.info("VRAM Manager: Unloaded ComfyUI models and freed VRAM")
-        return {"success": True, "skipped": None, "running": 0, "pending": 0}
-    except Exception as exc:
-        logger.warning("VRAM Manager: ComfyUI /free failed: %s", exc)
-        return {"success": False, "skipped": "error", "error": str(exc)}
-
-
-async def _unload_comfyui_models() -> dict[str, Any]:
-    return await asyncio.to_thread(_unload_comfyui_models_sync)
-
-
-def _comfyui_is_idle_sync() -> bool:
-    """True only when ComfyUI has nothing running or queued."""
-    running, pending = _comfyui_queue_depth_sync()
-    return running == 0 and pending == 0
-
-
-async def _comfyui_is_idle() -> bool:
-    return await asyncio.to_thread(_comfyui_is_idle_sync)
-
-
-def _offload_backend_models_sync() -> dict[str, list[str]]:
-    """Unload ALL models from both Ollama and Atomic Chat backends.
-
-    Returns dict with keys ``ollama`` and ``atomic_chat``, each a list of
-    unloaded model names. Used by begin_*_generation methods to ensure no
-    model from either backend is resident before a GPU job starts.
-    """
-    ollama_unloaded = _unload_ollama_models_sync()
-    atomic_chat_unloaded = _unload_atomic_chat_models_sync()
-    return {
-        "ollama": ollama_unloaded,
-        "atomic_chat": atomic_chat_unloaded,
-    }
-
-
-async def _offload_backend_models() -> dict[str, list[str]]:
-    """Async wrapper for _offload_backend_models_sync."""
-    return await asyncio.to_thread(_offload_backend_models_sync)
-
-
-def _unload_ollama_models_sync() -> list[str]:
-    """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
-    import urllib.request
-
-    # Get the list of loaded models
-    loaded_models: list[str] = []
-    try:
-        req = urllib.request.Request(ollama_url("/api/ps"))
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-            loaded_models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-    except Exception:
-        pass
-
-    if not loaded_models:
-        # Fallback: try the last known model
-        last_model = _resolve_last_model(None)
-        if last_model:
-            loaded_models = [last_model]
-
-    # Unload each loaded model
-    for model_name in loaded_models:
-        try:
-            data = json.dumps({
-                "model": model_name,
-                "prompt": " ",
-                "keep_alive": 0,
-            }).encode()
-            req = urllib.request.Request(
-                ollama_url("/api/generate"),
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=5):
-                pass
-            logger.info("VRAM Manager: Unloaded Ollama model: %s", model_name)
-        except Exception:
-            pass  # Timeout is expected since we're unloading
-
-    return loaded_models
-
-
-def _reload_ollama_models_sync(model_name: str) -> bool:
-    """Synchronous helper to reload an Ollama model. Returns True on success.
-    Uses OLLAMA_KEEP_ALIVE env var if set, defaulting to 5m so model expires
-    naturally; also skips reload if model_name is a legacy llama not in config.default_model.
-    """
-    import urllib.request
-
-    from ..core.config import config as _cfg
-    # Don't infinite-pin models; respect OLLAMA_KEEP_ALIVE
-    if "llama" in model_name.lower() and model_name != _cfg.default_model:
-        logger.info("VRAM Manager: Skipping reload of non-default llama model %s (default is %s)", model_name, _cfg.default_model)
-        return False
-    keep_alive = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
-    data = json.dumps({
-        "model": model_name,
-        "prompt": " ",
-        "keep_alive": keep_alive,
-    }).encode()
-
-    req = urllib.request.Request(
-        ollama_url("/api/generate"),
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        resp.read()
-
-    return True
-
-
-async def _unload_ollama_models() -> list[str]:
-    """Async wrapper to unload Ollama models without blocking the event loop."""
-    return await asyncio.to_thread(_unload_ollama_models_sync)
-
-
-async def _reload_ollama_models(model_name: str) -> bool:
-    """Async wrapper to reload an Ollama model without blocking the event loop."""
-    return await asyncio.to_thread(_reload_ollama_models_sync, model_name)
-
-
-# Global VRAM manager singleton
 vram_manager = VRAMManager()
+
+
+__all__ = [
+    "GPUWorkload",
+    "GPUState",
+    "VRAMManager",
+    "vram_manager",
+    "set_last_model_provider",
+    "set_last_atomic_chat_model_provider",
+    "_reload_ollama_models_sync",
+    "_unload_ollama_models",
+    "_reload_ollama_models",
+    "_comfyui_queue_depth_sync",
+    "_comfyui_is_idle_sync",
+    "_unload_comfyui_models_sync",
+]

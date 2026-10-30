@@ -13,6 +13,7 @@ That is asserted here with no network and no ComfyUI server.
 import asyncio
 
 import pytest
+from app.services import vram_adapters as va
 from app.services import vram_manager as vm
 
 
@@ -60,17 +61,17 @@ class TestQueueGate:
     """`_comfyui_queue_depth_sync` / `_comfyui_is_idle` gate the offload."""
 
     def test_idle_when_nothing_running_or_queued(self, monkeypatch):
-        monkeypatch.setattr(vm, "_comfyui_queue_depth_sync", lambda: (0, 0))
+        monkeypatch.setattr(va, "_comfyui_queue_depth_sync", lambda: (0, 0))
         assert vm._comfyui_is_idle_sync() is True
 
     def test_not_idle_while_a_prompt_is_running(self, monkeypatch):
-        monkeypatch.setattr(vm, "_comfyui_queue_depth_sync", lambda: (1, 0))
+        monkeypatch.setattr(va, "_comfyui_queue_depth_sync", lambda: (1, 0))
         assert vm._comfyui_is_idle_sync() is False
 
     def test_not_idle_with_queued_work(self, monkeypatch):
         # Nothing executing yet, but a render is coming: freeing now would make
         # that queued job start with no models resident.
-        monkeypatch.setattr(vm, "_comfyui_queue_depth_sync", lambda: (0, 3))
+        monkeypatch.setattr(va, "_comfyui_queue_depth_sync", lambda: (0, 3))
         assert vm._comfyui_is_idle_sync() is False
 
 
@@ -78,7 +79,7 @@ class TestUnload:
     """The busy path must refuse to send `/free` at all."""
 
     def test_refuses_when_a_prompt_is_running(self, monkeypatch):
-        monkeypatch.setattr(vm, "_comfyui_queue_depth_sync", lambda: (1, 0))
+        monkeypatch.setattr(va, "_comfyui_queue_depth_sync", lambda: (1, 0))
         result = vm._unload_comfyui_models_sync()
         assert result["success"] is False
         assert result["skipped"] == "busy"
