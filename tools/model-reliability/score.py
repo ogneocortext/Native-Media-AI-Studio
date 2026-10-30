@@ -39,9 +39,9 @@ def latest_snapshots():
 
 
 def load_observed():
-    rows, notes = [], []
+    rows, notes, skipped = [], [], 0
     if not os.path.exists(OBSERVED):
-        return rows, notes
+        return rows, notes, skipped
     # utf-8-sig, not utf-8: this file is hand-edited, and PowerShell's
     # `Set-Content -Encoding UTF8` writes a BOM. Plain utf-8 passes the BOM to
     # json.loads, which then raises "Unexpected UTF-8 BOM" on the first line and
@@ -52,8 +52,16 @@ def load_observed():
             line = line.strip()
             if line:
                 r = json.loads(line)
+                # Session-log rows (a whole session's work with no single
+                # model to credit — {session, work, ...} or {agent,
+                # models_used, ...}) carry no per-model signal. Count and
+                # skip them instead of crashing on the missing "model" key
+                # in main()/model_observed(); the ranking is per model.
+                if not r.get("model"):
+                    skipped += 1
+                    continue
                 (notes if r.get("model") == "*" else rows).append(r)
-    return rows, notes
+    return rows, notes, skipped
 
 
 def _row_outcome(r):
@@ -108,7 +116,7 @@ def score_model(sources, lw, lf):
 
 def main():
     snaps = latest_snapshots()
-    rows, notes = load_observed()
+    rows, notes, skipped = load_observed()
 
     # The advertised layer is a gitignored cache: a fresh clone has no snapshots
     # until fetch_advertised.py runs. That must not hide the observed layer,
@@ -155,6 +163,8 @@ def main():
         print("\nRoute-level notes:")
         for n in notes:
             print(f"  [{n.get('route')}] {n['date']}: {n['note']}")
+    if skipped:
+        print(f"\nSkipped {skipped} session-log row(s) with no single model to credit.")
     ages = ", ".join(f"{s} ({snaps[s]['fetched_at'][:10]})" for s in sorted(snaps))
     print(f"\nSnapshots: {ages}")
 
