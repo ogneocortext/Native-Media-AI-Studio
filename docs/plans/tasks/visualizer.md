@@ -134,6 +134,71 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   publishes `api` via frameAccurateApiRef. Removed ~90 lines of inline API
   code. tsc + lint + 601 vitest all pass.
 
+### T-VIZ-10 — Extract track selection into useTrackSelection.ts
+- **Status:** done
+- **Goal:** Move parseLyricsForTrack, handleFile, handleSelectLibraryTrack,
+  deriveTrackMeta, resetAudioDerivedState, trackRequestRef and the
+  pendingTrack handoff effect out of Visualizer.tsx into a new hook
+  `useTrackSelection.ts`. The component passes state, setters and refs in;
+  the hook owns "pick a track → parse → decode → reset derived state".
+- **Files:** new `packages/frontend/src/features/visualizer/useTrackSelection.ts`,
+  `packages/frontend/src/features/visualizer/Visualizer.tsx`
+- **Acceptance:** tsc + eslint clean on the visualizer folder; no
+  vitest regressions (601 tests); track switching still works in the
+  browser (file picker, library dropdown, pending-track handoff).
+- **Last session:** Kilo, 2026-10-30 — created useTrackSelection.ts with
+  handleFile, handleSelectLibraryTrack, parseLyricsForTrack, deriveTrackMeta
+  and resetAudioDerivedState plus the pending-track handoff effects;
+  Visualizer.tsx now wires JSX to the hook. tsc, eslint and all 891 vitest
+  tests pass.
+
+
+### T-VIZ-11 — Extract playback clock into useVisualizerPlayback.ts
+- **Status:** pending
+- **Goal:** Move the playback rAF loop (elapsed/beat clock), pause-sync
+  effect, prevAudioUrl revoke, unmount cleanup, togglePlayPause,
+  cycleVizMode, handlePlayheadClick into `useVisualizerPlayback.ts`.
+- **Files:** new `packages/frontend/src/features/visualizer/useVisualizerPlayback.ts`,
+  `packages/frontend/src/features/visualizer/Visualizer.tsx`
+- **Acceptance:** tsc + eslint clean; play/pause/seek still drive the
+  render clock.
+
+### T-VIZ-12 — Extract preset application into useVisualPresets.ts
+- **Status:** pending
+- **Goal:** Move applyPreset, handleVisualPresetSelect, handlePresetLoaded,
+  handleClearPreset, handleEnhanceWithAI and genre-preset state into
+  `useVisualPresets.ts`.
+- **Files:** new `packages/frontend/src/features/visualizer/useVisualPresets.ts`,
+  `packages/frontend/src/features/visualizer/Visualizer.tsx`
+- **Acceptance:** tsc + eslint clean; preset dropdown and genre presets
+  still apply in the browser.
+
+### T-VIZ-13 — Extract loop/capture/shortcuts into useVisualizerLifecycle.ts
+- **Status:** pending
+- **Goal:** Move handleLoopToggle, captureFrame, mode crossfade, reduced
+  motion, global keyboard map, outside-click dismisser, dev keyboard
+  shortcuts and the __VIZ_TEST__ harness into `useVisualizerLifecycle.ts`.
+- **Files:** new `packages/frontend/src/features/visualizer/useVisualizerLifecycle.ts`,
+  `packages/frontend/src/features/visualizer/Visualizer.tsx`
+- **Acceptance:** tsc + eslint clean; loop/capture/keyboard still work.
+
+### Interaction-State Vision Analysis (completed 2026-10-26)
+... (unchanged)
+- **Goal:** Extract readiness/beginDeterministicRun/renderAtVirtualTime/
+  endDeterministicRun to a focused module; remove inline mode blocks from
+  the draw loop; Canvas2DVisualizer.tsx is orchestrator + JSX only.
+- **Files:** new `packages/frontend/src/features/visualizer/services/frameAccurateCanvas2d.ts`,
+  `packages/frontend/src/features/visualizer/Canvas2DVisualizer.tsx`
+- **Acceptance:** tsc + vitest pass; frame-accurate export still works
+  (readiness + renderAtVirtualTime).
+- **Last session:** Kilo, 2026-10-27 — created
+  services/frameAccurateCanvas2d.ts with FrameAccurateCanvas2D class
+  implementing FrameAccurateRenderApi (readiness, beginDeterministicRun,
+  renderAtVirtualTime, endDeterministicRun, canvas). Canvas2DVisualizer.tsx
+  now creates the instance, passes resetState/clearPools callbacks, and
+  publishes `api` via frameAccurateApiRef. Removed ~90 lines of inline API
+  code. tsc + lint + 601 vitest all pass.
+
 ### Interaction-State Vision Analysis (completed 2026-10-26)
 - **Status:** done
 - **Goal:** Capture interaction-state screenshots of /visualizer (modal closed,
