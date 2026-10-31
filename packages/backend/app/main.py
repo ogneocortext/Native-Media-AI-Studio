@@ -431,6 +431,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close shared aiohttp sessions: {e}")
 
+    # Close Ollama shared session
+    try:
+        from .core import ollama_client
+
+        await ollama_client.close_shared_session()
+    except Exception as e:
+        logger.warning(f"Failed to close Ollama shared session: {e}")
+
     # Close all adapter sessions
     try:
         await adapter_registry.close_all()

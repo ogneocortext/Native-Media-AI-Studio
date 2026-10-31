@@ -8,8 +8,10 @@ import base64
 import json as _json
 import logging
 
+import aiohttp
 from fastapi import APIRouter, File, Form, UploadFile
 
+from ..core import ollama_client as _oc
 from ..core.urls import ollama_url
 
 logger = logging.getLogger(__name__)
@@ -37,8 +39,8 @@ PROMPTS = {
 }
 
 
-def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -> str:
-    import urllib.request
+async def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -> str:
+    """Async Ollama chat call using shared aiohttp session (non-blocking)."""
     is_minicpm = "minicpm" in model.lower()
     payload = {
         "model": model,
@@ -49,15 +51,43 @@ def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -> str:
     }
     if think and not is_minicpm:
         payload["think"] = True
-    data = _json.dumps(payload).encode()
-    req = urllib.request.Request(f"{OLLAMA_URL}/api/chat", data=data, headers={"Content-Type": "application/json"})
-    # 300s, not 120s: the minicpm-v fallback needs ~183 s to
-    # cold-load on 8 GB VRAM (measured 2026-10-11); a 120 s
-    # timeout made the fallback fail on every cold start, which
-    # is why minicpm-v sat in BROKEN_MODELS as "timeout >180s".
-    with urllib.request.urlopen(req, timeout=300) as resp:
-        j = _json.loads(resp.read())
+
+    # Use shared session for connection pooling
+    session = await _oc.get_shared_session()
+    async with session.post(
+        f"{OLLAMA_URL}/api/chat",
+        json=payload,
+        timeout=aiohttp.ClientTimeout(total=300),
+    ) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"Ollama returned HTTP {resp.status}")
+        j = await resp.json()
         return (j.get("message") or {}).get("content") or ""
+
+
+def _save_ocr_result(relative_path: str, file: UploadFile, text: str, model: str, prompt: str, raw: bytes) -> None:
+    """Persist OCR result to DB (Media Library covers, GPU charts, any ad-hoc scan)."""
+    try:
+        from ..core.database import save_vision_ocr
+        import asyncio as _asyncio
+        rel = relative_path or file.filename or "unknown"
+        _asyncio.create_task(_asyncio.to_thread(save_vision_ocr, rel, file.filename or "unknown", text, model, prompt, file.content_type, len(raw)))
+    except Exception as e:
+        logger.debug(f"vision ocr DB save skipped: {e}")
+
+
+async def _vision_chat_with_fallback(model: str, prompt: str, b64: str) -> str:
+    """Try vision chat with primary model, fall back to FALLBACK_MODEL if available."""
+    try:
+        return await _ollama_chat(model, prompt, b64)
+    except Exception as e:
+        logger.warning(f"vision analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
+        if FALLBACK_MODEL:
+            try:
+                return await _ollama_chat(FALLBACK_MODEL, prompt, b64)
+            except Exception as e2:
+                raise RuntimeError(str(e2)) from e2
+        raise RuntimeError(str(e)) from e
 
 
 @router.post("/ocr")
@@ -83,22 +113,8 @@ async def vision_ocr(
         return {"error": "empty file"}
     b64 = base64.b64encode(raw).decode()
     effective_prompt = PROMPTS.get(prompt, prompt)
-    try:
-        text = await _run_in_thread(_ollama_chat, model, effective_prompt, b64)
-    except Exception as e:
-        logger.warning(f"vision ocr with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
-        try:
-            text = await _run_in_thread(_ollama_chat, FALLBACK_MODEL, effective_prompt, b64)
-            model = FALLBACK_MODEL
-        except Exception as e2:
-            return {"error": str(e2), "model": model}
-    # Persist to DB (applicable: Media Library covers, GPU charts, any ad-hoc scan)
-    try:
-        from ..core.database import save_vision_ocr
-        rel = relative_path or file.filename or "unknown"
-        await _run_in_thread(save_vision_ocr, rel, file.filename or "unknown", text, model, prompt, file.content_type, len(raw))
-    except Exception as e:
-        logger.debug(f"vision ocr DB save skipped: {e}")
+    text = await _vision_chat_with_fallback(model, effective_prompt, b64)
+    _save_ocr_result(relative_path, file, text, model, prompt, raw)
     return {"text": text, "model": model, "prompt": prompt, "filename": file.filename, "relative_path": relative_path or file.filename}
 
 
@@ -133,15 +149,7 @@ async def analyze_visualizer(
         f"2D visualizer screenshot in mode={mode}. "
         + PROMPTS["visualizer"]
     )
-    try:
-        text = await _run_in_thread(_ollama_chat, model, prompt, b64)
-    except Exception as e:
-        logger.warning(f"visualizer analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
-        try:
-            text = await _run_in_thread(_ollama_chat, FALLBACK_MODEL, prompt, b64)
-            model = FALLBACK_MODEL
-        except Exception as e2:
-            return {"error": str(e2), "model": model}
+    text = await _vision_chat_with_fallback(model, prompt, b64)
     return {"text": text, "model": model, "mode": mode}
 
 
@@ -161,14 +169,10 @@ async def vision_ocr_by_path(relative_path: str):
     """Get latest OCR for a given library file."""
     try:
         from ..core.database import get_vision_ocr
-        r = await _run_in_thread(get_vision_ocr, relative_path)
+        import asyncio as _asyncio
+        r = await _asyncio.to_thread(get_vision_ocr, relative_path)
         if not r:
             return {"found": False, "relative_path": relative_path}
         return {"found": True, **r}
     except Exception as e:
         return {"error": str(e)}
-
-
-async def _run_in_thread(func, *args):
-    import asyncio as _asyncio
-    return await _asyncio.to_thread(func, *args)

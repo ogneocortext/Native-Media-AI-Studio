@@ -13,8 +13,8 @@ type: entity
 
 # Ollama Integration & Tool Calling
 
-> **Last Updated:** 2026-09-29
-> **Ollama Version:** 0.34.x
+> **Last Updated:** 2026-10-30
+> **Ollama Version:** 0.35.x
 > **API Version:** v1
 > **Workstation Profile:** GTX 1070 Ti (8 GB VRAM), 32 GB RAM
 
@@ -388,3 +388,28 @@ parseOllamaStream(stream);
 - [Tool Calling Guide](https://docs.ollama.com/capabilities/tool-calling)
 - [Ollama GitHub](https://github.com/ollama/ollama)
 - [Ollama Python SDK](https://github.com/ollama/ollama-python)
+
+## Recent Improvements (2026-10-30)
+
+### Session Management
+- Added `ollama_client.close_shared_session()` to backend shutdown handler
+- Ensures proper cleanup of aiohttp sessions when backend shuts down
+- Prevents resource leaks during graceful shutdown
+
+### Vision API Modernization
+- Converted from blocking `urllib.request` to async `aiohttp`
+- Now uses shared session from `ollama_client` for connection pooling
+- Prevents event loop blocking during vision requests
+- Added proper null checks for fallback model (currently disabled due to VRAM constraints)
+
+### Tool Calling Completeness
+- Added missing tool definitions to `get_tool_definitions()`:
+  - `get_project_structure` - directory traversal
+  - `search_docs` - documentation search
+  - `get_system_health` - CPU/memory/GPU monitoring
+  - `list_jobs` - queue status
+  - `get_job_status` - job progress
+  - `generate_visualization` - canvas config generation
+- Implemented missing `_tool_audio_list()` and `_tool_media_list()` methods
+- Fixed `_get_built_in_tools()` registry to include all tools
+- All tools now properly exposed to LLMs for agent use
