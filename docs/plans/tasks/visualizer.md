@@ -170,7 +170,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   tests pass. Dropped now-unused `VIZ_MODE_ORDER` import.
 
 ### T-VIZ-12 — Extract preset application into useVisualPresets.ts
-- **Status:** pending
+- **Status:** done
 - **Goal:** Move applyPreset, handleVisualPresetSelect, handlePresetLoaded,
   handleClearPreset, handleEnhanceWithAI and genre-preset state into
   `useVisualPresets.ts`.
@@ -178,6 +178,17 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   `packages/frontend/src/features/visualizer/Visualizer.tsx`
 - **Acceptance:** tsc + eslint clean; preset dropdown and genre presets
   still apply in the browser.
+- **Last session:** Kilo, 2026-10-31 — created useVisualPresets.ts with
+  handleGenrePresetSelect, applyPreset (track-aware multipliers, postfx
+  clamping, kinetic mapping, never mutates shared catalog),
+  handleVisualPresetSelect (monotonic lock preserves manual picks),
+  handlePresetLoaded, handleClearPreset, handleEnhanceWithAI (Ollama
+  generation via dynamic import); Visualizer.tsx wires JSX to same-named
+  callbacks. Removed now-unused imports (AudioAnalysisData,
+  DEFAULT_VIZ_PARAMS, VisualPreset, clampNum, toVisualPreset,
+  getVisualizationForTrack, VisualizationStyle, ReactivityGenrePreset
+  type). Moved vizParamsRef declaration before hook calls. tsc, eslint
+  and all 891 vitest tests pass.
 
 ### T-VIZ-13 — Extract loop/capture/shortcuts into useVisualizerLifecycle.ts
 - **Status:** pending
