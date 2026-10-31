@@ -111,8 +111,10 @@ export async function ollamaEngineStatus(): Promise<{
       timeout: 5000,
     });
     if (!res.ok) return { online: false, engine: "ollama" };
-    const data = (await res.json()) as { loaded?: boolean };
-    return { online: Boolean(data.loaded), engine: "ollama" };
+    const data = (await res.json()) as { loaded?: boolean; server_online?: boolean };
+    // A successful response means Ollama server is online even if no model
+    // is currently loaded in VRAM (models load on first request).
+    return { online: Boolean(data.server_online ?? data.loaded), engine: "ollama" };
   } catch {
     return { online: false, engine: "ollama" };
   }

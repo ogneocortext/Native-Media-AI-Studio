@@ -221,7 +221,7 @@ async def ollama_models() -> dict:
             ollama_url("/api/ps"), timeout=aiohttp.ClientTimeout(total=5)
         ) as resp:
             if resp.status != 200:
-                return {"loaded": False, "models": [], "activity": {}}
+                return {"loaded": False, "server_online": False, "models": [], "activity": {}}
             data = await resp.json()
             models = data.get("models", [])
 
@@ -233,6 +233,7 @@ async def ollama_models() -> dict:
 
             return {
                 "loaded": len(models) > 0,
+                "server_online": True,
                 "models": [
                     {
                         "name": m.get("name", "unknown"),
@@ -246,7 +247,7 @@ async def ollama_models() -> dict:
                 "activity": activity,
             }
     except Exception as e:
-        return {"loaded": False, "models": [], "activity": {}, "error": str(e)}
+        return {"loaded": False, "server_online": False, "models": [], "activity": {}, "error": str(e)}
 
 
 @router.post("/ollama/clear-activity")
