@@ -154,7 +154,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 
 
 ### T-VIZ-11 — Extract playback clock into useVisualizerPlayback.ts
-- **Status:** pending
+- **Status:** done
 - **Goal:** Move the playback rAF loop (elapsed/beat clock), pause-sync
   effect, prevAudioUrl revoke, unmount cleanup, togglePlayPause,
   cycleVizMode, handlePlayheadClick into `useVisualizerPlayback.ts`.
@@ -162,6 +162,12 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   `packages/frontend/src/features/visualizer/Visualizer.tsx`
 - **Acceptance:** tsc + eslint clean; play/pause/seek still drive the
   render clock.
+- **Last session:** Kilo, 2026-10-31 — created useVisualizerPlayback.ts
+  with the rAF elapsed clock (throttled ~20fps React state + full-rate
+  LRC sync ref), pause-sync, blob-URL revocation + unmount cleanup, and
+  togglePlayPause/cycleVizMode/handlePlayheadClick callbacks; Visualizer.tsx
+  wires JSX to the same-named callbacks. tsc, eslint and all 891 vitest
+  tests pass. Dropped now-unused `VIZ_MODE_ORDER` import.
 
 ### T-VIZ-12 — Extract preset application into useVisualPresets.ts
 - **Status:** pending
