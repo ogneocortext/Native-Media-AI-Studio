@@ -503,6 +503,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         prompt = params.get("prompt", "")
         system = params.get("system")
         options = params.get("options", {})
+        format = params.get("format")
+        think = params.get("think")
+        keep_alive = params.get("keep_alive")
 
         messages: list[dict[str, str]] = []
         if system:
@@ -531,7 +534,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         try:
             result = await self._chat_request(
-                messages, model, None, think=None, format=None, keep_alive=None, options=options,
+                messages, model, None, think=think, format=format, keep_alive=keep_alive, options=options,
             )
             return {
                 "response": result.get("message", {}).get("content", ""),

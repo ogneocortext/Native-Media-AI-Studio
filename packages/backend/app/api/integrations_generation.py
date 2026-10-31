@@ -1348,26 +1348,27 @@ SCHEMA:
 Respond with ONLY the JSON object, no markdown fences, no explanation."""
 
 
-@router.post("/ollama/visualizer")
-async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> dict:
-    """Generate a visualizer preset from a natural language description using Ollama."""
-    adapter = adapter_registry.get("ollama")
-    if not adapter:
-        raise HTTPException(status_code=404, detail="Ollama not available")
+async def _generate_visualizer_preset(
+    adapter, body: GenerateVisualizerPresetRequest, backend_name: str
+) -> dict:
+    """Shared visualizer preset generation logic (Ollama / Atomic Chat).
+
+    Both adapters return a compatible {"response", "model", "done"} shape,
+    so the same prompt, JSON parsing and persistence path works for either
+    backend. Atomic Chat's generate() now forwards format/think so JSON
+    mode (format="json") and thinking disable (think=False) work.
+    """
     description = body.description.strip()
     if not description:
         raise HTTPException(status_code=400, detail="Description is required")
     model = body.model or config.default_model
     temperature = body.temperature
-    # Optional track metadata for alignment
     track_meta = body.track or {}
     bpm = track_meta.get("bpm")
     energy = track_meta.get("energy")
     duration = track_meta.get("duration_seconds")
     genre = track_meta.get("genre", "")
-    # Track activity
     adapter.set_activity(model, "visualizer", description[:80])
-    # Build track context for the prompt
     track_context = ""
     if bpm or energy or duration or genre:
         parts = []
@@ -1392,15 +1393,15 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
     system_prompt = VISUALIZER_SYSTEM_PROMPT.format(
         schema=json.dumps(VISUALIZER_PRESET_SCHEMA, indent=2)
     )
-    logger.info("Generating visualizer preset: model=%s, desc_len=%d, track=%s",
-                model, len(description), bool(track_context))
+    logger.info("Generating visualizer preset: backend=%s, model=%s, desc_len=%d, track=%s",
+                backend_name, model, len(description), bool(track_context))
     try:
         result = await adapter.generate({
             "prompt": f"Generate a visualizer preset for: {description}{track_context}",
             "model": model,
             "system": system_prompt,
             "format": "json",
-            "think": False,  # Disable thinking for structured JSON output
+            "think": False,
             "options": {
                 "temperature": temperature,
                 "num_ctx": 8192,
@@ -1408,14 +1409,12 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
         })
         response_text = result.get("response", "")
         if not response_text:
-            raise HTTPException(status_code=502, detail="Ollama returned empty response")
-        # Parse the JSON response (fence-stripped via shared helper)
+            raise HTTPException(status_code=502, detail=f"{backend_name} returned empty response")
         try:
             preset = json.loads(response_text)
         except json.JSONDecodeError:
             from ..core.text import strip_code_fences
             preset = json.loads(strip_code_fences(response_text))
-        # Ensure required top-level fields exist
         preset.setdefault("version", "1.0")
         if not preset.get("id"):
             preset["id"] = "ai-generated"
@@ -1423,7 +1422,6 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
             preset["name"] = "AI Generated"
         preset.setdefault("tags", [])
         preset.setdefault("description", description)
-        # Persist to DB + file for retrieval after restart (storage/visualizer_presets/{hash}.json)
         try:
             import hashlib
             from pathlib import Path
@@ -1445,7 +1443,6 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
                 "mood_tags": preset.get("tags", []),
                 "genre_tags": [genre] if genre else [],
             })
-            # Also write JSON file for direct retrieval
             out_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
             out_dir.mkdir(parents=True, exist_ok=True)
             (out_dir / f"{track_hash}.json").write_text(json.dumps(preset, indent=2), encoding="utf-8")
@@ -1458,15 +1455,33 @@ async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> d
             "persisted": True,
         }
     except json.JSONDecodeError as e:
-        logger.error("Failed to parse Ollama JSON response: %s (raw: %s)", e, response_text[:200])
+        logger.error("Failed to parse %s JSON response: %s (raw: %s)", backend_name, e, response_text[:200])
         raise HTTPException(status_code=502, detail=f"Model returned invalid JSON: {e}") from e
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Visualizer preset generation failed: %s", e)
+        logger.error("Visualizer preset generation failed (%s): %s", backend_name, e)
         raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         adapter.clear_activity(model)
+
+
+@router.post("/ollama/visualizer")
+async def generate_visualizer_preset(body: GenerateVisualizerPresetRequest) -> dict:
+    """Generate a visualizer preset from a natural language description using Ollama."""
+    adapter = adapter_registry.get("ollama")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Ollama not available")
+    return await _generate_visualizer_preset(adapter, body, "ollama")
+
+
+@router.post("/atomic-chat/visualizer")
+async def generate_visualizer_preset_atomic(body: GenerateVisualizerPresetRequest) -> dict:
+    """Generate a visualizer preset from a natural language description using Atomic Chat."""
+    adapter = adapter_registry.get("atomic-chat")
+    if not adapter:
+        raise HTTPException(status_code=404, detail="Atomic Chat not available")
+    return await _generate_visualizer_preset(adapter, body, "atomic-chat")
 
 
 @router.get("/ollama/visualizer/presets")

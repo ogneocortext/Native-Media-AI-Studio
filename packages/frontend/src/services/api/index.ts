@@ -335,6 +335,7 @@ export {
   parseOllamaStream,
   ollamaGenerate,
   generateVisualizerPreset,
+  generateVisualizerPresetAtomic,
 } from "./ollama";
 export type {
   OllamaModel,

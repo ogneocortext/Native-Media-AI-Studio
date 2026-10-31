@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Sparkles, Wand2, Check, Loader2, RefreshCw, ChevronDown, Music2, Shield, Eye, AlertCircle, Zap, Palette, Code2 } from "lucide-react";
-import { generateVisualizerPreset, getOllamaModels, getBenchmarkResults } from "../../../services/api";
+import { generateVisualizerPreset, generateVisualizerPresetAtomic, getOllamaModels, getBenchmarkResults } from "../../../services/api";
 import type { AIGeneratedPreset, OllamaModel, OllamaBenchmarkResult } from "../../../services/api";
 import type { VisualPreset } from "../visualPreset";
 import { AIPresetGallery } from "./AIPresetGallery";
@@ -29,7 +29,9 @@ export function AIVisualizerPrompt({
   trackName,
 }: AIVisualizerPromptProps) {
   const [description, setDescription] = useState("");
+  const [backend, setBackend] = useState<"ollama" | "atomic-chat">("ollama");
   const [model, setModel] = useState("gemma4:e2b-it-qat");
+  const [atomicModel, setAtomicModel] = useState("qwen3.5:4b");
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
   const [loading, setLoading] = useState(false);
@@ -84,19 +86,29 @@ export function AIVisualizerPrompt({
     setError(null);
     setGeneratedPreset(null);
     try {
-      const result = await generateVisualizerPreset(
-        description,
-        model,
-        0.7,
-        trackMeta ?? undefined,
-      );
-      setGeneratedPreset(result.preset);
+      if (backend === "atomic-chat") {
+        const result = await generateVisualizerPresetAtomic(
+          description,
+          atomicModel,
+          0.7,
+          trackMeta ?? undefined,
+        );
+        setGeneratedPreset(result.preset);
+      } else {
+        const result = await generateVisualizerPreset(
+          description,
+          model,
+          0.7,
+          trackMeta ?? undefined,
+        );
+        setGeneratedPreset(result.preset);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
     } finally {
       setLoading(false);
     }
-  }, [description, model, trackMeta]);
+  }, [description, model, atomicModel, backend, trackMeta]);
 
   const handleApply = useCallback(() => {
     console.log("[AIVisualizerPrompt] handleApply called, generatedPreset:", !!generatedPreset);
@@ -131,6 +143,22 @@ export function AIVisualizerPrompt({
       <div className="viz-ai-header">
         <Sparkles size={16} />
         <span>AI Visualizer</span>
+        <div className="viz-ai-backend-toggle">
+          <button
+            className={`viz-ai-backend-btn ${backend === "ollama" ? "active" : ""}`}
+            onClick={() => setBackend("ollama")}
+            title="Ollama (gemma4 / qwen3.5)"
+          >
+            Ollama
+          </button>
+          <button
+            className={`viz-ai-backend-btn ${backend === "atomic-chat" ? "active" : ""}`}
+            onClick={() => setBackend("atomic-chat")}
+            title="Atomic Chat (Qwen via port 1337)"
+          >
+            Atomic Chat
+          </button>
+        </div>
       </div>
 
       {hasTrack && (
@@ -161,59 +189,74 @@ export function AIVisualizerPrompt({
 
       <div className="viz-ai-controls">
         <div className="viz-ai-model-wrap">
-          <button
-            className="viz-ai-model-btn"
-            onClick={() => setShowModelPicker(!showModelPicker)}
-            title="Select model"
-          >
-            <Wand2 size={12} />
-            <span>{model}</span>
-            <ChevronDown size={10} />
-          </button>
-          {showModelPicker && (
-            <div className="viz-ai-model-dropdown">
-              {models.length === 0 ? (
-                <div className="viz-ai-model-empty">No verified models loaded</div>
-              ) : (
-                models.map((m) => {
-                  const bench = benchmarks[m.name];
-                  const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
-                  const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
-                  const success = bench?.success ?? m.benchmark?.success ?? null;
-                  let badge = "";
-                  if (score !== null && score >= 0) {
-                    const s = Math.round(score);
-                    const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
-                    badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
-                  } else if (score === null) {
-                    badge = " [—]";
-                  }
-                  const isBest = models[0]?.name === m.name && score !== null && score >= 60;
-                  return (
-                    <button
-                      key={m.name}
-                      className={`viz-ai-model-option ${m.name === model ? "active" : ""}`}
-                      onClick={() => {
-                        setModel(m.name);
-                        setShowModelPicker(false);
-                      }}
-                    >
-                      <span>{m.name}{m.verified ? " ✅" : " ⚠️"}{badge}</span>
-                      {isBest && <span className="viz-ai-badge" style={{color:"#fbbf24"}} title="Best">★ Best</span>}
-                      {m.verified && <span className="viz-ai-badge" title="Verified"><Shield /></span>}
-                      {!m.verified && m.broken_reason && <span className="viz-ai-badge" title={m.broken_reason}><AlertCircle /></span>}
-                      {m.verified_features?.includes("visualizer") && <span className="viz-ai-badge" title="Visualizer"><Palette /></span>}
-                      {m.verified_features?.includes("blender") && <span className="viz-ai-badge" title="Blender"><Code2 /></span>}
-                      {m.supportsVision && <span className="viz-ai-badge" title="Vision"><Eye /></span>}
-                      {m.supportsTools && <span className="viz-ai-badge" title="Tools"><Zap /></span>}
-                      {m.performance?.vision_latency_sec && (
-                        <span className="viz-ai-vram">👁 ~{m.performance.vision_latency_sec}s</span>
-                      )}
-                    </button>
-                  );
-                })
+          {backend === "ollama" ? (
+            <>
+              <button
+                className="viz-ai-model-btn"
+                onClick={() => setShowModelPicker(!showModelPicker)}
+                title="Select model"
+              >
+                <Wand2 size={12} />
+                <span>{model}</span>
+                <ChevronDown size={10} />
+              </button>
+              {showModelPicker && (
+                <div className="viz-ai-model-dropdown">
+                  {models.length === 0 ? (
+                    <div className="viz-ai-model-empty">No verified models loaded</div>
+                  ) : (
+                    models.map((m) => {
+                      const bench = benchmarks[m.name];
+                      const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
+                      const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                      const success = bench?.success ?? m.benchmark?.success ?? null;
+                      let badge = "";
+                      if (score !== null && score >= 0) {
+                        const s = Math.round(score);
+                        const ok = success === false ? "✗" : s >= 70 ? "✓" : s >= 40 ? "~" : "✗";
+                        badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
+                      } else if (score === null) {
+                        badge = " [—]";
+                      }
+                      const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                      return (
+                        <button
+                          key={m.name}
+                          className={`viz-ai-model-option ${m.name === model ? "active" : ""}`}
+                          onClick={() => {
+                            setModel(m.name);
+                            setShowModelPicker(false);
+                          }}
+                        >
+                          <span>{m.name}{m.verified ? " ✅" : " ⚠️"}{badge}</span>
+                          {isBest && <span className="viz-ai-badge" style={{color:"#fbbf24"}} title="Best">★ Best</span>}
+                          {m.verified && <span className="viz-ai-badge" title="Verified"><Shield /></span>}
+                          {!m.verified && m.broken_reason && <span className="viz-ai-badge" title={m.broken_reason}><AlertCircle /></span>}
+                          {m.verified_features?.includes("visualizer") && <span className="viz-ai-badge" title="Visualizer"><Palette /></span>}
+                          {m.verified_features?.includes("blender") && <span className="viz-ai-badge" title="Blender"><Code2 /></span>}
+                          {m.supportsVision && <span className="viz-ai-badge" title="Vision"><Eye /></span>}
+                          {m.supportsTools && <span className="viz-ai-badge" title="Tools"><Zap /></span>}
+                          {m.performance?.vision_latency_sec && (
+                            <span className="viz-ai-vram">👁 ~{m.performance.vision_latency_sec}s</span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               )}
-            </div>
+            </>
+          ) : (
+            <>
+              <label className="viz-ai-model-label">Atomic Chat model</label>
+              <input
+                className="viz-ai-model-input"
+                value={atomicModel}
+                onChange={(e) => setAtomicModel(e.target.value)}
+                placeholder="qwen3.5:4b"
+                title="Model name served by Atomic Chat (port 1337)"
+              />
+            </>
           )}
         </div>
 

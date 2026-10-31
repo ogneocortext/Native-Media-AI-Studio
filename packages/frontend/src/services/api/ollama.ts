@@ -569,3 +569,23 @@ export async function generateVisualizerPreset(
   }
   return res.json();
 }
+
+export async function generateVisualizerPresetAtomic(
+  description: string,
+  model: string = "qwen3.5:4b",
+  temperature: number = 0.7,
+  track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
+): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/atomic-chat/visualizer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description, model, temperature, track }),
+    timeout: 120000,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to generate visualizer preset");
+  }
+  return res.json();
+}
