@@ -1334,18 +1334,126 @@ VISUALIZER_PRESET_SCHEMA = {
         "smoothing": "number 0-1"
     }
 }
+
+# Proper JSON Schema for Ollama's `format` parameter (constrained decoding).
+# Passed as `format` to Ollama's /api/generate so token generation is
+# constrained to match this shape -- far more reliable than format="json".
+VISUALIZER_PRESET_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "version": {"type": "string"},
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "theme": {
+            "type": "object",
+            "properties": {
+                "primary": {"type": "string"},
+                "secondary": {"type": "string"},
+                "accent": {"type": "string"},
+                "background": {"type": "string"},
+                "text": {"type": "string"},
+                "glow": {"type": "string"}
+            },
+            "required": ["primary", "secondary", "accent", "background", "text", "glow"]
+        },
+        "visualizer": {
+            "type": "object",
+            "properties": {
+                "style": {"type": "string", "enum": ["particles", "waveform", "pulse", "bars", "galaxy", "terrain"]},
+                "colors": {"type": "string"},
+                "intensity": {"type": "number", "minimum": 0, "maximum": 1},
+                "particleCount": {"type": "integer", "minimum": 50, "maximum": 2000},
+                "speed": {"type": "number", "minimum": 0, "maximum": 3},
+                "scale": {"type": "number", "minimum": 0.1, "maximum": 3},
+                "glow": {"type": "boolean"},
+                "rotation": {"type": "boolean"}
+            },
+            "required": ["style", "colors", "intensity", "particleCount", "speed", "scale", "glow", "rotation"]
+        },
+        "camera": {
+            "type": "object",
+            "properties": {
+                "keyframes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "at": {"type": "number"},
+                            "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                            "target": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                            "easing": {"type": "string", "enum": ["linear", "easeIn", "easeOut", "easeInOut"]}
+                        },
+                        "required": ["at", "position", "target", "easing"]
+                    }
+                },
+                "mode": {"type": "string", "enum": ["orbit", "fixed", "flythrough", "handheld"]},
+                "fov": {"type": "number", "minimum": 30, "maximum": 90}
+            },
+            "required": ["keyframes", "mode", "fov"]
+        },
+        "postfx": {
+            "type": "object",
+            "properties": {
+                "bloom": {"type": "number", "minimum": 0, "maximum": 3},
+                "bloomRadius": {"type": "number", "minimum": 0, "maximum": 1},
+                "bloomThreshold": {"type": "number", "minimum": 0, "maximum": 1},
+                "chromaticAberration": {"type": "number", "minimum": 0, "maximum": 0.01},
+                "filmGrain": {"type": "number", "minimum": 0, "maximum": 1},
+                "vignetteRadius": {"type": "number", "minimum": 0, "maximum": 3},
+                "vignetteStrength": {"type": "number", "minimum": 0, "maximum": 1},
+                "glitch": {"type": "number", "minimum": 0, "maximum": 1},
+                "sharpen": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["bloom", "bloomRadius", "bloomThreshold", "chromaticAberration", "filmGrain", "vignetteRadius", "vignetteStrength", "glitch", "sharpen"]
+        },
+        "lyrics": {
+            "type": "object",
+            "properties": {
+                "style": {"type": "string", "enum": ["kinetic", "fade", "typewriter", "glitch", "neon", "bounce"]},
+                "glowIntensity": {"type": "number", "minimum": 0, "maximum": 1},
+                "fontSize": {"type": "number", "minimum": 24, "maximum": 96},
+                "fontWeight": {"type": "number", "minimum": 100, "maximum": 900},
+                "letterSpacing": {"type": "number", "minimum": 0, "maximum": 0.2},
+                "beatReact": {"type": "boolean"},
+                "enterAnimation": {"type": "string"},
+                "exitAnimation": {"type": "string"}
+            },
+            "required": ["style", "glowIntensity", "fontSize", "fontWeight", "letterSpacing", "beatReact", "enterAnimation", "exitAnimation"]
+        },
+        "audioReactivity": {
+            "type": "object",
+            "properties": {
+                "bass": {"type": "string", "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"]},
+                "mid": {"type": "string", "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"]},
+                "treble": {"type": "string", "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"]},
+                "beat": {"type": "string", "enum": ["none", "pulse", "shake", "flash", "zoom"]},
+                "beatDecay": {"type": "number", "minimum": 0, "maximum": 1},
+                "smoothing": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["bass", "mid", "treble", "beat", "beatDecay", "smoothing"]
+        }
+    },
+    "required": ["version", "id", "name", "description", "tags", "theme", "visualizer", "camera", "postfx", "lyrics", "audioReactivity"]
+}
+
 VISUALIZER_SYSTEM_PROMPT = """You are a music visualizer preset generator. Given a natural language description of a visual style, generate a JSON preset for a 3D audio-reactive visualizer.
 RULES:
-- Output ONLY valid JSON matching the schema below
+- Output ONLY valid JSON matching the JSON Schema below -- no markdown fences, no explanation, no extra text
 - All hex colors must be 6-digit format like #ff0040
 - Choose visualization styles that match the mood described
 - For dark/moody: use particles, waveform, cosmic with low intensity
 - For energetic/aggressive: use bars, pulse, galaxy with high intensity
 - For calm/peaceful: use waveform, terrain with low speed
 - Match audio reactivity to the described energy level
-SCHEMA:
-{schema}
-Respond with ONLY the JSON object, no markdown fences, no explanation."""
+- Fill in ALL required fields from the schema; do not omit optional fields
+- The output will be validated against this schema -- invalid JSON or missing required fields will be rejected
+
+JSON SCHEMA (grounding -- match this structure exactly):
+{schema_json}
+
+Respond with ONLY the JSON object."""
 
 
 async def _generate_visualizer_preset(
@@ -1390,17 +1498,22 @@ async def _generate_visualizer_preset(
                 track_context += "\n- Use high-intensity audio reactivity (shake, flash, zoom on beat)"
             elif energy < 0.35:
                 track_context += "\n- Use gentle reactivity (slow pulse, glow, no shake)"
-    system_prompt = VISUALIZER_SYSTEM_PROMPT.format(
-        schema=json.dumps(VISUALIZER_PRESET_SCHEMA, indent=2)
-    )
     logger.info("Generating visualizer preset: backend=%s, model=%s, desc_len=%d, track=%s",
                 backend_name, model, len(description), bool(track_context))
     try:
+        # Ollama supports JSON Schema in `format` for constrained decoding
+        # (token-by-token enforcement of the schema shape). Atomic Chat only
+        # guarantees format="json" string mode.
+        fmt_param = VISUALIZER_PRESET_JSON_SCHEMA if backend_name == "ollama" else "json"
+        # Ground the model by including the schema in the system prompt text
+        system_prompt_grounded = VISUALIZER_SYSTEM_PROMPT.format(
+            schema_json=json.dumps(VISUALIZER_PRESET_JSON_SCHEMA, indent=2)
+        )
         result = await adapter.generate({
             "prompt": f"Generate a visualizer preset for: {description}{track_context}",
             "model": model,
-            "system": system_prompt,
-            "format": "json",
+            "system": system_prompt_grounded,
+            "format": fmt_param,
             "think": False,
             "options": {
                 "temperature": temperature,
