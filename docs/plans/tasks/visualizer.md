@@ -191,13 +191,20 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   and all 891 vitest tests pass.
 
 ### T-VIZ-13 — Extract loop/capture/shortcuts into useVisualizerLifecycle.ts
-- **Status:** pending
+- **Status:** done
 - **Goal:** Move handleLoopToggle, captureFrame, mode crossfade, reduced
   motion, global keyboard map, outside-click dismisser, dev keyboard
   shortcuts and the __VIZ_TEST__ harness into `useVisualizerLifecycle.ts`.
 - **Files:** new `packages/frontend/src/features/visualizer/useVisualizerLifecycle.ts`,
   `packages/frontend/src/features/visualizer/Visualizer.tsx`
 - **Acceptance:** tsc + eslint clean; loop/capture/keyboard still work.
+- **Last session:** Kilo, 2026-10-31 — created useVisualizerLifecycle.ts
+  with dev shortcuts (Ctrl+Shift+T/A), handleLoopToggle (A-B loop),
+  captureFrame (topmost canvas PNG), stage keyboard map, outside-click
+  dismisser, mode crossfade, reduced-motion, the __VIZ_TEST__ harness and
+  the testStateRef sync; moved `handleAnalyzeTrack` definition before the
+  hook call so it can be passed via api. Removed the extracted blocks from
+  Visualizer.tsx. tsc, eslint and all 891 vitest tests pass.
 
 ### Interaction-State Vision Analysis (completed 2026-10-26)
 ... (unchanged)

@@ -115,6 +115,7 @@ import { useVisualizerState } from "./useVisualizerState";
 import { useTrackSelection } from "./useTrackSelection";
 import { useVisualizerPlayback } from "./useVisualizerPlayback";
 import { useVisualPresets } from "./useVisualPresets";
+import { useVisualizerLifecycle } from "./useVisualizerLifecycle";
 import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
 import {
   CANVAS_2D_MODES,
@@ -509,52 +510,91 @@ export function Visualizer() {
       vizParamsRef,
     },
   });
-  // Latest perceptual scale for the shader/2D rAF loop (which only re-subscribes
-  // on mode/playback changes, not on scale changes).
-  const perceptualScaleRef = useRef(perceptualScale);
-  perceptualScaleRef.current = perceptualScale;
-  // Throttle for the 3D scene's per-frame audio callback (mirrors the shader loop).
-  if (
-    prevTestState.current.vizMode !== vizMode ||
-    prevTestState.current.canvas2DMode !== canvas2DMode ||
-    prevTestState.current.currentFilename !== currentFilename ||
-    prevTestState.current.isPlaying !== isPlaying ||
-    prevTestState.current.liveAudioData !== liveAudioData ||
-    prevTestState.current.visualizationStyle !== visualizationStyle ||
-    prevTestState.current.kineticPreset !== kineticPreset ||
-    prevTestState.current.loadedPresetName !== (loadedPreset?.name ?? null) ||
-    prevTestState.current.storyboard !== storyboard ||
-    prevTestState.current.activeVisualPresetId !== activeVisualPresetId ||
-    prevTestState.current.visualsVisible !== visualsVisible ||
-    prevTestState.current.lyricsVisible !== lyricsVisible ||
-    prevTestState.current.characterVisible !== characterVisible
-  ) {
-    testStateRef.current = {
+
+  const handleAnalyzeTrack = useCallback(
+    async (filename: string) => {
+      if (!filename || analyzing) return;
+      setAnalyzing(true);
+      try {
+        const result = await ensureAnalysis(filename);
+        const analysis = toAnalysisData(result?.analysis);
+        if (!analysis) {
+          setError("Analysis returned an unusable payload — try again");
+          return;
+        }
+        setAnalysisData((prev) => ({ ...prev, [filename]: analysis }));
+        setTrackMetadata((prev) => ({
+          ...prev,
+          [filename]: {
+            bpm: Math.round(analysis.tempo_bpm),
+            duration: Math.round(analysis.duration_seconds),
+          },
+        }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Analysis failed");
+      } finally {
+        setAnalyzing(false);
+      }
+    },
+    [analyzing],
+  );
+
+  // Lifecycle: global input, loop, capture, crossfade, reduced motion,
+  // outside-click dismisser and the __VIZ_TEST__ harness (T-VIZ-13).
+  const { handleLoopToggle, captureFrame } = useVisualizerLifecycle({
+    state: {
       vizMode,
-      canvas2DMode,
+      loopRegion,
+      loopAnchor,
+      prefersReducedMotion,
+      openOverlay,
+      showTestPanel,
       currentFilename,
       isPlaying,
       liveAudioData,
       visualizationStyle,
       kineticPreset,
-      loadedPresetName: loadedPreset?.name ?? null,
       storyboard,
-      activeVisualPresetId,
+      loadedPreset,
       visualsVisible,
       lyricsVisible,
       characterVisible,
-    };
-    prevTestState.current = { ...testStateRef.current };
-  }
-
-  // Smoothing + beat-detection state for shader-mode analyser (mirrors useRealAudio).
-  // lastBeatAtRef and lastAudioDataAtRef come from useVisualizerState — shared
-  // with the shader loop and RenderStatsProbe. Do not redeclare locally.
-  // Plan 2.5 — wall-clock of the freshest audio frame, read by
-  // RenderStatsProbe to report the audio→visual pipeline latency.
-  // Wall-clock of the last beat frame — latches `beat: true` for throttled
-  // state consumers (see BEAT_LATCH_MS). Reset per track with the other detectors.
-
+      canvas2DMode,
+      activeVisualPresetId,
+    },
+    setters: {
+      setLoopRegion,
+      setLoopAnchor,
+      setPrefersReducedMotion,
+      setShowTestPanel,
+      setVizMode,
+      setCanvas2DMode,
+      setOpenOverlay,
+      setVisualsVisible,
+      setLyricsVisible,
+      setCharacterVisible,
+      setModeFade,
+    },
+    refs: {
+      audioElRef,
+      audioElapsedRef,
+      prevModeRef,
+      testStateRef,
+      prevTestState,
+    },
+    api: {
+      togglePlayPause,
+      cycleVizMode,
+      toggleFocusMode,
+      toggleOverlay,
+      handleAnalyzeTrack,
+      handleSelectLibraryTrack,
+    },
+  });
+  // Latest perceptual scale for the shader/2D rAF loop (which only re-subscribes
+  // on mode/playback changes, not on scale changes).
+  const perceptualScaleRef = useRef(perceptualScale);
+  perceptualScaleRef.current = perceptualScale;
   // Load CSV and library
   useEffect(() => {
     fetch("/track-prompts-lyrics.csv")
@@ -630,236 +670,7 @@ export function Visualizer() {
   // (was: always-on loop re-rendering ~12fps when idle).
 
 
-  const handleAnalyzeTrack = useCallback(
-    async (filename: string) => {
-      if (!filename || analyzing) return;
-      setAnalyzing(true);
-      try {
-        const result = await ensureAnalysis(filename);
-        const analysis = toAnalysisData(result?.analysis);
-        if (!analysis) {
-          setError("Analysis returned an unusable payload — try again");
-          return;
-        }
-        setAnalysisData((prev) => ({ ...prev, [filename]: analysis }));
-        setTrackMetadata((prev) => ({
-          ...prev,
-          [filename]: {
-            bpm: Math.round(analysis.tempo_bpm),
-            duration: Math.round(analysis.duration_seconds),
-          },
-        }));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Analysis failed");
-      } finally {
-        setAnalyzing(false);
-      }
-    },
-    [analyzing],
-  );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // DEV-ONLY: the test panel dumps live state to the screen and exposes the
-      // harness. It is a development affordance, so it is not reachable in a
-      // production build — see the DEV guard on the harness registration below.
-      if (!import.meta.env.DEV) return;
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t") {
-        e.preventDefault();
-        setShowTestPanel((v) => !v);
-      }
-      // Ctrl+Shift+A triggers analyze when a track is selected (mirrors the 2D canvas shortcut)
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        e.key.toLowerCase() === "a" &&
-        currentFilename
-      ) {
-        e.preventDefault();
-        handleAnalyzeTrack(currentFilename);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [currentFilename, handleAnalyzeTrack]);
-
-  // A-B loop: one button cycles set-start → set-end → clear. Reads the
-  // latency-compensated clock ref so the callback keeps a stable identity
-  // (the stage keyboard map registers it once).
-  const handleLoopToggle = useCallback(() => {
-    const el = audioElRef.current;
-    const duration = el?.duration;
-    if (!el || duration === undefined || !Number.isFinite(duration) || duration <= 0)
-      return;
-    const now = audioElapsedRef.current;
-    if (loopRegion) {
-      setLoopRegion(null);
-      setLoopAnchor(null);
-    } else if (loopAnchor === null) {
-      setLoopAnchor(now);
-    } else {
-      const start = loopAnchor;
-      // A degenerate span (clicked twice in the same instant) falls back
-      // to a 5 s loop so the button never arms a zero-length region.
-      const end = now > start + 0.25 ? now : Math.min(duration, start + 5);
-      setLoopRegion({ start, end });
-      setLoopAnchor(null);
-    }
-  }, [loopRegion, loopAnchor]);
-
-  // Frame snapshot: the topmost visible canvas. Shader and 2D canvases
-  // paint over the always-mounted 3D canvas, so scan in reverse DOM
-  // order — ties resolve to the canvas on top.
-  const captureFrame = useCallback(() => {
-    const canvases = Array.from(
-      document.querySelectorAll<HTMLCanvasElement>(".viz-page canvas"),
-    );
-    let best: HTMLCanvasElement | null = null;
-    let bestArea = 0;
-    for (let i = canvases.length - 1; i >= 0; i--) {
-      const rect = canvases[i].getBoundingClientRect();
-      if (rect.width < 2 || rect.height < 2) continue;
-      const area = rect.width * rect.height;
-      if (area > bestArea) {
-        bestArea = area;
-        best = canvases[i];
-      }
-    }
-    if (!best) {
-      showToast("No visualizer canvas to capture", "error");
-      return;
-    }
-    try {
-      const url = best.toDataURL("image/png");
-      const a = document.createElement("a");
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      a.href = url;
-      a.download = `${cleanTrackName(currentFilename ?? "visualizer")}-frame-${stamp}.png`;
-      a.click();
-      showToast("Frame captured as PNG", "success");
-    } catch {
-      showToast("Frame capture failed", "error");
-    }
-  }, [currentFilename]);
-
-
-  useEffect(() => {
-    const isTypingTarget = (t: EventTarget | null): boolean => {
-      const el = t as HTMLElement | null;
-      if (!el || typeof el.tagName !== "string") return false;
-      const tag = el.tagName.toLowerCase();
-      return tag === "input" || tag === "select" || tag === "textarea" || el.isContentEditable;
-    };
-    const onKey = (e: KeyboardEvent) => {
-      // Leave modified shortcuts (Ctrl+Shift+T test panel, Ctrl+Shift+A analyze) alone.
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Never hijack typing.
-      if (isTypingTarget(e.target)) return;
-      const k = e.key;
-      if (k === " ") {
-        // preventDefault stops page scroll and cancels focused-button activation.
-        e.preventDefault();
-        togglePlayPause();
-      } else if (k === "ArrowRight") {
-        e.preventDefault();
-        cycleVizMode(1);
-      } else if (k === "ArrowLeft") {
-        e.preventDefault();
-        cycleVizMode(-1);
-      } else if (k >= "1" && k <= "9") {
-        // Jump to a 2D mode and switch to 2D so the keypress visibly does something.
-        setVizMode("2d");
-        setCanvas2DMode(CANVAS_2D_MODES[Number(k) - 1]);
-      } else if (k === "f" || k === "F") {
-        toggleFocusMode();
-      } else if (k === "l" || k === "L") {
-        handleLoopToggle();
-      } else if (k === "h" || k === "H" || k === "?") {
-        toggleOverlay("shortcuts");
-      } else if (k === "Escape") {
-        setOpenOverlay(null);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlayPause, cycleVizMode, toggleFocusMode, toggleOverlay, handleLoopToggle]);
-
-  // Plan 1.3 — a single outside-click dismisser replaces the two per-menu
-  // listeners (shortcuts / more). Clicks on the toggles themselves, on the
-  // open menu, or inside the shader HUD (FX panel + preset dropdown) are
-  // allowed through; anything else — including the scrim — closes the overlay.
-  useEffect(() => {
-    if (openOverlay === null) return;
-    const onClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target.closest(
-          ".viz-shortcuts-menu, .viz-more-menu, .viz-shader-hud, [data-viz-overlay-toggle]",
-        )
-      ) {
-        return;
-      }
-      setOpenOverlay(null);
-    };
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, [openOverlay]);
-
-  // Mode crossfade: brief black fade when switching visualization modes
-  useEffect(() => {
-    if (prevModeRef.current !== vizMode) {
-      prevModeRef.current = vizMode;
-      // Fade to black
-      setModeFade(1);
-      // At peak opacity, start fading back in (content swaps naturally mid-fade)
-      const t = setTimeout(() => setModeFade(0), 180);
-      return () => clearTimeout(t);
-    }
-  }, [vizMode]);
-
-  // Respect OS reduced-motion preference and allow manual toggle
-  useEffect(() => {
-    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handler = (e: MediaQueryListEvent | MediaQueryList) => setPrefersReducedMotion(e.matches);
-    handler(mql);
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
-  }, []);
-
-  useEffect(() => {
-    // Registered once: getState reads from a ref so per-frame audio updates don't
-    // re-register the harness 10–60×/sec (was in deps via liveAudioData).
-    //
-    // DEV-ONLY. This harness was unguarded and shipped in the production
-    // bundle, where `window.__VIZ_TEST__` let anyone with a devtools console
-    // load an arbitrary library track and drive every render mode and layer.
-    // Playwright runs against the Vite dev server, so `import.meta.env.DEV` is
-    // true there and every spec keeps working. `import.meta.env` is statically
-    // replaced at build time, so the whole block is dropped from the production
-    // bundle rather than merely skipped at runtime.
-    if (!import.meta.env.DEV) return;
-    (window as any).__VIZ_TEST__ = {
-      selectTrack: (filename: string) => handleSelectLibraryTrack(filename),
-      setMode: (mode: "3d" | "shader" | "2d") => setVizMode(mode),
-      set2DMode: (mode: Canvas2DMode) => setCanvas2DMode(mode),
-      getState: () => ({ ...testStateRef.current }),
-      toggleTestPanel: () => setShowTestPanel((v) => !v),
-      setLayerVisible: (layer: "visuals" | "lyrics" | "character", v: boolean) => {
-        if (layer === "visuals") setVisualsVisible(v);
-        if (layer === "lyrics") setLyricsVisible(v);
-        if (layer === "character") setCharacterVisible(v);
-      },
-      toggleLayer: (layer: "visuals" | "lyrics" | "character") => {
-        if (layer === "visuals") setVisualsVisible((x) => !x);
-        if (layer === "lyrics") setLyricsVisible((x) => !x);
-        if (layer === "character") setCharacterVisible((x) => !x);
-      },
-    };
-    return () => {
-      delete (window as any).__VIZ_TEST__;
-    };
-  }, [handleSelectLibraryTrack]);
-
+  // A-B loop and lifecycle handlers now live in useVisualizerLifecycle (T-VIZ-13).
 
   // Media Library handoff: auto-select a pending track exactly once. The handoff
   // may carry a bare filename while the library entry lives in a subfolder, so
