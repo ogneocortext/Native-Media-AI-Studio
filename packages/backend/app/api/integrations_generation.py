@@ -9,7 +9,7 @@ import operator
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import aiohttp
 from fastapi import APIRouter, HTTPException, Request
@@ -19,12 +19,10 @@ from ..adapters.registry import adapter_registry
 from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
 from ..core.model_tiers import VRAM_REQUIREMENTS, classify_model_variant
+from ..models.generation import ImageGenerationRequest, VideoGenerationRequest  # noqa: TC001
 from ..models.job import JobCreateRequest, JobType
 from ..queue.manager import queue_manager
 from ..services.llm_loop import run_llm_loop
-
-if TYPE_CHECKING:
-    from ..models.generation import ImageGenerationRequest, VideoGenerationRequest
 
 # tools/scripts lives at the project root, outside the backend package.
 # PROJECT_ROOT is the repo root (packages/backend/app/core/config.py), so the

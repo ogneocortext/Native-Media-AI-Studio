@@ -79,13 +79,7 @@ async def ping() -> dict:
 
 @router.get("/", response_model=dict)
 async def health_root() -> dict:
-    """Redirect /api/health to /api/health/health for frontend compatibility"""
-    return await health_check()
-
-
-@router.get("", response_model=dict)
-async def health_check_alias() -> dict:
-    """Alias for /api/health (frontend compatibility)"""
+    """Aggregate health check returning backend and all adapter statuses."""
     return await health_check()
 
 
