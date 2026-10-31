@@ -816,8 +816,6 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     Chat with Ollama or Atomic Chat using the /api/chat endpoint with tool calling support.
     When ``atomic_chat_enabled`` is true, routes through Atomic Chat (Qwen) instead of Ollama (gemma4).
     """
-    import logging
-    logger = logging.getLogger(__name__)
     # Choose the adapter based on the Atomic Chat feature flag.
     # Atomic Chat (Qwen) and Ollama (gemma4) are separate adapters in separate files.
     if config.atomic_chat_enabled:
@@ -1127,13 +1125,13 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
 
 
 @router.post("/ollama/generate")
-async def ollama_generate(prompt: str, model: str = "llama2") -> dict:
+async def ollama_generate(body: OllamaGenerateRequest) -> dict:
     """Generate text using Ollama (legacy endpoint)"""
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
     try:
-        result = await adapter.generate(prompt=prompt, model=model)
+        result = await adapter.generate(prompt=body.prompt, model=body.model)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -1173,6 +1171,12 @@ class OllamaChatRequest(BaseModel):
     options: dict | None = None
     system: str | None = None
     tools: bool | list | None = None
+
+
+class OllamaGenerateRequest(BaseModel):
+    """Request for generating text via Ollama /api/generate."""
+    prompt: str
+    model: str = "gemma4:e2b-it-qat"
 
 
 class GenerateVisualizerPresetRequest(BaseModel):

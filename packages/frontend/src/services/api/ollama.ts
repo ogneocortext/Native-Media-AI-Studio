@@ -96,8 +96,7 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
         name &&
         !name.includes("embed") &&
         !name.includes("nomic") &&
-        !name.includes("minigpt") &&
-        !name.includes("clip")
+        !name.includes("minigpt")
       );
     });
 }
@@ -413,7 +412,7 @@ export async function ollamaChatStream(
   ]) {
     if (optionsRecord?.[k] !== undefined) ollamaOpts[k] = optionsRecord[k];
   }
-  const res = await fetch(`${base}/api/integrations/ollama/chat`, {
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -428,6 +427,7 @@ export async function ollamaChatStream(
       ...(Object.keys(ollamaOpts).length ? { options: ollamaOpts } : {}),
     }),
     signal,
+    timeout: 300000,
   });
   if (!res.ok) throw new Error("Failed to chat with Ollama");
   return res.body!;
@@ -484,13 +484,15 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
 
 export async function ollamaGenerate(
   prompt: string,
-  model: string = "llama2",
+  model: string = "gemma4:e2b-it-qat",
 ): Promise<{ response: string; model: string; done: boolean }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/ollama/generate?prompt=${encodeURIComponent(prompt)}&model=${model}`,
-    { timeout: 120000 },
-  );
+  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, model }),
+    timeout: 120000,
+  });
   if (!res.ok) throw new Error("Failed to generate via Ollama");
   return res.json();
 }
