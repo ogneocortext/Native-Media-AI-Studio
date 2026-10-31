@@ -251,6 +251,35 @@ export function Visualizer() {
   const toggleOverlay = useCallback((id: "shortcuts" | "more" | "fx") => {
     setOpenOverlay((o) => (o === id ? null : id));
   }, []);
+
+  // Plan 1.3 — click-away dismissal: tapping the scrim or anywhere outside an
+  // open overlay closes it. Without this the more menu stays open and its
+  // z-200 layer intercepts clicks on panel controls (the Playwright
+  // interception failure). The menu container itself is excluded so clicking
+  // a menu item doesn't immediately re-close the overlay.
+  useEffect(() => {
+    const onDocumentClick = (e: MouseEvent) => {
+      if (openOverlay === null) return;
+      const target = e.target as HTMLElement;
+      // Clicking the scrim itself always dismisses.
+      if (target.closest(".viz-overlay-scrim")) {
+        setOpenOverlay(null);
+        return;
+      }
+      // If we're inside any overlay container, leave it open.
+      if (
+        target.closest(".viz-more-menu") ||
+        target.closest(".viz-shortcuts-menu") ||
+        target.closest(".viz-fx-panel") ||
+        target.closest("[data-viz-overlay-toggle]")
+      ) {
+        return;
+      }
+      setOpenOverlay(null);
+    };
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, [openOverlay]);
   // Single source of truth for which visual preset is currently active (fixes
   // Plan 2.3 — genre reactivity presets. The active chip highlight;
   // the guard ref mirrors the visual-preset lock: a preset the user
@@ -970,6 +999,7 @@ export function Visualizer() {
             <button
               onClick={() => toggleOverlay("more")}
               className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`}
+              data-testid="viz-more-toggle"
               data-viz-overlay-toggle="more"
               aria-label="More controls"
               aria-expanded={showMoreMenu}
@@ -1054,6 +1084,7 @@ export function Visualizer() {
                 </button>
                 <button
                   onClick={captureFrame}
+                  data-testid="viz-capture-frame"
                   className="viz-icon-btn viz-more-item"
                   aria-label="Capture frame as PNG"
                   title="Capture frame as PNG"
@@ -1063,6 +1094,7 @@ export function Visualizer() {
                 </button>
                 <button
                   onClick={handleLoopToggle}
+                  data-testid="viz-loop-toggle"
                   className={`viz-icon-btn viz-more-item ${loopRegion ? "active" : ""}`}
                   aria-label={
                     loopRegion
@@ -1142,7 +1174,11 @@ export function Visualizer() {
                   <span className="viz-more-label">Theatre.js Studio</span>
                 </button>
                 <button
-                  onClick={() => setShowAIPanel(!showAIPanel)}
+                  onClick={() => {
+                    setOpenOverlay(null);
+                    setShowAIPanel(!showAIPanel);
+                  }}
+                  data-testid="viz-ai-toggle"
                   className={`viz-icon-btn viz-more-item viz-ai-toggle ${showAIPanel ? "active" : ""}`}
                   aria-label="AI generate preset"
                   aria-pressed={showAIPanel}

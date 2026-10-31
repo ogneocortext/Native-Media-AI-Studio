@@ -145,6 +145,7 @@ export function AIVisualizerPrompt({
         <span>AI Visualizer</span>
         <div className="viz-ai-backend-toggle">
           <button
+            data-testid="viz-ai-backend-ollama"
             className={`viz-ai-backend-btn ${backend === "ollama" ? "active" : ""}`}
             onClick={() => setBackend("ollama")}
             title="Ollama (gemma4 / qwen3.5)"
@@ -152,6 +153,7 @@ export function AIVisualizerPrompt({
             Ollama
           </button>
           <button
+            data-testid="viz-ai-backend-atomic-chat"
             className={`viz-ai-backend-btn ${backend === "atomic-chat" ? "active" : ""}`}
             onClick={() => setBackend("atomic-chat")}
             title="Atomic Chat (Qwen via port 1337)"
@@ -176,6 +178,7 @@ export function AIVisualizerPrompt({
 
       <div className="viz-ai-input-row">
         <textarea
+          data-testid="viz-ai-input"
           className="viz-ai-input"
           placeholder="Describe your visual style... e.g. 'dark phonk with aggressive red glitch and screen shake on the beat'"
           value={description}
@@ -261,6 +264,7 @@ export function AIVisualizerPrompt({
         </div>
 
         <button
+          data-testid="viz-ai-generate"
           className="viz-ai-generate-btn"
           onClick={handleGenerate}
           disabled={loading || !description.trim()}
@@ -287,11 +291,20 @@ export function AIVisualizerPrompt({
             ))}
           </div>
           <div className="viz-ai-preview-actions">
-            <button className="viz-ai-apply-btn" onClick={handleApply}>
+            <button
+              data-testid="viz-ai-apply"
+              className="viz-ai-apply-btn"
+              onClick={handleApply}
+            >
               <Check size={14} />
               <span>Apply</span>
             </button>
-            <button className="viz-ai-regen-btn" onClick={handleGenerate} disabled={loading}>
+            <button
+              data-testid="viz-ai-regenerate"
+              className="viz-ai-regen-btn"
+              onClick={handleGenerate}
+              disabled={loading}
+            >
               <RefreshCw size={12} />
               <span>Regenerate</span>
             </button>
