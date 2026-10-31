@@ -335,6 +335,16 @@ export function Visualizer() {
     latencyRef,
   } = useAudioGraph(audioElRef);
 
+  // Plan 2.4 — retry audio context initialization when the user clicks "Retry"
+  // in the Audio Latency card (shown when the context is not initialized).
+  useEffect(() => {
+    const onRetry = () => {
+      void ensureAudioContext();
+    };
+    window.addEventListener("viz-audio-ctx-retry", onRetry);
+    return () => window.removeEventListener("viz-audio-ctx-retry", onRetry);
+  }, [ensureAudioContext]);
+
   // Latest vizParams for callbacks that must not re-subscribe on every slider tick.
   const vizParamsRef = useRef(vizParams);
   vizParamsRef.current = vizParams;
@@ -1600,7 +1610,7 @@ export function Visualizer() {
           </div>
 
           {/* Audio Latency & Frame Rate Metrics */}
-          <div className="absolute top-3 right-3 z-40 pointer-events-none max-w-xs">
+          <div className="absolute top-3 right-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
             <AudioLatencyCard audioCtx={audioCtxRef.current} />
             <FrameRateCard
               fps={renderStats?.fps ?? 0}

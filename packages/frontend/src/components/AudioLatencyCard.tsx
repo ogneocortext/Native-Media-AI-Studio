@@ -2,7 +2,7 @@
  * Component to display audio latency metrics.
  */
 
-import { Clock } from "lucide-react";
+import { Clock, RotateCcw } from "lucide-react";
 import { Card } from "./common";
 import { useAudioLatencyMetrics } from "../hooks/useAudioLatencyMetrics";
 
@@ -22,7 +22,18 @@ export function AudioLatencyCard({ audioCtx }: AudioLatencyCardProps) {
   if (!audioCtx) {
     return (
       <Card title="Audio Latency" icon={<Clock size={16} className="text-violet-400" />}>
-        <div className="text-sm text-muted">Audio context not initialized</div>
+        <div className="space-y-3">
+          <div className="text-sm text-muted">Audio context not initialized</div>
+          <button
+            onClick={() => {
+              // Trigger context resume via the hook's retry mechanism
+              window.dispatchEvent(new CustomEvent("viz-audio-ctx-retry"));
+            }}
+            className="px-3 py-1.5 text-xs font-medium bg-white/10 border border-white/20 rounded hover:bg-white/20 transition-colors"
+          >
+            <RotateCcw size={12} className="mr-1.5" /> Retry
+          </button>
+        </div>
       </Card>
     );
   }

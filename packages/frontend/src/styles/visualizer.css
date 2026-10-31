@@ -629,6 +629,48 @@
     outline-offset: 2px;
   }
 
+  /* Slider hover states — Plan: give every interactive slider a visible
+     hover so users know which control is active. Applied across the
+     reactivity HUD and settings panel sliders. */
+  .viz-reactivity-hud input[type="range"]:hover,
+  .viz-settings input[type="range"]:hover {
+    accent-color: #818cf8;
+    filter: brightness(1.1);
+  }
+
+  /* Tuning group spacing — increase vertical separation between major
+     control groups to reduce cognitive load on small viewports. */
+  .viz-tuning-group {
+    margin-bottom: 1rem;
+  }
+
+  .viz-tuning-group + .viz-tuning-group {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 1rem;
+  }
+
+  /* Tuning group label contrast — ensure labels are readable against
+     the dark background at small sizes. */
+  .viz-tuning-group-label {
+    color: var(--text-secondary) !important;
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .viz-tuning-group-label .viz-group-icon {
+    filter: drop-shadow(0 0 2px rgba(99, 102, 241, 0.4));
+  }
+
+  /* Right-side metrics panel divider — separate status info from main
+     controls with a subtle vertical rule. */
+  .viz-latency-panel {
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    padding-left: 0.75rem;
+    margin-left: 0.75rem;
+  }
+
   .viz-empty-cta:focus-visible,
   .viz-empty-secondary:focus-visible {
     outline: 2px solid var(--focus-ring);
