@@ -1,9 +1,9 @@
 """
 Bridge base class for third-party tool adapters.
 
-Extends the adapter pattern from ``base.py`` to support subprocess-based
-MCP bridges (Unity, Blender, etc.) that run as separate Node.js processes
-communicating via stdio or HTTP.
+Extends :class:`app.services.adapters.adapter_base.AdapterBase` to support
+subprocess-based MCP bridges (Unity, Blender, etc.) that run as separate
+Node.js processes communicating via stdio or HTTP.
 
 The bridge adapter pattern isolates third-party vendor code from the core
 application. When a vendor updates their MCP protocol or CLI interface,
@@ -17,47 +17,19 @@ Nothing in this module imports from app.api or app.services.
 from __future__ import annotations
 
 import asyncio
-import functools
 import logging
 import os
 import time
-from abc import ABC, abstractmethod
-from collections.abc import Callable
-from typing import Any, TypeVar
+from abc import abstractmethod
+from typing import Any
 
-import aiohttp
-
-from ..core.http import close_shared_session, get_shared_session
-from .base import AdapterStatus
+from .adapter_base import AdapterBase, AdapterStatus
 
 logger = logging.getLogger(__name__)
 
-F = TypeVar("F", bound=Callable[..., Any])
 
-
-def _handle_bridge_error(status_on_error: AdapterStatus = AdapterStatus.ERROR) -> Callable[[F], F]:
-    """Decorator for bridge methods that standardizes error handling.
-
-    Mirrors ``base._handle_adapter_error`` but for bridge adapters that manage
-    subprocess lifecycle. Any exception updates the adapter status and is
-    re-raised so the caller can decide how to respond.
-    """
-    def decorator(func: F) -> F:
-        @functools.wraps(func)
-        async def wrapper(self: BaseBridgeAdapter, *args: Any, **kwargs: Any) -> Any:
-            try:
-                return await func(self, *args, **kwargs)
-            except Exception as exc:
-                self.set_status(status_on_error)
-                logger.error("%s: %s failed: %s", self.name, func.__name__, exc)
-                raise
-        return wrapper  # type: ignore[return-value]
-    return decorator
-
-
-class BaseBridgeAdapter(ABC):
-    """
-    Abstract base class for third-party tool bridge adapters.
+class BaseBridgeAdapter(AdapterBase):
+    """Abstract base class for third-party tool bridge adapters.
 
     Bridge adapters wrap external tools (Unity Editor, Blender, ComfyUI via
     MCP, etc.) that run as separate processes. Each adapter:
@@ -85,8 +57,7 @@ class BaseBridgeAdapter(ABC):
         cwd: str | None = None,
         env: dict[str, str] | None = None,
     ):
-        """
-        Initialize the bridge adapter.
+        """Initialize the bridge adapter.
 
         Args:
             bridge_command: Command and args to launch the bridge subprocess
@@ -99,20 +70,14 @@ class BaseBridgeAdapter(ABC):
             cwd: Working directory for the subprocess.
             env: Additional environment variables for the subprocess.
         """
+        super().__init__(name=name, mock_mode=mock_mode)
         self.bridge_command = bridge_command
-        self.name = name
         self.base_url = base_url.rstrip('/') if base_url else None
-        self._status = AdapterStatus.DISCONNECTED
-        self._mock_mode = mock_mode
         self._startup_timeout = startup_timeout
         self._health_timeout = health_timeout
         self._cwd = cwd
         self._env = env or {}
         self._process: asyncio.subprocess.Process | None = None
-        # Shared-session key for this bridge's service (see core/http.py).
-        self._session_key = name.lower()
-        self._session: aiohttp.ClientSession | None = None
-        self._last_activity: float | None = None
 
     # ------------------------------------------------------------------
     # Subprocess lifecycle
@@ -286,49 +251,3 @@ class BaseBridgeAdapter(ABC):
             self.set_status(AdapterStatus.ERROR)
             logger.error("%s: Command %s failed: %s", self.name, command, exc)
             raise
-
-    # ------------------------------------------------------------------
-    # Status and lifecycle
-    # ------------------------------------------------------------------
-
-    def get_status(self) -> AdapterStatus:
-        """Get current adapter status."""
-        return self._status
-
-    def set_status(self, status: AdapterStatus) -> None:
-        """Set adapter status."""
-        self._status = status
-
-    def is_mock_mode(self) -> bool:
-        """Check if running in mock mode."""
-        return self._mock_mode
-
-    def record_activity(self) -> None:
-        """Record that this adapter was just used."""
-        self._last_activity = time.monotonic()
-
-    def idle_seconds(self) -> float | None:
-        """Return seconds since last activity, or None if never active."""
-        if self._last_activity is None:
-            return None
-        return time.monotonic() - self._last_activity
-
-    def is_idle(self, threshold_seconds: float) -> bool:
-        """Return True if this adapter has been idle longer than threshold."""
-        idle = self.idle_seconds()
-        if idle is None:
-            return False
-        return idle > threshold_seconds
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get the shared aiohttp session for this bridge's service.
-
-        Backed by ``core/http.get_shared_session`` so bridges share a single
-        pooled connection instead of each owning a private ``ClientSession``.
-        """
-        return await get_shared_session(self._session_key)
-
-    async def close(self) -> None:
-        """Close the bridge subprocess and release the shared HTTP session."""
-        await self.stop()
-        await close_shared_session(self._session_key)

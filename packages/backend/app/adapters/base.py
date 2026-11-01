@@ -1,69 +1,38 @@
 """
 Base adapter interface for external AI services.
+
+Extends :class:`app.services.adapters.adapter_base.AdapterBase` with
+HTTP-specific functionality: base URL, generate/repair methods, and the
+``generate_with_fallback`` convenience method.
+
+Dependency direction: api -> services -> adapters. This module imports
+only from sibling adapter modules and app.core.http.
 """
-import functools
+
+from __future__ import annotations
+
 import logging
-import time
-from abc import ABC, abstractmethod
-from collections.abc import Callable
-from enum import Enum
-from typing import Any, TypeVar
+from abc import abstractmethod
+from typing import Any
 
-import aiohttp
-
-from ..core.http import close_shared_session, get_shared_session
+from .adapter_base import AdapterBase, AdapterStatus
 
 logger = logging.getLogger(__name__)
 
 
-class AdapterStatus(str, Enum):
-    """Adapter connection status"""
-    CONNECTED = "connected"
-    DISCONNECTED = "disconnected"
-    ERROR = "error"
-
-
-F = TypeVar("F", bound=Callable[..., Any])
-
-
-def _handle_adapter_error(status_on_error: AdapterStatus = AdapterStatus.ERROR) -> Callable[[F], F]:
-    """Decorator for adapter methods that standardizes error handling.
-
-    Wraps an async adapter method so that:
-
-    * Any exception is logged with the adapter name.
-    * The adapter status is updated to ``status_on_error``.
-    * The exception is re-raised so the caller can decide how to respond.
-
-    Usage::
-
-        @_handle_adapter_error()
-        async def some_method(self, ...):
-            ...
-    """
-    def decorator(func: F) -> F:
-        @functools.wraps(func)
-        async def wrapper(self: BaseAdapter, *args: Any, **kwargs: Any) -> Any:
-            try:
-                return await func(self, *args, **kwargs)
-            except Exception as exc:
-                self.set_status(status_on_error)
-                logger.error("%s: %s failed: %s", self.name, func.__name__, exc)
-                raise
-        return wrapper  # type: ignore[return-value]
-    return decorator
-
-
-class BaseAdapter(ABC):
+class BaseAdapter(AdapterBase):
     """
     Base class for service adapters.
 
-    This abstract base class defines the interface that all external
-    service adapters must implement. It provides automatic fallback
-    to mock generation when the real service is unavailable.
+    Extends :class:`~app.services.adapters.adapter_base.AdapterBase`
+    with HTTP-specific concerns: base URL, generate/repair methods, and
+    the ``generate_with_fallback`` convenience method.
+
+    Subclasses implement ``get_vram_status`` (or equivalent health check)
+    and ``generate`` (the actual generation logic).
     """
 
-    def __init__(self, base_url: str, name: str, mock_mode: bool = False):
+    def __init__(self, base_url: str, name: str, *, mock_mode: bool = False):
         """
         Initialize the adapter.
 
@@ -73,16 +42,7 @@ class BaseAdapter(ABC):
             mock_mode: If True, skip service checks and use mock directly
         """
         self.base_url = base_url.rstrip('/') if not mock_mode else "mock://internal"
-        self.name = name
-        self._status = AdapterStatus.DISCONNECTED
-        self._mock_mode = mock_mode
-        # Shared-session key for this adapter's service, keyed by adapter name
-        # so all adapters of one service share one pooled connection (see
-        # core/http.py). Adapters no longer own a private ClientSession.
-        self._session_key = name.lower().replace(" ", "-")
-        # Tracks the last time this adapter was used (generate or health_check).
-        # Used by the idle monitor to auto-unload services after 15 minutes.
-        self._last_activity: float | None = None
+        super().__init__(name=name, mock_mode=mock_mode)
 
     @abstractmethod
     async def health_check(self) -> bool:
@@ -125,7 +85,7 @@ class BaseAdapter(ABC):
 
     async def generate_with_fallback(self, params: dict[str, Any]) -> dict[str, Any]:
         """
-        Generate content -- now fails fast when service unavailable unless mock_mode=True.
+        Generate content -- fails fast when service unavailable unless mock_mode=True.
 
         Previous behavior silently returned a 1x1 mock PNG when ComfyUI was down,
         masking failures. Per user request to replace mocks with functioning features,
@@ -154,44 +114,13 @@ class BaseAdapter(ABC):
             logger.error("%s: Real service failed: %s", self.name, e)
             raise
 
-    def get_status(self) -> AdapterStatus:
-        """Get current adapter status"""
-        return self._status
-
-    def set_status(self, status: AdapterStatus):
-        """Set adapter status"""
-        self._status = status
-
-    def is_mock_mode(self) -> bool:
-        """Check if running in mock mode"""
-        return self._mock_mode
-
-    def record_activity(self) -> None:
-        """Record that this adapter was just used."""
-        self._last_activity = time.monotonic()
-
-    def idle_seconds(self) -> float | None:
-        """Return seconds since last activity, or None if never active."""
-        if self._last_activity is None:
-            return None
-        return time.monotonic() - self._last_activity
-
-    def is_idle(self, threshold_seconds: float) -> bool:
-        """Return True if this adapter has been idle longer than threshold."""
-        idle = self.idle_seconds()
-        if idle is None:
-            return False
-        return idle > threshold_seconds
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get the shared aiohttp session for this adapter's service.
-
-        Backed by ``core/http.get_shared_session`` so all adapters of one
-        service share a single pooled connection instead of each owning a
-        private (and easily leaked) ``ClientSession``.
+    async def repair(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        return await get_shared_session(self._session_key)
+        Repair model output against available sources.
 
-    async def close(self) -> None:
-        """Release the shared session for this adapter's service key."""
-        await close_shared_session(self._session_key)
+        Subclasses override this to validate and repair model-generated
+        recipes against available sources. Returns a tuple of
+        ``(recipe, warnings)`` where ``warnings`` lists every repair made
+        so nothing is silent.
+        """
+        raise NotImplementedError

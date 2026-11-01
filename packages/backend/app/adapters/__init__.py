@@ -10,8 +10,9 @@ Dependency direction: api -> services -> adapters. Adapters never import
 from app.api or app.services.
 """
 
+from .adapter_base import AdapterBase, AdapterStatus
 from .atomic_chat import AtomicChatAdapter
-from .base import AdapterStatus, BaseAdapter
+from .base import BaseAdapter
 from .blender_adapter import BlenderAdapter
 from .bridge_base import BaseBridgeAdapter
 from .bridge_registry import BridgeRegistry, bridge_registry
