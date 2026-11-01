@@ -50,7 +50,7 @@ catalogPrune: true
 auditLevel: high
 
 # Node version requirement (exact semver)
-nodeVersion: "26.13"
+nodeVersion: "26.13.0"
 
 # ---------------------------------------------------------------------------
 # Build policy — only allow building esbuild from source
