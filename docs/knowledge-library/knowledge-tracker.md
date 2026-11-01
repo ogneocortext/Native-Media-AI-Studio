@@ -93,7 +93,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unity-audio-visualization-2026.md`  → `#platform`, `#platform-unity`,
   `#audio`, `#visualization`
 
-### 🎨 Creative & Visual (21/21 completed)
+### 🎨 Creative & Visual (22/22 completed)
 
 - ✅ `visualization-effects.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`, `#audio`
 - ✅ `3d-visualization-best-practices-2026.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`
@@ -105,6 +105,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `hyperframes-audio-reactive-2026.md`  → `#creative`, `#audio`, `#platform-remotion`
 - ✅ `3d-rendering.md`  → `#creative`, `#3d`, `#platform-blender`
 - ✅ `3d-object-design-2026.md`  → `#creative`, `#3d`
+- ✅ `3d-viz-code-harnesses-2026.md`  → `#creative`, `#3d`, `#ai-agents`
 - ✅ `advanced-visualization-techniques-2026.md`  → `#creative`, `#visualization`
 - ✅ `canvas2d-bar-visualization-research.md`  → `#creative`, `#visualization`, `#audio`
 - ✅ `design-auditing-2026.md`  → `#creative`, `#design`, `#testing`

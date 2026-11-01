@@ -40,3 +40,41 @@ Code: `packages/backend/app/agents/`
   Backend tests: 94 passed, 1 pre-existing VRAM failure (unrelated).
   Not yet end-to-end tested against a live LLM (acceptance test for
   T-AGT-02 requires a track driven analyze→plan by model tool-calls).
+
+### T-AGT-03 — Ground 3D code generation: API retrieval + traceback-first loop
+- **Status:** todo
+- **Goal:** When an agent writes bpy or GLSL for the studio, it
+  works from retrieved API documentation (the BlenderRAG pattern)
+  under a loop budget set by the 3DCodeBench evidence —
+  traceback feedback always on, visual refine capped at one pass.
+- **Plan:** Evidence: `docs/knowledge-library/3d-viz-code-harnesses-2026.md`
+  Lane A. Steps: (1) Build the retrieval pack: chunk the Blender
+  Python API documentation for the operation groups studio scenes
+  actually use (primitives, modifiers, materials / shader nodes,
+  camera and lights, render settings) into
+  `docs/knowledge-library/blender-api-grounding/` as grep-able
+  markdown chunks — no vector database in v0; this repo's
+  convention is file-based state. (2) Write the loop contract into
+  the knowledge doc (a section under Lane A): write → execute
+  headless (`blender --background --python`) → on traceback, feed
+  the traceback back and retry (max 3) → on success, exactly one
+  vision-critic pass → stop; further refine turns need an owner
+  ask. Record the role rule with it: scene code is written by a
+  Tier A route; local 4B/9B models run retrieval, execution, and
+  verification only. The executor then mirrors the contract into a
+  local `.kilo/skills/` note (local-only home; the knowledge doc
+  is the portable source). (3) Add a short comparison note to the
+  knowledge doc: Blender Lab's official MCP server vs the current
+  ahujasid bridge (tool surface, headless support, maintenance) —
+  a note, not a migration. (4) Validate: one primitive-scene trial
+  script runs headless end-to-end using the pack and contract;
+  executability only, no rendered deliverable.
+- **Files:** docs/knowledge-library/blender-api-grounding/,
+  docs/knowledge-library/3d-viz-code-harnesses-2026.md
+- **Acceptance:** The grounding pack exists and covers the listed
+  operation groups; the loop contract with its retry/refine caps
+  and role rule is written in the knowledge doc; the bridge
+  comparison note is recorded; the trial script's headless run is
+  logged in Last session.
+- **Last session:** Orion, 2026-11-01 — Item created with the
+  knowledge doc; not started.

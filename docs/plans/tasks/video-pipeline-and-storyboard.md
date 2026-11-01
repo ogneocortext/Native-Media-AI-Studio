@@ -137,3 +137,37 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   Data sources named: measured beat grid + section boundaries only (no
   estimated timing); library/metadata BPM used only for conflict
   comparison (±2 BPM tolerance).
+
+### T-VID-05 — Design a spec-driven 3D scene builder (scenes as data)
+- **Status:** todo
+- **Goal:** A written spec for 3D scene generation in which the
+  model emits a validated scene spec (JSON) and a deterministic
+  builder executes it — the intro-recipe pattern extended to
+  scenes. Design only: no code, no renders (the standing
+  music-video hold is unaffected; implementation is a later item).
+- **Plan:** Evidence: `docs/knowledge-library/3d-viz-code-harnesses-2026.md`
+  (SceneCraft graph → constraints → solver; Holodeck spec →
+  scene JSON; the spec-builder survey finding that a validator
+  before the engine starts is the safe shape). Steps: (1) Define
+  the scene-spec schema v0: objects (primitive or asset ref,
+  transform, material), lights, camera, spatial relations stated
+  as constraints (on / left-of / above / aligned), and
+  audio-reactive bindings — a spec field naming which measured
+  analysis feature (beat grid from T-VID-03, section boundaries,
+  stem energy) a property follows. (2) Map the builder split:
+  validator (rejects a bad spec before any engine starts),
+  Blender builder (bpy generated from spec by project code, never
+  by the model directly), Unity loader (scene JSON, Holodeck
+  style). (3) Worked example: hand-write one spec for a simple
+  visualizer scene and walk it through both builder outlines on
+  paper, noting every ambiguity the schema must resolve.
+  (4) Record open questions for the owner: asset-library source
+  for refs; whether the frontend Three.js visualizer gets a third
+  builder.
+- **Files:** docs/plans/scene-spec-v0-2026-11.md,
+  docs/knowledge-library/3d-viz-code-harnesses-2026.md
+- **Acceptance:** The spec document exists with the schema,
+  validator rules, both builder outlines, and the worked example;
+  no code or renders produced.
+- **Last session:** Orion, 2026-11-01 — Item created with the
+  knowledge doc; not started.

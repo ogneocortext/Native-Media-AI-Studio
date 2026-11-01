@@ -159,7 +159,7 @@ date: 2026-09-30
 || `#production/*` | Production workflow & creative guides | 16 documents |
 || `#technical/*` | System implementation & code | 19 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
-|| `#creative/*` | Design, effects & visualization | 21 documents |
+|| `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 16 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
@@ -181,7 +181,7 @@ date: 2026-09-30
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 23 documents |
 || `#visualization` | Visualization techniques | 17 documents |
-|| `#3d` | 3D generation & rendering | 13 documents |
+|| `#3d` | 3D generation & rendering | 14 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---

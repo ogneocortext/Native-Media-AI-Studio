@@ -113,3 +113,32 @@ Rules: `docs/plans/tasks/README.md`
   script's default output is a summary, not file dumps.
 - **Last session:** Orion, 2026-11-01 — Item created with the
   knowledge doc; not started.
+
+### T-PLT-09 — Evaluate CoplayDev/unity-mcp against the in-repo Unity bridge
+- **Status:** todo
+- **Goal:** A recorded verdict — adopt, replace, or keep — for the
+  Unity editor bridge, based on a fixed task battery run through
+  both bridges.
+- **Plan:** Evidence: `docs/knowledge-library/3d-viz-code-harnesses-2026.md`
+  Lane B. Steps: (1) Inventory the in-repo bridge under `tools/mcp/`:
+  tool list, current state, why it ships disabled. (2) Install
+  CoplayDev/unity-mcp pinned at v10.3.0 into the `unity-visualizer/`
+  project per its README; configure Kilo as the MCP client.
+  (3) Run the same battery through both bridges: create a scene;
+  add three primitives and a material; add a light and move the
+  camera; create and edit a C# script (Roslyn validation on the
+  CoplayDev side); capture a frame through the existing AutoCapture
+  path; run a five-command sequence (CoplayDev `batch_execute` vs
+  individual calls on the in-repo bridge). Record success/failure
+  and wall time per task in a results table in the knowledge doc.
+  (4) Write the verdict into the knowledge doc's Lane B section; if
+  the verdict is replace, open a decision-log entry. Do not delete
+  the in-repo bridge in this item.
+- **Files:** tools/mcp/ (inventory only), unity-visualizer/,
+  docs/knowledge-library/3d-viz-code-harnesses-2026.md,
+  docs/architecture/decision-log.md (only if verdict is replace)
+- **Acceptance:** The results table covers every battery task for
+  both bridges with timings; the verdict is recorded in the
+  knowledge doc; no in-repo code removed.
+- **Last session:** Orion, 2026-11-01 — Item created with the
+  knowledge doc; not started.

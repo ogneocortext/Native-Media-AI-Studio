@@ -351,6 +351,7 @@ graph TD
 
 - [[music-video-production]] — Full production workflow
 - [[3d-rendering]] — GPU rendering optimization
+- [[3d-viz-code-harnesses-2026]] — Agent harnesses that drive 3D/viz code (LL3M, SceneCraft, Unity MCP, shader loops)
 - [[comfyui-workflows]] — Asset generation
 - [[technical-reference]] — System architecture
 - [[prompt-engineering]] — 3D asset prompts
