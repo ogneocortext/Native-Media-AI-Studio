@@ -160,3 +160,46 @@ Rules: `docs/plans/tasks/README.md`
   (extracts single field without full blob parse) to audio.py. Verified
   live: probe returns business-logic response for colon track names instead
   of routing 400. Ruff, import-cycle check, and database tests all pass.
+
+### T-AUD-08 — Integrate the corrective finishing chain into M1 mastering
+- **Status:** todo
+- **Goal:** Extend the shipped M1 mastering (T-AUD-01) with the
+  corrective-balance finishing chain proven outside the app (Orion's
+  `tools/finish.py`, landed with this item) so AI takes can be
+  sub-tamed and presence-lifted in-app, not just loudness-normalized.
+- **Plan:**
+  1. Port the chain from `tools/finish.py` into
+     `packages/backend/app/services/mastering.py` as an optional
+     finishing stage BEFORE the loudness stage: high-pass 35 Hz →
+     low-shelf 120 Hz (default −3 dB) → peak 3.2 kHz (default
+     +2.5 dB) → high-shelf 9 kHz (+1.5 dB) → compressor 2.5:1.
+     Parameters per-request; defaults off so existing callers are
+     unchanged.
+  2. DSP route decision: pedalboard is the reference implementation.
+     Weigh adding pedalboard + pyloudnorm as backend deps against
+     implementing the same filters on the repo's existing ffmpeg path
+     (equalizer/firequalizer + acompressor + alimiter). Either way,
+     loudness is measured and reported via the repo's own
+     `compute_loudness` (ebur128) per T-AUD-01's acceptance —
+     pyloudnorm is a cross-check meter only, never the reported one.
+  3. Target-lock discipline: measure loudness AFTER the limiter and
+     trim to target. The reference run's limiter shifted integrated
+     loudness by +4 dB; a single-pass gain calculation is not
+     trustworthy, and the port must close the loop by re-measurement.
+  4. API/UI: extend `POST /api/audio/master`
+     (`packages/backend/app/api/audio_mastering.py`) with the
+     finishing params; `MasteringPanel.tsx` gains the two controls
+     (sub cut, presence lift).
+  5. QC report gains before/after band-energy shares (sub 20–120 Hz,
+     presence 2–8 kHz) from the repo's analysis path, next to the
+     existing loudness figures.
+- **Files:** tools/finish.py (reference implementation, landed),
+  packages/backend/app/services/mastering.py,
+  packages/backend/app/api/audio_mastering.py,
+  packages/frontend/src/features/audio-analysis/components/MasteringPanel.tsx
+- **Acceptance:** The in-app chain on the E1 reference take (Don't
+  Recommend, Lyria) reproduces the reference deltas within tolerance:
+  sub share 75.6% → ≤48%, presence 3.8% → ≥12%, final loudness
+  −14.0 ± 0.5 LUFS via `compute_loudness`; callers passing no
+  finishing params produce unchanged output; `tools/run-gates.py`
+  green (ruff, pytest, import cycles 0).
