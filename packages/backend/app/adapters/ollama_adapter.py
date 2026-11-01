@@ -269,7 +269,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         think: bool | str | None = None,
         format: Any | None = None,
         keep_alive: str | int | None = None,
-        **options,
+        options: dict[str, Any] | None = None,
     ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """
         Chat completion with Ollama, supporting tool calling and streaming.
@@ -292,6 +292,8 @@ Generate 3-8 scenes based on the input theme or concept."""
         if tools and not self._supports_tools(model):
             logger.warning("Model %s is not known to support tools; sending without tool definitions", model)
             tools = None
+        if options is None:
+            options = {}
         if "num_ctx" not in options:
             options["num_ctx"] = 8192
         else:
@@ -309,26 +311,36 @@ Generate 3-8 scenes based on the input theme or concept."""
         }
         if tools:
             payload["tools"] = tools
+        # Bolt-era thinking policy: map `think` to chat_template_kwargs.
         if think is not None:
-            payload["think"] = think
+            payload["chat_template_kwargs"] = {"enable_thinking": think}
         if format is not None:
             payload["format"] = format
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
         if options:
-            payload["options"] = options
+            # Reasoning headroom: ~200 extra tokens so tight budgets don't
+            # starve reasoning and return empty content (measured on Bolt E4B).
+            opts = dict(options)
+            max_tokens = opts.get("max_tokens")
+            if max_tokens is not None and think is not False:
+                try:
+                    opts["max_tokens"] = int(max_tokens) + 200
+                except (TypeError, ValueError):
+                    pass
+            payload["options"] = opts
 
         # Track last used model for VRAM manager
         self._last_model = model
-        logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s",
+        logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s [route=ollama]",
                      model, stream, len(tools) if tools else 0, think)
 
         if stream:
             return self._stream_chat(payload)
         else:
-            return await self._chat_request(payload)
+            return await self._chat_request(payload, model)
 
-    async def _chat_request(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def _chat_request(self, payload: dict[str, Any], model: str) -> dict[str, Any]:
         """Non-streaming chat request."""
         logger.info("Starting Ollama non-stream request: model=%s", payload.get("model"))
         session = await self._get_session()
@@ -345,7 +357,18 @@ Generate 3-8 scenes based on the input theme or concept."""
             logger.info("Ollama non-stream complete: content_len=%d, tool_calls=%d",
                          len(result.get("message", {}).get("content", "")),
                          len(result.get("message", {}).get("tool_calls", [])))
-            return result
+            message = result.get("message", {}) or {}
+            return {
+                "model": result.get("model", model),
+                "created_at": result.get("created_at"),
+                "message": {
+                    "role": message.get("role", "assistant"),
+                    "content": message.get("content", ""),
+                    "tool_calls": message.get("tool_calls"),
+                },
+                "reasoning_content": message.get("reasoning_content", ""),
+                "done": result.get("done", True),
+            }
 
     async def _stream_chat(self, payload: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """Streaming chat request with tool call support."""

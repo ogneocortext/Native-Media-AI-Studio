@@ -310,7 +310,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         think: bool | str | None = None,
         format: Any | None = None,
         keep_alive: str | int | None = None,
-        **options,
+        options: dict[str, Any] | None = None,
     ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """
         Chat completion via Atomic Chat's OpenAI-compatible API.
@@ -329,6 +329,8 @@ Generate 3-8 scenes based on the input theme or concept."""
             tools = None
 
         # VRAM-aware num_ctx: default to 8192 on the 8GB workstation.
+        if options is None:
+            options = {}
         if "num_ctx" not in options:
             options["num_ctx"] = 8192
         else:
@@ -341,7 +343,7 @@ Generate 3-8 scenes based on the input theme or concept."""
                 pass
 
         self._last_model = model
-        logger.info("Atomic Chat chat request: model=%s, stream=%s, tools=%d, think=%s",
+        logger.info("Atomic Chat chat request: model=%s, stream=%s, tools=%d, think=%s [route=atomic-chat]",
                      model, stream, len(tools) if tools else 0, think)
 
         if stream:
@@ -387,14 +389,27 @@ Generate 3-8 scenes based on the input theme or concept."""
         }
         if tools:
             payload["tools"] = tools
+        # Bolt-era thinking policy: map `think` to chat_template_kwargs
+        # (measured: Atomic serves `chat_template_kwargs: {"enable_thinking": ...}`).
+        # Default thinking ON for reasoning-capable models; OFF only for
+        # format/extraction work with mechanical validation.
         if think is not None:
-            payload["think"] = think
+            payload["chat_template_kwargs"] = {"enable_thinking": think}
         if format is not None:
             payload["response_format"] = {"type": "json_object"} if format == "json" else format
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
         if options:
-            payload["options"] = options
+            # Reasoning headroom: ~200 extra tokens so tight budgets don't
+            # starve reasoning and return empty content (measured on Bolt E4B).
+            opts = dict(options)
+            max_tokens = opts.get("max_tokens")
+            if max_tokens is not None and think is not False:
+                try:
+                    opts["max_tokens"] = int(max_tokens) + 200
+                except (TypeError, ValueError):
+                    pass
+            payload["options"] = opts
 
         session = await self._get_session()
         target = f"{self.base_url.rstrip('/')}/v1/chat/completions"
@@ -405,6 +420,7 @@ Generate 3-8 scenes based on the input theme or concept."""
             data = await resp.json()
             choice = (data.get("choices") or [{}])[0]
             message = choice.get("message", {}) or {}
+            reasoning = message.get("reasoning_content", "")
             return {
                 "model": data.get("model", model),
                 "created_at": data.get("created"),
@@ -413,6 +429,7 @@ Generate 3-8 scenes based on the input theme or concept."""
                     "content": message.get("content", ""),
                     "tool_calls": message.get("tool_calls"),
                 },
+                "reasoning_content": reasoning,
                 "done": True,
             }
 

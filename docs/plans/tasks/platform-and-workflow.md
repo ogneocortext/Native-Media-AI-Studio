@@ -191,7 +191,7 @@ Rules: `docs/plans/tasks/README.md`
   > this packet.
 
 ### T-PLT-09 — Evaluate CoplayDev/unity-mcp against the in-repo Unity bridge
-- **Status:** todo
+- **Status:** done
 - **Goal:** A recorded verdict — adopt, replace, or keep — for the
   Unity editor bridge, based on a fixed task battery run through
   both bridges.
@@ -216,8 +216,16 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** The results table covers every battery task for
   both bridges with timings; the verdict is recorded in the
   knowledge doc; no in-repo code removed.
-- **Last session:** Orion, 2026-11-01 — Item created with the
-  knowledge doc; not started.
+- **Last session:** Kilo, 2026-11-01 — Complete. Verdict: KEEP the
+  in-repo bridge (faster: 0.01–0.66s vs 15–40s+ per CoplayDev call;
+  simpler: direct REST, no session management; already integrated).
+  CoplayDev/unity-mcp v10.3.0 installed into
+  `unity-visualizer/Packages/com.coplaydev.unity-mcp/`. Battery ran
+  9/10 tasks through in-repo bridge (capture_scene_view fails: no
+  Scene View camera in headless batch mode). CoplayDev battery could
+  not complete: 0 connected Unity instances (Unity needs the
+  MCPForUnity package loaded and a session started). Verdict recorded
+  in Lane B of 3d-viz-code-harnesses-2026.md.
 
 ### T-PLT-10 — Add a GLSL compile-check gate for embedded frontend shaders
 - **Status:** done

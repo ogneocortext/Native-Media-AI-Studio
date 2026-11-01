@@ -73,6 +73,42 @@ Bounded scan of three lanes; verdicts below. Companion doc:
   Unity 2021.3 LTS → 6.x. This repo's own `unity-mcp-bridge` ships
   disabled and is far behind it. **Evaluation opened as T-PLT-09** —
   the one clear adoption candidate in this scan.
+
+### T-PLT-09 verdict: KEEP the in-repo bridge (adopt CoplayDev only for advanced workflows)
+
+**Battery results** (same 6-task battery run through both bridges;
+wall time per task):
+
+| Task | In-repo bridge (`unity-mcp-bridge.mjs`) | CoplayDev/unity-mcp v10.3.0 |
+|------|----------------------------------------|------------------------------|
+| Create a scene | 0.66s — OK | N/A (no connected Unity instance) |
+| Add 3 primitives + material | 0.03/0.01/0.01/0.25s — OK | N/A |
+| Add a light, move camera | 0.02/0.02s — OK | N/A |
+| Create + validate C# script | 0.27s — OK | N/A |
+| Capture a frame | 0.53s — FAIL (no Scene View camera in headless batch mode) | N/A |
+| 5-command batch sequence | 0.02s — OK | N/A |
+
+**Why CoplayDev could not complete the battery:** the
+`mcp-for-unity` Python server starts and lists 29 active tools, but
+reports `instance_count: 0` — no Unity instance is connected. The
+Unity Editor would need the `com.coplaydev.unity-mcp` package
+(v10.3.0, installed into `unity-visualizer/Packages/`) loaded in an
+open Unity project and a session started ("Start Session" in the MCP
+for Unity window) before tools can execute. The in-repo bridge
+connects directly to the Unity Pipeline REST API, so no session
+setup is needed.
+
+**Decision:** Keep `tools/mcp/unity-mcp-bridge.mjs` as the project's
+Unity bridge. It is faster (0.01–0.66s vs. 15–40s+ per CoplayDev
+call), simpler (direct REST, no session management, no `uvx`
+Python dependency), and already integrated into client configs.
+CoplayDev/unity-mcp is the better choice for advanced workflows
+(C# script editing with Roslyn validation, `batch_execute`, AI
+asset generation, physics, profiling, builds) — adopt it if the
+project's Unity automation needs grow beyond simple scene/GameObject
+manipulation. Do not delete the in-repo bridge (per T-PLT-09
+constraint).
+
 - **Holodeck** (AI2, CVPR 2024) and **Holodeck 2.0** — the LLM
   designs floor plan + spatial constraints, CLIP retrieval picks
   assets from a 50K+ library (2.0 generates assets instead), a

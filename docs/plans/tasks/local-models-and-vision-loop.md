@@ -99,6 +99,19 @@ Rules: `docs/plans/tasks/README.md`
   option demonstrably flips Bolt's reasoning over the
   backend path; fallback events log with reasons; the live
   validation call is logged in observed.jsonl.
-- **Last session:** Orion, 2026-11-01 — Item created from the
-  cloud↔local bridge work of the same day (the bridge
-  integration's Layer 2); not started.
+- **Last session:** Kilo, 2026-11-01 — T-MOD-04 implemented (steps 2-5 done).
+  Audit recorded previously. Changes: (1) `atomic_chat.py` — `reasoning_content`
+  extracted from response into a top-level `"reasoning_content"` field; `think`
+  param mapped to `chat_template_kwargs: {"enable_thinking": ...}` (Bolt API
+  behavior); ~200-token reasoning headroom added to `max_tokens` when thinking
+  is on; `[route=atomic-chat]` added to chat log line; `**options` → explicit
+  `options` param (fixes `options={...}` kwarg being nested under `**options`);
+  `options=None` guarded before `in` check. (2) `ollama_adapter.py` — same
+  reasoning_content normalization, chat_template_kwargs mapping, headroom, and
+  route logging; same `**options` → explicit `options` fix. (3) New unit tests
+  in `packages/backend/tests/test_adapter_reasoning.py` (11 tests, all pass)
+  covering reasoning preservation, think→chat_template_kwargs mapping, headroom
+  application, and route-truth logging for both adapters. Live Bolt validation
+  call (step 6) blocked: neither Atomic Chat (1337) nor Ollama (11434) is
+  running on this machine; unit tests cover the normalization/policy mapping
+  acceptance criteria.
