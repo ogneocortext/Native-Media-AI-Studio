@@ -125,6 +125,7 @@ function Start-Backend {
 
     if ($proc) {
         $script:started += @{ Name = 'Backend'; Process = $proc }
+        Register-StartedProcess -Process $proc -Service 'backend' -ServiceName 'Backend'
         Wait-ForPort -Port $BackendPort -Name 'Backend' | Out-Null
     }
 }
@@ -158,6 +159,7 @@ function Start-ComfyUI {
 
     if ($proc) {
         $script:started += @{ Name = 'ComfyUI'; Process = $proc }
+        Register-StartedProcess -Process $proc -Service 'comfyui' -ServiceName 'ComfyUI'
         Wait-ForPort -Port $ComfyUIPort -Name 'ComfyUI' | Out-Null
     }
 }
@@ -206,6 +208,7 @@ function Start-Frontend {
 
     if ($proc) {
         $script:started += @{ Name = 'Frontend'; Process = $proc }
+        Register-StartedProcess -Process $proc -Service 'frontend' -ServiceName 'Frontend'
         Wait-ForPort -Port $FrontendPort -Name 'Frontend' | Out-Null
     }
 }
@@ -244,6 +247,7 @@ function Start-VideoEditor {
 
     if ($proc) {
         $script:started += @{ Name = 'VideoEditor'; Process = $proc }
+        Register-StartedProcess -Process $proc -Service 'video' -ServiceName 'Video Editor'
         Write-Ok "Video Editor starting (default http://localhost:$VideoEditorPort)"
     }
 }
@@ -351,10 +355,12 @@ function Restart-StartedService {
 function Stop-StartedServices {
     foreach ($s in $script:started) {
         if ($s.Process -and -not $s.Process.HasExited) {
-            Stop-Process -Id $s.Process.Id -Force -ErrorAction SilentlyContinue
-            Write-Host "  Stopped $($s.Name)" -ForegroundColor Gray
+            Stop-ProcessTree -ProcessId $s.Process.Id -Force
+            Write-Host "  Stopped $($s.Name) and its process tree" -ForegroundColor Gray
         }
     }
+    # Also stop any remaining tracked processes not in $script:started.
+    Stop-AllTrackedProcesses
 }
 
 # ---------------------------------------------------------------------------
@@ -381,6 +387,11 @@ try {
             }
         }
     }
+
+    # Reap stale processes from previous sessions so orphaned watchfiles,
+    # uvicorn, vite, or node processes don't block new launches.
+    Write-Step "Reaping stale processes from previous sessions"
+    Reap-StaleProcesses
 
     if (-not $NoBackend) {
         Write-Step 'Starting backend (FastAPI)'
@@ -446,6 +457,19 @@ try {
                 Restart-StartedService -Name $s.Name
             }
         }
+
+        # TTL-based reaping: kill any tracked process that has been running
+        # longer than StaleProcessMaxAgeMinutes (default 30 min). Prevents
+        # services from running indefinitely after a crash or forgotten session.
+        $now = Get-Date
+        $staleTracked = Get-TrackedProcesses | Where-Object {
+            [int]((Get-Date) - $_.StartTime).TotalMinutes -gt $script:StaleProcessMaxAgeMinutes
+        }
+        foreach ($t in $staleTracked) {
+            Write-Warn "TTL reaping: $($t.Name) (PID $($t.ProcessId)) has run for $([int]((Get-Date) - $t.StartTime).TotalMinutes)m — stopping"
+            Stop-TrackedProcess -ProcessId $t.ProcessId
+        }
+
         Start-Sleep -Milliseconds 500
     }
 } finally {

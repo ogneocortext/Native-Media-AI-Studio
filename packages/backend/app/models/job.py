@@ -37,6 +37,9 @@ class JobType(str, Enum):
     COMFYUI_WORKFLOW = "comfyui_workflow"
     AUDIO_FEATURE_EXTRACTION = "audio_feature_extraction"
     LIPSYNC = "lipsync"
+    REMIX_BUILD = "remix_build"
+    REMIX_ENHANCE = "remix_enhance"
+    REMOTION_RENDER = "remotion_render"
 
 
 class Job(BaseModel):

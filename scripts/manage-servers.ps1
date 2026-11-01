@@ -23,7 +23,9 @@ param(
     [string]$Action,
 
     [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')]
-    [string[]]$Services = @('all')
+    [string[]]$Services = @('all'),
+
+    [switch]$NoOrphanScan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -247,15 +249,25 @@ function Stop-StudioService {
     $port = $config.Port
 
     # uvicorn --reload spawns a reloader parent (cmdline contains `app.main:app`)
-    # plus a child that actually binds the port. Killing only the child lets the
-    # parent respawn it — so kill the reloader parents first, then reap listeners.
+    # plus a child that actually binds the port. Kill the reloader parents first,
+    # then reap listeners. Use Stop-ProcessTree so child processes (uvicorn
+    # workers, etc.) are reaped too — not just the port owner.
     if ($ServiceName -eq 'backend') {
         $reloaders = Get-CimInstance Win32_Process -Filter 'Name="python.exe"' -ErrorAction SilentlyContinue |
                      Where-Object { $_.CommandLine -match 'app\.main:app' }
         if ($reloaders) {
             Write-Warn "Stopping $($config.Name) reloader PIDs: $(($reloaders | Select-Object -ExpandProperty ProcessId) -join ', ')"
-            $reloaders | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            foreach ($r in $reloaders) {
+                Stop-ProcessTree -ProcessId $r.ProcessId -Force
+            }
         }
+    }
+
+    # Also stop any tracked process for this service (covers processes started
+    # by start-studio.ps1 that may share the same PID space).
+    $tracked = Get-TrackedProcesses | Where-Object { $_.Service -eq $ServiceName }
+    foreach ($t in $tracked) {
+        Stop-TrackedProcess -ProcessId $t.ProcessId
     }
 
     # Reap all remaining listeners on the service port. Repeated passes tolerate
@@ -265,8 +277,10 @@ function Stop-StudioService {
         $pids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
                 Select-Object -ExpandProperty OwningProcess -Unique
         if (-not $pids) { break }
-        Write-Warn "Stopping $($config.Name) (PIDs: $($pids -join ', '), attempt $attempt)"
-        $pids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+        Write-Warn "Stopping $($config.Name) port listeners (PIDs: $($pids -join ', '), attempt $attempt)"
+        foreach ($pid in $pids) {
+            Stop-ProcessTree -ProcessId $pid -Force
+        }
         Start-Sleep -Seconds 1
     }
 
@@ -316,6 +330,7 @@ function Start-StudioService {
             -RedirectStandardOutput $logFile `
             -RedirectStandardError $errFile `
             -PassThru
+        Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
     }
     elseif ($config.LocalCmd) {
         # Native binary service (Go dashboard, etc.)
@@ -334,6 +349,7 @@ function Start-StudioService {
         }
         if ($nativeArgs.Count -gt 0) { $startParams.ArgumentList = $nativeArgs }
         $proc = Start-Process @startParams
+        Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
     }
     else {
         # Node-based service. Prefer pnpm (workspace-aware), then npm, then fall back to
@@ -351,6 +367,7 @@ function Start-StudioService {
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError $errFile `
                 -PassThru
+            Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
         }
         elseif ($packageManager -and $packageManager -match '\s') {
             # Package manager path has spaces — use node directly with the package script
@@ -368,6 +385,7 @@ function Start-StudioService {
                     -RedirectStandardOutput $logFile `
                     -RedirectStandardError $errFile `
                     -PassThru
+                Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
             }
             elseif ($node -and $config.NodeScript -and (Test-Path $config.NodeScript)) {
                 $nodeArgs = @("`"$($config.NodeScript)`"")
@@ -379,6 +397,7 @@ function Start-StudioService {
                     -RedirectStandardOutput $logFile `
                     -RedirectStandardError $errFile `
                     -PassThru
+                Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
             }
             else {
                 Write-Err "No node fallback available for $($config.Name) ($pmName path has spaces)"
@@ -395,6 +414,7 @@ function Start-StudioService {
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError $errFile `
                 -PassThru
+            Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
         }
         elseif ($config.NodeScript -and (Test-Path $config.NodeScript)) {
             # e.g. frontend: node <repo>\node_modules\vite\bin\vite.js --port 5173
@@ -412,6 +432,7 @@ function Start-StudioService {
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError $errFile `
                 -PassThru
+            Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
         }
         else {
             Write-Err "No working package manager, local CLI, or node script available for $($config.Name)"
@@ -421,16 +442,25 @@ function Start-StudioService {
 
     Write-Host "  PID: $($proc.Id)" -ForegroundColor Gray
 
-    # Wait for port to open
-    for ($i = 1; $i -le 30; $i++) {
-        Start-Sleep -Seconds 1
-        $status = Get-ServiceStatus $ServiceName
-        if ($status.Running) {
-            Write-Ok "$($config.Name) listening on port $($config.Port) (waited ${i}s)"
+    # Wait for port to open, then confirm the service is actually responding.
+    # Use Wait-ForPort for the TCP listen, then a quick health probe loop
+    # so a service that binds but doesn't respond fails fast (~5s) instead
+    # of waiting the full window.
+    $portOpened = Wait-ForPort -Port $port -Name $config.Name -MaxSeconds 15
+    if (-not $portOpened) {
+        Write-Warn "$($config.Name) did not open port $($config.Port) within 15s"
+        return
+    }
+
+    # Confirm the service responds to HTTP (not just bound the port).
+    for ($i = 1; $i -le 5; $i++) {
+        if (Test-ServiceRunning -Port $port -HealthPath $config.HealthPath -TimeoutSec 2) {
+            Write-Ok "$($config.Name) responding on port $($config.Port)"
             return
         }
+        Start-Sleep -Seconds 1
     }
-    Write-Warn "$($config.Name) did not open port $($config.Port) within 30s"
+    Write-Warn "$($config.Name) bound port $($config.Port) but is not responding to HTTP"
 }
 
 # Determine which services to manage
@@ -453,49 +483,88 @@ switch ($Action) {
             Write-Host " (port $($config.Port))"
         }
         Write-Host ""
-        $orphans = Get-OrphanReloaders
-        if ($orphans) {
-            Write-Host "Orphaned reloaders (no port held, safe to reap):" -ForegroundColor Yellow
-            foreach ($o in $orphans) {
-                $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
-                Write-Host "  pid $($o.ProcessId) (started ${age}m ago)" -ForegroundColor Yellow
+        # Show any tracked processes (from start-studio.ps1 sessions).
+        $tracked = Get-TrackedProcesses
+        if ($tracked) {
+            Write-Host "Tracked processes:" -ForegroundColor Cyan
+            foreach ($t in $tracked) {
+                $age = [int]((Get-Date) - $t.StartTime).TotalMinutes
+                Write-Host "  PID $($t.ProcessId) $($t.Name) (started ${age}m ago, service: $($t.ServiceName))" -ForegroundColor Gray
             }
+            Write-Host ""
+        }
+        if (-not $NoOrphanScan) {
+            $orphans = Get-OrphanReloaders
+            if ($orphans) {
+                Write-Host "Orphaned reloaders (no port held, safe to reap):" -ForegroundColor Yellow
+                foreach ($o in $orphans) {
+                    $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
+                    Write-Host "  pid $($o.ProcessId) (started ${age}m ago)" -ForegroundColor Yellow
+                }
+            }
+        } else {
+            Write-Host "Orphan scan skipped (-NoOrphanScan). Run without the flag to scan." -ForegroundColor Gray
         }
     }
     'start' {
         Write-Host "`nStarting services..." -ForegroundColor Cyan
-        foreach ($svc in $serviceList) {
+        # Reap stale processes from previous sessions before starting anything,
+        # so orphaned watchfiles/uvicorn/vite processes don't block new launches.
+        Reap-StaleProcesses
+        # PS 7+ parallel start: each service launches independently so a slow
+        # service (ComfyUI, video editor) doesn't block the others. Throttle
+        # to 4 to avoid port contention and log file storms.
+        $serviceList | ForEach-Object -Parallel {
+            $cfg = $using:ServiceConfig
+            ${name} = $cfg[$_].Name
             try {
-                Start-StudioService $svc
+                Start-StudioService ${name}
             } catch {
-                Write-Warn "Failed to start $($ServiceConfig[$svc].Name): $_"
+                Write-Warn "Failed to start ${name}: $_"
             }
-        }
+        } -ThrottleLimit 4
         Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
         Write-Host "`nAll requested services started." -ForegroundColor Green
     }
     'stop' {
         Write-Host "`nStopping services..." -ForegroundColor Yellow
-        foreach ($svc in $serviceList) {
+        $serviceList | ForEach-Object -Parallel {
+            $cfg = $using:ServiceConfig
+            ${name} = $cfg[$_].Name
             try {
-                Stop-StudioService $svc
+                Stop-StudioService ${name}
             } catch {
-                Write-Warn "Failed to stop $($ServiceConfig[$svc].Name): $_"
+                Write-Warn "Failed to stop ${name}: $_"
             }
-        }
+        } -ThrottleLimit 4
+        # Stop any remaining tracked processes (e.g. started by start-studio.ps1
+        # in a previous session, or processes that weren't tied to a service config).
+        Stop-AllTrackedProcesses
         Write-Host "`nAll requested services stopped." -ForegroundColor Green
     }
     'restart' {
         Write-Host "`nRestarting services..." -ForegroundColor Cyan
-        foreach ($svc in $serviceList) {
+        # Stop all first (parallel), then start all (parallel).
+        $serviceList | ForEach-Object -Parallel {
+            $cfg = $using:ServiceConfig
+            ${name} = $cfg[$_].Name
             try {
-                Stop-StudioService $svc
-                Start-Sleep -Seconds 1
-                Start-StudioService $svc
+                Stop-StudioService ${name}
             } catch {
-                Write-Warn "Failed to restart $($ServiceConfig[$svc].Name): $_"
+                Write-Warn "Failed to stop ${name}: $_"
             }
-        }
+        } -ThrottleLimit 4
+        Start-Sleep -Seconds 1
+        $serviceList | ForEach-Object -Parallel {
+            $cfg = $using:ServiceConfig
+            ${name} = $cfg[$_].Name
+            try {
+                Start-StudioService ${name}
+            } catch {
+                Write-Warn "Failed to start ${name}: $_"
+            }
+        } -ThrottleLimit 4
+        Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
         Write-Host "`nAll requested services restarted." -ForegroundColor Green
     }
     'health' {

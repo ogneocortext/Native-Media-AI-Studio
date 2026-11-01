@@ -9,7 +9,8 @@
     "allowSyntheticDefaultImports": true,
     "lib": ["ES2023"],
     "types": ["node"],
-    "strict": true
+    "strict": true,
+    "declarationMap": true
   },
   "include": ["vite.config.ts"]
 }

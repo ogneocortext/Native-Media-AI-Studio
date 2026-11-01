@@ -64,10 +64,5 @@
     "model": "wan2.2-5b",
     "tier": "balanced",
     "reason": "Default when no rule matches"
-  },
-  "cloud_gateway": {
-    "provider": "fal.ai",
-    "fallback_provider": "replicate",
-    "notes": "Cloud-burst for hero shots when local VRAM is saturated"
   }
 }

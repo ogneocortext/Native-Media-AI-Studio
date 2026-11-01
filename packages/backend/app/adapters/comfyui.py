@@ -85,6 +85,7 @@ def is_image_checkpoint(name: str) -> bool:
     name_lower = str(name).lower()
     return not any(kw in name_lower for kw in NON_IMAGE_CHECKPOINT_KEYWORDS)
 
+
 MAX_SEED = 2**32 - 1
 
 
@@ -1878,7 +1879,7 @@ class ComfyUIAdapter(BaseAdapter):
         session = await self._get_session()
         try:
             data = await _cu.fetch_view_bytes(
-                self.base_url, filename, subfolder, session=session, timeout=120
+                self.base_url, filename, subfolder, session=session, timeout=60
             )
         except RuntimeError as e:
             raise Exception(str(e)) from e

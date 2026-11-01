@@ -1079,7 +1079,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Keep connection alive -- echo any client message and forward keepalives
         while True:
             try:
-                msg = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=10)
                 # Echo back for diagnostics; ignore unknown payloads
                 await websocket.send_text(
                     json.dumps(
@@ -1090,7 +1090,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         }
                     )
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await websocket.send_text(
                     json.dumps({"type": "keepalive", "timestamp": datetime.now().isoformat()})
                 )
@@ -1152,12 +1152,12 @@ async def sse_endpoint(request: Request):
 
                 try:
                     # Wait for events from the queue (with timeout to send keepalive)
-                    event_data = await asyncio.wait_for(queue.get(), timeout=15)
+                    event_data = await asyncio.wait_for(queue.get(), timeout=5)
                     yield {
                         "id": event_data["id"],
                         "data": event_data["data"],
                     }
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive comment to prevent connection timeout
                     yield {
                         "event": "keepalive",

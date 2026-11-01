@@ -158,12 +158,12 @@ async def assemble_beat_quantized(
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         except NotImplementedError:
             def _run() -> tuple[int, bytes, bytes]:
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
-                    return p.communicate(timeout=600)
+                    return p.communicate(timeout=120)
                 except subprocess.TimeoutExpired:
                     try:
                         p.kill()
@@ -173,10 +173,10 @@ async def assemble_beat_quantized(
                     return -1, b"", b"FFmpeg timed out"
 
             returncode, stdout, stderr = await asyncio.wait_for(
-                asyncio.to_thread(_run), timeout=620
+                asyncio.to_thread(_run), timeout=120
             )
             proc = None
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Beat assembly FFmpeg timed out for %s", out)
         return {
             "success": False,

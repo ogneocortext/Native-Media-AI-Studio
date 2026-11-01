@@ -9,20 +9,18 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from .remix_constants import (
+    _MAJOR_PROFILE,
+    _PITCH_NAMES,
     KEY_CONFIDENCE_FLOOR,
     PROBE_CACHE_DIR,
     PROBE_CACHE_VERSION,
     REMIX_SR,
-    _MAJOR_PROFILE,
-    _PITCH_NAMES,
 )
-from .remix_source import _safe_track_name, _pick_analysis_stem, resolve_track_key
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +62,11 @@ def probe_track(track: str) -> dict[str, Any]:
     """
     if not LIBROSA_AVAILABLE:
         raise RuntimeError("librosa is required for remix analysis")
+    # Deferred to break the circular import: remix_source imports stem_remixer
+    # which imports remix_analysis; importing remix_source here (after stem_remixer
+    # is fully initialised) avoids the cycle.
+    from .remix_source import _pick_analysis_stem, _safe_track_name, resolve_track_key
+
     # B6: accept a library filename/path here too, so /probe and the render
     # cache agree on what was asked.
     track = resolve_track_key(track)

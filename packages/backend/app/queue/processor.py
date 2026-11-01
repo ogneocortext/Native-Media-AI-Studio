@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 # Maximum wall-clock seconds a single handler may run before the processor
 # aborts it. Keeps the serial queue from stalling on a hung adapter.
-HANDLER_TIMEOUT_SECONDS = 3600
+# 300s is ample for a GTX 1070 Ti render; anything longer means a hung job.
+HANDLER_TIMEOUT_SECONDS = 300
 
 # How long a RUNNING job may sit before it is presumed ownerless, and how often
 # the loop checks. A job is RUNNING only while the process that claimed it lives;
@@ -424,7 +425,7 @@ class JobProcessor:
                         asyncio.shield(handler_task),
                         timeout=HANDLER_TIMEOUT_SECONDS,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     handler_task.cancel()
                     try:
                         await handler_task

@@ -18,6 +18,9 @@
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    // Limit global @types inclusion to what we actually need.
+    // Without this, TypeScript pulls in every @types/* package, slowing checks.
+    "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["../../shared/*"],

@@ -198,7 +198,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     started = time.perf_counter()
     try:
         proc = await asyncio.to_thread(
-            subprocess.run, _cmd(cmd_mode), capture_output=True, text=True, timeout=600,
+            subprocess.run, _cmd(cmd_mode), capture_output=True, text=True, timeout=120,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Audio extraction timed out") from None
@@ -209,7 +209,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
         # one AAC-encode fallback so the user still gets audio.
         try:
             proc = await asyncio.to_thread(
-                subprocess.run, _cmd("encode-fallback"), capture_output=True, text=True, timeout=600,
+                subprocess.run, _cmd("encode-fallback"), capture_output=True, text=True, timeout=120,
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(status_code=504, detail="Audio extraction timed out") from None
@@ -385,7 +385,7 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
     async def _run(cmd: list[str]) -> None:
         try:
             proc = await asyncio.to_thread(
-                subprocess.run, cmd, capture_output=True, text=True, timeout=600,
+                subprocess.run, cmd, capture_output=True, text=True, timeout=120,
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(status_code=504, detail="Audio trim timed out") from None

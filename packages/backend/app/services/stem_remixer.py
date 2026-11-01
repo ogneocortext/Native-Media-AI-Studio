@@ -18,6 +18,11 @@ New code should import directly from the focused modules.
 
 from __future__ import annotations
 
+try:
+    import librosa
+except ImportError:  # pragma: no cover - librosa is a hard backend dep
+    librosa = None
+
 from .remix_constants import (
     AUDIO_DIR,
     AUDIO_EXTENSIONS,
@@ -38,8 +43,7 @@ from .remix_constants import (
 
 PREVIEW_DIR = REMIX_DIR / ".previews"
 from .remix_analysis import LIBROSA_AVAILABLE as _LIBROSA_AVAILABLE, probe_track
-from .remix_dsp import (
-    LIBROSA_AVAILABLE as _DSP_LIBROSA_AVAILABLE,
+from .remix_dsp import (    LIBROSA_AVAILABLE as _DSP_LIBROSA_AVAILABLE,
     _brightness_tilt,
     _db_to_linear,
     _equal_power_ramp,

@@ -28,6 +28,19 @@ catalog:
   eslint: ^10.9.1
   '@playwright/test': ^1.64.0
   playwright: ^1.64.0
+  '@remotion/captions': 4.0.539
+  '@remotion/cli': 4.0.539
+  '@remotion/effects': 4.0.539
+  '@remotion/eslint-config-flat': 4.0.539
+  '@remotion/media': 4.0.539
+  '@remotion/media-utils': 4.0.539
+  '@remotion/noise': 4.0.539
+  '@remotion/shapes': 4.0.539
+  '@remotion/tailwind-v4': 4.0.539
+  '@remotion/three': 4.0.539
+  '@remotion/transitions': 4.0.539
+  remotion: 4.0.539
+  zod: 4.5.4
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 sharedWorkspaceLockfile: true

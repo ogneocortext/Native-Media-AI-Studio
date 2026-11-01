@@ -16,6 +16,9 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Script-level cache so Python env resolution isn't re-probed on every call.
+$script:PythonEnvCache = @{}
+
 # ---------------------------------------------------------------------------
 # Package manager / runtime resolution
 # ---------------------------------------------------------------------------
@@ -162,10 +165,13 @@ function Test-ServiceRunning {
         Local TCP port.
     .PARAMETER HealthPath
         HTTP path to request (default /api/health).
+    .PARAMETER TimeoutSec
+        Request timeout in seconds (default 2). Reduced from 6 because a
+        hung service should fail fast, not block the whole startup chain.
     #>
-    param([int]$Port, [string]$HealthPath = '/api/health')
+    param([int]$Port, [string]$HealthPath = '/api/health', [int]$TimeoutSec = 2)
     try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port$HealthPath" -TimeoutSec 6
+        $response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port$HealthPath" -TimeoutSec $TimeoutSec -UseBasicParsing
         return $response.StatusCode -eq 200
     } catch {
         return $false
@@ -187,14 +193,14 @@ function Stop-PortOwner {
     if ($pids) {
         Write-Warn "Port $Port busy - stopping stale $Service process(es): $($pids -join ', ')"
         $pids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-        for ($i = 1; $i -le 5; $i++) {
+        for ($i = 1; $i -le 3; $i++) {
             Start-Sleep -Seconds 1
             if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
                 Write-Ok "Port $Port freed after ${i}s"
                 return
             }
         }
-        Write-Warn "Port $Port still busy after 5s — service may fail to bind"
+        Write-Warn "Port $Port still busy after 3s — service may fail to bind"
     }
 }
 
@@ -312,6 +318,11 @@ function Resolve-BackendPython {
     .OUTPUTS
         Interpreter path, or $null when no candidate exists.
     #>
+    $cacheKey = 'backend'
+    if ($script:PythonEnvCache.ContainsKey($cacheKey)) {
+        return $script:PythonEnvCache[$cacheKey]
+    }
+
     $envs = Get-PythonEnvs
     $chain = @($envs.StudioPython, $envs.ComfyPython, $envs.VenvPython) |
              Select-Object -Unique
@@ -319,10 +330,16 @@ function Resolve-BackendPython {
     foreach ($candidate in $chain) {
         if (-not (Test-Path -LiteralPath $candidate)) { continue }
         $existing += $candidate
-        if (Test-PythonEnv -Python $candidate) { return $candidate }
+        if (Test-PythonEnv -Python $candidate) {
+            $script:PythonEnvCache[$cacheKey] = $candidate
+            return $candidate
+        }
         Write-Warn "$candidate exists but cannot import the backend runtime (fastapi/uvicorn/watchfiles) - skipping"
     }
-    if ($existing.Count -gt 0) { return $existing[0] }
+    if ($existing.Count -gt 0) {
+        $script:PythonEnvCache[$cacheKey] = $existing[0]
+        return $existing[0]
+    }
     return $null
 }
 
@@ -364,6 +381,11 @@ function Resolve-ComfyUIPython {
     .OUTPUTS
         Interpreter path, or $null when no candidate exists.
     #>
+    $cacheKey = 'comfyui'
+    if ($script:PythonEnvCache.ContainsKey($cacheKey)) {
+        return $script:PythonEnvCache[$cacheKey]
+    }
+
     $envs = Get-PythonEnvs
     $chain = @($envs.ComfyPython, $envs.StudioPython, $envs.VenvPython) |
              Select-Object -Unique
@@ -371,10 +393,16 @@ function Resolve-ComfyUIPython {
     foreach ($candidate in $chain) {
         if (-not (Test-Path -LiteralPath $candidate)) { continue }
         $existing += $candidate
-        if (Test-ComfyUIEnv -Python $candidate) { return $candidate }
+        if (Test-ComfyUIEnv -Python $candidate) {
+            $script:PythonEnvCache[$cacheKey] = $candidate
+            return $candidate
+        }
         Write-Warn "$candidate exists but cannot import torch - skipping"
     }
-    if ($existing.Count -gt 0) { return $existing[0] }
+    if ($existing.Count -gt 0) {
+        $script:PythonEnvCache[$cacheKey] = $existing[0]
+        return $existing[0]
+    }
     return $null
 }
 
@@ -508,11 +536,296 @@ function Start-ProcessSafe {
             Write-Warn "Process exited immediately (code $($proc.ExitCode)) - check $ErrorLog"
             return $null
         }
+        # Register the process for automatic tree cleanup on script exit.
+        Register-StartedProcess -Process $proc -Service $null -ServiceName $null
         return $proc
     } catch {
         Write-Warn "Failed to start process: $_"
         return $null
     }
+}
+
+# ---------------------------------------------------------------------------
+# Process tree cleanup & registry
+# ---------------------------------------------------------------------------
+
+# Script-level registry of processes started by this session.
+# Each entry: @{ Name = <display>; ProcessId = <int>; StartTime = <datetime>;
+#   Service = <config name or null>; ServiceName = <short name>; CommandLine = <string> }
+$script:ProcessRegistry = @()
+
+# Default max age for a process before it's considered "stale" (30 minutes).
+$script:StaleProcessMaxAgeMinutes = 30
+
+function Get-ProcessDescendants {
+    <#
+    .SYNOPSIS
+        Recursively get all descendant processes of a given PID.
+    .PARAMETER ProcessId
+        The parent process ID.
+    .PARAMETER AllProcesses
+        Optional pre-fetched array of all processes (avoids repeated CIM calls).
+    .OUTPUTS
+        Array of process objects that are descendants (children, grandchildren, …).
+    #>
+    param(
+        [Parameter(Mandatory)][int]$ProcessId,
+        $AllProcesses = $null
+    )
+    if (-not $AllProcesses) {
+        $AllProcesses = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+    }
+    $descendants = @()
+    $frontier = @($ProcessId)
+    while ($frontier.Count -gt 0) {
+        $next = @()
+        foreach ($pid in $frontier) {
+            $kids = @($AllProcesses | Where-Object { $_.ParentProcessId -eq $pid })
+            foreach ($k in $kids) {
+                $descendants += $k
+                $next += $k.ProcessId
+            }
+        }
+        $frontier = $next
+    }
+    return $descendants
+}
+
+function Stop-ProcessTree {
+    <#
+    .SYNOPSIS
+        Kill a process and all of its descendants (children, grandchildren, …).
+    .DESCRIPTION
+        Windows `Stop-Process` only kills the direct parent. For service
+        launchers like `watchfiles` (which spawns uvicorn children) or
+        `cmd.exe /c "pnpm run dev"` (which spawns npm and vite
+        grandchildren), killing only the parent leaves orphaned child
+        processes holding ports and consuming resources. This function
+        walks the process tree bottom-up: kills descendants first, then
+        the target, so nothing is left behind.
+    .PARAMETER ProcessId
+        The root process ID to kill.
+    .PARAMETER Force
+        Use -Force when calling Stop-Process.
+    .PARAMETER TimeoutSec
+        Seconds to wait for each process to exit before giving up (default 5).
+    .OUTPUTS
+        Number of processes killed.
+    #>
+    param(
+        [Parameter(Mandatory)][int]$ProcessId,
+        [switch]$Force,
+        [int]$TimeoutSec = 5
+    )
+    $allProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+    $target = $allProcs | Where-Object { $_.ProcessId -eq $ProcessId }
+    if (-not $target) {
+        Write-Verbose "Stop-ProcessTree: PID $ProcessId no longer exists"
+        return 0
+    }
+
+    # Collect descendants (children first, so we kill bottom-up).
+    $descendants = Get-ProcessDescendants -ProcessId $ProcessId -AllProcesses $allProcs
+
+    $killed = 0
+    # Kill descendants first (reverse order so deepest leaves go first).
+    for ($i = $descendants.Count - 1; $i -ge 0; $i--) {
+        $d = $descendants[$i]
+        try {
+            Stop-Process -Id $d.ProcessId -Force:$Force -ErrorAction SilentlyContinue
+            $killed++
+        } catch {
+            Write-Verbose "Stop-ProcessTree: could not kill descendant $($d.ProcessId): $($_.Exception.Message)"
+        }
+    }
+
+    # Now kill the target itself.
+    try {
+        Stop-Process -Id $ProcessId -Force:$Force -ErrorAction SilentlyContinue
+        $killed++
+    } catch {
+        Write-Verbose "Stop-ProcessTree: could not kill target ${ProcessId}: $($_.Exception.Message)"
+    }
+
+    # Wait briefly for processes to actually exit.
+    if ($killed -gt 0) {
+        for ($i = 1; $i -le $TimeoutSec; $i++) {
+            Start-Sleep -Seconds 1
+            $stillAlive = $allProcs | Where-Object {
+                $_.ProcessId -eq $ProcessId -or
+                $descendants.ProcessId -contains $_.ProcessId
+            }
+            if (-not $stillAlive) { break }
+        }
+    }
+
+    return $killed
+}
+
+function Register-StartedProcess {
+    <#
+    .SYNOPSIS
+        Register a started process in the session-level registry for
+        automatic tree cleanup on script exit.
+    .PARAMETER Process
+        The process object returned by Start-Process / Start-ProcessSafe.
+    .PARAMETER Service
+        Optional service config name (e.g. 'backend', 'frontend').
+    .PARAMETER ServiceName
+        Optional short display name (e.g. 'Backend', 'Frontend').
+    #>
+    param(
+        [Parameter(Mandatory)][System.Diagnostics.Process]$Process,
+        [string]$Service,
+        [string]$ServiceName
+    )
+    if (-not $script:ProcessRegistry) { $script:ProcessRegistry = @() }
+    $entry = @{
+        Name          = if ($ServiceName) { $ServiceName } else { $Process.ProcessName }
+        ProcessId     = $Process.Id
+        StartTime     = $Process.StartTime
+        Service       = $Service
+        ServiceName   = $ServiceName
+        CommandLine   = (try { $Process.CommandLine } catch { $null })
+    }
+    $script:ProcessRegistry += $entry
+}
+
+function Get-TrackedProcesses {
+    <#
+    .SYNOPSIS
+        Return all tracked processes that are still running.
+    .OUTPUTS
+        Array of registry entry hashtables.
+    #>
+    $alive = @()
+    foreach ($entry in $script:ProcessRegistry) {
+        try {
+            $proc = Get-Process -Id $entry.ProcessId -ErrorAction SilentlyContinue
+            if ($proc) {
+                $alive += $entry
+            }
+        } catch {
+            # Process already gone — skip.
+        }
+    }
+    return $alive
+}
+
+function Stop-TrackedProcess {
+    <#
+    .SYNOPSIS
+        Stop a tracked process and its entire process tree.
+    .PARAMETER ProcessId
+        The PID of a registered process.
+    #>
+    param([Parameter(Mandatory)][int]$ProcessId)
+    $entry = $script:ProcessRegistry | Where-Object { $_.ProcessId -eq $ProcessId }
+    if (-not $entry) {
+        Write-Warn "Stop-TrackedProcess: PID $ProcessId is not tracked"
+        return $false
+    }
+    $killed = Stop-ProcessTree -ProcessId $ProcessId -Force
+    # Remove from registry.
+    $script:ProcessRegistry = @($script:ProcessRegistry | Where-Object { $_.ProcessId -ne $ProcessId })
+    Write-Ok "Stopped $($entry.Name) (PID $ProcessId) and $killed descendant processes"
+    return $true
+}
+
+function Stop-AllTrackedProcesses {
+    <#
+    .SYNOPSIS
+        Stop all tracked processes and their trees.
+    #>
+    $count = 0
+    # Iterate a copy so we can mutate the original.
+    foreach ($entry in @($script:ProcessRegistry)) {
+        if (Stop-TrackedProcess -ProcessId $entry.ProcessId) {
+            $count++
+        }
+    }
+    Write-Ok "Stopped $count tracked process(es) and their trees"
+    return $count
+}
+
+function Test-StaleProcess {
+    <#
+    .SYNOPSIS
+        Determine whether a process is "stale" — started by a previous
+        session and no longer needed.
+    .DESCRIPTION
+        A process is considered stale if:
+        - It's a python.exe or node.exe or cmd.exe
+        - Its command line references project paths (packages\, ComfyUI)
+        - It started more than StaleProcessMaxAgeMinutes ago
+    .PARAMETER Process
+        A process object (from Get-CimInstance or Get-Process).
+    #>
+    param([Parameter(Mandatory)]$Process)
+    $cmd = if ($Process.CommandLine) { $Process.CommandLine } else { '' }
+
+    # Only consider processes that reference the studio project.
+    $projectMarkers = @(
+        'packages\backend', 'packages\frontend', 'packages\video-editor',
+        'packages\\backend', 'packages\\frontend', 'packages\\video-editor',
+        'ComfyUI'
+    )
+    $isProjectProcess = $false
+    foreach ($marker in $projectMarkers) {
+        if ($cmd -like "*$marker*") { $isProjectProcess = $true; break }
+    }
+    if (-not $isProjectProcess) { return $false }
+
+    # Only consider old processes (not something we just started).
+    $ageMinutes = [int]((Get-Date) - $Process.CreationDate).TotalMinutes
+    if ($ageMinutes -lt $script:StaleProcessMaxAgeMinutes) { return $false }
+
+    return $true
+}
+
+function Reap-StaleProcesses {
+    <#
+    .SYNOPSIS
+        Kill processes left over from previous sessions that are still
+        running on project ports or holding project paths.
+    .DESCRIPTION
+        Called at startup so stale watchfiles/uvicorn/vite/node processes
+        from a crashed or improperly-stopped previous session don't block
+        new service launches.
+    .PARAMETER DryRun
+        If set, only reports what would be killed without killing.
+    .OUTPUTS
+        Number of processes killed (or that would be killed in dry run).
+    #>
+    param([switch]$DryRun)
+    $allProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+    $stale = @()
+    foreach ($p in $allProcs) {
+        if (Test-StaleProcess -Process $p) {
+            $stale += $p
+        }
+    }
+
+    if ($stale.Count -eq 0) {
+        Write-Verbose "Reap-StaleProcesses: no stale processes found"
+        return 0
+    }
+
+    $killed = 0
+    foreach ($p in $stale) {
+        $age = [int]((Get-Date) - $p.CreationDate).TotalMinutes
+        if ($DryRun) {
+            Write-Warn "Stale process (would kill): PID $($p.ProcessId) $($p.Name) started ${age}m ago — $($p.CommandLine)"
+        } else {
+            Write-Warn "Reaping stale process: PID $($p.ProcessId) $($p.Name) started ${age}m ago"
+            $killed += Stop-ProcessTree -ProcessId $p.ProcessId -Force
+        }
+    }
+
+    if (-not $DryRun) {
+        Write-Ok "Reaped $killed stale process(es)"
+    }
+    return $killed
 }
 
 function Wait-ForPort {
@@ -531,7 +844,7 @@ function Wait-ForPort {
     param(
         [Parameter(Mandatory)][int]$Port,
         [Parameter(Mandatory)][string]$Name,
-        [int]$MaxSeconds = 45
+        [int]$MaxSeconds = 15
     )
     for ($i = 1; $i -le $MaxSeconds; $i++) {
         if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {

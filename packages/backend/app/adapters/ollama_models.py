@@ -49,7 +49,7 @@ class OllamaModelMixin:
             async with session.post(
                 f"{self.base_url}/api/pull",
                 json={"model": name},
-                timeout=aiohttp.ClientTimeout(total=600),
+                timeout=aiohttp.ClientTimeout(total=120),
             ) as resp:
                 return resp.status == 200
         except Exception:  # noqa: BLE001

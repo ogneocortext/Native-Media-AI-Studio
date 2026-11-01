@@ -20,6 +20,32 @@ interface PortConfig {
 }
 
 /**
+ * Shared proxy targets used by both `server` and `preview`.
+ * Kept in one place so a backend URL change only needs one edit.
+ */
+const PROXY_TARGETS = {
+  "/api": { target: "", changeOrigin: true },
+  "/output": { target: "", changeOrigin: true },
+  "/ws": { target: "", changeOrigin: true, ws: true },
+} as const;
+
+/**
+ * Hosts allowed to reach the dev/preview server.
+ * Public tunnel provider hostnames (randomized per start) are suffix-matched.
+ */
+const ALLOWED_HOSTS = [
+  "localhost",
+  ".localhost",
+  ".loca.lt",
+  ".ngrok-free.app",
+  ".ngrok-free.dev",
+  ".ngrok.app",
+  ".ngrok.io",
+  ".trycloudflare.com",
+  ".serveo.net",
+];
+
+/**
  * Load port configuration from config/ports.json (single source of truth).
  * Falls back to environment variables or defaults that match ports.json.
  *
@@ -29,7 +55,7 @@ interface PortConfig {
  * Vite itself runs locally; only browser-origin API calls use the tunnel URL.
  */
 function getPortConfig(mode: string): PortConfig {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, process.cwd(), "VITE_");
 
   const publicBackend = (env.VITE_PUBLIC_BACKEND_URL || "").trim();
   const publicFrontend = (env.VITE_PUBLIC_FRONTEND_URL || "").trim();
@@ -71,8 +97,15 @@ export default defineConfig(({ mode }) => {
   const isProd = mode === "production";
   const isAnalyze = mode === "analyze";
 
+  // Apply proxyTarget after we know the backend URL.
+  const proxy = {
+    "/api": { ...PROXY_TARGETS["/api"], target: proxyTarget },
+    "/output": { ...PROXY_TARGETS["/output"], target: proxyTarget },
+    "/ws": { ...PROXY_TARGETS["/ws"], target: proxyTarget },
+  };
+
   return {
-    // Use the project tsconfig.json for path resolution (Vite 8.3 feature)
+    // Use the project tsconfig.json for path resolution (Vite 8 feature)
     tsconfig: "tsconfig.json",
     // Vite 8 built-in devtools integration. clientAuth:false skips the
     // authorization dialog (which blocks the UI) while keeping all DevTools
@@ -91,9 +124,9 @@ export default defineConfig(({ mode }) => {
     ].filter(Boolean),
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "@shared": path.resolve(__dirname, "../../shared"),
-        // Dedupe three-stdlib loaders to canonical three/examples/jsm (saves ~100KB gz)
+        // tsconfig.json already defines @/* and @shared/*; tsconfigPaths:true
+        // picks them up automatically. The manual aliases below are kept only
+        // for entries that aren't in tsconfig (e.g. bare three/addons).
         "three/addons": path.resolve(__dirname, "./node_modules/three/examples/jsm"),
       },
       dedupe: ["three", "three-stdlib"],
@@ -110,43 +143,19 @@ export default defineConfig(({ mode }) => {
       // Entries may be a bare hostname or a leading-dot suffix match
       // (".loca.lt" matches any subdomain). The dev server is only reachable
       // via the tunnel or the LAN, so this is tighter than "all" on purpose.
-      allowedHosts: [
-        "localhost",
-        ".localhost",
-        // Public tunnel providers (hostnames are randomized per start).
-        ".loca.lt",
-        ".ngrok-free.app",
-        ".ngrok-free.dev",
-        ".ngrok.app",
-        ".ngrok.io",
-        ".trycloudflare.com",
-        ".serveo.net",
-      ],
-      proxy: {
-        "/api": {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        "/output": {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        "/ws": {
-          // Legacy WS proxy — kept for compat with old clients that still try ws://…/ws.
-          // Canonical real-time is SSE at /api/events (see docs/api/API_REFERENCE.md).
-          target: proxyTarget,
-          changeOrigin: true,
-          ws: true,
-        },
-      },
-      // Stable file watching on Windows
+      allowedHosts: ALLOWED_HOSTS,
+      proxy,
+      // Stable file watching on Windows (usePolling only needed on Windows
+      // where native file-system events are unreliable in WSL/Docker).
       watch: {
-        usePolling: true,
-        interval: 1000,
+        usePolling: process.platform === "win32",
+        interval: process.platform === "win32" ? 1000 : undefined,
         ignored: [
           "**/node_modules/**",
           "**/dist/**",
           "**/.git/**",
+          "**/.vite/**",
+          "**/.turbo/**",
           "**/public/docs/**",
           "**/public/stems/**",
           "**/public/renders/**",
@@ -154,6 +163,13 @@ export default defineConfig(({ mode }) => {
       },
       hmr: {
         overlay: true,
+      },
+      // Auto-open browser in dev mode for better DX.
+      open: mode === "development",
+      // Restrict filesystem access for the dev server.
+      fs: {
+        allow: [__dirname, path.resolve(__dirname, "../../shared")],
+        deny: ["**/.env", "**/.env.*", "**/*.key", "**/*.pem"],
       },
     },
     // Pre-bundle common dependencies for faster dev startup.
@@ -171,14 +187,22 @@ export default defineConfig(({ mode }) => {
         "zustand",
       ],
     },
+    // Replace __DEV__ so dev-only code paths can be tree-shaken in production.
+    define: {
+      __DEV__: !isProd,
+    },
     build: {
       outDir: "dist",
       sourcemap: !isProd,
       cssMinify: "esbuild",
-      chunkSizeWarningLimit: 1500,
+      chunkSizeWarningLimit: 500,
       // Target modern browsers for smaller bundles
       target: "es2022",
       modulePreload: true,
+      // Always minify production builds regardless of Vite mode.
+      minify: "esbuild",
+      // Reduce console noise in production
+      reportCompressedSize: false,
       rollupOptions: {
         output: {
           // Manual chunk splitting for better caching
@@ -211,41 +235,13 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-      // Minification settings
-      minify: isProd ? "esbuild" : false,
-      // Reduce console noise in production
-      reportCompressedSize: false,
     },
     preview: {
-      port: portConfig.frontend_port,
+      port: portConfig.frontend_port + 1, // Avoid colliding with dev server port
       // Same host policy as `server`: `vite preview` is also reachable through
       // the tunnel when an agent is pointed at a built bundle.
-      allowedHosts: [
-        "localhost",
-        ".localhost",
-        ".loca.lt",
-        ".ngrok-free.app",
-        ".ngrok-free.dev",
-        ".ngrok.app",
-        ".ngrok.io",
-        ".trycloudflare.com",
-        ".serveo.net",
-      ],
-      proxy: {
-        "/api": {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        "/output": {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        "/ws": {
-          target: proxyTarget,
-          changeOrigin: true,
-          ws: true,
-        },
-      },
+      allowedHosts: ALLOWED_HOSTS,
+      proxy,
     },
   };
 });

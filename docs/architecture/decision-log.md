@@ -1787,5 +1787,52 @@
 - **Files:** opencode.json, packages/video-editor/opencode.json, scripts/start-tunnel.ps1, packages/backend/app/api/hyperframes.py, docs/knowledge-library/npx-best-practices-2026.md (new), docs/knowledge-library/mcp-registry.json, docs/architecture/decision-log.md (this entry).
 - **Consequences:** No runtime network fetching from the npm registry via npx. All package executions are version-pinned and lockfile-verified. MCP servers can no longer silently auto-update to malicious versions. Users must pre-install packages (`pnpm add -D <pkg>@<version>`) before running `npx --no --offline`. Known limitation: documentation examples across the repo still show unpinned `npx` patterns (e.g. `npx playwright test`, `npx remotion render`) — these should be migrated to `pnpm exec` or pinned `--no --offline` form as they are touched.
 
+### D55 — Handler/subprocess/service timeouts reduced to match local workstation (2026-11-01)
+
+- **Status:** Decided
+- **Context:** Multiple handler and subprocess timeouts were set to 300–600 seconds, copied from cloud/distributed execution patterns where jobs queue behind other work. On this single-machine workstation (Ryzen 5 5500 6C/12T, GTX 1070 Ti 8GB VRAM, SATA SSD), a 600 s timeout means a hung job blocks the serial queue for 10 minutes before aborting. Measured: `queue/processor.py` `HANDLER_TIMEOUT_SECONDS = 3600` (1 hour), `ollama_models.py` model pull = 600 s, `musetalk_adapter.py` lip-sync inference = 3600 s (1 hour), `audio_edit.py` ffmpeg extract/trim = 600 s, `beat_assembler.py` ffmpeg assemble = 600/620 s, `main.py` WebSocket receive = 30 s / SSE queue.get = 15 s, `comfyui.py` image fetch = 120 s, `source_separation.py` subprocess = 600 s.
+- **Decision:** Reduce all handler/subprocess timeouts to match local execution characteristics:
+  - `HANDLER_TIMEOUT_SECONDS`: 3600 → 300 (5 min)
+  - `ollama_models.py` pull_model: 600 → 120 (2 min)
+  - `musetalk_adapter.py` inference_timeout_s: 3600 → 300 (5 min)
+  - `audio_edit.py` extract/trim ffmpeg: 600 → 120 (2 min)
+  - `beat_assembler.py` assemble ffmpeg: 600/620 → 120 (2 min)
+  - `main.py` WebSocket receive: 30 → 10 (10 s)
+  - `main.py` SSE queue.get: 15 → 5 (5 s)
+  - `comfyui.py` image fetch: 120 → 60 (1 min)
+  - `source_separation.py` subprocess: 600 → 300 (5 min)
+- **Files:** `packages/backend/app/queue/processor.py`, `packages/backend/app/adapters/ollama_models.py`, `packages/backend/app/services/lipsync/musetalk_adapter.py`, `packages/backend/app/api/audio_edit.py`, `packages/backend/app/services/beat_assembler.py`, `packages/backend/app/main.py`, `packages/backend/app/adapters/comfyui.py`, `packages/backend/app/services/source_separation.py`.
+- **Consequences:** A hung job now aborts in ≤5 min instead of ≤1 hour; local ffmpeg/extract/trim operations fail fast with HTTP 504 instead of holding the request for 10 min; WebSocket and SSE connections detect disconnects sooner. No change to the D7 "serial/queue-based execution — no excessive parallelism" constraint — these are timeout reductions, not parallelism increases.
+
+### D56 — Cloud gateway removed from model routing (local-first) (2026-11-01)
+
+- **Status:** Decided
+- **Context:** `config/model_routing.json` contained a `cloud_gateway` section (provider: fal.ai, fallback: replicate) for "cloud-burst for hero shots when local VRAM is saturated." The video route handler (`POST /api/video/route-scene`) used it to suggest cloud providers when `vram_available_mb < vram_required`. This is over-engineered for a single-machine workstation with no cloud accounts configured; it returns provider names the user cannot act on.
+- **Decision:** Remove `cloud_gateway` from `config/model_routing.json` and remove the cloud-fallback suggestion logic from `POST /api/video/route-scene`. The endpoint now returns only `model`, `tier`, `reason`, `vram_required_mb`, `cloud_fallback=null`, `routing_note=null`. Local-first execution is unchanged — the `config/cloud_pricing.json` file remains but is opt-in per `generation_estimator.py` (D9).
+- **Files:** `config/model_routing.json`, `packages/backend/app/api/video.py`.
+- **Consequences:** `route-scene` no longer mentions fal.ai or replicate. VRAM-tight sections still return the correct local model and tier; the caller must decide locally whether to downscale, use a smaller model, or skip. No cloud credentials, endpoints, or billing are referenced anywhere in the code path.
+
+### D57 — Process tree cleanup + stale reaping for service management (2026-11-01)
+
+- **Status:** Decided
+- **Context:** `Stop-Process` kills only the direct parent process, leaving orphaned children: `watchfiles`→uvicorn grandchildren, `cmd.exe /c "pnpm run dev"`→npm→vite great-grandchildren. `manage-servers.ps1` had no process registry at all; `start-studio.ps1` tracked processes in `$script:started` but never cleaned up children. No TTL existed — a crashed or forgotten session left python.exe/node.exe/chrome.exe processes holding ports indefinitely.
+- **Decision:** Add process tree management to `shared-utils.ps1`:
+  - `Stop-ProcessTree` — walks the WMI process tree bottom-up, kills descendants first then the parent, waits up to `TimeoutSec` for exit.
+  - `Register-StartedProcess` — session-level registry (`$script:ProcessRegistry`) with PID, start time, service name, command line.
+  - `Get-TrackedProcesses` / `Stop-TrackedProcess` / `Stop-AllTrackedProcesses` — registry CRUD.
+  - `Test-StaleProcess` / `Reap-StaleProcesses` — flags python.exe/node.exe/cmd.exe referencing project paths older than `StaleProcessMaxAgeMinutes` (default 30 min) and kills them; called at service startup.
+  - `Start-StudioService` / `Stop-StudioService` in `manage-servers.ps1`: start/stop run in `ForEach-Object -Parallel -ThrottleLimit 4`; stop uses `Stop-ProcessTree` + `Stop-AllTrackedProcesses`; status shows tracked processes with age.
+  - `start-studio.ps1`: all start functions register processes; `Stop-StartedServices` uses `Stop-ProcessTree`; main loop reaps tracked processes past the 30-min TTL each iteration.
+- **Files:** `scripts/shared-utils.ps1`, `scripts/manage-servers.ps1`, `scripts/start-studio.ps1`.
+- **Consequences:** Stopping a service now kills its entire process tree, not just the launcher. Stale processes from previous sessions are reaped on startup. Tracked processes running >30 min are automatically reaped. `status -NoOrphanScan` skips the slow `Get-CimInstance` tree walk. Parallel service start/stop is throttled to 4 concurrent to avoid port contention.
+
+### D58 — Remotion CLI render service for programmatic video control (2026-11-01)
+
+- **Status:** Decided
+- **Context:** Remotion Studio (port 8080) is a browser destination app opened via an `external: true` sidebar link — it cannot be controlled programmatically from the backend over HTTP (WebMCP requires a browser context; the official MCP server was deprecated Oct 26, 2026). Forcing it into the `BaseAdapter` `generate(params)`/`health_check()` pattern would fight the framework design. The correct integration direction is the Remotion CLI: the backend shells out to `npx remotion render` inside `packages/video-editor/` and compiles a composition to MP4/WebM.
+- **Decision:** New `packages/backend/app/services/remotion_cli.py` wrapping `npx remotion render <composition_id> <output_path> [--codec h264] [--props <json>]`. Runs off the event loop via `asyncio.to_thread`; Windows-safe (`shell=True` for `npx.CMD` batch dispatch); omits `--concurrency auto` (invalid CLI value); measures output duration via ffprobe/soundfile. New `JobType.REMOTION_RENDER` added to `app/models/job.py`; registered handler `_remotion_render_handler` in `app/api/audio_remix.py`. New endpoints: `GET /api/audio/remix/remotion/status`, `POST /api/audio/remix/remotion/render`, `GET /api/audio/remix/remotion/availability`. Job lifecycle polled via existing `GET /api/audio/remix/jobs/{id}`.
+- **Files:** `packages/backend/app/services/remotion_cli.py` (new), `packages/backend/app/models/job.py` (`REMOTION_RENDER`), `packages/backend/app/api/audio_remix.py` (handler + endpoints + registration).
+- **Consequences:** AI agents can programmatically trigger Remotion renders through the existing job queue (enqueue → poll → result). The default composition `SignalBreakingThroughNoise` from `packages/video-editor/src/Composition.tsx` accepts an optional `analysis` prop (backend timing metadata) for beat-synced animation. No adapter pattern forced onto Remotion Studio; the external sidebar link remains the primary user-facing entry point. Requires `@remotion/cli` installed in `packages/video-editor/` (verified at 4.0.539).
+
 
 

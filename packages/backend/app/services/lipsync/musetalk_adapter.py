@@ -62,7 +62,7 @@ class MuseTalkConfig:
     weights_dir: Path
     vram_budget_mb: int = 4096
     inference_command: str = ""  # template with {video} {audio} {output} {weights_dir}
-    inference_timeout_s: int = 3600
+    inference_timeout_s: int = 300
     audio_sample_rate: int = 16000
     # mock: dev-only pipeline test. Copies the input video to the output instead
     # of running the model, so the full batch workflow (chunk -> queue -> stitch)

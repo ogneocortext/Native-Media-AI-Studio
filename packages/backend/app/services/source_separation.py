@@ -18,6 +18,7 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
+from itertools import starmap
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -638,7 +639,7 @@ class SourceSeparator:
         async def _one(name: str, wav: str) -> tuple[str, Path | None]:
             return name, await asyncio.to_thread(encode_wav_to_mp3, Path(wav))
 
-        results = await asyncio.gather(*[_one(n, w) for n, w in stems.items()])
+        results = await asyncio.gather(*list(starmap(_one, stems.items())))
         return {name: str(mp3) for name, mp3 in results if mp3 is not None}
 
     async def separate(
@@ -894,7 +895,7 @@ class SourceSeparator:
         )
 
     async def _run_subprocess_async(
-        self, cmd: list[str], timeout_s: int = 600
+        self, cmd: list[str], timeout_s: int = 300
     ) -> tuple[int, bytes, bytes]:
         """Run a subprocess, falling back to a thread on Windows SelectorEventLoop.
 
@@ -966,7 +967,7 @@ class SourceSeparator:
 
         try:
             returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return SeparationResult(
                 audio_file=audio_path,
                 model=model,
@@ -1081,7 +1082,7 @@ class SourceSeparator:
 
             try:
                 returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return SeparationResult(
                     audio_file=audio_path,
                     model=model,
@@ -1125,7 +1126,7 @@ class SourceSeparator:
                 computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
                 stems_mp3=stems_mp3,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return SeparationResult(
                 audio_file=audio_path,
                 model=model,
@@ -1164,7 +1165,7 @@ class SourceSeparator:
             returncode: int | None
             try:
                 returncode, stdout, stderr = await self._run_subprocess_async(cmd, timeout_s=600)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 raise
 
             if returncode != 0:
@@ -1205,7 +1206,7 @@ class SourceSeparator:
                 computed_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
                 stems_mp3=stems_mp3,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return SeparationResult(
                 audio_file=audio_path,
                 model="spleeter:4stems",

@@ -16,10 +16,16 @@ dependencies = [
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-v --tb=short --strict-markers"
+addopts = "-v --tb=short --strict-markers --durations=15 --maxfail=20 -n auto"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests that hit the app/network boundary",
+    "audio: marks tests covering audio processing (upload, analysis, stems, remix)",
+    "queue: marks tests covering the job queue and processor",
+    "health: marks tests covering health checks and diagnostics",
+    "database: marks tests covering database operations and connections",
+    "remix: marks tests covering remix building and mastering",
+    "websocket: marks tests covering WebSocket and SSE connections",
 ]
 
 [tool.coverage.run]
@@ -29,7 +35,16 @@ omit = ["*/__pycache__/*", "*/tests/*"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
-fail_under = 20
+fail_under = 40
+
+# Fast-gate profile for sub-10s development feedback:
+#   python tools/test_insights.py --fast-gate
+# Watch mode for TDD Red-Green-Refactor cycle:
+#   python tools/test_watch.py
+# Full suite with historical reporting:
+#   python tools/test_insights.py --html --json
+# CI gate (fast, fail-fast):
+#   python tools/test_insights.py --fast-gate --json
 
 [tool.setuptools.packages.find]
 where = ["."]

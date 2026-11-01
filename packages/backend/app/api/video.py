@@ -462,7 +462,6 @@ async def route_scene(request: RouteSceneRequest) -> RouteSceneResponse:
 
         rules = routing.get("rules", [])
         fallback = routing.get("fallback", {"model": "wan2.2-5b", "tier": "balanced", "reason": "Default"})
-        cloud_gw = routing.get("cloud_gateway", {})
 
         section = (request.section_type or "").lower().replace(" ", "_")
         energy = request.energy if request.energy is not None else 0.5
@@ -494,20 +493,13 @@ async def route_scene(request: RouteSceneRequest) -> RouteSceneResponse:
         vram_info = estimate_vram_requirement(model)
         vram_required = vram_info.get("recommended_mb")
 
-        # Cloud fallback suggestion when VRAM is tight
-        cloud_fallback = None
-        routing_note = None
-        if request.vram_available_mb is not None and vram_required and request.vram_available_mb < vram_required:
-            cloud_fallback = cloud_gw.get("fallback_provider") or cloud_gw.get("provider")
-            routing_note = f"Local VRAM insufficient ({request.vram_available_mb} MB < {vram_required} MB recommended); cloud-burst via {cloud_fallback} recommended"
-
         return RouteSceneResponse(
             model=model,
             tier=tier,
             reason=reason,
             vram_required_mb=vram_required,
-            cloud_fallback=cloud_fallback,
-            routing_note=routing_note,
+            cloud_fallback=None,
+            routing_note=None,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -632,7 +624,7 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
                     return -1, b"", b"FFmpeg timed out"
             returncode, stdout, stderr = await asyncio.wait_for(asyncio.to_thread(_run), timeout=130)
             proc = None  # type: ignore[assignment]
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Canvas loop FFmpeg timed out for %s", src)
             return CanvasLoopResponse(success=False, error="FFmpeg timed out after 120s", message="Try a shorter duration or lower resolution")
 
@@ -813,6 +805,7 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
 # ---------------------------------------------------------------------------
 # Lip-sync batch (D42 extension) -- long audio -> chunks -> LIPSYNC jobs -> stitch
 # ---------------------------------------------------------------------------
+
 
 def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -> str:
     """Resolve an audio path from a direct path or a library filename."""

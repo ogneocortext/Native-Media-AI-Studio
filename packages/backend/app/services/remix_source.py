@@ -15,12 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from .remix_constants import (
+    _HASH_PREFIX_RE,
     AUDIO_DIR,
     AUDIO_EXTENSIONS,
-    _HASH_PREFIX_RE,
     STEM_NAMES,
 )
-from . import stem_remixer
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +54,8 @@ def library_audio_files() -> list[Path]:
 
 def _stem_dir_map() -> dict[str, str]:
     """Normalized stem-dir name -> stem key, for the reverse join."""
+    from . import stem_remixer
+
     found: dict[str, str] = {}
     sep = stem_remixer.SEPARATION_DIR
     for model_dir in sorted(sep.iterdir()) if sep.exists() else []:
@@ -159,6 +160,8 @@ def resolve_stem_path(track: str, stem: str) -> Path:
     call time so tests can monkeypatch `stem_remixer.SEPARATION_DIR` and
     `stem_remixer.resolve_track_key`.
     """
+    from . import stem_remixer
+
     if stem not in STEM_NAMES:
         raise ValueError(f"stem must be one of {', '.join(STEM_NAMES)}")
     track = stem_remixer.resolve_track_key(track)
@@ -185,6 +188,8 @@ def _pick_analysis_stem(track: str) -> tuple[str, Path]:
 
     Returns (stem_name, path) so the caller can record which one it measured.
     """
+    from . import stem_remixer
+
     for stem in ("drums", *STEM_NAMES):
         try:
             return stem, resolve_stem_path(track, stem)
@@ -270,6 +275,8 @@ def list_stem_sources() -> list[dict[str, Any]]:
     round-trip per track. ``library_file`` (B6) carries the library filename
     whenever the join is unambiguous, and is omitted when it is not.
     """
+    from . import stem_remixer
+
     found: dict[str, dict[str, Any]] = {}
     sep = stem_remixer.SEPARATION_DIR
     for model_dir in sorted(sep.iterdir()):
