@@ -149,7 +149,32 @@ the part to re-tune per viz style; the moves themselves follow the spec.
    setters). It is the track-loading coordinator; splitting it trades real
    behavioural risk for line count alone.
 
-## Audio graph
+## T-VIZ-10 through T-VIZ-13: Track Selection, Playback Clock, Presets, Lifecycle (2026-10-30)
+
+Visualizer.tsx was further decomposed into four focused hooks, leaving the
+component as pure orchestration + JSX:
+
+| Module | Purpose |
+|--------|---------|
+| `useTrackSelection.ts` | `handleFile`, `handleSelectLibraryTrack`, `parseLyricsForTrack`, `deriveTrackMeta`, `resetAudioDerivedState`, pending-track handoff effects |
+| `useVisualizerPlayback.ts` | rAF elapsed/beat clock, pause-sync, blob URL revocation, unmount cleanup, `togglePlayPause`, `cycleVizMode`, `handlePlayheadClick` |
+| `useVisualPresets.ts` | `applyPreset`, `handleVisualPresetSelect`, `handlePresetLoaded`, `handleClearPreset`, `handleEnhanceWithAI` (Ollama drafting) |
+| `useVisualizerLifecycle.ts` | dev shortcuts (`Ctrl+Shift+T`, `Ctrl+Shift+A`), `handleLoopToggle`, `captureFrame`, mode crossfade, reduced motion, global keyboard map, outside-click dismisser, `__VIZ_TEST__` harness |
+
+### Rule changes introduced
+
+- **No more inline `handleSelectLibraryTrack`** — the component wires JSX to `useTrackSelection` and the hook owns the 17-setter track-loading flow.
+- **Playback clock is declarative** — the rAF loop is owned by the hook; the component only calls `togglePlayPause` / `cycleVizMode` / `handlePlayheadClick`.
+- **Presets are application logic** — `applyPreset` is no longer inline; it lives in `useVisualPresets` with track-aware multipliers and clamped postfx.
+- **Global input is declarative** — keyboard shortcuts and outside-click dismisser live in `useVisualizerLifecycle`, not inline in the component.
+
+### Verification
+
+- `tsc --noEmit`: clean
+- `eslint`: clean
+- `vitest`: 891/891 pass
+- Playwright E2E: Canvas2D and LyricOverlay specs pass against Vite dev server
+
 
 ```
 MediaElementSource → EQ → analyser → mainGain → destination
