@@ -78,3 +78,96 @@ Code: `packages/backend/app/agents/`
   logged in Last session.
 - **Last session:** Orion, 2026-11-01 — Item created with the
   knowledge doc; not started.
+
+### T-AGT-04 — Add a bolt-local scout agent definition (Kilo)
+- **Status:** todo
+- **Goal:** A Kilo subagent definition for Nemotron 3.5 Bolt E4B —
+  the same read-only scout pattern as `qwen-local`, with the
+  model's measured behavior (Bolt reference doc, §"Calling it
+  from an agent") baked into its limits and prompt, so a Tier A
+  driver can delegate bounded local lookups to Bolt the way it
+  already can to Qwen.
+- **Plan:** Evidence:
+  `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md`
+  (measured API behavior, 2026-11-01) and the qwen-local
+  precedent (`.kilo/agents/qwen-local.md`, commit bef6184).
+  Steps: (1) Add Bolt to the Kilo `atomic` provider's models in
+  `kilo.jsonc` alongside the existing Qwen entry: model id
+  exactly `nvidia/Nemotron-3_5-Bolt-E4B-Q4_K_M` (from
+  `GET /v1/models` — never typed from memory), `tool_call:
+  true`, limits context 16384 (the context Atomic actually
+  served in the Activity log) / output 4096 (the output limit
+  carries the reasoning headroom the Bolt doc requires).
+  (2) Write `.kilo/agents/bolt-local.md` mirroring qwen-local's
+  frontmatter discipline (mode subagent, temperature 0.15,
+  steps 15, edit/bash/task/webfetch/websearch all deny) with
+  the grounding rules carried over verbatim in substance
+  (never invent a path; glob/grep first; evidence as paths and
+  line numbers; report only what was found). Its description
+  and prompt must state the single-loaded-model rule: this
+  agent works only while Bolt is the model loaded in Atomic
+  Chat; with any other model loaded, calls 404 — say so and
+  stop rather than retrying. (3) Force-add the file (`.kilo/`
+  is gitignored; qwen-local set the precedent). (4) Validate:
+  with Bolt loaded in Atomic, `kilo agent list` shows
+  bolt-local; run one bounded scout job (summarize
+  `packages/backend/app/agents`, read-only) and log the
+  outcome to `tools/model-reliability/observed.jsonl`.
+- **Files:** .kilo/agents/bolt-local.md, kilo.jsonc
+- **Acceptance:** bolt-local appears in `kilo agent list`;
+  the scout job completes read-only while Bolt is loaded,
+  with file-path evidence in its answer; the outcome is
+  logged in observed.jsonl and in Last session.
+- **Last session:** Orion, 2026-11-01 — Item created from the
+  cloud↔local bridge work of the same day (the bridge
+  integration's Layer 1); not started.
+
+### T-AGT-05 — Design the cloud-agent bridge (backend service + Bridge panel)
+- **Status:** todo
+- **Goal:** A written spec for making the cloud-agent ↔
+  local-model bridge a studio surface: an authorized external
+  agent (today: Orion over the owner's tailnet) calls the
+  studio backend, which proxies to the loaded local model
+  under governance — instead of the external agent calling
+  Atomic Chat raw, as the 2026-11-01 proof of concept did.
+  Design only; build items open from the spec after owner
+  review.
+- **Plan:** Evidence:
+  `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md`
+  (§"Reaching it from the cloud agent", §"Calling it from an
+  agent") and the publication outline's service angle.
+  The spec must decide, with the evidence named for each:
+  (1) **Ingress:** the backend binds the rig's tailnet
+  address for bridge routes only (never 0.0.0.0 by default);
+  API-key auth with the key held server-side; the external
+  caller's key and Atomic's key are separate credentials.
+  (2) **Governance:** per-call token budgets that include
+  reasoning headroom; the thinking policy (on for numeric /
+  multi-step, off only for mechanically validated format
+  work); a loaded-model precheck via `GET /v1/models`
+  before every call (the 404 rule); NO silent fallback to
+  Ollama for external calls — a cloud caller asked for the
+  local lane, so lane-down is an explicit status, not a
+  substitution. (3) **Audit:** a persistent local log of
+  prompt/reply text plus metadata (timestamps, model id,
+  tokens, tok/s, stop/error) — the deliberate fix for
+  Atomic's memory-only Activity text, which the owner hit
+  on 2026-11-01; retention and owner-only visibility are
+  design decisions to state, not defaults to assume.
+  (4) **Panel:** a frontend Bridge view — lane status
+  (tailnet reachable, model loaded, exact id), the request
+  feed from the audit log, and the rules in force.
+  (5) **Relationship to the loop:** the bridge consumes the
+  same adapter path as T-AGT-02's decision loop and
+  inherits T-MOD-04's route-truth rules; name what is
+  shared and what is bridge-only. Close the spec with the
+  follow-on build items drafted (backend service, panel,
+  tests) — drafted, not opened; owner review gates them.
+- **Files:** docs/knowledge-library/cloud-agent-bridge-spec-2026-11.md
+- **Acceptance:** The spec exists and decides ingress,
+  governance, audit, panel, and loop relationship, each
+  with its evidence named; follow-on build items are
+  drafted in the spec; no code is written under this item.
+- **Last session:** Orion, 2026-11-01 — Item created from
+  the cloud↔local bridge work of the same day (the bridge
+  integration's Layers 3–4); not started.
