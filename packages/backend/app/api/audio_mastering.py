@@ -70,6 +70,33 @@ class MasterRequest(BaseModel):
             "true-peak limiting. 0 leaves the normalized gain untouched."
         ),
     )
+    finishing: bool = Field(
+        default=False,
+        description=(
+            "Apply corrective-balance finishing chain (T-AUD-08) before "
+            "loudness normalization: HP 35 Hz, low-shelf 120 Hz (−sub_cut_db), "
+            "peak 3.2 kHz (+presence_db), air 9 kHz +1.5 dB, glue comp 2.5:1. "
+            "Defaults off; existing callers unchanged."
+        ),
+    )
+    sub_cut_db: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=12.0,
+        description=(
+            "dB of low-shelf cut at 120 Hz (sub tame). Only applied when "
+            "finishing is true. 0 disables the sub cut."
+        ),
+    )
+    presence_db: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=12.0,
+        description=(
+            "dB of peaking lift at 3.2 kHz (vocal presence). Only applied "
+            "when finishing is true. 0 disables the presence lift."
+        ),
+    )
 
 
 class MasterResponse(BaseModel):
@@ -110,6 +137,9 @@ async def master_audio(body: MasterRequest) -> MasterResponse:
         ceiling_dbtp=body.ceiling_dbtp,
         tone_fixes=body.tone_fixes,
         gain_trim_db=body.gain_trim_db,
+        finishing=body.finishing,
+        sub_cut_db=body.sub_cut_db,
+        presence_db=body.presence_db,
     )
     if result.get("error") and not result.get("mastered_path"):
         status = 404 if "not found" in str(result["error"]) else 400

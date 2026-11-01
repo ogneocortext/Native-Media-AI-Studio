@@ -861,6 +861,12 @@ export interface MasterRequest {
   tone_fixes?: boolean;
   /** Manual trim in dB applied after normalization, before limiting. */
   gain_trim_db?: number;
+  /** Apply corrective-balance finishing chain before loudness normalization. */
+  finishing?: boolean;
+  /** dB of low-shelf cut at 120 Hz (sub tame). Only applied when finishing. */
+  sub_cut_db?: number;
+  /** dB of peaking lift at 3.2 kHz (vocal presence). Only applied when finishing. */
+  presence_db?: number;
 }
 
 export interface MasterApplied {
@@ -870,6 +876,13 @@ export interface MasterApplied {
   ceiling_dbtp: number;
   tone_fixes: boolean;
   gain_passes?: number;
+  finishing?: boolean;
+  sub_cut_db?: number;
+  presence_db?: number;
+  band_energy?: {
+    before: { sub_db: number; presence_db: number };
+    after: { sub_db: number; presence_db: number };
+  };
 }
 
 export interface MasterResponse {

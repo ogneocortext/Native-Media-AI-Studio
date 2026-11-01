@@ -24,6 +24,11 @@ Tone (v1, static): a conservative de-mud high-pass at ~300 Hz plus a gentle
 presence shelf around 4 kHz. This is the "safe half" of the AI-defect chain;
 dynamic de-harsh is deliberately not included.
 
+Tone (v2, finishing): optional corrective-balance chain applied BEFORE the
+loudness stage — high-pass 35 Hz, low-shelf 120 Hz (sub tame), peak 3.2 kHz
+(presence lift), high-shelf 9 kHz (air), glue compressor 2.5:1. GENTLE
+defaults; off by default so existing callers are unchanged. See T-AUD-08.
+
 Target presets (LUFS): spotify -14, apple -16, competitive -11, amazon -2.
 Ceiling default -1 dBTP.
 """
@@ -68,6 +73,33 @@ RELEASE_SEC = 0.1  # limiter release: 100 ms
 DEMUD_HZ = 300.0  # static de-mud high-pass corner
 PRESENCE_HZ = 4000.0  # gentle presence shelf centre
 PRESENCE_GAIN_DB = 2.0  # presence shelf boost (conservative)
+
+# ---------------------------------------------------------------------------
+# Finishing chain constants (T-AUD-08)
+#
+# Reference implementation: tools/finish.py (pedalboard/pyloudnorm).
+# Ported here to scipy so no new backend dependencies are required.
+# All stages are GENTLE — this polishes a sketch take for judging; it is
+# not a substitute for stem mixing or the Ableton finishing stage.
+# ---------------------------------------------------------------------------
+FINISHING_HP_HZ = 35.0  # subsonic cleanup high-pass
+FINISHING_LOW_SHELF_HZ = 120.0  # sub taming low-shelf centre
+FINISHING_LOW_SHELF_Q = 0.7
+FINISHING_PEAK_HZ = 3200.0  # presence lift peaking centre
+FINISHING_PEAK_Q = 0.9
+FINISHING_HIGH_SHELF_HZ = 9000.0  # air high-shelf centre
+FINISHING_HIGH_SHELF_Q = 0.7
+FINISHING_HIGH_SHELF_GAIN_DB = 1.5  # fixed air lift
+FINISHING_COMP_THRESHOLD_DB = -16.0  # glue compressor threshold
+FINISHING_COMP_RATIO = 2.5  # glue compressor ratio
+FINISHING_COMP_ATTACK_MS = 10.0  # compressor attack
+FINISHING_COMP_RELEASE_MS = 180.0  # compressor release
+
+# Band-energy QC bands (Hz): sub = 20–120, presence = 2–8k
+BAND_SUB_LO_HZ = 20.0
+BAND_SUB_HI_HZ = 120.0
+BAND_PRESENCE_LO_HZ = 2000.0
+BAND_PRESENCE_HI_HZ = 8000.0
 
 # Iterative gain tuning: how close the final measured loudness must be to
 # target (LU), and how many correction passes to try. Tone fixes (esp. the
@@ -369,6 +401,227 @@ def _true_peak_limit(samples: np.ndarray, sample_rate: int, ceiling_dbtp: float)
 
 
 # ---------------------------------------------------------------------------
+# Finishing chain DSP (T-AUD-08)
+# ---------------------------------------------------------------------------
+
+
+def _design_lowshelf(
+    sample_rate: int, cutoff_hz: float, gain_db: float, q: float = 0.7
+) -> tuple[np.ndarray, np.ndarray]:
+    """RBJ low-shelf filter: boost/cut below *cutoff_hz* by *gain_db* dB."""
+    nyq = sample_rate / 2.0
+    f0 = min(cutoff_hz / nyq, 0.99)
+    a0 = 1.0 + math.sin(2 * math.pi * f0) / (2 * q) * (
+        (10 ** (abs(gain_db) / 20.0) if gain_db > 0 else 10 ** (gain_db / 20.0)) - 1
+    )
+    # Simplified: use RBJ low-shelf coefficients directly.
+    w0 = 2 * math.pi * f0
+    alpha = math.sin(w0) / (2 * q)
+    amp = 10 ** (gain_db / 40.0)
+    cos_w0 = math.cos(w0)
+    b0 = amp * ((amp + 1) - (amp - 1) * cos_w0 + 2 * math.sqrt(amp) * alpha)
+    b1 = 2 * amp * ((amp - 1) - (amp + 1) * cos_w0)
+    b2 = amp * ((amp + 1) - (amp - 1) * cos_w0 - 2 * math.sqrt(amp) * alpha)
+    a0 = (amp + 1) + (amp - 1) * cos_w0 + 2 * math.sqrt(amp) * alpha
+    a1 = -2 * ((amp - 1) + (amp + 1) * cos_w0)
+    a2 = (amp + 1) + (amp - 1) * cos_w0 - 2 * math.sqrt(amp) * alpha
+    b = np.array([b0, b1, b2]) / a0
+    a = np.array([a1, a2]) / a0
+    return b, a
+
+
+def _design_highshelf(
+    sample_rate: int, cutoff_hz: float, gain_db: float, q: float = 0.7
+) -> tuple[np.ndarray, np.ndarray]:
+    """RBJ high-shelf filter: boost/cut above *cutoff_hz* by *gain_db* dB."""
+    nyq = sample_rate / 2.0
+    f0 = min(cutoff_hz / nyq, 0.99)
+    w0 = 2 * math.pi * f0
+    alpha = math.sin(w0) / (2 * q)
+    amp = 10 ** (gain_db / 40.0)
+    cos_w0 = math.cos(w0)
+    b0 = amp * ((amp + 1) + (amp - 1) * cos_w0 + 2 * math.sqrt(amp) * alpha)
+    b1 = -2 * amp * ((amp - 1) + (amp + 1) * cos_w0)
+    b2 = amp * ((amp + 1) + (amp - 1) * cos_w0 - 2 * math.sqrt(amp) * alpha)
+    a0 = (amp + 1) - (amp - 1) * cos_w0 + 2 * math.sqrt(amp) * alpha
+    a1 = 2 * ((amp - 1) - (amp + 1) * cos_w0)
+    a2 = (amp + 1) - (amp - 1) * cos_w0 - 2 * math.sqrt(amp) * alpha
+    b = np.array([b0, b1, b2]) / a0
+    a = np.array([a1, a2]) / a0
+    return b, a
+
+
+def _design_peaking(
+    sample_rate: int, cutoff_hz: float, gain_db: float, q: float = 0.9
+) -> tuple[np.ndarray, np.ndarray]:
+    """RBJ peaking EQ: boost/cut at *cutoff_hz* by *gain_db* dB.
+
+    Generalized from ``_design_presence_filter`` (which is hardcoded to
+    PRESENCE_HZ/PRESENCE_GAIN_DB).
+    """
+    nyq = sample_rate / 2.0
+    f0 = min(cutoff_hz / nyq, 0.99)
+    w0 = 2 * math.pi * f0
+    alpha = math.sin(w0) / (2 * q)
+    gain_linear = _db_to_linear(gain_db)
+    b0 = 1 + (gain_linear * alpha)
+    b1 = -2 * math.cos(w0)
+    b2 = 1 - (gain_linear * alpha)
+    a0 = 1 + alpha / gain_linear
+    a1 = -2 * math.cos(w0)
+    a2 = 1 - (alpha / gain_linear)
+    b = np.array([b0, b1, b2]) / a0
+    a = np.array([a1, a2]) / a0
+    return b, a
+
+
+def _apply_filter_ba(
+    samples: np.ndarray, b: np.ndarray, a: np.ndarray
+) -> np.ndarray:
+    """Apply a BA (direct-form II) filter per channel."""
+    if samples.ndim == 1:
+        return scipy_signal.lfilter(b, a, samples).astype(np.float32)
+    out = np.empty_like(samples)
+    for ch in range(samples.shape[1]):
+        out[:, ch] = scipy_signal.lfilter(b, a, samples[:, ch])
+    return out
+
+
+def _apply_compressor(
+    samples: np.ndarray,
+    sample_rate: int,
+    threshold_db: float,
+    ratio: float,
+    attack_ms: float,
+    release_ms: float,
+) -> np.ndarray:
+    """Simple RMS-based feed-forward compressor.
+
+    Computes a short-window RMS envelope, applies gain reduction when the
+    envelope exceeds *threshold_db*, and smooths the gain with attack/release.
+    """
+    if samples.size == 0:
+        return samples
+    # RMS envelope in 10 ms windows.
+    win = max(int(0.01 * sample_rate), 1)
+    mono = np.mean(samples, axis=1) if samples.ndim == 2 else samples
+    n = len(mono)
+    rms = np.sqrt(
+        np.convolve(mono**2, np.ones(win) / win, mode="same") + 1e-12
+    )
+    env_db = 20.0 * np.log10(np.maximum(rms, 1e-10))
+
+    # Gain reduction: when env > threshold, reduce by (env - thresh) * (1 - 1/ratio).
+    target_gain_db = np.where(
+        env_db > threshold_db,
+        -(env_db - threshold_db) * (1.0 - 1.0 / ratio),
+        0.0,
+    )
+    target_gain = _db_to_linear(target_gain_db)
+
+    # Smooth with attack/release.
+    attack_samples = int(attack_ms / 1000.0 * sample_rate)
+    release_samples = int(release_ms / 1000.0 * sample_rate)
+    gains = np.ones(n, dtype=np.float32)
+    current_gain = 1.0
+    for i in range(n):
+        tg = target_gain[i]
+        if tg < current_gain:
+            step = 1.0 / max(attack_samples, 1)
+            current_gain = max(tg, current_gain - step)
+        else:
+            step = 1.0 / max(release_samples, 1)
+            current_gain = min(1.0, current_gain + step)
+        gains[i] = current_gain
+
+    if samples.ndim == 1:
+        return (samples * gains).astype(np.float32)
+    return (samples * gains[:, None]).astype(np.float32)
+
+
+def _apply_finishing_chain(
+    samples: np.ndarray,
+    sample_rate: int,
+    sub_cut_db: float,
+    presence_db: float,
+) -> np.ndarray:
+    """Apply the corrective-balance finishing chain (T-AUD-08).
+
+    Order (per tools/finish.py reference):
+      1. High-pass 35 Hz — subsonic cleanup
+      2. Low-shelf 120 Hz (−sub_cut_db dB) — sub tame
+      3. Peaking 3.2 kHz (+presence_db dB) — presence lift
+      4. High-shelf 9 kHz (+1.5 dB) — air
+      5. Compressor 2.5:1 — glue
+    """
+    board = [
+        ("highpass", FINISHING_HP_HZ),
+        ("lowshelf", FINISHING_LOW_SHELF_HZ),
+        ("peaking", FINISHING_PEAK_HZ),
+        ("highshelf", FINISHING_HIGH_SHELF_HZ),
+        ("compressor", None),
+    ]
+
+    for stage, freq in board:
+        if stage == "highpass":
+            sos = scipy_signal.butter(2, min(freq / (sample_rate / 2), 0.99), btype="high", output="sos")
+            samples = _apply_sos(samples, sos)
+        elif stage == "lowshelf":
+            b, a = _design_lowshelf(sample_rate, freq, -sub_cut_db, FINISHING_LOW_SHELF_Q)
+            samples = _apply_filter_ba(samples, b, a)
+        elif stage == "peaking":
+            b, a = _design_peaking(sample_rate, freq, presence_db, FINISHING_PEAK_Q)
+            samples = _apply_filter_ba(samples, b, a)
+        elif stage == "highshelf":
+            b, a = _design_highshelf(
+                sample_rate, freq, FINISHING_HIGH_SHELF_GAIN_DB, FINISHING_HIGH_SHELF_Q
+            )
+            samples = _apply_filter_ba(samples, b, a)
+        elif stage == "compressor":
+            samples = _apply_compressor(
+                samples,
+                sample_rate,
+                FINISHING_COMP_THRESHOLD_DB,
+                FINISHING_COMP_RATIO,
+                FINISHING_COMP_ATTACK_MS,
+                FINISHING_COMP_RELEASE_MS,
+            )
+    return samples
+
+
+def _apply_sos(samples: np.ndarray, sos: np.ndarray) -> np.ndarray:
+    """Apply an SOS (second-order sections) filter per channel."""
+    if samples.ndim == 1:
+        return scipy_signal.sosfilt(sos, samples).astype(np.float32)
+    out = np.empty_like(samples)
+    for ch in range(samples.shape[1]):
+        out[:, ch] = scipy_signal.sosfilt(sos, samples[:, ch])
+    return out
+
+
+def _band_energy_db(samples: np.ndarray, sample_rate: int, low_hz: float, high_hz: float) -> float:
+    """Band energy in dB relative to full scale for *low_hz*–*high_hz*.
+
+    Uses a Butterworth bandpass (order 4) then RMS. Returns -inf when the band
+    is silent.
+    """
+    if samples.size == 0:
+        return -float("inf")
+    nyq = sample_rate / 2.0
+    lo = min(low_hz / nyq, 0.99)
+    hi = min(high_hz / nyq, 0.99)
+    if lo >= hi:
+        return -float("inf")
+    sos = scipy_signal.butter(4, [lo, hi], btype="band", output="sos")
+    mono = np.mean(samples, axis=1) if samples.ndim == 2 else samples
+    filtered = scipy_signal.sosfilt(sos, mono)
+    rms = float(np.sqrt(np.mean(filtered**2) + 1e-12))
+    if rms <= 0:
+        return -float("inf")
+    return 20.0 * math.log10(rms)
+
+
+# ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
 
@@ -380,28 +633,38 @@ async def master_file(
     *,
     tone_fixes: bool = True,
     gain_trim_db: float = 0.0,
+    finishing: bool = False,
+    sub_cut_db: float = 0.0,
+    presence_db: float = 0.0,
 ) -> dict[str, Any]:
     """Master *filename* (AUDIO_DIR-relative) and write a mastered copy.
 
     Returns a QC report dict with before/after LUFS-TP-LRA, the mastered file
-    path, and any error. Per D17's lesson: assert the artifact, not the intent
-    -- the report numbers are re-measured from the written file, not asserted
-    from the intent.
+    path, band-energy shares, and any error. Per D17's lesson: assert the
+    artifact, not the intent -- the report numbers are re-measured from the
+    written file, not asserted from the intent.
 
     ``gain_trim_db`` is a manual offset (clamped to +/-MAX_TRIM_DB) applied
     after the loudness match and before limiting, so it is audible in the
     written file and visible in ``applied.gain_trim_db``.
 
+    ``finishing`` enables the corrective-balance chain (T-AUD-08): high-pass
+    35 Hz, low-shelf 120 Hz (−sub_cut_db), peak 3.2 kHz (+presence_db),
+    high-shelf 9 kHz (+1.5 dB), glue compressor 2.5:1. Runs BEFORE the
+    loudness stage so the normalizer sees the shaped signal. Defaults off;
+    existing callers passing no finishing params produce unchanged output.
+
     Steps:
       1. Measure the source (LUFS / true peak / LRA).
-      2. Iteratively apply gain to hit *target_lufs*: measure -> gain -> encode
+      2. Optionally apply the finishing chain (shaping, not loudness).
+      3. Iteratively apply gain to hit *target_lufs*: measure -> gain -> encode
          -> re-measure -> correct. Tone fixes (esp. the 4 kHz presence shelf)
          shift ebur128's K-weighted measurement, so one pass can land off
          target; we correct until within LOUDNESS_TOLERANCE_LU or
          MAX_GAIN_PASSES is reached.
-      3. Apply the manual trim, then true-peak limit to *ceiling_dbtp*.
-      4. Encode to output/audio/mastered/<stem>_mastered.mp3.
-      5. Final re-measure of the written file for the QC report.
+      4. Apply the manual trim, then true-peak limit to *ceiling_dbtp*.
+      5. Encode to output/audio/mastered/<stem>_mastered.mp3.
+      6. Final re-measure of the written file for the QC report.
     """
     src = AUDIO_DIR / filename
     trim_db = max(-MAX_TRIM_DB, min(MAX_TRIM_DB, float(gain_trim_db or 0.0)))
@@ -423,7 +686,7 @@ async def master_file(
             "before": before,
         }
 
-    # 2. Decode once; all gain/tone/limit passes work on the decoded PCM.
+    # Band-energy QC before finishing (sub + presence shares).
     pcm = await _decode_audio(src)
     if pcm.samples.size == 0:
         return {
@@ -432,6 +695,16 @@ async def master_file(
             "mastered_path": None,
             "before": before,
         }
+
+    before_sub_db = _band_energy_db(pcm.samples, pcm.sample_rate, BAND_SUB_LO_HZ, BAND_SUB_HI_HZ)
+    before_presence_db = _band_energy_db(
+        pcm.samples, pcm.sample_rate, BAND_PRESENCE_LO_HZ, BAND_PRESENCE_HI_HZ
+    )
+
+    # 2. Optional finishing chain (before loudness normalization).
+    samples = pcm.samples.copy()
+    if finishing:
+        samples = _apply_finishing_chain(samples, pcm.sample_rate, sub_cut_db, presence_db)
 
     # Iterative gain tuning. Each pass: apply gain -> tone -> limit -> encode to
     # a temp file -> measure -> compute residual error -> adjust gain.
@@ -443,11 +716,11 @@ async def master_file(
     applied_gain_db = current_gain_db
 
     for _pass in range(MAX_GAIN_PASSES):
-        samples = _apply_gain_db(pcm.samples, current_gain_db)
+        tuned = _apply_gain_db(samples, current_gain_db)
         if tone_fixes:
-            samples = _apply_demud(samples, pcm.sample_rate)
-            samples = _apply_presence(samples, pcm.sample_rate)
-        samples = _true_peak_limit(samples, pcm.sample_rate, ceiling_dbtp)
+            tuned = _apply_demud(tuned, pcm.sample_rate)
+            tuned = _apply_presence(tuned, pcm.sample_rate)
+        tuned = _true_peak_limit(tuned, pcm.sample_rate, ceiling_dbtp)
 
         # Encode to a temp file for measurement (mkstemp gives a file path,
         # not a directory -- mkdtemp would fail with "Permission denied").
@@ -456,7 +729,7 @@ async def master_file(
 
         os.close(fd)
         tmp = Path(tmp_path)
-        ok = await _encode_audio(Pcm(samples=samples, sample_rate=pcm.sample_rate), tmp)
+        ok = await _encode_audio(Pcm(samples=tuned, sample_rate=pcm.sample_rate), tmp)
         if not ok:
             tmp.unlink(missing_ok=True)
             return {
@@ -482,21 +755,21 @@ async def master_file(
         current_gain_db = max(-12.0, min(12.0, current_gain_db + error_lu))
 
     # 3. Final encode to the output path with the best gain found.
-    samples = _apply_gain_db(pcm.samples, applied_gain_db)
+    tuned = _apply_gain_db(samples, applied_gain_db)
     if tone_fixes:
-        samples = _apply_demud(samples, pcm.sample_rate)
-        samples = _apply_presence(samples, pcm.sample_rate)
+        tuned = _apply_demud(tuned, pcm.sample_rate)
+        tuned = _apply_presence(tuned, pcm.sample_rate)
     if trim_db:
         # Multiply rather than `_apply_gain_db`: that helper clips to [-1, 1],
         # and clipping before the limiter is unrecoverable distortion. The
         # limiter below is what pulls the result back under the ceiling.
-        samples = (samples * _db_to_linear(trim_db)).astype(np.float32)
-    samples = _true_peak_limit(samples, pcm.sample_rate, ceiling_dbtp)
+        tuned = (tuned * _db_to_linear(trim_db)).astype(np.float32)
+    tuned = _true_peak_limit(tuned, pcm.sample_rate, ceiling_dbtp)
 
     stem = src.stem
     out_name = f"{stem}_mastered.mp3"
     out_path = MASTERED_DIR / out_name
-    ok = await _encode_audio(Pcm(samples=samples, sample_rate=pcm.sample_rate), out_path)
+    ok = await _encode_audio(Pcm(samples=tuned, sample_rate=pcm.sample_rate), out_path)
     if not ok:
         return {
             "filename": filename,
@@ -507,6 +780,12 @@ async def master_file(
 
     # 4. Final re-measure of the artifact (D17: assert the artifact, not the intent).
     after = await measure_loudness(out_path)
+
+    # Band-energy QC after finishing.
+    after_sub_db = _band_energy_db(tuned, pcm.sample_rate, BAND_SUB_LO_HZ, BAND_SUB_HI_HZ)
+    after_presence_db = _band_energy_db(
+        tuned, pcm.sample_rate, BAND_PRESENCE_LO_HZ, BAND_PRESENCE_HI_HZ
+    )
 
     return {
         "filename": filename,
@@ -521,5 +800,18 @@ async def master_file(
             "ceiling_dbtp": ceiling_dbtp,
             "tone_fixes": tone_fixes,
             "gain_passes": _pass + 1,
+            "finishing": finishing,
+            "sub_cut_db": round(sub_cut_db, 2),
+            "presence_db": round(presence_db, 2),
+            "band_energy": {
+                "before": {
+                    "sub_db": round(before_sub_db, 1),
+                    "presence_db": round(before_presence_db, 1),
+                },
+                "after": {
+                    "sub_db": round(after_sub_db, 1),
+                    "presence_db": round(after_presence_db, 1),
+                },
+            },
         },
     }

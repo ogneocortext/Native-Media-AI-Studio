@@ -162,7 +162,7 @@ Rules: `docs/plans/tasks/README.md`
   of routing 400. Ruff, import-cycle check, and database tests all pass.
 
 ### T-AUD-08 — Integrate the corrective finishing chain into M1 mastering
-- **Status:** todo
+- **Status:** done
 - **Goal:** Extend the shipped M1 mastering (T-AUD-01) with the
   corrective-balance finishing chain proven outside the app (Orion's
   `tools/finish.py`, landed with this item) so AI takes can be
@@ -196,10 +196,23 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** tools/finish.py (reference implementation, landed),
   packages/backend/app/services/mastering.py,
   packages/backend/app/api/audio_mastering.py,
-  packages/frontend/src/features/audio-analysis/components/MasteringPanel.tsx
+  packages/frontend/src/features/audio-analysis/components/MasteringPanel.tsx,
+  packages/frontend/src/services/api/audio.ts
 - **Acceptance:** The in-app chain on the E1 reference take (Don't
   Recommend, Lyria) reproduces the reference deltas within tolerance:
   sub share 75.6% → ≤48%, presence 3.8% → ≥12%, final loudness
   −14.0 ± 0.5 LUFS via `compute_loudness`; callers passing no
   finishing params produce unchanged output; `tools/run-gates.py`
   green (ruff, pytest, import cycles 0).
+- **Last session:** Kilo, 2026-11-01 — Implemented finishing chain
+  in mastering.py using scipy (no new deps; avoids pyloudnorm/pedalboard
+  per the module docstring warning). Chain: HP 35 Hz → low-shelf 120 Hz
+  (−sub_cut_db) → peak 3.2 kHz (+presence_db) → high-shelf 9 kHz
+  (+1.5 dB) → glue compressor 2.5:1. Runs before loudness normalization,
+  defaults off (finishing=False) so existing callers unchanged. Target-lock
+  re-measure after limiter already present in existing gain-tuning loop.
+  Extended POST /api/audio/master with finishing/sub_cut_db/presence_db
+  params. MasteringPanel.tsx gains finishing checkbox + sub cut/presence
+  sliders (disabled when finishing off) and QC band-energy shares
+  (sub 20–120 Hz, presence 2–8 kHz before/after). ruff clean, import
+  cycles 0, all 38 audio/mastering tests pass, tsc clean.

@@ -82,6 +82,9 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
   const [ceilingDb, setCeilingDb] = useState(-1);
   const [gainTrimDb, setGainTrimDb] = useState(0);
   const [toneFixes, setToneFixes] = useState(true);
+  const [finishing, setFinishing] = useState(false);
+  const [subCutDb, setSubCutDb] = useState(3);
+  const [presenceDb, setPresenceDb] = useState(2.5);
 
   const [measuring, setMeasuring] = useState(false);
   const [mastering, setMastering] = useState(false);
@@ -132,6 +135,9 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
         ceiling_dbtp: ceilingDb,
         tone_fixes: toneFixes,
         gain_trim_db: gainTrimDb || undefined,
+        finishing,
+        sub_cut_db: finishing ? subCutDb : 0,
+        presence_db: finishing ? presenceDb : 0,
       });
       if (opToken !== opTokenRef.current) return;
       if (res.error && !res.mastered_path) {
@@ -149,12 +155,15 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
     } finally {
       if (opToken === opTokenRef.current) setMastering(false);
     }
-  }, [selectedTrack, target, ceilingDb, toneFixes, gainTrimDb, onMastered]);
+  }, [selectedTrack, target, ceilingDb, toneFixes, gainTrimDb, finishing, subCutDb, presenceDb, onMastered]);
 
   const reset = useCallback(() => {
     setBefore(null);
     setResult(null);
     setError(null);
+    setFinishing(false);
+    setSubCutDb(3);
+    setPresenceDb(2.5);
   }, []);
 
   const hasResult = result?.mastered_path != null;
@@ -278,6 +287,58 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
             </div>
           </div>
 
+          {/* Finishing chain controls (T-AUD-08): sub tame + presence lift */}
+          <div className="space-y-2">
+            <label className={DS.textLabel + " flex items-center gap-1 cursor-pointer select-none"}>
+              <input
+                type="checkbox"
+                checked={finishing}
+                onChange={() => setFinishing(!finishing)}
+                className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500"
+              />
+              Corrective finishing (sub tame + presence lift)
+            </label>
+            <span className={DS.textXs + " text-gray-500"}>
+              HP 35 Hz · low-shelf 120 Hz · presence 3.2 kHz · air 9 kHz · glue comp 2.5:1
+            </span>
+            <div
+              className={`grid grid-cols-2 gap-3 ${
+                finishing ? "opacity-100" : "opacity-40 pointer-events-none"
+              }`}
+            >
+              <div className="space-y-2">
+                <label className={DS.textLabel}>Sub cut (dB)</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="12"
+                  step="0.5"
+                  value={subCutDb}
+                  onChange={(e) => setSubCutDb(parseFloat(e.target.value))}
+                  className={DS.range}
+                  disabled={!finishing}
+                  aria-label="Sub cut"
+                />
+                <span className={DS.textXs + " text-gray-500"}>{subCutDb} dB</span>
+              </div>
+              <div className="space-y-2">
+                <label className={DS.textLabel}>Presence lift (dB)</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="12"
+                  step="0.5"
+                  value={presenceDb}
+                  onChange={(e) => setPresenceDb(parseFloat(e.target.value))}
+                  className={DS.range}
+                  disabled={!finishing}
+                  aria-label="Presence lift"
+                />
+                <span className={DS.textXs + " text-gray-500"}>{presenceDb} dB</span>
+              </div>
+            </div>
+          </div>
+
           {/* Manual trim (sent as gain_trim_db — applied after loudness
               normalization, before limiting, so it is audible in the export). */}
           <div className="space-y-2">
@@ -377,6 +438,30 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                   <span>· Target {result.applied.target_lufs} LUFS{lufsDeltaStr(result.after?.integrated_lufs ?? null, result.applied.target_lufs)}</span>
                   <span>· Ceiling {result.applied.ceiling_dbtp} dBTP</span>
                   <span>· Tone {result.applied.tone_fixes ? "on" : "off"}</span>
+                  {result.applied.finishing && (
+                    <>
+                      <span>· Finishing on</span>
+                      <span>
+                        · Sub cut {result.applied.sub_cut_db} dB
+                      </span>
+                      <span>
+                        · Presence {result.applied.presence_db} dB
+                      </span>
+                    </>
+                  )}
+                  {result.applied?.band_energy && (
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
+                      <span>
+                        Sub {result.applied.band_energy.before.sub_db} →{" "}
+                        {result.applied.band_energy.after.sub_db} dB
+                      </span>
+                      <span>
+                        · Presence{" "}
+                        {result.applied.band_energy.before.presence_db} →{" "}
+                        {result.applied.band_energy.after.presence_db} dB
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="mt-3 flex gap-2">
