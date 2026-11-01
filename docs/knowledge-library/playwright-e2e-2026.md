@@ -374,6 +374,14 @@ The Playwright suite is **not** part of `tools/run-gates.py` by default —
 it is opt-in via `--e2e`, because it needs a running dev server and a
 warm GPU. Run it before pushing when you touched frontend behaviour.
 
+**Do not reinstall Playwright browsers unnecessarily.** Before running
+`pnpm exec playwright install`, check what is already under
+`C:\Users\<you>\AppData\Local\ms-playwright\`. If a `chromium-*`
+directory already exists, the browser is present — do not re-download
+it (~120 MB). The installed version is reported by
+`pnpm exec playwright --version`, and browser binaries live under
+`C:\Users\<you>\AppData\Local\ms-playwright/chromium-<revision>/`.
+
 ## 9. Anti-patterns seen in this repo
 
 - **Guarded assertions.** `if (fs.existsSync(local)) { expect(...) }`
