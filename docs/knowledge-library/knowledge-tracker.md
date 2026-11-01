@@ -37,12 +37,13 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (15/15 completed) ✅
+### 🎬 Production Pipeline (16/16 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
 - ✅ `audio-reactive-production.md`  → `#production`, `#audio`, `#visualization`
 - ✅ `prompt-engineering.md`  → `#production`, `#ai`
+- ✅ `remix-prompt-architecture-2026.md`  → `#production`, `#prompt-engineering`, `#architecture`, `#2026`
 - ✅ `character-animation-2026-summer-synthesis.md`  → `#production`, `#3d`
 - ✅ `silhouette-character-animation.md`  → `#production`, `#3d`
 - ✅ `character-driven-visualization-research.md`  → `#production`, `#3d`

@@ -1,7 +1,7 @@
 ---
 title: Remix Prompt Architecture
 tags:
-  - remix
+  - production
   - prompt-engineering
   - architecture
   - 2026

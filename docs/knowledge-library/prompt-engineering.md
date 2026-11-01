@@ -286,6 +286,7 @@ Character: "Happy Shrimp"
 - [[3d-rendering]] — 3D model generation prompts
 - [[comfyui-workflows]] — ComfyUI-specific prompting
 - [[youtube-optimization]] — Title/description optimization
+- [[remix-prompt-architecture-2026]] — Remix prompt architecture & dependency DAG
 
 ---
 

@@ -440,7 +440,7 @@ async function loadPlaywrightChromium() {
   } catch (e) { lastErr = e; }
   // 2) ESM file-URL fallback (pnpm symlinked layout)
   const fileCandidates = [
-    path.join(REPO_ROOT, "packages/frontend/node_modules/playwright/index.js"),
+    path.join(REPO_ROOT, "packages/frontend/eslint-plugin/rules/index.js"),
     path.join(REPO_ROOT, "packages/frontend/node_modules/playwright/index.mjs"),
   ];
   for (const spec of fileCandidates) {

@@ -41,6 +41,7 @@ date: 2026-09-30
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
+- [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
 - [[video-intro-recipe-schema-2026-10|🎬 Video Intro Recipe Schema 2026-10]] — Deterministic, parameterized 3–7 s video intro specification; brand elements explicit, nothing hard-coded per render (NEW 2026-10-27)
 
 ### 🛠️ Technical Implementation (Code & Systems)
@@ -155,7 +156,7 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 15 documents |
+|| `#production/*` | Production workflow & creative guides | 16 documents |
 || `#technical/*` | System implementation & code | 18 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 21 documents |

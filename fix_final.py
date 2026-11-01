@@ -14,8 +14,8 @@ else:
 path2 = 'D:/Backup of Important Data for Windows 11 Upgrade/Native Media AI Studio/packages/frontend/src/features/visualizer/visualizerHelpers.ts'
 with open(path2, 'r', encoding='utf-8', errors='replace') as f:
     content2 = f.read()
-if 'packages/frontend/node_modules/playwright/index.js' in content2:
-    content2 = content2.replace('packages/frontend/node_modules/playwright/index.js', 'packages/frontend/eslint-plugin/rules/index.js')
+if 'packages/frontend/eslint-plugin/rules/index.js' in content2:
+    content2 = content2.replace('packages/frontend/eslint-plugin/rules/index.js', 'packages/frontend/eslint-plugin/rules/index.js')
     with open(path2, 'w', encoding='utf-8') as f:
         f.write(content2)
     print('Fixed visualizerHelpers.ts path')
