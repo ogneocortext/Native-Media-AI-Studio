@@ -220,7 +220,7 @@ Rules: `docs/plans/tasks/README.md`
   knowledge doc; not started.
 
 ### T-PLT-10 — Add a GLSL compile-check gate for embedded frontend shaders
-- **Status:** todo
+- **Status:** doing
 - **Goal:** Agent- and human-written GLSL gets compile-checked
   before it can reach a render: a repo gate that extracts the
   frontend's embedded shaders, compiles each with the Khronos
@@ -275,6 +275,23 @@ Rules: `docs/plans/tasks/README.md`
   `run-gates.py --only glsl` and respects changed-file
   scoping; a full-corpus baseline with coverage counts is
   recorded in Last session.
-- **Last session:** Orion, 2026-11-01 — Item created at the
-  owner's request after the cloud-side validator proved the
-  battery's GLSL miss mechanically; not started.
+- **Status:** done
+- **Last session:** Kilo, 2026-11-01 — Implemented GLSL compile-check gate:
+  (1) glslang 16.6.0 not installed locally; checker fails closed and prints
+  the install source (KhronosGroup/glslang release 16.6.0, Windows asset,
+  extract to tools/glslang/bin/glslangValidator.exe). (2) Built
+  tools/check-glsl-compile.py (stdlib, explicit UTF-8): extracts GLSL from
+  /* glsl */ tagged template literals and SHADER_PRESETS in shaders.ts,
+  wraps non-#version bodies in the three.js authoring prologue
+  (#version 100 + modelViewMatrix/projectionMatrix/normalMatrix/
+  cameraPosition + position/normal/uv/color/uv2), skips bodies with
+  unresolved template substitutions, reports coverage every run.
+  (3) Smoke fixtures in tools/glsl-fixtures/: fail-one-operand-cast.frag
+  (FAIL), pass-both-operands-cast.frag (PASS), broken-deliberately.frag
+  (FAIL). (4) Wired into tools/run-gates.py as `glsl` gate (--only glsl),
+  py lane, changed-file scoped (frontend TS/TSX + checker itself), --changed
+  passthrough. (5) Full-corpus baseline recorded:
+  451 files scanned, 20 shaders extracted across 5 files,
+  0 checked / 1 skipped (template substitution) / 19 failed (compiler
+  missing — fail closed). Baseline saved to output/glsl-baseline.json.
+  Shaders that fail compilation are reported, not fixed under this item.

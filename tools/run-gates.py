@@ -594,6 +594,9 @@ def gates(*, fix=False, verbose=False):
              desc="backend import cycles and layer inversions (api->services->adapters)"),
         Gate("routes", [PY, "tools/check-duplicate-routes.py"], ROOT,
              desc="duplicate FastAPI route handlers (shadowing detection)"),
+        Gate("glsl", [PY, "tools/check-glsl-compile.py"], ROOT,
+             desc="GLSL compile-check for embedded frontend shaders "
+                  "(glslangValidator, GLSL ES 1.00)"),
         Gate("type", [PNPM, "type-check"], FRONTEND, lane="node",
              desc="TypeScript type check (tsc --noEmit + test config)"),
         Gate("lint", lint_argv, FRONTEND, lane="node",
@@ -905,6 +908,11 @@ def _gate_relevant(gate: Gate, changed: set[str]) -> bool:
     if name == "routes":
         return any(f.startswith("packages/backend/app/api/") and f.endswith(".py")
                    for f in changed)
+    if name == "glsl":
+        # GLSL compile-check: relevant when frontend shader source changes
+        # (new/modified embedded GLSL) or the checker itself changes.
+        return (ts_changed and frontend_src) or \
+            any(f == "tools/check-glsl-compile.py" for f in changed)
     if name == "pytest":
         return backend_any
     if name == "tools-pytest":
@@ -1204,6 +1212,9 @@ def main(argv=None):
         run_selected.append(g)
         if g.name == "docs" and changed:
             # check-all.py scopes its checks internally via --changed.
+            g.argv = g.argv + ["--changed"] + sorted(changed)
+        if g.name == "glsl" and changed:
+            # check-glsl-compile.py scopes its scan via --changed.
             g.argv = g.argv + ["--changed"] + sorted(changed)
 
     if not run_selected:
