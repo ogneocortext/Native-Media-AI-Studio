@@ -54,11 +54,20 @@ def main() -> int:
     ap.add_argument("input")
     ap.add_argument("output_basename")
     ap.add_argument("--lufs", type=float, default=-14.0)
-    ap.add_argument("--sub-cut", type=float, default=3.0,
-                    help="dB of low-shelf cut at 120 Hz (sub taming)")
-    ap.add_argument("--presence", type=float, default=2.5,
-                    help="dB of peaking lift at 3.2 kHz (vocal presence)")
+    ap.add_argument("--preset", choices=["pop", "dnb"], default="pop",
+                    help="pop: sub tamed -3 dB, presence +2.5. "
+                         "dnb: bass weight preserved (no sub cut), presence +2.0 — "
+                         "DnB weight is root-following sub + reese, never cut it.")
+    ap.add_argument("--sub-cut", type=float, default=None,
+                    help="dB of low-shelf cut at 120 Hz (default: per preset)")
+    ap.add_argument("--presence", type=float, default=None,
+                    help="dB of peaking lift at 3.2 kHz (default: per preset)")
     args = ap.parse_args()
+
+    if args.sub_cut is None:
+        args.sub_cut = 0.0 if args.preset == "dnb" else 3.0
+    if args.presence is None:
+        args.presence = 2.0 if args.preset == "dnb" else 2.5
 
     data, sr = sf.read(args.input, always_2d=True)
     data = data.astype(np.float64)
