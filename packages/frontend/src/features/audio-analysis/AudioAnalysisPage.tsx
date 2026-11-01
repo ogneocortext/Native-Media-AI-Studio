@@ -7,12 +7,12 @@
 import { useState, useEffect } from "react";
 import {
   BarChart3,
+  Film,
   Loader2,
   RefreshCw,
+  Slash,
   Sparkles,
   Scissors,
-  Type,
-  Play,
   AlertCircle,
 } from "lucide-react";
 import {
@@ -243,14 +243,14 @@ export function AudioAnalysisPage() {
               onClick={() => setShowTrimModal(true)}
               className={DS.btnSecondary}
             >
-              <Type size={16} />
+              <Slash size={16} />
               Trim Audio
             </button>
             <button
               onClick={handleGenerateVideo}
               className={DS.btnPrimary}
             >
-              <Play size={16} />
+              <Film size={16} />
               Generate Video
             </button>
           </div>

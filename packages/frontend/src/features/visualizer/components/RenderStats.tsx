@@ -6,6 +6,7 @@
  */
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import { Activity, Layers, Triangle } from "lucide-react";
 
 export interface RenderStats {
   fps: number;
@@ -63,7 +64,10 @@ export function RenderStatsBadge({ stats }: { stats: RenderStats | null }) {
       aria-live="off"
       title="Renderer telemetry: frames per second, draw calls, triangles, audio→visual latency (target: ~30 ms locked band, 20–40 ms visual lead)"
     >
-      {stats.fps} FPS · {stats.calls} calls · {(stats.triangles / 1000).toFixed(1)}k tris{latency}
+      <Activity size={10} className="mr-1" /> {stats.fps} FPS
+      <Layers size={10} className="ml-2 mr-1" /> {stats.calls} calls
+      <Triangle size={10} className="ml-2 mr-1" />
+      {(stats.triangles / 1000).toFixed(1)}k tris{latency}
     </div>
   );
 }

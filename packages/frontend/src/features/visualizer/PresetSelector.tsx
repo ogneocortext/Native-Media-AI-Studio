@@ -1,4 +1,15 @@
 import { useState, useCallback } from "react";
+import {
+  Activity,
+  BarChart3,
+  Camera,
+  Circle,
+  Globe,
+  Mic,
+  Mountain,
+  Star,
+  Zap,
+} from "lucide-react";
 import { PRESET_LIBRARY, type VisualPreset, getPresetById } from "./visualPreset";
 
 export type { VisualPreset } from "./visualPreset";
@@ -6,6 +17,20 @@ export type { VisualPreset } from "./visualPreset";
 interface PresetSelectorProps {
   currentPresetId: string;
   onSelect: (preset: VisualPreset) => void;
+}
+
+const VISUALIZER_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  particles: Zap,
+  waveform: Activity,
+  pulse: Circle,
+  bars: BarChart3,
+  galaxy: Star,
+  terrain: Mountain,
+};
+
+function VisualizerIcon({ style }: { style: string }) {
+  const Icon = VISUALIZER_ICONS[style] ?? Globe;
+  return <Icon size={12} className="text-accent" />;
 }
 
 export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProps) {
@@ -28,8 +53,9 @@ export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProp
             key={preset.id}
             className={`kt-preset-tab ${selectedId === preset.id ? "active" : ""}`}
             onClick={() => handleSelect(preset.id)}
+            title={preset.description}
           >
-            <span className="kt-preset-tab-dot" style={{ background: preset.theme.primary }} />
+            <VisualizerIcon style={preset.visualizer.style} />
             <span className="kt-preset-tab-name">{preset.name}</span>
           </button>
         ))}
@@ -63,9 +89,18 @@ function PresetPreview({ preset }: { preset: VisualPreset }) {
       </div>
       <p className="kt-preset-preview-desc">{preset.description}</p>
       <div className="kt-preset-preview-details">
-        <span>Visualizer: {preset.visualizer.style}</span>
-        <span>Camera: {preset.camera.mode}</span>
-        <span>Lyrics: {preset.lyrics.style}</span>
+        <div className="flex items-center gap-1">
+          <Activity size={12} />
+          <span>Visualizer: {preset.visualizer.style}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Camera size={12} />
+          <span>Camera: {preset.camera.mode}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Mic size={12} />
+          <span>Lyrics: {preset.lyrics.style}</span>
+        </div>
       </div>
     </div>
   );
