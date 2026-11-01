@@ -41,6 +41,15 @@ import sys
 import tempfile
 from pathlib import Path
 
+# UTF-8 stdout guard (stdlib-only tool does not import cli_base): this machine's
+# PowerShell console is cp1252, and gate output contains em-dashes and other
+# non-ASCII characters that would render as replacement characters.
+if sys.stdout is not None and sys.stdout.encoding is not None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_SRC = ROOT / "packages" / "frontend" / "src"
 
