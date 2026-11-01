@@ -13,10 +13,12 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
+minversion = "8.0"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-v --tb=short --strict-markers --durations=15 --maxfail=20 -n auto"
+asyncio_default_test_loop_scope = "function"
+addopts = "-v --tb=short --strict-markers --strict-config -ra --durations=15 --maxfail=20 --import-mode=importlib"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests that hit the app/network boundary",
@@ -26,6 +28,11 @@ markers = [
     "database: marks tests covering database operations and connections",
     "remix: marks tests covering remix building and mastering",
     "websocket: marks tests covering WebSocket and SSE connections",
+]
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::PendingDeprecationWarning",
+    "default::pytest.PytestUnraisableExceptionWarning",
 ]
 
 [tool.coverage.run]
