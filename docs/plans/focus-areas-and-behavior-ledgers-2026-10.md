@@ -307,7 +307,8 @@ backward** — the thing a changelog cannot show.
   main; Windows-only gates remain the owner's and are named as such,
   never claimed. **This map's behavior ledgers verified live against
   the running backend 2026-10-29. Agent source discovery now has an explicit
-  task-to-symbol-to-owner route in `docs/agent-code-navigation.md` (T-PLT-05).**
+  task-to-symbol-to-owner route and parallel discovery handoff in
+  `docs/agent-code-navigation.md` (T-PLT-05/06).**
 - **Pain:** full-suite reruns on small changes (fixed by §2 rule 2 —
   now written down); hook activation on the owner's Windows clone is
   still pending one installer run (T-PLT-02 blocked since 2026-09).
@@ -326,6 +327,8 @@ backward** — the thing a changelog cannot show.
   - [x] Agents distinguish documentation search from source search and find
     likely implementation/test owners — verified with audio selector, remix
     probe, and visualizer discovery traces (T-PLT-05).
+  - [x] Parallel discovery has bounded, non-overlapping prompts and a common
+    evidence handoff with an explicit stop condition (T-PLT-06).
 
 ## 4. Why ledgers, in one paragraph (§5)
 

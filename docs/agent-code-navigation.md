@@ -34,13 +34,41 @@ exists before editing.
    `api -> services -> adapters`; for frontend visualizer work, use the module
    map and keep `unity-visualizer/` separate.
 
+## Parallel discovery and handoff
+
+Delegate only independent questions with separate search boundaries. For
+example, one agent can trace the route/component to its implementation owner
+while another finds callers and the nearest tests. Give each agent the task
+symptom, an area to search, and a request for evidence; do not ask several
+agents to scan the whole repository for the same thing. Keep discovery
+read-only until the lead has reconciled the candidate paths and ownership.
+
+Ask each discovery agent to return:
+
+```text
+Question:
+Searches run:
+Confirmed paths and symbols: (include line numbers or exact identifiers)
+Call chain / consumers:
+Nearest tests or “not found”:
+Paths checked and ruled out:
+Unknowns / confidence:
+```
+
+The lead should verify the strongest path and symbol in the working tree, then
+combine findings before implementation starts. Stop searching once the entry
+point, behavior owner, caller/consumer, and nearest test location are confirmed;
+report a missing test or unresolved owner explicitly instead of broadening into
+an unbounded repository scan. A path found only in `codebase.json` or prose is a
+candidate, not evidence that it is current.
+
 ## Example traces
 
-| Task | First useful search | Likely owner to confirm |
-|---|---|---|
-| Audio selector shows a track | `rg -n "useAudioLibrary|listAudioFiles" packages/frontend/src` | `packages/frontend/src/state/audioLibraryStore.ts` and the page/component using the hook |
-| Remix probe fails | `rg -n "remix_probe|/probe" packages/backend/app packages/backend/tests` | `packages/backend/app/api/audio_remix.py`, then the service called by the route |
-| Visualizer mode rendering | `rg -n "render.*Mode|canvas2dModes" packages/frontend/src/features/visualizer` | `packages/frontend/src/features/visualizer/` and `docs/architecture/visualizer.md` |
+| Task | First useful search | Likely owner to confirm | Nearby test evidence |
+|---|---|---|---|
+| Audio selector shows a track | `rg -n "useAudioLibrary|listAudioFiles" packages/frontend/src` | `packages/frontend/src/state/audioLibraryStore.ts` and the page/component using the hook | `packages/frontend/src/state/audioLibraryStore.test.ts` |
+| Remix probe fails | `rg -n "remix_probe|/probe" packages/backend/app packages/backend/tests` | `packages/backend/app/api/audio_remix.py`, then `packages/backend/app/services/remix_analysis.py` | `packages/backend/tests/test_stem_remixer.py` covers service/cache behavior; no direct route test was found in this trace |
+| Visualizer mode rendering | `rg -n "canvas2dModes|selectVizMode" packages/frontend/src/features/visualizer` | `packages/frontend/src/features/visualizer/canvas2dModes.ts` and `docs/architecture/visualizer.md` | `packages/frontend/src/features/visualizer/canvas2dModeBudget.test.ts` and `selectVizMode.test.ts` cover adjacent mode behavior |
 
 These searches are starting points, not guarantees. Confirm live paths with
 `rg --files` and inspect imports/callers before editing. If a new discovery
