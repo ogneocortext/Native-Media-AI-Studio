@@ -5,6 +5,10 @@ tags:
   - prompt-engineering
   - architecture
   - 2026
+type: concept
+aliases: []
+cssclasses: []
+date: 2026-10-30
 ---
 
 # Remix Prompt Architecture — 2026-10

@@ -57,7 +57,7 @@ Use `turf.lineSliceAlong(line, 0, lineKm*reveal)` to draw rivers.
 
 ## Source selection
 
-Use MapTiler vector layers for suitable provider features and custom GeoJSON for story-specific or ordered geometry. If the beat needs country-entry triggers or a progressive line draw, run `packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/scripts/prep-geo.mjs` to bake `country-meta.json`, `borders.geojson`, and the ordered line. Details → `references/map-data-sources.md` and `references/map-geo-prep.md`.
+Use MapTiler vector layers for suitable provider features and custom GeoJSON for story-specific or ordered geometry. If the beat needs country-entry triggers or a progressive line draw, run `packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/scripts/prep-geo.mjs` to bake `country-meta.json`, `borders.geojson`, and the ordered line. Details → `references/map-data-sources.md` and `references/map-geo-prep.md`.
 
 ## Keep it minmal
 
@@ -73,7 +73,7 @@ Use as reference:
 - `assets/tokens.ts` — example palette and durations.
 - `assets/example-Root.tsx` — minimal composition scaffold.
 - `assets/sample-data/` — example route and generated country metadata.
-- `packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/scripts/prep-geo.mjs` — geo pipeline.
+- `packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/scripts/prep-geo.mjs` — geo pipeline.
 - `references/map-explainer-architecture.md` — timing model and implementation.
 - `references/map-data-sources.md` — provider vector versus custom GeoJSON selection.
 - `references/map-geo-prep.md` — basemap stripping and geo preparation.
