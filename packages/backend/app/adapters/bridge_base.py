@@ -26,6 +26,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 import aiohttp
+from ..core.http import close_shared_session, get_shared_session
 
 from .base import AdapterStatus
 
@@ -108,6 +109,8 @@ class BaseBridgeAdapter(ABC):
         self._cwd = cwd
         self._env = env or {}
         self._process: asyncio.subprocess.Process | None = None
+        # Shared-session key for this bridge's service (see core/http.py).
+        self._session_key = name.lower()
         self._session: aiohttp.ClientSession | None = None
         self._last_activity: float | None = None
 
@@ -318,17 +321,14 @@ class BaseBridgeAdapter(ABC):
         return idle > threshold_seconds
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create a shared aiohttp session for HTTP-based bridges."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
-                timeout=aiohttp.ClientTimeout(total=30),
-            )
-        return self._session
+        """Get the shared aiohttp session for this bridge's service.
+
+        Backed by ``core/http.get_shared_session`` so bridges share a single
+        pooled connection instead of each owning a private ``ClientSession``.
+        """
+        return await get_shared_session(self._session_key)
 
     async def close(self) -> None:
-        """Close the bridge subprocess and any HTTP sessions."""
+        """Close the bridge subprocess and release the shared HTTP session."""
         await self.stop()
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
+        await close_shared_session(self._session_key)

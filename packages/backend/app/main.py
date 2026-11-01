@@ -31,6 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from .adapters.bridge_registry import bridge_registry
 from .adapters.registry import adapter_registry
 from .api.image_processing import router as image_processing_router
 from .api.sub_agent import router as sub_agent_router
@@ -445,6 +446,13 @@ async def lifespan(app: FastAPI):
         logger.info("Adapter sessions closed")
     except Exception as e:
         logger.warning(f"Failed to close adapter sessions: {e}")
+
+    # Close all bridge adapters (Unity, Blender subprocesses + shared sessions)
+    try:
+        await bridge_registry.close_all()
+        logger.info("Bridge adapter sessions closed")
+    except Exception as e:
+        logger.warning(f"Failed to close bridge adapters: {e}")
 
     # Shutdown music generation services
     try:

@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Any, TypeVar
 
 import aiohttp
+from ..core.http import close_shared_session, get_shared_session
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,10 @@ class BaseAdapter(ABC):
         self.name = name
         self._status = AdapterStatus.DISCONNECTED
         self._mock_mode = mock_mode
-        self._session: aiohttp.ClientSession | None = None
+        # Shared-session key for this adapter's service, keyed by adapter name
+        # so all adapters of one service share one pooled connection (see
+        # core/http.py). Adapters no longer own a private ClientSession.
+        self._session_key = name.lower().replace(" ", "-")
         # Tracks the last time this adapter was used (generate or health_check).
         # Used by the idle monitor to auto-unload services after 15 minutes.
         self._last_activity: float | None = None
@@ -179,16 +183,14 @@ class BaseAdapter(ABC):
         return idle > threshold_seconds
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create a shared aiohttp session for this adapter."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(limit=5, ttl_dns_cache=300),
-                timeout=aiohttp.ClientTimeout(total=30),
-            )
-        return self._session
+        """Get the shared aiohttp session for this adapter's service.
+
+        Backed by ``core/http.get_shared_session`` so all adapters of one
+        service share a single pooled connection instead of each owning a
+        private (and easily leaked) ``ClientSession``.
+        """
+        return await get_shared_session(self._session_key)
 
     async def close(self) -> None:
-        """Close the shared session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
+        """Release the shared session for this adapter's service key."""
+        await close_shared_session(self._session_key)
