@@ -584,6 +584,76 @@ async def analyze_audio(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}") from e
 
 
+@router.get("/beat-map/{filename:path}")
+async def get_beat_map(
+    filename: str,
+    backend: str = "sonara",
+) -> dict:
+    """Get beat-synced data for a previously analyzed audio file.
+
+    Returns tempo, beat times, downbeats, onsets, and energy curve optimized
+    for beat-synced visualizations in Remotion and similar tools.
+
+    Args:
+        filename: Name of the audio file (as returned by upload or list endpoints).
+        backend: Analysis backend to use if analysis needs to be run
+                 (librosa, madmom, sonara). Falls back to librosa if unavailable.
+
+    Returns:
+        Dict with tempo_bpm, beat_times, downbeat_times, onset_times,
+        duration_seconds, confidence, energy_curve, estimated_key,
+        key_confidence.
+    """
+    import urllib.parse
+
+    filename = urllib.parse.unquote(filename)
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # Normalize path separators
+    normalized = filename.replace("\\", "/")
+    if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):
+        normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
+
+    # Try to get cached analysis
+    cached = _cache_get(normalized, backend)
+    if cached is not None and not _analysis_is_stale(cached):
+        return _build_beat_map_response(cached)
+
+    # Analyze if not cached or stale
+    try:
+        _check_backend_available(backend)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Backend {backend} not available: {exc}") from exc
+
+    from ..services.audio_analyzer import AudioAnalyzer
+
+    analyzer = AudioAnalyzer()
+    unique_id = hash_prefix(normalized) or str(uuid.uuid4())[:8]
+    result = analyzer.analyze_file(str(AUDIO_DIR / normalized), job_id=unique_id, backend=backend)
+    analysis_result = _build_analysis_result(result, unique_id, AUDIO_DIR / normalized, analyzer)
+
+    return _build_beat_map_response(analysis_result)
+
+
+def _build_beat_map_response(data: dict) -> dict:
+    """Build beat-synced response from analysis result dict."""
+    return {
+        "tempo_bpm": data.get("tempo_bpm"),
+        "duration_seconds": data.get("duration_seconds"),
+        "beat_times": data.get("beat_times", []),
+        "downbeat_times": data.get("downbeat_times", []),
+        "onset_times": data.get("onset_times", []),
+        "confidence": data.get("confidence", 0.0),
+        "energy_curve": data.get("energy_curve", []),
+        "estimated_key": data.get("estimated_key"),
+        "key_confidence": data.get("key_confidence"),
+        "key_confidence_r": data.get("key_confidence_r"),
+        "key_runner_up": data.get("key_runner_up"),
+        "key_runner_up_r": data.get("key_runner_up_r"),
+    }
+
+
 @router.post("/analyze-cuda", response_model=AudioAnalysisResult)
 async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResult:
     """Analyze audio file using GPU-accelerated CUDA when available, with CPU fallback."""

@@ -15,7 +15,7 @@ import logging
 from abc import abstractmethod
 from typing import Any
 
-from .adapter_base import AdapterBase, AdapterStatus
+from .adapter_base import AdapterBase, AdapterStatus, _handle_adapter_error  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
