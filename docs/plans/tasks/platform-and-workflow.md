@@ -81,3 +81,35 @@ Rules: `docs/plans/tasks/README.md`
 - **Plan:** Check each README claim against the live tree, workspace manifests, decision log, routes, and hook scripts. Correct stale paths, unsupported schema ownership, outdated Remotion MCP and install guidance, missing bridge coverage, and test references. Register the GPT-6 trailer in the attribution table and normalizer because earlier local navigation commits are in the push range. Run the docs gate and attribution check; stage intended files and commit before pushing.
 - **Acceptance:** All mentioned paths exist or are explicitly described as absent/local; install and integration guidance matches the current workspace/configuration; test references point to existing files; docs gate and attribution check pass.
 - **Last session:** GPT-6, 2026-11-01 — Corrected root `shared/` location and endpoint-specific Pydantic model ownership; repaired relative paths and Windows workspace commands; removed obsolete Remotion MCP setup and generated-file lists absent from this checkout; fixed smoke-test paths/fixture caveats and documented actual hooks. Registered the GPT-6 trailer because two prior local commits are included in this push range. Docs gate passed.
+
+### T-PLT-08 — Adopt programmatic batch execution as a harness convention
+- **Status:** todo
+- **Goal:** Executors default to one scripted pass for mechanical
+  batch work — summary into context, raw output to disk — and a pilot
+  script prints the cross-area task ledger in a single run.
+- **Plan:** Patterns and evidence: `docs/knowledge-library/programmatic-tool-calling-2026.md`
+  (owner decision 2026-11-01: take Factory Droid 1.0's patterns, not
+  the product). Steps: (1) Add a "Batched execution" section to
+  `docs/plans/tasks/README.md` stating the three rules — script the
+  batch (one Python script per batch job, keepers under `tools/`,
+  one-offs outside the repo); summary in / raw out (default output is
+  a compact summary, full logs to `output/` or `docs/scratch/` with
+  the path named in the summary); stable prefix (AGENTS.md, task
+  files, roster are amended in place or appended to, never reshuffled
+  as a side effect of task work). (2) Build the pilot,
+  `tools/task-ledger-summary.py`: parse every task block in
+  `docs/plans/tasks/*.md` (excluding `template.md` and `README.md`),
+  print per-area counts by status plus the open items (todo / doing /
+  blocked) with IDs and titles; a `--json` flag emits the full parse
+  instead of the summary. Python, stdlib only, all file reads with
+  explicit `encoding="utf-8"` (see the subprocess-encoding rule in
+  AGENTS.md). (3) Verify the printed totals against a hand count of
+  the nine task files and record both numbers in Last session.
+- **Files:** docs/plans/tasks/README.md, tools/task-ledger-summary.py,
+  docs/plans/tasks/platform-and-workflow.md
+- **Acceptance:** The task-file rules carry the batched-execution
+  section; `python tools/task-ledger-summary.py` prints per-area and
+  total counts matching a hand count of the nine task files; the
+  script's default output is a summary, not file dumps.
+- **Last session:** Orion, 2026-11-01 — Item created with the
+  knowledge doc; not started.

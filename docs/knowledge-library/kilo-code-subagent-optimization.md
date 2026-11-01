@@ -276,6 +276,7 @@ These optimizations require changes in Kilo Code itself:
 ## See Also
 
 - [[kilo-code-subagent-orchestration|Kilo Code Subagent Orchestration]] — Architecture deep-dive
+- [[programmatic-tool-calling-2026|Programmatic Tool Calling]] — PTC patterns adopted as harness conventions (T-PLT-08)
 - [[technical-reference|Technical Reference]] — System architecture and API
 - [[integration-ollama|Ollama Integration]] — Local LLM inference
 
