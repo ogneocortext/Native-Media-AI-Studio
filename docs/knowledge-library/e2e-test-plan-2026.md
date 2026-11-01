@@ -130,8 +130,8 @@ external service calls.
 
 ```bash
 # In packages/frontend/
-npm run dev   # Vite on port 5173
-npx playwright test --project=chromium
+pnpm run dev   # Vite on port 5173
+pnpm exec playwright test --project=chromium
 ```
 
 **Known issue**: The Vite dev server returns `application/json` for module
@@ -139,7 +139,7 @@ script requests in this Windows environment. Fix options:
 
 - Ensure Vite is serving with correct MIME types (`vite config` SSR off)
 - Use `page.route('**/*.js', ...)` to override MIME type in tests
-- Build first (`npm run build`) and serve static dist
+- Build first (`pnpm build`) and serve static dist
 
 ### 3.2 For P1b (Backend integration)
 

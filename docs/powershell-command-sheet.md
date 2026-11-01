@@ -273,7 +273,7 @@ $env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 | **Text pipeline** | `Get-Content file \| grep "x"` | `Select-String -Path "file" -Pattern "x"` |
 | **Empty capture = success** | `$x = cmd.exe /c ...; if (-not $x) { ... }` | Check `$LASTEXITCODE` after native commands |
 | **UTF-8 decoding** | `subprocess.run(text=True)` (Python) | Pass `encoding="utf-8"` explicitly (see `tools/check-subprocess-encoding.py`) |
-| **Background with `&`** | `npm run dev &` | Use `background_process` tool or `Start-Process` |
+| **Background with `&`** | `pnpm run dev &` | Use `background_process` tool or `Start-Process` |
 | **`powershell` on PATH** | May resolve to 5.1 | Use `pwsh` explicitly — 5.1 is retired |
 | **Module compatibility** | Assuming 5.1 modules work in 7.x | Use `Import-Module -UseWindowsPowerShell` for 5.1-only modules |
 | **Profile confusion** | Editing 5.1 profile | 7.x has separate profiles — edit the 7.x profile |

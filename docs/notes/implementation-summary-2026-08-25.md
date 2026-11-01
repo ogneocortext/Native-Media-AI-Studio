@@ -174,8 +174,8 @@ Moved 7 service files from `packages/backend/app/services/` to `tools/` and `too
 - `docs/guides/MUSIC_VIDEO_GUIDE.md` — added Three.js Studio section
 
 ### Verification
-- `npm run build` ✅ (pre-existing chunk-size warnings only)
-- `npm run lint` ✅ (0 errors, all warnings pre-existing)
+- `pnpm build` ✅ (pre-existing chunk-size warnings only)
+- `pnpm lint` ✅ (0 errors, all warnings pre-existing)
 - Manual browser tests at 1280×720 and 855×700: header fits, drawer tabs readable, no overflow.
 
 ---

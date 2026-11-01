@@ -223,7 +223,7 @@ After any clone or reset:
 
 ```bash
 # Frontend
-cd frontend && npm install
+cd frontend && pnpm install
 
 # Backend (use the correct venv)
 .\runtime\venvs\.venvs\venv_backend\Scripts\python.exe -m pip install -r backend\requirements.txt
@@ -235,12 +235,12 @@ cd frontend && npm install
 
 ```bash
 # TypeScript check (0 errors expected)
-cd frontend && npx tsc --noEmit
+cd frontend && pnpm exec tsc --noEmit
 
 # Production build
-cd frontend && npm run build
+cd frontend && pnpm run build
 # or from root:
-npm run build --workspace=frontend
+pnpm build --filter=native-media-ai-studio-frontend
 ```
 
 ---

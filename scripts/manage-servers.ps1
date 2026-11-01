@@ -100,10 +100,9 @@ $ServiceConfig = @{
         HealthPath = '/'
         WorkingDir = Join-Path $ProjectRoot 'packages\frontend'
         LogFile = 'frontend.log'
-        # Preferred: npm run dev
+        # Preferred: pnpm run dev
         Args = @('run', 'dev')
-        # Fallback when npm is broken (fnm v26 ships incomplete npm):
-        # node <packages/frontend>\node_modules\vite\bin\vite.js --port <frontend_port>
+        # Fallback when package manager path has spaces: run vite directly via node
         NodeScript = Join-Path -Path $ProjectRoot -ChildPath 'packages', 'frontend', 'node_modules', 'vite', 'bin', 'vite.js'
         NodeArgs = @('--port', "$($Ports.frontend_port)")
     }
@@ -122,7 +121,7 @@ $ServiceConfig = @{
         HealthPath = '/'
         WorkingDir = Join-Path $ProjectRoot 'packages\video-editor'
         LogFile = 'video.log'
-        # Preferred: npm run dev
+        # Preferred: pnpm run dev
         Args = @('run', 'dev')
         # Fallback: the package-local remotion CLI does not need a global npm.
         LocalCmd = Join-Path -Path $ProjectRoot -ChildPath 'packages', 'video-editor', 'node_modules', '.bin', 'remotion.cmd'

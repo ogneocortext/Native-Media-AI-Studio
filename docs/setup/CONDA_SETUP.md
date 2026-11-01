@@ -116,9 +116,9 @@ cd third_party\ComfyUI
 python main.py --port 8188 --listen 127.0.0.1 --lowvram
 
 # Terminal 3 — Frontend
-conda activate nma-studio  # (or just use system node/npm)
+conda activate nma-studio  # (or just use system node/pnpm)
 cd frontend
-npm run dev
+pnpm run dev
 ```
 
 ### VS Code Integration

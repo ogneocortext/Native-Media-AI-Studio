@@ -239,7 +239,7 @@ python ../../scripts/ai-test-generator.py --all --verify
 python ../../packages/frontend/tests/visual/run_visual_tests.py
 
 # 5. Media library E2E (new)
-npx playwright test packages/frontend/tests/media-library.spec.ts
+pnpm exec playwright test packages/frontend/tests/media-library.spec.ts
 
 # 6. If any test fails, analyze with AI
 python ../../scripts/ai-test-analyzer.py --last-failure

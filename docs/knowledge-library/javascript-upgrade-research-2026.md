@@ -113,7 +113,7 @@ Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefix
 
 **Finding:** Playwright is at `1.63.0`. Newer 1.6x versions contain Chromium fixlets, improved trace viewer, and better Windows WDDM stability.
 
-**Action:** `pnpm update -r @playwright/test playwright`. Run `npx playwright install --with-deps` to refresh browsers.
+**Action:** `pnpm update -r @playwright/test playwright`. Run `pnpm exec playwright install --with-deps` to refresh browsers.
 
 ### 4.4 React 19 feature adoption (MEDIUM)
 

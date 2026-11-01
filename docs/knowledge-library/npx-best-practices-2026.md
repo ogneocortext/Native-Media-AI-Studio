@@ -55,7 +55,7 @@ Pre-install packages in a dedicated workspace with a lockfile, then force
 # Step 1: Create a workspace and install with lockfile
 mkdir -p $HOME/npx-workspace && cd $HOME/npx-workspace
 npm init -y
-npm install @remotion/mcp@1.0.0 comfyui-mcp@1.0.0 localtunnel@2.0.2
+pnpm add @remotion/mcp@1.0.0 comfyui-mcp@1.0.0 localtunnel@2.0.2
 
 # Step 2: Run npx offline — refuses to download anything not installed
 npx --no --offline @remotion/mcp@1.0.0

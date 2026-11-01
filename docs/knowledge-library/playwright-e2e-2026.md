@@ -71,7 +71,7 @@ Three distinctions that will bite you if you miss them:
 | `use.trace` | `on-first-retry` | a trace is written only when a test failed and retried |
 | `use.screenshot` | `only-on-failure` | |
 | `use.video` | `off` | video is slow and the trace carries the signal |
-| `webServer` | `npm run dev`, `reuseExistingServer: !CI` | Playwright starts the dev server itself if it is not already up |
+| `webServer` | `pnpm run dev`, `reuseExistingServer: !CI` | Playwright starts the dev server itself if it is not already up |
 | `baseURL` | from `config/ports.json` | single source of truth for the port |
 
 **`fullyParallel: false` + `workers: 1` is a deliberate constraint, not a
@@ -209,7 +209,7 @@ await expect(page.getByTestId("onboarding-success")).toBeVisible();  // ✅ retr
 expect(await locator.isVisible()).toBe(true);                          // ❌ no retry
 ```
 
-**Let `npx playwright codegen` pick the locator for you.** The "Pick
+**Let `pnpm exec playwright codegen` pick the locator for you.** The "Pick
 Locator" button prioritises role, text and test id — the same priority
 order above. It is faster than hand-writing a selector and it picks the
 resilient one.
@@ -250,7 +250,7 @@ Use it for anything that renders video or mutates the queue — the
 resources in this repo that cannot be shared.
 
 **`testProject.default` (1.64).** Mark non-default projects so a bare
-`npx playwright test` runs only the one you care about, and CI can still
+`pnpm exec playwright test` runs only the one you care about, and CI can still
 run the rest. This repo has exactly one project (`chromium`) because of
 D44, so this is not needed yet — but it is the mechanism to reach for if
 a second engine is ever added, instead of commenting projects out.
@@ -259,14 +259,14 @@ a second engine is ever added, instead of commenting projects out.
 changes, or relative to a branch:
 
 ```bash
-npx playwright test --only-changed
-npx playwright test --only-changed=main
+pnpm exec playwright test --only-changed
+pnpm exec playwright test --only-changed=main
 ```
 
 This is the agent-loop version of the suite: after editing a feature, run
 the specs that could plausibly be affected and nothing else.
 
-**`npx playwright init-agents` (1.63+).** Generates agent files for an
+**`pnpm exec playwright init-agents` (1.63+).** Generates agent files for an
 agentic loop. Verified present in 1.64.0, with
 `--loop` accepting `claude`, `codex`, `copilot`, `opencode`, `vscode` and
 `vscode-legacy`. It can also seed a test from an existing project
@@ -277,8 +277,8 @@ inter-test dependencies. The runner prints the seed; pass the same seed
 back to reproduce a failure:
 
 ```bash
-npx playwright test --shuffle
-npx playwright test --shuffle 271828182
+pnpm exec playwright test --shuffle
+pnpm exec playwright test --shuffle 271828182
 ```
 
 **`page.webmcp` (1.64).** Apps increasingly expose tools to AI agents via
@@ -359,12 +359,12 @@ graph directly; the browser suite is for behaviour the user can see.
 
 ```bash
 # From packages/frontend/
-npx playwright test                          # everything
-npx playwright test onboarding-flow.spec.ts  # one spec
-npx playwright test --only-changed           # only what you touched
-npx playwright test --project=chromium       # explicit project
-npx playwright test --shuffle                # surface order dependencies
-npx playwright test --reporter=line          # CI-friendly output
+pnpm exec playwright test                          # everything
+pnpm exec playwright test onboarding-flow.spec.ts  # one spec
+pnpm exec playwright test --only-changed           # only what you touched
+pnpm exec playwright test --project=chromium       # explicit project
+pnpm exec playwright test --shuffle                # surface order dependencies
+pnpm exec playwright test --reporter=line          # CI-friendly output
 
 # The whole gate suite (docs → ruff → type → lint → unit → build)
 python tools/run-gates.py

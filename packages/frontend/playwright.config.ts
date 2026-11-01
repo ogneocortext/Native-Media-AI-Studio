@@ -52,7 +52,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: 'pwsh -Command "$env:npm_config_manage_package_manager_versions=$null; npm run dev"',
+    command: "pnpm run dev",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 300000,

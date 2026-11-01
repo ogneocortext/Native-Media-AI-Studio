@@ -54,7 +54,7 @@ not one-shot generation.
   on the agent and the size of the change"). No evidence yet of publish-ready
   output without human revision.
 - `npx hyperframes` project workflow opens the editor; community CLAUDE.md
-  files show `npm run dev` → "preview in browser (studio editor)."
+  files show `pnpm run dev` → "preview in browser (studio editor)."
 - **Launch-thread tips (verified from the announcement post, 2026-10-06):**
   `@`-reference past projects to reuse/remix them in a prompt; edit by hand
   (click text/image in the preview to change font/color/swap media directly);
