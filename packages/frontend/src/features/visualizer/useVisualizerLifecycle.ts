@@ -329,7 +329,8 @@ export function useVisualizerLifecycle({
       prevTestState.current.activeVisualPresetId !== activeVisualPresetId ||
       prevTestState.current.visualsVisible !== visualsVisible ||
       prevTestState.current.lyricsVisible !== lyricsVisible ||
-      prevTestState.current.characterVisible !== characterVisible
+      prevTestState.current.characterVisible !== characterVisible ||
+      prevTestState.current.canvas2DMode !== canvas2DMode
     ) {
       testStateRef.current = {
         vizMode,
@@ -359,9 +360,7 @@ export function useVisualizerLifecycle({
     visualsVisible,
     lyricsVisible,
     characterVisible,
-    vizMode,
     canvas2DMode,
-    activeVisualPresetId,
   ]);
 
   // __VIZ_TEST__ harness — dev-only, registered once.

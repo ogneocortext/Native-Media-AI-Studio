@@ -47,6 +47,11 @@ test.describe('LRC-Enhanced Visualizer', () => {
     // The library is real user data and only some tracks ship an .lrc beside
     // them, so discover one the same way the app does (public/ first, then the
     // API) instead of hardcoding a filename that will drift.
+    //
+    // Fetch all candidate LRC URLs concurrently instead of sequentially: with
+    // up to ~60 tracks x 2 candidates each, sequential fetching adds seconds
+    // of wall time. Promise.allSettled bounds the total to the slowest single
+    // request rather than the sum.
     const lrcBackedRef = await page.evaluate(async () => {
       const select = document.querySelector(
         '[data-testid="viz-track-select"]',
@@ -55,6 +60,9 @@ test.describe('LRC-Enhanced Visualizer', () => {
       const values = Array.from(select.options)
         .map((o) => o.value)
         .filter(Boolean);
+
+      // Build all (value, candidateUrl) pairs first.
+      const probes: Array<{ value: string; url: string }> = [];
       for (const value of values) {
         const file = value.split('/').pop() ?? value;
         const base = file.replace(/\.(wav|mp3|m4a|flac|ogg)$/i, '');
@@ -62,15 +70,37 @@ test.describe('LRC-Enhanced Visualizer', () => {
           ? [`${value.replace(/\.[^.]+$/, '.lrc')}`, `${base}.lrc`]
           : [`${base}.lrc`];
         for (const candidate of candidates) {
+          probes.push({
+            value,
+            url: `/audio/${candidate.split('/').map(encodeURIComponent).join('/')}`,
+          });
+        }
+      }
+
+      // Probe every candidate in parallel; settle even on failures so one bad
+      // URL doesn't abort the whole discovery.
+      const results = await Promise.allSettled(
+        probes.map(async ({ url }) => {
           try {
-            const res = await fetch(
-              `/audio/${candidate.split('/').map(encodeURIComponent).join('/')}`,
-            );
-            // A timestamped body, not just an existing file.
-            if (res.ok && /\[\d{1,2}:\d{2}/.test(await res.text())) return value;
+            const res = await fetch(url);
+            if (res.ok) {
+              const text = await res.text();
+              return /\[\d{1,2}:\d{2}/.test(text);
+            }
+            return false;
           } catch {
-            // Try the next candidate.
+            return false;
           }
+        }),
+      );
+
+      // Return the first value whose LRC parsed as timestamped content.
+      for (let i = 0; i < results.length; i++) {
+        if (
+          results[i].status === "fulfilled" &&
+          results[i].value === true
+        ) {
+          return probes[i].value;
         }
       }
       return null;

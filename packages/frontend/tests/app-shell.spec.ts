@@ -73,15 +73,15 @@ test.describe("App Shell", () => {
     // Use expectRedirectedTo: client-side <Navigate> fires after domcontentloaded,
     // so a synchronous page.url() check races the redirect and sees the source path.
     await navigateWithWait(page, "/music-video");
-    await expectRedirectedTo(page, /\/music-video-wizard/);
+    await expectRedirectedTo(page, /\/create\/music-video/);
   });
 
   test("sidebar CTA navigates to music video wizard", async ({ page }) => {
     await navigateWithWait(page, "/");
-    const cta = page.locator('.sidebar-cta, a[href*="music-video-wizard"]').first();
+    const cta = page.locator('.sidebar-cta, a[href*="create/music-video"]').first();
     if ((await cta.count()) > 0) {
       await cta.click();
-      await expect(page).toHaveURL(/\/music-video-wizard/);
+      await expect(page).toHaveURL(/\/create\/music-video/);
     }
   });
 });

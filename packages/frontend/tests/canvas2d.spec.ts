@@ -53,10 +53,21 @@ test.describe("Canvas2D Visualizer", () => {
       "particles",
     ] as const;
     for (const mode of modes) {
-      await page.evaluate((m) => {
-        (
-          window as unknown as { __VIZ_TEST__?: { set2DMode?: (mode: string) => void } }
-        ).__VIZ_TEST__?.set2DMode?.(m);
+      // setCanvas2DMode is called from outside React's event system (via
+      // page.evaluate), so the state update may not be flushed before the
+      // poll's first check. Wait inside the page context for testStateRef to
+      // reflect the new mode before starting the Playwright poll.
+      await page.evaluate(async (m) => {
+        const win = window as unknown as { __VIZ_TEST__?: { set2DMode?: (mode: string) => void } };
+        win.__VIZ_TEST__?.set2DMode?.(m);
+        const start = Date.now();
+        while (Date.now() - start < 5000) {
+          const state = (window as unknown as {
+            __VIZ_TEST__?: { getState?: () => { canvas2DMode?: string } };
+          }).__VIZ_TEST__?.getState?.();
+          if (state?.canvas2DMode === m) return;
+          await new Promise((r) => setTimeout(r, 50));
+        }
       }, mode);
       await expect
         .poll(
