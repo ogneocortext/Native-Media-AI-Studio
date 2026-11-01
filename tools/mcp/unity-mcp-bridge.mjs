@@ -21,8 +21,6 @@ if (!PROJECT_PATH.includes(":") && !PROJECT_PATH.startsWith("/")) {
   PROJECT_PATH = join(__dirname, "..", "..", PROJECT_PATH);
 }
 
-const BASE_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-
 let cachedPortInfo = null;
 let cacheAge = 0;
 const PORT_CACHE_TTL_MS = 2000;

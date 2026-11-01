@@ -5,6 +5,7 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, pickFallbackModel } from "../vision/vision-common.mjs";
+import { fetchWithTimeout, logRequest, generateRequestId, textResponse } from "./_mcp_shared.mjs";
 
 import { writeFileSync } from "node:fs";
 // Startup debug log used to write unconditionally to D:/mcp-debug.log on
@@ -30,34 +31,6 @@ const BASE_URL = process.env.OLLAMA_URL || ports.ollama_url || "http://127.0.0.1
 const COMFYUI_URL = process.env.COMFYUI_URL || ports.comfyui_url || "http://127.0.0.1:8188";
 const BACKEND_URL = process.env.BACKEND_URL || ports.backend_url || "http://127.0.0.1:8000";
 const MAX_IMAGE_BASE64_BYTES = 20 * 1024 * 1024; // 20 MB safety cap
-
-function generateRequestId() {
-  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function textResponse(text, isError = false) {
-  return { content: [{ type: "text", text }], isError };
-}
-
-function logRequest(reqId, tool, detail) {
-  console.error(`[${reqId}] ${tool} | ${detail}`);
-}
-
-// Helper: fetch with timeout and ok-check
-async function fetchWithTimeout(url, opts = {}, timeoutMs = 30000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
-    }
-    return res;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 async function validateMcpToolCall(toolName, args) {
   try {

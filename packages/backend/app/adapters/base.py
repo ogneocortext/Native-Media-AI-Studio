@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Any, TypeVar
 
 import aiohttp
+
 from ..core.http import close_shared_session, get_shared_session
 
 logger = logging.getLogger(__name__)

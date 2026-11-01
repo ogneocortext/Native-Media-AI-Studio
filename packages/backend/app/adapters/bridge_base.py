@@ -26,8 +26,8 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 import aiohttp
-from ..core.http import close_shared_session, get_shared_session
 
+from ..core.http import close_shared_session, get_shared_session
 from .base import AdapterStatus
 
 logger = logging.getLogger(__name__)
