@@ -128,6 +128,31 @@ to be executed or verified on-device:
   models on the 8 GB card — useful when a cloud model delegates
   sub-tasks that must stay local.
 
+## Reaching it from the cloud agent (Orion)
+
+On 2026-11-01 the cloud-side route was built and verified end to end:
+
+- Both machines sit on the owner's personal Tailscale tailnet — the
+  rig as device `customrig`, the cloud agent's VM as device `muse`
+  (client-only: it calls out, hosts nothing, accepts no connections).
+- The path uses Atomic Chat's **Local network** bind (LAN/tailnet
+  scope). Atomic's **Remote access** option — a public Cloudflare
+  tunnel URL — was evaluated and deliberately not used; there is no
+  port forwarding.
+- API-key auth is enforced server-wide: an unauthenticated request
+  through the tailnet returned 401 before any key was shared. The key
+  is held by the cloud agent transiently (never written to this repo
+  or any file) and is revocable at any time by regenerating it in
+  Atomic Chat. The key matters beyond the tailnet: the home LAN is
+  shared with other people.
+- The path exists only while the rig is awake with Tailscale
+  connected, Atomic Chat open with Local network started, and a model
+  loaded — availability is owner-controlled by construction.
+- Verified 2026-11-01: `GET /v1/models` over the tailnet returned
+  exactly the model id above, and a test completion succeeded
+  (~23 tok/s generation measured on the GTX 1070 Ti in a first small
+  test).
+
 ## Failure modes and countermeasures
 
 - **Not a reasoning powerhouse.** It is an instruction-following /

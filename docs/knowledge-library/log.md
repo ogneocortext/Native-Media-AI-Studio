@@ -21,6 +21,10 @@ type: tracker
 
 ---
 
+## 2026-11-01 — Bolt E4B reference: cloud-agent access section
+
+- Extended `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` with a "Reaching it from the cloud agent (Orion)" section: the Tailscale route (rig `customrig`, cloud VM `muse`), Local-network bind instead of the public Remote-access tunnel, enforced API-key auth (401 verified), transient key handling, and the owner-controlled availability conditions — verified live end to end on 2026-11-01.
+
 ## 2026-11-01 — Nemotron 3.5 Bolt E4B 4GB model reference
 
 - Added `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` → `#ai`, `#ai-agents`, `#platform-atomic-chat` — local agent model reference covering strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, and routing guidance for cloud models delegating to local execution
