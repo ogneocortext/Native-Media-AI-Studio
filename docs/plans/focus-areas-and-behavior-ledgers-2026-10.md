@@ -308,7 +308,9 @@ backward** — the thing a changelog cannot show.
   never claimed. **This map's behavior ledgers verified live against
   the running backend 2026-10-29. Agent source discovery now has an explicit
   task-to-symbol-to-owner route and parallel discovery handoff in
-  `docs/agent-code-navigation.md` (T-PLT-05/06).**
+  `docs/agent-code-navigation.md` (T-PLT-05/06). Package/tool README paths,
+  tests, setup, and integration status were reconciled against the tree and
+  manifests (T-PLT-07).**
 - **Pain:** full-suite reruns on small changes (fixed by §2 rule 2 —
   now written down); hook activation on the owner's Windows clone is
   still pending one installer run (T-PLT-02 blocked since 2026-09).
@@ -329,6 +331,8 @@ backward** — the thing a changelog cannot show.
     probe, and visualizer discovery traces (T-PLT-05).
   - [x] Parallel discovery has bounded, non-overlapping prompts and a common
     evidence handoff with an explicit stop condition (T-PLT-06).
+  - [x] Package/tool README paths, setup guidance, and test references match
+    the current tree and workspace manifests (T-PLT-07).
 
 ## 4. Why ledgers, in one paragraph (§5)
 

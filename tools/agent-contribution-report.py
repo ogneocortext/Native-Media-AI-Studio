@@ -93,6 +93,7 @@ ALIASES = {
     "minimax 3.1 flash": "MiniMax 3.1 Flash",
     "minimax m3.1 flash": "MiniMax 3.1 Flash",
     "opencode": "opencode",
+    "gpt-6": "GPT-6",
     "devin": "Devin",
 }
 
