@@ -310,7 +310,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         think: bool | str | None = None,
         format: Any | None = None,
         keep_alive: str | int | None = None,
-        options: dict[str, Any] | None = None,
+        **kwargs,
     ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """
         Chat completion via Atomic Chat's OpenAI-compatible API.
@@ -323,6 +323,12 @@ Generate 3-8 scenes based on the input theme or concept."""
         if model is None:
             discovered = await self._discover_model()
             model = discovered or self._default_model
+
+        # Extract options dict: support both options={...} as a named kwarg
+        # and options packed into **kwargs (e.g. num_ctx, num_predict passed
+        # directly by callers using **chat_options unpacking).
+        options = kwargs.pop("options", None) or {}
+        options.update(kwargs)
 
         if tools and not self._supports_tools(model):
             logger.warning("Model %s is not known to support tools; sending without tool definitions", model)

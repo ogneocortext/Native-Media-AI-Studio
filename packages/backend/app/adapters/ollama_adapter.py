@@ -269,7 +269,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         think: bool | str | None = None,
         format: Any | None = None,
         keep_alive: str | int | None = None,
-        options: dict[str, Any] | None = None,
+        **kwargs,
     ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
         """
         Chat completion with Ollama, supporting tool calling and streaming.
@@ -282,18 +282,24 @@ Generate 3-8 scenes based on the input theme or concept."""
             think: Enable thinking mode (bool or "high"/"medium"/"low"/"max")
             format: Structured output format ("json" or JSON schema dict) -- Ollama 0.33+
             keep_alive: Keep model alive duration (e.g. "10m", 0, -1) -- Ollama 0.33 caching
-            **options: Additional options (num_ctx, temperature, etc. -- VRAM-aware caps apply)
+            **kwargs: Additional options (num_ctx, temperature, etc. -- VRAM-aware caps apply)
+              Pass options={...} as a nested dict or pack options directly into kwargs.
 
         Returns:
             Dictionary containing the response, or async iterator if streaming
         """
         if model is None:
             model = self._default_model
+
+        # Extract options dict: support both options={...} as a named kwarg
+        # and options packed into **kwargs (e.g. num_ctx, num_predict passed
+        # directly by callers using **chat_options unpacking).
+        options = kwargs.pop("options", None) or {}
+        options.update(kwargs)
+
         if tools and not self._supports_tools(model):
             logger.warning("Model %s is not known to support tools; sending without tool definitions", model)
             tools = None
-        if options is None:
-            options = {}
         if "num_ctx" not in options:
             options["num_ctx"] = 8192
         else:
