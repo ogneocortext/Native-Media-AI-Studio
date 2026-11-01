@@ -28,6 +28,11 @@
     "@newkrok/three-particles": "^3.0.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
+    "@remotion/captions": "4.0.539",
+    "@remotion/cli": "4.0.539",
+    "@remotion/media": "4.0.539",
+    "@remotion/media-utils": "4.0.539",
+    "@remotion/renderer": "4.0.539",
     "@tailwindcss/vite": "catalog:",
     "@theatre/core": "^0.7.2",
     "@theatre/studio": "0.7.2",
@@ -39,8 +44,10 @@
     "react-dom": "catalog:",
     "react-router-dom": "^7.18.4",
     "recharts": "^3.10.1",
+    "remotion": "4.0.539",
     "three": "^0.186.1",
     "wavesurfer.js": "^8.0.3",
+    "zod": "4.5.4",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
