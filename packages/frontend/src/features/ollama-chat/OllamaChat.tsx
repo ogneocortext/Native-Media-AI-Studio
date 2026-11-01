@@ -16,8 +16,10 @@ import {
   type OllamaBenchmarkResult,
 } from "../../services/api";
 import { getOutputUrl } from "../../utils/url";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 
 export function OllamaChat() {
+  const { refresh: refreshLibrary } = useAudioLibrary();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -58,6 +60,7 @@ export function OllamaChat() {
     setExtractResult(null);
     try {
       const res = await uploadAudioFile(file);
+      void refreshLibrary();
       setExtractResult({
         filename: res.filename,
         relative_path: res.relative_path,

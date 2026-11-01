@@ -61,7 +61,7 @@ export interface OnboardingFlowProps {
 
 export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
   const navigate = useNavigate();
-  const { entries, isLoading: libLoading } = useAudioLibrary();
+  const { entries, isLoading: libLoading, refresh: refreshLibrary } = useAudioLibrary();
 
   const [state, setState] = useState<OnboardingState>(INITIAL_STATE);
   const [analysisStage, setAnalysisStage] = useState(0);
@@ -126,6 +126,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           const up = await uploadAudioFile(file);
           if (token !== runTokenRef.current) return;
           filename = basenameOf(up.stored_path) || up.filename;
+          void refreshLibrary();
           setState((s) => ({ ...s, filename }));
         } catch (err) {
           if (token !== runTokenRef.current) return;

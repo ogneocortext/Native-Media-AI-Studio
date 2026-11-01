@@ -24,6 +24,7 @@ import {
   friendlyPipelineError,
 } from "../../utils/errorCopy";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTransport } from "../../components/audio";
 import { DS } from "../../styles/designSystem";
 import { useNavigate } from "react-router-dom";
@@ -46,6 +47,7 @@ import { validateAudioFile } from "./utils/fileValidation";
 
 export function AudioAnalysisPage() {
   const audio = useAudioAnalysis();
+  const { refresh: refreshLibrary } = useAudioLibrary();
   const [file, setFile] = useState<File | null>(null);
   const [libraryTrack, setLibraryTrack] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -261,7 +263,7 @@ export function AudioAnalysisPage() {
           )}
 
           {/* Mastering Panel */}
-          <MasteringPanel onMastered={() => {/* Handle mastered file */}} />
+          <MasteringPanel onMastered={() => void refreshLibrary()} />
         </>
       )}
 
@@ -276,6 +278,7 @@ export function AudioAnalysisPage() {
           sections={audio.analysis?.sections ?? []}
           onSaved={() => {
             setShowTrimModal(false);
+            void refreshLibrary();
             if (audio.summary?.filename)
               void audio.ensure(audio.summary.filename, "sonara");
           }}

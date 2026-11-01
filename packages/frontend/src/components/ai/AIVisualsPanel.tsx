@@ -28,6 +28,7 @@ import {
 } from "../../services/comfyui";
 import { getComfyuiUrl } from "../../services/portConfig";
 import { estimateImageGeneration } from "../../services/generationEstimator";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 
 interface GeneratedImage {
   id: string;
@@ -133,6 +134,7 @@ export function AIVisualsPanel({
   defaultPrompt = "",
   negativePrompt: initialNegativePrompt = "",
 }: AIVisualsPanelProps) {
+  const { refresh: refreshLibrary } = useAudioLibrary();
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [negativePrompt, setNegativePrompt] = useState(
     initialNegativePrompt || DEFAULT_NEGATIVE_PROMPT,
@@ -861,7 +863,7 @@ export function AIVisualsPanel({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  uploadAudio(file).catch((err: unknown) => {
+                  uploadAudio(file).then(() => void refreshLibrary()).catch((err: unknown) => {
                     setError(err instanceof Error ? err.message : "Audio upload failed");
                   });
                   e.target.value = "";
