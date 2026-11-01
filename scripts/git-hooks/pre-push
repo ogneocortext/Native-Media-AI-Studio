@@ -58,7 +58,11 @@ fi
 
 # The unit gate is ~1.5 s; the rest are a few seconds each. pytest and Playwright
 # are excluded on purpose (see the header).
-if ! "$PYTHON" tools/run-gates.py --only docs ruff type lint unit; then
+# Changed files are detected inside run-gates.py via bare `--changed`
+# (`git diff --name-only origin/main..HEAD`), so gates that cannot be
+# affected by the unpushed batch are skipped. This avoids shell-quoting
+# issues with spaced paths and keeps the hook thin.
+if ! "$PYTHON" tools/run-gates.py --only docs ruff type lint unit --changed; then
     echo >&2
     echo "pre-push: fast gates failed (see above)." >&2
     echo "          Fix and push again, or bypass once with --no-verify." >&2

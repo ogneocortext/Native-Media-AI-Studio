@@ -65,6 +65,7 @@ import glob
 import json
 import os
 import queue
+import random
 import re
 import shutil
 import subprocess
@@ -167,6 +168,57 @@ def _write_cache(python):
                         "schema": _CACHE_VERSION}), "utf-8")
     except OSError:
         pass
+
+
+# ---- timing history (regression detection) ----
+
+_TIMING_CACHE_VERSION = 1
+_TIMING_HISTORY_SIZE = 10  # keep last 10 runs per gate
+
+
+def _timing_path():
+    return Path(tempfile.gettempdir()) / "nma-studio-gate-timing.json"
+
+
+def _read_timing():
+    """{gate_name: [elapsed_seconds, ...]} from the timing cache."""
+    try:
+        return json.loads(_timing_path().read_text("utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_timing(data):
+    try:
+        _timing_path().write_text(json.dumps(data), "utf-8")
+    except OSError:
+        pass
+
+
+def _record_timing(name, elapsed):
+    """Append `elapsed` to gate `name`'s history, capping at HISTORY_SIZE."""
+    data = _read_timing()
+    hist = data.get(name, [])
+    hist.append(round(elapsed, 2))
+    if len(hist) > _TIMING_HISTORY_SIZE:
+        hist = hist[-_TIMING_HISTORY_SIZE:]
+    data[name] = hist
+    _write_timing(data)
+
+
+def _regression_notice(name, elapsed):
+    """Return a regression warning string if `elapsed` is 50%+ over the
+    historical median, else None."""
+    data = _read_timing()
+    hist = data.get(name, [])
+    if len(hist) < 3:
+        return None  # not enough history to judge
+    sorted_hist = sorted(hist)
+    median = sorted_hist[len(sorted_hist) // 2]
+    if median > 0 and elapsed > median * 1.5:
+        return (f"  (regression: {elapsed:.1f}s vs {median:.1f}s median "
+                f"over {len(hist)} runs)")
+    return None
 
 
 def _read_python_env():
@@ -502,7 +554,8 @@ def resolve_python(cwd=BACKEND, *, quiet=False, collect=None, allow_cached=True)
 
 
 class Gate:
-    def __init__(self, name, argv, cwd, *, optional=False, timeout=300, lane="py"):
+    def __init__(self, name, argv, cwd, *, optional=False, timeout=300, lane="py",
+                 desc=""):
         self.name = name
         self.argv = argv
         self.cwd = cwd
@@ -511,6 +564,7 @@ class Gate:
         # "py" gates run only on the resolved interpreter, "node" gates only
         # on the resolved pnpm. Lanes execute concurrently; see gates().
         self.lane = lane
+        self.desc = desc
 
 
 def gates(*, fix=False, verbose=False):
@@ -532,18 +586,25 @@ def gates(*, fix=False, verbose=False):
     lint_argv = ([PNPM, "exec", "eslint", "--fix", "src"] if fix
                  else [PNPM, "lint"])
     return [
-        Gate("docs", [PY, "tools/check-all.py"] + docs_extra, ROOT),
-        Gate("ruff", ruff_argv, ROOT),
-        Gate("arch", [PY, "tools/check-import-cycles.py"], ROOT),
-        Gate("routes", [PY, "tools/check-duplicate-routes.py"], ROOT),
-        Gate("type", [PNPM, "type-check"], FRONTEND, lane="node"),
-        Gate("lint", lint_argv, FRONTEND, lane="node"),
+        Gate("docs", [PY, "tools/check-all.py"] + docs_extra, ROOT,
+             desc="documentation and repo hygiene (7 checks via check-all.py)"),
+        Gate("ruff", ruff_argv, ROOT,
+             desc="Python lint with ruff (imports, style, bugs)"),
+        Gate("arch", [PY, "tools/check-import-cycles.py"], ROOT,
+             desc="backend import cycles and layer inversions (api->services->adapters)"),
+        Gate("routes", [PY, "tools/check-duplicate-routes.py"], ROOT,
+             desc="duplicate FastAPI route handlers (shadowing detection)"),
+        Gate("type", [PNPM, "type-check"], FRONTEND, lane="node",
+             desc="TypeScript type check (tsc --noEmit + test config)"),
+        Gate("lint", lint_argv, FRONTEND, lane="node",
+             desc="ESLint on frontend src"),
         # `-v --durations=10` rather than `-q`: the runner streams each line as
         # it is produced, so a verbose reporter is what makes "which test is
         # running right now" visible. `--durations=10` then names the ten
         # slowest tests, which is where optimization effort is most valuable.
         Gate("pytest", [PY, "-m", "pytest", "-v", "--durations=10",
-                        "-p", "no:cacheprovider"], BACKEND),
+                        "-p", "no:cacheprovider"], BACKEND,
+             desc="backend pytest suite"),
         # The tools' own unit tests. The knowledge-library link parser is
         # shared by three tools, and a silent divergence in it is invisible
         # until something reports the wrong number — so it is guarded here.
@@ -551,17 +612,21 @@ def gates(*, fix=False, verbose=False):
         # live scripts (MCP stdio, demucs, GPU) that block and are not
         # gate-safe.
         Gate("tools-pytest", [PY, "-m", "pytest", "-v",
-                              "-p", "no:cacheprovider", "tests/unit"], TOOLS),
+                              "-p", "no:cacheprovider", "tests/unit"], TOOLS,
+             desc="tools' own unit tests (tests/unit only)"),
         # `--reporter=verbose` names every test file as it runs. The vitest
         # config's default reporter is "dot" under CI, which prints one
         # character per file and no names at all.
         Gate("unit", [PNPM, "exec", "vitest", "run", "--reporter=verbose"],
-             FRONTEND, lane="node"),
-        Gate("build", [PNPM, "build"], FRONTEND, timeout=600, lane="node"),
+             FRONTEND, lane="node",
+             desc="frontend vitest unit tests (891 tests, 42 files)"),
+        Gate("build", [PNPM, "build"], FRONTEND, timeout=600, lane="node",
+             desc="Vite production build (Rolldown bundler)"),
         Gate("e2e", [PNPM, "exec", "playwright", "test",
                      "app-shell.spec.ts", "canvas2d.spec.ts",
                      "lrc-visualizer.spec.ts", "--reporter=list"],
-             FRONTEND, optional=True, timeout=900, lane="node"),
+             FRONTEND, optional=True, timeout=900, lane="node",
+             desc="Playwright E2E (opt-in, --e2e; starts a Vite dev server)"),
     ]
 
 
@@ -691,7 +756,7 @@ def run_gate(gate, argv, timeout, *, heartbeat=True, stream=True, out_file=None)
             print(f"[{gate.name}] {_strip_ansi(text)}", file=dest, flush=True)
 
     if timed_out:
-        _kill_tree(proc)
+        _kill_tree(proc, grace=2.0)
         # Drain whatever the child managed to emit before it was killed; that
         # output is usually the most useful part of a timeout diagnosis.
         try:
@@ -713,7 +778,7 @@ def run_gate(gate, argv, timeout, *, heartbeat=True, stream=True, out_file=None)
     try:
         code = proc.wait(timeout=max(1.0, deadline - time.time()))
     except subprocess.TimeoutExpired:
-        _kill_tree(proc)
+        _kill_tree(proc, grace=2.0)
         code = 124
 
     stop_event.set()
@@ -723,16 +788,33 @@ def run_gate(gate, argv, timeout, *, heartbeat=True, stream=True, out_file=None)
     return code, time.time() - start, "\n".join(lines)
 
 
-def _kill_tree(proc):
-    """Kill the child and anything it spawned (pnpm -> node -> browser)."""
+def _kill_tree(proc, grace: float = 2.0):
+    """Kill the child and anything it spawned, gracefully when possible.
+
+    Sends SIGTERM (taskkill) first, waits up to `grace` seconds, then
+    hard-kills whatever is still alive. This matches the modern
+    process-termination guidance: give the tree a chance to flush buffers
+    and close handles before escalating to SIGKILL.
+    """
     try:
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # taskkill sends TERM by default on Windows; /T kills the tree.
+        subprocess.run(["taskkill", "/T", "/PID", str(proc.pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        proc.wait(timeout=grace)
+        return  # exited cleanly on TERM
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        proc.kill()  # SIGKILL escalation
     except OSError:
         pass
     try:
-        proc.kill()
-    except OSError:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
         pass
 
 
@@ -745,6 +827,115 @@ def _tail(text, limit=8000):
     if len(text) <= limit:
         return text
     return "...(truncated)...\n" + text[-limit:]
+
+
+def _select_gates(all_gates, only, include_e2e):
+    """The gates to run, applying --only and the opt-in rule.
+
+    A name matches by exact equality or as a substring, so `--only py` runs
+    pytest — *and* tools-pytest, because the substring sits inside that name
+    too: `--only py` is the cheap way to run every backend suite. Naming a
+    gate exactly (`--only pytest`) is the precise form. An optional gate is
+    skipped unless --e2e is given OR it is named explicitly in --only -
+    naming it is itself the opt-in, so `--only e2e` runs the browser suite
+    instead of silently selecting nothing.
+    """
+    def matches(gate, names):
+        return any(
+            n.lower() == gate.name.lower() or n.lower() in gate.name.lower()
+            for n in names
+        )
+
+    selected = []
+    for g in all_gates:
+        if only and not matches(g, only):
+            continue
+        if g.optional and not include_e2e and not (only and matches(g, only)):
+            continue
+        selected.append(g)
+    return selected
+
+
+def _gate_relevant(gate: Gate, changed: set[str]) -> bool:
+    """Return True if `gate` could be affected by changed file names.
+
+    With no changed files known, every gate runs (conservative default).
+    A gate is skipped only when `changed` is non-empty and no changed file
+    matches anything the gate touches. All checks are read-only scans, so a
+    gate cannot surface a new violation in a file it does not touch.
+    """
+    if not changed:
+        return True
+    py_changed = any(f.endswith(".py") for f in changed)
+    ts_changed = any(f.lower().endswith((".ts", ".tsx")) for f in changed)
+    frontend_src = any(f.startswith("packages/frontend/src/") for f in changed)
+    frontend_test = any(f.startswith("packages/frontend/tests/") for f in changed)
+    frontend_root = any(
+        f.startswith("packages/frontend/")
+        and not f.startswith("packages/frontend/src/")
+        and not f.startswith("packages/frontend/tests/")
+        for f in changed
+    )
+    backend_app = any(f.startswith("packages/backend/app/") and f.endswith(".py")
+                      for f in changed)
+    backend_any = any(f.startswith("packages/backend/") for f in changed)
+    tools_py = any(f.startswith("tools/") and f.endswith(".py") for f in changed)
+    tools_tests = any(f.startswith("tools/tests/") for f in changed)
+    docs_any = any(f.startswith("docs/") or f == "AGENTS.md" for f in changed)
+    text_any = any(
+        f.lower().endswith((".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py",
+                            ".md", ".json", ".yaml", ".yml", ".toml", ".ps1",
+                            ".sh", ".css", ".html", ".txt", ".cfg", ".ini"))
+        for f in changed
+    )
+    config_any = any(f.startswith("config/") for f in changed)
+
+    name = gate.name
+    if name == "docs":
+        # check-all.py scopes its own checks internally via --changed; the
+        # docs gate itself is relevant when any text/code/config/docs file
+        # changed.
+        return text_any or docs_any or config_any
+    if name == "ruff":
+        # Python lint: relevant whenever a Python file changed (backend or
+        # tools; frontend has no .py).
+        return py_changed
+    if name == "arch":
+        return backend_app
+    if name == "routes":
+        return any(f.startswith("packages/backend/app/api/") and f.endswith(".py")
+                   for f in changed)
+    if name == "pytest":
+        return backend_any
+    if name == "tools-pytest":
+        return tools_tests or tools_py
+    if name in ("type", "lint"):
+        return ts_changed and frontend_src
+    if name == "unit":
+        return ts_changed and (frontend_src or frontend_test)
+    if name == "build":
+        return frontend_src or frontend_root
+    if name == "e2e":
+        return frontend_src
+    return True
+
+
+def _changed_from_git() -> set[str] | None:
+    """Return the set of changed file names in the unpushed commit batch
+    (`git diff --name-only origin/main..HEAD`), or None if it cannot be
+    determined (no origin/main, git error). Used for bare `--changed`."""
+    try:
+        out = subprocess.run(
+            ["git", "diff", "--name-only", "origin/main..HEAD"],
+            cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode != 0:
+        return None
+    files = [f for f in out.stdout.splitlines() if f.strip()]
+    return set(files)
 
 
 def _select_gates(all_gates, only, include_e2e):
@@ -791,6 +982,9 @@ def _build_parser():
     p.add_argument("--only", nargs="+", metavar="GATE",
                    help="run only these gates; a substring matches "
                         "(e.g. 'py' matches both pytest and tools-pytest)")
+    p.add_argument("--group", nargs="+", metavar="GROUP",
+                   help="run a predefined group of gates: 'py', 'node', 'fast', "
+                        "'full' (all except e2e)")
     p.add_argument("--e2e", action="store_true",
                    help="include the opt-in Playwright gate")
     p.add_argument("--list", action="store_true",
@@ -820,6 +1014,11 @@ def _build_parser():
     p.add_argument("--serial", action="store_true",
                    help="run the lanes one after the other instead of in "
                         "parallel (deterministic output, slower)")
+    p.add_argument("--changed", nargs="*", metavar="FILE",
+                   help="only run gates that could be affected by these "
+                        "changed file names (e.g. the unpushed commit batch). "
+                        "Gates that cannot be affected are reported [SKIP]. "
+                        "Without this, every selected gate runs as before.")
     return p
 
 
@@ -849,22 +1048,33 @@ def _run_lane(lane_name, lane_gates, python, pnpm, shared):
             if code == 0:
                 break
             if attempts < max_attempts:
-                print(f"  {g.name} attempt {attempts} failed ({code}), retrying...",
-                      file=sys.stderr)
+                # Exponential backoff with jitter: 0.5s, 1.5s, 4.5s...
+                # A retry storm (all lanes retrying at once) is worse than
+                # one slow gate, so back off before the next attempt.
+                backoff = 0.5 * (2 ** (attempts - 1)) + random.uniform(0, 0.5)
+                print(f"  {g.name} attempt {attempts} failed ({code}), "
+                      f"retrying in {backoff:.1f}s...", file=sys.stderr)
+                time.sleep(backoff)
         status = "PASS" if code == 0 else ("TIME" if code == 124 else "FAIL")
         record = {
             "name": g.name, "status": status, "elapsed": spent,
             "attempts": attempts, "lane": lane_name,
         }
+        # Record timing for regression detection (only on successful runs,
+        # since a failed gate's elapsed is mostly timeout overhead).
+        if code == 0:
+            _record_timing(g.name, spent)
+        reg = _regression_notice(g.name, spent) if code == 0 else ""
         # spent, not the last attempt's elapsed: with --retry the real cost of
         # a gate is every attempt, and the summary total must reflect that.
         # The label mirrors the old `g.argv[1:3]` slice: a slice is safe for
         # two-element argvs, direct indexing is not (IndexError killed the
         # whole lane thread on the first short node gate).
         preview = " ".join(argv[1:3])
+        desc = f" — {g.desc}" if g.desc else ""
         with shared["print_lock"]:
             sys.stdout.write(
-                f"[{status}] {g.name:<12} {spent:6.1f} s  {preview}\n")
+                f"[{status}] {g.name:<12} {spent:6.1f} s  {preview}{desc}{reg}\n")
             sys.stdout.flush()
             shared["results"][g.name] = record
             if code != 0:
@@ -947,11 +1157,62 @@ def main(argv=None):
         return 0
 
     all_gates = gates(fix=args.fix, verbose=args.verbose)
+
+    # --group expands to a predefined set of gates, applied before --only.
+    _groups = {
+        "py": ["docs", "ruff", "arch", "routes", "pytest", "tools-pytest"],
+        "node": ["type", "lint", "unit", "build"],
+        "fast": ["docs", "ruff", "arch", "routes", "type", "lint", "unit"],
+        "full": ["docs", "ruff", "arch", "routes", "type", "lint", "unit",
+                 "pytest", "tools-pytest", "build"],
+    }
+    if args.group:
+        expanded = []
+        for gname in args.group:
+            if gname not in _groups:
+                available = ", ".join(sorted(_groups))
+                print(f"unknown group '{gname}'; available: {available}")
+                return 1
+            expanded.extend(_groups[gname])
+        # Dedupe while preserving order
+        seen = set()
+        expanded = [g for g in expanded if not (g in seen or seen.add(g))]
+        args.only = expanded
+
     selected = _select_gates(all_gates, args.only, args.e2e)
     if not selected:
         available = ", ".join(g.name for g in all_gates)
         print(f"no gate matched {args.only}; available: {available}")
         return 1
+
+    # Changed-file scoping: skip gates that cannot be affected by the named
+    # files. Pass --changed through to check-all.py (docs gate) so it scopes
+    # its own internal checks too.
+    changed_arg = args.changed
+    if changed_arg is None:
+        changed = None  # --changed not given: run every gate
+    elif len(changed_arg) == 0:
+        changed = _changed_from_git()  # bare --changed: auto-detect from git
+    else:
+        changed = set(changed_arg)
+    run_selected = []
+    skipped = []
+    for g in selected:
+        if changed is not None and not _gate_relevant(g, changed):
+            skipped.append(g)
+            continue
+        run_selected.append(g)
+        if g.name == "docs" and changed:
+            # check-all.py scopes its checks internally via --changed.
+            g.argv = g.argv + ["--changed"] + sorted(changed)
+
+    if not run_selected:
+        available = ", ".join(g.name for g in all_gates)
+        print(f"no gate matched {args.only}; available: {available}")
+        if skipped:
+            print("  (all selected gates skipped by --changed: "
+                  + ", ".join(g.name for g in skipped) + ")")
+        return 0
 
     # In JSON mode stdout must stay pure JSON, so the streamed lines AND the
     # per-gate status lines go to stderr instead. (Previously the status
@@ -960,12 +1221,14 @@ def main(argv=None):
     json_mode = bool(args.json or args.save_json)
     stream_to = sys.stderr if json_mode else None
 
-    py_gates = [g for g in selected if g.lane == "py"]
-    node_gates = [g for g in selected if g.lane == "node"]
+    py_gates = [g for g in run_selected if g.lane == "py"]
+    node_gates = [g for g in run_selected if g.lane == "node"]
     lane_count = (1 if py_gates else 0) + (1 if node_gates else 0)
 
-    print(f"Running {len(selected):d} gate(s) on {lane_count} lane(s): "
-          + ", ".join(g.name for g in selected))
+    print(f"Running {len(run_selected):d} gate(s) on {lane_count} lane(s): "
+          + ", ".join(g.name for g in run_selected))
+    if skipped:
+        print("  skipped by --changed: " + ", ".join(g.name for g in skipped))
     print("=" * 68)
     sys.stdout.flush()
 
@@ -1022,8 +1285,12 @@ def main(argv=None):
         for t in threads:
             t.join()
 
-    results = [shared["results"][g.name] for g in selected]
-    failed = [r["name"] for r in results if r["status"] != "PASS"]
+    results = [shared["results"].get(g.name, {
+        "name": g.name, "status": "SKIP", "elapsed": 0.0,
+        "attempts": 0, "lane": g.lane,
+    }) for g in selected]
+    failed = [r["name"] for r in results
+              if r["status"] not in ("PASS", "SKIP")]
 
     if args.json or args.save_json:
         report = {
