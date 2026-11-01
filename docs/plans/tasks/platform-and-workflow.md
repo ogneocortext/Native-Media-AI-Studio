@@ -58,3 +58,10 @@ Rules: `docs/plans/tasks/README.md`
   search_audio_by_analysis() and get_audio_analysis_field() to audio.py using
   SQLite JSON1. Eliminated circular import between connection.py and database.py.
   Verified: ruff clean, import-cycle check 0 cycles, database tests pass.
+
+### T-PLT-05 — Improve agent source-file discovery
+- **Status:** done
+- **Goal:** Give agents a reliable route from task descriptions to current implementation and test files, and prevent docs search or the legacy codebase map from being mistaken for source search.
+- **Files:** docs/agent-code-navigation.md, docs/README.md, AGENTS.md
+- **Acceptance:** Bootstrap points to the discovery route; it explains docs search scope, validates paths against the tree, and demonstrates source searches across frontend/backend ownership boundaries.
+- **Last session:** GPT-6, 2026-11-01 — Simulated discovery for audio selector ownership, remix probe routing, and visualizer rendering. Found that docs search only covers `docs/` and codebase.json contains stale paths; added the current source-discovery guide and bootstrap links. Confirmed examples against tracked source paths with `rg`.

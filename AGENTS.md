@@ -39,6 +39,8 @@
 > (Q1–Q6). Update the log when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
+> For source discovery, follow `docs/agent-code-navigation.md`; docs search is
+> documentation-only, and `codebase.json` is a legacy orientation map.
 >
 > **Task state lives in `docs/plans/tasks/`** — one file per focus area
 > (map: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md`). When

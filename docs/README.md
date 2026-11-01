@@ -29,6 +29,7 @@ This directory contains project documentation, knowledge base articles, and setu
 ## Key Files
 
 - `README.md` (this file) — map of the documentation tree
+- `agent-code-navigation.md` — task-to-source discovery workflow; distinguishes docs search from source search
 - `agent-shell-cheatsheet.md` — **the shell/command reference for agents on the owner's Windows machine**: correct interpreters, which commands exist, the WSL trap. Read before running commands
 - `knowledge-library/index.md` — library navigation and tag counts
 - `knowledge-library/tagging-guide.md` — how library articles are tagged

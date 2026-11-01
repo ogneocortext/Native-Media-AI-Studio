@@ -306,7 +306,8 @@ backward** — the thing a changelog cannot show.
   isolated test/debug path — only changes verified there merge to
   main; Windows-only gates remain the owner's and are named as such,
   never claimed. **This map's behavior ledgers verified live against
-  the running backend 2026-10-29.**
+  the running backend 2026-10-29. Agent source discovery now has an explicit
+  task-to-symbol-to-owner route in `docs/agent-code-navigation.md` (T-PLT-05).**
 - **Pain:** full-suite reruns on small changes (fixed by §2 rule 2 —
   now written down); hook activation on the owner's Windows clone is
   still pending one installer run (T-PLT-02 blocked since 2026-09).
@@ -322,6 +323,9 @@ backward** — the thing a changelog cannot show.
   - [ ] This map's area states match the tree (spot-check monthly) —
     last full spot-check 2026-10-27 (T-PLT-03); behavior ledgers
     updated live 2026-10-29.
+  - [x] Agents distinguish documentation search from source search and find
+    likely implementation/test owners — verified with audio selector, remix
+    probe, and visualizer discovery traces (T-PLT-05).
 
 ## 4. Why ledgers, in one paragraph (§5)
 
