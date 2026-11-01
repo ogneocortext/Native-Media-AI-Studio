@@ -1,5 +1,9 @@
 /**
- * BeatDensityChart — displays beat density per bar
+ * BeatDensityChart — displays beat density per bar.
+ *
+ * Beat density shows how many beats occur in each bar (measure). Higher bars
+ * mean more rhythmic activity; lower bars mean sparser sections. Each bar
+ * represents one measure (4 beats by default).
  */
 
 export interface BeatDensityPoint {
@@ -53,7 +57,14 @@ export function getEnergyColor(energy: number): string {
 export function BeatDensityChart(_props: { data: BeatDensityPoint[] }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-foreground">Beat Density per Bar</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">Beat Density per Bar</h3>
+        <span className="text-xs text-muted">4 beats per bar</span>
+      </div>
+      <p className="text-xs text-muted">
+        Shows how many beats fall in each measure. Taller bars = more rhythmic
+        activity; shorter bars = sparser sections. Colored by song section.
+      </p>
       <div className="h-32 bg-surface/50 rounded-lg overflow-hidden">
         {/* Chart implementation would go here */}
         <p className="text-xs text-muted p-4">Beat density visualization</p>
