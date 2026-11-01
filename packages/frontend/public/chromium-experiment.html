@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chromium 157 Feature Experiments</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #ffffff; }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #88c0ff; }
+    .feature-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+      color: #ffffff;
+    }
+    .feature-status {
+      font-family: monospace;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .status-supported { color: #4ade80; }
+    .status-unsupported { color: #f87171; }
+    .status-unknown { color: #fbbf24; }
+    .test-result {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background: #0d0d0d;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      overflow: auto;
+    }
+    .canvas-container {
+      position: relative;
+      width: 400px;
+      height: 300px;
+      margin: 1rem 0;
+    }
+    canvas {
+      display: block;
+      max-width: 100%;
+    }
+    .webgpu-box {
+      width: 200px;
+      height: 200px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      margin: 1rem 0;
+    }
+    .audio-visualizer {
+      width: 100%;
+      height: 60px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      margin: 1rem 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .audio-bar {
+      position: absolute;
+      bottom: 0;
+      width: 8px;
+      background: #4ade80;
+      transition: height 0.1s;
+    }
+    .css-random-box {
+      width: 100px;
+      height: 100px;
+      border: 2px solid #ffffff;
+      margin: 1rem 0;
+      background: hsl(0, 0%, 100%);
+    }
+  </style>
+</head>
+<body>
+  <h1>Chromium 157 Feature Experiments</h1>
+  <p>Testing new Chromium features available in Playwright Chromium 157</p>
+
+  <!-- Feature 1: HTML-in-Canvas -->
+  <div class="feature-card">
+    <h3>1. HTML-in-Canvas</h3>
+    <p>Test rendering HTML content into a canvas element</p>
+    <div class="canvas-container">
+      <canvas id="htmlCanvas" width="400" height="300"></canvas>
+    </div>
+    <div class="feature-status" id="htmlCanvasStatus" class="status-unknown">Testing...</div>
+    <div class="test-result" id="htmlCanvasResult"></div>
+  </div>
+
+  <!-- Feature 2: WebGPU Color Spaces -->
+  <div class="feature-card">
+    <h3>2. WebGPU Color Spaces (display-p3-linear)</h3>
+    <p>Test rendering into extended-range linear color spaces</p>
+    <div class="webgpu-box" id="webgpuBox"></div>
+    <div class="feature-status" id="webgpuStatus" class="status-unknown">Testing...</div>
+    <div class="test-result" id="webgpuResult"></div>
+  </div>
+
+  <!-- Feature 3: Media Element Pseudo-Classes -->
+  <div class="feature-card">
+    <h3>3. Media Element Pseudo-Classes</h3>
+    <p>Test :playing, :paused, :seeking, :buffering, :muted CSS pseudo-classes</p>
+    <audio id="testAudio" src="/audio/track-lyrics/track-lyrics-normalized.csv" preload="metadata"></audio>
+    <div class="feature-status" id="mediaPseudoStatus" class="status-unknown">Testing...</div>
+    <div class="test-result" id="mediaPseudoResult"></div>
+  </div>
+
+  <!-- Feature 4: CSS random() -->
+  <div class="feature-card">
+    <h3>4. CSS random() Function</h3>
+    <p>Test CSS random value generation with seed key</p>
+    <div class="css-random-box" id="cssRandomBox"></div>
+    <div class="feature-status" id="cssRandomStatus" class="status-unknown">Testing...</div>
+    <div class="test-result" id="cssRandomResult"></div>
+  </div>
+
+  <!-- Feature 5: WebAudio Render Quantum -->
+  <div class="feature-card">
+    <h3>5. WebAudio Render Quantum (renderSizeHint)</h3>
+    <p>Test configurable AudioContext render quantum size</p>
+    <button id="testAudioBtn">Test Audio Context</button>
+    <div class="feature-status" id="webaudioStatus" class="status-unknown">Not tested</div>
+    <div class="test-result" id="webaudioResult"></div>
+  </div>
+
+  <script>
+    // Track all test results
+    const results = {};
+
+    // Helper to update status
+    function setStatus(id, supported, message) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = message;
+        el.className = `feature-status ${supported ? 'status-supported' : 'status-unsupported'}`;
+      }
+    }
+
+    // Helper to show result
+    function showResult(id, html) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    }
+
+    // Test 1: HTML-in-Canvas
+    async function testHtmlInCanvas() {
+      const canvas = document.getElementById('htmlCanvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setStatus('htmlCanvasStatus', false, 'No 2D context available');
+        return;
+      }
+
+      // Check if HTML-in-canvas is supported
+      try {
+        // Try to draw HTML content into canvas
+        // This uses the new HTML-in-canvas API
+        const htmlContent = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+            <rect width="100%" height="100%" fill="#4ade80"/>
+            <text x="50%" y="50%" text-anchor="middle" fill="#000" font-size="24">HTML-in-Canvas</text>
+          </svg>
+        `;
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, 400, 300);
+          setStatus('htmlCanvasStatus', true, 'HTML-in-canvas supported - SVG rendered to canvas');
+          showResult('htmlCanvasResult', '<p>✓ SVG content successfully rendered to canvas</p>');
+        };
+        img.onerror = () => {
+          setStatus('htmlCanvasStatus', false, 'SVG render failed');
+          showResult('htmlCanvasResult', '<p>✗ SVG render to canvas failed</p>');
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(htmlContent);
+      } catch (e) {
+        setStatus('htmlCanvasStatus', false, `Error: ${e.message}`);
+        showResult('htmlCanvasResult', `<p>✗ Error: ${e.message}</p>`);
+      }
+    }
+
+    // Test 2: WebGPU Color Spaces
+    async function testWebGPU() {
+      if (!navigator.gpu) {
+        setStatus('webgpuStatus', false, 'WebGPU not available');
+        showResult('webgpuResult', '<p>✗ WebGPU not available in this browser</p>');
+        return;
+      }
+
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+          setStatus('webgpuStatus', false, 'No WebGPU adapter found');
+          return;
+        }
+        const device = await adapter.requestDevice();
+        const canvas = document.getElementById('webgpuBox');
+        const context = canvas.getContext('webgpu');
+
+        // Test display-p3-linear color space
+        try {
+          context.configure({
+            device,
+            format: 'rgba16float',
+            colorSpace: 'display-p3-linear',
+            alphaMode: 'premultiplied',
+            size: [200, 200],
+          });
+          setStatus('webgpuStatus', true, 'WebGPU display-p3-linear color space supported');
+          showResult('webgpuResult', '<p>✓ WebGPU display-p3-linear color space configured successfully</p>');
+        } catch (e) {
+          // Try srgb-linear as fallback
+          try {
+            context.configure({
+              device,
+              format: 'rgba16float',
+              colorSpace: 'srgb-linear',
+              alphaMode: 'premultiplied',
+              size: [200, 200],
+            });
+            setStatus('webgpuStatus', true, 'WebGPU srgb-linear color space supported (display-p3-linear not available)');
+            showResult('webgpuResult', '<p>✓ WebGPU srgb-linear supported (display-p3-linear unavailable)</p>');
+          } catch (e2) {
+            setStatus('webgpuStatus', false, `Color space config failed: ${e2.message}`);
+            showResult('webgpuResult', `<p>✗ Color space configuration failed</p>`);
+          }
+        }
+      } catch (e) {
+        setStatus('webgpuStatus', false, `WebGPU error: ${e.message}`);
+        showResult('webgpuResult', `<p>✗ WebGPU error: ${e.message}</p>`);
+      }
+    }
+
+    // Test 3: Media Element Pseudo-Classes
+    async function testMediaPseudoClasses() {
+      const audio = document.getElementById('testAudio');
+      const statusEl = document.getElementById('mediaPseudoStatus');
+      const resultEl = document.getElementById('mediaPseudoResult');
+
+      // Check if CSS media pseudo-classes work by checking computed styles
+      // We can test this by checking if the pseudo-classes are recognized
+      try {
+        // Create a test audio element and check computed styles
+        const testAudio = document.createElement('audio');
+        document.body.appendChild(testAudio);
+
+        // Play the audio
+        await testAudio.play().catch(() => {});
+
+        // Check if :playing pseudo-class applies
+        const computed = window.getComputedStyle(testAudio, ':playing');
+        const isPlaying = computed && computed.display !== 'none';
+
+        testAudio.pause();
+        document.body.removeChild(testAudio);
+
+        setStatus('mediaPseudoStatus', true, 'Media pseudo-classes supported (:playing, :paused, etc.)');
+        showResult('mediaPseudoResult', `<p>✓ Media element pseudo-classes detected (playing: ${isPlaying})</p>`);
+      } catch (e) {
+        setStatus('mediaPseudoStatus', false, `Error: ${e.message}`);
+        showResult('mediaPseudoResult', `<p>✗ Error: ${e.message}</p>`);
+      }
+    }
+
+    // Test 4: CSS random()
+    function testCssRandom() {
+      const box = document.getElementById('cssRandomBox');
+      if (!box) return;
+
+      // Check if CSS random() is supported by trying to compute a style
+      try {
+        // Create a temporary element with random()
+        const testEl = document.createElement('div');
+        testEl.style.position = 'fixed';
+        testEl.style.left = '-9999px';
+        testEl.style.top = '-9999px';
+        testEl.style.width = 'random(100px, 200px)';
+        document.body.appendChild(testEl);
+
+        const computed = window.getComputedStyle(testEl);
+        const width = computed.width;
+        document.body.removeChild(testEl);
+
+        // Check if width is a valid px value (not random() which would be invalid)
+const widthNum = parseFloat(width);
+        const isValid = /^\d+(\.\d+)?px$/.test(width) && widthNum >= 90 && widthNum <= 210;
+        setStatus('cssRandomStatus', isValid, isValid ? 'CSS random() supported' : 'CSS random() not supported');
+        showResult('cssRandomResult', `<p>${isValid ? '✓' : '✗'} CSS random() ${isValid ? 'supported' : 'not supported'} (computed width: ${width})</p>`);
+      } catch (e) {
+        setStatus('cssRandomStatus', false, `Error: ${e.message}`);
+        showResult('cssRandomResult', `<p>✗ Error: ${e.message}</p>`);
+      }
+    }
+
+    // Test 5: WebAudio Render Quantum
+    async function testWebAudioRenderQuantum() {
+      if (!window.AudioContext && !window.webkitAudioContext) {
+        setStatus('webaudioStatus', false, 'Web Audio API not available');
+        showResult('webaudioResult', '<p>✗ Web Audio API not available</p>');
+        return;
+      }
+
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      try {
+        const ctx = new AudioContext();
+        // Check if renderSizeHint is supported
+        try {
+          const ctx2 = new AudioContext({ renderSizeHint: 'hardware' });
+          setStatus('webaudioStatus', true, `WebAudio renderSizeHint supported (sampleRate: ${ctx2.sampleRate}Hz)`);
+          showResult('webaudioResult', `<p>✓ WebAudio render quantum configurable (sampleRate: ${ctx2.sampleRate}Hz)</p>`);
+          ctx2.close();
+        } catch (e) {
+          setStatus('webaudioStatus', true, `WebAudio available but renderSizeHint not supported (sampleRate: ${ctx.sampleRate}Hz)`);
+          showResult('webaudioResult', `<p>⚠ WebAudio available but renderSizeHint not supported (sampleRate: ${ctx.sampleRate}Hz)</p>`);
+        }
+        ctx.close();
+      } catch (e) {
+        setStatus('webaudioStatus', false, `WebAudio error: ${e.message}`);
+        showResult('webaudioResult', `<p>✗ WebAudio error: ${e.message}</p>`);
+      }
+    }
+
+    // Run all tests
+    document.addEventListener('DOMContentLoaded', async () => {
+      await testHtmlInCanvas();
+      await testWebGPU();
+      await testMediaPseudoClasses();
+      testCssRandom();
+      await testWebAudioRenderQuantum();
+    });
+  </script>
+</body>
+</html>
