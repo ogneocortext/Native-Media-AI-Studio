@@ -15,20 +15,29 @@ Outputs JSON with:
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
+from pathlib import Path
 
-from tools.lib.audio import analyze_audio, save_beat_data
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from tools.lib.audio import analyze_audio, save_beat_data  # noqa: E402
+from tools.lib.cli_base import CLIError, Progress, setup_logging  # noqa: E402
 from tools.lib.paths import output_dir
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logging()
+
+__version__ = "1.0.0"
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Analyze audio for Unity beat-sync"
+        description="Analyze audio for Unity beat-sync",
+        epilog=f"analyze_and_sync v{__version__}",
     )
+    parser.add_argument(
+        "--version", action="version", version=f"analyze_and_sync {__version__}"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Warnings only")
     parser.add_argument("audio_file", help="Path to audio file (wav/mp3)")
     parser.add_argument(
         "--output", "-o", help="Output JSON file path"
@@ -36,18 +45,34 @@ def main() -> None:
     parser.add_argument(
         "--fps", type=int, default=24, help="Animation FPS (default: 24)"
     )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Report what would be done without writing"
+    )
 
     args = parser.parse_args()
-    audio_path = args.audio_file
+
+    # Re-configure logging after parsing verbosity flags
+    from tools.lib.cli_base import setup_logging as _setup
+
+    global logger
+    logger = _setup(verbose=args.verbose, quiet=args.quiet)
+
+    audio_path = Path(args.audio_file)
+    if not audio_path.exists():
+        raise CLIError(f"Audio file not found: {audio_path}")
+
+    if args.dry_run:
+        logger.info("[dry-run] would analyze %s and write to %s", audio_path, args.output or output_dir("beat_data") / "beat_data.json")
+        return 0
 
     try:
-        data = analyze_audio(audio_path, fps=args.fps)
+        with Progress(total=1, label="analyzing audio") as p:
+            data = analyze_audio(str(audio_path), fps=args.fps)
+            p.advance()
     except FileNotFoundError as exc:
-        logger.error(str(exc))
-        sys.exit(1)
+        raise CLIError(str(exc)) from exc
     except Exception as exc:
-        logger.error("Analysis failed: %s", exc)
-        sys.exit(1)
+        raise CLIError(f"Analysis failed: {exc}") from exc
 
     print("\n=== Audio Analysis ===")
     print(f"Tempo: {data['tempo']:.1f} BPM")
@@ -61,7 +86,12 @@ def main() -> None:
 
     saved = save_beat_data(data, out_path)
     print(f"\nSaved to: {saved}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except CLIError as exc:
+        logger.error("%s", exc)
+        sys.exit(1)

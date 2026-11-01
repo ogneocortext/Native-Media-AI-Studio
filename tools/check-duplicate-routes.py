@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Fail when two handlers claim the same path and method (silent route shadowing).
 
 Why this exists
@@ -30,13 +30,19 @@ Usage:
 
 from __future__ import annotations
 
-import json
+import argparse
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "packages" / "backend"))
+sys.path.insert(0, str(REPO))
+from tools.lib.cli_base import CLIError, json_print, setup_logging  # noqa: E402
+
+__version__ = "1.0.0"
+
+logger = setup_logging()
 
 
 def _walk(routes, prefix: str = ""):
@@ -68,7 +74,33 @@ def _label(route) -> str:
 
 
 def main() -> int:
-    from app.main import app
+    parser = argparse.ArgumentParser(
+        description="Fail when two handlers claim the same path and method "
+        "(silent route shadowing).",
+        epilog=f"check-duplicate-routes v{__version__}",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"check-duplicate-routes {__version__}"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Warnings only")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON instead of human text",
+    )
+    args = parser.parse_args()
+
+    # Re-configure logging after parsing verbosity flags
+    from tools.lib.cli_base import setup_logging as _setup  # noqa: E402
+
+    global logger
+    logger = _setup(verbose=args.verbose, quiet=args.quiet)
+
+    try:
+        from app.main import app
+    except ImportError as exc:
+        raise CLIError(f"Cannot import FastAPI app: {exc}") from exc
 
     groups: dict[tuple[str, str], set[str]] = defaultdict(set)
     total = 0
@@ -85,8 +117,8 @@ def main() -> int:
         if len(handlers) > 1
     }
 
-    if "--json" in sys.argv:
-        print(json.dumps({"routes": total, "duplicates": duplicates}, indent=2))
+    if args.json:
+        json_print({"routes": total, "duplicates": duplicates})
         return 1 if duplicates else 0
 
     print(f"routes checked: {total} (path, method) pairs")
@@ -111,4 +143,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except CLIError as exc:
+        logger.error("%s", exc)
+        sys.exit(1)
