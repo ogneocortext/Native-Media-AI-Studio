@@ -1,82 +1,111 @@
+# ============================================================================
+# pnpm-workspace.yaml — Native Media AI Studio
+# ============================================================================
+# pnpm reads workspace configuration from this file, NOT from package.json.
+# See https://pnpm.io/workspaces for full reference.
+
+# ---------------------------------------------------------------------------
+# Workspace packages
+# ---------------------------------------------------------------------------
 packages:
   - packages/frontend
   - packages/video-editor
   - tools
   - '!tools/hyperframes-*'
 
-# packages/backend is intentionally excluded — it's a Python (FastAPI) package, not a pnpm workspace member
+# packages/backend is intentionally excluded — it's a Python (FastAPI) package,
+# not a pnpm workspace member.
 
-# Shared workspace lockfile — single lockfile at root for all workspace packages
-# (default in pnpm 9+, explicit here for clarity)
-
-# Catalogue for shared dependency versions across workspace packages
+# ---------------------------------------------------------------------------
+# Catalog — shared dependency version pins across workspace packages
+# ---------------------------------------------------------------------------
 catalog:
   react: ^19.3.0
   react-dom: ^19.3.0
   typescript: ^5.9.3
-  vite: ^8.3.4
   tailwindcss: ^4.3.3
   '@tailwindcss/vite': ^4.3.3
   eslint: ^10.9.1
-
-# pnpm settings (moved from .npmrc to avoid npm warnings)
+  '@playwright/test': ^1.64.0
+  playwright: ^1.64.0
 linkWorkspacePackages: true
-autoInstallPeers: true
-shamefullyHoist: false
+preferWorkspacePackages: true
+sharedWorkspaceLockfile: true
+dedupeDirectDeps: true
+optimisticRepeatInstall: true
 preferOffline: true
 lockfile: true
-onlyBuiltDependencies:
-  - esbuild
 
-overrides:
-  typescript-eslint: 8.71.1
+# saveExact — lock resolved versions exactly (no caret/tilde) for reproducibility
+saveExact: true
 
-minimumReleaseAgeExclude:
-  - '@remotion/bundler@4.0.534'
-  - '@remotion/canvas@4.0.534'
-  - '@remotion/captions@4.0.534'
-  - '@remotion/cli@4.0.534'
-  - '@remotion/compositor-darwin-arm64@4.0.534'
-  - '@remotion/compositor-darwin-x64@4.0.534'
-  - '@remotion/compositor-linux-arm64-gnu@4.0.534'
-  - '@remotion/compositor-linux-arm64-musl@4.0.534'
-  - '@remotion/compositor-linux-x64-gnu@4.0.534'
-  - '@remotion/compositor-linux-x64-musl@4.0.534'
-  - '@remotion/compositor-win32-x64-msvc@4.0.534'
-  - '@remotion/eslint-config-flat@4.0.534'
-  - '@remotion/licensing@4.0.534'
-  - '@remotion/media-parser@4.0.534'
-  - '@remotion/media-utils@4.0.534'
-  - '@remotion/media@4.0.534'
-  - '@remotion/noise@4.0.534'
-  - '@remotion/paths@4.0.534'
-  - '@remotion/player@4.0.534'
-  - '@remotion/renderer@4.0.534'
-  - '@remotion/shapes@4.0.534'
-  - '@remotion/streaming@4.0.534'
-  - '@remotion/studio-codemods@4.0.534'
-  - '@remotion/studio-protocol@4.0.534'
-  - '@remotion/studio-server@4.0.534'
-  - '@remotion/studio-shared@4.0.534'
-  - '@remotion/studio@4.0.534'
-  - '@remotion/tailwind-v4@4.0.534'
-  - '@remotion/three@4.0.534'
-  - '@remotion/timeline-utils@4.0.534'
-  - '@remotion/web-renderer@4.0.534'
-  - '@remotion/zod-types@4.0.534'
-  - remotion@4.0.534
-  - '@remotion/effects@4.0.534'
-  - '@remotion/transitions@4.0.534'
-  - mediabunny@1.59.1 || 1.61.0 || 1.61.3
-  - vite@8.3.4
-  - '@playwright/test@1.64.0'
-  - lucide-react@1.53.0
-  - playwright-core@1.64.0 || 1.65.0-alpha-2026-10-28
-  - playwright@1.64.0 || 1.65.0-alpha-2026-10-28
+# saveWorkspaceProtocol — use `workspace:` protocol for workspace deps
+saveWorkspaceProtocol: true
 
+# catalogMode — enforce catalog versions; 'strict' rejects non-catalog versions
+catalogMode: strict
+catalogPrune: true
+
+# auditLevel — fail CI on high-severity vulnerabilities
+auditLevel: high
+
+# Node version requirement (exact semver)
+nodeVersion: "22.13.0"
+
+# ---------------------------------------------------------------------------
+# Build policy — only allow building esbuild from source
+# ---------------------------------------------------------------------------
 allowBuilds:
   esbuild: true
 
+# ---------------------------------------------------------------------------
+# Overrides — pin specific dependency versions across the workspace
+# ---------------------------------------------------------------------------
+overrides:
+  typescript-eslint: 8.71.1
+  '@remotion/bundler@4.0.534': '>=4.0.534'
+  '@remotion/canvas@4.0.534': '>=4.0.534'
+  '@remotion/captions@4.0.534': '>=4.0.534'
+  '@remotion/cli@4.0.534': '>=4.0.534'
+  '@remotion/compositor-darwin-arm64@4.0.534': '>=4.0.534'
+  '@remotion/compositor-darwin-x64@4.0.534': '>=4.0.534'
+  '@remotion/compositor-linux-arm64-gnu@4.0.534': '>=4.0.534'
+  '@remotion/compositor-linux-arm64-musl@4.0.534': '>=4.0.534'
+  '@remotion/compositor-linux-x64-gnu@4.0.534': '>=4.0.534'
+  '@remotion/compositor-linux-x64-musl@4.0.534': '>=4.0.534'
+  '@remotion/compositor-win32-x64-msvc@4.0.534': '>=4.0.534'
+  '@remotion/eslint-config-flat@4.0.534': '>=4.0.534'
+  '@remotion/licensing@4.0.534': '>=4.0.534'
+  '@remotion/media-parser@4.0.534': '>=4.0.534'
+  '@remotion/media-utils@4.0.534': '>=4.0.534'
+  '@remotion/media@4.0.534': '>=4.0.534'
+  '@remotion/noise@4.0.534': '>=4.0.534'
+  '@remotion/paths@4.0.534': '>=4.0.534'
+  '@remotion/player@4.0.534': '>=4.0.534'
+  '@remotion/renderer@4.0.534': '>=4.0.534'
+  '@remotion/shapes@4.0.534': '>=4.0.534'
+  '@remotion/streaming@4.0.534': '>=4.0.534'
+  '@remotion/studio-codemods@4.0.534': '>=4.0.534'
+  '@remotion/studio-protocol@4.0.534': '>=4.0.534'
+  '@remotion/studio-server@4.0.534': '>=4.0.534'
+  '@remotion/studio-shared@4.0.534': '>=4.0.534'
+  '@remotion/studio@4.0.534': '>=4.0.534'
+  '@remotion/tailwind-v4@4.0.534': '>=4.0.534'
+  '@remotion/three@4.0.534': '>=4.0.534'
+  '@remotion/timeline-utils@4.0.534': '>=4.0.534'
+  '@remotion/web-renderer@4.0.534': '>=4.0.534'
+  '@remotion/zod-types@4.0.534': '>=4.0.534'
+  remotion@4.0.534: '>=4.0.534'
+  '@remotion/effects@4.0.534': '>=4.0.534'
+  '@remotion/transitions@4.0.534': '>=4.0.534'
+  mediabunny@1.59.1 || 1.61.0 || 1.61.3: '>=1.61.3'
+  vite@8.3.4: '>=8.3.4'
+  '@playwright/test@1.64.0': '>=1.64.0'
+  lucide-react@1.53.0: '>=1.53.0'
+  playwright-core@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
+  playwright@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
+
+# ---------------------------------------------------------------------------
 # TypeScript stays on 5.x: typescript-eslint 8.x (the lint toolchain)
 # peer-caps typescript at >=4.8.4 <6.1.0, so neither TS 6 nor the TS 7
 # native port can be adopted until typescript-eslint ships support for
