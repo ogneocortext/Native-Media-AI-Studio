@@ -1,3 +1,12 @@
+---
+title: Remix Prompt Architecture
+tags:
+  - remix
+  - prompt-engineering
+  - architecture
+  - 2026
+---
+
 # Remix Prompt Architecture — 2026-10
 
 > **Status:** Implemented  
