@@ -328,7 +328,7 @@ export function ShaderVisualizer({
   // per track, so it lives in its own ref rather than in uniformsRef: the rAF
   // loop reassigns uniformsRef.current wholesale every frame and would discard
   // these values if they were part of that object.
-  const { palette: keyPaletteState } = useKeyPalette(trackFile || null);
+  const { palette: keyPaletteState, unavailable: keyUnavailable } = useKeyPalette(trackFile || null);
   const keyPaletteRef = useRef(keyPaletteState);
   keyPaletteRef.current = keyPaletteState;
   const userSelectedPreset = useRef(false);
@@ -385,7 +385,7 @@ export function ShaderVisualizer({
   // endpoint addresses files by their stored name, and every uploaded file is
   // hash-prefixed (see the CHANGELOG's content-addressed naming). Passing
   // `trackName` here 404'd for all of them.
-  const { sampleAtTime: sampleSpectral } = useSpectralTimeline(trackFile, 24);
+  const { sampleAtTime: sampleSpectral, loading: spectralLoading, error: spectralError } = useSpectralTimeline(trackFile, 24);
   const sectionPresetRef = useRef(getSectionPreset("verse"));
   const lastSectionRef = useRef<string>("");
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
@@ -454,7 +454,7 @@ export function ShaderVisualizer({
         beatPulse *= 0.88;
         if (beatPulse < 0.01) beatPulse = 0;
         // also shape by nextBeatIn for anticipatory swell (BPM-scaled)
-        const nb = (d as any).nextBeatIn ?? 0;
+        const nb = d.nextBeatIn;
         if (nb > 0 && nb < 0.12) {
           // tiny pre-beat lift (anticipation) — not a full beat
           beatPulse = Math.max(beatPulse, 0.15 * (1 - nb / 0.12));
@@ -507,11 +507,11 @@ export function ShaderVisualizer({
         : synthesizeLiveFrame(
             analyserRefProp.current?.current ?? null,
             prevLiveRmsRef.current,
+            elapsed,
           );
       if (liveFrame) prevLiveRmsRef.current = liveFrame.rms;
       const spectral =
-        sampleSpectral(elapsed) ??
-        (liveFrame ? { ...liveFrame, time: elapsed } : null);
+        sampleSpectral(elapsed) ?? liveFrame;
       // Plan 2.9 — virtual frames read the section from the analysis
       // timeline at the virtual time, never the live LRC sync: a live
       // section change mid-export would make two runs diverge.
@@ -930,10 +930,25 @@ export function ShaderVisualizer({
       </div>
 
       {/* Track info */}
-      <div className="absolute bottom-2 left-2 z-10">
+      <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5">
         <span className="text-xs text-white/40 bg-black/30 px-2 py-0.5 rounded">
           {trackName} · {SHADER_PRESET_INFO[preset].name}
         </span>
+        {keyUnavailable && (
+          <span className="text-[10px] text-amber-300 bg-amber-900/40 px-1.5 py-0.5 rounded border border-amber-500/30" title="This track hasn't been analyzed yet — open Audio Analysis to generate beat/key data for sharper visuals.">
+            needs analysis
+          </span>
+        )}
+        {spectralError && (
+          <span className="text-[10px] text-rose-300 bg-rose-900/40 px-1.5 py-0.5 rounded border border-rose-500/30" title={`Spectral timeline failed: ${spectralError}`}>
+            timeline error
+          </span>
+        )}
+        {spectralLoading && !spectralError && (
+          <span className="text-[10px] text-indigo-300 bg-indigo-900/40 px-1.5 py-0.5 rounded animate-pulse">
+            timeline loading
+          </span>
+        )}
       </div>
     </div>
   );

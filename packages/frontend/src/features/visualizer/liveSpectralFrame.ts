@@ -67,6 +67,8 @@ function bandAverage(
 export function synthesizeLiveFrame(
   analyser: AnalyserNode | null,
   prevRms: number,
+  elapsed: number = 0,
+  frame: number = 0,
 ): SpectralFrame | null {
   if (!analyser) return null;
   const binCount = analyser.frequencyBinCount;
@@ -104,8 +106,8 @@ export function synthesizeLiveFrame(
   const transient = Math.min(1, rise / 0.3);
 
   return {
-    frame: 0,
-    time: 0,
+    frame,
+    time: elapsed,
     sub,
     mid,
     high,
