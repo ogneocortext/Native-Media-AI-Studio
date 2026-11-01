@@ -17,22 +17,26 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi import Path as PathParam
 from pydantic import BaseModel, Field
 
+from ..api.outputs import get_file_type
 from ..core.database import (
     add_item_to_collection,
+    add_tag_to_item,
     create_collection,
-    create_tag,
     delete_collection,
     empty_trash,
     get_collection,
     get_collections_for_item,
     get_items_in_collection,
     get_items_with_tag,
+    get_or_create_tag,
     get_tags_for_item,
+    is_media_favorite,
     list_collections,
     list_media_favorites,
     list_tags,
     list_trash,
     move_to_trash,
+    purge_expired_trash,
     purge_from_trash,
     remove_item_from_collection,
     remove_tag_from_item,
@@ -135,9 +139,7 @@ async def favorite_status(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> dict:
     """Return whether the item is favorited."""
-    return {"relative_path": relative_path, "favorited": __import__(
-        "..core.database", fromlist=["is_media_favorite"]
-    ).is_media_favorite(relative_path)}
+    return {"relative_path": relative_path, "favorited": is_media_favorite(relative_path)}
 
 
 @router.post(
@@ -269,15 +271,7 @@ async def list_tags_endpoint() -> list[TagResponse]:
 @router.post("/tags", response_model=TagResponse, status_code=201)
 async def create_tag_endpoint(body: TagBase) -> TagResponse:
     """Create a tag (idempotent by name)."""
-    try:
-        created = create_tag(body.name, body.color)
-    except Exception as exc:  # UNIQUE constraint on name
-        existing = __import__(
-            "..core.database", fromlist=["get_or_create_tag"]
-        ).get_or_create_tag(body.name, body.color)
-        if "UNIQUE" in str(exc) or "unique" in str(exc).lower():
-            return TagResponse(**existing)
-        raise
+    created = get_or_create_tag(body.name, body.color)
     return TagResponse(**created)
 
 
@@ -310,7 +304,7 @@ async def add_item_tag(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> None:
     """Assign a tag to a media item."""
-    add_item_tag(relative_path, tag_id)
+    add_tag_to_item(relative_path, tag_id)
 
 
 @router.delete(
@@ -352,8 +346,7 @@ async def move_item_to_trash(
     retention_days: int = Query(30, ge=1, le=365),
 ) -> TrashItemResponse:
     """Soft-delete a media item into the trash queue."""
-    # file_type is best-effort; the caller may not know it, default "media".
-    file_type = "media"
+    file_type = get_file_type(body.relative_path)
     ok = move_to_trash(body.relative_path, file_type, retention_days=retention_days)
     if not ok:
         raise HTTPException(status_code=400, detail="Could not trash item")
@@ -369,8 +362,20 @@ async def move_item_to_trash(
 
 @router.get("/trash", response_model=list[TrashItemResponse])
 async def list_trash_endpoint() -> list[TrashItemResponse]:
-    """Return trashed items, newest deleted first."""
+    """Return trashed items, newest deleted first.
+
+    Expired records (past their retention window) are purged on read so the
+    30-day retention is honored without a background job.
+    """
+    purge_expired_trash()
     return [TrashItemResponse(**t) for t in list_trash()]
+
+
+@router.post("/trash/purge-expired", response_model=TrashEmptyResponse)
+async def purge_expired_trash_endpoint() -> TrashEmptyResponse:
+    """Purge every trash record whose retention period has expired."""
+    removed = purge_expired_trash()
+    return TrashEmptyResponse(removed=removed)
 
 
 @router.post(

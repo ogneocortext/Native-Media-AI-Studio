@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,7 @@ class AppConfig(BaseModel):
     go_worker_url: str = "http://127.0.0.1:3849"
     go_gateway_url: str = "http://127.0.0.1:3850"
     go_ports_url: str = "http://127.0.0.1:3851"
+    blender_exe: str | None = None  # Path to Blender executable; auto-discovered if unset
     max_queue_workers: int = 1
     output_dir: Path = OUTPUT_DIR
     log_level: str = "INFO"
@@ -97,6 +99,30 @@ class AppConfig(BaseModel):
         if v_upper not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}, got {v}")
         return v_upper
+
+    @field_validator("blender_exe")
+    @classmethod
+    def discover_blender(cls, v: str | None) -> str | None:
+        """Auto-discover the Blender executable if not explicitly configured."""
+        if v:
+            return v
+        found = shutil.which("blender")
+        if found:
+            return found
+        # Common Windows install locations
+        for candidate in [
+            r"C:\Program Files\Blender Foundation\Blender\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.4\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.3\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.1\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 3.6\blender.exe",
+        ]:
+            if Path(candidate).exists():
+                return candidate
+        return None
 
     @field_validator("max_queue_workers")
     @classmethod

@@ -378,6 +378,21 @@ def empty_trash() -> int:
         return int(cursor.rowcount or 0)
 
 
+def purge_expired_trash() -> int:
+    """Purge trash records whose retention period has expired.
+
+    Returns the count removed. Honors the 30-day (or configured) retention:
+    once ``expires_at`` is reached the bookkeeping record is dropped. The
+    underlying file is never touched by this function.
+    """
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM media_trash WHERE expires_at <= ?", (now,)
+        )
+        return int(cursor.rowcount or 0)
+
+
 def _collection_row_to_dict(row: Any) -> dict:
     return {
         "id": row["id"],

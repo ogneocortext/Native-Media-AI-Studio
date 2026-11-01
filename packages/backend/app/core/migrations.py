@@ -514,6 +514,73 @@ def _migrate_v20(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v21(conn: sqlite3.Connection):
+    """Add the media library organization tables.
+
+    Favorites, collections, tags and soft-delete trash are keyed by
+    ``relative_path`` and persisted in SQLite so organization survives
+    rescans and never moves or copies files.
+
+    These tables were previously created out-of-band (the running
+    ``storage/studio.db`` has them at schema version 20) but no migration
+    ever created them, so a fresh database failed every
+    ``/api/media-library/*`` endpoint with ``no such table``. Idempotent
+    ``CREATE TABLE IF NOT EXISTS`` makes the migration safe whether or not
+    the tables already exist.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS media_favorites (
+            relative_path TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_media_favorites_created
+            ON media_favorites(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS media_collections (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            cover_path TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS media_collection_items (
+            collection_id TEXT NOT NULL,
+            relative_path TEXT NOT NULL,
+            added_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (collection_id, relative_path),
+            FOREIGN KEY (collection_id) REFERENCES media_collections(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_media_collection_items_path
+            ON media_collection_items(relative_path);
+
+        CREATE TABLE IF NOT EXISTS media_tags (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT DEFAULT '#8b5cf6',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS media_item_tags (
+            relative_path TEXT NOT NULL,
+            tag_id TEXT NOT NULL,
+            PRIMARY KEY (relative_path, tag_id),
+            FOREIGN KEY (tag_id) REFERENCES media_tags(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_media_item_tags_path
+            ON media_item_tags(relative_path);
+
+        CREATE TABLE IF NOT EXISTS media_trash (
+            relative_path TEXT PRIMARY KEY,
+            file_type TEXT NOT NULL,
+            deleted_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_media_trash_expires
+            ON media_trash(expires_at);
+    """)
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -605,6 +672,8 @@ def init_db(db_path: Path | None = None):
                     _migrate_v19(conn)
                 if current_version < 20:
                     _migrate_v20(conn)
+                if current_version < 21:
+                    _migrate_v21(conn)
 
                 set_schema_version(conn, SCHEMA_VERSION)
                 logger.info("Database initialized at version %d", SCHEMA_VERSION)

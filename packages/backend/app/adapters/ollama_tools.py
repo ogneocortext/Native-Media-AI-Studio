@@ -780,7 +780,6 @@ class OllamaToolsMixin:
     async def _tool_audio_list(self) -> str:
         """List all available audio files in the studio output/audio directory."""
         try:
-            from pathlib import Path
             from ...core.config import PROJECT_ROOT
 
             audio_dir = PROJECT_ROOT / "output" / "audio"
@@ -803,7 +802,6 @@ class OllamaToolsMixin:
     async def _tool_media_list(self) -> str:
         """List all available media files (video, images) in the studio output directory."""
         try:
-            from pathlib import Path
             from ...core.config import PROJECT_ROOT
 
             output_dir = PROJECT_ROOT / "output"

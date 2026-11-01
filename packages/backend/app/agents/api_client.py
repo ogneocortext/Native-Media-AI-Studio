@@ -67,14 +67,26 @@ class NMAApiClient:
 
     async def _request(self, method: str, path: str,
                        data: dict[str, Any] | None = None,
+                       files: dict[str, tuple[str, bytes, str]] | None = None,
                        idempotency_key: str | None = None,
                        circuit_name: str | None = None) -> dict[str, Any]:
-        """Make an HTTP request with retry + circuit breaker + idempotency."""
+        """Make an HTTP request with retry + circuit breaker + idempotency.
+
+        Supports both JSON bodies (``data``) and multipart file uploads
+        (``files``). When ``files`` is provided, ``data`` is sent as form
+        fields alongside the upload and the Content-Type header is left to
+        httpx to set with the correct multipart boundary.
+        """
         client = await self._get_client()
         url = f"{self.base_url}{path}"
         headers: dict[str, str] = {}
         content = None
-        if data is not None:
+        form_data: dict[str, str] | None = None
+        if files is not None:
+            # Multipart upload: httpx sets Content-Type with boundary.
+            form_data = {k: str(v) for k, v in (data or {}).items()}
+        elif data is not None:
+            headers["Content-Type"] = "application/json"
             content = json.dumps(data).encode("utf-8")
 
         if idempotency_key:
@@ -82,6 +94,7 @@ class NMAApiClient:
 
         async def _do_request() -> dict[str, Any]:
             resp = await client.request(method, url, content=content,
+                                        data=form_data, files=files,
                                         headers=headers)
             if resp.status_code >= 400:
                 body_text = resp.text
@@ -130,15 +143,16 @@ class NMAApiClient:
         import mimetypes
         files = {"file": (path.name, path.read_bytes(),
                           mimetypes.guess_type(str(path))[0] or "audio/wav")}
-        client = await self._get_client()
-        resp = await client.post(f"{self.base_url}/api/audio/upload", files=files)
-        if resp.status_code >= 400:
-            raise NMAApiError(
-                f"POST /api/audio/upload -> HTTP {resp.status_code}: {resp.text}",
-                retryable=resp.status_code in (429, 502, 503, 504),
-                status_code=resp.status_code,
-            )
-        return resp.json()
+        return await self._request(
+            "POST", "/api/audio/upload",
+            files=files,
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="audio_upload",
+                params={"filename": path.name},
+            ),
+            circuit_name="audio_upload",
+        )
 
     async def audio_analyze(self, filename: str) -> dict[str, Any]:
         """Run audio analysis on a file. Returns tempo, beats, sections, energy."""
@@ -235,9 +249,6 @@ class NMAApiClient:
     # ------------------------------------------------------------------
     # Media Library
     # ------------------------------------------------------------------
-    async def media_list(self) -> dict[str, Any]:
-        return await self._request("GET", "/api/outputs")
-
     async def media_delete(self, relative_path: str) -> dict[str, Any]:
         return await self._request("DELETE", f"/api/outputs/{relative_path}",
                                    idempotency_key=make_idempotency_key(
@@ -302,4 +313,3 @@ class NMAApiClient:
             data["think"] = think
         return await self._request("POST", "/api/ollama/chat", data,
                                    circuit_name="ollama_chat")
-

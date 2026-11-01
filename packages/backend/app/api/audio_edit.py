@@ -45,6 +45,7 @@ ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", 
 
 router = APIRouter(prefix="/api/audio", tags=["Audio"])
 
+
 class RenameAudioRequest(BaseModel):
     """Request model for renaming an audio file."""
 
@@ -461,16 +462,12 @@ async def serve_audio_file(request: Request, filename: str):
 
     # Security: prevent directory traversal via resolve check
     candidate = (AUDIO_DIR / filename).resolve()
-    allowed_dirs = [AUDIO_DIR.resolve(), (PROJECT_ROOT / "output" / "audio").resolve()]
-    if not any(str(candidate).startswith(str(d)) for d in allowed_dirs) or ".." in Path(filename).parts:
+    audio_dir = AUDIO_DIR.resolve()
+    if not str(candidate).startswith(str(audio_dir)) or ".." in Path(filename).parts:
         raise HTTPException(status_code=400, detail="Invalid filename")
     file_path = candidate
     if not file_path.exists() or not file_path.is_file():
-        alt_path = (PROJECT_ROOT / "output" / "audio" / filename).resolve()
-        if str(alt_path).startswith(str(allowed_dirs[1])) and alt_path.exists() and alt_path.is_file():
-            file_path = alt_path
-        else:
-            raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
 
     # Determine media type based on extension
     ext = file_path.suffix.lower()
