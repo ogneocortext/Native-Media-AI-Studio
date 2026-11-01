@@ -308,7 +308,7 @@ Lessons that generalise:
 
 ### The working route
 
-WSL2 Ubuntu 26.04 (already installed, used for Node tooling - nvm/Node 24 and
+WSL2 Ubuntu 26.04 (already installed, used for Node tooling - nvm/Node 26 and
 `openclaw`). essentia installs there from a **prebuilt manylinux wheel**, no
 compile:
 

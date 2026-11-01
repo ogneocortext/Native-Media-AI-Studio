@@ -255,7 +255,7 @@
 
 ### E.2 Gaps / Stale Docs
 
-- `docs/SYSTEM_REQUIREMENTS.md` does **not** mention `python.exe` or `node.exe` as required system binaries, even though the backend explicitly spawns `python.exe` (ComfyUI manager) and the frontend requires Node 22+.
+- `docs/SYSTEM_REQUIREMENTS.md` does **not** mention `python.exe` or `node.exe` as required system binaries, even though the backend explicitly spawns `python.exe` (ComfyUI manager) and the frontend requires Node 26+.
 - The doc lists `spleeter` as optional, which is accurate, but does not note that `spleeter` is only invoked as a **fallback** when `demucs` is missing.
 
 ---

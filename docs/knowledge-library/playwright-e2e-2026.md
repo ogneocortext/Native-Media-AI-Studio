@@ -161,7 +161,7 @@ slow *in general* rather than slow on this machine.
 
 - **ESM has no `__dirname`.** The specs are ES modules. Use
   `path.dirname(import.meta.filename)` (Node 20.11+; this repo is on
-  Node 24) or `import.meta.url`.
+  Node 26) or `import.meta.url`.
 - **`process.cwd()` is `packages/frontend`, not the repo root.** Fixtures
   live in `packages/frontend/tests/` and rendered output lives at the repo
   root `output/`. Resolving against `process.cwd()` silently points at

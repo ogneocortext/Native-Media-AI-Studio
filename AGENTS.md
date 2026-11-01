@@ -460,7 +460,7 @@ Properties of the machine, not the repo. Each has already caused a wrong action.
 | --------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bash`    | `C:\Windows\System32\bash.exe`     | The **WSL launcher**, not Git Bash. Errors mention unrelated tools. For repo scripts use `C:\Program Files\Git\bin\bash.exe`.                                                                          |
 | `python`  | `C:\Python314\python.exe` (3.14.7) | Imports every backend package and passes `ruff`, but **fails pytest** (rc=1): 3.14's temp cleanup cannot remove `pytest-current`, giving `PermissionError [WinError 5]`. `nma-studio-cuda` gives rc=0. |
-| `node`    | fnm `aliases\default\node.exe`     | An alias pinned when it was created, not the newest installed. Prefer `pnpm.cmd` from Python with an explicit `cwd`.                                                                                   |
+| `node`    | fnm `aliases\default\node.exe`     | An alias pinned when it was created, not the newest installed. Prefer `pnpm.cmd` from Python with an explicit `cwd`. (Node 26.13 LTS)
 
 **An interpreter having the packages installed is not the same as it working.**
 Verify by running the gate, never by inspecting imports - `tools/run-gates.py`

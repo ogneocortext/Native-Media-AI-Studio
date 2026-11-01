@@ -1,6 +1,6 @@
 # System Requirements — Native Media AI Studio
 
-> **Last Updated:** 2026-10-28 — madmom-infer 0.2.0 + sonara 0.3.6 verified and wired as analysis backends; demucs 4.1.0 + faster-whisper 1.2.1 installed; Pascal CTranslate2 notes. Updated external tool versions: FFmpeg 9.0.2, Node.js 24.22.1 LTS, Python 3.15.2/3.14.10/3.11.18, Ollama 0.40.12, ComfyUI 0.43.0, Blender 5.2.3 LTS, Unity 6000.6.7f1 (Unity 6), PyTorch 2.14 (critical: Pascal GPU support ends at PyTorch 2.14). Quality parameters updated for image (steps=30, cfg=6.0, 768x512, DPM++ 2M Karras) and video (LTX cfg=1.0 for distilled, WAN min 40 steps).
+> **Last Updated:** 2026-11-01 — Updated Node.js to v26.13 LTS
 
 External tools and system-level dependencies that are **not** installable via `pip` / `pnpm`.
 
@@ -11,7 +11,7 @@ External tools and system-level dependencies that are **not** installable via `p
 | Tool | Recommended Version | Notes |
 |------|-------------------|-------|
 | FFmpeg | 9.0.2 | Latest stable (released Sep 18, 2026) |
-| Node.js | 24.22.1 LTS | Active LTS (Krypton), maintained until 2028-04-30 |
+| Node.js | 26.13 LTS | Active LTS (Lithium), maintained until 2029-04-30 |
 | Python | 3.15.2 / 3.14.10 / 3.11.18 | 3.15 is latest bugfix, 3.14 is stable, 3.11 is security-only |
 | Ollama | 0.40.12 | Latest stable (released Oct 27, 2026) - adds LFM3 and d1 models |
 | ComfyUI | 0.43.0 | Latest stable (released Oct 27, 2026) |
@@ -29,7 +29,7 @@ External tools and system-level dependencies that are **not** installable via `p
 | **Git** | ComfyUI self-update (`git pull`) in `comfyui_manager.py` | https://git-scm.com/downloads |
 | **PowerShell 7+** | Service scripts (`scripts/*.ps1`) | Windows 11 ships with pwsh; otherwise `winget install Microsoft.PowerShell` |
 | **Python** (`python.exe`) | Backend venv (`D:\conda-envs\nma-studio-cuda\Scripts\python.exe`), ComfyUI runtime venv, standalone tooling venv (`D:\conda-envs\studio-tools\Scripts\python.exe`) | Python 3.11+ (backend/CUDA), Python 3.14+ (standalone tools) |
-| **Node.js 24+ (LTS)** | Frontend dev server, Vite build, MCP tool scripts | https://nodejs.org/ or `fnm use 24` |
+| **Node.js 26+ (LTS)** | Frontend dev server, Vite build, MCP tool scripts | https://nodejs.org/ or `fnm use 26` |
 
 ---
 

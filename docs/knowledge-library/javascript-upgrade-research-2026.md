@@ -14,7 +14,7 @@ type: source
 # JavaScript / TypeScript Upgrade Research — Native Media AI Studio (2026)
 
 > **Scope:** Concrete upgrade paths for the frontend JS/TS stack, ranked by impact and effort.
-> **Current baseline:** Node v24.21.0 (LTS Krypton), pnpm 11, React 19, Vite 8.3.1, TypeScript 5.9, Tailwind v4, ESLint 10 flat config.
+> **Current baseline:** Node v26.13 (LTS Lithium), pnpm 12, React 19, Vite 8.3.4, TypeScript 5.9, Tailwind v4, ESLint 10 flat config.
 > **Prerequisite:** Read [[technical-reference]] for the service map and [[go-integration-2026]] for the sidecar context.
 > **Last updated:** 2026-09-24
 
@@ -38,7 +38,7 @@ Everything else is incremental improvement.
 
 | Layer                | Current  | Status               | Notes                                                      |
 | -------------------- | -------- | -------------------- | ---------------------------------------------------------- |
-| Node.js              | v24.21.0 | ✅ Modern            | Engines: `>=22.13.0`                                       |
+| Node.js              | v26.13   | ✅ LTS            | Engines: `>=26.13.0`                                       |
 | pnpm                 | 11.24.0  | ✅ Modern            | Monorepo with catalog + workspaces                         |
 | React                | 19.2.8   | ✅ Latest            | React 19 stable                                            |
 | React DOM            | 19.2.8   | ✅ Latest            |                                                            |
@@ -363,9 +363,9 @@ the owner asking.
 
 ---
 
-## 8. Node.js 24 Opportunities
+## 8. Node.js 26 Opportunities
 
-The project runs Node v24.21.0. New built-ins available:
+The project runs Node v26.13. New built-ins available:
 
 | Feature                                  | Use case                                               | Effort                                            |
 | ---------------------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
@@ -393,7 +393,7 @@ The project runs Node v24.21.0. New built-ins available:
 | P3       | Tailwind v4 container queries           | Low    | Low    | Low    |
 | P3       | View Transitions API                    | Low    | Low    | Low    |
 | P3       | Remotion 4.x refresh                    | Low    | Medium | Low    |
-| P3       | Node 24 globals in scripts              | Low    | Low    | Low    |
+| P3       | Node 26 globals in scripts              | Low    | Low    | Low    |
 | P4       | TypeScript strictness tightening        | Low    | Low    | Low    |
 | P4       | CI/CD with bundle enforcement           | High   | Medium | High   |
 
