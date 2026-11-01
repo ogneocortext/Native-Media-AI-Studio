@@ -251,6 +251,7 @@ The `get_best_model()` function selects the winner using:
 - **Frontend:** [[three-js-studio]] consumes benchmark results to pre-select the best model
 - **VRAM Manager:** [[technical-reference]] — `vram_manager` provides free VRAM for context sizing
 - **Ollama Integration:** [[integration-ollama]] — `adapter.chat()` executes the benchmark prompt
+- **Local agent model:** [[nemotron-3-5-bolt-e4b-2026]] — Nemotron 3.5 Bolt E4B 4GB on Atomic Chat (port 1337), the 4 GB conversational-agent model measured in the Three.js benchmark alongside the Ollama models
 
 ---
 

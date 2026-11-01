@@ -22,8 +22,8 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 93 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
-**Migrated:** 90 (100%)
+**Documents in library:** 94 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
+**Migrated:** 91 (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux/audit-report.md`, which is tagged but lives
@@ -129,9 +129,10 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (17/17 completed) ✅
+### 🤖 AI & ML (18/18 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
+- ✅ `nemotron-3-5-bolt-e4b-2026.md`  → `#ai`, `#ai-agents`, `#platform-atomic-chat`
 - ✅ `vision-model-reliability-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `finetuning-best-practices-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `3d-generation-options-2026.md`  → `#ai`, `#hardware-pascal`, `#hardware-8gb`, `#platform-comfyui`

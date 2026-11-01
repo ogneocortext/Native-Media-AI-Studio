@@ -113,6 +113,7 @@ date: 2026-09-30
 ### 🤖 AI & ML (Models & Training)
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
+- [[nemotron-3-5-bolt-e4b-2026|🤖 Nemotron 3.5 Bolt E4B 4GB]] — Local agent model reference: strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, routing guidance for cloud models (NEW 2026-11-01)
 - [[ollama-structured-output-pattern|🧠 Ollama Structured Output Pattern]] — Client-side JSON validation and retry pattern for Ollama structured outputs
 - [[vision-model-reliability-2026|🖼️ Vision Model Reliability 2026]] — qwen3-vl degenerate reasoning loop (Ollama #17978), measured evidence, the gemma4 primary routing fix, and the 2026-10-10 model pruning (NEW 2026-10-10)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy
@@ -161,7 +162,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 17 documents |
+|| `#ai/*` | AI models, training & ML | 18 documents |
 - [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 || `#research/*` | Industry trends & analysis | 17 documents |
 
@@ -261,11 +262,11 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 107 (markdown) + 11 (JSON data files) = 118 total |
+|| Total Documents | 108 (markdown) + 11 (JSON data files) = 119 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
 || Last Updated | 2026-10-28 (documentation statistics updated) |
-|| Latest Add | 2026-10-27 (Video Intro Recipe Schema 2026-10) |
+|| Latest Add | 2026-11-01 (Nemotron 3.5 Bolt E4B 4GB model reference) |
 
 ---
 

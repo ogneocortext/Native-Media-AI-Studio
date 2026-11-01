@@ -21,6 +21,14 @@ type: tracker
 
 ---
 
+## 2026-11-01 — Nemotron 3.5 Bolt E4B 4GB model reference
+
+- Added `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` → `#ai`, `#ai-agents`, `#platform-atomic-chat` — local agent model reference covering strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, and routing guidance for cloud models delegating to local execution
+- Back-linked from `ollama-utilization-2026.md` (§7.3 backend selection) and `ollama-benchmarks.md` (§Integration)
+- Registered in `index.md` (AI & ML, 17→18 docs) and `knowledge-tracker.md` (AI & ML, 17→18 docs); updated Tags Index AI count (17→18)
+
+Rationale: documents the locally-loaded Nemotron model on Atomic Chat so cloud models can be routed to it for local agent execution, structured-output validation, and conversational refinement.
+
 ## 2026-10-21 — Schema + health-check foundation
 
 - Added `docs/knowledge-library/_schema.md` — frontmatter schema, page types

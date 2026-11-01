@@ -500,7 +500,7 @@ the same prompt against N models and returns a ranked comparison.
 - **Use mode-specific prompts** — `ui` mode asks for "list elements + issues"; `ocr` mode asks for verbatim transcription. Don't use generic "describe this".
 - **Append grounding suffix** — the 4-line `GROUNDING_SUFFIX` in `analyze.mjs` converts silent hallucinations into routable uncertainty.
 - **Enumerate before counting** — "count each item, then state the total" prevents confident wrong counts.
-- **Backend selection** — `ollama` (port 11434) for gemma4 fast audits; `atomic` (port 1337) for qwen3.5 complex reasoning. Falls back to Ollama when Atomic Chat is unavailable.
+- **Backend selection** — `ollama` (port 11434) for gemma4 fast audits; `atomic` (port 1337) for qwen3.5 complex reasoning and for **Nemotron 3.5 Bolt E4B** ([[nemotron-3-5-bolt-e4b-2026]]:see-also), Atomic Chat's only loaded model — a 4 GB-class conversational agent strong at multi-turn tool use, instruction following, and structured output. Falls back to Ollama when Atomic Chat is unavailable.
 - **Qwen3.5 thinking** — `enable_thinking: true` with `thinking_budget: 2048`; JSON output is NOT supported when thinking is enabled (Ollama constraint). Use structured text output instead.
 
 ### 7.4 Performance
