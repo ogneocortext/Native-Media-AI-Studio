@@ -382,8 +382,9 @@ class QueueManager:
         try:
             await asyncio.wait_for(self._new_job_event.wait(), timeout=timeout)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
+
     async def _broadcast_job_event(self, event_type: str, job: Job):
         """Broadcast a job event to all SSE clients"""
         try:
@@ -395,7 +396,6 @@ class QueueManager:
             }, priority=priority)
         except Exception as e:
             logger.error("Error broadcasting job event: %s", e)
-
 
     async def enqueue(self, request: JobCreateRequest) -> Job:
         """Add a new job to the queue -- checks system RAM first and auto-cleans if critical."""
@@ -679,7 +679,7 @@ class QueueManager:
         dead.sort(key=lambda j: j.completed_at or j.created_at, reverse=True)
         return dead[: max(1, limit)]
 
-    async def retry_job(self, job_id: str, manual: bool = False) -> Job | None:
+    async def retry_job(self, job_id: str, *, manual: bool = False) -> Job | None:
         """Retry a failed or dead-lettered job.
 
         With ``manual=True`` (the user pressed Retry) an exhausted job's

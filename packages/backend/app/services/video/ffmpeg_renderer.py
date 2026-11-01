@@ -77,7 +77,7 @@ class FFmpegRenderer(VideoRenderer):
 
                 returncode, stdout, stderr = await asyncio.wait_for(asyncio.to_thread(_run_ffmpeg), timeout=620)
                 proc = None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if "proc" in locals() and proc is not None:
                 proc.kill()  # type: ignore[union-attr]
             return RenderResult(

@@ -95,13 +95,13 @@ def main():
     print("Markdown outside docs/knowledge-library/ with no frontmatter")
     print("=" * 74)
     print(f"  {len(untagged):d} of {len(all_md):d} tracked .md files")
-    print("")
+    print()
     for (title, why, _), files in zip(GROUPS, buckets, strict=True):
         print(f"{title}  ({len(files):d})")
         print(f"    {why}")
         for f in files:
             print(f"      {f}")
-        print("")
+        print()
 
     print("Suggested next step: decide a rule per group rather than per file.")
     print("The app-served group is the one with a user-visible cost - start there.")

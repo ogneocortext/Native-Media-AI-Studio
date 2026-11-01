@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import operator
 import re
 import sys
 from pathlib import Path
@@ -86,7 +87,7 @@ def parse_doc(path: Path, counter=None) -> dict:
     text = read_text(path)
     front: dict = {}
     body = text
-    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", text, re.S)
+    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", text, re.DOTALL)
     if m:
         block, body = m.group(1), m.group(2)
         in_tags = False
@@ -212,10 +213,7 @@ def emit_index(docs: list[dict]) -> str:
             f"{doc['category'] or '—':<13} {doc['tokens']:>8}  "
             f"{', '.join(doc['tags'])}"
         )
-    lines.append("")
-    lines.append(
-        "Fetch one with:  python tools/kb-context.py --file <name>.md"
-    )
+    lines.extend(("", "Fetch one with:  python tools/kb-context.py --file <name>.md"))
     return "\n".join(lines)
 
 
@@ -223,7 +221,7 @@ def emit_summary(docs: list[dict]) -> str:
     """Compact one-line summary per document: path, category, type, tags."""
     lines = [
         f"{'Path':<60} {'Category':<14} {'Type':<12} Tags",
-        f"{'-'*60} {'-'*14} {'-'*12} {'-'*20}",
+        f"{'-' * 60} {'-' * 14} {'-' * 12} {'-' * 20}",
     ]
     for doc in docs:
         tags = ", ".join(doc["tags"])
@@ -316,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
         kept: list[dict] = []
         used = 0
         # Cheapest first, so the budget buys the most documents it can.
-        for doc in sorted(matched, key=lambda d: d["tokens"]):
+        for doc in sorted(matched, key=operator.itemgetter("tokens")):
             if used + doc["tokens"] > args.budget:
                 dropped.append(doc)
                 continue

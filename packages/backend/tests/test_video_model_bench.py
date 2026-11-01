@@ -185,7 +185,6 @@ def test_workflow_template_files_are_valid_graphs() -> None:
         assert validate_graph(graph) == [], f"{path.name} is not a valid ComfyUI graph"
 
 
-
 # ---------------------------------------------------------------------------
 # Result upserting
 # ---------------------------------------------------------------------------
@@ -276,4 +275,3 @@ def test_quick_bench_records_one_row_per_configuration(quick_bench, tmp_path: Pa
     quick_bench.record_path(path, dict(quick_bench.RUN_IDENTITY, status="timeout"))
     quick_bench.record_path(path, dict(quick_bench.RUN_IDENTITY, status="success"))
     assert [row["status"] for row in json.loads(path.read_text(encoding="utf-8"))] == ["success"]
-

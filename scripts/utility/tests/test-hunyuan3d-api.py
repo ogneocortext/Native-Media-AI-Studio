@@ -3,11 +3,12 @@ Test Hunyuan3D-2mini generation via ComfyUI API.
 Uses the Hy3D custom nodes to generate a 3D mesh from a text prompt.
 """
 import json
+import pathlib
 import time
-import urllib.parse
 import urllib.request
 
 COMFYUI_URL = "http://127.0.0.1:8188"
+
 
 def queue_prompt(prompt):
     """Queue a prompt for execution."""
@@ -16,16 +17,17 @@ def queue_prompt(prompt):
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
+
 def get_history(prompt_id):
     """Get execution history for a prompt."""
     req = urllib.request.Request(f"{COMFYUI_URL}/history/{prompt_id}")
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
+
 def upload_image(image_path):
     """Upload an image to ComfyUI."""
-    with open(image_path, "rb") as f:
-        data = f.read()
+    data = pathlib.Path(image_path).read_bytes()
     req = urllib.request.Request(
         f"{COMFYUI_URL}/upload/image",
         data=data,
@@ -33,6 +35,7 @@ def upload_image(image_path):
     )
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
+
 
 def generate_test_image():
     """Generate a simple test image using ComfyUI."""
@@ -44,6 +47,7 @@ def generate_test_image():
     img_path = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\test_input.png"
     img.save(img_path)
     return img_path
+
 
 def create_hunyuan3d_workflow():
     """Create a workflow for Hunyuan3D mesh generation."""
@@ -91,6 +95,7 @@ def create_hunyuan3d_workflow():
         }
     }
     return workflow
+
 
 def main():
     print("=" * 60)
@@ -140,6 +145,7 @@ def main():
         print(f"ERROR: {e}")
         import traceback
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

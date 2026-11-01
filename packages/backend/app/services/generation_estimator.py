@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 # Tier table + classifier live in core/model_tiers.py (single source of truth
@@ -99,7 +99,7 @@ def estimate_generation_time(
     return {
         "estimated_seconds": round(estimated_seconds, 1),
         "estimated_minutes": round(estimated_seconds / 60, 1),
-        "estimated_end_time": (datetime.now(timezone.utc) + timedelta(seconds=estimated_seconds)).isoformat().replace("+00:00", "Z"),
+        "estimated_end_time": (datetime.now(UTC) + timedelta(seconds=estimated_seconds)).isoformat().replace("+00:00", "Z"),
         "sec_per_frame": round(sec_per_frame, 1),
         "total_frames": total_frames,
         "factors": {

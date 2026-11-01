@@ -4,8 +4,8 @@ Wraps Ollama /api/chat so Media Library / GPU Monitor can extract text without
 re-implementing curl on the frontend. Model-aware: minicpm-v disables tools/thinking.
 """
 
+import asyncio
 import base64
-import json as _json
 import logging
 
 import aiohttp
@@ -39,7 +39,7 @@ PROMPTS = {
 }
 
 
-async def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -> str:
+async def _ollama_chat(model: str, prompt: str, b64: str, *, think: bool = False) -> str:
     """Async Ollama chat call using shared aiohttp session (non-blocking)."""
     is_minicpm = "minicpm" in model.lower()
     payload = {
@@ -68,8 +68,9 @@ async def _ollama_chat(model: str, prompt: str, b64: str, think: bool = False) -
 def _save_ocr_result(relative_path: str, file: UploadFile, text: str, model: str, prompt: str, raw: bytes) -> None:
     """Persist OCR result to DB (Media Library covers, GPU charts, any ad-hoc scan)."""
     try:
-        from ..core.database import save_vision_ocr
         import asyncio as _asyncio
+
+        from ..core.database import save_vision_ocr
         rel = relative_path or file.filename or "unknown"
         _asyncio.create_task(_asyncio.to_thread(save_vision_ocr, rel, file.filename or "unknown", text, model, prompt, file.content_type, len(raw)))
     except Exception as e:
@@ -158,7 +159,7 @@ async def vision_ocr_history(limit: int = 20):
     """List recent OCR results from DB (Media Library covers, charts)."""
     try:
         from ..core.database import list_vision_ocr
-        pts = await _run_in_thread(list_vision_ocr, limit)
+        pts = await asyncio.to_thread(list_vision_ocr, limit)
         return {"results": pts, "count": len(pts)}
     except Exception as e:
         return {"error": str(e), "results": []}
@@ -168,8 +169,9 @@ async def vision_ocr_history(limit: int = 20):
 async def vision_ocr_by_path(relative_path: str):
     """Get latest OCR for a given library file."""
     try:
-        from ..core.database import get_vision_ocr
         import asyncio as _asyncio
+
+        from ..core.database import get_vision_ocr
         r = await _asyncio.to_thread(get_vision_ocr, relative_path)
         if not r:
             return {"found": False, "relative_path": relative_path}

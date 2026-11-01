@@ -75,7 +75,7 @@ SCHEMA_VERSION = 2
 
 def convention_of(stem: str) -> str:
     """Classify a filename into the convention that produced it."""
-    if stem.startswith("orphan-") or stem.startswith("test-"):
+    if stem.startswith(("orphan-", "test-")):
         return "test/orphan prefix"
     if hash_prefix(stem):
         return "hash + slug"
@@ -92,7 +92,7 @@ def read_schema(path: Path) -> int | None:
     return data.get("schema_version") if isinstance(data, dict) else None
 
 
-def report_duplicates(candidates, apply: bool) -> int:
+def report_duplicates(candidates, *, apply: bool) -> int:
     """Find analyses of identical audio and optionally quarantine redundant ones.
 
     Two independent checks must pass before a file is moved:

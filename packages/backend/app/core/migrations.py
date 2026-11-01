@@ -10,10 +10,13 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .connection import DB_PATH, SCHEMA_VERSION, close_pooled_connections, get_db
 from .logs import cleanup_old_log_events
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

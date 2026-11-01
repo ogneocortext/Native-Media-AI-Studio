@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
+
 from app.services.analysis_resolver import (
     ANALYSIS_SUFFIX,
     AnalysisCandidate,
@@ -157,7 +158,6 @@ class TestScan:
     def test_scan_of_missing_dir_is_empty(self, tmp_path):
         assert scan_analysis_dir(tmp_path / "nope", lambda _p: None) == []
 
-
     def test_suffix_constant_is_what_files_use(self):
         assert ANALYSIS_SUFFIX == "_analysis.json"
 
@@ -223,9 +223,6 @@ would lose work the fingerprint cannot see.
 
     def test_non_dicts_are_never_equivalent(self):
         assert content_diff("x", "x") == ["<not a dict>"]
-
-
-
 
 
 class TestContentFingerprint:

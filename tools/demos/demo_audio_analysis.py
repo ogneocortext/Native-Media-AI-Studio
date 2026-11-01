@@ -16,7 +16,7 @@ audio_path = str(Path(__file__).resolve().parent.parent / "output" / "audio" / "
 print(f"\nLoading: {audio_path}")
 
 y, sr = librosa.load(audio_path, sr=22050, mono=True)
-print(f"Duration: {len(y)/sr:.2f}s, Samples: {len(y)}")
+print(f"Duration: {len(y) / sr:.2f}s, Samples: {len(y)}")
 
 # GPU-accelerated analysis
 print("\nRunning GPU audio analysis...")

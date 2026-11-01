@@ -285,7 +285,7 @@ def evaluate(chunks, parents, probes, k=5, doc_texts=None, dense_index=None,
         q = tokenize(query_text)
         gold_doc = probe["doc"]
         answer = answer_term
-        answer_re = re.compile(rf"\b{re.escape(answer)}\b", re.I)
+        answer_re = re.compile(rf"\b{re.escape(answer)}\b", re.IGNORECASE)
 
         # --- child: index children, return children
         top = child_index.top(q, k)
@@ -430,7 +430,7 @@ def _sweep(docs, probes, args) -> int:
     print("[SWEEP] Chunk target x k (child configuration)\n")
     print(f"  {'target':>7} {'k':>3} {'chunks':>7} {'passage':>9} "
           f"{'doc@k':>8} {'MRR':>7} {'context':>9}")
-    print(f"  {'-'*7} {'-'*3} {'-'*7} {'-'*9} {'-'*8} {'-'*7} {'-'*9}")
+    print(f"  {'-' * 7} {'-' * 3} {'-' * 7} {'-' * 9} {'-' * 8} {'-' * 7} {'-' * 9}")
     for target in (200, 400, 800, 1200):
         chunks, parents = [], []
         for path in sorted(BASE.glob("*.md")):
@@ -557,8 +557,7 @@ def _parse_json_object(raw: str) -> dict | None:
     text = raw.strip()
     if text.startswith("```"):
         text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+        text = text.removeprefix("json")
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end <= start:
@@ -771,7 +770,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Retrieved k : {args.k}\n")
     print(f"  {'configuration':<14} {'answer@k':>10} {'passage':>9} "
           f"{'doc@k':>8} {'MRR':>8} {'context':>11}")
-    print(f"  {'-'*14} {'-'*10} {'-'*9} {'-'*8} {'-'*8} {'-'*11}")
+    print(f"  {'-' * 14} {'-' * 10} {'-' * 9} {'-' * 8} {'-' * 8} {'-' * 11}")
     for name in ("child", "parent", "parent_child", "doc", "dense", "hybrid",
                  "hybrid_score", "hyde", "reranked"):
         if name in results:
@@ -784,8 +783,8 @@ def main(argv: list[str] | None = None) -> int:
     total = lit + para + unf
     if total:
         print(f"\n  passage is a LOWER BOUND — of {total} answer facts, "
-              f"{lit} ({lit/total:.0%}) appear verbatim in their source "
-              f"document and {para} ({para/total:.0%}) are paraphrases of it; "
+              f"{lit} ({lit / total:.0%}) appear verbatim in their source "
+              f"document and {para} ({para / total:.0%}) are paraphrases of it; "
               f"{unf} are unfindable.")
     print("\n  child       = index small chunks, return small chunks")
     print("  parent      = index parent sections, return parent sections")

@@ -1,5 +1,5 @@
 # ruff: noqa: N999
-#!/usr/bin/env python
+# !/usr/bin/env python
 """Report duplicated *logic*: functions that are the same or near-identical.
 
 Distinct from `check-repo-layout.py`, which finds identical *files*, and from
@@ -86,12 +86,12 @@ def _normalise_py(code: str) -> str:
 
 _JS_FN = re.compile(
     r"^\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(",
-    re.M,
+    re.MULTILINE,
 )
 _JS_ARROW = re.compile(
     r"^\s*(?:export\s+)?const\s+(\w+)\s*(?::[^=]+?)?=\s*(?:async\s+)?"
     r"(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*(?::[^=]+?)?=>",
-    re.M,
+    re.MULTILINE,
 )
 
 
@@ -245,7 +245,7 @@ def _js_functions(path: Path) -> list[tuple[str, str, int]]:
 def _normalise_js(code: str) -> str:
     """Strip comments; KEEP string literals - see `_normalise_py`."""
     code = re.sub(r"//.*", "", code)
-    code = re.sub(r"/\*.*?\*/", "", code, flags=re.S)
+    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
     return re.sub(r"\s+", " ", code).strip()
 
 
@@ -324,8 +324,7 @@ def _near_pairs(funcs: list[dict], threshold: float) -> list[dict]:
         if len(idx) > 200:
             continue
         for a_i in range(len(idx)):
-            for b_i in range(a_i + 1, len(idx)):
-                pairs.add((idx[a_i], idx[b_i]))
+            pairs.update((idx[a_i], idx[b_i]) for b_i in range(a_i + 1, len(idx)))
 
     near: list[dict] = []
     for i, j in pairs:

@@ -160,7 +160,7 @@ class ComfyUIManager:
         except Exception:
             return False
 
-    def get_version(self, refresh: bool = False) -> dict:
+    def get_version(self, *, refresh: bool = False) -> dict:
         """Get ComfyUI version info from git.
 
         Results are cached for VERSION_CACHE_TTL because this is called on
@@ -900,8 +900,7 @@ class ComfyUIManager:
                                     ):
                                         logger.error("Refusing to write outside output/video")
                                         return None
-                                    with open(output_path, "wb") as f:
-                                        f.write(data)
+                                    Path(output_path).write_bytes(data)
                                     return str(output_path)
             logger.error("ComfyUI generation timed out")
             return None

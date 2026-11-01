@@ -113,7 +113,6 @@ def test_old_shape_would_have_blocked():
     assert blocked > 1.0, "premise broken: the old shape no longer blocks"
 
 
-
 def test_vram_wait_checks_before_sleeping():
     """VRAM already free must return immediately, not after a poll interval."""
     from app.services import vram_manager as mod
@@ -235,5 +234,3 @@ def test_upscale_cancel_failure_does_not_mask_the_error(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Timed out"):
         asyncio.run(run())
-
-

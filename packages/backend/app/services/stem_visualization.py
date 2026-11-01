@@ -28,8 +28,6 @@ STEM_UNIFORM_MAP = {
 }
 
 
-
-
 def _normalize_curve(curve: list[float]) -> list[float]:
     if not curve:
         return []

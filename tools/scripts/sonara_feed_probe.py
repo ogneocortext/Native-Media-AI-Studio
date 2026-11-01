@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "packages" / "backend"))
 
 import sonara  # noqa: E402
+
 from tools.lib.audio import load_audio  # noqa: E402
 
 TRACK = ROOT / "output" / "audio" / "Suno-V6-Mini" / "SunoV6Mini-Human-in-the-Loop-V2.m4a"

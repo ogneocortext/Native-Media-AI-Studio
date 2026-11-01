@@ -109,8 +109,7 @@ def update_collection(
             fields.append("cover_path = ?")
             params.append(cover_path)
         fields.append("updated_at = ?")
-        params.append(datetime.now().isoformat())
-        params.append(collection_id)
+        params.extend((datetime.now().isoformat(), collection_id))
         conn.execute(
             f"UPDATE media_collections SET {', '.join(fields)} WHERE id = ?",
             params,

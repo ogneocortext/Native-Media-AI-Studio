@@ -19,7 +19,7 @@ if str(BACKEND_ROOT) not in sys.path:
 from app.diagnostics.health import HealthMonitor, ServiceHealth
 
 
-def _make_adapter(name: str, healthy: bool = True, delay: float = 0.0):
+def _make_adapter(name: str, *, healthy: bool = True, delay: float = 0.0):
     adapter = MagicMock()
     adapter.name = name
     adapter.base_url = f"http://{name}:8080"

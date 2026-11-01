@@ -283,6 +283,7 @@ class NMAApiClient:
         system: str | None = None,
         history: list[dict[str, Any]] | None = None,
         max_tool_calls: int = 5,
+        *,
         think: bool | None = None,
     ) -> dict[str, Any]:
         """Chat with the LLM backend with tool-calling support.

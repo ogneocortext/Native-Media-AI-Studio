@@ -12,6 +12,7 @@ stubs so no Demucs/model download is involved.
 import asyncio
 
 import pytest
+
 from app.services import source_separation as ss
 from app.services.source_separation import SeparationOptions, SourceSeparator
 
@@ -74,6 +75,7 @@ async def test_single_and_hierarchical_both_go_through_the_queue(monkeypatch, tm
     monkeypatch.setattr(sep, "_separate_demucs", fake_demucs)
     monkeypatch.setattr(sep, "_separate_hierarchical", fake_hier)
     # This is a routing test; skip the incidental ffmpeg loudness probe on the fake wavs.
+
     async def fake_normalize(path):
         return path, False
 

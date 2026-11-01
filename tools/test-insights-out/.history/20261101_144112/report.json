@@ -1,0 +1,172 @@
+{
+  "timestamp": "2026-11-01T14:41:12.757867+00:00",
+  "commit": "6131a09",
+  "branch": "main",
+  "total": 210,
+  "passed": 209,
+  "failed": 1,
+  "skipped": 0,
+  "pass_rate": 99.52380952380952,
+  "total_duration": 26.990000000000023,
+  "features": {
+    "other": {
+      "total": 53,
+      "passed": 53,
+      "failed": 0,
+      "skipped": 0,
+      "pass_rate": 100.0,
+      "total_duration": 11.98,
+      "slowest": [
+        {
+          "node_id": "tests/test_sonara_beat_path.py::test_beats_lie_inside_the_track",
+          "duration": 4.16
+        },
+        {
+          "node_id": "tests/test_sonara_beat_path.py::test_records_which_beat_tracker_was_used",
+          "duration": 3.077
+        },
+        {
+          "node_id": "tests/test_sonara_beat_path.py::test_native_rate_input_matches_22050_input",
+          "duration": 2.56
+        },
+        {
+          "node_id": "tests/test_sonara_beat_path.py::test_reports_the_generated_tempo",
+          "duration": 2.029
+        },
+        {
+          "node_id": "tests/test_analysis_resolver.py::test_single_candidate_is_its_own_keeper",
+          "duration": 0.033
+        }
+      ],
+      "failures": []
+    },
+    "audio": {
+      "total": 134,
+      "passed": 134,
+      "failed": 0,
+      "skipped": 0,
+      "pass_rate": 100.0,
+      "total_duration": 12.529999999999989,
+      "slowest": [
+        {
+          "node_id": "tests/test_stem_remixer.py::test_low_pass_keeps_low_band_and_removes_high",
+          "duration": 5.734
+        },
+        {
+          "node_id": "tests/test_audio_file_size.py::test_existing_row_is_updated_not_duplicated",
+          "duration": 1.879
+        },
+        {
+          "node_id": "tests/test_audio_file_size.py::test_insert_records_real_file_size",
+          "duration": 0.957
+        },
+        {
+          "node_id": "tests/test_audio_file_size.py::test_insert_still_succeeds_when_file_is_absent",
+          "duration": 0.89
+        },
+        {
+          "node_id": "tests/test_stem_remixer.py::test_render_preview_audio_writes_the_excerpt_and_reports_it",
+          "duration": 0.712
+        }
+      ],
+      "failures": []
+    },
+    "integration": {
+      "total": 23,
+      "passed": 22,
+      "failed": 1,
+      "skipped": 0,
+      "pass_rate": 95.65217391304348,
+      "total_duration": 2.4799999999999995,
+      "slowest": [
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_list_jobs_returns_created_jobs",
+          "duration": 1.626
+        },
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_comfyui_models_endpoint_returns_list",
+          "duration": 0.334
+        },
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_audio_files_endpoint_returns_list",
+          "duration": 0.235
+        },
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_health_endpoint_returns_online",
+          "duration": 0.227
+        },
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_video_models_endpoint_returns_tiers",
+          "duration": 0.017
+        }
+      ],
+      "failures": [
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_health_endpoint_returns_online",
+          "error": "assert 307 == 200\n +  where 307 = <Response [307 Temporary Redirect]>.status_code"
+        }
+      ]
+    }
+  },
+  "slowest": [
+    {
+      "node_id": "tests/test_stem_remixer.py::test_low_pass_keeps_low_band_and_removes_high",
+      "duration": 5.734,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_sonara_beat_path.py::test_beats_lie_inside_the_track",
+      "duration": 4.16,
+      "category": "other"
+    },
+    {
+      "node_id": "tests/test_sonara_beat_path.py::test_records_which_beat_tracker_was_used",
+      "duration": 3.077,
+      "category": "other"
+    },
+    {
+      "node_id": "tests/test_sonara_beat_path.py::test_native_rate_input_matches_22050_input",
+      "duration": 2.56,
+      "category": "other"
+    },
+    {
+      "node_id": "tests/test_sonara_beat_path.py::test_reports_the_generated_tempo",
+      "duration": 2.029,
+      "category": "other"
+    },
+    {
+      "node_id": "tests/test_audio_file_size.py::test_existing_row_is_updated_not_duplicated",
+      "duration": 1.879,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_pipeline_integration.py::test_list_jobs_returns_created_jobs",
+      "duration": 1.626,
+      "category": "integration"
+    },
+    {
+      "node_id": "tests/test_audio_file_size.py::test_insert_records_real_file_size",
+      "duration": 0.957,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_audio_file_size.py::test_insert_still_succeeds_when_file_is_absent",
+      "duration": 0.89,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_stem_remixer.py::test_render_preview_audio_writes_the_excerpt_and_reports_it",
+      "duration": 0.712,
+      "category": "audio"
+    }
+  ],
+  "recommendations": [
+    "[integration] 1 of 23 tests failing \u2014 this feature area has the lowest reliability. Prioritize fixing these before adding new features.",
+    "Slowest tests: test_stem_remixer.py::test_low_pass_keeps_low_band_and_removes_high (5.73s), test_sonara_beat_path.py::test_beats_lie_inside_the_track (4.16s), test_sonara_beat_path.py::test_records_which_beat_tracker_was_used (3.08s), test_sonara_beat_path.py::test_native_rate_input_matches_22050_input (2.56s), test_sonara_beat_path.py::test_reports_the_generated_tempo (2.03s). Consider mocking heavy I/O or reducing fixture data to speed up the feedback loop.",
+    "No tests found for feature areas: database, gpu, health, queue, remix, websocket. Add regression coverage before these areas reach users.",
+    "[audio] takes 12.5s total \u2014 the slowest feature area. Consider parallelizing or mocking external calls.",
+    "[other] takes 12.0s total \u2014 the slowest feature area. Consider parallelizing or mocking external calls.",
+    "Fast-gate lane viable: 203 tests total 5.9s \u2014 sub-10s feedback for development."
+  ],
+  "flaky": []
+}

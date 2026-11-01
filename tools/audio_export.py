@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import operator
 import sys
 import time
 from pathlib import Path
@@ -302,7 +303,7 @@ def export_osc_file(
             "args": [round(envelope[i], 3)],
         })
 
-    osc_data["messages"].sort(key=lambda m: m["time"])
+    osc_data["messages"].sort(key=operator.itemgetter("time"))
 
     with open(output_path, "w") as f:
         json.dump(osc_data, f, indent=2)

@@ -45,6 +45,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import operator
+
 from _gitutil import git_lines  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -162,7 +164,7 @@ def main():
                 sources.append((path, rel))
     orphans = []
     checked = 0
-    for path, rel in sorted(sources, key=lambda s: s[1]):
+    for path, rel in sorted(sources, key=operator.itemgetter(1)):
         for lineno, target in references(path, rel):
             checked += 1
             if excluded(target) or target in tracked_files:

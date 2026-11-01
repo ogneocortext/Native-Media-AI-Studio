@@ -15,6 +15,7 @@ job is not the same as the job being slow.
 import asyncio
 
 import pytest
+
 from app.adapters.comfyui import _QUEUE_BACKLOG_TIMEOUT, ComfyUIAdapter
 
 

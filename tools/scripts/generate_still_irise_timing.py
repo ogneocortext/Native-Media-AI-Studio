@@ -11,8 +11,10 @@ beats = src["beat_times"]
 sections = src["sections"]
 curve = src["energy_curve"]
 
+
 def is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
     return index % beats_per_bar == 0
+
 
 def beats_ts():
     """Emit BeatEvent literals.
@@ -57,6 +59,7 @@ def sections_ts():
         )
     return ",\n".join(out)
 
+
 def curve_pts():
     n = len(curve)
     dur = src["duration_seconds"]
@@ -66,8 +69,10 @@ def curve_pts():
         out.append(f"{{ time: {t}, value: {round(v, 3)} }}")
     return ", ".join(out)
 
+
 def envelope():
     return ", ".join(str(round(v, 3)) for v in curve)
+
 
 body = f'''/**
  * Still I Rise — TimingContract generated from the real backend analysis.

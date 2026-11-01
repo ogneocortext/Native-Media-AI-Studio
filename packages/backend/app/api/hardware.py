@@ -26,7 +26,7 @@ _runner = HardwareBenchmarkRunner()
 
 
 @router.get("/profile", response_model=dict[str, Any])
-async def hardware_profile(refresh: bool = False) -> dict[str, Any]:
+async def hardware_profile(*, refresh: bool = False) -> dict[str, Any]:
     """Return the workstation profile and its conservative limits."""
 
     return load_hardware_profile(refresh=refresh).model_dump(mode="json")

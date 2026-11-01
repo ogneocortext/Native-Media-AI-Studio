@@ -179,7 +179,7 @@ async def get_model_capabilities(model: str, timeout: float = 8) -> list[str] | 
                 logger.debug("Ollama /api/show %s -> HTTP %s", model, resp.status)
                 return None
             data = await resp.json(content_type=None)
-    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as exc:
+    except (TimeoutError, aiohttp.ClientError, ValueError) as exc:
         logger.debug("Ollama /api/show failed for %s: %s", model, exc)
         return None
     caps = normalize_capabilities(data.get("capabilities"))
@@ -277,6 +277,7 @@ async def chat_content(
     model: str | None = None,
     timeout: float = 30,
     extra: dict[str, Any] | None = None,
+    *,
     think: bool | str | None = None,
 ) -> str | None:
     """POST ``/api/chat`` (non-streaming); returns message content or None.
@@ -320,6 +321,7 @@ async def generate_content(
     model: str,
     timeout: float = 30,
     extra: dict[str, Any] | None = None,
+    *,
     think: bool | str | None = None,
 ) -> str | None:
     """POST ``/api/generate`` (non-streaming); returns response text or None.

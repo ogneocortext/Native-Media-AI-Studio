@@ -3,6 +3,7 @@ Lyrics parsing utilities.
 
 Handles parsing of LRC format and other lyric formats into structured data.
 """
+import operator
 
 
 def parse_lrc_to_lines(lrc_content: str) -> list[dict]:
@@ -54,7 +55,7 @@ def parse_lrc_to_lines(lrc_content: str) -> list[dict]:
                 "text": text,
             })
 
-    lines.sort(key=lambda x: x["start_time"])
+    lines.sort(key=operator.itemgetter("start_time"))
     # Update end times based on next line's start (cap to avoid unreadably long lines)
     for i in range(len(lines) - 1):
         nxt = lines[i + 1]["start_time"]

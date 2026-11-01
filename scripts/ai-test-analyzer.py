@@ -20,7 +20,6 @@ import tempfile
 from pathlib import Path
 
 try:
-    import urllib.error
     import urllib.request
 except ImportError:
     print("urllib not available", file=sys.stderr)

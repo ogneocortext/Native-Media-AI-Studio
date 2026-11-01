@@ -5,9 +5,10 @@ Monitors VRAM, system memory, and disk usage, broadcasting warnings via SSE.
 
 import asyncio
 import logging
+import operator
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any, ClassVar
 
 import psutil
@@ -17,14 +18,14 @@ from ..sse.handler import sse_manager
 logger = logging.getLogger(__name__)
 
 
-class ResourceType(str, Enum):
+class ResourceType(StrEnum):
     """Types of resources to monitor"""
     MEMORY = "memory"
     VRAM = "vram"
     DISK = "disk"
 
 
-class WarningLevel(str, Enum):
+class WarningLevel(StrEnum):
     """Severity levels for resource warnings"""
     WARNING = "warning"
     CRITICAL = "critical"
@@ -473,7 +474,7 @@ class ResourceMonitor:
                 # Ollama process not found in counter list, add it
                 processes.append({"pid": 0, "name": "ollama (model)", "mem_mb": ollama_vram})
 
-        processes.sort(key=lambda p: p["mem_mb"], reverse=True)
+        processes.sort(key=operator.itemgetter("mem_mb"), reverse=True)
         return processes
 
     def _query_win32pdh_gpu_processes(self) -> list[dict]:

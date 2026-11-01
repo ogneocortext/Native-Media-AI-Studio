@@ -12,6 +12,7 @@ produces something reviewable.
 from __future__ import annotations
 
 import pytest
+
 from app.services import remix_prompt
 from app.services.stem_remixer import RemixLayer, RemixRecipe
 

@@ -58,7 +58,7 @@ for i, act in enumerate(arc):
         "id": f"act-{i + 1}",
         "index": i,
         "act": i + 1,
-        "actTitle": f"{['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][min(i, 11)]}. {act['title']}",
+        "actTitle": f"{['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][min(i, 11)]}. {act['title']}",
         "section": act["motif"].upper(),
         "start": start,
         "end": end,

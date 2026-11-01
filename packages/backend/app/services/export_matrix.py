@@ -188,6 +188,7 @@ async def _derive_loop(src: Path, dst: Path, loop_seconds: float, start: float, 
     return MatrixArtifact("loop", str(dst), _relative(dst), 0, 0, round(dur, 3),
                           notes=f"{loop_seconds:.1f}s loop, {start_note}")
 
+
 async def _derive_thumbnail(src: Path, dst: Path, at_second: float, variant: str) -> MatrixArtifact:
     """1280x720 JPG thumbnail variant (A/B/C) for YouTube CTR testing."""
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -204,8 +205,6 @@ async def _derive_thumbnail(src: Path, dst: Path, at_second: float, variant: str
         raise RuntimeError(f"thumbnail '{variant}' failed: {err}")
     return MatrixArtifact("thumbnail", str(dst), _relative(dst), 1280, 720, 0.0,
                           notes=f"variant {variant} @ {at_second:.1f}s")
-
-
 
 
 async def build_export_matrix(

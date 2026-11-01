@@ -29,6 +29,7 @@ def log_native_open(
     filename: str,
     app: str,
     method: str | None = None,
+    *,
     success: bool = True,
 ) -> str:
     nid = str(uuid.uuid4())

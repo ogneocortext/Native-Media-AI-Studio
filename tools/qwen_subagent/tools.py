@@ -61,7 +61,7 @@ def _safe_path(path: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Tool: read_file
+# Tool: read_file  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 @register_tool("read_file")
@@ -70,7 +70,7 @@ class ReadFileTool(BaseTool):
 
     name = "read_file"
     description = "Read the full text contents of a file in the repository."
-    parameters = {
+    parameters = {  # noqa: RUF012
         "type": "object",
         "properties": {
             "path": {
@@ -100,7 +100,7 @@ class ReadFileTool(BaseTool):
 
 
 # ---------------------------------------------------------------------------
-# Tool: list_directory
+# Tool: list_directory  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 @register_tool("list_directory")
@@ -109,7 +109,7 @@ class ListDirectoryTool(BaseTool):
 
     name = "list_directory"
     description = "List entries (files and subdirectories) in a repository directory."
-    parameters = {
+    parameters = {  # noqa: RUF012
         "type": "object",
         "properties": {
             "path": {
@@ -141,7 +141,7 @@ class ListDirectoryTool(BaseTool):
 
 
 # ---------------------------------------------------------------------------
-# Tool: grep_search
+# Tool: grep_search  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 @register_tool("grep_search")
@@ -150,7 +150,7 @@ class GrepSearchTool(BaseTool):
 
     name = "grep_search"
     description = "Search repository file contents for a regex pattern. Returns matching file:line pairs."
-    parameters = {
+    parameters = {  # noqa: RUF012
         "type": "object",
         "properties": {
             "pattern": {
@@ -228,7 +228,7 @@ class GrepSearchTool(BaseTool):
 
 
 # ---------------------------------------------------------------------------
-# Tool: run_gates
+# Tool: run_gates  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 @register_tool("run_gates")
@@ -237,7 +237,7 @@ class RunGatesTool(BaseTool):
 
     name = "run_gates"
     description = "Run the Native Media AI Studio gate suite (docs, ruff, arch, routes, pytest, type, lint, unit)."
-    parameters = {
+    parameters = {  # noqa: RUF012
         "type": "object",
         "properties": {
             "only": {
@@ -270,7 +270,7 @@ class RunGatesTool(BaseTool):
 
 
 # ---------------------------------------------------------------------------
-# Tool: run_pytest
+# Tool: run_pytest  # noqa: ERA001
 # ---------------------------------------------------------------------------
 
 @register_tool("run_pytest")
@@ -279,7 +279,7 @@ class RunPytestTool(BaseTool):
 
     name = "run_pytest"
     description = "Run backend pytest. Specify test file(s) to run a subset, or omit to run all backend tests."
-    parameters = {
+    parameters = {  # noqa: RUF012
         "type": "object",
         "properties": {
             "paths": {
@@ -333,7 +333,7 @@ class RunCmdTool(BaseTool):
 
     name = "run_cmd"
     description = "Run an allow-listed command (python, pnpm, node, npm, npx, curl). No shell operators allowed."
-    parameters = {
+    parameters = {  # noqa: RUF012
         "type": "object",
         "properties": {
             "command": {

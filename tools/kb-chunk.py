@@ -110,7 +110,7 @@ BASE = REPO / "docs" / "knowledge-library"
 # structure-aware splitting; 400 is the middle of that band.
 DEFAULT_TARGET = 400
 
-FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", re.S)
+FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", _re.DOTALL)
 
 # Chunks below this are merged into their neighbour: a heading with no body
 # becomes a content-free fragment, and "tiny-chunk merging" is the standard
@@ -666,11 +666,7 @@ def main(argv: list[str] | None = None) -> int:
     else:  # markdown
         parts = ["# Knowledge library — chunked", ""]
         for c in all_chunks:
-            parts.append(f"## {c['title']} · {c['heading_path'] or 'body'} "
-                         f"({c['tokens']} tokens)")
-            parts.append("")
-            parts.append(c["text"])
-            parts.append("")
+            parts.extend((f"## {c['title']} · {c['heading_path'] or 'body'} " f"({c['tokens']} tokens)", "", c["text"], ""))
         payload = "\n".join(parts)
 
     if out_path:

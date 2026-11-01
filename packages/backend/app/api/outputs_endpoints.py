@@ -52,7 +52,8 @@ async def list_outputs(
     date_to: str | None = Query(None, description="Filter by creation date to (ISO format)"),
     limit: int = Query(200, ge=1, le=500, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
-    refresh: bool = Query(False, description="Bypass the in-memory list cache"),
+    *,
+    refresh: bool = Query(default=False, description="Bypass the in-memory list cache"),
 ) -> OutputsResponse:
     """List all output files with their metadata.
 

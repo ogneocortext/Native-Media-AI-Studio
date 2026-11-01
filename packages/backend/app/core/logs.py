@@ -7,14 +7,17 @@ Extracted from packages/backend/app/core/database.py (was 4121 lines).
 from __future__ import annotations
 
 import json
+import operator
 import re
-import sqlite3
 import time as _time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .connection import get_db
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 @dataclass
@@ -233,7 +236,7 @@ def get_log_patterns(limit: int = 20) -> dict:
             }
         else:
             entry["count"] += r["cnt"]
-    messages = sorted(aggregated.values(), key=lambda x: x["count"], reverse=True)[:limit]
+    messages = sorted(aggregated.values(), key=operator.itemgetter("count"), reverse=True)[:limit]
     return {
         "levels": [{"level": r["level"], "count": r["cnt"]} for r in level_rows],
         "loggers": [{"logger": r["logger"], "count": r["cnt"]} for r in logger_rows],
@@ -274,7 +277,7 @@ def get_error_patterns(limit: int = 20) -> dict:
             if r["first_seen"] < entry["first_seen"]:
                 entry["first_seen"] = r["first_seen"]
 
-    results = sorted(aggregated.values(), key=lambda x: x["count"], reverse=True)[:limit]
+    results = sorted(aggregated.values(), key=operator.itemgetter("count"), reverse=True)[:limit]
     return {"errors": results}
 
 

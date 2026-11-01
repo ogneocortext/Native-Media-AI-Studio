@@ -164,7 +164,7 @@ class AudioFingerprinter:
         total_bits = min_len * 8
         for i in range(min_len):
             xor = bin1[i] ^ bin2[i]
-            matching_bits += 8 - bin(xor).count("1")
+            matching_bits += 8 - (xor).bit_count()
 
         return matching_bits / total_bits
 

@@ -23,7 +23,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-
 def test_build_ltx_workflow_ltx_checkpoint_loader(adapter):
     wf = adapter._build_ltx_workflow(
         prompt="test prompt", negative_prompt="", steps=25, cfg=6.0,
@@ -85,6 +84,8 @@ def test_build_ltx_workflow_steps_and_cfg_propagate(adapter):
         f"KSampler steps = {sampler_inputs.get('steps')}, expected 30"
     assert sampler_inputs.get("cfg") == 7.5, \
         f"KSampler cfg = {sampler_inputs.get('cfg')}, expected 7.5"
+
+
 from app.adapters.comfyui import ComfyUIAdapter  # noqa: E402
 
 

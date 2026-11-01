@@ -9,20 +9,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import source_separation
 from .source_separation import source_separator
 from .stem_curves import downsample_curve
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Target number of energy-curve samples for visualization (matches
 # the master `energy_curve` resolution in audio analysis).
 _STEM_CURVE_POINTS = 80
-
-
 
 
 async def analyze_stems_for_visualization(filename: str) -> dict[str, Any]:

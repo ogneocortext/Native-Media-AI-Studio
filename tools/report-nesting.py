@@ -1,5 +1,5 @@
 # ruff: noqa: N999
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 """Report control-flow nesting depth per function.
 
 Deep nesting is not automatically bad, but it is a reliable proxy for

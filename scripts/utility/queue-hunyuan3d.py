@@ -9,10 +9,12 @@ COMFYUI_URL = "http://127.0.0.1:8188"
 WORKFLOW_PATH = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\workflows\hunyuan3d-mesh-gen.json"
 LOG_PATH = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\output\logs\3d-gen-queue.log"
 
+
 def log(msg):
     with open(LOG_PATH, "a") as f:
         f.write(msg + "\n")
     print(msg)
+
 
 def queue_prompt(prompt):
     data = json.dumps({"prompt": prompt}).encode("utf-8")
@@ -20,15 +22,18 @@ def queue_prompt(prompt):
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
+
 def get_history(prompt_id):
     req = urllib.request.Request(f"{COMFYUI_URL}/history/{prompt_id}")
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
+
 def get_queue():
     req = urllib.request.Request(f"{COMFYUI_URL}/queue")
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
+
 
 def main():
     log("=" * 60)
@@ -109,6 +114,7 @@ def main():
         log("TIMEOUT: Generation took too long")
 
     log("\nDone!")
+
 
 if __name__ == "__main__":
     main()

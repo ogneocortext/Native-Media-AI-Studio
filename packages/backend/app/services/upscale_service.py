@@ -195,20 +195,20 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
                     img["filename"], img.get("subfolder", ""), img.get("type", "output")
                 )
                 async with session.get(f"{config.comfyui_url}/view", params=params,
-                                 timeout=aiohttp.ClientTimeout(total=60)) as r:
-                        if r.status != 200:
-                            continue
-                        data = await r.read()
-                        dst = IMAGE_DIR / f"{src.stem}_upscaled_{scale}x.png"
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        await asyncio.to_thread(dst.write_bytes, data)
-                        return UpscaleResult(
-                            engine="comfyui", model=chosen, scale=scale,
-                            source=str(src), output_path=str(dst),
-                            relative_path=_relative(dst),
-                            elapsed_s=round(time.perf_counter() - t0, 2),
-                            warnings=warnings,
-                        )
+                    timeout=aiohttp.ClientTimeout(total=60)) as r:
+                    if r.status != 200:
+                        continue
+                    data = await r.read()
+                    dst = IMAGE_DIR / f"{src.stem}_upscaled_{scale}x.png"
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    await asyncio.to_thread(dst.write_bytes, data)
+                    return UpscaleResult(
+                        engine="comfyui", model=chosen, scale=scale,
+                        source=str(src), output_path=str(dst),
+                        relative_path=_relative(dst),
+                        elapsed_s=round(time.perf_counter() - t0, 2),
+                        warnings=warnings,
+                    )
         raise RuntimeError("ComfyUI upscale completed but produced no image output")
     finally:
         if copied_temp is not None:
@@ -248,7 +248,7 @@ async def _upscale_via_ffmpeg(src: Path, scale: int) -> UpscaleResult:
 
 
 async def upscale_image(image: str, model: str = DEFAULT_MODEL, scale: int = 4,
-                        prefer_comfyui: bool = True) -> UpscaleResult:
+                        *, prefer_comfyui: bool = True) -> UpscaleResult:
     """Upscale one image by `scale`x via ComfyUI AI model or FFmpeg fallback."""
     if scale not in (2, 4):
         raise ValueError("scale must be 2 or 4")

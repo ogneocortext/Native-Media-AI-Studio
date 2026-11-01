@@ -8,11 +8,14 @@ low-pass, brightness tilt and equal-power crossfade ramps.
 from __future__ import annotations
 
 import math
-from typing import Any, Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .remix_constants import REMIX_SR
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 try:
     import librosa

@@ -64,7 +64,7 @@ class StructureResult:
 class StructureAnalyzer:
     """Advanced music structure analysis."""
 
-    MOOD_PROFILES = {
+    MOOD_PROFILES = {  # noqa: RUF012
         "happy": {"valence": 0.8, "energy": 0.7, "tempo": 0.6},
         "sad": {"valence": 0.2, "energy": 0.3, "tempo": 0.3},
         "energetic": {"valence": 0.6, "energy": 0.9, "tempo": 0.8},
@@ -73,7 +73,7 @@ class StructureAnalyzer:
         "uplifting": {"valence": 0.9, "energy": 0.8, "tempo": 0.7},
     }
 
-    GENRE_FEATURES = {
+    GENRE_FEATURES = {  # noqa: RUF012
         "electronic": {"spectral_centroid": 0.7, "zcr": 0.3, "tempo": 0.6},
         "rock": {"spectral_centroid": 0.6, "zcr": 0.5, "tempo": 0.5},
         "pop": {"spectral_centroid": 0.5, "zcr": 0.4, "tempo": 0.5},

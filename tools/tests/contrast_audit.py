@@ -311,7 +311,7 @@ def theme_init(theme: str) -> str:
     )
 
 
-def load(pg, base_url: str, route: str, mobile: bool = False) -> None:
+def load(pg, base_url: str, route: str, *, mobile: bool = False) -> None:
     """Navigate; the context init script has already pinned the theme."""
     pg.goto(f"{base_url}{route}", wait_until="networkidle", timeout=45000)
     if mobile:

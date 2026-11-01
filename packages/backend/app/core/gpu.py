@@ -64,7 +64,8 @@ def log_gpu_telemetry(snapshot: dict, processes: list[dict] | None = None) -> in
 
 
 def get_gpu_history(
-    since_ms: int | None = None, limit: int = 2000, include_processes: bool = False
+    since_ms: int | None = None, limit: int = 2000, *,
+    include_processes: bool = False
 ) -> list[dict]:
     """Fetch GPU telemetry points. since_ms filters ts_ms >= value. Ordered asc for charting."""
     q = "SELECT * FROM gpu_telemetry"
@@ -160,7 +161,7 @@ def get_gpu_stats(since_ms: int | None = None) -> dict:
         }
 
 
-def cleanup_old_gpu_telemetry(keep_days: int = 14, vacuum: bool = True) -> int:
+def cleanup_old_gpu_telemetry(keep_days: int = 14, *, vacuum: bool = True) -> int:
     """Purge points older than keep_days. Returns deleted count."""
     cutoff_ms = int((_time.time() - keep_days * 86400) * 1000)
     with get_db() as conn:

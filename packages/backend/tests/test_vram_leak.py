@@ -24,6 +24,7 @@ import logging
 import time
 
 import pytest
+
 from app.services.vram_test_utils import VRAM_TOLERANCE_MB, query_vram_used_mb, vram_available
 
 logger = logging.getLogger(__name__)

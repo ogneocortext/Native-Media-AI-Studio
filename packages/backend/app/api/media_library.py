@@ -11,7 +11,7 @@ rescans and never moves or copies files.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi import Path as PathParam
@@ -355,8 +355,8 @@ async def move_item_to_trash(
     )
     return TrashItemResponse(**item) if item else TrashItemResponse(
         relative_path=body.relative_path, file_type=file_type,
-        deleted_at=datetime.now(timezone.utc).isoformat(),
-        expires_at=(datetime.now(timezone.utc) + timedelta(days=retention_days)).isoformat(),
+        deleted_at=datetime.now(UTC).isoformat(),
+        expires_at=(datetime.now(UTC) + timedelta(days=retention_days)).isoformat(),
     )
 
 

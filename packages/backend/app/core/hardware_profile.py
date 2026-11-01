@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 import platform
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -107,7 +107,7 @@ class HardwareProfile(BaseModel):
 
     profile_id: str
     profile_name: str
-    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     os: str
     platform: str
     python_version: str
@@ -436,7 +436,7 @@ def save_hardware_profile(
     payload["manual_overrides"] = existing.get("manual_overrides", {})
     if isinstance(existing.get("limits"), dict):
         payload["limits"] = existing["limits"]
-    payload["last_saved_at"] = datetime.now(timezone.utc).isoformat()
+    payload["last_saved_at"] = datetime.now(UTC).isoformat()
     with path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
         handle.write("\n")

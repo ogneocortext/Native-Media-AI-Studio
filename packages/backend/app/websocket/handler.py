@@ -113,5 +113,6 @@ class ConnectionManager:
         """Get number of active connections"""
         return len(self._active_connections)
 
+
 # Global connection manager
 connection_manager = ConnectionManager()

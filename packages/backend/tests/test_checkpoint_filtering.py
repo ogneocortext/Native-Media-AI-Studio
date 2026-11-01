@@ -12,6 +12,7 @@ Covers the hardening added during the ComfyUI model audit:
 import asyncio
 
 import pytest
+
 from app.adapters.comfyui import ComfyUIAdapter, is_image_checkpoint
 
 

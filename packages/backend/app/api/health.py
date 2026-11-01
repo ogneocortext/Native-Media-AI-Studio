@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import operator
 import time
 from typing import Any
 
@@ -131,7 +132,7 @@ async def render_health() -> dict:
 
 
 @router.get("/gpu")
-async def gpu_snapshot(log: bool = True) -> dict:
+async def gpu_snapshot(*, log: bool = True) -> dict:
     """GPU snapshot: VRAM load, utilization, temperature, and per-process breakdown."""
     snap = await resource_monitor.get_gpu_snapshot()
     if log and snap.get("available"):
@@ -158,6 +159,7 @@ async def gpu_history(
     range: str | None = None,
     since_ms: int | None = None,
     limit: int = 2000,
+    *,
     include_processes: bool = False,
 ) -> dict:
     """Trending history from DB. `range` = 5m|15m|1h|6h|12h|24h|7d, or explicit since_ms epoch."""
@@ -165,10 +167,10 @@ async def gpu_history(
 
     from ..core.database import get_gpu_history
     if since_ms is None and range:
-        mapping = {"5m": 5*60*1000, "15m": 15*60*1000, "30m": 30*60*1000, "1h": 60*60*1000, "6h": 6*60*60*1000, "12h": 12*60*60*1000, "24h": 24*60*60*1000, "7d": 7*24*60*60*1000}
+        mapping = {"5m": 5 * 60 * 1000, "15m": 15 * 60 * 1000, "30m": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000, "24h": 24 * 60 * 60 * 1000, "7d": 7 * 24 * 60 * 60 * 1000}
         ms = mapping.get(range)
         if ms is not None:
-            since_ms = int(_time.time()*1000) - ms
+            since_ms = int(_time.time() * 1000) - ms
     limit = max(1, min(limit, 10000))
     pts = get_gpu_history(since_ms=since_ms, limit=limit, include_processes=include_processes)
     return {"points": pts, "count": len(pts), "since_ms": since_ms}
@@ -181,10 +183,10 @@ async def gpu_stats(range: str | None = None, since_ms: int | None = None) -> di
 
     from ..core.database import get_gpu_stats
     if since_ms is None and range:
-        mapping = {"5m": 5*60*1000, "15m": 15*60*1000, "30m": 30*60*1000, "1h": 60*60*1000, "6h": 6*60*60*1000, "12h": 12*60*60*1000, "24h": 24*60*60*1000, "7d": 7*24*60*60*1000}
+        mapping = {"5m": 5 * 60 * 1000, "15m": 15 * 60 * 1000, "30m": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000, "24h": 24 * 60 * 60 * 1000, "7d": 7 * 24 * 60 * 60 * 1000}
         ms = mapping.get(range)
         if ms is not None:
-            since_ms = int(_time.time()*1000) - ms
+            since_ms = int(_time.time() * 1000) - ms
     return get_gpu_stats(since_ms=since_ms)
 
 
@@ -409,7 +411,7 @@ async def memory_diagnostics() -> dict:
         pass
 
     # Sort by memory descending, take top 15
-    processes.sort(key=lambda p: p['mem_mb'], reverse=True)
+    processes.sort(key=operator.itemgetter('mem_mb'), reverse=True)
     top_processes = processes[:15]
 
     return {
@@ -477,4 +479,3 @@ async def get_mcp_context() -> dict:
 async def set_mcp_context(payload: dict) -> dict:
     _write_context(payload or {})
     return {"ok": True, "context": _read_context()}
-

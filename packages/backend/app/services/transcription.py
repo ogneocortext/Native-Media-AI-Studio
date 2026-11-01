@@ -173,9 +173,7 @@ def result_to_lrc(result: dict) -> str:
         [mm:ss.xx]<mm:ss.xx> word <mm:ss.xx> word ...
     """
     lines = []
-    lines.append(f"[ti:{result.get('filename', '')}]")
-    lines.append(f"[lang:{result.get('language', 'unknown')}]")
-    lines.append("")
+    lines.extend((f"[ti:{result.get('filename', '')}]", f"[lang:{result.get('language', 'unknown')}]", ""))
 
     for seg in result["segments"]:
         # Convert seconds to mm:ss.xx
@@ -195,8 +193,7 @@ def result_to_word_level_lrc(result: dict) -> str:
         [mm:ss.xx]<mm:ss.xx> word1 <mm:ss.xx> word2 ...
     """
     lines = []
-    lines.append(f"[ti:{result.get('filename', '')}]")
-    lines.append("")
+    lines.extend((f"[ti:{result.get('filename', '')}]", ""))
 
     for seg in result["segments"]:
         if not seg["words"]:

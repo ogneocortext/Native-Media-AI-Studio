@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     if ds:
         p90 = ds[min(len(ds) - 1, int(len(ds) * 0.9))]
         print(f"\ncompleted prompts : {len(history)} (with timing: {len(ds)})")
-        print(f"  min={ds[0]:.1f}s  median={ds[len(ds)//2]:.1f}s  "
+        print(f"  min={ds[0]:.1f}s  median={ds[len(ds) // 2]:.1f}s  "
               f"p90={p90:.1f}s  max={ds[-1]:.1f}s")
         over = sum(1 for d in ds if d > 300)
         if over:

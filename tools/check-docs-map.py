@@ -35,21 +35,19 @@ MAY_BE_ABSENT = ("screenshots", "archive", "output")
 
 # Map table row pattern: | `dir/`   | description ... |
 MAP_ROW_RE = re.compile(
-    r"^\|\s*`([\w-]+)/?`\s*\|(.*)$", re.M
+    r"^\|\s*`([\w-]+)/?`\s*\|(.*)$", re.MULTILINE
 )
 
 # Description cell: everything between the first and second `|` after the dir.
-DESC_CELL_RE = re.compile(r"^\|\s*`[\w-]+/?`\s*\|\s*(.*?)\s*\|", re.M)
+DESC_CELL_RE = re.compile(r"^\|\s*`[\w-]+/?`\s*\|\s*(.*?)\s*\|", re.MULTILINE)
 
 
 def read(path):
-    with open(path, encoding="utf-8") as f:
-        return f.read()
+    return Path(path).read_text(encoding="utf-8")
 
 
 def write(path, text):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
+    Path(path).write_text(text, encoding="utf-8")
 
 
 def real_dirs():
@@ -57,15 +55,14 @@ def real_dirs():
     dirs = set()
     for rel in git_lines("ls-files", "docs/", cwd=ROOT):
         parts = rel.split("/")[1:-1]
-        for i in range(len(parts)):
-            dirs.add("/".join(parts[:i + 1]))
+        dirs.update("/".join(parts[:i + 1]) for i in range(len(parts)))
     return dirs
 
 
 def map_entries():
     """Directory names the map claims, from its Directory Map table."""
     text = read(MAP)
-    return set(re.findall(r"^\|\s*`([\w-]+)/?`\s*\|", text, re.M))
+    return set(re.findall(r"^\|\s*`([\w-]+)/?`\s*\|", text, re.MULTILINE))
 
 
 def map_rows():

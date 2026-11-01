@@ -18,6 +18,7 @@ import struct
 import zlib
 
 import pytest
+
 from app.models.job import Job
 from app.services.image_generator import ImageGenerationHandler
 
@@ -25,6 +26,7 @@ from app.services.image_generator import ImageGenerationHandler
 def _png(width: int, height: int) -> bytes:
     """A minimal but *real* PNG of the requested size."""
     raw = b"".join(b"\x00" + b"\x7f" * width for _ in range(height))
+
     def chunk(tag: bytes, data: bytes) -> bytes:
         body = tag + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))

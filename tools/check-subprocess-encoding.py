@@ -39,6 +39,7 @@ from _toolutil import tracked_python_files  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
+
 def read_source(path: Path) -> str:
     """Read a Python file, tolerating a leading BOM.
 

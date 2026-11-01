@@ -52,8 +52,8 @@ class MusicPromptBrief(BaseModel):
     extra: str = Field("", max_length=1000)
     exclude: str = Field("", max_length=300, description="Suno Exclude Styles / things to avoid")
     use_case: str = Field("", max_length=300, description="Where the track will be used (loop, film, game, ...)")
-    instrumental: bool = Field(False, description="No vocals: lyrics empty, prompt carries the arrangement")
-    timeline: bool = Field(False, description="Lyria 3.5: timestamp [mm:ss] timeline for video scoring")
+    instrumental: bool = Field(default=False, description="No vocals: lyrics empty, prompt carries the arrangement")
+    timeline: bool = Field(default=False, description="Lyria 3.5: timestamp [mm:ss] timeline for video scoring")
     lyric_style: str = Field("", max_length=200, description="Lyric writing style: poetic, conversational, storytelling, minimal, fragmented, narrative, or a genre like melodic rap / alt R&B / phonk / pop / drill / afrobeat / country / latin / indie folk / edm")
 
 
@@ -216,7 +216,7 @@ async def analyze_reference(file: UploadFile = File(...)) -> AnalyzeReferenceRes
             stdout, _stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=120
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return AnalyzeReferenceResponse(error="Analysis timed out")

@@ -64,11 +64,11 @@ def lane_of(rel: str) -> str:
     Evaluated relative to `docs/` -- every tracked doc lives under docs/, so
     checking the full path against a subdirectory prefix would match nothing.
     """
-    sub = rel[len("docs/"):] if rel.startswith("docs/") else rel
+    sub = rel.removeprefix("docs/")
     # Root-level docs/ files (README.md, TESTING_WORKFLOWS.md, ...) have no
     # subdirectory to key off, so classify them by basename instead.
     if "/" not in sub:
-        stem = sub[:-len(".md")] if sub.endswith(".md") else sub
+        stem = sub.removesuffix(".md")
         return {
             "README": "Docs & hygiene",
             "SYSTEM_REQUIREMENTS": "Setup & requirements",

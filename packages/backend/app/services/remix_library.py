@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
-from typing import Any
+import operator
+from typing import TYPE_CHECKING, Any
 
-from .remix_constants import REMIX_DIR, VERSIONS_DIRNAME
+from .remix_constants import VERSIONS_DIRNAME
 from .remix_source import _safe_remix_name
-from .remix_recipe import RemixLayer
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +109,7 @@ def list_remix_versions(name: str) -> list[dict[str, Any]]:
         entries.append((live_version, out_dir))
 
     out: list[dict[str, Any]] = []
-    for number, directory in sorted(entries, key=lambda pair: pair[0], reverse=True):
+    for number, directory in sorted(entries, key=operator.itemgetter(0), reverse=True):
         manifest = {}
         try:
             manifest = json.loads((directory / "remix.json").read_text(encoding="utf-8"))

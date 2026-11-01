@@ -8,6 +8,7 @@ def _get_transcript_path(filename: str) -> Path:
     safe_name = re.sub(r'[^\w\-.]', '_', filename)
     return transcript_dir / f"{safe_name}.json"
 
+
 # Test
 filename = "edf93c07_85a406ef_NeoCortext - Take the Crown.mp3"
 transcript_path = _get_transcript_path(filename)

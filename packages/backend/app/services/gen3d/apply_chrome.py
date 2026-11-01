@@ -44,8 +44,9 @@ def apply_chrome(input_path: str, output_path: str):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 if __name__ == "__main__":
-    args = sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else sys.argv[1:]
+    args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     if len(args) < 2:
         print("Usage: blender --background --python apply_chrome.py -- <in.glb> <out.glb>")
         sys.exit(1)

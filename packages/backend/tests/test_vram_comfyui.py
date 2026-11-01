@@ -13,6 +13,7 @@ That is asserted here with no network and no ComfyUI server.
 import asyncio
 
 import pytest
+
 from app.services import vram_adapters as va
 from app.services import vram_manager as vm
 
@@ -95,6 +96,8 @@ class TestUnload:
         result = vm._unload_comfyui_models_sync()
         assert result["success"] is False
         assert result["skipped"] == "error"
+
+
 async def _false():
     return False
 

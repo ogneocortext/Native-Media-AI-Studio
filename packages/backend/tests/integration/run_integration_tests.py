@@ -20,9 +20,8 @@ import asyncio
 import json
 import sys
 import time
-from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
@@ -42,9 +41,13 @@ from app.queue.manager import QueueManager  # noqa: E402
 from app.queue.processor import JobProcessor  # noqa: E402
 from app.sse.handler import SSEManager  # noqa: E402
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
 # ===========================================================================
 # Shared fixtures
 # ===========================================================================
+
 
 @pytest.fixture(autouse=False)
 def temp_db(tmp_path, monkeypatch):
@@ -196,6 +199,7 @@ from app.queue.db_manager import JobDatabaseManager  # noqa: E402
 # Integration tests
 # ===========================================================================
 
+
 class TestJobLifecycleIntegration:
     """Full job lifecycle through the API."""
 
@@ -289,6 +293,7 @@ class TestQueueEventDrivenIntegration:
             await processor.start()
 
             received: list[Job] = []
+
             async def capture(job):
                 received.append(job)
 
@@ -331,7 +336,7 @@ class TestSSEStreamingIntegration:
             try:
                 msg = await asyncio.wait_for(q.get(), timeout=2.0)
                 results.append(json.loads(msg["data"]))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 results.append(None)
 
         assert all(r is not None for r in results), f"Some subscribers missed the event: {results}"

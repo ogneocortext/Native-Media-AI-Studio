@@ -546,11 +546,7 @@ class BlenderSceneBuilder:
     def build_full_scene(self, config: dict[str, Any]) -> list[str]:
         """Build a complete scene script sequence from a config dict."""
         scripts = []
-        scripts.append(self.clear_scene())
-        scripts.append(self.setup_render_settings(
-            engine=config.get("engine", self.render_engine),
-            samples=config.get("samples", 128),
-        ))
+        scripts.extend((self.clear_scene(), self.setup_render_settings(engine=config.get("engine", self.render_engine), samples=config.get("samples", 128))))
 
         stage = config.get("stage", "abstract")
         scripts.append(self.create_stage(stage))

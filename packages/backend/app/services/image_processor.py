@@ -91,6 +91,7 @@ class ImageProcessor:
     def rotate_image(
         image: Image.Image,
         degrees: float,
+        *,
         expand: bool = False,
     ) -> Image.Image:
         """Rotate image by specified degrees."""
@@ -126,14 +127,14 @@ class ImageProcessor:
         return image.transpose(Image.ROTATE_180)
 
     @staticmethod
-    def rotate_90(image: Image.Image, clockwise: bool = True) -> Image.Image:
+    def rotate_90(image: Image.Image, *, clockwise: bool = True) -> Image.Image:
         """Rotate image 90 degrees clockwise or counter-clockwise."""
         if clockwise:
             return image.transpose(Image.ROTATE_270)
         return image.transpose(Image.ROTATE_90)
 
     @staticmethod
-    def rotate_270(image: Image.Image, clockwise: bool = True) -> Image.Image:
+    def rotate_270(image: Image.Image, *, clockwise: bool = True) -> Image.Image:
         """Rotate image 270 degrees clockwise or counter-clockwise."""
         if clockwise:
             return image.transpose(Image.ROTATE_90)
@@ -620,6 +621,7 @@ class ImageProcessor:
         font_size: int = 24,
         color: str = "white",
         position: tuple[int, int] = (10, 10),
+        *,
         shadow: bool = True,
     ) -> Image.Image:
         """Draw text on an image using ImageFont with Harfbuzz text rendering.
@@ -718,6 +720,7 @@ class ImageProcessor:
     def process_audio_reactive_frame(
         image: Image.Image,
         audio_level: float,
+        *,
         beat_detected: bool,
         color_energy: float = 1.0,
     ) -> Image.Image:

@@ -7,7 +7,7 @@ import platform
 import sys
 import time
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import psutil
@@ -65,7 +65,7 @@ def get_windows_version() -> str:
         return platform.version()
 
 
-class ServiceHealth(str, Enum):
+class ServiceHealth(StrEnum):
     """Service health states"""
     HEALTHY = "healthy"
     DEGRADED = "degraded"
@@ -196,7 +196,7 @@ class HealthMonitor:
                 "response_time_ms": response_time_ms,
                 "error": error,
             }
-        except asyncio.TimeoutError:
+        except TimeoutError:
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             return {
                 "name": name,
@@ -259,7 +259,7 @@ class HealthMonitor:
                 asyncio.gather(*tasks, return_exceptions=True),
                 timeout=10.0  # Global timeout for all adapter checks
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # If global timeout fires, mark all as offline
             for name in adapters.keys():
                 results[name] = {

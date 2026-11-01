@@ -16,6 +16,7 @@ one under test, and the assertions inspect the argv it actually built.
 """
 
 import pytest
+
 from app.services.source_separation import (
     SeparationOptions,
     SourceSeparator,

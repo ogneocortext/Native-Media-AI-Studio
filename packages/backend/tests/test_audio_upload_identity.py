@@ -17,6 +17,7 @@ from fastapi import HTTPException, UploadFile
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..")))
 
+
 def _audio():
     """Import the audio module lazily, inside the test.
 

@@ -138,7 +138,7 @@ def main(argv: list[str]) -> int:
             f.write(json.dumps(r) + "\n")
     print(f"appended {len(results)} rows to {RESULTS.name}")
     fails = [r["id"] for r in results if r["status"] == "FAIL"]
-    print("FAILURES:", fails if fails else "none")
+    print("FAILURES:", fails or "none")
     return 1 if fails else 0
 
 

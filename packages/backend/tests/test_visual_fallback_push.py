@@ -10,11 +10,12 @@ missing its ``/api`` prefix so the MCP bridges validated against a 404.
 from __future__ import annotations
 
 import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.main import app
 from app.services import push_notifier
 from app.services.mcp_validator import ValidationError, validate_tool_call
 from app.services.visual_fallback import _token_in, select_fallback_preset
-from httpx import ASGITransport, AsyncClient
 
 
 def test_token_in_matches_phrase_inside_haystack():

@@ -3,7 +3,7 @@ Integrations API - Music Video routes.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -327,7 +327,7 @@ async def get_job_progress(job_id: str) -> dict:
 
         remaining_seconds = max(0, estimated_seconds - elapsed) if estimated_seconds > 0 else 0
         # Render ETA in UTC to match the trailing "Z" (Zulu/UTC) suffix.
-        end_time = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=remaining_seconds)).isoformat() + "Z" if remaining_seconds > 0 else None
+        end_time = (datetime.now(UTC).replace(tzinfo=None) + timedelta(seconds=remaining_seconds)).isoformat() + "Z" if remaining_seconds > 0 else None
 
         return {
             "job_id": job_id,
@@ -537,5 +537,3 @@ async def get_workflow_templates() -> dict:
             },
         ]
     }
-
-

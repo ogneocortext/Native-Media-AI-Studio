@@ -37,10 +37,12 @@ import logging
 import threading
 import time
 import uuid
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .stem_remixer import RemixCancelledError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ _KEEP_JOBS = 16
 class _Job:
     """State of one background job. Mutated only under `_lock`."""
 
-    def __init__(self, job_id: str, kind: str, label: str, cancellable: bool = True) -> None:
+    def __init__(self, job_id: str, kind: str, label: str, *, cancellable: bool = True) -> None:
         self.id = job_id
         self.kind = kind  # "build" | "enhance"
         self.label = label  # human-readable subject, e.g. the remix name
@@ -196,6 +198,7 @@ def start_job(
     kind: str,
     label: str,
     work: Callable[[Callable[[], bool]], dict[str, Any]],
+    *,
     cancellable: bool = True,
 ) -> dict[str, Any]:
     """Start `work` in a background thread and return the job immediately.

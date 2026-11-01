@@ -68,15 +68,9 @@ def fix_file(path: Path) -> int:
 
     # Two cases, because a single-line call cannot take a new line:
     #
-    #   subprocess.run([...], capture_output=True, text=True)
-    #       -> insert inline, just before the first keyword
+    #   single-line call: insert inline, just before the first keyword
     #
-    #   subprocess.run(          # multi-line
-    #       [...],
-    #       capture_output=True,
-    #       text=True,
-    #   )
-    #       -> insert a whole line before the first keyword
+    #   multi-line call: insert a whole line before the first keyword
     #
     # Keywords must follow positionals in Python, so the insertion point is
     # always the first keyword - never the end of the call, which would place
@@ -134,8 +128,7 @@ def fix_file(path: Path) -> int:
         lines[line_idx] = raw[:col] + payload + raw[col:].rstrip("\r\n") + newline
     for line_idx, payload in sorted(line_edits, reverse=True):
         lines.insert(line_idx, payload)
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write("".join(lines))
+    Path(path).write_text("".join(lines), encoding="utf-8", newline="")
 
     # Prove the result still parses; a bad edit must not be committed.
     ast.parse(read_source(path), filename=str(path))

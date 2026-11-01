@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import struct
 import wave
+from typing import TYPE_CHECKING
 
 import pytest
-from httpx import AsyncClient
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 
 def _detail(resp) -> str:
@@ -157,8 +160,9 @@ async def test_serve_stem_file_rejects_noncanonical_stem_name(stems_tree):
     6-stem model would produce. Calling the coroutine directly exercises the
     `stem_name not in STEM_NAMES` guard rather than the router.
     """
-    from app.api.audio_stems import serve_stem_file
     from fastapi import HTTPException
+
+    from app.api.audio_stems import serve_stem_file
 
     with pytest.raises(HTTPException) as exc:
         await serve_stem_file("test_track", "harmony")

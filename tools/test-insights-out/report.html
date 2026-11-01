@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Test Insights Report — Native Media AI Studio</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+          margin: 2rem; background: #f8fafc; color: #1e293b; }
+  h1 { color: #0f172a; }
+  h2 { color: #334155; margin-top: 1.5rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0;
+           background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  th, td { border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left; }
+  th { background: #f1f5f9; color: #475569; font-size: 0.875rem; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .pass { color: #15803d; } .warn { color: #d97706; } .fail { color: #dc2626; }
+  .summary { display: flex; gap: 1rem; margin: 1rem 0; }
+  .stat { background: #ffffff; padding: 1rem 1.5rem; border-radius: 0.5rem;
+           box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex: 1; }
+  .stat .big { font-size: 1.75rem; font-weight: 700; color: #0f172a; }
+  .stat .label { font-size: 0.875rem; color: #64748b; }
+  .build-info { font-size: 0.875rem; color: #64748b; margin-bottom: 1rem;
+                 background: #ffffff; padding: 0.75rem 1rem; border-radius: 0.5rem;
+                 box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .recommendations { background: #eff6ff; border-left: 4px solid #2563eb;
+                      padding: 1rem; margin: 1rem 0; border-radius: 0 0.5rem 0.5rem 0; }
+  .recommendations ul { margin: 0.5rem 0; padding-left: 1.2rem; }
+  .recommendations li { margin: 0.5rem 0; }
+  .meta { font-size: 0.875rem; color: #64748b; margin-bottom: 1rem; }
+  pre { font-size: 0.8rem; background: #f1f5f9; padding: 0.5rem;
+         border-radius: 0.25rem; max-width: 600px; overflow: auto; }
+</style>
+</head>
+<body>
+  <h1>Test Insights Report</h1>
+  <div class="build-info"><strong>Build:</strong> 6131a09 on main ·
+      <strong>Time:</strong> 2026-11-01T14:44:25.417257+00:00</div>
+  <div class="meta">Native Media AI Studio · 2026-11-01T14:44:25.417257+00:00</div>
+
+  <div class="summary">
+    <div class="stat"><div class="big">150</div>
+        <div class="label">total tests</div></div>
+    <div class="stat"><div class="big fail">99.3%</div>
+        <div class="label">pass rate</div></div>
+    <div class="stat"><div class="big pass">0</div>
+        <div class="label">failed</div></div>
+    <div class="stat"><div class="big">1</div>
+        <div class="label">skipped</div></div>
+    <div class="stat"><div class="big">2.8s</div>
+        <div class="label">total duration</div></div>
+  </div>
+
+  <h2>Feature Area Breakdown</h2>
+  <table>
+    <thead><tr>
+      <th>Feature</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Skipped</th><th>Pass %</th><th>Duration</th>
+    </tr></thead>
+    <tbody>
+        <tr>
+            <td><strong>audio</strong></td>
+            <td>60</td>
+            <td class="pass">60</td>
+            <td class="pass">0</td>
+            <td class="pass">0</td>
+            <td class="pass">100%</td>
+            <td>1.34s</td>
+        </tr>
+        
+        <tr>
+            <td><strong>gpu</strong></td>
+            <td>11</td>
+            <td class="pass">11</td>
+            <td class="pass">0</td>
+            <td class="pass">0</td>
+            <td class="pass">100%</td>
+            <td>0.07s</td>
+        </tr>
+        
+        <tr>
+            <td><strong>integration</strong></td>
+            <td>29</td>
+            <td class="warn">28</td>
+            <td class="warn">0</td>
+            <td class="warn">1</td>
+            <td class="warn">97%</td>
+            <td>1.19s</td>
+        </tr>
+        
+        <tr>
+            <td><strong>other</strong></td>
+            <td>50</td>
+            <td class="pass">50</td>
+            <td class="pass">0</td>
+            <td class="pass">0</td>
+            <td class="pass">100%</td>
+            <td>0.16s</td>
+        </tr>
+        </tbody>
+  </table>
+
+  <h2>Slowest Tests</h2>
+  <table>
+    <thead><tr><th>Test</th><th>Category</th><th>Duration</th><th>Outcome</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>test_video_import.py::test_converts_a_real_mp4_to_m4a_losslessly</td>
+            <td>integration</td>
+            <td>0.53s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_video_import.py::test_reports_failure_without_ffmpeg</td>
+            <td>integration</td>
+            <td>0.23s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_video_import.py::test_garbage_input_fails_and_leaves_no_partial_file</td>
+            <td>integration</td>
+            <td>0.23s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_stem_pipeline.py::test_serve_stem_file_wav[drums]</td>
+            <td>audio</td>
+            <td>0.14s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_stem_pipeline.py::test_serve_stem_file_wav[other]</td>
+            <td>audio</td>
+            <td>0.13s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_stem_pipeline.py::test_serve_stem_file_404_when_absent</td>
+            <td>audio</td>
+            <td>0.13s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_stem_pipeline.py::test_separate_file_skips_existing_stems</td>
+            <td>audio</td>
+            <td>0.13s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_stem_pipeline.py::test_separate_file_404_for_missing_audio</td>
+            <td>audio</td>
+            <td>0.13s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_stem_pipeline.py::test_separate_file_rejects_unknown_model</td>
+            <td>audio</td>
+            <td>0.12s</td>
+            <td>passed</td>
+        </tr>
+        
+        <tr>
+            <td>test_video_import.py::test_result_reports_why_it_failed</td>
+            <td>integration</td>
+            <td>0.09s</td>
+            <td>passed</td>
+        </tr>
+        </tbody>
+  </table>
+
+  
+
+  
+
+  <h2>Run History (last 10)</h2>
+  <table>
+    <thead><tr><th>Timestamp</th><th>Commit</th><th>Tests</th><th>Pass %</th><th>Duration</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>2026-11-01T14:38</td>
+            <td>6131a09</td>
+            <td>56</td>
+            <td class="fail">98%</td>
+            <td>1.66s</td>
+        </tr>
+        
+        <tr>
+            <td>2026-11-01T14:41</td>
+            <td>6131a09</td>
+            <td>210</td>
+            <td class="fail">100%</td>
+            <td>26.99s</td>
+        </tr>
+        </tbody>
+  </table>
+
+  <h2>Recommendations</h2>
+  <div class="recommendations">
+    <ul><li>Slowest tests: test_video_import.py::test_converts_a_real_mp4_to_m4a_losslessly (0.53s), test_video_import.py::test_reports_failure_without_ffmpeg (0.23s), test_video_import.py::test_garbage_input_fails_and_leaves_no_partial_file (0.23s), test_stem_pipeline.py::test_serve_stem_file_wav[drums] (0.14s), test_stem_pipeline.py::test_serve_stem_file_wav[other] (0.13s). Consider mocking heavy I/O or reducing fixture data to speed up the feedback loop.</li><li>No tests found for feature areas: database, health, queue, remix, websocket. Add regression coverage before these areas reach users.</li><li>Fast-gate lane viable: 150 tests total 2.8s — sub-10s feedback for development.</li></ul>
+  </div>
+</body>
+</html>

@@ -31,7 +31,6 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -103,7 +102,7 @@ def _post(url: str, payload: dict, timeout: float = 120) -> dict:
 # Route 1: /api/chat basic
 # ---------------------------------------------------------------------------
 
-def test_chat(model: str, timeout: float = 120, quick: bool = False) -> ModelResult:
+def test_chat(model: str, timeout: float = 120, *, quick: bool = False) -> ModelResult:
     t0 = time.perf_counter()
     try:
         resp = _post(
@@ -149,7 +148,7 @@ def test_chat(model: str, timeout: float = 120, quick: bool = False) -> ModelRes
 # Route 2: /api/generate
 # ---------------------------------------------------------------------------
 
-def test_generate(model: str, timeout: float = 120, quick: bool = False) -> ModelResult:
+def test_generate(model: str, timeout: float = 120, *, quick: bool = False) -> ModelResult:
     t0 = time.perf_counter()
     try:
         resp = _post(
@@ -189,7 +188,7 @@ def test_generate(model: str, timeout: float = 120, quick: bool = False) -> Mode
 # Route 3: Structured output (JSON schema) — what plan_blender_script uses
 # ---------------------------------------------------------------------------
 
-def test_structured(model: str, timeout: float = 180, quick: bool = False) -> ModelResult:
+def test_structured(model: str, timeout: float = 180, *, quick: bool = False) -> ModelResult:
     schema = {
         "type": "object",
         "properties": {
@@ -259,7 +258,7 @@ def test_structured(model: str, timeout: float = 180, quick: bool = False) -> Mo
 # Route 4: Vision pipeline
 # ---------------------------------------------------------------------------
 
-def test_vision(model: str, image: Path, timeout: float = 300, quick: bool = False) -> ModelResult:
+def test_vision(model: str, image: Path, timeout: float = 300, *, quick: bool = False) -> ModelResult:
     t0 = time.perf_counter()
     try:
         proc = subprocess.run(

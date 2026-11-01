@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..")))
 
 
-def _manager(free_mb, ollama_loaded=True, can_offload=True):
+def _manager(free_mb, *, ollama_loaded=True, can_offload=True):
     """A VRAMManager with only the attributes these tests touch."""
     import app.services.vram_manager as vm
 

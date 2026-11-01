@@ -131,7 +131,7 @@ def cmd_verify() -> int:
         print(f"[{node}.{inp}] {len(opts)} options")
         for e in expected:
             hit = [o for o in opts if e.lower() in str(o).lower()]
-            print(f"    {'OK ' if hit else 'NO '} {e}: {hit if hit else '(not found)'}")
+            print(f"    {'OK ' if hit else 'NO '} {e}: {hit or '(not found)'}")
             if not hit:
                 failures += 1
     for label, patterns in VERIFY_FAMILIES.items():

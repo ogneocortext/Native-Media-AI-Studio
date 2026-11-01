@@ -15,6 +15,7 @@ import math
 
 import numpy as np
 import pytest
+
 from app.api.audio_analysis import _build_analysis_result
 from app.services.audio_analyzer import SONARA_AVAILABLE, AudioAnalyzer
 

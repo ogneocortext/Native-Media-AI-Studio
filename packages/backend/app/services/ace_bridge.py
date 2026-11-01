@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC
 from typing import Any
 
 from ..core.config import PROJECT_ROOT
@@ -192,7 +193,7 @@ class ACEBridge:
         version_cfg = self.load_config().get("version", {})
         return bool(version_cfg.get("provider_update_detected", False))
 
-    def set_provider_update_detected(self, detected: bool) -> None:
+    def set_provider_update_detected(self, *, detected: bool) -> None:
         """Record that a provider update has been detected (persists to config)."""
         config = self.load_config()
         version_cfg = config.setdefault("version", {})
@@ -203,9 +204,9 @@ class ACEBridge:
 
     @staticmethod
     def _iso_now() -> str:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     def _write_config(self, config: dict[str, Any]) -> None:
         """Persist config back to bridge.json."""

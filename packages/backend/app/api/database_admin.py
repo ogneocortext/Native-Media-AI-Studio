@@ -20,14 +20,16 @@ import re
 import sqlite3
 import threading
 import time
-from collections.abc import Callable
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..core import database as db
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 router = APIRouter(prefix="/api/database", tags=["Database"])
 
@@ -225,7 +227,7 @@ def _as_text(value: Any) -> str | None:
     if isinstance(value, int | float):
         seconds = value / 1000.0 if abs(value) >= 1e11 else float(value)
         try:
-            return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat()
+            return datetime.fromtimestamp(seconds, tz=UTC).isoformat()
         except (OverflowError, OSError, ValueError):
             return str(value)
     return str(value)
@@ -324,7 +326,7 @@ def database_overview() -> OverviewResponse:
 
 
 @router.get("/tables/{name}", response_model=TableDetailResponse)
-def database_table(name: str, sizes: bool = False) -> TableDetailResponse:
+def database_table(name: str, *, sizes: bool = False) -> TableDetailResponse:
     """Columns, indexes and (optionally) page size for one table.
 
     ``sizes=true`` adds a ``dbstat`` measurement, which walks every page and is

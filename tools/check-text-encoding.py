@@ -20,6 +20,7 @@ Exit 0 = clean, 1 = at least one bad file.
 """
 
 import os
+import pathlib
 import subprocess
 import sys
 
@@ -52,8 +53,7 @@ def check(path):
     """Return None if the file is acceptable, else a reason string."""
     full = os.path.join(ROOT, path)
     try:
-        with open(full, "rb") as fh:
-            raw = fh.read()
+        raw = pathlib.Path(full).read_bytes()
     except OSError as e:
         return f"unreadable ({e})"
 
@@ -96,7 +96,7 @@ def main():
     print(f"FAILED: {len(bad):d} file(s) are not valid UTF-8")
     for path, reason in bad:
         print(f"  {path}: {reason}")
-    print("")
+    print()
     print("Convert with Python (safe - rewrites content, not encoding damage):")
     print("  python tools/fix-text-encoding.py <file>")
     return 1

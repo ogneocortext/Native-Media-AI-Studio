@@ -138,7 +138,7 @@ def ollama_generate(prompt: str, model: str = DEFAULT_MODEL, timeout: int = 240)
         return None
 
 
-def save_generated_test(filepath: Path, content: str, dry_run: bool = False) -> Path | None:
+def save_generated_test(filepath: Path, content: str, *, dry_run: bool = False) -> Path | None:
     """Save generated test content to the tests directory."""
     test_name = f"test_ai_generated_{filepath.stem}.py"
     out_path = BACKEND_ROOT / "tests" / test_name
@@ -221,7 +221,7 @@ def validate_generated_test(code: str) -> bool:
     return True
 
 
-def process_file(filepath: Path, model: str, dry_run: bool = False, verify: bool = False) -> bool:
+def process_file(filepath: Path, model: str, *, dry_run: bool = False, verify: bool = False) -> bool:
     """Process a single source file: extract functions, generate tests, optionally verify."""
     # Compute path relative to BACKEND_ROOT for display/prompt purposes
     try:

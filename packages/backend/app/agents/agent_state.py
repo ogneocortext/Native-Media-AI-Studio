@@ -11,7 +11,7 @@ Uses Pydantic v2 for validation and structured serialization.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,12 +50,12 @@ class AgentState:
     """
 
     def __init__(self, session_id: str | None = None):
-        self.session_id = session_id or f"session-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+        self.session_id = session_id or f"session-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
         self.state_path = STATE_DIR / f"{self.session_id}.json"
         self.data = AgentStateData(
             session_id=self.session_id,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            updated_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
+            updated_at=datetime.now(UTC).isoformat(),
         )
 
     def load(self) -> AgentState:
@@ -67,7 +67,7 @@ class AgentState:
 
     def save(self) -> AgentState:
         """Persist state to disk."""
-        self.data.updated_at = datetime.now(timezone.utc).isoformat()
+        self.data.updated_at = datetime.now(UTC).isoformat()
         self.state_path.write_text(
             self.data.model_dump_json(indent=2), encoding="utf-8"
         )
@@ -89,14 +89,14 @@ class AgentState:
 
     def add_error(self, message: str) -> None:
         errors = list(self.data.errors)
-        errors.append({"time": datetime.now(timezone.utc).isoformat(),
+        errors.append({"time": datetime.now(UTC).isoformat(),
                        "message": message})
         self.data.errors = errors[-50:]  # keep last 50
         self.save()
 
     def add_warning(self, message: str) -> None:
         warnings = list(self.data.warnings)
-        warnings.append({"time": datetime.now(timezone.utc).isoformat(),
+        warnings.append({"time": datetime.now(UTC).isoformat(),
                          "message": message})
         self.data.warnings = warnings[-50:]
         self.save()
@@ -108,7 +108,7 @@ class AgentState:
             "type": asset_type,
             "path": path,
             "metadata": metadata or {},
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         })
         self.data.generated_assets = assets
         self.save()

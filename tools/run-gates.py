@@ -370,7 +370,7 @@ def _describe(python):
         return python
 
 
-def resolve_python(cwd=BACKEND, quiet=False, collect=None, allow_cached=True):
+def resolve_python(cwd=BACKEND, *, quiet=False, collect=None, allow_cached=True):
     """Return an interpreter that can actually run the backend gates.
 
     Cached fast path: if the cache holds a winner verified within the
@@ -502,7 +502,7 @@ def resolve_python(cwd=BACKEND, quiet=False, collect=None, allow_cached=True):
 
 
 class Gate:
-    def __init__(self, name, argv, cwd, optional=False, timeout=300, lane="py"):
+    def __init__(self, name, argv, cwd, *, optional=False, timeout=300, lane="py"):
         self.name = name
         self.argv = argv
         self.cwd = cwd
@@ -513,7 +513,7 @@ class Gate:
         self.lane = lane
 
 
-def gates(fix=False, verbose=False):
+def gates(*, fix=False, verbose=False):
     """The gate table, cheapest-first within each lane.
 
     Two concurrently-executed lanes:
@@ -600,7 +600,7 @@ def _heartbeat(stop_event: threading.Event, label: str, interval: float = 10.0):
                   file=sys.stderr, flush=True)
 
 
-def run_gate(gate, argv, timeout, heartbeat=True, stream=True, out_file=None):
+def run_gate(gate, argv, timeout, *, heartbeat=True, stream=True, out_file=None):
     """Run one gate. Never raises: a hung gate is reported, not inherited.
 
     The timeout matters more than it looks. A gate that hangs (pytest blocking

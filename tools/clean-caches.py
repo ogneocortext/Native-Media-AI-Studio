@@ -168,7 +168,7 @@ def main():
         if len(stale_out) > 12:
             print(f"  ... and {len(stale_out) - 12} more file(s)")
         print(f"  {'TOTAL':<72} {total_out / 1048576.0:8.1f} MB")
-        print("")
+        print()
 
     total = sum(n for _, n in victims)
     if victims:
@@ -176,7 +176,7 @@ def main():
         for rel, size in sorted(victims, key=lambda x: -x[1]):
             print(f"  {rel.replace(os.sep, '/'):<40} {size / 1048576.0:8.1f} MB")
         print(f"  {'TOTAL':<40} {total / 1048576.0:8.1f} MB")
-        print("")
+        print()
 
     if dry_run:
         print("re-run without --dry-run to delete these")

@@ -71,7 +71,7 @@ Respond ONLY with valid JSON in this exact format:
 Generate 3-8 scenes based on the input theme or concept."""
 
     def __init__(
-        self, base_url: str | None = None, mock_mode: bool = False,
+        self, base_url: str | None = None, *, mock_mode: bool = False,
     ):
         """
         Initialize the Ollama adapter.
@@ -264,6 +264,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         messages: list[dict[str, str]],
         model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
+        *,
         stream: bool = False,
         think: bool | str | None = None,
         format: Any | None = None,
@@ -405,6 +406,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     async def generate_storyboard(
         self, theme: str, model: str = "gemma4:e2b-it-qat", num_scenes: int = 5,
+        *,
         use_structured_output: bool = True,
         num_ctx: int | None = None,
     ) -> dict[str, Any]:

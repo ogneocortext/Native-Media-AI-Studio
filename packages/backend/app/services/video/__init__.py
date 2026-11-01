@@ -23,14 +23,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:  # pragma: no cover
-    from .base import VideoRenderer
 
 logger = logging.getLogger(__name__)
 
-from .base import RenderResult, RenderSpec  # noqa: E402
+from .base import RenderResult, RenderSpec, VideoRenderer  # noqa: E402
 
 __all__ = [
     "RenderSpec",

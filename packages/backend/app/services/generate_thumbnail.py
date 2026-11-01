@@ -13,13 +13,13 @@ def generate_thumbnail(glb_path: str, output_path: str, size: int = 256) -> bool
         bpy.ops.object.delete(use_global=False)
 
         # Clear data blocks
-        for mesh in bpy.data.meshes:
+        for mesh in list(bpy.data.meshes):
             bpy.data.meshes.remove(mesh)
-        for mat in bpy.data.materials:
+        for mat in list(bpy.data.materials):
             bpy.data.materials.remove(mat)
-        for cam in bpy.data.cameras:
+        for cam in list(bpy.data.cameras):
             bpy.data.cameras.remove(cam)
-        for light in bpy.data.lights:
+        for light in list(bpy.data.lights):
             bpy.data.lights.remove(light)
 
         # Import GLB
@@ -94,6 +94,7 @@ def generate_thumbnail(glb_path: str, output_path: str, size: int = 256) -> bool
     except Exception as e:
         print(f"Error generating thumbnail: {e}", file=sys.stderr)
         return False
+
 
 if __name__ == "__main__":
     # When called from Blender with: blender --background --python script.py -- arg1 arg2

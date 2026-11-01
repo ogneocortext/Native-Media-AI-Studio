@@ -43,14 +43,9 @@ STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ErrorCategory(Enum):
-    RETRYABLE = "retryable"      # transient infrastructure errors, LLM throttling,
-                                 # temporary unavailability
-    NON_RETRYABLE = "non_retryable"  # authentication errors, invalid inputs,
-                                      # permission denials
-    SIDE_EFFECT_UNKNOWN = "side_effect_unknown"  # timeout after send,
-                                                   # connection loss after commit,
-                                                   # adapter crash before
-                                                   # confirmation stored
+    RETRYABLE = "retryable"  # transient infrastructure errors, LLM throttling, temporary unavailability
+    NON_RETRYABLE = "non_retryable"  # authentication errors, invalid inputs, permission denials
+    SIDE_EFFECT_UNKNOWN = "side_effect_unknown"  # timeout after send, connection loss after commit, adapter crash before confirmation stored
 
 
 def classify_error(exc: Exception) -> ErrorCategory:

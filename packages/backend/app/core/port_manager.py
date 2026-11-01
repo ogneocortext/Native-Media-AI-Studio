@@ -10,8 +10,7 @@ import os
 import socket
 import subprocess
 import sys
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -26,6 +25,9 @@ from .urls import (
     go_ports_url,
     go_worker_url,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

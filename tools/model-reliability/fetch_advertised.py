@@ -12,6 +12,7 @@ Writes tools/model-reliability/snapshots/<source>-YYYYMMDD-HHMMSS.json
 
 import datetime
 import json
+import operator
 import os
 import sys
 import urllib.request
@@ -72,7 +73,7 @@ def main():
             "source": name,
             "fetched_at": now.isoformat(),
             "model_count": len(models),
-            "models": sorted(models, key=lambda m: m["id"]),
+            "models": sorted(models, key=operator.itemgetter("id")),
         }
         path = os.path.join(SNAP_DIR, f"{name}-{stamp}.json")
         with open(path, "w", encoding="utf-8") as f:

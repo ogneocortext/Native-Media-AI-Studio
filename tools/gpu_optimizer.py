@@ -147,11 +147,7 @@ def _set_torch_pascal_settings() -> list[str]:
 
     # cuDNN autotuner for fixed input sizes.
     torch.backends.cudnn.benchmark = True
-    applied.append("enabled cuDNN benchmark autotuner")
-
-    applied.append("recommended dtype: torch.float16 (2x FP32 on Pascal cores)")
-    applied.append("avoid BF16 (bitwise-emulated, ~10x slower than FP16)")
-    applied.append("disable torch.compile (Triton requires sm_70+)")
+    applied.extend(("enabled cuDNN benchmark autotuner", "recommended dtype: torch.float16 (2x FP32 on Pascal cores)", "avoid BF16 (bitwise-emulated, ~10x slower than FP16)", "disable torch.compile (Triton requires sm_70+)"))
 
     return applied
 
@@ -213,29 +209,14 @@ def report_gpu_status() -> str:
     info = detect_gpu()
     lines: list[str] = []
 
-    lines.append("=" * 60)
-    lines.append("GPU Status Report")
-    lines.append("=" * 60)
-    lines.append(f"GPU:           {info.name or 'unknown'}")
-    lines.append(f"Driver:        {info.driver_version or 'unknown'}")
+    lines.extend(("=" * 60, "GPU Status Report", "=" * 60, f"GPU:           {info.name or 'unknown'}", f"Driver:        {info.driver_version or 'unknown'}"))
     if info.driver_exceeds_ceiling:
         lines.append("               WARNING: Exceeds Pascal ceiling (580.x) - CUDA may fail")
     cc = f"{info.compute_capability[0]}.{info.compute_capability[1]}" if info.compute_capability else "unknown"
-    lines.append(f"Compute cap:   {cc}")
-    lines.append(f"Is Pascal:     {info.is_pascal}")
-    lines.append(f"VRAM:          {info.vram_used_mb} / {info.vram_total_mb} MB")
-    lines.append(f"Torch:         {info.torch_version or 'not installed'} ({info.torch_cuda or 'N/A'})")
-    lines.append("=" * 60)
+    lines.extend((f"Compute cap:   {cc}", f"Is Pascal:     {info.is_pascal}", f"VRAM:          {info.vram_used_mb} / {info.vram_total_mb} MB", f"Torch:         {info.torch_version or 'not installed'} ({info.torch_cuda or 'N/A'})", "=" * 60))
 
     if info.is_pascal and info.torch_available:
-        lines.append("")
-        lines.append("Recommended settings for Pascal:")
-        lines.append("  - dtype: torch.float16 (2x FP32 on regular cores)")
-        lines.append("  - allow_tf32: False (no TF32 units on Pascal)")
-        lines.append("  - torch.compile: disabled (Triton requires sm_70+)")
-        lines.append("  - SDPA backend: MATH only (no FlashAttention)")
-        lines.append("  - quantization: INT8 (TorchAO weight-only or dynamic)")
-        lines.append("  - VRAM: use iGPU for display to free ~1.4 GB")
+        lines.extend(("", "Recommended settings for Pascal:", "  - dtype: torch.float16 (2x FP32 on regular cores)", "  - allow_tf32: False (no TF32 units on Pascal)", "  - torch.compile: disabled (Triton requires sm_70+)", "  - SDPA backend: MATH only (no FlashAttention)", "  - quantization: INT8 (TorchAO weight-only or dynamic)", "  - VRAM: use iGPU for display to free ~1.4 GB"))
 
     return "\n".join(lines)
 

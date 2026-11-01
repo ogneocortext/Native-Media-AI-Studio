@@ -24,11 +24,15 @@ from __future__ import annotations
 import os
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from fastapi import Request, Response
 
 logger = __import__("logging").getLogger(__name__)
 
@@ -71,6 +75,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         requests_per_window: int = _RATE_LIMIT_REQUESTS,
         window_seconds: int = _RATE_LIMIT_WINDOW,
         burst: int = _RATE_LIMIT_BURST,
+        *,
         enabled: bool = _RATE_LIMIT_ENABLED,
     ):
         super().__init__(app)

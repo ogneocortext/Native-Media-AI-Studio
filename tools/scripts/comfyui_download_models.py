@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 COMFY = Path(os.environ.get("COMFYUI_DIR", ROOT.parent / "ComfyUI"))
 LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "comfyui_download_models.log")
 
-# (url, dest-relative-to-models, expected_bytes)
+# Format: (url, dest-relative-to-models, expected_bytes)  # noqa: ERA001
 URLLIB_DOWNLOADS = [
     (
         "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
@@ -49,7 +49,7 @@ URLLIB_DOWNLOADS = [
     ),
 ]
 
-# (repo_id, filename, dest-relative-to-models, dest_name)
+# Format: (repo_id, filename, dest-relative-to-models, dest_name)  # noqa: ERA001
 # Targets verified 2026-09-20 against HF API + localmodel.run/wan2.video.
 # WanVideoWrapper WanVideoModelLoader reads diffusion_models, not unet.
 # MUST be umt5 (not t5-xxl): the wrapper node rejects standard T5 and falls

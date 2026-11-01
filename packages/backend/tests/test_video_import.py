@@ -9,6 +9,7 @@ import shutil
 import subprocess
 
 import pytest
+
 from app.services.video_import import (
     AUDIO_EXTENSIONS,
     VIDEO_EXTENSIONS,

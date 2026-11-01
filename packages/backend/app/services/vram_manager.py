@@ -16,8 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .vram_adapters import (
     _comfyui_is_idle,
@@ -59,6 +58,9 @@ from .vram_providers import (
     set_last_model_provider,
 )
 from .vram_types import GPUState, GPUWorkload
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 

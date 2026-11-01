@@ -79,6 +79,7 @@ async def test_processor_retries_are_bounded(queue: QueueManager, monkeypatch):
     processor.register_handler(JobType.IMAGE_GENERATION, always_fails)
     # Retry state is the unit under test; keep production backoff delays out
     # of the test so a regression cannot turn into a multi-minute hang.
+
     async def no_backoff(_retry_count: int) -> None:
         return None
 

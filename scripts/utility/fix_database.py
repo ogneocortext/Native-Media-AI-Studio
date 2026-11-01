@@ -3,6 +3,7 @@ from pathlib import Path
 
 DB_PATH = Path(r'D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\packages\backend\storage\studio.db')
 
+
 def fix_database():
     """Fix database issues and clean up test data."""
     if not DB_PATH.exists():
@@ -82,6 +83,7 @@ def fix_database():
     conn.commit()
     conn.close()
     print("\n=== FIXES COMPLETE ===")
+
 
 if __name__ == "__main__":
     fix_database()

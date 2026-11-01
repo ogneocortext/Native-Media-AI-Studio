@@ -89,8 +89,7 @@ def normalize_slug(raw: str) -> str:
     to `doc`.
     """
     slug = raw.strip().split("#")[0]
-    if slug.endswith(".md"):
-        slug = slug[:-3]
+    slug = slug.removesuffix(".md")
     return slug
 
 

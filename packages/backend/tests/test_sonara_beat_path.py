@@ -8,6 +8,7 @@ is fed 22050 Hz mono, and the tempo it reports matches librosa's.
 
 import numpy as np
 import pytest
+
 from app.services.audio_analyzer import (
     _SONARA_SR,
     SONARA_AVAILABLE,

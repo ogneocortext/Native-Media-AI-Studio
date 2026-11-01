@@ -129,6 +129,7 @@ Requirements:
 # Validation helpers
 # ---------------------------------------------------------------------------
 
+
 def _validate_code_generation(code: str) -> dict[str, Any]:
     details = []
     score = 0
@@ -487,7 +488,8 @@ def get_best_model() -> str | None:
             best_latency = latency
     return best
 
-async def run_single_benchmark(model: str, adapter, task_timeout: float = 60.0, quick: bool = False, num_ctx: int | None = None) -> dict[str, Any]:
+
+async def run_single_benchmark(model: str, adapter, task_timeout: float = 60.0, *, quick: bool = False, num_ctx: int | None = None) -> dict[str, Any]:
     """Run the full coding benchmark suite for a single model."""
     start = time.perf_counter()
 
@@ -569,7 +571,7 @@ async def run_single_benchmark(model: str, adapter, task_timeout: float = 60.0, 
     }
 
 
-async def run_benchmark(models: list[str] | None, adapter, max_models: int = 12, quick: bool = False, num_ctx: int | None = None) -> dict[str, Any]:
+async def run_benchmark(models: list[str] | None, adapter, max_models: int = 12, *, quick: bool = False, num_ctx: int | None = None) -> dict[str, Any]:
     """Run coding benchmark for given models (or all available if None), store results."""
     if not models:
         try:

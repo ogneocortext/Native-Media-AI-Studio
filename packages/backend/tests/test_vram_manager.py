@@ -231,9 +231,11 @@ async def test_music_generation_cycle_returns_vram_to_baseline(monkeypatch):
     # begin_music_generation reports success=False. Stub it so the test asserts
     # the VRAM bookkeeping it is actually about.
     monkeypatch.setattr(manager, "_can_safely_offload", lambda: True)
+
     async def fake_unload() -> list[str]:
         return []
     monkeypatch.setattr(vram_module, "_unload_ollama_models", fake_unload)
+
     async def fake_reload(model: str) -> bool:
         return True
     monkeypatch.setattr(vram_module, "_reload_ollama_models", fake_reload)
@@ -273,6 +275,7 @@ async def test_vram_manager_detects_leak_when_reload_fails(monkeypatch):
 
     monkeypatch.setattr(manager, "get_vram_status", fake_vram_status)
     monkeypatch.setattr(manager, "_ollama_loaded", False)
+
     async def fake_reload_fail(model: str) -> bool:
         return False
     monkeypatch.setattr(vram_module, "_reload_ollama_models", fake_reload_fail)
@@ -285,4 +288,3 @@ async def test_vram_manager_detects_leak_when_reload_fails(monkeypatch):
     assert "reload_ollama" in actions
     reload_action = next(a for a in result["actions"] if a["action"] == "reload_ollama")
     assert reload_action["success"] is False
-

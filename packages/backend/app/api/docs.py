@@ -153,7 +153,8 @@ def _scan_docs() -> list[DocEntry]:
 
 @router.get("/list", response_model=list[DocEntry])
 async def list_docs(
-    vault_only: bool = Query(False, description="Only vault (knowledge-library) files"),
+    *,
+    vault_only: bool = Query(default=False, description="Only vault (knowledge-library) files"),
     search: str | None = Query(None, description="Filter by title/tags/path"),
 ) -> list[DocEntry]:
     """List all docs -- vault + guides. Used by Documentation page."""
@@ -408,7 +409,8 @@ async def search_docs(
 @router.get("/structure")
 async def get_project_structure(
     depth: int = Query(3, ge=1, le=5, description="Directory depth"),
-    include_files: bool = Query(True, description="Include files or just directories"),
+    *,
+    include_files: bool = Query(default=True, description="Include files or just directories"),
 ) -> dict:
     """Return project directory tree for AI agents. Scoped to key directories."""
     root = PROJECT_ROOT

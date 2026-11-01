@@ -3,6 +3,7 @@ Data persistence API routes -- prompts, audio, visuals, sessions, tracks, prefer
 """
 
 import csv
+import operator
 import re
 from datetime import datetime
 from pathlib import Path
@@ -121,6 +122,7 @@ class SaveOllamaAnalysisRequest(BaseModel):
 def list_prompts(
     prompt_type: str | None = None,
     category: str | None = None,
+    *,
     favorite: bool = False,
     search: str | None = None,
     limit: int = 100,
@@ -270,7 +272,7 @@ def delete_prompt(prompt_id: str):
 
 
 @router.get("/audio/")
-def list_audio_files(limit: int = 100, distinct: bool = True):
+def list_audio_files(limit: int = 100, *, distinct: bool = True):
     """List stored audio file metadata.
 
     Args:
@@ -292,6 +294,7 @@ def get_audio_file(audio_id: str):
 @router.get("/visuals/")
 def list_visuals(
     style_id: str | None = None,
+    *,
     favorite: bool = False,
     selected: bool = False,
     limit: int = 100,
@@ -334,7 +337,7 @@ def toggle_visual_favorite(visual_id: str):
 
 
 @router.post("/visuals/{visual_id}/select")
-def select_visual(visual_id: str, selected: bool = True):
+def select_visual(visual_id: str, *, selected: bool = True):
     """Set whether a visual is selected for the music video."""
     database.set_visual_selected(visual_id, selected)
     return {"success": True}
@@ -584,11 +587,9 @@ def save_generated_scene(body: SaveGeneratedSceneRequest):
     header += f"// Date: {datetime.now().isoformat()}\n"
     header += f"// Track: {track_name}\n\n"
 
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(header + code)
+    Path(filepath).write_text(header + code, encoding="utf-8")
 
     return {"success": True, "filename": filename, "path": filepath}
-
 
 
 @router.post("/saved-scenes/cleanup")
@@ -609,7 +610,7 @@ def cleanup_incomplete_scenes(body: CleanupIncompleteScenesRequest):
             matching.append({"filename": filename.name, "path": str(filename), "size": stat.st_size})
 
     # Sort by size (largest first), keep top N, delete the rest
-    matching.sort(key=lambda x: x["size"], reverse=True)
+    matching.sort(key=operator.itemgetter("size"), reverse=True)
     removed = 0
     for item in matching[keep:]:
         try:

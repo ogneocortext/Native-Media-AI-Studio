@@ -135,7 +135,7 @@ class SSEManager:
                         queue.put(event_data),
                         timeout=self._queue_put_timeout,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("SSE client dropped: queue full (slow consumer)")
                     dead_connections.append(queue)
                 except Exception as e:

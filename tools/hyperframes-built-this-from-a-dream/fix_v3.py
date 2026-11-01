@@ -2,6 +2,7 @@
 """Fix sub-compositions: add camera shake to host, fix v3 color state, remove from overlays."""
 
 import os
+import pathlib
 
 BASE = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream"
 V3_BASE = os.path.join(BASE, "v3")
@@ -9,8 +10,7 @@ V3_BASE = os.path.join(BASE, "v3")
 # ─── Root project ────────────────────────────────────────────────────────────
 
 # Fix host index.html to include camera shake timeline
-with open(os.path.join(BASE, "index.html"), encoding="utf-8") as f:
-    host = f.read()
+host = pathlib.Path(os.path.join(BASE, "index.html")).read_text(encoding="utf-8")
 
 host = host.replace(
     """    window.__timelines = window.__timelines || {};
@@ -89,13 +89,11 @@ host = host.replace(
     window.__timelines['built-this-from-a-dream'] = tl;"""
 )
 
-with open(os.path.join(BASE, "index.html"), "w", encoding="utf-8") as f:
-    f.write(host)
+pathlib.Path(os.path.join(BASE, "index.html")).write_text(host, encoding="utf-8")
 print("Fixed root host index.html")
 
 # Remove camera shake from root overlays
-with open(os.path.join(BASE, "compositions", "overlays.html"), encoding="utf-8") as f:
-    overlays = f.read()
+overlays = pathlib.Path(os.path.join(BASE, "compositions", "overlays.html")).read_text(encoding="utf-8")
 
 # The root overlays shouldn't have camera shake - host owns it
 overlays = overlays.replace(
@@ -153,15 +151,13 @@ overlays = overlays.replace(
     }"""
 )
 
-with open(os.path.join(BASE, "compositions", "overlays.html"), "w", encoding="utf-8") as f:
-    f.write(overlays)
+pathlib.Path(os.path.join(BASE, "compositions", "overlays.html")).write_text(overlays, encoding="utf-8")
 print("Fixed root overlays.html")
 
 # ─── v3 project ──────────────────────────────────────────────────────────────
 
 # Fix v3 host index.html
-with open(os.path.join(V3_BASE, "index.html"), encoding="utf-8") as f:
-    v3_host = f.read()
+v3_host = pathlib.Path(os.path.join(V3_BASE, "index.html")).read_text(encoding="utf-8")
 
 v3_host = v3_host.replace(
     """    window.__timelines = window.__timelines || {};
@@ -263,13 +259,11 @@ v3_host = v3_host.replace(
     window.__timelines['built-this-from-a-dream'] = tl;"""
 )
 
-with open(os.path.join(V3_BASE, "index.html"), "w", encoding="utf-8") as f:
-    f.write(v3_host)
+pathlib.Path(os.path.join(V3_BASE, "index.html")).write_text(v3_host, encoding="utf-8")
 print("Fixed v3 host index.html")
 
 # Fix v3 overlays to manage color state
-with open(os.path.join(V3_BASE, "compositions", "overlays.html"), encoding="utf-8") as f:
-    v3_overlays = f.read()
+v3_overlays = pathlib.Path(os.path.join(V3_BASE, "compositions", "overlays.html")).read_text(encoding="utf-8")
 
 v3_overlays = v3_overlays.replace(
     """    const DATA = window.DATA;
@@ -342,13 +336,11 @@ v3_overlays = v3_overlays.replace(
     }"""
 )
 
-with open(os.path.join(V3_BASE, "compositions", "overlays.html"), "w", encoding="utf-8") as f:
-    f.write(v3_overlays)
+pathlib.Path(os.path.join(V3_BASE, "compositions", "overlays.html")).write_text(v3_overlays, encoding="utf-8")
 print("Fixed v3 overlays.html")
 
 # Fix v3 orb to use liveColors
-with open(os.path.join(V3_BASE, "compositions", "orb.html"), encoding="utf-8") as f:
-    v3_orb = f.read()
+v3_orb = pathlib.Path(os.path.join(V3_BASE, "compositions", "orb.html")).read_text(encoding="utf-8")
 
 v3_orb = v3_orb.replace(
     """    const DATA = window.DATA;
@@ -415,13 +407,11 @@ v3_orb = v3_orb.replace(
     "      orbRing.style.boxShadow = '0 0 40px ' + colors.ring + ', inset 0 0 40px ' + colors.ring;"
 )
 
-with open(os.path.join(V3_BASE, "compositions", "orb.html"), "w", encoding="utf-8") as f:
-    f.write(v3_orb)
+pathlib.Path(os.path.join(V3_BASE, "compositions", "orb.html")).write_text(v3_orb, encoding="utf-8")
 print("Fixed v3 orb.html")
 
 # Fix v3 spectrum to use liveColors
-with open(os.path.join(V3_BASE, "compositions", "spectrum.html"), encoding="utf-8") as f:
-    v3_spectrum = f.read()
+v3_spectrum = pathlib.Path(os.path.join(V3_BASE, "compositions", "spectrum.html")).read_text(encoding="utf-8")
 
 v3_spectrum = v3_spectrum.replace(
     """      const section = currentSection(t);
@@ -430,8 +420,7 @@ v3_spectrum = v3_spectrum.replace(
       const colors = window.COLOR_STATE.liveColors || (SECTION_COLORS[section] || SECTION_COLORS.intro);"""
 )
 
-with open(os.path.join(V3_BASE, "compositions", "spectrum.html"), "w", encoding="utf-8") as f:
-    f.write(v3_spectrum)
+pathlib.Path(os.path.join(V3_BASE, "compositions", "spectrum.html")).write_text(v3_spectrum, encoding="utf-8")
 print("Fixed v3 spectrum.html")
 
 print("All fixes applied!")

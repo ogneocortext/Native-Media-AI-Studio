@@ -53,6 +53,7 @@ class _RequestIdFilter(logging.Filter):
             record.request_id = get_request_id()  # type: ignore[attr-defined]
         return True
 
+
 # Job-scoped correlation id, set by the processor for the lifetime of one job's
 # execution. Separate from ``request_id`` because a job outlives the request that
 # created it: the enqueue happens under a request id, but every later step -
@@ -100,6 +101,7 @@ class _JobIdFilter(logging.Filter):
             record.job_id = get_job_id()  # type: ignore[attr-defined]
         return True
 
+
 # Log directory - use output/logs/ for consistency with service logs
 LOG_DIR = PROJECT_ROOT / "output" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -110,6 +112,7 @@ ERROR_LOG = LOG_DIR / "error.log"
 COMFYUI_LOG = LOG_DIR / "comfyui.log"
 QUEUE_LOG = LOG_DIR / "queue.log"
 OLLAMA_LOG = LOG_DIR / "ollama.log"
+
 
 # ComfyUI's own log directory (ComfyUI lives beside the repo root).
 # Resolved lazily via core.paths so config.comfyui_output_dir is honored

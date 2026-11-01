@@ -15,6 +15,8 @@ WAV = os.path.join(OUT, "decoded.wav")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", SRC, "-ar", "44100",
                 "-ac", "2", "-c:a", "pcm_s16le", WAV], check=True)
 
+import operator
+
 import librosa
 
 y_stereo, sr = librosa.load(WAV, sr=44100, mono=False)
@@ -23,8 +25,10 @@ dur = librosa.get_duration(y=y, sr=sr)
 
 res = {"duration_s": round(dur, 1)}
 
+
 def _t(t):
     return round(float(np.atleast_1d(t)[0]), 1)
+
 
 # --- tempo & beats (full track + halves for drift check) ---
 tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
@@ -48,7 +52,7 @@ for i in range(12):
     for tmpl, mode in ((major, "major"), (minor, "minor")):
         r = np.corrcoef(chroma_mean, np.roll(tmpl, i))[0, 1]
         key_scores.append((float(r), f"{names[i]} {mode}"))
-key_scores.sort(key=lambda x: x[0], reverse=True)
+key_scores.sort(key=operator.itemgetter(0), reverse=True)
 res["estimated_key"] = key_scores[0][1]
 res["key_confidence_r"] = round(key_scores[0][0], 3)
 res["key_runner_up"] = key_scores[1][1]

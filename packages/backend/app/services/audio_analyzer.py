@@ -52,6 +52,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # sys.path when the backend runs under uvicorn / the service scripts.
 # ---------------------------------------------------------------------------
 
+
 def _import_shared_audio():
     from tools.lib.audio import analyze_beats, load_audio, save_beat_data  # type: ignore[import]
     return load_audio, analyze_beats, save_beat_data
@@ -684,7 +685,7 @@ class AudioAnalyzer:
             # Compute tempo from beat intervals when madmom does not provide it.
             tempo_val = 0.0
             if len(beat_times) >= 2:
-                intervals = [beat_times[i+1] - beat_times[i] for i in range(len(beat_times) - 1)]
+                intervals = [beat_times[i + 1] - beat_times[i] for i in range(len(beat_times) - 1)]
                 median_interval = sorted(intervals)[len(intervals) // 2]
                 if median_interval > 0:
                     tempo_val = 60.0 / median_interval
@@ -933,6 +934,7 @@ def analyze_with_cuda(
     audio_path: str,
     y=None,
     sr: int | None = None,
+    *,
     include_beats: bool = True,
 ) -> dict[str, Any]:
     """Analyze audio using GPU acceleration when available.

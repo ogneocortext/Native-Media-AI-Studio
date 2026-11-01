@@ -17,6 +17,7 @@ import pathlib
 import time
 
 import pytest
+
 from app.services import essentia_bridge
 from app.services import essentia_tempo_store as store
 
@@ -126,7 +127,7 @@ def test_cached_bpm_never_touches_wsl(tmp_store, monkeypatch):
 # ── refresh: happy path ───────────────────────────────────────────────────────
 
 
-def _patch_batch(monkeypatch, result, available=True):
+def _patch_batch(monkeypatch, result, *, available=True):
     monkeypatch.setattr(store.essentia_bridge, "is_available", lambda: available)
     monkeypatch.setattr(store.stem_remixer, "essentia_bpm_batch", lambda tracks: result)
 

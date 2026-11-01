@@ -37,13 +37,13 @@ for i, line in enumerate(lyrics):
     line["section"] = "verse"
     # Detect section markers
     txt = line["text"].lower()
-    if txt in {"intro"} or "blue light" in txt:
+    if txt == "intro" or "blue light" in txt:
         line["section"] = "intro"
-    elif txt in {"verse"} or "started this thing" in txt.lower():
+    elif txt == "verse" or "started this thing" in txt.lower():
         line["section"] = "verse"
-    elif txt in {"drop"} or "piece by piece" in txt.lower():
+    elif txt == "drop" or "piece by piece" in txt.lower():
         line["section"] = "drop"
-    elif txt in {"final drop"} or "it finally works" in txt.lower():
+    elif txt == "final drop" or "it finally works" in txt.lower():
         line["section"] = "final_drop"
 
 # Better section detection based on known LRC markers
@@ -55,6 +55,7 @@ section_keywords = {
     "final_drop": ["[final drop]"],
 }
 
+
 def detect_section(text):
     t = text.lower()
     for sec, markers in section_keywords.items():
@@ -62,6 +63,7 @@ def detect_section(text):
             if m in t:
                 return sec
     return None
+
 
 current_section = "intro"
 for line in lyrics:

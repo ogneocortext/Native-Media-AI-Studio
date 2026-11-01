@@ -476,6 +476,7 @@ class MusicVideoHandler:
             except NotImplementedError as _ne:
                 # Fallback for SelectorEventLoop on Windows (uvicorn --reload) -> run in thread
                 import subprocess as _sp
+
                 def _run_ffmpeg():
                     result = _sp.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True)
                     return result.returncode, result.stdout, result.stderr
@@ -528,7 +529,7 @@ class MusicVideoHandler:
                                 # Throttle updates: only every ~2% or 30 frames
                                 if prog - last_prog[0] >= 0.02 or frame % 30 == 0:
                                     last_prog[0] = prog
-                                    await self._update_progress(job, prog, f"Rendering frame {frame}/{total_frames} ({int(frac*100)}%)")
+                                    await self._update_progress(job, prog, f"Rendering frame {frame}/{total_frames} ({int(frac * 100)}%)")
                             except Exception:
                                 pass
                         else:
@@ -542,7 +543,7 @@ class MusicVideoHandler:
                                     prog = 0.5 + 0.5 * frac
                                     if prog - last_prog_t[0] >= 0.02:
                                         last_prog_t[0] = prog
-                                        await self._update_progress(job, prog, f"Rendering {int(secs)}s / {int(duration)}s ({int(frac*100)}%)")
+                                        await self._update_progress(job, prog, f"Rendering {int(secs)}s / {int(duration)}s ({int(frac * 100)}%)")
                                 except Exception:
                                     pass
 
@@ -551,12 +552,12 @@ class MusicVideoHandler:
                 await asyncio.wait_for(
                     asyncio.gather(_read_stderr(), process.wait()), timeout=max(duration * 3, 90)
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 try:
                     process.kill()
                 except Exception:
                     pass
-                raise RuntimeError(f"FFmpeg rendering timed out after {max(duration*3,90)}s") from None
+                raise RuntimeError(f"FFmpeg rendering timed out after {max(duration * 3, 90)}s") from None
 
             # Collect remaining stderr
             try:
@@ -574,7 +575,7 @@ class MusicVideoHandler:
                 tail = stderr_text[-1500:] if len(stderr_text) > 1500 else stderr_text
                 logger.error("FFmpeg full stderr:\n%s", stderr_text)
                 raise RuntimeError(f"FFmpeg failed: {tail}")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise
         except Exception as e:
             # Surface any other error from streaming

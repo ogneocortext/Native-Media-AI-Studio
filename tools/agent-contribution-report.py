@@ -250,7 +250,7 @@ def aggregate(commits):
     return agents, unattributed
 
 
-def day_bound(value, end=False):
+def day_bound(value, *, end=False):
     """Expand a bare YYYY-MM-DD to the start (or end) of that day.
 
     Git's own date parser fills a bare date with the *current time of

@@ -99,8 +99,6 @@ def test_cache_delete_removes_only_the_named_entry():
     audio._cache_delete("never-cached.mp3", "")
 
 
-
-
 def test_cache_delete_by_content_id_evicts_every_backend():
     """Cleanup eviction: entries live under the full stored filename.
 
@@ -133,6 +131,8 @@ def test_cleanup_derives_content_id_before_the_orphan_branch():
     src = inspect.getsource(audio.cleanup_audio_files)
     assert src.index("unique_id = analysis_file.stem") < src.index("if opts.remove_orphans")
     assert "_cache_delete_by_content_id(unique_id)" in src
+
+
 def test_built_result_carries_the_stamp():
     """The stamp is set in _build_analysis_result, so every producer is covered.
 

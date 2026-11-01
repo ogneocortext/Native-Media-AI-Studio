@@ -44,19 +44,19 @@ try:
     print(f"Result attributes: {dir(result)}")
 
     if hasattr(result, 'meshes'):
-            mesh = result.meshes[0]
-            mesh.export(output_path)
-            print(f"\n3D model saved to: {output_path}")
-            print("SUCCESS!")
+        mesh = result.meshes[0]
+        mesh.export(output_path)
+        print(f"\n3D model saved to: {output_path}")
+        print("SUCCESS!")
     elif hasattr(result, 'images'):
-            # It's an image result, save it
-            img = result.images[0]
-            img_path = output_path.replace('.glb', '.png')
-            img.save(img_path)
-            print(f"\nImage saved to: {img_path}")
-            print("Note: Got image output instead of 3D mesh")
+        # It's an image result, save it
+        img = result.images[0]
+        img_path = output_path.replace('.glb', '.png')
+        img.save(img_path)
+        print(f"\nImage saved to: {img_path}")
+        print("Note: Got image output instead of 3D mesh")
     else:
-            print(f"Unexpected result: {result}")
+        print(f"Unexpected result: {result}")
 
 except Exception as e:
     print(f"\nERROR: {e}")

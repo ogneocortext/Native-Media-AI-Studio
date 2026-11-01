@@ -94,7 +94,7 @@ async def open_in_blender(payload: dict):
                         import asyncio as _asyncio3
 
                         from ..core.database import log_native_open as _logmcp
-                        await _asyncio3.to_thread(_logmcp, rel, src.name, "blender", "blender-mcp", True)
+                        await _asyncio3.to_thread(_logmcp, rel, src.name, "blender", "blender-mcp", success=True)
                     except Exception:
                         pass
                     return {"success": True, "method": "blender-mcp", "path": str(src), "message": "Sent to running Blender via MCP"}
@@ -148,7 +148,7 @@ except Exception as e:
             import asyncio as _asyncio
 
             from ..core.database import log_native_open as _log
-            await _asyncio.to_thread(_log, rel, src.name, "blender", "launch", True)
+            await _asyncio.to_thread(_log, rel, src.name, "blender", "launch", success=True)
         except Exception as e:
             logger.debug("native open DB log skipped: %s", e)
         return {"success": True, "method": "launch", "blender": blender, "path": str(src), "pid": proc.pid, "message": "Launched Blender with model"}
@@ -157,7 +157,7 @@ except Exception as e:
             import asyncio as _asyncio2
 
             from ..core.database import log_native_open as _log2
-            await _asyncio2.to_thread(_log2, rel, src.name if 'src' in locals() else rel, "blender", "launch", False)
+            await _asyncio2.to_thread(_log2, rel, src.name if 'src' in locals() else rel, "blender", "launch", success=False)
         except Exception:
             pass
         logger.error("Failed to launch Blender: %s", e, exc_info=True)
@@ -189,7 +189,7 @@ async def open_in_unity(payload: dict):
             import asyncio as _asyncio4
 
             from ..core.database import log_native_open as _logu
-            await _asyncio4.to_thread(_logu, rel, src.name, "unity", "copy", True)
+            await _asyncio4.to_thread(_logu, rel, src.name, "unity", "copy", success=True)
         except Exception:
             pass
     except Exception as e:
@@ -197,7 +197,7 @@ async def open_in_unity(payload: dict):
             import asyncio as _asyncio5
 
             from ..core.database import log_native_open as _logu2
-            await _asyncio5.to_thread(_logu2, rel, src.name if 'src' in locals() else rel, "unity", "copy", False)
+            await _asyncio5.to_thread(_logu2, rel, src.name if 'src' in locals() else rel, "unity", "copy", success=False)
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=f"Copy failed: {e}") from e

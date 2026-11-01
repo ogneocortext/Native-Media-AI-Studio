@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -64,7 +64,7 @@ class NMAAgent:
     def __init__(self, session_id: str | None = None,
                  api_base: str = "http://127.0.0.1:8000"):
         self.session_id = session_id or (
-            f"nma-agent-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+            f"nma-agent-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
         )
         self.trace_id = uuid.uuid4().hex[:16]
         self.state = AgentState(self.session_id).load()
@@ -80,7 +80,7 @@ class NMAAgent:
     def _log(self, message: str, level: str = "info",
              *, step: str | None = None, **extra: Any) -> None:
         """Log a message to stdout and agent state."""
-        timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        timestamp = datetime.now(UTC).strftime("%H:%M:%S")
         print(f"[{timestamp}] [NMAAgent] {message}")
         if level == "error":
             self.state.add_error(message)
@@ -338,6 +338,7 @@ class NMAAgent:
         audio_file: str,
         style: str = "cinematic",
         lyrics: str = "",
+        *,
         build_remix: bool = True,
     ) -> dict[str, Any]:
         """Run the full music video creation pipeline.
@@ -702,7 +703,7 @@ class NMAAgent:
         self.state.update(llm_iterations=0, llm_aborted=False,
                           llm_tool_calls=[])
 
-        start_ms = datetime.now(timezone.utc).timestamp() * 1000
+        start_ms = datetime.now(UTC).timestamp() * 1000
 
         for iteration in range(max_iters):
             self.state.update(llm_iterations=iteration + 1)
@@ -739,7 +740,7 @@ class NMAAgent:
                 self.state.update(llm_driver="atomic_chat")
 
                 # System 2: store the completed episode
-                end_ms = datetime.now(timezone.utc).timestamp() * 1000
+                end_ms = datetime.now(UTC).timestamp() * 1000
                 memory.store_episode(
                     session_id=self.session_id,
                     goal=goal,
@@ -806,7 +807,7 @@ class NMAAgent:
         self._log(f"LLM loop aborted after {max_iters} iterations", "warning")
 
         # System 2: store the aborted episode
-        end_ms = datetime.now(timezone.utc).timestamp() * 1000
+        end_ms = datetime.now(UTC).timestamp() * 1000
         memory.store_episode(
             session_id=self.session_id,
             goal=goal,
@@ -833,8 +834,9 @@ async def run_pipeline(
     audio_file: str,
     style: str = "cinematic",
     lyrics: str = "",
-    session_id: str | None = None,
-    build_remix: bool = True,
+        session_id: str | None = None,
+        *,
+        build_remix: bool = True,
 ) -> dict[str, Any]:
     """Convenience function to run the full pipeline."""
     agent = NMAAgent(session_id=session_id)

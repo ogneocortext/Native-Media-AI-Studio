@@ -40,6 +40,7 @@ async def close_shared_session():
     from ..core import http as _http
     await _http.close_shared_session(_SESSION_KEY)
 
+
 # Default ports for each engine
 DEFAULT_PORTS = {
     "ace": 8201,
@@ -67,6 +68,7 @@ class MusicGenAdapter(BaseAdapter):
         engine: str = "ace",
         port: int | None = None,
         base_url: str | None = None,
+        *,
         mock_mode: bool = False,
         output_dir: str | None = None,
     ):

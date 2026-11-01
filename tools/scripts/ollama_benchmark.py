@@ -76,6 +76,7 @@ VALIDATION_RULES = [
     ("has_three_usage", r"THREE\.(Mesh|SphereGeometry|BoxGeometry|Color|FogExp2)", True, 5, "Uses THREE APIs"),
 ]
 
+
 def _validate_code(code: str) -> dict[str, Any]:
     """Run regex validation and optional node --check."""
     code_stripped = code.strip()
@@ -154,6 +155,7 @@ def _validate_code(code: str) -> dict[str, Any]:
         },
     }
 
+
 def _load_file() -> dict[str, Any]:
     if BENCHMARK_FILE.exists():
         try:
@@ -163,17 +165,21 @@ def _load_file() -> dict[str, Any]:
             logger.warning(f"Failed to load benchmark file: {e}")
     return {"updated_at": None, "results": {}}
 
+
 def _save_file(data: dict[str, Any]) -> None:
     BENCHMARK_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(BENCHMARK_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
+
 def get_all_results() -> dict[str, Any]:
     return _load_file()
+
 
 def get_result(model: str) -> dict[str, Any] | None:
     data = _load_file()
     return data.get("results", {}).get(model)
+
 
 def get_best_model() -> str | None:
     data = _load_file()
@@ -193,6 +199,7 @@ def get_best_model() -> str | None:
             best_score = score
             best_latency = latency
     return best
+
 
 def _vram_aware_num_ctx(model: str) -> int:
     """Pick num_ctx that fits pro prompt (~1800 tok) + 900 predict without OOM."""
@@ -260,6 +267,7 @@ async def run_single_benchmark(model: str, adapter) -> dict[str, Any]:
             "error": str(e)[:500],
             "timestamp": datetime.now(UTC).isoformat(),
         }
+
 
 async def run_benchmark(models: list[str] | None, adapter, max_models: int = 8) -> dict[str, Any]:
     """Run benchmark for given models (or all available if None), store results."""

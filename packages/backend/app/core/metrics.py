@@ -18,11 +18,15 @@ from __future__ import annotations
 import os
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from fastapi import Request, Response
 from fastapi.responses import PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from fastapi import Request, Response
 
 logger = __import__("logging").getLogger(__name__)
 
@@ -86,10 +90,7 @@ except Exception:  # prometheus_client not installed
         """Minimal Prometheus text exposition format."""
         lines: list[str] = []
         # This is a simplified fallback; install prometheus_client for full output.
-        lines.append("# HELP nma_http_requests_total Total HTTP requests")
-        lines.append("# TYPE nma_http_requests_total counter")
-        lines.append("# HELP nma_http_request_duration_seconds HTTP request latency")
-        lines.append("# TYPE nma_http_request_duration_seconds histogram")
+        lines.extend(("# HELP nma_http_requests_total Total HTTP requests", "# TYPE nma_http_requests_total counter", "# HELP nma_http_request_duration_seconds HTTP request latency", "# TYPE nma_http_request_duration_seconds histogram"))
         return "\n".join(lines) + "\n"
 
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"

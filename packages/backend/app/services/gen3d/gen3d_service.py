@@ -24,8 +24,8 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
 import shutil
-import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -300,7 +300,7 @@ class Gen3DService:
         # ensure unique, filesystem-safe name -- previous truncated to 30 chars caused 4 identical prefixes
         base = self._sanitize_name(output_name or prompt[:40]) or "gen3d"
         # add seed + timestamp nonce to avoid Collisions when same prompt reused with same seed
-        nonce = f"{seed}_{int(_time.time())%10000}_{_rand.randint(100,999)}"
+        nonce = f"{seed}_{int(_time.time()) % 10000}_{_rand.randint(100, 999)}"
         output_name = f"{base}_{nonce}"
         output_path = OUTPUT_DIR / f"{output_name}.glb"
 
@@ -1031,7 +1031,6 @@ class Gen3DService:
         """
         import asyncio
         import time
-        import urllib.error
         import urllib.request
 
         # Submit workflow
@@ -1128,6 +1127,7 @@ class Gen3DService:
             await asyncio.sleep(2)
 
         return {"success": False, "error": "Timeout waiting for 3D generation"}
+
     def _backend_health(self) -> dict[str, Any]:
         """Live per-backend health: model presence + required node registration.
 
@@ -1220,7 +1220,7 @@ class Gen3DService:
         except Exception as e:
             logger.warning("3D model scan failed for %s: %s", OUTPUT_DIR, e)
 
-        models.sort(key=lambda m: m["modified"], reverse=True)
+        models.sort(key=operator.itemgetter("modified"), reverse=True)
         logger.debug("3D model list returned %d model(s)", len(models))
         return models
 

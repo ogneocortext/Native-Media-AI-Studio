@@ -51,4 +51,4 @@ print(f"Scripts generated: {len(scripts)}")
 for i, s in enumerate(scripts):
     lines = len(s.strip().split("\n"))
     first_line = s.strip().split("\n")[0][:60]
-    print(f"  Script {i+1}: {lines} lines - {first_line}")
+    print(f"  Script {i + 1}: {lines} lines - {first_line}")

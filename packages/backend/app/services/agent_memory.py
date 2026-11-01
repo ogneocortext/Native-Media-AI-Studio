@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.database import get_db
 
@@ -130,7 +130,7 @@ class AgentMemoryService:
         return [self._row_to_memory_entry(row) for row in rows]
 
     def _increment_usage(self, conn, entry_id: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         conn.execute(
             """
             UPDATE agent_memory_entries
@@ -166,6 +166,7 @@ class AgentMemoryService:
         goal: str,
         approach: str,
         result: str,
+        *,
         success: bool,
         duration_ms: int,
         tools_used: list[str],
@@ -175,7 +176,7 @@ class AgentMemoryService:
     ) -> str:
         """Store a completed agent episode. Returns the episode id."""
         eid = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with get_db() as conn:
             conn.execute(
                 """
@@ -204,7 +205,7 @@ class AgentMemoryService:
     ) -> str:
         """Record a new memory entry (semantic memory). Returns the entry id."""
         eid = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with get_db() as conn:
             conn.execute(
                 """
@@ -231,7 +232,7 @@ class AgentMemoryService:
                     updated_at = ?
                 WHERE id = ?
                 """,
-                (delta, datetime.now(timezone.utc).isoformat(), entry_id),
+                (delta, datetime.now(UTC).isoformat(), entry_id),
             )
 
     def get_episode(self, episode_id: str) -> AgentEpisode | None:

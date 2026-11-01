@@ -16,6 +16,7 @@ import io
 import logging
 
 import pytest
+
 from app.core.logging_config import (
     _JobIdFilter,
     get_job_id,

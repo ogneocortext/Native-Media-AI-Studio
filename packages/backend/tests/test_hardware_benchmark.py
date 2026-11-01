@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+
 from app.api import hardware as hardware_api
 from app.core import database as database_module
 from app.core.hardware_profile import detect_hardware_profile, save_hardware_profile

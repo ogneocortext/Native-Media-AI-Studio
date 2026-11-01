@@ -43,7 +43,7 @@ SHOULD_IGNORE = [
 # Trees where duplicate content is normal and not worth reporting.
 VENDORED = ("node_modules/", "site-packages/", ".venv/", "dist/", "output/")
 
-LARGE_BUILD_OUTPUT = re.compile(r"(/renders?/|\.mp4$|\.b64$)", re.I)
+LARGE_BUILD_OUTPUT = re.compile(r"(/renders?/|\.mp4$|\.b64$)", re.IGNORECASE)
 LARGE_BYTES = 20 * 1024 * 1024
 
 # Filenames that embed a machine-generated identifier instead of describing
@@ -84,7 +84,7 @@ def git_check_ignore(path):
 # Extracted dynamically from AGENTS.md so new script references are caught
 # without editing this file.
 DOCUMENTED_SCRIPTS_RE = re.compile(
-    r"scripts[\\/]([\w-]+\.(?:ps1|sh|py))", re.I
+    r"scripts[\\/]([\w-]+\.(?:ps1|sh|py))", re.IGNORECASE
 )
 
 
@@ -97,8 +97,7 @@ def documented_scripts(text):
     if not text:
         return []
     found = set()
-    for m in DOCUMENTED_SCRIPTS_RE.finditer(text):
-        found.add(m.group(1))
+    found.update(m.group(1) for m in DOCUMENTED_SCRIPTS_RE.finditer(text))
     return sorted(found)
 
 
@@ -163,10 +162,9 @@ def main():
     # 5. docs claiming something is ignored when it is not
     agents = os.path.join(ROOT, "AGENTS.md")
     if os.path.exists(agents):
-        with open(agents, encoding="utf-8") as f:
-            text = f.read()
+        text = Path(agents).read_text(encoding="utf-8")
         probe = "packages/frontend/tests/browser/out"
-        if re.search(r"tests/browser/out.*gitignored", text, re.I | re.S):
+        if re.search(r"tests/browser/out.*gitignored", text, re.IGNORECASE | re.DOTALL):
             tracked_here = [x for x in files if x.startswith(probe + "/")]
             if tracked_here:
                 errors.append(
@@ -200,14 +198,13 @@ def main():
     #     . (Join-Path $PSScriptRoot 'shared-utils.ps1')
     #     . "$PSScriptRoot/shared-utils.ps1"
     #     . .\shared-utils.ps1
-    sourced = re.compile(r"""^\s*\.\s+.*?['"]([^'"]+\.ps1)['"]""", re.M)
+    sourced = re.compile(r"""^\s*\.\s+.*?['"]([^'"]+\.ps1)['"]""", re.MULTILINE)
     for f in files:
         if not f.endswith(".ps1"):
             continue
         path = os.path.join(ROOT, f.replace("/", os.sep))
         try:
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                body = fh.read()
+            body = Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         for line in body.splitlines():

@@ -17,11 +17,14 @@ import asyncio
 import os
 import sqlite3
 import threading
-from collections.abc import Generator
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .config import PROJECT_ROOT
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 # ---------------------------------------------------------------------------

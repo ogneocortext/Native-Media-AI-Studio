@@ -29,6 +29,7 @@ so the three cannot drift apart on how a link is spelled.
 from __future__ import annotations
 
 import argparse
+import operator
 import re
 import sys
 from collections import defaultdict
@@ -66,6 +67,7 @@ except ImportError:  # pragma: no cover
 BASE = REPO / "docs" / "knowledge-library"
 SKIP = SPECIAL_FILES
 
+
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
@@ -92,7 +94,7 @@ def collect() -> dict[str, Path]:
 
 def frontmatter_category(text: str) -> str | None:
     """Return the first frontmatter tag, or None."""
-    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
     if not m:
         return None
     in_tags = False
@@ -202,7 +204,7 @@ def print_outline(docs, outgoing, inbound, dangling, orphans):
             path = docs[name]
             text = read_text(path)
             ptype = None
-            m = re.search(r"^type:\s*(\S+)", text, re.M)
+            m = re.search(r"^type:\s*(\S+)", text, re.MULTILINE)
             if m:
                 ptype = m.group(1)
             ptype_tag = f" [{ptype}]" if ptype else ""
@@ -214,7 +216,7 @@ def print_outline(docs, outgoing, inbound, dangling, orphans):
                 w = weight_of(relation)
                 link = as_link(target)
                 print(f"      -> [[{link}]] :{relation_label(relation)} (w={w})")
-            ins = sorted(inbound.get(name, []), key=lambda x: x[0])
+            ins = sorted(inbound.get(name, []), key=operator.itemgetter(0))
             if ins:
                 srcs = ", ".join(f"[[{s}]]" for s, _, _ in ins)
                 print(f"      <- from {srcs}")
@@ -230,7 +232,7 @@ def print_graph_dot(docs, outgoing, inbound, dangling, orphans):
     for name in docs:
         text = read_text(docs[name])
         ptype = None
-        m = re.search(r"^type:\s*(\S+)", text, re.M)
+        m = re.search(r"^type:\s*(\S+)", text, re.MULTILINE)
         if m:
             ptype = m.group(1)
         color = {
@@ -252,7 +254,7 @@ def print_orphans(orphans, docs):
     for name in sorted(orphans):
         text = read_text(docs[name])
         ptype = None
-        m = re.search(r"^type:\s*(\S+)", text, re.M)
+        m = re.search(r"^type:\s*(\S+)", text, re.MULTILINE)
         if m:
             ptype = m.group(1)
         print(f"  - [[as_link(name)]] [{ptype or '?'}]")
@@ -293,7 +295,7 @@ def doc_meta(docs: dict[str, Path]) -> dict[str, tuple[str, set[str]]]:
         category = frontmatter_category(text) or ""
         tags: set[str] = set()
         in_tags = False
-        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
         if m:
             for line in m.group(1).split("\n"):
                 if line.startswith("tags:"):
@@ -374,7 +376,7 @@ def _insert_into_related(doc_path: Path, link_line: str) -> bool:
     text = read_text(doc_path)
     if link_line.split("]]")[0] + "]]" in text:
         return False
-    m = re.search(r"(## Related\n)(.*?)(?=\n## |\Z)", text, re.S)
+    m = re.search(r"(## Related\n)(.*?)(?=\n## |\Z)", text, re.DOTALL)
     if m:
         new_section = m.group(1) + link_line + m.group(2)
         text = text[:m.start()] + new_section + text[m.end():]
@@ -391,7 +393,7 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def print_apply(docs, outgoing, inbound, dangling, orphans, dry_run: bool = False) -> int:
+def print_apply(docs, outgoing, inbound, dangling, orphans, *, dry_run: bool = False) -> int:
     """Apply suggestions: insert back-links from suggested targets into
     orphan docs so they are no longer orphans.
 

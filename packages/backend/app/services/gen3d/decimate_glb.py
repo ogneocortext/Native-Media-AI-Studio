@@ -87,6 +87,7 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
 

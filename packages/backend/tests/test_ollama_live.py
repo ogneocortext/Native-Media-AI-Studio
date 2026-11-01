@@ -259,6 +259,7 @@ def test_tool_call_arguments_arrive_as_a_dict(model):
         "execute_tool_call uses **arguments, which breaks on a JSON string"
     )
     # Splattable is the real contract, not merely "is a dict".
+
     def _sink(**kwargs):
         return kwargs
 
@@ -285,4 +286,3 @@ def test_unknown_tool_returns_a_marker_string_not_an_exception():
     out = asyncio.run(_adapter().execute_tool_call("no_such_tool", {}, {}))
     assert isinstance(out, str)
     assert out.startswith("Unknown tool")
-

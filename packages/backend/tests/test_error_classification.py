@@ -9,7 +9,6 @@ where the DLQ recorded the *previous* attempt's message.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import sys
 from pathlib import Path
@@ -109,7 +108,7 @@ def test_classify_by_message(message, category, retryable, status):
 @pytest.mark.parametrize(
     ("exc", "category", "retryable"),
     [
-        (asyncio.TimeoutError("read timed out"), TRANSIENT_NETWORK, True),
+        (TimeoutError("read timed out"), TRANSIENT_NETWORK, True),
         (ConnectionResetError("peer reset"), TRANSIENT_NETWORK, True),
         (ConnectionRefusedError("no listener"), TRANSIENT_NETWORK, True),
         (ValueError("shape [1, 128, 1, 64, 64] is invalid"), DETERMINISTIC, False),
@@ -235,7 +234,6 @@ async def test_fetch_history_warns_instead_of_silently_reporting_empty(caplog):
         result = await fetch_history("http://127.0.0.1:8188", "abc", session=session)
     assert result == {}
     assert any("502" in record.getMessage() for record in caplog.records)
-
 
 
 # ---------------------------------------------------------------------------
@@ -385,4 +383,3 @@ async def test_adapter_submit_surfaces_the_rejected_node(monkeypatch):
     verdict = classify_job_error(excinfo.value)
     assert verdict.category == WORKFLOW_REJECTED
     assert verdict.retryable is False
-

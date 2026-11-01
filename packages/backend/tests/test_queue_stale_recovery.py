@@ -15,6 +15,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 import pytest
+
 from app.models.job import Job, JobStatus
 from app.queue.manager import QueueManager
 
@@ -174,7 +175,7 @@ def test_recovery_does_not_deadlock_on_the_manager_lock():
 
     try:
         out = asyncio.run(asyncio.wait_for(run(), timeout=5))
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pytest.fail("recover_stale_running_jobs deadlocked on _move_to_dead_letter")
     assert out["dead"] == ["j1"]
 
@@ -238,7 +239,7 @@ class TestUnrunnableJobs:
 
         try:
             out = asyncio.run(asyncio.wait_for(run(), timeout=5))
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("quarantine_unrunnable_jobs deadlocked on _move_to_dead_letter")
         assert out["quarantined"] == ["j1"]
 

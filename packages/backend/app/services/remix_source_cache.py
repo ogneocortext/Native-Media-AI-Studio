@@ -13,8 +13,7 @@ import math
 import re
 import shutil
 import subprocess
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -24,7 +23,9 @@ from .remix_constants import (
     REMIX_SR,
 )
 from .remix_dsp import _loop_to_length, _tempo_align
-from .remix_recipe import RemixLayer
+
+if TYPE_CHECKING:
+    from .remix_recipe import RemixLayer
 
 logger = logging.getLogger(__name__)
 

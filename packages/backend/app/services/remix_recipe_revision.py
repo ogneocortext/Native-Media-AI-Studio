@@ -693,7 +693,7 @@ def repair_recipe(
     return recipe, warnings
 
 
-def recipe_to_request(recipe: RemixRecipe, overwrite: bool = False) -> dict[str, Any]:
+def recipe_to_request(recipe: RemixRecipe, *, overwrite: bool = False) -> dict[str, Any]:
     """Serialise a service recipe into the REST request shape.
 
     ``overwrite`` defaults to False here, unlike the REST schema's True:

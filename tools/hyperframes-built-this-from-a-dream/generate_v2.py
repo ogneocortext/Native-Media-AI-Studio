@@ -13,9 +13,11 @@ with open(DATA_PATH, encoding="utf-8") as f:
 
 data_json = json.dumps(data, separators=(",", ":"))
 
+
 # Seeded PRNG (mulberry32) for deterministic particles
 def mulberry32(a):
     a = a & 0xFFFFFFFF
+
     def f():
         nonlocal a
         a = (a + 0x6D2B79F5) & 0xFFFFFFFF
@@ -26,6 +28,7 @@ def mulberry32(a):
         t = (t ^ (t >> 7)) & 0xFFFFFFFF
         return (t ^ (t << 1)) & 0xFFFFFFFF
     return f
+
 
 rng = mulberry32(123456789)
 particles_js = []
@@ -376,7 +379,6 @@ html = f'''<!DOCTYPE html>
 </body>
 </html>'''
 
-with open(OUT_PATH, "w", encoding="utf-8") as f:
-    f.write(html)
+Path(OUT_PATH).write_text(html, encoding="utf-8")
 
 print(f"Wrote {OUT_PATH} ({len(html.encode('utf-8'))} bytes)")

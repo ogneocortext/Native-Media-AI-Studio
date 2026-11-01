@@ -7,12 +7,14 @@ Extracted from packages/backend/app/core/database.py (was 4121 lines).
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .connection import get_db
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def save_ai_visual(
@@ -69,6 +71,7 @@ def save_ai_visual(
 
 def get_ai_visuals(
     style_id: str | None = None,
+    *,
     favorite_only: bool = False,
     selected_only: bool = False,
     limit: int = 100,
@@ -109,7 +112,7 @@ def toggle_visual_favorite(visual_id: str) -> bool:
         return new_status
 
 
-def set_visual_selected(visual_id: str, selected: bool) -> None:
+def set_visual_selected(visual_id: str, *, selected: bool) -> None:
     """Set whether a visual is selected for the music video."""
     with get_db() as conn:
         conn.execute(

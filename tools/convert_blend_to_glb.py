@@ -31,6 +31,7 @@ BLENDER_CANDIDATES = [
     r"C:\Program Files\Blender Foundation\Blender\blender.exe",
 ]
 
+
 def find_blender() -> str:
     for c in BLENDER_CANDIDATES:
         if Path(c).exists():
@@ -39,6 +40,7 @@ def find_blender() -> str:
     if w:
         return w
     raise FileNotFoundError("Blender not found — install 5.2 at C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe or add to PATH")
+
 
 BLENDER_SCRIPT = r"""
 import bpy, sys, json, os
@@ -89,7 +91,8 @@ except Exception as e:
     sys.exit(1)
 """
 
-def convert(blend: Path, out: Path | None, to_public: bool, do_apply: bool, do_anim: bool) -> Path:
+
+def convert(blend: Path, out: Path | None, *, to_public: bool, do_apply: bool, do_anim: bool) -> Path:
     blend = Path(blend).resolve()
     if not blend.exists():
         raise FileNotFoundError(f"Blend not found: {blend}")
@@ -148,6 +151,7 @@ def convert(blend: Path, out: Path | None, to_public: bool, do_apply: bool, do_a
 
     return out
 
+
 def main():
     parser = argparse.ArgumentParser(description="Convert .blend to GLB for Media Library + Three.js Studio")
     parser.add_argument("blend", help="Path to .blend file (e.g. stage.blend or output/stage.blend)")
@@ -159,6 +163,7 @@ def main():
     args = parser.parse_args()
     out = convert(Path(args.blend), Path(args.output) if args.output else None, args.public, args.apply, args.animations)
     print(f"Done: {out}")
+
 
 if __name__ == "__main__":
     main()

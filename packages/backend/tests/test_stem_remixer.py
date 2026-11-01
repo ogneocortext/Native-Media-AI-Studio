@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from app.services import stem_remixer
 from app.services.stem_remixer import (
     REMIX_SR,
@@ -674,7 +675,7 @@ class _StubOpeningSilenceLibrosa:
     def __init__(self, silent_sec: float) -> None:
         self.silent_sec = silent_sec
 
-    def load(self, path, sr=None, mono=False):
+    def load(self, path, sr=None, *, mono=False):
         sr = sr or stem_remixer.REMIX_SR
         y = np.full((2, int(sr * 40)), 0.5, dtype=np.float32)
         y[:, : int(self.silent_sec * sr)] = 0.0
@@ -912,7 +913,7 @@ class _StubCalLibrosa:
     """librosa.load stand-in: fixed level per stem file name."""
 
     @staticmethod
-    def load(path, sr=None, mono=True):
+    def load(path, sr=None, *, mono=True):
         level = 0.5 if "loud" in str(path) else 0.05
         y = np.full((2, 22050), level, dtype=np.float32)
         return y, sr

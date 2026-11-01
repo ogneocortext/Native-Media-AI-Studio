@@ -12,22 +12,25 @@ import json
 import logging
 import math
 import shutil
-from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import soundfile as sf
 
 from .remix_constants import (
     CALIBRATION_MAX_DB,
-    REMIX_DIR,
     REMIX_SR,
     VERSIONS_DIRNAME,
 )
 from .remix_dsp import _db_to_linear, _equal_power_ramp, _loop_to_length
-from .remix_recipe import RemixLayer, RemixRecipe, RemixResult, asdict
+from .remix_recipe import RemixRecipe, RemixResult, RemixSlot, asdict
 from .remix_source import _safe_remix_name
-from .remix_source_cache import _SourceCache
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
+    from .remix_source_cache import _SourceCache
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +113,6 @@ def _mix_recipe(
     of the manifest's provenance, so they come back with the audio.
     """
     from . import stem_remixer
-
     from .remix_constants import STEM_NAMES
 
     plan = plan_timeline(recipe)
@@ -262,6 +264,7 @@ def build_mix_report(mixed: dict[str, np.ndarray]) -> dict[str, Any]:
 
 def render_remix(
     recipe: RemixRecipe,
+    *,
     overwrite: bool = True,
     should_cancel: Callable[[], bool] | None = None,
 ) -> RemixResult:

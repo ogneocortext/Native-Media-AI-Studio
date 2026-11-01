@@ -75,6 +75,7 @@ async def separate_audio(
     mode: str = "single",
     segment_size: int | None = None,
     overlap: float | None = None,
+    *,
     denoise: bool | None = None,
     preset: str | None = None,
 ) -> StemSeparationResponse:

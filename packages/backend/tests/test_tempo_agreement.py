@@ -8,6 +8,7 @@ refactor fails here rather than silently shipping a wrong tempo.
 from __future__ import annotations
 
 import pytest
+
 from app.services import tempo_agreement as ta
 
 # Measured on this library; see the knowledge-library article, section 6a.

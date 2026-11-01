@@ -7,12 +7,14 @@ Extracted from packages/backend/app/core/database.py (was 4121 lines).
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .connection import get_db
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def save_track(

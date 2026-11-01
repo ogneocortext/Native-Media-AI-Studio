@@ -34,5 +34,5 @@ __all__ = [
     "MusicGenAdapter",
     "OllamaAdapter",
     "OllamaModelMixin",
-    "OllamaToolsMixin",
+    "OllamaToolsMixin", "AdapterBase",
 ]

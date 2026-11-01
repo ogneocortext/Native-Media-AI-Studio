@@ -117,7 +117,7 @@ class EnhanceConfig:
     # Needs-fallback / KARRA preset toggles
     vocal_expander: bool = False   # expansion/transient recovery instead of compression
     deess_freq_hz: float = 6500.0  # KARRA de-ess at 6.5 kHz
-    air_boost_gain_db: float = 2.5 # +2.5 dB air boost at 10 kHz
+    air_boost_gain_db: float = 2.5  # +2.5 dB air boost at 10 kHz
     air_boost_freq_hz: float = 10000.0
     vocal_balance_db: float = 0.0  # +/-3 dB macro slider for vocal level
     # Reference tonal match (opt-in): lean the master bus toward a reference
@@ -216,7 +216,6 @@ def _compress_audio(
     for c in range(src.shape[0]):
         out[c] = _compress_channel(src[c], coeffs)
     return out[0] if y.ndim == 1 else out
-
 
 
 # How far above the material's RMS the threshold must sit for the compressor to
@@ -445,6 +444,7 @@ def _spectral_gate(
         out = out[:target_len]
     return out.astype(np.float32)
 
+
 def _restore_high_end_drift(
     y: np.ndarray,
     sr: int,
@@ -540,6 +540,7 @@ def _restore_high_end_drift(
     if peak > 1.0:
         stacked /= peak
     return stacked[0] if was_mono else stacked
+
 
 def _dynamic_eq_tame_harshness(
     y: np.ndarray,
@@ -816,7 +817,7 @@ class SunoEnhancer:
         steps: list[dict[str, Any]] = []
         stems_dir = Path(stems_dir)
         if not stems_dir.exists():
-            return EnhanceResult(False, None, None, None, error=f"stems_dir not found: {stems_dir}")
+            return EnhanceResult(success=False, output_dir=None, wav_path=None, mp3_path=None, error=f"stems_dir not found: {stems_dir}")
 
         if output_dir is None:
             output_dir = stems_dir / "enhanced"
@@ -824,7 +825,7 @@ class SunoEnhancer:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         if not LIBROSA_AVAILABLE:
-            return EnhanceResult(False, str(output_dir), None, None, error="librosa not installed")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, error="librosa not installed")
 
         stem_names = ["vocals", "drums", "bass", "other"]
         loaded: dict[str, np.ndarray] = {}
@@ -842,10 +843,10 @@ class SunoEnhancer:
                 loaded[name] = y.astype(np.float32)
             steps.append({"step": 1, "name": "load", "stems": list(loaded.keys())})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"load failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"load failed: {exc}")
 
         if not loaded:
-            return EnhanceResult(False, str(output_dir), None, None, error="no stems found")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, error="no stems found")
 
         # Ensure mono fallback
         for name, y in loaded.items():
@@ -879,7 +880,7 @@ class SunoEnhancer:
                 loaded[name] = filtered
             steps.append({"step": 2, "name": "pre_highpass", "cutoff_hz": adaptive_hp})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"pre_highpass failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"pre_highpass failed: {exc}")
 
 # -- Step 3: LUFS gain staging (heuristic) ---------------------------
         try:
@@ -887,7 +888,7 @@ class SunoEnhancer:
                 loaded[name] = _lufs_gain_stage(y, target_lufs=-14.0)
             steps.append({"step": 3, "name": "lufs_gain_stage", "target_lufs": -14.0})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"lufs_gain_stage failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"lufs_gain_stage failed: {exc}")
 
 # -- Step 4: Normalize ---------------------------------------------
         try:
@@ -895,7 +896,7 @@ class SunoEnhancer:
                 loaded[name] = _normalize_peak(y, self.config.target_peak_dbfs)
             steps.append({"step": 4, "name": "normalize", "peak_dbfs": self.config.target_peak_dbfs})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"normalize failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"normalize failed: {exc}")
 
 # -- Step 5: Per-stem processing (KARRA split) -----------------------
         # Heuristic (always): non-vocals get gentle glue compression.
@@ -922,7 +923,7 @@ class SunoEnhancer:
                 loaded[name] = np.stack(chans, axis=0)
             steps.append({"step": 5, "name": "stem_processing", "vocal_expander": self.config.vocal_expander})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"stem_processing failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"stem_processing failed: {exc}")
 
 # -- Step 6: De-ess vocals (band-RMS heuristic) ----------------------
         try:
@@ -939,7 +940,7 @@ class SunoEnhancer:
             else:
                 steps.append({"step": 6, "name": "deess", "skipped": True})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"deess failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"deess failed: {exc}")
 
 # -- Step 7: KARRA vocal chain (air boost + gentle acompressor) ------
         try:
@@ -965,7 +966,7 @@ class SunoEnhancer:
             else:
                 steps.append({"step": 7, "name": "karrra_vocal_chain", "skipped": True})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"karrra_vocal_chain failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"karrra_vocal_chain failed: {exc}")
 
 # -- Step 8: Vocal balance +/-3 dB macro + stereo widen non-vocals -----
         try:
@@ -981,7 +982,7 @@ class SunoEnhancer:
                     loaded[name] = _stereo_widen(y, self.config.stereo_widen_amount)
             steps.append({"step": 8, "name": "stereo_widen", "amount": self.config.stereo_widen_amount})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"stereo_widen failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"stereo_widen failed: {exc}")
 
 # -- Step 9: Post spectral gating on vocals (ghost bleed killer) -----
         try:
@@ -993,7 +994,7 @@ class SunoEnhancer:
             else:
                 steps.append({"step": 9, "name": "vocal_spectral_gate", "skipped": True})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"vocal_spectral_gate failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"vocal_spectral_gate failed: {exc}")
 
 # -- Step 10: Dynamic EQ tame 2.5--4 kHz harshness on vocals ----------
         try:
@@ -1005,7 +1006,7 @@ class SunoEnhancer:
             else:
                 steps.append({"step": 10, "name": "vocal_dynamic_eq", "skipped": True})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"vocal_dynamic_eq failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"vocal_dynamic_eq failed: {exc}")
 
 # -- Step 11: Parallel weight bus (-12 to -18 dB) ---------------------
         try:
@@ -1014,7 +1015,7 @@ class SunoEnhancer:
                     loaded[name] = _parallel_weight_bus(y, self.config.parallel_weight_bus_db)
                 steps.append({"step": 11, "name": "parallel_weight_bus", "attenuation_db": self.config.parallel_weight_bus_db})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"parallel_weight_bus failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"parallel_weight_bus failed: {exc}")
 
 # -- Step 12: Sidechain pocket EQ on Other while vocals sing -----------
         try:
@@ -1041,7 +1042,7 @@ class SunoEnhancer:
                     loaded["other"] = other_y
                 steps.append({"step": 12, "name": "sidechain_pocket_eq", "freq_hz": 3000.0})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"sidechain_pocket_eq failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"sidechain_pocket_eq failed: {exc}")
 
 # -- Step 13: Reverb/delay sends (vocals EXCLUDED -- pseudo-reverb baked in) --
         try:
@@ -1057,14 +1058,14 @@ class SunoEnhancer:
                 loaded[name] = send_target
             steps.append({"step": 13, "name": "fx_sends", "reverb_mix": self.config.reverb_mix, "delay_mix": self.config.delay_mix, "vocals_excluded": True})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"fx_sends failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"fx_sends failed: {exc}")
 
 # -- Step 14: Mix stems with auto-leveling ---------------------------
         try:
             mixed = await asyncio.to_thread(self._mix_stems, loaded, sr)
             steps.append({"step": 14, "name": "mix", "method": "auto_level"})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"mix failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"mix failed: {exc}")
 
 # -- Step 15: Progressive high-end drift correction (V6) ---------------
         try:
@@ -1080,7 +1081,7 @@ class SunoEnhancer:
                     "max_boost_db": self.config.max_drift_boost_db,
                 })
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"drift_correction failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"drift_correction failed: {exc}")
 
 # -- Step 16: Reference tonal match (opt-in) -------------------------
         # EQ before limiting: the limiter then sees the final spectrum.
@@ -1101,14 +1102,14 @@ class SunoEnhancer:
                               "strength": self.config.reference_match_strength,
                               "profile": describe_profile(ref_profile)})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"reference_match failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"reference_match failed: {exc}")
 
 # -- Step 17: Master bus true-peak limiter (-1.0 dB) -----------------
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
             steps.append({"step": 17, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), None, None, steps=steps, error=f"limiter failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"limiter failed: {exc}")
 
         # -- Step 18/19: Export ----------------------------------------------
         wav_path = None
@@ -1124,9 +1125,9 @@ class SunoEnhancer:
                 await asyncio.to_thread(self._encode_mp3, wav_path or output_dir / f"{base_name}_enhanced.wav", mp3_path, mixed, sr)
                 steps.append({"step": 19, "name": "export_mp3", "path": str(mp3_path)})
         except Exception as exc:
-            return EnhanceResult(False, str(output_dir), wav_path, mp3_path, steps=steps, error=f"export failed: {exc}")
+            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=wav_path, mp3_path=mp3_path, steps=steps, error=f"export failed: {exc}")
 
-        return EnhanceResult(True, str(output_dir), str(wav_path) if wav_path else None, str(mp3_path) if mp3_path else None, steps=steps)
+        return EnhanceResult(success=True, output_dir=str(output_dir), wav_path=str(wav_path) if wav_path else None, mp3_path=str(mp3_path) if mp3_path else None, steps=steps)
 
     def _mix_stems(self, loaded: dict[str, np.ndarray], sr: int) -> np.ndarray:
         """Sum the stems at unity, then normalise the *sum*.

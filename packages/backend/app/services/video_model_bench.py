@@ -18,7 +18,7 @@ import logging
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -141,6 +141,7 @@ TEST_MATRIX = [
 # ---------------------------------------------------------------------------
 # Workflow templates (minimal, protocol-compatible)
 # ---------------------------------------------------------------------------
+
 
 def _ltxv_2b_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int) -> dict[str, Any]:
     return {
@@ -546,7 +547,7 @@ def upsert_result(results: list[dict[str, Any]], record: dict[str, Any]) -> list
     return results
 
 
-def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = False) -> dict[str, Any]:
+def run_benchmark_entry(entry: dict[str, Any], base_url: str, *, dry_run: bool = False) -> dict[str, Any]:
     model = entry["model"]
     width = entry["width"]
     height = entry["height"]
@@ -577,7 +578,7 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, dry_run: bool = Fa
         "fps": fps,
         "precision": precision,
         "format": model_format,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     if dry_run:

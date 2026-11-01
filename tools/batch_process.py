@@ -54,7 +54,7 @@ async def batch_analyze(files: list[str], output_dir: str | None = None) -> list
     results: list[dict] = []
 
     for i, f in enumerate(files):
-        print(f"[{i+1}/{len(files)}] Analyzing: {Path(f).name}")
+        print(f"[{i + 1}/{len(files)}] Analyzing: {Path(f).name}")
         try:
             result = analyzer.analyze_file(f)
             results.append({
@@ -81,7 +81,7 @@ async def batch_structure(files: list[str], output_dir: str | None = None) -> li
 
     results: list[dict] = []
     for i, f in enumerate(files):
-        print(f"[{i+1}/{len(files)}] Structure analysis: {Path(f).name}")
+        print(f"[{i + 1}/{len(files)}] Structure analysis: {Path(f).name}")
         try:
             result = await structure_analyzer.analyze(f)
             results.append({
@@ -112,7 +112,7 @@ async def batch_fingerprint(files: list[str]) -> list[dict]:
 
     results: list[dict] = []
     for i, f in enumerate(files):
-        print(f"[{i+1}/{len(files)}] Fingerprinting: {Path(f).name}")
+        print(f"[{i + 1}/{len(files)}] Fingerprinting: {Path(f).name}")
         result = await audio_fingerprinter.fingerprint_file(f)
         results.append({
             "file": f,
@@ -134,7 +134,7 @@ async def batch_separate(files: list[str], output_dir: str | None = None) -> lis
 
     results: list[dict] = []
     for i, f in enumerate(files):
-        print(f"[{i+1}/{len(files)}] Separating: {Path(f).name}")
+        print(f"[{i + 1}/{len(files)}] Separating: {Path(f).name}")
         result = await source_separator.separate(f, output_dir=output_dir)
         results.append({
             "file": f,
@@ -156,7 +156,7 @@ async def batch_export_unity(files: list[str], output_dir: str) -> list[dict]:
     results: list[dict] = []
 
     for i, f in enumerate(files):
-        print(f"[{i+1}/{len(files)}] Exporting Unity data: {Path(f).name}")
+        print(f"[{i + 1}/{len(files)}] Exporting Unity data: {Path(f).name}")
         try:
             result = analyzer.analyze_file(f)
             data = {
@@ -198,7 +198,7 @@ async def batch_export_midi(files: list[str], output_dir: str) -> list[dict]:
     results: list[dict] = []
 
     for i, f in enumerate(files):
-        print(f"[{i+1}/{len(files)}] Exporting MIDI: {Path(f).name}")
+        print(f"[{i + 1}/{len(files)}] Exporting MIDI: {Path(f).name}")
         try:
             result = analyzer.analyze_file(f)
             mid = mido.MidiFile()
@@ -262,9 +262,9 @@ async def run_full_pipeline(files: list[str], output_dir: str) -> dict:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"FULL BATCH PIPELINE — {len(files)} files")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     print("STEP 1: Audio Analysis")
     analysis_results = await batch_analyze(files, str(out / "analysis"))
@@ -290,9 +290,9 @@ async def run_full_pipeline(files: list[str], output_dir: str) -> dict:
     with open(out / "batch_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"COMPLETE — Output: {out}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     return summary
 
 

@@ -99,13 +99,13 @@ def main() -> int:
     if deletable:
         print("\nsafe to delete:")
         for p, twin in deletable:
-            print(f"    {p.stat().st_size/1048576:8.2f} MB  {p.name}")
+            print(f"    {p.stat().st_size / 1048576:8.2f} MB  {p.name}")
             print(f"                    duplicate of kept: {twin}")
     if keep_orphan:
         print("\nleft alone (no identical file is referenced; artwork, lyrics, "
               "or unique audio):")
         for p in keep_orphan:
-            print(f"    {p.stat().st_size/1048576:8.2f} MB  {p.name}")
+            print(f"    {p.stat().st_size / 1048576:8.2f} MB  {p.name}")
 
     if not deletable:
         print("\nnothing safe to prune.")
@@ -120,7 +120,7 @@ def main() -> int:
     for p, _ in deletable:
         freed += p.stat().st_size
         p.unlink()
-    print(f"\ndeleted {len(deletable)} files, freed {freed/1048576:.1f} MB")
+    print(f"\ndeleted {len(deletable)} files, freed {freed / 1048576:.1f} MB")
     print(f"left in place: {len(keep_orphan)} unreferenced files")
     return 0
 

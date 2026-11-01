@@ -38,19 +38,21 @@ FALLBACK_MODEL = "qwen3.5:4b"
 # Recognized Suno v6 style tags (community-tested) for cross-matching Qwen output.
 _RECOGNIZED_SUNO_TAGS_PATH = Path(__file__).resolve().parents[4] / "tools" / "music-gen" / "recognized-suno-tags.json"
 
+
 def _load_recognized_suno_tags() -> set[str]:
     try:
         data = json.loads(_RECOGNIZED_SUNO_TAGS_PATH.read_text(encoding="utf-8"))
         tags: set[str] = set()
         for cat in (data.get("categories") or {}).values():
-            for t in cat or []:
-                tags.add(str(t).strip().lower())
+            tags.update(str(t).strip().lower() for t in cat or [])
         return tags
     except Exception as exc:
         logger.warning("Failed to load recognized Suno tags: %s", exc)
         return set()
 
+
 SUPPORTED_PLATFORMS = ("suno_v6", "minimax_30", "happyshrimp_10", "lyria_35")
+
 
 def _filter_style_tags(style: str) -> str:
     """Keep only comma-separated style terms present in the recognized Suno tag set.
@@ -67,11 +69,13 @@ def _filter_style_tags(style: str) -> str:
         return style
     return ", ".join(kept)
 
+
 # Load lyric technique knowledge base from the project's knowledge library.
 _KNOWLEDGE_DIR = Path(__file__).resolve().parents[4] / "docs" / "knowledge-library"
 _LYRIC_TECHNIQUES_PATH = _KNOWLEDGE_DIR / "lyric-techniques-2026.json"
 _MUSIC_PROMPT_PRESETS_PATH = _KNOWLEDGE_DIR / "music-prompt-presets.json"
 _PRONUNCIATION_GUIDE_PATH = _KNOWLEDGE_DIR / "pronunciation-guide-2026.json"
+
 
 def _load_lyric_techniques() -> dict[str, Any]:
     try:
@@ -84,6 +88,7 @@ def _load_lyric_techniques() -> dict[str, Any]:
         logger.warning("Failed to load lyric techniques from %s: %s", _LYRIC_TECHNIQUES_PATH, exc)
         return {}
 
+
 def _load_presets() -> dict[str, Any]:
     try:
         text = _MUSIC_PROMPT_PRESETS_PATH.read_text(encoding="utf-8")
@@ -94,6 +99,7 @@ def _load_presets() -> dict[str, Any]:
     except Exception as exc:
         logger.warning("Failed to load music prompt presets from %s: %s", _MUSIC_PROMPT_PRESETS_PATH, exc)
         return {}
+
 
 def _load_pronunciation_guide() -> tuple[list[str], dict[str, str]]:
     """Load pronunciation hardening rules + per-engine notes.
@@ -114,9 +120,10 @@ def _load_pronunciation_guide() -> tuple[list[str], dict[str, str]]:
     notes = {k: str(v) for k, v in per_engine.items() if isinstance(v, str)}
     return rules, notes
 
+
 _PRON_HARDENING_RULES, _PRON_ENGINE_NOTES = _load_pronunciation_guide()
 
-LYRIC_TECHNIQUES: dict[str, dict[str, Any]] = _load_lyric_techniques()
+
 MUSIC_PROMPT_PRESETS: dict[str, list[dict[str, Any]]] = _load_presets()
 
 # Fallback generic styles are always available even if the JSON fails to load.

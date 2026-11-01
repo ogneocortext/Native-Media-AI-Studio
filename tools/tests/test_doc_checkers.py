@@ -14,6 +14,7 @@ Exit 0 = all cases detected, 1 = a checker missed something.
 """
 
 import os
+import pathlib
 import subprocess
 import sys
 import time
@@ -43,42 +44,34 @@ class Mutated:
     def __init__(self, rel):
         self.rel = rel
         self.path = os.path.join(ROOT, rel.replace("/", os.sep))
-        with open(self.path, "rb") as f:
-            self.orig = f.read()
+        self.orig = pathlib.Path(self.path).read_bytes()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
-        with open(self.path, "wb") as f:
-            f.write(self.orig)
+        pathlib.Path(self.path).write_bytes(self.orig)
         return False
 
     def sub(self, old, new, count=1):
-        with open(self.path, "rb") as f:
-            data = f.read()
+        data = pathlib.Path(self.path).read_bytes()
         if old.encode("utf-8") not in data:
             return False
         data = data.replace(old.encode("utf-8"), new.encode("utf-8"), count)
-        with open(self.path, "wb") as f:
-            f.write(data)
+        pathlib.Path(self.path).write_bytes(data)
         return True
 
     def write(self, data):
-        with open(self.path, "wb") as f:
-            f.write(data)
+        pathlib.Path(self.path).write_bytes(data)
         return True
 
     def crlf(self):
-        with open(self.path, "rb") as f:
-            data = f.read()
+        data = pathlib.Path(self.path).read_bytes()
         return self.write(data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
 
     def append(self, text):
-        with open(self.path, "rb") as f:
-            data = f.read()
+        data = pathlib.Path(self.path).read_bytes()
         return self.write(data + text.encode("utf-8"))
-
 
 
 CASES = [
@@ -163,7 +156,7 @@ UNTRACKED_PROBES = []
 GITIGNORE = os.path.join(ROOT, ".gitignore")
 
 
-def _untrack_then(rel, unignore=False):
+def _untrack_then(rel, *, unignore=False):
     """Remove a path from the index so the checker sees it as untracked.
 
     `unignore=True` additionally strips any `!` re-include for that path from
@@ -188,15 +181,13 @@ def _untrack_then(rel, unignore=False):
     UNTRACKED_PROBES.append(rel)
 
     if unignore and os.path.exists(GITIGNORE):
-        with open(GITIGNORE, "rb") as f:
-            original = f.read()
+        original = pathlib.Path(GITIGNORE).read_bytes()
         GITIGNORE_PROBES.append(original)
         stripped = b"\n".join(
             line for line in original.split(b"\n")
             if line.strip() not in (b"!" + rel.replace("/", "\\").encode(),
                                     b"!" + rel.encode()))
-        with open(GITIGNORE, "wb") as f:
-            f.write(stripped)
+        pathlib.Path(GITIGNORE).write_bytes(stripped)
     return True
 
 
@@ -266,8 +257,7 @@ def restore_untracked_probes():
     must not leave behind.
     """
     while GITIGNORE_PROBES:
-        with open(GITIGNORE, "wb") as f:
-            f.write(GITIGNORE_PROBES.pop())
+        pathlib.Path(GITIGNORE).write_bytes(GITIGNORE_PROBES.pop())
     failed = []
     while UNTRACKED_PROBES:
         rel = UNTRACKED_PROBES.pop()

@@ -258,9 +258,7 @@ def main():
         try:
             if os.path.getsize(disk_path(rel)) > MAX_BYTES:
                 continue
-            with open(disk_path(rel), encoding="utf-8",
-                      errors="replace") as fh:
-                text = fh.read()
+            text = Path(disk_path(rel)).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         scanned += 1
@@ -297,13 +295,11 @@ def main():
                 if args.fix and hints:
                     disk = disk_path(rel)
                     try:
-                        with open(disk, encoding="utf-8", errors="replace") as fh:
-                            text = fh.read()
+                        text = Path(disk).read_text(encoding="utf-8", errors="replace")
                         count = text.count(dangling)
                         if count:
                             text = text.replace(dangling, hints[0])
-                            with open(disk, "w", encoding="utf-8", newline="") as fh:
-                                fh.write(text)
+                            Path(disk).write_text(text, encoding="utf-8", newline="")
                             print(f"  FIXED {rel}:{lineno} '{dangling}' -> '{hints[0]}' ({count} replacement(s))")
                     except OSError:
                         pass  # leave unfixable files alone

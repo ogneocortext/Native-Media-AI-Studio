@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
 
 from ..core.config import PROJECT_ROOT
 
@@ -119,7 +120,7 @@ def search_tags(query: str, limit: int = DEFAULT_LIMIT) -> list[str]:
         if tier is not None:
             # (tier, index) keeps site order as the tie-break, not the alphabet.
             scored.append((tier, index, tag))
-    scored.sort(key=lambda r: (r[0], r[1]))
+    scored.sort(key=operator.itemgetter(0, 1))
     return [tag for _tier_i, _i, tag in scored[:limit]]
 
 

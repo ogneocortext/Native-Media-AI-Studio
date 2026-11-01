@@ -21,6 +21,7 @@ also returned by ``--json``.
 import argparse
 import json
 import os
+import pathlib
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,10 +33,8 @@ def _compare(src: str, dest: str) -> str:
     if not os.path.exists(dest):
         return "MISSING"
     try:
-        with open(src, "rb") as f:
-            canonical = f.read()
-        with open(dest, "rb") as f:
-            installed = f.read()
+        canonical = pathlib.Path(src).read_bytes()
+        installed = pathlib.Path(dest).read_bytes()
     except OSError:
         return "DIFFERS"
     if canonical != installed:

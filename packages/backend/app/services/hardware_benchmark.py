@@ -12,8 +12,8 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -24,12 +24,12 @@ from ..core.hardware_profile import DEFAULT_PROFILE_PATH, HardwareProfile, load_
 logger = logging.getLogger(__name__)
 
 
-class BenchmarkEngine(str, Enum):
+class BenchmarkEngine(StrEnum):
     OLLAMA = "ollama"
     COMFYUI = "comfyui"
 
 
-class BenchmarkStatus(str, Enum):
+class BenchmarkStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -109,7 +109,7 @@ class HardwareBenchmarkRunner:
             return await self._run_locked(request)
 
     async def _run_locked(self, request: BenchmarkRequest) -> BenchmarkResult:
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         started = time.perf_counter()
         model = request.model
         samples: list[dict[str, Any]] = []
@@ -155,7 +155,7 @@ class HardwareBenchmarkRunner:
                 if successful_iterations == request.iterations
                 else BenchmarkStatus.FAILED
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             status = BenchmarkStatus.TIMED_OUT
             error = f"benchmark timed out after {self._timeout_seconds(request)} seconds"
         except Exception as exc:  # Adapter failures should become API results.
@@ -163,7 +163,7 @@ class HardwareBenchmarkRunner:
             error = f"{type(exc).__name__}: {exc}"
             logger.exception("Hardware benchmark failed for engine=%s", request.engine.value)
         finally:
-            completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(UTC)
             duration_ms = (time.perf_counter() - started) * 1000.0
             gpu_after = await self._gpu_snapshot()
             metrics = self._aggregate_metrics(samples, gpu_before, gpu_after)

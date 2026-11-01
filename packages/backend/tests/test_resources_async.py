@@ -197,7 +197,7 @@ async def test_check_all_includes_vram_details():
 BACKEND_APP = BACKEND_ROOT / "app"
 
 
-class _FakeCompleted:
+class _FakeCompleted:  # noqa: B903
     """Stand-in for subprocess.CompletedProcess."""
 
     def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
@@ -333,4 +333,3 @@ def test_no_api_module_calls_subprocess_run_directly():
         + ", ".join(offenders)
         + " — use services.subprocess_runner.run_subprocess_thread"
     )
-

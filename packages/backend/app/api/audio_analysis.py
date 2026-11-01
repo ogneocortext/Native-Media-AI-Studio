@@ -18,11 +18,16 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
+import operator
+from itertools import starmap
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
 from ..core.config import PROJECT_ROOT
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,6 @@ def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
     is below its token threshold.
     """
     return index % beats_per_bar == 0
-
 
 
 def _check_backend_available(backend: str) -> None:
@@ -496,7 +500,7 @@ def _generate_sections_from_analysis(
         merged = [0.0, float(duration)] if duration > 0 else [0.0, 0.0]
 
     # Energy per section (computed once, reused for capping + classification).
-    all_energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=False)]
+    all_energies = list(starmap(_rms_mean, zip(merged, merged[1:], strict=False)))
 
     # Cap number of sections for the wizard UI (8 max).
     if len(merged) > 9:
@@ -505,6 +509,7 @@ def _generate_sections_from_analysis(
         keep = [0.0, duration]
         # Pick interior boundaries with largest energy deltas.
         interior = list(range(1, len(merged) - 1))
+
         def _boundary_score(idx: int) -> float:
             prev = abs(all_energies[idx] - all_energies[idx - 1]) if idx > 0 else 0.0
             nxt = abs(all_energies[idx] - all_energies[idx + 1]) if idx < len(all_energies) - 1 else 0.0
@@ -515,7 +520,7 @@ def _generate_sections_from_analysis(
         keep = sorted(set(keep))
         merged = keep
         # Recompute energies after trimming.
-        all_energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=False)]
+        all_energies = list(starmap(_rms_mean, zip(merged, merged[1:], strict=False)))
 
     # Step 3: classify each section.
     sections = []
@@ -526,7 +531,7 @@ def _generate_sections_from_analysis(
     sorted_e = sorted(all_energies)
     p33 = sorted_e[len(sorted_e) // 3] if sorted_e else 0
     p66 = sorted_e[(len(sorted_e) * 2) // 3] if sorted_e else 0
-    onset_densities = [_onset_density(s, e) for s, e in zip(merged, merged[1:], strict=False)]
+    onset_densities = list(starmap(_onset_density, zip(merged, merged[1:], strict=False)))
     max_onset = max(onset_densities) if onset_densities else 1
     num_sections = len(merged) - 1
 
@@ -646,7 +651,7 @@ async def _generate_sections_llm(
     # Summarize energy curve (downsample to ~20 points for prompt)
     if rms_energy and len(rms_energy) > 20:
         step = len(rms_energy) / 20
-        sampled = [rms_energy[int(i*step)] for i in range(20)]
+        sampled = [rms_energy[int(i * step)] for i in range(20)]
     else:
         sampled = rms_energy or []
     energy_str = ", ".join(f"{v:.2f}" for v in sampled[:20])
@@ -658,7 +663,7 @@ async def _generate_sections_llm(
         "Rules: 4-8 sections, chronological, non-overlapping, cover 0..duration, "
         "energy 0-1 correlates with loudness. Use chorus for peaks, intro/outro for edges."
     )
-    user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: '+lyrics_hint[:200] if lyrics_hint else ''}"
+    user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: ' + lyrics_hint[:200] if lyrics_hint else ''}"
     from ..core import ollama_client as _oc
     from ..core.text import strip_code_fences
     for model in await _section_models_installed(app_config.default_model):
@@ -697,7 +702,7 @@ async def _generate_sections_llm(
                     if not isinstance(s, dict):
                         continue
                     typ = str(s.get("type", "verse")).lower()
-                    if typ not in ("intro","verse","chorus","bridge","outro","pre-chorus","drop"):
+                    if typ not in ("intro", "verse", "chorus", "bridge", "outro", "pre-chorus", "drop"):
                         typ = "verse"
                     out.append({
                         "type": typ,
@@ -707,7 +712,7 @@ async def _generate_sections_llm(
                     })
                 if not out:
                     continue
-                out.sort(key=lambda x: x["start"])
+                out.sort(key=operator.itemgetter("start"))
                 # Ensure coverage
                 out[0]["start"] = 0.0
                 out[-1]["end"] = round(duration, 2)

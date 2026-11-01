@@ -7,6 +7,7 @@ import io
 import json
 import os
 import os.path as osp
+import pathlib
 import queue
 import re
 import shutil
@@ -49,7 +50,7 @@ RODIN_FREE_TRIAL_KEY = "vibecoding"
 REQ_HEADERS = requests.utils.default_headers()
 REQ_HEADERS.update({"User-Agent": "blender-mcp"})
 
-#region Manual edit capture
+# region Manual edit capture
 # Records what the human does in Blender while an MCP session is live.
 
 MAX_EDIT_EVENTS = 256
@@ -311,7 +312,7 @@ def _unregister_edit_capture_handlers():
     for handler_list, fn in handlers:
         with suppress(ValueError):
             handler_list.remove(fn)
-#endregion
+# endregion
 
 
 def get_blendermcp_addon_preferences(context=None):
@@ -320,6 +321,7 @@ def get_blendermcp_addon_preferences(context=None):
         context = bpy.context
     addon = context.preferences.addons.get(__name__)
     return addon.preferences if addon else None
+
 
 class BlenderMCPServer:
     def __init__(self, host='localhost', port=9876):
@@ -695,8 +697,6 @@ class BlenderMCPServer:
                 return {"status": "error", "message": str(e)}
         else:
             return {"status": "error", "message": f"Unknown command type: {cmd_type}"}
-
-
 
     def get_addon_info(self):
         """Version/capability handshake for the MCP server (and install tooling)."""
@@ -1179,8 +1179,6 @@ class BlenderMCPServer:
         except Exception as e:
             raise Exception(f"Code execution error: {str(e)}") from e
 
-
-
     def get_polyhaven_categories(self, asset_type):
         """Get categories for a specific asset type from Polyhaven"""
         try:
@@ -1266,7 +1264,7 @@ class BlenderMCPServer:
                         node_tree = world.node_tree
 
                         # Clear existing nodes
-                        for node in node_tree.nodes:
+                        for node in list(node_tree.nodes):
                             node_tree.nodes.remove(node)
 
                         # Create nodes
@@ -1387,7 +1385,7 @@ class BlenderMCPServer:
                     links = mat.node_tree.links
 
                     # Clear default nodes
-                    for node in nodes:
+                    for node in list(nodes):
                         nodes.remove(node)
 
                     # Create output node
@@ -1486,8 +1484,7 @@ class BlenderMCPServer:
                         if response.status_code != 200:
                             return {"error": f"Failed to download model: {response.status_code}"}
 
-                        with open(main_file_path, "wb") as f:
-                            f.write(response.content)
+                        pathlib.Path(main_file_path).write_bytes(response.content)
 
                         # Check for included files and download them
                         if "include" in file_info and file_info["include"]:
@@ -1516,8 +1513,7 @@ class BlenderMCPServer:
                                 # Download the included file
                                 include_response = requests.get(include_url, headers=REQ_HEADERS)
                                 if include_response.status_code == 200:
-                                    with open(include_file_path, "wb") as f:
-                                        f.write(include_response.content)
+                                    pathlib.Path(include_file_path).write_bytes(include_response.content)
                                 else:
                                     print(f"Failed to download included file: {include_path}")
 
@@ -1832,7 +1828,7 @@ class BlenderMCPServer:
 
             # CRITICAL: Make the object active and select it
             bpy.context.view_layer.objects.active = obj
-            obj.select_set(True)
+            obj.select_set(select=True)
 
             # CRITICAL: Force Blender to update the material
             bpy.context.view_layer.update()
@@ -1893,7 +1889,7 @@ class BlenderMCPServer:
             consent = False
         return {"consent": consent}
 
-    def set_telemetry_consent(self, consent=False):
+    def set_telemetry_consent(self, *, consent=False):
         """Write the telemetry consent preference.
 
         Only reached when the user answered an elicitation prompt in their MCP
@@ -1930,7 +1926,7 @@ class BlenderMCPServer:
                             3. Restart the connection to Claude"""
         }
 
-    #region Hyper3D
+    # region Hyper3D
     def get_hyper3d_status(self):
         """Get the current status of Hyper3D Rodin integration"""
         enabled = bpy.context.scene.blendermcp_use_hyper3d
@@ -1972,8 +1968,8 @@ class BlenderMCPServer:
 
     def create_rodin_job_main_site(
             self,
-            text_prompt: str=None,
-            images: list[tuple[str, str]]=None,
+            text_prompt: str = None,
+            images: list[tuple[str, str]] = None,
             bbox_condition=None
         ):
         try:
@@ -2008,8 +2004,8 @@ class BlenderMCPServer:
 
     def create_rodin_job_fal_ai(
             self,
-            text_prompt: str=None,
-            images: list[tuple[str, str]]=None,
+            text_prompt: str = None,
+            images: list[tuple[str, str]] = None,
             bbox_condition=None
         ):
         try:
@@ -2094,7 +2090,6 @@ class BlenderMCPServer:
 
         # Get all imported objects
         imported_objects = list(set(bpy.data.objects) - existing_objects)
-        # imported_objects = [obj for obj in bpy.context.view_layer.objects if obj.select_get()]
 
         if not imported_objects:
             print("Error: No objects were imported.")
@@ -2286,9 +2281,9 @@ class BlenderMCPServer:
             }
         except Exception as e:
             return {"succeed": False, "error": str(e)}
-    #endregion
+    # endregion
 
-    #region Sketchfab API
+    # region Sketchfab API
     def get_sketchfab_status(self):
         """Get the current status of Sketchfab integration"""
         enabled = bpy.context.scene.blendermcp_use_sketchfab
@@ -2351,7 +2346,7 @@ class BlenderMCPServer:
                             4. Restart the connection to Claude"""
             }
 
-    def search_sketchfab_models(self, query, categories=None, count=20, downloadable=True):
+    def search_sketchfab_models(self, query, categories=None, count=20, *, downloadable=True):
         """Search for models on Sketchfab based on query and optional filters"""
         try:
             api_key = self._get_sketchfab_api_key()
@@ -2375,7 +2370,6 @@ class BlenderMCPServer:
             headers = {
                 "Authorization": f"Token {api_key}"
             }
-
 
             # Use the search endpoint as specified in the API documentation
             response = requests.get(
@@ -2499,7 +2493,7 @@ class BlenderMCPServer:
             traceback.print_exc()
             return {"error": f"Failed to get model preview: {str(e)}"}
 
-    def download_sketchfab_model(self, uid, normalize_size=False, target_size=1.0):
+    def download_sketchfab_model(self, uid, *, normalize_size=False, target_size=1.0):
         """Download a model from Sketchfab by its UID
 
         Parameters:
@@ -2557,8 +2551,7 @@ class BlenderMCPServer:
             temp_dir = tempfile.mkdtemp()
             zip_file_path = os.path.join(temp_dir, f"{uid}.zip")
 
-            with open(zip_file_path, "wb") as f:
-                f.write(model_response.content)
+            pathlib.Path(zip_file_path).write_bytes(model_response.content)
 
             # Extract the zip file with enhanced security
             with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
@@ -2591,7 +2584,7 @@ class BlenderMCPServer:
                 zip_ref.extractall(temp_dir)
 
             # Find the main glTF file
-            gltf_files = [f for f in os.listdir(temp_dir) if f.endswith('.gltf') or f.endswith('.glb')]
+            gltf_files = [f for f in os.listdir(temp_dir) if f.endswith(('.gltf', '.glb'))]
 
             if not gltf_files:
                 with suppress(Exception):
@@ -2721,9 +2714,9 @@ class BlenderMCPServer:
             import traceback
             traceback.print_exc()
             return {"error": f"Failed to download model: {str(e)}"}
-    #endregion
+    # endregion
 
-    #region Hunyuan3D
+    # region Hunyuan3D
     def get_hunyuan3d_status(self):
         """Get the current status of Hunyuan3D integration"""
         enabled = bpy.context.scene.blendermcp_use_hunyuan3d
@@ -2886,7 +2879,7 @@ class BlenderMCPServer:
             version = "2025-05-13"
             region = "ap-guangzhou"
 
-            head_params={
+            head_params = {
                 "Action": action,
                 "Version": version,
                 "Region": region,
@@ -2908,8 +2901,7 @@ class BlenderMCPServer:
                 else:
                     try:
                         # Convert to Base64 format
-                        with open(image, "rb") as f:
-                            image_base64 = base64.b64encode(f.read()).decode("ascii")
+                        image_base64 = base64.b64encode(pathlib.Path(image).read_bytes()).decode("ascii")
                         data["ImageBase64"] = image_base64
                     except Exception as e:
                         return {"error": f"Image encoding failed: {str(e)}"}
@@ -2919,8 +2911,8 @@ class BlenderMCPServer:
 
             response = requests.post(
                 endpoint,
-                headers = headers,
-                data = json.dumps(data)
+                headers=headers,
+                data=json.dumps(data)
             )
 
             if response.status_code == 200:
@@ -2973,15 +2965,14 @@ class BlenderMCPServer:
                 else:
                     try:
                         # Convert to Base64 format
-                        with open(image, "rb") as f:
-                            image_base64 = base64.b64encode(f.read()).decode("ascii")
+                        image_base64 = base64.b64encode(pathlib.Path(image).read_bytes()).decode("ascii")
                         data["image"] = image_base64
                     except Exception as e:
                         return {"error": f"Image encoding failed: {str(e)}"}
 
             response = requests.post(
                 f"{base_url}/generate",
-                json = data,
+                json=data,
             )
 
             if response.status_code != 200:
@@ -3010,7 +3001,6 @@ class BlenderMCPServer:
             print(f"An error occurred: {e}")
             return {"error": str(e)}
 
-
     def poll_hunyuan_job_status(self, *args, **kwargs):
         return self.poll_hunyuan_job_status_ai(*args, **kwargs)
 
@@ -3032,7 +3022,7 @@ class BlenderMCPServer:
             version = "2025-05-13"
             region = "ap-guangzhou"
 
-            head_params={
+            head_params = {
                 "Action": action,
                 "Version": version,
                 "Region": region,
@@ -3079,8 +3069,7 @@ class BlenderMCPServer:
                 glb_response = requests.get(zip_file_url, stream=True)
                 glb_response.raise_for_status()
                 with open(glb_path, "wb") as f:
-                    for chunk in glb_response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                    f.writelines(glb_response.iter_content(chunk_size=8192))
                 bpy.ops.import_scene.gltf(filepath=glb_path)
                 imported_objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
                 if not imported_objs:
@@ -3111,8 +3100,7 @@ class BlenderMCPServer:
             zip_response = requests.get(zip_file_url, stream=True)
             zip_response.raise_for_status()
             with open(zip_file_path, "wb") as f:
-                for chunk in zip_response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+                f.writelines(zip_response.iter_content(chunk_size=8192))
             with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
                 # Mirror the Sketchfab zip-slip checks before extractall.
                 abs_temp_dir = os.path.abspath(temp_dir)
@@ -3136,7 +3124,7 @@ class BlenderMCPServer:
                     obj_file_path = osp.join(temp_dir, file)
             if not osp.exists(obj_file_path):
                 return {"succeed": False, "error": "OBJ file not found after extraction"}
-            if bpy.app.version>=(4, 0, 0):
+            if bpy.app.version >= (4, 0, 0):
                 bpy.ops.wm.obj_import(filepath=obj_file_path)
             else:
                 bpy.ops.import_scene.obj(filepath=obj_file_path)
@@ -3160,7 +3148,8 @@ class BlenderMCPServer:
         finally:
             with suppress(Exception):
                 shutil.rmtree(temp_dir)
-    #endregion
+    # endregion
+
 
 # Blender Addon Preferences
 class BLENDERMCP_AddonPreferences(bpy.types.AddonPreferences):
@@ -3242,6 +3231,7 @@ class BLENDERMCP_AddonPreferences(bpy.types.AddonPreferences):
         cred_box.prop(self, "hunyuan3d_secret_key", text="Hunyuan3D SecretKey")
         cred_box.prop(self, "hunyuan3d_api_url", text="Hunyuan3D API URL")
 
+
 # Blender UI Panel
 class BLENDERMCP_PT_Panel(bpy.types.Panel):
     bl_label = "Blender MCP"
@@ -3312,6 +3302,7 @@ class BLENDERMCP_PT_Panel(bpy.types.Panel):
         col.label(text="bit.ly/blender-mcp-call")
         col.label(text="(we'll credit you in the repo!)")
 
+
 # Operator to set Hyper3D API Key
 class BLENDERMCP_OT_SetFreeTrialHyper3DAPIKey(bpy.types.Operator):
     bl_idname = "blendermcp.set_hyper3d_free_trial_api_key"
@@ -3332,6 +3323,7 @@ class BLENDERMCP_OT_SetFreeTrialHyper3DAPIKey(bpy.types.Operator):
         self.report({'INFO'}, "API Key set successfully!")
         return {'FINISHED'}
 
+
 # Operator to start the server
 class BLENDERMCP_OT_StartServer(bpy.types.Operator):
     bl_idname = "blendermcp.start_server"
@@ -3351,6 +3343,7 @@ class BLENDERMCP_OT_StartServer(bpy.types.Operator):
 
         return {'FINISHED'}
 
+
 # Operator to stop the server
 class BLENDERMCP_OT_StopServer(bpy.types.Operator):
     bl_idname = "blendermcp.stop_server"
@@ -3369,6 +3362,7 @@ class BLENDERMCP_OT_StopServer(bpy.types.Operator):
 
         return {'FINISHED'}
 
+
 # Operator to open Terms and Conditions
 class BLENDERMCP_OT_OpenTerms(bpy.types.Operator):
     bl_idname = "blendermcp.open_terms"
@@ -3386,6 +3380,7 @@ class BLENDERMCP_OT_OpenTerms(bpy.types.Operator):
             self.report({'ERROR'}, f"Could not open Terms and Conditions: {str(e)}")
 
         return {'FINISHED'}
+
 
 # Registration functions
 def register():
@@ -3544,6 +3539,7 @@ def register():
 
     print("BlenderMCP addon registered")
 
+
 def unregister():
     _unregister_edit_capture_handlers()
 
@@ -3579,6 +3575,7 @@ def unregister():
     del bpy.types.Scene.blendermcp_hunyuan3d_texture
 
     print("BlenderMCP addon unregistered")
+
 
 if __name__ == "__main__":
     register()

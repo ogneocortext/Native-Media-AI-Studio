@@ -50,12 +50,12 @@ class TestFalsePositives:
     def _index(self):
         idx = DocIndex()
         idx.add(
-            "video-generation.md", "Video Generation", ["video"], [], True,
-            "vault", "VRAM usage over every video render and the decoder.",
+            "video-generation.md", "Video Generation", ["video"], [], "vault",
+            "VRAM usage over every video render and the decoder.", in_vault=True,
         )
         idx.add(
-            "backend-debugging.md", "Backend Debugging", ["backend"], [], True,
-            "vault", "The catalog and dialog logic live in the logger.",
+            "backend-debugging.md", "Backend Debugging", ["backend"], [], "vault",
+            "The catalog and dialog logic live in the logger.", in_vault=True,
         )
         idx.finalize()
         return idx
@@ -80,10 +80,10 @@ class TestFalsePositives:
 class TestRanking:
     def _index(self):
         idx = DocIndex()
-        idx.add("queue-manager.md", "Queue Manager", ["queue"], [], True,
-                "vault", "Brief.")
-        idx.add("unrelated.md", "Audio Notes", ["audio"], [], True, "vault",
-                "The queue of pending jobs is a queue of work items in the queue.")
+        idx.add("queue-manager.md", "Queue Manager", ["queue"], [], "vault",
+                "Brief.", in_vault=True)
+        idx.add("unrelated.md", "Audio Notes", ["audio"], [], "vault",
+                "The queue of pending jobs is a queue of work items in the queue.", in_vault=True)
         idx.finalize()
         return idx
 
@@ -104,8 +104,8 @@ class TestRanking:
 
     def test_vault_only_filter(self):
         idx = DocIndex()
-        idx.add("in.md", "In Vault", ["x"], [], True, "vault", "content here")
-        idx.add("out.md", "Outside Vault", ["x"], [], False, "guide", "content here")
+        idx.add("in.md", "In Vault", ["x"], [], "vault", "content here", in_vault=True)
+        idx.add("out.md", "Outside Vault", ["x"], [], "guide", "content here", in_vault=False)
         idx.finalize()
         paths = {h["path"] for h in idx.search("content", vault_only=True)}
         assert paths == {"in.md"}
@@ -113,13 +113,13 @@ class TestRanking:
     def test_limit_respected(self):
         idx = DocIndex()
         for i in range(10):
-            idx.add(f"d{i}.md", f"Doc {i}", ["t"], [], True, "vault", "shared term body")
+            idx.add(f"d{i}.md", f"Doc {i}", ["t"], [], "vault", "shared term body", in_vault=True)
         idx.finalize()
         assert len(idx.search("shared", limit=3)) == 3
 
     def test_no_match_returns_empty(self):
         idx = DocIndex()
-        idx.add("a.md", "A", [], [], True, "vault", "alpha")
+        idx.add("a.md", "A", [], [], "vault", "alpha", in_vault=True)
         idx.finalize()
         assert idx.search("zzzznotpresent") == []
 
@@ -127,8 +127,8 @@ class TestRanking:
 class TestIndexStats:
     def test_counts(self):
         idx = DocIndex()
-        idx.add("a.md", "Alpha Doc", ["t"], [], True, "vault", "alpha body")
-        idx.add("b.md", "Beta Doc", ["t"], [], True, "vault", "beta body")
+        idx.add("a.md", "Alpha Doc", ["t"], [], "vault", "alpha body", in_vault=True)
+        idx.add("b.md", "Beta Doc", ["t"], [], "vault", "beta body", in_vault=True)
         idx.finalize()
         assert len(idx) == 2
         assert idx.doc_count == 2

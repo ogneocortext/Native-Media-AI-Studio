@@ -88,7 +88,7 @@ def get_audio_file(audio_id: str) -> dict[str, Any] | None:
     return None
 
 
-def get_audio_files(limit: int = 100, distinct: bool = False) -> list[dict[str, Any]]:
+def get_audio_files(limit: int = 100, *, distinct: bool = False) -> list[dict[str, Any]]:
     """Get recent audio files."""
     with get_db() as conn:
         if distinct:

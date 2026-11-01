@@ -61,9 +61,9 @@ def report(rev: str, limit: int) -> None:
     print(f"=== {rev} ===")
     print(f"{'SIZE':>12}  PATH")
     for sha, size in sorted(sizes.items(), key=lambda kv: -kv[1])[:limit]:
-        print(f"{size/1048576:9.1f} MB  {names.get(sha, '?')[:100]}")
+        print(f"{size / 1048576:9.1f} MB  {names.get(sha, '?')[:100]}")
     total = sum(sizes.values())
-    print(f"blobs: {len(sizes)}   total: {total/1073741824:.2f} GiB\n")
+    print(f"blobs: {len(sizes)}   total: {total / 1073741824:.2f} GiB\n")
 
 
 def main() -> int:

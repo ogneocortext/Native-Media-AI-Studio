@@ -62,6 +62,7 @@ def encode_for_analysis(img: Image.Image) -> str:
     resized.save(out, format='JPEG', quality=JPEG_QUALITY)
     return base64.b64encode(out.getvalue()).decode()
 
+
 class ScreenshotCapture:
     def __init__(self, monitor: int = 1):
         self.monitor = monitor
@@ -93,6 +94,7 @@ class ScreenshotCapture:
         except Exception as e:
             logger.error(f'Failed to capture screenshot: {e}')
             raise
+
 
 class GemmaAnalyzer:
     def __init__(self, base_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b-it-qat'):
@@ -133,12 +135,13 @@ class GemmaAnalyzer:
                 last_error = f'{candidate}: {e}'
         return {'success': False, 'error': f'All analysis models failed ({last_error})', 'model': self.model}
 
+
 class DesignFeedbackService:
     def __init__(self, ollama_url: str = 'http://localhost:11434', model: str = 'gemma4:e2b-it-qat', monitor: int = 1):
         self.screenshot = ScreenshotCapture(monitor=monitor)
         self.analyzer = GemmaAnalyzer(base_url=ollama_url, model=model)
 
-    async def capture_and_analyze(self, output_path: str | None = None, prompt: str | None = None, save_screenshot: bool = True) -> dict[str, Any]:
+    async def capture_and_analyze(self, output_path: str | None = None, prompt: str | None = None, *, save_screenshot: bool = True) -> dict[str, Any]:
         if save_screenshot and not output_path:
             timestamp = int(time.time())
             output_path = f'screenshot_{timestamp}.png'
@@ -146,6 +149,7 @@ class DesignFeedbackService:
         logger.info(f'Analyzing screenshot with {self.analyzer.model}...')
         analysis = await self.analyzer.analyze_image(screenshot_data['image_base64'], prompt)
         return {'screenshot': {'path': screenshot_data['image_path'], 'width': screenshot_data['width'], 'height': screenshot_data['height'], 'size_bytes': screenshot_data['size_bytes']}, 'analysis': analysis, 'success': analysis.get('success', False)}
+
 
 class DesignFeedbackHandler(BaseHTTPRequestHandler):
     service = None
@@ -191,6 +195,7 @@ class DesignFeedbackHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+
 def run_server(port: int = 8080):
     DesignFeedbackHandler.service = DesignFeedbackService()
     # ThreadingHTTPServer: one slow analysis must not starve /health probes
@@ -203,6 +208,7 @@ def run_server(port: int = 8080):
     except KeyboardInterrupt:
         logger.info('Server stopped')
         server.shutdown()
+
 
 def main():
     parser = argparse.ArgumentParser(description='Design Feedback Agent - Screenshot Analysis with Gemma4')
@@ -241,6 +247,7 @@ def main():
         print(json.dumps(result, indent=2))
     else:
         parser.print_help()
+
 
 if __name__ == '__main__':
     main()

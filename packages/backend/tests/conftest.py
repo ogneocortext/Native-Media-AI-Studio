@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import getpass
 import tempfile
-from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
@@ -27,6 +26,8 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(BACKEND_ROOT) not in __import__("sys").path:
     __import__("sys").path.insert(0, str(BACKEND_ROOT))
 
+from typing import TYPE_CHECKING
+
 from app.adapters.registry import AdapterRegistry, BaseAdapter  # noqa: E402
 from app.core import database as database_module  # noqa: E402
 from app.main import app  # noqa: E402
@@ -34,6 +35,9 @@ from app.models.job import Job, JobStatus, JobType  # noqa: E402
 from app.queue.manager import QueueManager  # noqa: E402
 from app.sse.handler import SSEManager  # noqa: E402
 from app.websocket.handler import ConnectionManager  # noqa: E402
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 # ===========================================================================
 # Temp-directory fallback
@@ -165,7 +169,7 @@ async def connection_manager_instance() -> ConnectionManager:
 class MockAdapter(BaseAdapter):
     """Minimal adapter that can be configured for health_check responses."""
 
-    def __init__(self, name: str = "mock", healthy: bool = True, base_url: str = "http://mock"):
+    def __init__(self, name: str = "mock", *, healthy: bool = True, base_url: str = "http://mock"):
         self._name = name
         self._healthy = healthy
         self._base_url = base_url

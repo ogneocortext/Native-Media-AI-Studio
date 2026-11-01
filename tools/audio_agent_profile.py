@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
 import os
 import shutil
 import subprocess
 import tempfile
+from itertools import starmap
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +35,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _t(v):
     """Safely round a tempo-like value to 1 decimal."""
@@ -146,7 +149,7 @@ def _build_sections(
     elif merged[-1] < duration:
         merged.append(duration)
 
-    energies = [_rms_mean(s, e) for s, e in zip(merged, merged[1:], strict=True)]
+    energies = list(starmap(_rms_mean, zip(merged, merged[1:], strict=True)))
     if not energies:
         return [{"type": "full", "start": 0.0, "end": round(duration, 2), "energy": 0.5, "confidence": 0.5}]
 
@@ -358,7 +361,7 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
         for tmpl, mode in ((major, "major"), (minor, "minor")):
             r = float(np.corrcoef(chroma_mean, np.roll(tmpl, i))[0, 1])
             key_scores.append((r, f"{names[i]} {mode}"))
-    key_scores.sort(key=lambda x: x[0], reverse=True)
+    key_scores.sort(key=operator.itemgetter(0), reverse=True)
     estimated_key = key_scores[0][1]
     # Correlation can be negative; clamp to [0, 1] so the description never
     # shows a misleading "-30% confidence".

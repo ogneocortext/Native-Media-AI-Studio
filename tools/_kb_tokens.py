@@ -30,7 +30,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # The heuristic: English prose averages ~4 characters per token, ~0.75 words
 # per token. Markdown is denser than prose (tables, code, punctuation), so a

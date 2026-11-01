@@ -9,6 +9,7 @@ which models happen to be installed, which differs per machine.
 from __future__ import annotations
 
 import pytest
+
 from app.core import ollama_client
 
 

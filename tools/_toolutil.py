@@ -32,10 +32,13 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # This file lives in <repo>/tools/.
 TOOLS_DIR = Path(__file__).resolve().parent
@@ -114,7 +117,7 @@ def human_bytes(n: float) -> str:
 
 
 @contextmanager
-def sqlite_readonly(db_path: Path) -> Iterator[sqlite3.Connection]:
+def sqlite_readonly(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
     """Open `db_path` read-only, as a URI.
 
     Read-only is the point: an audit tool that accidentally opens read-write can
@@ -169,5 +172,3 @@ def compact_sqlite(db_path: Path, tmp_suffix: str = ".compacting") -> bool:
     except (sqlite3.Error, OSError):
         tmp.unlink(missing_ok=True)
         return False
-
-

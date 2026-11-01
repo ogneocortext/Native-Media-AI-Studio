@@ -21,6 +21,7 @@ class FrontendLogRequest(BaseModel):
 
     entries: list[dict]
 
+
 _VALID_FRONTEND_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 _MAX_FRONTEND_ENTRIES = 100
 _MAX_FRONTEND_MESSAGE = 2000

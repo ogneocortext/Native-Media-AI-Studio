@@ -26,6 +26,7 @@ With --fix, safe issues are corrected in place (CRLF -> LF line endings).
 
 import glob
 import os
+import pathlib
 import re
 import sys
 from collections import Counter
@@ -94,8 +95,7 @@ def read(path):
     Decoding by BOM keeps the tool working and lets the report name the file;
     whether those files should be UTF-8 is a separate cleanup.
     """
-    with open(path, "rb") as f:
-        data = f.read()
+    data = pathlib.Path(path).read_bytes()
     if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
         return data.decode("utf-16", "replace")
     return data.decode("utf-8", "replace")
@@ -108,7 +108,7 @@ def frontmatter(path):
     re-reading from disk.
     """
     data = read(path)
-    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", data, re.S)
+    m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", data, re.DOTALL)
     if not m:
         return None, None, data
     block = m.group(1)
@@ -155,7 +155,7 @@ def check_unique_keys(name, block):
     stray list item after a scalar key reparses the whole block. Eight documents
     had this and nothing caught it, because most readers do not error.
     """
-    keys = re.findall(r"^([A-Za-z_][\w-]*):", block, re.M)
+    keys = re.findall(r"^([A-Za-z_][\w-]*):", block, re.MULTILINE)
     dupes = sorted({k for k in keys if keys.count(k) > 1})
     if dupes:
         errors.append("{}: duplicate frontmatter key(s): {}".format(name, ", ".join(dupes)))
@@ -338,7 +338,7 @@ def check_duplicate_basenames():
         warnings.append(f"duplicate basename '{name}' in {len(paths):d} locations ({kind}): {', '.join(paths)}")
 
 
-def check_line_endings(docs, fix=False):
+def check_line_endings(docs, *, fix=False):
     """Guard against CRLF creep.
 
     Rewriting a file with io.open(..., "w") on Windows converts every LF to
@@ -346,12 +346,10 @@ def check_line_endings(docs, fix=False):
     markdown with LF, so flag any library file that has picked up CRLF.
     """
     for _name, path in sorted(docs.items()):
-        with open(path, "rb") as f:
-            data = f.read()
+        data = pathlib.Path(path).read_bytes()
         if b"\r\n" in data:
             if fix:
-                with open(path, "wb") as f:
-                    f.write(data.replace(b"\r\n", b"\n"))
+                pathlib.Path(path).write_bytes(data.replace(b"\r\n", b"\n"))
                 warnings.append(f"{_name}: fixed CRLF -> LF line endings")
             else:
                 errors.append(f"{_name}: CRLF line endings (repo uses LF); "
@@ -369,7 +367,7 @@ def check_type_field(docs):
         block, _tags, data = frontmatter(path)
         if block is None:
             continue
-        m = re.search(r"^type:\s*(\S+)", block, re.M)
+        m = re.search(r"^type:\s*(\S+)", block, re.MULTILINE)
         if not m:
             warnings.append(f"{name}: missing `type:` frontmatter field "
                             f"({', '.join(PAGE_TYPES)})")
@@ -473,7 +471,7 @@ def report_all_docs():
         if tags and tags[0] not in CATEGORIES:
             mismatched.append((rel, tags[0]))
 
-    print("")
+    print()
     print("=" * 72)
     print("REPORT: markdown outside docs/knowledge-library/ (no checks applied)")
     print("=" * 72)
@@ -528,7 +526,7 @@ def main():
         return 1
     if args.scope == "all":
         report_all_docs()
-    print("")
+    print()
     print("all checks passed")
     return 0
 
@@ -544,4 +542,3 @@ def collect():
 
 if __name__ == "__main__":
     sys.exit(main())
-

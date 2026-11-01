@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
+import pathlib
+
 path = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\docs\knowledge-library\comfyui-workflows.md"
 
-with open(path, "rb") as f:
-    content = f.read()
+content = pathlib.Path(path).read_bytes()
 
 # Update date
 old = b"2026-09-09 \xe2\x80\x94"
@@ -96,7 +97,6 @@ This design ensures that:
 """
         content = content[:idx_marker] + new_sections + content[idx_marker:]
 
-    with open(path, "wb") as f:
-        f.write(content)
+    pathlib.Path(path).write_bytes(content)
 
     print("Successfully updated " + path)

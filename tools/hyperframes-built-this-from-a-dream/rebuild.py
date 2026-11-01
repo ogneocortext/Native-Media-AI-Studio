@@ -2,17 +2,20 @@
 """Regenerate all HyperFrames sub-compositions with correct applyFrame scripts."""
 
 import os
+import pathlib
 
 BASE = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream"
 V3_BASE = os.path.join(BASE, "v3")
 
+
 # Read DATA from original files
 def extract_data(path):
-    with open(path, encoding="utf-8") as f:
-        return f.read().strip()
+    return pathlib.Path(path).read_text(encoding="utf-8").strip()
+
 
 root_data = extract_data(os.path.join(BASE, "compositions", "data.json"))
 v3_data = extract_data(os.path.join(V3_BASE, "compositions", "data.json"))
+
 
 def sub_comp_html(comp_id, styles, markup, script, z_index="auto"):
     return f"""<!doctype html>
@@ -45,6 +48,7 @@ def sub_comp_html(comp_id, styles, markup, script, z_index="auto"):
 </template>
 </body>
 </html>"""
+
 
 # ─── ROOT PROJECT ────────────────────────────────────────────────────────────
 
@@ -196,7 +200,7 @@ canvas_html = sub_comp_html("canvas", """
     <canvas id="particleCanvas"></canvas>
 """, canvas_script, "4")
 
-# overlays (root)
+# overlays (root)  # noqa: ERA001
 overlays_script = """
     const DATA = window.DATA;
     const ENERGY = DATA.energy_curve;
@@ -246,7 +250,7 @@ overlays_html = sub_comp_html("overlays", """
     <div class="beat-flash" id="beatFlash"></div>
 """, overlays_script, "5")
 
-# orb (root)
+# orb (root)  # noqa: ERA001
 orb_script = """
     const DATA = window.DATA;
     const ENERGY = DATA.energy_curve;
@@ -477,8 +481,7 @@ for name, content in [
     ("lyrics.html", lyrics_html),
     ("labels.html", labels_html),
 ]:
-    with open(os.path.join(BASE, "compositions", name), "w", encoding="utf-8") as f:
-        f.write(content)
+    pathlib.Path(os.path.join(BASE, "compositions", name)).write_text(content, encoding="utf-8")
     print(f"Wrote root/{name}")
 
 # ─── V3 PROJECT ──────────────────────────────────────────────────────────────
@@ -714,8 +717,7 @@ for name, content in [
     ("lyrics.html", v3_lyrics_html),
     ("labels.html", v3_labels_html),
 ]:
-    with open(os.path.join(V3_BASE, "compositions", name), "w", encoding="utf-8") as f:
-        f.write(content)
+    pathlib.Path(os.path.join(V3_BASE, "compositions", name)).write_text(content, encoding="utf-8")
     print(f"Wrote v3/{name}")
 
 # Write hosts
@@ -869,15 +871,13 @@ root_host = root_host.replace("let activeSection = 'intro';\n    let targetColor
 root_host = root_host.replace("    const SECTION_COLORS = {\n      intro:     { orb: 'rgba(180,220,255,0.95)', ring: 'rgba(140,200,255,0.4)', bar1: 'rgba(60,150,255,0.85)', bar2: 'rgba(140,100,255,0.55)', grade: 'rgba(20,40,80,0.5)' },\n      verse:     { orb: 'rgba(200,240,220,0.95)', ring: 'rgba(120,220,180,0.4)',  bar1: 'rgba(60,200,160,0.85)', bar2: 'rgba(120,200,140,0.55)', grade: 'rgba(20,60,40,0.45)' },\n      chorus:    { orb: 'rgba(220,200,255,0.95)', ring: 'rgba(160,120,255,0.45)', bar1: 'rgba(140,100,255,0.9)', bar2: 'rgba(180,120,255,0.6)', grade: 'rgba(50,20,80,0.5)' },\n      drop:      { orb: 'rgba(255,200,180,0.98)', ring: 'rgba(255,140,100,0.5)',  bar1: 'rgba(255,100,80,0.9)',  bar2: 'rgba(255,160,80,0.65)', grade: 'rgba(80,25,15,0.55)' },\n      final_drop:{ orb: 'rgba(255,225,180,0.98)', ring: 'rgba(255,180,100,0.55)', bar1: 'rgba(255,160,60,0.95)', bar2: 'rgba(255,200,100,0.7)', grade: 'rgba(80,50,10,0.6)' },\n      outro:     { orb: 'rgba(180,200,220,0.9)',  ring: 'rgba(120,160,200,0.35)', bar1: 'rgba(100,160,220,0.75)', bar2: 'rgba(120,160,200,0.5)', grade: 'rgba(10,20,40,0.45)' },\n    };", "")
 root_host = root_host.replace("    const ENERGY = DATA.energy_curve;\n    const BEATS = DATA.beat_times;\n    const LYRICS = DATA.lyrics;\n    const DURATION = DATA.duration;\n    const SECTION_COLORS = {\n      intro:     { orb: 'rgba(180,220,255,0.95)', ring: 'rgba(140,200,255,0.4)', bar1: 'rgba(60,150,255,0.85)', bar2: 'rgba(140,100,255,0.55)', grade: 'rgba(20,40,80,0.5)' },\n      verse:     { orb: 'rgba(200,240,220,0.95)', ring: 'rgba(120,220,180,0.4)',  bar1: 'rgba(60,200,160,0.85)', bar2: 'rgba(120,200,140,0.55)', grade: 'rgba(20,60,40,0.45)' },\n      chorus:    { orb: 'rgba(220,200,255,0.95)', ring: 'rgba(160,120,255,0.45)', bar1: 'rgba(140,100,255,0.9)', bar2: 'rgba(180,120,255,0.6)', grade: 'rgba(50,20,80,0.5)' },\n      drop:      { orb: 'rgba(255,200,180,0.98)', ring: 'rgba(255,140,100,0.5)',  bar1: 'rgba(255,100,80,0.9)',  bar2: 'rgba(255,160,80,0.65)', grade: 'rgba(80,25,15,0.55)' },\n      final_drop:{ orb: 'rgba(255,225,180,0.98)', ring: 'rgba(255,180,100,0.55)', bar1: 'rgba(255,160,60,0.95)', bar2: 'rgba(255,200,100,0.7)', grade: 'rgba(80,50,10,0.6)' },\n      outro:     { orb: 'rgba(180,200,220,0.9)',  ring: 'rgba(120,160,200,0.35)', bar1: 'rgba(100,160,220,0.75)', bar2: 'rgba(120,160,200,0.5)', grade: 'rgba(10,20,40,0.45)' },\n    };\n    let activeSection = 'intro';\n    let targetColors = SECTION_COLORS['intro'];\n    window.COLOR_STATE = { liveColors: { ...targetColors } };\n\n", "")
 
-with open(os.path.join(BASE, "index.html"), "w", encoding="utf-8") as f:
-    f.write(root_host)
+pathlib.Path(os.path.join(BASE, "index.html")).write_text(root_host, encoding="utf-8")
 print("Wrote root/index.html")
 
 # v3 host
 v3_host = HOST_TMPL.replace("{{data}}", v3_data)
 
-with open(os.path.join(V3_BASE, "index.html"), "w", encoding="utf-8") as f:
-    f.write(v3_host)
+pathlib.Path(os.path.join(V3_BASE, "index.html")).write_text(v3_host, encoding="utf-8")
 print("Wrote v3/index.html")
 
 print("Done!")

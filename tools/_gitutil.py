@@ -23,7 +23,10 @@ files, so it is worth solving once here rather than per-tool.
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Bytes of a UTF-8 BOM. Kept as bytes because that is how it arrives from git
 # before any decoding, and decoding it with the wrong codec is the whole trap.

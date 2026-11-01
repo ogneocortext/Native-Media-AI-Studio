@@ -2,17 +2,19 @@
 """Refactor HyperFrames monolithic compositions into sub-compositions."""
 
 import os
+import pathlib
 
 BASE = r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\tools\hyperframes-built-this-from-a-dream"
 V3_BASE = os.path.join(BASE, "v3")
 
+
 # Read inline DATA from original files
 def extract_data(path):
-    with open(path, encoding="utf-8") as f:
-        content = f.read()
+    content = pathlib.Path(path).read_text(encoding="utf-8")
     start = content.index("const DATA = ") + len("const DATA = ")
     end = content.index(";", start)
     return content[start:end]
+
 
 root_data = extract_data(os.path.join(BASE, "index.html"))
 v3_data = extract_data(os.path.join(V3_BASE, "index.html"))
@@ -61,6 +63,7 @@ HELPERS_JS = """
     };
 """
 
+
 # Sub-composition file builder
 def sub_comp_html(comp_id, styles, markup, script, z_index="auto"):
     return f"""<!doctype html>
@@ -92,6 +95,7 @@ def sub_comp_html(comp_id, styles, markup, script, z_index="auto"):
 </template>
 </body>
 </html>"""
+
 
 # Backgrounds sub-comp
 BG_STYLES = """
@@ -548,8 +552,7 @@ for fname, (styles, markup, script, zidx) in comps.items():
         script=HELPERS_JS + script,
         z_index=zidx,
     )
-    with open(os.path.join(BASE, "compositions", fname), "w", encoding="utf-8") as f:
-        f.write(content)
+    pathlib.Path(os.path.join(BASE, "compositions", fname)).write_text(content, encoding="utf-8")
     print(f"Wrote {fname}")
 
 # Write host index.html
@@ -593,8 +596,7 @@ HOST_HTML = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-with open(os.path.join(BASE, "index.html"), "w", encoding="utf-8") as f:
-    f.write(HOST_HTML)
+pathlib.Path(os.path.join(BASE, "index.html")).write_text(HOST_HTML, encoding="utf-8")
 print("Wrote host index.html")
 
 # Now do the same for v3
@@ -674,8 +676,7 @@ for fname, (styles, markup, script, zidx) in v3_comps.items():
         script=HELPERS_JS + script,
         z_index=zidx,
     )
-    with open(os.path.join(V3_BASE, "compositions", fname), "w", encoding="utf-8") as f:
-        f.write(content)
+    pathlib.Path(os.path.join(V3_BASE, "compositions", fname)).write_text(content, encoding="utf-8")
     print(f"Wrote v3/{fname}")
 
 V3_HOST_HTML = f"""<!DOCTYPE html>
@@ -718,7 +719,6 @@ V3_HOST_HTML = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-with open(os.path.join(V3_BASE, "index.html"), "w", encoding="utf-8") as f:
-    f.write(V3_HOST_HTML)
+pathlib.Path(os.path.join(V3_BASE, "index.html")).write_text(V3_HOST_HTML, encoding="utf-8")
 print("Wrote v3 host index.html")
 print("Done!")

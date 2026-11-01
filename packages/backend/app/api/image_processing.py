@@ -103,7 +103,8 @@ async def process_existing_image(
     file_path: str = Form(..., description="Path to existing image file"),
     style: str = Form("waveform", description="Processing style"),
     audio_level: float = Form(0.7, description="Audio level for reactive processing"),
-    beat_detected: bool = Form(True, description="Whether to apply beat effects"),
+    *,
+    beat_detected: bool = Form(default=True, description="Whether to apply beat effects"),
     output_name: str | None = Form(None, description="Optional output filename"),
 ):
     """
@@ -145,7 +146,8 @@ async def process_directory(
     pattern: str = Form("*.png", description="File pattern to match"),
     style: str = Form("waveform", description="Processing style"),
     audio_level: float = Form(0.7, description="Audio level for reactive processing"),
-    beat_detected: bool = Form(True, description="Whether to apply beat effects"),
+    *,
+    beat_detected: bool = Form(default=True, description="Whether to apply beat effects"),
     max_files: int = Form(50, description="Maximum number of files to process"),
 ):
     """
@@ -175,7 +177,8 @@ async def auto_process_comfyui(
     pattern: str = Form("*.png", description="File pattern to match"),
     style: str = Form("waveform", description="Processing style"),
     audio_level: float = Form(0.7, description="Audio level for reactive processing"),
-    beat_detected: bool = Form(True, description="Whether to apply beat effects"),
+    *,
+    beat_detected: bool = Form(default=True, description="Whether to apply beat effects"),
     max_files: int = Form(10, description="Maximum files to process per call"),
 ):
     """

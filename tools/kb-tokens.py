@@ -26,9 +26,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import operator
 import re
 import sys
-import urllib.error
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
@@ -66,7 +66,7 @@ except ImportError:  # pragma: no cover
 
 BASE = REPO / "docs" / "knowledge-library"
 
-FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", re.S)
+FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", re.DOTALL)
 
 
 def read(path: Path) -> str:
@@ -227,7 +227,7 @@ def print_report(rep, counter, docs) -> None:
     if not windows:
         print("    (no context-window data)")
         return
-    fits = [(m, w) for m, w in sorted(windows.items(), key=lambda x: x[1])
+    fits = [(m, w) for m, w in sorted(windows.items(), key=operator.itemgetter(1))
             if w >= total]
     print(f"    Whole library = {total:,} tokens.")
     if fits:
@@ -295,7 +295,7 @@ def print_models(counter, root: Path) -> None:
 
     print(f"  {'Model':<28} {'Window':>11} {'Library':>11} {'Ratio':>7}  "
           f"{'Basis':<9} Verdict")
-    print(f"  {'-'*28} {'-'*11} {'-'*11} {'-'*7}  {'-'*9} -------")
+    print(f"  {'-' * 28} {'-' * 11} {'-' * 11} {'-' * 7}  {'-' * 9} -------")
 
     rows = []
     for model, window in sorted(windows.items(), key=lambda x: -x[1]):

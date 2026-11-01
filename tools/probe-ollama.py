@@ -85,9 +85,9 @@ def main() -> int:
         caps = ",".join(m.get("capabilities", [])) or "-"
         runner = det.get("runner", "-")
         print(
-            f"  [{kind:6}] {m.get('name',''):32} "
-            f"{round(m.get('size',0)/1048576):>6} MB "
-            f"{det.get('parameter_size','?'):>6} {det.get('quantization_level','?')} "
+            f"  [{kind:6}] {m.get('name', ''):32} "
+            f"{round(m.get('size', 0) / 1048576):>6} MB "
+            f"{det.get('parameter_size', '?'):>6} {det.get('quantization_level', '?')} "
             f"runner={runner} caps={caps}"
         )
 

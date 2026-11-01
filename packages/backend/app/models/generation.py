@@ -8,7 +8,7 @@ from here so validation rules cannot drift between routers.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, field_validator
@@ -32,7 +32,7 @@ def _check_dimension(v: int) -> int:
     return v
 
 
-class VideoModelVariant(str, Enum):
+class VideoModelVariant(StrEnum):
     """Precision / packaging variant for a video generation checkpoint."""
     FP16 = "fp16"
     GGUF_Q4 = "gguf_q4"

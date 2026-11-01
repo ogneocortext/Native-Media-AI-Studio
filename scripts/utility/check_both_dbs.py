@@ -8,9 +8,9 @@ db_paths = [
 ]
 
 for db_path in db_paths:
-    print(f'\n{"="*60}')
+    print(f'\n{"=" * 60}')
     print(f'DATABASE: {db_path}')
-    print(f'{"="*60}')
+    print(f'{"=" * 60}')
 
     if not db_path.exists():
         print('  NOT FOUND')

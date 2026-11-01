@@ -11,6 +11,7 @@ leaf in the dependency graph.
 
 from __future__ import annotations
 
+import operator
 import re
 from typing import Any
 
@@ -227,7 +228,7 @@ def mentioned_sources(sources: list[dict[str, Any]], prompt: str) -> list[dict[s
         first = run[0] if run else ""
         position = prompt_tokens.index(first) if first in prompt_tokens else len(prompt_tokens)
         hits.append((position, str(src.get("track", "")).lower(), src))
-    hits.sort(key=lambda e: (e[0], e[1]))
+    hits.sort(key=operator.itemgetter(0, 1))
     return [entry[2] for entry in hits]
 
 

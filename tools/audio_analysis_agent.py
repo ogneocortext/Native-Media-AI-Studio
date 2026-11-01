@@ -138,4 +138,3 @@ def describe(filename: str) -> str:
     if "error" in profile:
         return f"Analysis unavailable for {filename}: {profile['error']}"
     return profile.get("agent_profile", {}).get("description", "No description available.")
-

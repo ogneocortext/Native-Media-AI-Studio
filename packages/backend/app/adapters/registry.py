@@ -66,7 +66,7 @@ class AdapterRegistry:
         disabled = os.getenv(f"DISABLED_{service.upper()}", "false").lower() == "true"
         return not disabled
 
-    def set_mock_mode(self, enabled: bool):
+    def set_mock_mode(self, *, enabled: bool):
         """Enable or disable mock mode for all adapters."""
         self._mock_mode = enabled
         # Reinitialize adapters with new mock mode

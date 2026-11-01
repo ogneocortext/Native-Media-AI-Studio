@@ -154,7 +154,7 @@ def find_related_docs(category: str, ptype: str, cross_tags: list[str],
             continue
         text = read_file(path)
         # Read frontmatter tags.
-        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.S)
+        m = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
         if not m:
             continue
         doc_tags: list[str] = []
@@ -182,7 +182,7 @@ def find_related_docs(category: str, ptype: str, cross_tags: list[str],
         if score <= 0:
             continue
         # Suggest relation based on page type.
-        mtype = re.search(r"^type:\s*(\S+)", text, re.M)
+        mtype = re.search(r"^type:\s*(\S+)", text, re.MULTILINE)
         doc_type = mtype.group(1) if mtype else "concept"
         relation = _infer_relation(doc_type, ptype)
         display = name.removesuffix(".md")
@@ -314,7 +314,7 @@ def _find_section(text: str, heading_prefix: str) -> re.Match:
     pattern = re.compile(
         rf"(^### {re.escape(heading_prefix.removeprefix('### ').strip())}[^\n]*\n)"
         rf"(.*?)(?=\n### |\Z)",
-        re.M | re.S,
+        re.MULTILINE | re.DOTALL,
     )
     m = pattern.search(text)
     if not m:
@@ -428,7 +428,7 @@ def _insert_backlink(doc_path: Path, new_name: str, new_title: str) -> None:
     if f"[[{new_name}]]" in text:
         return
     # Try to insert into an existing "## Related" section.
-    m = re.search(r"(## Related\n)(.*?)(?=\n## |\Z)", text, re.S)
+    m = re.search(r"(## Related\n)(.*?)(?=\n## |\Z)", text, re.DOTALL)
     if m:
         # Add link after the "## Related\n" heading (skip placeholder text).
         new_section = m.group(1) + link_line + m.group(2)

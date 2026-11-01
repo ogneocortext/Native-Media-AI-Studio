@@ -12,16 +12,17 @@ import hashlib
 import json
 import math
 import wave
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .remix_constants import REMIX_SR
-from .remix_dsp import _loop_to_length
 from .remix_recipe import RemixLayer, RemixRecipe, RemixSlot, asdict
-from .remix_render import RemixCancelledError, plan_timeline
+from .remix_render import plan_timeline
 from .remix_source import _probe_summary
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PREVIEW_MAX_SECONDS = 30.0
 PREVIEW_MAX_ENTRIES = 12
@@ -341,7 +342,6 @@ def preview_recipe(recipe: RemixRecipe) -> dict[str, Any]:
 
 
 __all__ = [
-    "PREVIEW_DIR",
     "truncate_recipe",
     "_preview_key",
     "_preview_meta_path",

@@ -1,0 +1,195 @@
+{
+  "timestamp": "2026-11-01T14:38:37.102848+00:00",
+  "commit": "6131a09",
+  "branch": "main",
+  "total": 56,
+  "passed": 55,
+  "failed": 0,
+  "skipped": 1,
+  "pass_rate": 98.21428571428571,
+  "total_duration": 1.6609999999999991,
+  "features": {
+    "other": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "pass_rate": 100.0,
+      "total_duration": 0.006,
+      "slowest": [
+        {
+          "node_id": "tests/test_analysis_resolver.py::test_different_audio_fingerprints_differ",
+          "duration": 0.002
+        },
+        {
+          "node_id": "tests/test_sonara_beat_path.py::test_analyze_from_audio_defaults_to_the_librosa_tracker",
+          "duration": 0.001
+        },
+        {
+          "node_id": "tests/test_sonara_beat_path.py::test_analyze_from_audio_accepts_beat_backend",
+          "duration": 0.001
+        },
+        {
+          "node_id": "tests/test_storyboard_hyperframes.py::test_build_hyperframes_audio_payload_derives_four_four_downbeats",
+          "duration": 0.001
+        },
+        {
+          "node_id": "tests/test_storyboard_hyperframes.py::test_build_hyperframes_audio_payload_is_deterministic",
+          "duration": 0.001
+        }
+      ],
+      "failures": []
+    },
+    "audio": {
+      "total": 36,
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0,
+      "pass_rate": 100.0,
+      "total_duration": 0.783,
+      "slowest": [
+        {
+          "node_id": "tests/test_stem_pipeline.py::test_separate_file_404_for_missing_audio",
+          "duration": 0.208
+        },
+        {
+          "node_id": "tests/test_stem_remixer.py::test_render_preview_audio_truncates_and_says_so",
+          "duration": 0.065
+        },
+        {
+          "node_id": "tests/test_audio_file_size.py::test_existing_row_is_updated_not_duplicated",
+          "duration": 0.064
+        },
+        {
+          "node_id": "tests/test_audio_file_size.py::test_insert_still_succeeds_when_file_is_absent",
+          "duration": 0.054
+        },
+        {
+          "node_id": "tests/test_stem_remixer.py::test_render_preview_audio_writes_the_excerpt_and_reports_it",
+          "duration": 0.052
+        }
+      ],
+      "failures": []
+    },
+    "integration": {
+      "total": 9,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 1,
+      "pass_rate": 88.88888888888889,
+      "total_duration": 0.833,
+      "slowest": [
+        {
+          "node_id": "tests/test_video_import.py::test_converts_a_real_mp4_to_m4a_losslessly",
+          "duration": 0.323
+        },
+        {
+          "node_id": "tests/test_pipeline_integration.py::test_audio_files_endpoint_returns_list",
+          "duration": 0.177
+        },
+        {
+          "node_id": "tests/test_video_import.py::test_garbage_input_fails_and_leaves_no_partial_file",
+          "duration": 0.138
+        },
+        {
+          "node_id": "tests/test_video_import.py::test_result_reports_why_it_failed",
+          "duration": 0.113
+        },
+        {
+          "node_id": "tests/test_video_import.py::test_reports_failure_without_ffmpeg",
+          "duration": 0.077
+        }
+      ],
+      "failures": []
+    },
+    "gpu": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "pass_rate": 100.0,
+      "total_duration": 0.039,
+      "slowest": [
+        {
+          "node_id": "tests/test_vram_comfyui.py::test_comfyui_untouched_when_busy",
+          "duration": 0.014
+        },
+        {
+          "node_id": "tests/test_vram_comfyui.py::test_comfyui_left_alone_when_budget_already_met",
+          "duration": 0.007
+        },
+        {
+          "node_id": "tests/test_vram_comfyui.py::test_end_restores_the_flag_for_the_next_workload",
+          "duration": 0.006
+        },
+        {
+          "node_id": "tests/test_vram_comfyui.py::test_comfyui_freed_when_still_short_and_idle",
+          "duration": 0.005
+        },
+        {
+          "node_id": "tests/test_vram_comfyui.py::test_comfyui_untouched_when_queue_is_non_empty",
+          "duration": 0.005
+        }
+      ],
+      "failures": []
+    }
+  },
+  "slowest": [
+    {
+      "node_id": "tests/test_video_import.py::test_converts_a_real_mp4_to_m4a_losslessly",
+      "duration": 0.323,
+      "category": "integration"
+    },
+    {
+      "node_id": "tests/test_stem_pipeline.py::test_separate_file_404_for_missing_audio",
+      "duration": 0.208,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_pipeline_integration.py::test_audio_files_endpoint_returns_list",
+      "duration": 0.177,
+      "category": "integration"
+    },
+    {
+      "node_id": "tests/test_video_import.py::test_garbage_input_fails_and_leaves_no_partial_file",
+      "duration": 0.138,
+      "category": "integration"
+    },
+    {
+      "node_id": "tests/test_video_import.py::test_result_reports_why_it_failed",
+      "duration": 0.113,
+      "category": "integration"
+    },
+    {
+      "node_id": "tests/test_video_import.py::test_reports_failure_without_ffmpeg",
+      "duration": 0.077,
+      "category": "integration"
+    },
+    {
+      "node_id": "tests/test_stem_remixer.py::test_render_preview_audio_truncates_and_says_so",
+      "duration": 0.065,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_audio_file_size.py::test_existing_row_is_updated_not_duplicated",
+      "duration": 0.064,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_audio_file_size.py::test_insert_still_succeeds_when_file_is_absent",
+      "duration": 0.054,
+      "category": "audio"
+    },
+    {
+      "node_id": "tests/test_stem_remixer.py::test_render_preview_audio_writes_the_excerpt_and_reports_it",
+      "duration": 0.052,
+      "category": "audio"
+    }
+  ],
+  "recommendations": [
+    "Slowest tests: test_video_import.py::test_converts_a_real_mp4_to_m4a_losslessly (0.32s), test_stem_pipeline.py::test_separate_file_404_for_missing_audio (0.21s), test_pipeline_integration.py::test_audio_files_endpoint_returns_list (0.18s), test_video_import.py::test_garbage_input_fails_and_leaves_no_partial_file (0.14s), test_video_import.py::test_result_reports_why_it_failed (0.11s). Consider mocking heavy I/O or reducing fixture data to speed up the feedback loop.",
+    "No tests found for feature areas: database, health, queue, remix, websocket. Add regression coverage before these areas reach users.",
+    "Fast-gate lane viable: 56 tests total 1.7s \u2014 sub-10s feedback for development."
+  ],
+  "flaky": []
+}

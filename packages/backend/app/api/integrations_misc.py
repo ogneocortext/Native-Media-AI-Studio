@@ -147,41 +147,43 @@ Respond with ONLY the complete HTML code, no explanation."""
             },
             timeout=aiohttp.ClientTimeout(total=120)
         ) as resp:
-                if resp.status == 200:
-                    full_response = ""
-                    async for line in resp.content:
-                        line_str = line.decode("utf-8").strip()
-                        if line_str:
-                            try:
-                                data = json.loads(line_str)
-                                chunk = data.get("response", "")
-                                full_response += chunk
-                                yield {"type": "streaming", "chunk": chunk, "done": data.get("done", False)}
-                            except json.JSONDecodeError:
-                                pass
+            if resp.status == 200:
+                full_response = ""
+                async for line in resp.content:
+                    line_str = line.decode("utf-8").strip()
+                    if line_str:
+                        try:
+                            data = json.loads(line_str)
+                            chunk = data.get("response", "")
+                            full_response += chunk
+                            yield {"type": "streaming", "chunk": chunk, "done": data.get("done", False)}
+                        except json.JSONDecodeError:
+                            pass
 
-                    # Extract HTML from response
-                    html_code = strip_code_fences(full_response)
+                # Extract HTML from response
+                html_code = strip_code_fences(full_response)
 
-                    # Save to database
-                    save_visualization_preset({
-                        "track_name": request.track_name,
-                        "track_hash": track_hash,
-                        "preset_name": f"{request.track_name} (AI)",
-                        "visualization_style": "custom",
-                        "params": {},
-                        "ollama_model": model_name,
-                        "prompt": request.prompt,
-                        "lyrics": request.lyrics,
-                        "bpm": request.bpm,
-                        "html": html_code,
-                    })
+                # Save to database
+                save_visualization_preset({
+                    "track_name": request.track_name,
+                    "track_hash": track_hash,
+                    "preset_name": f"{request.track_name} (AI)",
+                    "visualization_style": "custom",
+                    "params": {},
+                    "ollama_model": model_name,
+                    "prompt": request.prompt,
+                    "lyrics": request.lyrics,
+                    "bpm": request.bpm,
+                    "html": html_code,
+                })
 
-                    yield {"type": "complete", "html": html_code}
-                else:
-                    yield {"type": "error", "message": f"Ollama returned status {resp.status}"}
+                yield {"type": "complete", "html": html_code}
+            else:
+                yield {"type": "error", "message": f"Ollama returned status {resp.status}"}
     except Exception as e:
         yield {"type": "error", "message": str(e)}
+
+
 async def analyze_track_with_ollama(request: TrackAnalysisRequest) -> dict:
     """
     Use Ollama to analyze track data and generate visualization parameters.
@@ -317,6 +319,7 @@ Respond with ONLY the JSON object, no explanation."""
             "error": str(e),
             "source": "fallback"
         }
+
 
 @router.post("/cuda/analyze-audio")
 async def cuda_analyze_audio(body: CudaAnalyzeAudioRequest) -> dict:

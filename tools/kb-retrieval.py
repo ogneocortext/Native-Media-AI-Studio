@@ -54,7 +54,6 @@ import math
 import os
 import re
 import sys
-import urllib.error
 import urllib.request
 from collections import Counter
 from pathlib import Path
@@ -144,7 +143,7 @@ class Embedder:
     text, so a re-run of the evaluation does not re-embed the library.
     """
 
-    def __init__(self, model: str = DEFAULT_EMBED_MODEL, cache: bool = True):
+    def __init__(self, model: str = DEFAULT_EMBED_MODEL, *, cache: bool = True):
         self.model = model
         self.cache = cache
         self.cache_dir = CACHE_DIR / model.replace(":", "_").replace("/", "_")
@@ -378,7 +377,6 @@ def hyde_query(question: str, model: str, timeout: int = 120) -> str:
         return ""
 
 
-
 # ----------------------------------------------------------- reranking
 class CrossEncoderReranker:
     """A cross-encoder reranker: scores a (query, passage) pair *jointly*.
@@ -464,6 +462,7 @@ class CrossEncoderReranker:
         scores = self.score(query, [passages[i] for i in candidates])
         order = sorted(range(len(candidates)), key=lambda j: -scores[j])
         return [candidates[j] for j in order[:k]]
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(

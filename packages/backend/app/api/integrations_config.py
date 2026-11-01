@@ -231,7 +231,7 @@ def _describe_model(m: dict, resolved: dict[str, list[str] | None], oc) -> dict:
 
 @router.get("/ollama/models", operation_id="get_ollama_models_alias")
 @router.get("/ollama-models", operation_id="get_config_ollama_models")
-async def get_ollama_models(verified_only: bool = False) -> dict:
+async def get_ollama_models(*, verified_only: bool = False) -> dict:
     """Get available Ollama models with capability info and VRAM requirements.
 
     Args:
@@ -310,7 +310,7 @@ async def get_mock_mode() -> dict:
 
 
 @router.post("/config/mock-mode")
-async def set_mock_mode(enabled: bool) -> dict:
+async def set_mock_mode(*, enabled: bool) -> dict:
     """Enable or disable mock mode for all adapters"""
     adapter_registry.set_mock_mode(enabled)
     return {
@@ -422,5 +422,3 @@ async def get_ports_config() -> dict:
         "dashboard_port": 3847,
         "dashboard_url": go_dashboard_url(),
     }
-
-

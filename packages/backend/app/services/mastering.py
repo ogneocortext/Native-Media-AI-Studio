@@ -377,6 +377,7 @@ async def master_file(
     filename: str,
     target_lufs: float = -14.0,
     ceiling_dbtp: float = DEFAULT_CEILING_DBTP,
+    *,
     tone_fixes: bool = True,
     gain_trim_db: float = 0.0,
 ) -> dict[str, Any]:

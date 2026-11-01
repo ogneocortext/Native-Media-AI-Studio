@@ -125,8 +125,7 @@ class ImageGenerationHandler:
                     "which is a placeholder rather than a real render (mock "
                     "generation is disabled). Not reporting this as a successful job."
                 )
-            with open(image_path, "wb") as f:
-                f.write(image_data)
+            Path(image_path).write_bytes(image_data)
         else:
             # Previously this only logged a warning and returned an output path
             # anyway, so the job was recorded `completed` with output_path=None and

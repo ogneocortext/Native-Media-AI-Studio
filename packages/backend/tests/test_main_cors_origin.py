@@ -136,9 +136,10 @@ async def test_websocket_accepts_trusted_origin():
     """A trusted local origin must be accepted and registered."""
     from unittest.mock import AsyncMock, MagicMock
 
+    from fastapi import WebSocketDisconnect
+
     from app.main import websocket_endpoint
     from app.websocket.handler import connection_manager
-    from fastapi import WebSocketDisconnect
 
     connection_manager._active_connections.clear()
 

@@ -209,7 +209,7 @@ def compare_with_baseline(current_path: Path, baseline_path: Path) -> dict[str, 
         return {"status": "error", "reason": str(e)}
 
 
-def run_visual_suite(model: str = DEFAULT_VISION_MODEL, update_baselines: bool = False) -> int:
+def run_visual_suite(model: str = DEFAULT_VISION_MODEL, *, update_baselines: bool = False) -> int:
     """Run the full visual regression suite."""
     ensure_dirs()
     print(f"Visual regression suite — vision_model={model} update_baselines={update_baselines}")

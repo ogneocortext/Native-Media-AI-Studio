@@ -191,7 +191,7 @@ def _extract_audio_fields(metadata: dict | None) -> dict:
             except (TypeError, ValueError):
                 pass
 
-    # Loudness (LUFS)
+    # Loudness (LUFS)  # noqa: ERA001
     for key in ("loudness_lufs", "integrated_lufs", "loudness"):
         if key in metadata and metadata[key] is not None:
             try:
