@@ -249,9 +249,9 @@ Pre-commit hooks enforce this. Use `python tools/agent-contribution-report.py --
 ## Related Docs
 
 - [AGENTS.md](../AGENTS.md) — Project agent guidelines
-- [[docs/architecture/decision-log.md]] — D21 agent handoff portability
-- [[docs/architecture/provider-notes.md]] — Per-model field notes
-- [[docs/knowledge-library/index.md]] — Knowledge library entry
+- [[../architecture/decision-log]] — D21 agent handoff portability
+- [[../architecture/provider-notes]] — Per-model field notes
+- [[index]] — Knowledge library entry
 
 ---
 
