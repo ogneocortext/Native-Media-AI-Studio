@@ -114,6 +114,73 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Orion, 2026-11-01 — Item created with the
   knowledge doc; not started.
 
+- **Session packet (2026-11-01, Orion → executor; tuned for
+  Nemotron 3.5 Super VL via Kilo):**
+
+  > You are executing task T-PLT-08 in the Native Media AI Studio
+  > repo. Work only on this item. Repo state you should find after
+  > pulling: main at or past 686d8c1; T-PLT-08 is `todo` in this
+  > file; `tools/task-ledger-summary.py` does not exist yet;
+  > `docs/plans/tasks/README.md` has no "Batched execution"
+  > section. If any of that does not match, stop and report the
+  > mismatch instead of improvising.
+  >
+  > Environment: Windows, PowerShell 7 (`pwsh`) for shell
+  > commands — `bash` here is the WSL launcher, do not use it for
+  > project commands. Write helper code in Python, not PowerShell.
+  > Never restart a service that is already running.
+  > Before step 2, set this item's Status to `doing` (repo
+  > convention); step 6 sets it to `done`.
+  >
+  > Steps:
+  > 1. Pull origin/main. Read this item in full, the Plan's source
+  >    doc `docs/knowledge-library/programmatic-tool-calling-2026.md`
+  >    ("What this project adopts" section), and
+  >    `docs/plans/tasks/README.md` end to end.
+  >    Done when: you can state the three batching rules from the
+  >    doc without re-reading them.
+  > 2. Add a `## Batched execution` section to
+  >    `docs/plans/tasks/README.md`, immediately after the
+  >    `## The four rules` section, stating the three rules exactly
+  >    as the Plan above words them (script the batch; summary in /
+  >    raw out; stable prefix), in the README's existing voice.
+  >    Done when: the section exists, no other README section was
+  >    reordered or reworded.
+  > 3. Write `tools/task-ledger-summary.py` per the Plan: Python,
+  >    stdlib only, every file read with explicit
+  >    `encoding="utf-8"`. It parses every task block in
+  >    `docs/plans/tasks/*.md` except `template.md` and
+  >    `README.md` (an item starts at a `### T-…` heading; its
+  >    status is the `- **Status:**` line). Default output:
+  >    per-file counts by status, then the open items (todo /
+  >    doing / blocked) with IDs and titles. `--json` emits the
+  >    full parse instead.
+  >    Done when: `python tools/task-ledger-summary.py` exits 0
+  >    and prints all nine task files.
+  > 4. Verify: hand-count one file (this one,
+  >    `platform-and-workflow.md`) from the raw text and compare
+  >    against the script's line for it; then hand-count the grand
+  >    totals across all nine files and compare. Record both
+  >    hand counts and the script's numbers — they must match
+  >    exactly; if they do not, fix the parser, not the counts.
+  > 5. Run the gates: `python tools/run-gates.py`. All checks must
+  >    pass; fix what your changes broke, report anything that was
+  >    already failing before your changes (check against a clean
+  >    checkout state before claiming it pre-existing).
+  > 6. Update this item: Status → done, and a Last session entry
+  >    with your agent name, the date, what landed, and the step-4
+  >    numbers. Do not edit any other task item.
+  > 7. Commit everything for this item in one commit, subject
+  >    style `### <Type> - <description>`, with the
+  >    `Co-authored-by:` trailer for the agent configuration
+  >    actually used, per the attribution table in the repo
+  >    AGENTS.md. Push with your normal git route.
+  >
+  > Report back, in this shape: commit hash; gate result (pass /
+  > which checks failed); the script's printed totals and your
+  > hand counts side by side; anything you found that contradicts
+  > this packet.
+
 ### T-PLT-09 — Evaluate CoplayDev/unity-mcp against the in-repo Unity bridge
 - **Status:** todo
 - **Goal:** A recorded verdict — adopt, replace, or keep — for the
