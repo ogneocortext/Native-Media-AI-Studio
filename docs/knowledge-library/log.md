@@ -21,6 +21,10 @@ type: tracker
 
 ---
 
+## 2026-11-01 — Bolt E4B reference: corrections from the server Activity log
+
+- Owner's screenshot of Atomic's Server → Activity page confirmed the probe traffic from the rig side and corrected two figures in `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md`: Bolt's sustained generation is ~35 tok/s (34.3–36.3 across the battery), not the ~23 tok/s of the first 4-token test; and a new API-behavior bullet records that only the loaded model is callable (any other installed id 404s — no on-demand loading). One matching entry appended to `tools/model-reliability/observed.jsonl`.
+
 ## 2026-11-01 — Bolt E4B reference: API behavior from the live probe battery
 
 - Extended `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` with a "Calling it from an agent (API behavior)" section — reasoning in a separate `reasoning_content` field, empty-reply risk under tight token budgets, the API-level `enable_thinking` toggle with its measured speed/correctness trade, prompt caching, and probed instruction behaviors (injection resistance, clarify-vs-call, schema discipline, the exact-count limit) — plus two failure-mode bullets and the Ollama tailnet-bind note. Six matching entries appended to `tools/model-reliability/observed.jsonl` (route `tailscale_atomic_chat`).

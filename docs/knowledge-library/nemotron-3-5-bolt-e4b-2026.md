@@ -150,8 +150,9 @@ On 2026-11-01 the cloud-side route was built and verified end to end:
   loaded — availability is owner-controlled by construction.
 - Verified 2026-11-01: `GET /v1/models` over the tailnet returned
   exactly the model id above, and a test completion succeeded
-  (~23 tok/s generation measured on the GTX 1070 Ti in a first small
-  test).
+  (~35 tok/s generation sustained across the 2026-11-01 probe
+  battery per the server's Activity log; a first 4-token test had
+  read ~23 tok/s).
 
 ## Calling it from an agent (API behavior)
 
@@ -175,6 +176,11 @@ are not visible from the Atomic Chat UI:
   correct 10; it divided by the drain rate alone). Rule: thinking ON
   for anything numeric or multi-step; OFF only for format/extraction
   work whose output gets mechanically validated anyway.
+- **Only the loaded model is callable.** A request naming any other
+  installed model id returns HTTP 404 (`not_found`) — Atomic does
+  not load on demand. Call `GET /v1/models` first and use the exact
+  id it returns. (Observed 2026-11-01: a local A/B called the
+  Qwen3.5-4B GGUF id while Bolt was loaded and 404'd in 2 ms.)
 - **Prompt caching is active server-side** — usage reported cached
   prompt tokens on repeat-shaped requests, so the repo's
   stable-prefix convention pays off here too.
