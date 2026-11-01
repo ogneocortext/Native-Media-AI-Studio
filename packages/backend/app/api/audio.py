@@ -5,6 +5,7 @@ Handles file uploads for music video creation and audio analysis.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -13,10 +14,12 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
 from ..core.config import PROJECT_ROOT
 from ..services.analysis_resolver import (
@@ -31,6 +34,7 @@ from ..services.video_import import (
     extract_audio,
     target_stem,
 )
+from ..sse.handler import sse_manager
 
 # Analysis helpers (result builder, curve maths, visualization suggestions,
 # section labelling) moved to app/api/audio_analysis.py. No routes moved - those
@@ -236,6 +240,30 @@ def _cache_delete_by_content_id(content_id: str) -> None:
         filename = key.split(":", 1)[0]
         if filename == content_id or filename.startswith(prefix):
             _analysis_cache.pop(key, None)
+
+
+# ---------------------------------------------------------------------------
+# Analyze-all job store (in-memory, per-process).
+# analyze-all is long-running (70+ files), so it returns a job_id immediately
+# and processes in the background, broadcasting progress via SSE so the
+# frontend can show real-time progress instead of staring at a hanging request.
+# ---------------------------------------------------------------------------
+_analyze_all_jobs: dict[str, dict[str, Any]] = {}
+_analyze_all_jobs_lock = asyncio.Lock()
+
+
+async def _analyze_all_job_set(job_id: str, **fields):
+    async with _analyze_all_jobs_lock:
+        job = _analyze_all_jobs.get(job_id)
+        if job is None:
+            job = {}
+            _analyze_all_jobs[job_id] = job
+        job.update(fields)
+
+
+async def _analyze_all_job_get(job_id: str) -> dict[str, Any] | None:
+    async with _analyze_all_jobs_lock:
+        return dict(_analyze_all_jobs.get(job_id, {}))
 
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
@@ -554,6 +582,7 @@ async def analyze_audio(
     # here, so the analysis routes work on video without a separate step.
     safe_name, _converted, _extraction, _deduped = await _store_track(file)
     file_path = AUDIO_DIR / safe_name
+    normalized = safe_name.replace("\\", "/")
     # The stored name always begins with the content hash, so the job id is
     # read back from it. These endpoints used to bind `unique_id` from the
     # upload call itself; now that the call returns the chosen filename, the
@@ -576,6 +605,16 @@ async def analyze_audio(
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
         with open(analysis_file, "w", encoding="utf-8") as f:
             json.dump(analysis_result, f, indent=2, ensure_ascii=False)
+
+        # Persist to the database so analyze-all / ensure-analysis / by-filename
+        # can serve this result from a persistent store instead of re-analyzing.
+        # analyze_audio previously wrote only to JSON, so any file analyzed via
+        # this route was re-analyzed by analyze-all (which keys on the DB).
+        from ..core import database
+
+        database.update_audio_analysis(normalized, analysis_result)
+        _cache_set(normalized, analysis_result, "")
+        _cache_set(normalized, analysis_result, backend)
 
         return AudioAnalysisResult(**analysis_result)
     except HTTPException:
@@ -1173,7 +1212,12 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
 @router.post("/analyze-all")
 async def analyze_all_pending(backend: str = "sonara"):
     """Analyze all audio files in the media library that don't have analysis data.
-    Returns a summary of analyzed files."""
+
+    Returns a job_id immediately and processes in the background. Progress is
+    broadcast via SSE on /api/events (event type ``audio_analysis_progress``)
+    so the frontend can show real-time progress instead of hanging on a long
+    request. Poll ``/api/audio/analyze-all/status/{job_id}`` for final status.
+    """
     from ..core import database
     from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
 
@@ -1181,11 +1225,7 @@ async def analyze_all_pending(backend: str = "sonara"):
         raise HTTPException(status_code=503, detail="librosa not installed")
 
     if not AUDIO_DIR.exists():
-        return {"status": "ok", "analyzed": 0, "total": 0, "files": []}
-
-    analyzer = AudioAnalyzer()
-    analyzed_files = []
-    errors = []
+        return {"status": "ok", "analyzed": 0, "total": 0, "files": [], "job_id": None}
 
     # Get all audio files recursively (matches list_uploaded_audio behavior)
     audio_files = [
@@ -1194,61 +1234,205 @@ async def analyze_all_pending(backend: str = "sonara"):
         if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith(".")
     ]
 
+    # Determine which files actually need analysis (skip cached ones)
+    pending_files = []
     for file_path in audio_files:
-        # Index keys are AUDIO_DIR-relative POSIX paths (same form the read
-        # endpoints normalize to) -- previously basenames, which split the index
-        # for files in subdirectories like output/audio/Suno-V6-Mini/.
         filename = _relative_audio_path(file_path)
-        # Skip if already analyzed in database
         existing = database.get_audio_analysis(filename)
         if existing and existing.get("beat_times"):
             continue
+        resolution = resolve_analysis(filename, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION)
+        if resolution.match is not None:
+            continue
+        pending_files.append(file_path)
 
-        _check_backend_available(backend)
+    job_id = str(uuid.uuid4())
 
-        try:
-            unique_id = str(uuid.uuid4())[:8]
-            result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
-            analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+    async def _run():
+        analyzer = AudioAnalyzer()
+        analyzed_files = []
+        errors = []
+        total = len(pending_files)
 
-            # Best-effort LLM section refinement
-            try:
-                rms_for_llm = (
-                    result.waveform.rms_energy
-                    if result.waveform and result.waveform.rms_energy
-                    else []
-                )
-                await _apply_llm_sections(analysis_result, result, rms_for_llm)
-            except Exception as e:
-                logger.warning("LLM section refinement failed for analyze-all: %s", e, exc_info=True)
+        for i, file_path in enumerate(pending_files, 1):
+            filename = _relative_audio_path(file_path)
 
-            # Save to database
-            database.update_audio_analysis(filename, analysis_result)
-
-            # Also save to JSON file for backward compatibility
-            analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
-            with open(analysis_file, "w", encoding="utf-8") as f:
-                json.dump(analysis_result, f, indent=2, ensure_ascii=False)
-
-            analyzed_files.append(
+            # Broadcast progress before starting this file
+            await sse_manager.broadcast(
+                "audio_analysis_progress",
                 {
-                    "filename": filename,
-                    "bpm": analysis_result["tempo_bpm"],
-                    "beats": analysis_result["beat_count"],
-                    "confidence": analysis_result["confidence"],
-                }
+                    "job_id": job_id,
+                    "file": filename,
+                    "index": i,
+                    "total": total,
+                    "percent": round((i - 1) / max(total, 1) * 100, 1),
+                    "status": "processing",
+                    "analyzed": len(analyzed_files),
+                    "errors": len(errors),
+                },
             )
-        except Exception as e:
-            errors.append({"filename": filename, "error": str(e)})
-            logger.warning(f"Failed to analyze '{filename}': {e}")
+
+            await _analyze_all_job_set(
+                job_id,
+                status="running",
+                progress=round((i - 1) / max(total, 1) * 100, 1),
+                message=f"Analyzing {filename} ({i}/{total})",
+                current_file=filename,
+                analyzed=len(analyzed_files),
+                errors=len(errors),
+                total=total,
+            )
+
+            try:
+                unique_id = str(uuid.uuid4())[:8]
+                result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
+                analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
+
+                # Best-effort LLM section refinement
+                try:
+                    rms_for_llm = (
+                        result.waveform.rms_energy
+                        if result.waveform and result.waveform.rms_energy
+                        else []
+                    )
+                    await _apply_llm_sections(analysis_result, result, rms_for_llm)
+                except Exception as e:
+                    logger.warning(
+                        "LLM section refinement failed for analyze-all: %s", e, exc_info=True
+                    )
+
+                # Save to database
+                database.update_audio_analysis(filename, analysis_result)
+
+                # Also save to JSON file for backward compatibility
+                analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"
+                with open(analysis_file, "w", encoding="utf-8") as f:
+                    json.dump(analysis_result, f, indent=2, ensure_ascii=False)
+
+                # Populate caches
+                _cache_set(filename, analysis_result, "")
+                _cache_set(filename, analysis_result, backend)
+
+                analyzed_files.append(
+                    {
+                        "filename": filename,
+                        "bpm": analysis_result["tempo_bpm"],
+                        "beats": analysis_result["beat_count"],
+                        "confidence": analysis_result["confidence"],
+                    }
+                )
+            except Exception as e:
+                errors.append({"filename": filename, "error": str(e)})
+                logger.warning(f"Failed to analyze '{filename}': {e}")
+
+            # Broadcast progress after completing this file
+            await sse_manager.broadcast(
+                "audio_analysis_progress",
+                {
+                    "job_id": job_id,
+                    "file": filename,
+                    "index": i,
+                    "total": total,
+                    "percent": round(i / max(total, 1) * 100, 1),
+                    "status": "completed",
+                    "analyzed": len(analyzed_files),
+                    "errors": len(errors),
+                },
+            )
+
+        # Final state
+        await _analyze_all_job_set(
+            job_id,
+            status="completed" if not errors else "completed_with_errors",
+            progress=100.0,
+            message=(
+                f"Analyzed {len(analyzed_files)}/{total} files"
+                + (f", {len(errors)} errors" if errors else "")
+            ),
+            analyzed_files=analyzed_files,
+            errors=errors,
+            analyzed=len(analyzed_files),
+            total=total,
+        )
+
+        await sse_manager.broadcast(
+            "audio_analysis_complete",
+            {
+                "job_id": job_id,
+                "analyzed": len(analyzed_files),
+                "total": total,
+                "errors": len(errors),
+                "files": analyzed_files,
+            },
+        )
+
+    asyncio.create_task(_run())
+
+    await _analyze_all_job_set(
+        job_id,
+        status="pending",
+        progress=0.0,
+        message=f"Queued {len(pending_files)} files for analysis",
+        current_file=None,
+        analyzed=0,
+        errors=0,
+        total=len(pending_files),
+    )
 
     return {
-        "status": "completed",
-        "analyzed": len(analyzed_files),
-        "total": len(audio_files),
-        "files": analyzed_files,
-        "errors": errors,
+        "status": "queued",
+        "job_id": job_id,
+        "total": len(pending_files),
+        "message": f"Analysis queued for {len(pending_files)} files",
     }
+
+
+@router.get("/analyze-all/status/{job_id}")
+async def analyze_all_status(job_id: str):
+    """Get the status of an analyze-all job."""
+    job = await _analyze_all_job_get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return job
+
+
+@router.get("/analyze-all/stream/{job_id}")
+async def analyze_all_stream(job_id: str) -> EventSourceResponse:
+    """SSE stream for real-time analyze-all progress.
+
+    Connect with EventSource to receive per-file progress events
+    (``audio_analysis_progress``) and a final completion event
+    (``audio_analysis_complete``).
+    """
+
+    async def event_generator():
+        # Send current job state immediately
+        job = await _analyze_all_job_get(job_id)
+        if job is None:
+            yield {
+                "event": "error",
+                "data": json.dumps({"message": f"Job {job_id} not found"}),
+            }
+            return
+
+        yield {
+            "event": "job_state",
+            "data": json.dumps(job),
+        }
+
+        # Connect to SSE manager for live updates
+        queue = await sse_manager.connect()
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield event
+                except TimeoutError:
+                    yield ":keep-alive\n\n"
+        finally:
+            await sse_manager.disconnect(queue)
+
+    return EventSourceResponse(event_generator())
 
 
 def _agent_profile_from_cached(data: dict) -> dict:

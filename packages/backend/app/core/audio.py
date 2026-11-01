@@ -184,11 +184,30 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
 
 
 def get_audio_analysis(filename: str) -> dict | None:
-    """Get analysis result for an audio file from database."""
+    """Get analysis result for an audio file from database.
+
+    Tries the exact filename first, then falls back to matching by basename
+    (for files stored with a subdirectory prefix, e.g.
+    ``Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a`` looked up as just
+    ``SunoV6Mini-Ad-Nauseam.m4a``).
+    """
     with get_db() as conn:
         row = conn.execute(
             "SELECT analysis_result FROM audio_files WHERE filename = ?",
             (filename,),
+        ).fetchone()
+        if row and row["analysis_result"]:
+            data = _safe_json_loads(row["analysis_result"], {})
+            if data:
+                return data
+        # Fallback: match by basename for files stored under a subdirectory.
+        # ``Path(filename).name`` equals ``filename`` when there is no
+        # directory separator, so we always try the LIKE fallback after an
+        # exact miss -- it is a cheap indexed scan and harmless otherwise.
+        basename = Path(filename).name
+        row = conn.execute(
+            "SELECT analysis_result FROM audio_files WHERE filename LIKE ?",
+            ("%/" + basename,),
         ).fetchone()
         if row and row["analysis_result"]:
             data = _safe_json_loads(row["analysis_result"], {})
