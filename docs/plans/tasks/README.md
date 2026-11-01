@@ -61,6 +61,26 @@ a referenced ID must keep meaning the same task.
    ~30–40 minutes of agent work. Larger work is split at creation
    time into sequenced items, never left as one big block.
 
+## Batched execution
+
+When a batch of mechanical work lands in a session (bulk file sweeps,
+repeated verification passes, similar edits across files), the default
+shape is one scripted pass, not a string of individual tool calls:
+
+1. **Script the batch.** One Python script per batch job. Keepers live
+   under `tools/`; one-offs stay outside the repo (per the `tmp_*`
+   scratch rule). This extends AGENTS.md's "Prefer Python over
+   PowerShell" and "Write new helper scripts in Python under `tools/`"
+   by making the scripted pass the default for batch work.
+2. **Summary in, raw out.** A script's default output is a compact
+   summary sized for a model's context; full logs and raw results go
+   to a file on disk (`output/` or `docs/scratch/`), with the path
+   named in the summary.
+3. **Stable prefix.** AGENTS.md, the task files, and the model roster
+   are amended in place or appended to — never reshuffled as a side
+   effect of task work. Structural reorganizations are deliberate
+   commits of their own, not drive-bys.
+
 ## Planner / executor split
 
 Planning and execution are different seats (owner decision,

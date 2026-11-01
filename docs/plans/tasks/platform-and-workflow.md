@@ -83,7 +83,7 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** GPT-6, 2026-11-01 — Corrected root `shared/` location and endpoint-specific Pydantic model ownership; repaired relative paths and Windows workspace commands; removed obsolete Remotion MCP setup and generated-file lists absent from this checkout; fixed smoke-test paths/fixture caveats and documented actual hooks. Registered the GPT-6 trailer because two prior local commits are included in this push range. Docs gate passed.
 
 ### T-PLT-08 — Adopt programmatic batch execution as a harness convention
-- **Status:** todo
+- **Status:** done
 - **Goal:** Executors default to one scripted pass for mechanical
   batch work — summary into context, raw output to disk — and a pilot
   script prints the cross-area task ledger in a single run.
@@ -111,8 +111,17 @@ Rules: `docs/plans/tasks/README.md`
   section; `python tools/task-ledger-summary.py` prints per-area and
   total counts matching a hand count of the nine task files; the
   script's default output is a summary, not file dumps.
-- **Last session:** Orion, 2026-11-01 — Item created with the
-  knowledge doc; not started.
+- **Last session:** Kilo, 2026-11-01 — Adopted programmatic batch
+  execution: added the "Batched execution" section to
+  docs/plans/tasks/README.md (script the batch; summary in/raw out;
+  stable prefix) and built tools/task-ledger-summary.py (stdlib,
+  explicit utf-8 reads, --json flag). Verified by hand count matching
+  the script exactly: platform-and-workflow.md todo=1 doing=1 done=6
+  blocked=1 total=9; grand totals across nine files todo=4 doing=1
+  done=44 blocked=1 total=53. ruff clean on the changed file; pytest
+  and tools-pytest failures are pre-existing and environmental
+  (live-service tests, kb-chunk.py `_re` bug), not caused by this
+  item.
 
 - **Session packet (2026-11-01, Orion → executor; tuned for
   Nemotron 3.5 Super VL via Kilo):**
