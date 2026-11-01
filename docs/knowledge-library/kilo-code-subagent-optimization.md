@@ -277,6 +277,7 @@ These optimizations require changes in Kilo Code itself:
 
 - [[kilo-code-subagent-orchestration|Kilo Code Subagent Orchestration]] — Architecture deep-dive
 - [[programmatic-tool-calling-2026|Programmatic Tool Calling]] — PTC patterns adopted as harness conventions (T-PLT-08)
+- [[nemotron-3-5-super-vl-prompting-2026|Prompting Nemotron 3.5 Super VL]] — Knobs, failure modes, and packet structure for the Kilo-routed Tier A model
 - [[technical-reference|Technical Reference]] — System architecture and API
 - [[integration-ollama|Ollama Integration]] — Local LLM inference
 
