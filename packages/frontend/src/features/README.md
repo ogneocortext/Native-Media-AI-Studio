@@ -18,7 +18,6 @@ This directory groups the React app by **feature domain** so agents can jump str
 | `image-generation/`   | Image generation queue and gallery                    |
 | `kinetic-typography/` | Kinetic typography / lyric animations                 |
 | `log-analytics/`      | Log viewing and analytics dashboards                  |
-| `logs/`               | Real-time log streaming UI                            |
 | `media-library/`      | Media library browser and asset picker                |
 | `music-prompts/`      | Music prompt presets and management                   |
 | `music-video/`        | Music video creation wizard                           |
@@ -39,4 +38,3 @@ This directory groups the React app by **feature domain** so agents can jump str
 - API services: `../services/`
 - Global state: `../state/`
 - Styles: `../styles/`
-- Pages: `../pages/`

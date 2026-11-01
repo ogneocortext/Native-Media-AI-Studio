@@ -16,17 +16,29 @@ This directory groups the FastAPI backend by **responsibility domain** so agents
 | `queue/` | Job queue implementation (DLQ + metrics + exponential backoff retries) |
 | `diagnostics/` | Resource and health diagnostics |
 | `utils/` | Shared helpers |
-| `tests/` | Backend test suite |
-| `output/` | Backend-generated outputs |
-| `storage/` | Runtime storage (queue, temp, backups) |
-| `transcriptions/` | Generated transcription data |
 
 ## Entry Point
 
 - `main.py` — FastAPI app factory and startup wiring.
+
+## Repo-Level Directories (not under `app/`)
+
+| Directory | Purpose |
+|-----------|---------|
+| `packages/backend/tests/` | Backend test suite |
+| `output/` | Backend-generated outputs (repo root) |
+| `storage/` | Runtime storage: queue, temp, backups (repo root) |
+| `transcriptions/` | Generated transcription data (repo root) |
 
 ## Conventions
 
 - Keep API routes thin; place business logic in `services/`.
 - Pydantic models in `models/` are the single source of truth for schemas.
 - Prefer SSE (`GET /api/events`) over WebSocket for real-time updates.
+- **Similarly-named files across `api/` and `services/` are intentional:** `api/` holds
+  route/HTTP handlers, `services/` holds the underlying business logic. For example,
+  `api/transcription.py` defines the transcription endpoints while
+  `services/transcription.py` implements the transcription work. When in doubt,
+  start in `api/` for route questions and `services/` for implementation questions.
+- The dependency direction is **api -> services -> adapters**, and only downward.
+  `services`/`adapters` must never import `api`.
