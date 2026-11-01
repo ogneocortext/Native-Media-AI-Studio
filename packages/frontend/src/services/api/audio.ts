@@ -869,6 +869,19 @@ export interface MasterRequest {
   presence_db?: number;
 }
 
+/** Predefined finishing-chain presets applied via the UI. */
+export interface MasterFinishPreset {
+  label: string;
+  sub_cut_db: number;
+  presence_db: number;
+}
+
+export const MASTER_FINISH_PRESETS: MasterFinishPreset[] = [
+  { label: "Gentle", sub_cut_db: 2, presence_db: 1.5 },
+  { label: "Standard", sub_cut_db: 3, presence_db: 2.5 },
+  { label: "Aggressive", sub_cut_db: 5, presence_db: 4 },
+];
+
 export interface MasterApplied {
   gain_db: number;
   gain_trim_db?: number;

@@ -83,6 +83,7 @@ export {
   measureMasterLoudness,
   masterAudio,
   MASTER_TARGETS,
+  MASTER_FINISH_PRESETS,
 } from "./audio";
 export type {
   AudioUploadResponse,
