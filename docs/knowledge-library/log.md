@@ -21,6 +21,10 @@ type: tracker
 
 ---
 
+## 2026-11-01 — Bolt E4B reference: coding-language battery
+
+- Extended `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` with a "Coding languages (measured 2026-11-01)" section: a 12-probe battery (spec-to-code + planted-bug fix across Python, TypeScript, C#, Rust, Go, GLSL) scored 59/60, with prompt-tailoring rules (prompt shape over language choice; GLSL dialect strictness must be stated and compile-checked; latency is reasoning-driven). Two matching entries appended to `tools/model-reliability/observed.jsonl`.
+
 ## 2026-11-01 — Bolt E4B reference: corrections from the server Activity log
 
 - Owner's screenshot of Atomic's Server → Activity page confirmed the probe traffic from the rig side and corrected two figures in `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md`: Bolt's sustained generation is ~35 tok/s (34.3–36.3 across the battery), not the ~23 tok/s of the first 4-token test; and a new API-behavior bullet records that only the loaded model is callable (any other installed id 404s — no on-demand loading). One matching entry appended to `tools/model-reliability/observed.jsonl`.

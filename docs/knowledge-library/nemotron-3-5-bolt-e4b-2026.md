@@ -197,6 +197,45 @@ are not visible from the Atomic Chat UI:
   Validate counts, lengths, and arithmetic mechanically — do not
   trust the model to count.
 
+## Coding languages (measured 2026-11-01)
+
+A 12-probe battery run by the cloud agent through the tailnet
+route: for each of the studio's six working languages, one
+spec-to-code task (exact signature given, explicit constraints)
+and one planted-bug fix, same framing throughout, thinking on.
+Scored /5 per task (correctness 2, signature 1, constraints 1,
+idiom 1). The Python outputs were also executed and pass.
+
+| Language | Spec-to-code | Bug fix | Note |
+|---|---|---|---|
+| Python | 5 | 5 | Tuple-key one-liner; execution-verified |
+| TypeScript | 5 | 5 | Numeric comparator fix, exact |
+| C# | 5 | 5 | LINQ OrderBy/ThenBy; FirstOrDefault fix |
+| Rust | 5 | 5 | Borrow fix (`&[Track]`); idiomatic sort_by |
+| Go | 5 | 5 | Copy-then-sort; nil-map fix |
+| GLSL | 5 | 4 | Cast only one operand — strict ES 1.00 still rejects float/int division |
+| JavaScript | — | — | Three.js bench (separate, harder task): 77/111, most concise of the locals |
+
+**Prompt-tailoring rules drawn from the battery:**
+
+- **At small-unit scale, language barely differentiates** —
+  59/60 across six languages. The lever is prompt shape: exact
+  signature, explicit constraints (no mutation, stdlib only),
+  "output only the code" — followed 12/12.
+- **GLSL prompts must name dialect strictness:** "GLSL ES 1.00
+  strict — no implicit int→float conversion; cast both
+  operands," and shader output always gets a compile check
+  (the T-AGT-03 loop), because the one miss is invisible to a
+  read-through on lenient compilers.
+- **Latency is reasoning-driven, not output-driven:**
+  generation tasks took 24–130s (Rust and GLSL slowest),
+  bug fixes 17–66s. Budget interactive delegations at 1–2
+  minutes for generation.
+- **Untested stays untested:** multi-file work, engine APIs
+  (Unity/Blender), and long outputs were not in this battery.
+  The T-AGT-03 role rule stands — Tier A routes write scene
+  code; local models retrieve, execute, and verify.
+
 ## Failure modes and countermeasures
 
 - **Reasoning starves small token budgets.** Default reasoning can
