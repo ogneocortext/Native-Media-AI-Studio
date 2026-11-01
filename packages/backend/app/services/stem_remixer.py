@@ -23,7 +23,12 @@ try:
 except ImportError:  # pragma: no cover - librosa is a hard backend dep
     librosa = None
 
+from .remix_analysis import LIBROSA_AVAILABLE as _LIBROSA_AVAILABLE
+from .remix_analysis import probe_track
 from .remix_constants import (
+    _HASH_PREFIX_RE,
+    _MAJOR_PROFILE,
+    _PITCH_NAMES,
     AUDIO_DIR,
     AUDIO_EXTENSIONS,
     CALIBRATION_MAX_DB,
@@ -33,17 +38,14 @@ from .remix_constants import (
     PROBE_CACHE_VERSION,
     REMIX_DIR,
     REMIX_SR,
-    VERSIONS_DIRNAME,
-    _HASH_PREFIX_RE,
-    _MAJOR_PROFILE,
-    _PITCH_NAMES,
     SEPARATION_DIR,
     STEM_NAMES,
+    VERSIONS_DIRNAME,
 )
-
-PREVIEW_DIR = REMIX_DIR / ".previews"
-from .remix_analysis import LIBROSA_AVAILABLE as _LIBROSA_AVAILABLE, probe_track
-from .remix_dsp import (    LIBROSA_AVAILABLE as _DSP_LIBROSA_AVAILABLE,
+from .remix_dsp import (
+    LIBROSA_AVAILABLE as _DSP_LIBROSA_AVAILABLE,
+)
+from .remix_dsp import (
     _brightness_tilt,
     _db_to_linear,
     _equal_power_ramp,
@@ -55,9 +57,9 @@ from .remix_dsp import (    LIBROSA_AVAILABLE as _DSP_LIBROSA_AVAILABLE,
 from .remix_library import (
     _manifest_recipe,
     essentia_bpm_batch,
+    list_remix_versions,
     list_remixes,
     list_remixes_for_track,
-    list_remix_versions,
     remix_dir,
     remix_version_dir,
 )
@@ -66,9 +68,9 @@ from .remix_preview import (
     PREVIEW_MAX_SECONDS,
     _masking_warnings,
     _near_silent_detail,
-    _prune_previews,
     _preview_key,
     _preview_meta_path,
+    _prune_previews,
     _read_preview_warnings,
     _wav_duration_sec,
     _write_preview_meta,
@@ -76,6 +78,7 @@ from .remix_preview import (
     render_preview_audio,
     truncate_recipe,
 )
+from .remix_recipe import RemixLayer, RemixRecipe, RemixResult, RemixSlot
 from .remix_render import (
     RemixCancelledError,
     _archive_previous_render,
@@ -85,14 +88,13 @@ from .remix_render import (
     plan_timeline,
     render_remix,
 )
-from .remix_recipe import RemixLayer, RemixRecipe, RemixResult, RemixSlot
 from .remix_source import (
     _normalize_track_name,
+    _pick_analysis_stem,
     _probe_summary,
     _safe_remix_name,
     _safe_track_name,
     _stem_dir_map,
-    _pick_analysis_stem,
     library_audio_files,
     library_file_for,
     list_stem_sources,
@@ -100,10 +102,12 @@ from .remix_source import (
     resolve_track_key,
 )
 from .remix_source_cache import (
-    _SourceCache,
     _ebur128_integrated_lufs,
     _ebur128_stats,
+    _SourceCache,
 )
+
+PREVIEW_DIR = REMIX_DIR / ".previews"
 
 # Re-export names that tests and other modules reference directly.
 __all__ = [

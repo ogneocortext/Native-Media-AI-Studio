@@ -158,6 +158,7 @@ def write_cache_entry(
     duration: float,
     seconds: float,
     device: str,
+    *,
     normalized: bool,
 ) -> None:
     """Write a complete cache entry: stem WAVs + manifest.json."""
@@ -190,6 +191,7 @@ def log_telemetry(
     shifts: int,
     seconds: float,
     device: str,
+    *,
     cache_hit: bool,
     normalized: bool,
     error: str | None = None,
@@ -1300,9 +1302,7 @@ class SourceSeparator:
             r_mean = float(np.mean(right))
             l_centered = left - l_mean
             r_centered = right - r_mean
-            denom = np.sqrt(
-                np.dot(l_centered, l_centered) * np.dot(r_centered, r_centered)
-            )
+            denom = np.sqrt(np.dot(l_centered, l_centered) * np.dot(r_centered, r_centered))
             correlation = float(np.dot(l_centered, r_centered) / (denom + 1e-10))
             correlation = float(np.clip(correlation, -1.0, 1.0))
 
@@ -1336,21 +1336,13 @@ class SourceSeparator:
 
             recommendations: list[str] = []
             if phase_status == "inverted":
-                recommendations.append(
-                    "Phase inverted between L/R -- check polarity"
-                )
+                recommendations.append("Phase inverted between L/R -- check polarity")
             elif phase_status == "wide":
-                recommendations.append(
-                    "Wide stereo image -- verify mono collapse"
-                )
+                recommendations.append("Wide stereo image -- verify mono collapse")
             if mono_status in ("risk", "cancel"):
-                recommendations.append(
-                    "Mono compatibility risk -- elements may cancel in mono"
-                )
+                recommendations.append("Mono compatibility risk -- elements may cancel in mono")
             if phase_status == "ok" and mono_status == "ok":
-                recommendations.append(
-                    "Phase and mono compatibility look good"
-                )
+                recommendations.append("Phase and mono compatibility look good")
 
             return {
                 "file": stem_path,

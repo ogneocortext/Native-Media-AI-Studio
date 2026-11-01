@@ -34,9 +34,7 @@ class OllamaModelMixin:
             async with session.get(f"{self.base_url}/api/tags") as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    self._available_models = [
-                        m["name"] for m in data.get("models", [])
-                    ]
+                    self._available_models = [m["name"] for m in data.get("models", [])]
                     return data.get("models", [])
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Failed to list models: {e}")
@@ -59,9 +57,7 @@ class OllamaModelMixin:
         """Delete a model from Ollama (reuses the shared instance session)."""
         try:
             session = await self._get_session()
-            async with session.delete(
-                f"{self.base_url}/api/delete", json={"model": name}
-            ) as resp:
+            async with session.delete(f"{self.base_url}/api/delete", json={"model": name}) as resp:
                 return resp.status == 200
         except Exception:  # noqa: BLE001
             return False

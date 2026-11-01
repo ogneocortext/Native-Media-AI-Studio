@@ -16,6 +16,7 @@ and never runs a handler body, py_compile does not resolve free variables, and a
 plain import only proves the module-level statements work. Exercise the
 endpoints.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -60,11 +61,12 @@ class ExtractAudioRequest(BaseModel):
     saving a round-trip through the trim endpoint. Omit both for the full
     audio track.
     """
+
     source_path: str  # output-relative ("video/foo.mp4") or absolute under PROJECT_ROOT
     format: str = "original"  # "original" = lossless stream copy (best quality); "mp3" = re-encode
     bitrate: str = "192k"  # only used when format == "mp3": one of 128k, 192k, 320k
     start: float | None = None  # segment start in seconds (default 0)
-    end: float | None = None    # segment end in seconds (default: end of stream)
+    end: float | None = None  # segment end in seconds (default: end of stream)
 
 
 def _find_ffmpeg() -> str | None:
@@ -144,7 +146,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     probe = await probe_media(src)
     audio_codec: str | None = None
     audio_rate: str | None = None
-    for st in (probe.get("streams") or []):
+    for st in probe.get("streams") or []:
         if st.get("codec_type") == "audio":
             audio_codec = (st.get("codec_name") or "").lower() or None
             sr = st.get("sample_rate")
@@ -198,7 +200,11 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     started = time.perf_counter()
     try:
         proc = await asyncio.to_thread(
-            subprocess.run, _cmd(cmd_mode), capture_output=True, text=True, timeout=120,
+            subprocess.run,
+            _cmd(cmd_mode),
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Audio extraction timed out") from None
@@ -209,7 +215,11 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
         # one AAC-encode fallback so the user still gets audio.
         try:
             proc = await asyncio.to_thread(
-                subprocess.run, _cmd("encode-fallback"), capture_output=True, text=True, timeout=120,
+                subprocess.run,
+                _cmd("encode-fallback"),
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(status_code=504, detail="Audio extraction timed out") from None
@@ -233,7 +243,9 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
             seg_duration = max(0.0, src_dur - seg_start)
 
     rel = dst.resolve().relative_to(root).as_posix()
-    rel = rel.removeprefix("output/")  # output-relative, e.g. "audio/x.m4a" (getOutputUrl convention)
+    rel = rel.removeprefix(
+        "output/"
+    )  # output-relative, e.g. "audio/x.m4a" (getOutputUrl convention)
     return {
         "success": True,
         "filename": dst.name,
@@ -258,7 +270,9 @@ async def rename_audio(body: RenameAudioRequest) -> dict:
     new_filename = body.new_filename
 
     if not old_filename or not new_filename:
-        raise HTTPException(status_code=400, detail="Both old_filename and new_filename are required")
+        raise HTTPException(
+            status_code=400, detail="Both old_filename and new_filename are required"
+        )
 
     if ".." in old_filename or ".." in new_filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -272,7 +286,9 @@ async def rename_audio(body: RenameAudioRequest) -> dict:
         raise HTTPException(status_code=400, detail="New path escapes audio directory")
 
     if new_path.exists():
-        raise HTTPException(status_code=409, detail=f"A file with that name already exists: {new_filename}")
+        raise HTTPException(
+            status_code=409, detail=f"A file with that name already exists: {new_filename}"
+        )
 
     old_path.rename(new_path)
 
@@ -281,18 +297,22 @@ async def rename_audio(body: RenameAudioRequest) -> dict:
 
 class TrimRange(BaseModel):
     """One [start, end) interval in seconds."""
+
     start: float
     end: float
 
 
 class TrimAudioRequest(BaseModel):
     """Cut or keep time ranges of an audio library file, saving the result as new file."""
+
     filename: str  # existing file in output/audio
     mode: str = "keep"  # "keep" = save only ranges[0]; "remove" = cut ranges out, keep the rest
     ranges: list[TrimRange]
 
 
-def _clamp_merge_ranges(ranges: list[tuple[float, float]], duration: float) -> list[tuple[float, float]]:
+def _clamp_merge_ranges(
+    ranges: list[tuple[float, float]], duration: float
+) -> list[tuple[float, float]]:
     """Clamp intervals to [0, duration], drop empties, sort and merge overlaps."""
     cleaned: list[tuple[float, float]] = []
     for start, end in ranges:
@@ -370,9 +390,13 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
         if duration - cursor > 0.01:
             kept.append((cursor, duration))
         if not kept:
-            raise HTTPException(status_code=400, detail="Removal covers the entire file -- nothing left to save")
+            raise HTTPException(
+                status_code=400, detail="Removal covers the entire file -- nothing left to save"
+            )
     if len(kept) == 1 and kept[0][0] <= 0.01 and kept[0][1] >= duration - 0.01:
-        raise HTTPException(status_code=400, detail="Edit covers the full file -- nothing to change")
+        raise HTTPException(
+            status_code=400, detail="Edit covers the full file -- nothing to change"
+        )
 
     stem = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", src.stem).strip() or "trimmed"
     ext = src.suffix.lower()
@@ -385,7 +409,11 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
     async def _run(cmd: list[str]) -> None:
         try:
             proc = await asyncio.to_thread(
-                subprocess.run, cmd, capture_output=True, text=True, timeout=120,
+                subprocess.run,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(status_code=504, detail="Audio trim timed out") from None
@@ -399,30 +427,72 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
     try:
         if len(kept) == 1:
             s, e = kept[0]
-            await _run([
-                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                "-i", str(src), "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}",
-                "-vn", "-c:a", "copy", str(dst),
-            ])
+            await _run(
+                [
+                    ffmpeg,
+                    "-y",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(src),
+                    "-ss",
+                    f"{s:.3f}",
+                    "-t",
+                    f"{e - s:.3f}",
+                    "-vn",
+                    "-c:a",
+                    "copy",
+                    str(dst),
+                ]
+            )
         else:
             import tempfile
+
             tmpdir = Path(tempfile.mkdtemp(prefix="trim_"))
             parts: list[str] = []
             for i, (s, e) in enumerate(kept):
                 part = tmpdir / f"part{i:03d}{ext}"
-                await _run([
-                    ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                    "-i", str(src), "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}",
-                    "-vn", "-c:a", "copy", str(part),
-                ])
+                await _run(
+                    [
+                        ffmpeg,
+                        "-y",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-i",
+                        str(src),
+                        "-ss",
+                        f"{s:.3f}",
+                        "-t",
+                        f"{e - s:.3f}",
+                        "-vn",
+                        "-c:a",
+                        "copy",
+                        str(part),
+                    ]
+                )
                 parts.append(str(part))
             lst = tmpdir / "concat.txt"
             lst.write_text("".join(f"file '{p}'\n" for p in parts), encoding="utf-8")
-            await _run([
-                ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-                "-f", "concat", "-safe", "0", "-i", str(lst),
-                "-c", "copy", str(dst),
-            ])
+            await _run(
+                [
+                    ffmpeg,
+                    "-y",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(lst),
+                    "-c",
+                    "copy",
+                    str(dst),
+                ]
+            )
     finally:
         if tmpdir is not None:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -491,8 +561,8 @@ async def serve_audio_file(request: Request, filename: str):
     origin = request.headers.get("origin", "")
     cors_origin = origin if is_origin_allowed(origin) else ""
     headers: dict[str, str] = {
-         "Accept-Ranges": "bytes",
-         "Cache-Control": "public, max-age=3600",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=3600",
     }
     if cors_origin:
         headers["Access-Control-Allow-Origin"] = cors_origin

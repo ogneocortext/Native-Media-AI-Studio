@@ -234,9 +234,7 @@ class JobProcessor:
     def _register_default_handlers(self):
         """Register default job handlers"""
         # Register image generation handler
-        self.register_handler(
-            JobType.IMAGE_GENERATION, ImageGenerationHandler().process_job
-        )
+        self.register_handler(JobType.IMAGE_GENERATION, ImageGenerationHandler().process_job)
 
         # Register storyboard generation handler (Ollama)
         self.register_handler(
@@ -250,24 +248,16 @@ class JobProcessor:
         )
 
         # Register audio feature extraction handler (librosa beat/waveform extraction)
-        self.register_handler(
-            JobType.AUDIO_FEATURE_EXTRACTION, AudioAnalysisHandler().process_job
-        )
+        self.register_handler(JobType.AUDIO_FEATURE_EXTRACTION, AudioAnalysisHandler().process_job)
 
         # Register music video generation handler
-        self.register_handler(
-            JobType.MUSIC_VIDEO, MusicVideoHandler().process_job
-        )
+        self.register_handler(JobType.MUSIC_VIDEO, MusicVideoHandler().process_job)
 
         # Register music video preview handler (short draft)
-        self.register_handler(
-            JobType.MUSIC_VIDEO_PREVIEW, MusicVideoPreviewHandler().process_job
-        )
+        self.register_handler(JobType.MUSIC_VIDEO_PREVIEW, MusicVideoPreviewHandler().process_job)
 
         # Register lip-sync handler (local MuseTalk, D42)
-        self.register_handler(
-            JobType.LIPSYNC, LipSyncHandler().process_job
-        )
+        self.register_handler(JobType.LIPSYNC, LipSyncHandler().process_job)
 
     def register_handler(self, job_type: JobType, handler: Callable[[Job], Any]):
         """Register a handler for a specific job type"""
@@ -346,18 +336,18 @@ class JobProcessor:
                 logger.error("Error in process loop: %s", e)
                 await asyncio.sleep(1)
 
-    async def _backoff_sleep(self, retry_count: int, base_seconds: float = 2.0, max_seconds: float = 60.0) -> None:
+    async def _backoff_sleep(
+        self, retry_count: int, base_seconds: float = 2.0, max_seconds: float = 60.0
+    ) -> None:
         """Exponential backoff with jitter for retries."""
-        delay = min(base_seconds * (2 ** retry_count), max_seconds)
+        delay = min(base_seconds * (2**retry_count), max_seconds)
         jitter = delay * 0.1  # 10% jitter
         await asyncio.sleep(delay + (jitter * random.uniform(-0.5, 0.5)))
 
     async def _broadcast_progress(self, job: Job):
         """Broadcast job progress to SSE clients"""
         try:
-            await sse_manager.broadcast(
-                "job.progress", {"job": job.model_dump(mode="json")}
-            )
+            await sse_manager.broadcast("job.progress", {"job": job.model_dump(mode="json")})
         except Exception as e:
             logger.error("Error broadcasting progress: %s", e)
 
@@ -447,7 +437,9 @@ class JobProcessor:
             current = await queue_manager.get_job(job.id)
             if current is None or current.status == JobStatus.CANCELLED:
                 # Job was deleted or cancelled while running - keep terminal state
-                logger.warning("Job %s was cancelled/deleted during processing; not marking complete", job.id)
+                logger.warning(
+                    "Job %s was cancelled/deleted during processing; not marking complete", job.id
+                )
                 return
 
             await queue_manager.update_job(
@@ -478,7 +470,9 @@ class JobProcessor:
             # Re-read the job in case it was cancelled while running
             current = await queue_manager.get_job(job.id)
             if current is None or current.status == JobStatus.CANCELLED:
-                logger.warning("Job %s was cancelled/deleted during processing; not retrying", job.id)
+                logger.warning(
+                    "Job %s was cancelled/deleted during processing; not retrying", job.id
+                )
                 return
 
             described = verdict.describe(error_msg)
@@ -494,7 +488,12 @@ class JobProcessor:
                     message=f"Retry {next_retry}/{job.max_retries}",
                     retry_count=next_retry,
                 )
-                logger.info("Job %s scheduled for retry %d/%d with backoff", job.id, next_retry, job.max_retries)
+                logger.info(
+                    "Job %s scheduled for retry %d/%d with backoff",
+                    job.id,
+                    next_retry,
+                    job.max_retries,
+                )
                 await self._backoff_sleep(current.retry_count)
                 # Re-queue for processing
                 await queue_manager.update_job(job.id, status=JobStatus.QUEUED)

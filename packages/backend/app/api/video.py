@@ -67,6 +67,7 @@ class VideoGenerateRequest(BaseModel):
 
 class VideoGenerateResponse(BaseModel):
     """Response model for video generation -- now returns real job for polling"""
+
     success: bool
     job_id: str | None = None
     output_path: str | None = None
@@ -79,6 +80,7 @@ class VideoGenerateResponse(BaseModel):
 # Render engine abstraction (stack-extensions-2026.md Phase 2)
 # ---------------------------------------------------------------------------
 
+
 class RenderRequest(BaseModel):
     """Engine-agnostic render request.
 
@@ -88,6 +90,7 @@ class RenderRequest(BaseModel):
     output_path: relative paths resolve against the project root
                  (defaults into output/video/).
     """
+
     kind: str = "color"
     engine: str = "auto"
     width: int = Field(default=1280, ge=16, le=7680)
@@ -117,6 +120,7 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
         # Resolve audio_path from audio_filename when not provided directly
         if not request.audio_path:
             from ..core.config import PROJECT_ROOT as _PR
+
             audio_dir = _PR / "output" / "audio"
             if request.audio_filename and audio_dir.exists():
                 candidate = audio_dir / request.audio_filename
@@ -130,16 +134,24 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                             break
             if not request.audio_path:
                 # Fallback: most recent uploaded audio
-                candidates = sorted(audio_dir.rglob("*"), key=lambda p: p.stat().st_mtime, reverse=True) if audio_dir.exists() else []
+                candidates = (
+                    sorted(audio_dir.rglob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+                    if audio_dir.exists()
+                    else []
+                )
                 candidates = [c for c in candidates if c.is_file()]
                 fallback = str(candidates[0]) if candidates else None
                 if not fallback:
-                    raise ValueError("audio_path is required -- upload audio first via /api/audio/upload or /api/audio/analyze")
+                    raise ValueError(
+                        "audio_path is required -- upload audio first via /api/audio/upload or /api/audio/analyze"
+                    )
                 request.audio_path = fallback
 
         viz_config = (request.visualization or {}).copy()
         viz_config.setdefault("style", "abstract")
-        viz_config.setdefault("duration", f"{int(request.duration)}s" if request.duration < 60 else "full")
+        viz_config.setdefault(
+            "duration", f"{int(request.duration)}s" if request.duration < 60 else "full"
+        )
         viz_config.setdefault("resolution", "1080p")
         viz_config.setdefault("fps", 30)
 
@@ -155,7 +167,9 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                 "duration": request.duration,
                 "duration_seconds": request.duration,
                 "audio_path": request.audio_path,
-                "audio_filename": request.audio_filename or Path(request.audio_path).name if request.audio_path else "track.mp3",
+                "audio_filename": request.audio_filename or Path(request.audio_path).name
+                if request.audio_path
+                else "track.mp3",
                 "visualization": viz_config,
                 "method": request.method,
                 "vertical_first": request.vertical_first,
@@ -169,7 +183,9 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
         # queue_manager.enqueue expects JobCreateRequest; use create_job convenience
         from ..models.job import JobCreateRequest
 
-        jcr = JobCreateRequest(job_type=JobType.MUSIC_VIDEO, params=job_request["params"], max_retries=1)
+        jcr = JobCreateRequest(
+            job_type=JobType.MUSIC_VIDEO, params=job_request["params"], max_retries=1
+        )
         job = await queue_manager.enqueue(jcr)
 
         return VideoGenerateResponse(
@@ -192,6 +208,7 @@ class ExportMatrixRequest(BaseModel):
                  loop starts (from POST /api/audio/analyze).
     loop_seconds: Spotify Canvas range 3-8s (default 4.0).
     """
+
     source_path: str
     beat_times: list[float] | None = None
     sections: list[dict] | None = None
@@ -200,6 +217,7 @@ class ExportMatrixRequest(BaseModel):
 
 class EstimateCostRequest(BaseModel):
     """Request model for render cost estimation (A2: plan/render cost split)."""
+
     steps: int = 20
     width: int = 1920
     height: int = 1080
@@ -220,6 +238,7 @@ class EstimateCostResponse(BaseModel):
     opt-in per request, D9). For a local-only estimate the cost fields are
     absent (frontend shows "Free").
     """
+
     estimated_seconds: float
     estimated_minutes: float
     estimated_end_time: str
@@ -264,7 +283,9 @@ async def render_video(request: RenderRequest) -> dict:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    output_path = request.output_path or f"output/video/render_{request.kind}_{renderer.engine_id}.mp4"
+    output_path = (
+        request.output_path or f"output/video/render_{request.kind}_{renderer.engine_id}.mp4"
+    )
     if not Path(output_path).is_absolute():
         # Anchor on project root (the API process runs with CWD=packages/backend)
         output_path = str(Path(PROJECT_ROOT) / output_path)
@@ -288,7 +309,9 @@ async def render_video(request: RenderRequest) -> dict:
 
     rel = None
     try:
-        rel = Path(result.output_path).resolve().relative_to(Path(PROJECT_ROOT).resolve()).as_posix()
+        rel = (
+            Path(result.output_path).resolve().relative_to(Path(PROJECT_ROOT).resolve()).as_posix()
+        )
     except ValueError:
         pass
     return {
@@ -400,19 +423,30 @@ async def estimate_cost(request: EstimateCostRequest) -> EstimateCostResponse:
 # A4 -- Spotify Canvas recipe (9:16, 720px, 3--8s seamless loop)
 # ---------------------------------------------------------------------------
 
+
 class CanvasLoopRequest(BaseModel):
     """Request model for Spotify Canvas loop extraction."""
+
     source_path: str = Field(description="Absolute path to the source video file")
-    start: float | None = Field(default=None, description="Loop start time in seconds (auto-selected if omitted)")
-    duration: float = Field(default=5.0, ge=3.0, le=8.0, description="Loop duration in seconds (3--8)")
+    start: float | None = Field(
+        default=None, description="Loop start time in seconds (auto-selected if omitted)"
+    )
+    duration: float = Field(
+        default=5.0, ge=3.0, le=8.0, description="Loop duration in seconds (3--8)"
+    )
     width: int = Field(default=720, description="Canvas width in pixels (720)")
     height: int = Field(default=1280, description="Canvas height in pixels (1280 = 9:16)")
-    output_path: str | None = Field(default=None, description="Output path (defaults into output/video/)")
-    crossfade: float = Field(default=0.3, description="Crossfade duration at loop point for seamlessness")
+    output_path: str | None = Field(
+        default=None, description="Output path (defaults into output/video/)"
+    )
+    crossfade: float = Field(
+        default=0.3, description="Crossfade duration at loop point for seamlessness"
+    )
 
 
 class CanvasLoopResponse(BaseModel):
     """Response model for Canvas loop extraction."""
+
     success: bool
     output_path: str | None = None
     duration: float | None = None
@@ -426,16 +460,25 @@ class CanvasLoopResponse(BaseModel):
 # A6 -- Per-scene model routing
 # ---------------------------------------------------------------------------
 
+
 class RouteSceneRequest(BaseModel):
     """Request model for per-scene model routing (A6)."""
-    section_type: str = Field(description="Scene/section type: intro|verse|pre_chorus|chorus|drop|bridge|outro")
-    energy: float | None = Field(default=None, description="Normalised energy 0--1 from audio analysis")
+
+    section_type: str = Field(
+        description="Scene/section type: intro|verse|pre_chorus|chorus|drop|bridge|outro"
+    )
+    energy: float | None = Field(
+        default=None, description="Normalised energy 0--1 from audio analysis"
+    )
     duration: float | None = Field(default=None, description="Scene duration in seconds")
-    vram_available_mb: int | None = Field(default=None, description="Free VRAM at routing time (MB)")
+    vram_available_mb: int | None = Field(
+        default=None, description="Free VRAM at routing time (MB)"
+    )
 
 
 class RouteSceneResponse(BaseModel):
     """Response model for per-scene model routing."""
+
     model: str
     tier: str
     reason: str
@@ -454,14 +497,18 @@ async def route_scene(request: RouteSceneRequest) -> RouteSceneResponse:
     """
     try:
         from ..core.config import PROJECT_ROOT
+
         routing_path = PROJECT_ROOT / "config" / "model_routing.json"
         routing: dict[str, Any] = {}
         if routing_path.is_file():
             import json
+
             routing = json.loads(routing_path.read_text(encoding="utf-8"))
 
         rules = routing.get("rules", [])
-        fallback = routing.get("fallback", {"model": "wan2.2-5b", "tier": "balanced", "reason": "Default"})
+        fallback = routing.get(
+            "fallback", {"model": "wan2.2-5b", "tier": "balanced", "reason": "Default"}
+        )
 
         section = (request.section_type or "").lower().replace(" ", "_")
         energy = request.energy if request.energy is not None else 0.5
@@ -490,6 +537,7 @@ async def route_scene(request: RouteSceneRequest) -> RouteSceneResponse:
 
         # VRAM lookup
         from ..core.model_tiers import estimate_vram_requirement
+
         vram_info = estimate_vram_requirement(model)
         vram_required = vram_info.get("recommended_mb")
 
@@ -538,12 +586,17 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
         # 1. Get source duration to auto-select start point
         probe_cmd = [
             "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(src),
         ]
-        proc = await asyncio.create_subprocess_exec(*probe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = await asyncio.create_subprocess_exec(
+            *probe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
         probe_stdout, _ = await proc.communicate()
         src_duration = float(probe_stdout.decode().strip() or "0")
 
@@ -594,26 +647,41 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
         cmd = [
             ffmpeg,
             "-y",
-            "-ss", str(start),
-            "-i", str(src),
-            "-t", str(duration),
-            "-vf", filter_graph,
-            "-af", audio_filter,
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "18",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
-            "-pix_fmt", "yuv420p",
+            "-ss",
+            str(start),
+            "-i",
+            str(src),
+            "-t",
+            str(duration),
+            "-vf",
+            filter_graph,
+            "-af",
+            audio_filter,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "18",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
+            "-pix_fmt",
+            "yuv420p",
             str(out),
         ]
 
         t0 = time.perf_counter()
         try:
-            proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         except NotImplementedError:
+
             def _run() -> tuple[int, bytes, bytes]:
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -622,17 +690,26 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
                     p.kill()
                     p.wait(timeout=10)
                     return -1, b"", b"FFmpeg timed out"
-            returncode, stdout, stderr = await asyncio.wait_for(asyncio.to_thread(_run), timeout=130)
+
+            returncode, stdout, stderr = await asyncio.wait_for(
+                asyncio.to_thread(_run), timeout=130
+            )
             proc = None  # type: ignore[assignment]
         except TimeoutError:
             logger.error("Canvas loop FFmpeg timed out for %s", src)
-            return CanvasLoopResponse(success=False, error="FFmpeg timed out after 120s", message="Try a shorter duration or lower resolution")
+            return CanvasLoopResponse(
+                success=False,
+                error="FFmpeg timed out after 120s",
+                message="Try a shorter duration or lower resolution",
+            )
 
         render_s = round(time.perf_counter() - t0, 2)
         if proc is not None and proc.returncode != 0:
             err_msg = stderr.decode("utf-8", errors="replace")[-500:] if stderr else "FFmpeg failed"
             logger.error("Canvas loop failed: %s", err_msg)
-            return CanvasLoopResponse(success=False, error=err_msg, message="FFmpeg filter graph failed")
+            return CanvasLoopResponse(
+                success=False, error=err_msg, message="FFmpeg filter graph failed"
+            )
 
         size_bytes = out.stat().st_size if out.exists() else 0
         return CanvasLoopResponse(
@@ -652,8 +729,10 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
 # A3 -- Beat-quantized assembler
 # ---------------------------------------------------------------------------
 
+
 class AssembleRequest(BaseModel):
     """Request model for beat-quantized assembly (A3)."""
+
     shot_manifest: list[dict[str, Any]] = Field(description="A1 shot plan with rendered clip paths")
     output_path: str | None = None
     audio_path: str | None = None
@@ -665,6 +744,7 @@ class AssembleRequest(BaseModel):
 
 class AssembleResponse(BaseModel):
     """Response model for beat-quantized assembly."""
+
     success: bool
     output_path: str | None = None
     duration: float | None = None
@@ -719,6 +799,7 @@ async def assemble_beat_quantized(request: AssembleRequest) -> AssembleResponse:
 # Lip-sync (D42) -- local MuseTalk only. No API calls anywhere in this path.
 # ---------------------------------------------------------------------------
 
+
 class LipSyncRequest(BaseModel):
     """Request model for lip-syncing a clip to an audio track.
 
@@ -727,6 +808,7 @@ class LipSyncRequest(BaseModel):
     mix syncs markedly worse. Scoped to close-ups/chorus per the knowledge
     library ("lip-sync only where it matters").
     """
+
     video_path: str | None = Field(default=None, description="Existing clip to lip-sync")
     image_path: str | None = Field(default=None, description="Still portrait to animate + lip-sync")
     audio_path: str | None = None
@@ -737,6 +819,7 @@ class LipSyncRequest(BaseModel):
 
 class LipSyncResponse(BaseModel):
     """Response model for lip-sync -- returns the queued job for polling."""
+
     success: bool
     job_id: str | None = None
     output_path: str | None = None
@@ -768,7 +851,8 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
         status = MuseTalkAdapter().check_installation()
         if not status["installed"]:
             raise RuntimeError(
-                "MuseTalk is not ready on this machine: " + status["message"]
+                "MuseTalk is not ready on this machine: "
+                + status["message"]
                 + " -- see config/lipsync.json"
             )
 
@@ -801,6 +885,7 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
     except Exception as exc:
         logger.exception("Lip-sync endpoint error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
 
 # ---------------------------------------------------------------------------
 # Lip-sync batch (D42 extension) -- long audio -> chunks -> LIPSYNC jobs -> stitch
@@ -844,7 +929,10 @@ async def _probe_duration(ffprobe: str, media_path: str) -> float:
 
     proc = await run_subprocess_thread(
         lipbatch.probe_duration_cmd(ffprobe, media_path),
-        capture_output=True, text=True, encoding="utf-8", timeout=60,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=60,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"ffprobe failed: {(proc.stderr or '')[-300:]}")
@@ -858,6 +946,7 @@ class LipSyncBatchRequest(BaseModel):
     into chunk_seconds pieces; each chunk becomes one queued LIPSYNC job
     (flat VRAM per chunk), then POST .../stitch concatenates the results.
     """
+
     video_path: str | None = None
     image_path: str | None = None
     audio_path: str | None = None
@@ -912,7 +1001,8 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
         status = MuseTalkAdapter().check_installation()
         if not status["installed"]:
             raise RuntimeError(
-                "MuseTalk is not ready on this machine: " + status["message"]
+                "MuseTalk is not ready on this machine: "
+                + status["message"]
                 + " -- see config/lipsync.json"
             )
 
@@ -931,14 +1021,18 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
         for chunk in chunks:
             audio_chunk = lipbatch.chunk_audio_path(bdir, chunk.index)
             await _run_cmd(
-                lipbatch.split_audio_cmd(ffmpeg, audio_path, chunk.start, chunk.length, str(audio_chunk)),
+                lipbatch.split_audio_cmd(
+                    ffmpeg, audio_path, chunk.start, chunk.length, str(audio_chunk)
+                ),
                 timeout=300,
             )
             video_chunk: str | None = None
             if source_kind == "video":
                 video_chunk = str(lipbatch.chunk_video_path(bdir, chunk.index))
                 await _run_cmd(
-                    lipbatch.split_video_cmd(ffmpeg, source, chunk.start, chunk.length, video_chunk),
+                    lipbatch.split_video_cmd(
+                        ffmpeg, source, chunk.start, chunk.length, video_chunk
+                    ),
                     timeout=600,
                 )
             params = {
@@ -1015,12 +1109,14 @@ async def lipsync_batch_status(batch_id: str) -> LipSyncBatchStatusResponse:
                 completed += 1
             elif st == "failed":
                 failed += 1
-            chunks.append({
-                "index": chunk["index"],
-                "job_id": chunk["job_id"],
-                "status": st,
-                "output_path": chunk["output_path"],
-            })
+            chunks.append(
+                {
+                    "index": chunk["index"],
+                    "job_id": chunk["job_id"],
+                    "status": st,
+                    "output_path": chunk["output_path"],
+                }
+            )
         return LipSyncBatchStatusResponse(
             batch_id=batch_id,
             total=len(chunks),
@@ -1072,7 +1168,9 @@ async def lipsync_batch_stitch(batch_id: str) -> dict:
             if st != "completed":
                 pending.append({"index": chunk["index"], "job_id": chunk["job_id"], "status": st})
             elif not Path(chunk["output_path"]).is_file():
-                pending.append({"index": chunk["index"], "job_id": chunk["job_id"], "status": "missing_output"})
+                pending.append(
+                    {"index": chunk["index"], "job_id": chunk["job_id"], "status": "missing_output"}
+                )
             else:
                 outputs.append(chunk["output_path"])
         if pending:
@@ -1088,8 +1186,9 @@ async def lipsync_batch_stitch(batch_id: str) -> dict:
         final.parent.mkdir(parents=True, exist_ok=True)
         # Mux the source audio back: chunks are video-only by design.
         await _run_cmd(
-            lipbatch.stitch_cmd(ffmpeg, str(list_file), str(final),
-                              audio_in=str(manifest["audio_path"])),
+            lipbatch.stitch_cmd(
+                ffmpeg, str(list_file), str(final), audio_in=str(manifest["audio_path"])
+            ),
             timeout=600,
         )
         if not final.is_file() or final.stat().st_size == 0:

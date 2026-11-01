@@ -40,6 +40,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 class AdapterStatus(StrEnum):
     """Adapter connection status."""
+
     AVAILABLE = "available"
     BUSY = "busy"
     CRITICAL = "critical"
@@ -154,6 +155,7 @@ class AdapterBase(ABC):  # noqa: B024 - Mixin base class, abstract methods defin
                     self.set_status(status_on_error)
                     logger.error("%s: %s failed: %s", self.name, func.__name__, exc)
                     raise
+
             return wrapper
 
         return decorator

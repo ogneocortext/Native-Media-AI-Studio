@@ -58,7 +58,12 @@ SAMPLER_MAP = {
 # Schedulers documented in comfyui-workflows.md -- validated before submit so
 # a typo doesn't become a silent ComfyUI node error.
 VALID_SCHEDULERS = {
-    "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform",
+    "normal",
+    "karras",
+    "exponential",
+    "sgm_uniform",
+    "simple",
+    "ddim_uniform",
 }
 
 
@@ -75,8 +80,15 @@ def _map_scheduler(scheduler_name: str) -> str:
 # (wan, kandinsky i2v), and motion modules all live in / are routed through
 # the checkpoints folder but are not SD-family image checkpoints.
 NON_IMAGE_CHECKPOINT_KEYWORDS = (
-    "hunyuan", "wan", "animate", "motion", "3d",
-    "kandinsky", "triposr", "stable-fast", "ltx",
+    "hunyuan",
+    "wan",
+    "animate",
+    "motion",
+    "3d",
+    "kandinsky",
+    "triposr",
+    "stable-fast",
+    "ltx",
 )
 
 
@@ -170,9 +182,13 @@ class ComfyUIAdapter(BaseAdapter):
     """
 
     def __init__(
-        self, base_url: str | None = None, mock_mode: bool = False
+        self,
+        base_url: str | None = None,
+        *,
+        mock_mode: bool = False,
     ):
         from ..core.config import config as _cfg
+
         _base = base_url or _cfg.comfyui_url
         super().__init__(_base, "ComfyUI", mock_mode=mock_mode)
         self._current_prompt_id: str | None = None
@@ -277,9 +293,13 @@ class ComfyUIAdapter(BaseAdapter):
                         self._available_checkpoints = await self._fetch_available_checkpoints()
                         if self._available_checkpoints:
                             logger.info(f"Available checkpoints: {self._available_checkpoints[:3]}")
-                        self._available_motion_modules = await self._fetch_available_motion_modules()
+                        self._available_motion_modules = (
+                            await self._fetch_available_motion_modules()
+                        )
                         if self._available_motion_modules:
-                            logger.info(f"Available motion modules: {self._available_motion_modules}")
+                            logger.info(
+                                f"Available motion modules: {self._available_motion_modules}"
+                            )
                     self.set_status(AdapterStatus.CONNECTED)
                     return True
         except Exception as e:
@@ -313,14 +333,23 @@ class ComfyUIAdapter(BaseAdapter):
         height = params.get("height", 512)
         # Accept both "sampler_name" (adapter convention) and "sampler"
         # (queue job convention) so queued jobs don't silently fall back.
-        comfy_sampler = _map_sampler(params.get("sampler_name", params.get("sampler", "euler_ancestral")))
+        comfy_sampler = _map_sampler(
+            params.get("sampler_name", params.get("sampler", "euler_ancestral"))
+        )
         scheduler = _map_scheduler(params.get("scheduler", "normal"))
         actual_seed = _resolve_seed(params.get("seed", -1))
 
         # Build workflow
         workflow = self._build_workflow(
-            prompt_text, negative_text, steps, cfg_scale,
-            width, height, actual_seed, comfy_sampler, scheduler=scheduler,
+            prompt_text,
+            negative_text,
+            steps,
+            cfg_scale,
+            width,
+            height,
+            actual_seed,
+            comfy_sampler,
+            scheduler=scheduler,
         )
 
         logger.debug("workflow built: %s", json.dumps(workflow)[:200])
@@ -352,8 +381,15 @@ class ComfyUIAdapter(BaseAdapter):
         # Build a minimal workflow: checkpoint -> clip text encode -> ksampler -> save
         # This uses ComfyUI's API workflow format
         workflow = self._build_workflow(
-            prompt_text, negative_text, steps, cfg_scale,
-            width, height, actual_seed, comfy_sampler, scheduler=scheduler,
+            prompt_text,
+            negative_text,
+            steps,
+            cfg_scale,
+            width,
+            height,
+            actual_seed,
+            comfy_sampler,
+            scheduler=scheduler,
         )
 
         # Submit workflow to ComfyUI
@@ -438,9 +474,8 @@ class ComfyUIAdapter(BaseAdapter):
         # Route to the appropriate workflow based on model variant and
         # whether an input image was provided (I2V vs T2V).
         variant_lower = str(model_variant).lower()
-        is_ltx = (
-            "ltx" in variant_lower
-            or (bool(ckpt_name) and classify_model_variant(ckpt_name) == "ltx_2_3")
+        is_ltx = "ltx" in variant_lower or (
+            bool(ckpt_name) and classify_model_variant(ckpt_name) == "ltx_2_3"
         )
         is_wan_gguf = variant_lower in ("gguf_q4", "gguf_q5") or (
             bool(ckpt_name) and is_wan_8gb_model(ckpt_name)
@@ -452,9 +487,19 @@ class ComfyUIAdapter(BaseAdapter):
         if image_path:
             # ---- IMAGE-TO-VIDEO ----
             workflow, eff_frames, model_label = self._build_i2v_workflow(
-                is_ltx, prompt_text, negative_text, steps, cfg_scale,
-                width, height, actual_seed, num_frames, fps,
-                image_path, ckpt_name, model_variant,
+                is_ltx,
+                prompt_text,
+                negative_text,
+                steps,
+                cfg_scale,
+                width,
+                height,
+                actual_seed,
+                num_frames,
+                fps,
+                image_path,
+                ckpt_name,
+                model_variant,
                 image_role=image_role,
                 camera_motion=camera_motion,
                 motion_strength=motion_strength,
@@ -470,9 +515,18 @@ class ComfyUIAdapter(BaseAdapter):
             t5_name, vae_name = "t5-xxl-fp8.safetensors", "LTX23_video_vae.safetensors"
 
             workflow = self._build_ltx_workflow(
-                prompt_text, negative_text, steps, cfg_scale,
-                width, height, actual_seed, comfy_sampler, lt_frames, fps,
-                ckpt_name=ckpt_name, variant=model_variant,
+                prompt_text,
+                negative_text,
+                steps,
+                cfg_scale,
+                width,
+                height,
+                actual_seed,
+                comfy_sampler,
+                lt_frames,
+                fps,
+                ckpt_name=ckpt_name,
+                variant=model_variant,
             )
             eff_frames = lt_frames
             model_label = "LTX 2.3 distilled"
@@ -487,9 +541,18 @@ class ComfyUIAdapter(BaseAdapter):
             vae_name, t5_name = _resolve_wan_assets(ckpt_name)
 
             workflow = self._build_wan_gguf_workflow(
-                prompt_text, negative_text, steps, cfg_scale,
-                width, height, actual_seed, comfy_sampler, wan_frames, fps,
-                ckpt_name=ckpt_name, variant=model_variant,
+                prompt_text,
+                negative_text,
+                steps,
+                cfg_scale,
+                width,
+                height,
+                actual_seed,
+                comfy_sampler,
+                wan_frames,
+                fps,
+                ckpt_name=ckpt_name,
+                variant=model_variant,
             )
             eff_frames = wan_frames
             model_label = "Wan 2.2 GGUF"
@@ -497,8 +560,16 @@ class ComfyUIAdapter(BaseAdapter):
             # ---- TEXT-TO-VIDEO (AnimateDiff) ----
             self._validate_animate_checkpoint(ckpt_name)
             workflow = self._build_video_workflow(
-                prompt_text, negative_text, steps, cfg_scale,
-                width, height, actual_seed, comfy_sampler, num_frames, fps,
+                prompt_text,
+                negative_text,
+                steps,
+                cfg_scale,
+                width,
+                height,
+                actual_seed,
+                comfy_sampler,
+                num_frames,
+                fps,
                 motion_module=params.get("motion_module", ""),
                 motion_lora=params.get("motion_lora", ""),
                 motion_lora_strength=float(params.get("motion_lora_strength", 0.8)),
@@ -640,7 +711,9 @@ class ComfyUIAdapter(BaseAdapter):
                 for _node_id, output in entry["outputs"].items():
                     if "images" in output:
                         for img in output["images"]:
-                            image_data = await self._fetch_image(img["filename"], img.get("subfolder", ""))
+                            image_data = await self._fetch_image(
+                                img["filename"], img.get("subfolder", "")
+                            )
                             return {
                                 "status": "completed",
                                 "image": image_data,
@@ -688,19 +761,19 @@ class ComfyUIAdapter(BaseAdapter):
             except Exception as e:
                 logger.warning(
                     "Could not cancel abandoned ComfyUI prompt %s: %s",
-                    prompt_id, e,
+                    prompt_id,
+                    e,
                 )
             else:
                 if cancelled:
                     logger.warning(
                         "Cancelled abandoned ComfyUI prompt %s so it does not keep "
-                        "occupying the queue", prompt_id,
+                        "occupying the queue",
+                        prompt_id,
                     )
             raise
 
-    async def _poll_image_result(
-        self, prompt_id: str, timeout: int, start: float
-    ) -> str:
+    async def _poll_image_result(self, prompt_id: str, timeout: int, start: float) -> str:
         """Polling body for :meth:`_wait_for_result` (see it for the why).
 
         Split out so the waiter's cleanup wrapper does not deepen this loop
@@ -715,8 +788,7 @@ class ComfyUIAdapter(BaseAdapter):
         while True:
             if time.monotonic() > deadline:
                 raise TimeoutError(
-                    f"ComfyUI image generation timed out after "
-                    f"{int(deadline - start)}s"
+                    f"ComfyUI image generation timed out after {int(deadline - start)}s"
                 )
             history = await self._get_history(prompt_id)
             if prompt_id in history:
@@ -741,9 +813,7 @@ class ComfyUIAdapter(BaseAdapter):
                             # under "images" -- the video waiter handles those.
                             if str(filename).lower().endswith((".mp4", ".webm", ".gif")):
                                 continue
-                            return await self._fetch_image(
-                                filename, img.get("subfolder", "")
-                            )
+                            return await self._fetch_image(filename, img.get("subfolder", ""))
             # Not finished yet. If the prompt is still sitting in the queue
             # behind other work, the budget is being spent waiting on someone
             # else's job, so extend once rather than time out and cancel.
@@ -763,7 +833,8 @@ class ComfyUIAdapter(BaseAdapter):
                             "ComfyUI prompt %s is queued behind other work; "
                             "extending the wait to %ds so a queued job is not "
                             "cancelled before it ever runs",
-                            prompt_id, _QUEUE_BACKLOG_TIMEOUT,
+                            prompt_id,
+                            _QUEUE_BACKLOG_TIMEOUT,
                         )
             await asyncio.sleep(2)
 
@@ -850,7 +921,12 @@ class ComfyUIAdapter(BaseAdapter):
                 )
         logger.info(
             "Wan workflow tier=%s t5=%s vae=%s ckpt=%s steps=%d cfg=%.1f",
-            tier, t5_name, vae_name, ckpt_name, wan_steps, wan_cfg,
+            tier,
+            t5_name,
+            vae_name,
+            ckpt_name,
+            wan_steps,
+            wan_cfg,
         )
 
         return {
@@ -1022,7 +1098,13 @@ class ComfyUIAdapter(BaseAdapter):
 
         logger.info(
             "LTX workflow model=%s t5=%s vae=%s ckpt=%s frames=%dx%d cfg=%.1f",
-            variant, t5_name, vae_name, ckpt_name, lt_width, lt_height, cfg,
+            variant,
+            t5_name,
+            vae_name,
+            ckpt_name,
+            lt_width,
+            lt_height,
+            cfg,
         )
 
         return {
@@ -1213,8 +1295,15 @@ class ComfyUIAdapter(BaseAdapter):
 
         logger.info(
             "Wan I2V workflow t5=%s vae=%s ckpt=%s image=%s steps=%d cfg=%.1f role=%s motion=%s strength=%.1f",
-            t5_name, vae_name, ckpt_name, image_filename, wan_steps, wan_cfg,
-            image_role, camera_motion, motion_strength,
+            t5_name,
+            vae_name,
+            ckpt_name,
+            image_filename,
+            wan_steps,
+            wan_cfg,
+            image_role,
+            camera_motion,
+            motion_strength,
         )
 
         # Enhance prompt with camera motion
@@ -1400,8 +1489,15 @@ class ComfyUIAdapter(BaseAdapter):
 
         logger.info(
             "LTX I2V workflow model=%s t5=%s vae=%s image=%s frames=%d denoise=%.2f role=%s motion=%s strength=%.1f",
-            ckpt_name, t5_name, vae_name, image_filename, lt_frames, denoise,
-            image_role, camera_motion, motion_strength,
+            ckpt_name,
+            t5_name,
+            vae_name,
+            image_filename,
+            lt_frames,
+            denoise,
+            image_role,
+            camera_motion,
+            motion_strength,
         )
 
         # Enhance prompt with camera motion
@@ -1493,6 +1589,7 @@ class ComfyUIAdapter(BaseAdapter):
 
     def _build_i2v_workflow(
         self,
+        *,
         is_ltx: bool,
         prompt_text: str,
         negative_text: str,
@@ -1521,9 +1618,17 @@ class ComfyUIAdapter(BaseAdapter):
             lt_frames = min(lt_frames, 121)
             lt_frames = lt_frames - ((lt_frames - 1) % 4)
             workflow = self._build_ltx_i2v_workflow(
-                prompt_text, negative_text, steps, cfg_scale,
-                width, height, seed, lt_frames, fps,
-                image_path, ckpt_name=ckpt_name,
+                prompt_text,
+                negative_text,
+                steps,
+                cfg_scale,
+                width,
+                height,
+                seed,
+                lt_frames,
+                fps,
+                image_path,
+                ckpt_name=ckpt_name,
                 image_role=image_role,
                 camera_motion=camera_motion,
                 motion_strength=motion_strength,
@@ -1536,9 +1641,18 @@ class ComfyUIAdapter(BaseAdapter):
         wan_frames = min(wan_frames, 121)
         wan_frames = wan_frames - ((wan_frames - 1) % 4)
         workflow = self._build_wan_i2v_workflow(
-            prompt_text, negative_text, steps, cfg_scale,
-            width, height, seed, wan_frames, fps,
-            image_path, ckpt_name=ckpt_name, variant=model_variant,
+            prompt_text,
+            negative_text,
+            steps,
+            cfg_scale,
+            width,
+            height,
+            seed,
+            wan_frames,
+            fps,
+            image_path,
+            ckpt_name=ckpt_name,
+            variant=model_variant,
             image_role=image_role,
             camera_motion=camera_motion,
             motion_strength=motion_strength,
@@ -1770,19 +1884,19 @@ class ComfyUIAdapter(BaseAdapter):
             except Exception as e:
                 logger.warning(
                     "Could not cancel abandoned ComfyUI video prompt %s: %s",
-                    prompt_id, e,
+                    prompt_id,
+                    e,
                 )
             else:
                 if cancelled:
                     logger.warning(
                         "Cancelled abandoned ComfyUI video prompt %s so it does not "
-                        "keep occupying the queue", prompt_id,
+                        "keep occupying the queue",
+                        prompt_id,
                     )
             raise
 
-    async def _poll_video_result(
-        self, prompt_id: str, timeout: int, start: float
-    ) -> str | None:
+    async def _poll_video_result(self, prompt_id: str, timeout: int, start: float) -> str | None:
         """Polling body for :meth:`_wait_for_video_result` (see it for the why)."""
 
         # The deadline our own prompt must meet. It is extended once, if the
@@ -1795,8 +1909,7 @@ class ComfyUIAdapter(BaseAdapter):
             elapsed = time.monotonic() - start
             if time.monotonic() > deadline:
                 raise TimeoutError(
-                    f"ComfyUI video generation timed out after "
-                    f"{int(deadline - start)}s"
+                    f"ComfyUI video generation timed out after {int(deadline - start)}s"
                 )
 
             # Check history
@@ -1859,12 +1972,14 @@ class ComfyUIAdapter(BaseAdapter):
                             "ComfyUI video prompt %s is queued behind other work; "
                             "extending the wait to %ds so a queued job is not "
                             "cancelled before it ever runs",
-                            prompt_id, _QUEUE_BACKLOG_TIMEOUT,
+                            prompt_id,
+                            _QUEUE_BACKLOG_TIMEOUT,
                         )
             elif elapsed > 60:
                 logger.warning(
-                    "Prompt %s not in queue or history after %ds -- may have "
-                    "been cancelled", prompt_id, int(elapsed),
+                    "Prompt %s not in queue or history after %ds -- may have been cancelled",
+                    prompt_id,
+                    int(elapsed),
                 )
                 raise RuntimeError(
                     f"ComfyUI prompt {prompt_id} not found in queue or "

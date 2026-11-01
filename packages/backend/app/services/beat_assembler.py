@@ -32,6 +32,7 @@ ASSEMBLY_DIR.mkdir(parents=True, exist_ok=True)
 
 class BeatAssembleRequest(BaseModel):
     """Request model for beat-quantized assembly."""
+
     shot_manifest: list[dict[str, Any]]
     output_path: str | None = None
     audio_path: str | None = None
@@ -43,6 +44,7 @@ class BeatAssembleRequest(BaseModel):
 
 class BeatAssembleResponse(BaseModel):
     """Response model for beat-quantized assembly."""
+
     success: bool
     output_path: str | None = None
     duration: float | None = None
@@ -137,20 +139,51 @@ async def assemble_beat_quantized(
         raise RuntimeError(f"Failed to write FFmpeg concat list: {exc}") from exc
 
     cmd = [
-        ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-        "-f", "concat", "-safe", "0", "-i", str(list_path),
-        "-c", "copy",
+        ffmpeg,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        str(list_path),
+        "-c",
+        "copy",
     ]
     if audio_path and Path(audio_path).exists():
         # Re-encode to align audio length with concatenated video when needed
         cmd = [
-            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-            "-f", "concat", "-safe", "0", "-i", str(list_path),
-            "-i", str(audio_path),
-            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k", "-shortest",
-            "-movflags", "+faststart",
+            ffmpeg,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-shortest",
+            "-movflags",
+            "+faststart",
         ]
 
     try:
@@ -160,6 +193,7 @@ async def assemble_beat_quantized(
             )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         except NotImplementedError:
+
             def _run() -> tuple[int, bytes, bytes]:
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
@@ -193,7 +227,11 @@ async def assemble_beat_quantized(
             pass
 
     render_s = round(time.perf_counter() - t0, 2)
-    ok = (proc.returncode if proc is not None else returncode) == 0 and out.exists() and out.stat().st_size > 0
+    ok = (
+        (proc.returncode if proc is not None else returncode) == 0
+        and out.exists()
+        and out.stat().st_size > 0
+    )
     if not ok:
         err = (stderr or b"").decode("utf-8", errors="replace")[-500:]
         logger.error("Beat assembly failed: %s", err)
@@ -224,12 +262,17 @@ def _probe_duration(path: Path) -> float:
     try:
         proc = subprocess.run(
             [
-                ffprobe, "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
                 str(path),
             ],
-            capture_output=True, timeout=30,
+            capture_output=True,
+            timeout=30,
         )
         if proc.returncode == 0:
             return float(proc.stdout.decode().strip() or "0")
