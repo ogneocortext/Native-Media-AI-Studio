@@ -87,6 +87,21 @@ Bounded scan of three lanes; verdicts below. Companion doc:
 No mature framework exists in this lane; what ships is skills and
 loop designs:
 
+- **Shader compile gate:** use Khronos `glslangValidator` as an
+  offline syntax/reference check for extracted GLSL/ESSL shader
+  stages before browser preview. It supports OpenGL ES GLSL (ESSL),
+  matching the `webgl` context used by this repo's `ShaderCanvas`.
+  Keep the shader's stage and version explicit in the checked input
+  (fragment stage, ESSL 1.00 for WebGL 1); generated shader snippets
+  may need the same prelude/uniform declarations that `ShaderCanvas`
+  supplies at runtime. This is an early compile gate, not a substitute
+  for browser compilation: Three.js/WebGL preprocessing, driver
+  behavior, and runtime uniform bindings still need the real renderer.
+  Khronos publishes Windows binaries in its [16.6.0 release](https://github.com/KhronosGroup/glslang/releases/tag/16.6.0);
+  use the standalone tool rather than the full Vulkan SDK when only
+  shader validation is needed. The repo's `glsl` gate is tracked in
+  T-PLT-10.
+
 - **img2threejs** (GitHub, agent skill) — rebuilds a reference
   image as code-only procedural Three.js through staged passes:
   assessment/spec → factory pass emitting a Three.js `Group` →
@@ -136,5 +151,6 @@ knowledge-library habit, applied to scene code).
 - SceneCraft, ICML 2024 — arXiv 2403.01248 (scene graph → constraints → solver → library learning).
 - [Holodeck project page](https://yueyang1996.github.io/holodeck/) — language-guided 3D environments; arXiv 2312.09067.
 - [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) — MCP for Unity (MIT).
+- [KhronosGroup/glslang](https://github.com/KhronosGroup/glslang) — reference GLSL/ESSL validator and Windows release binaries.
 - [img2threejs](https://github.com/img2threejs/img2threejs) — image → procedural Three.js, skill-shaped, quality-gated.
 - 3DCodeBench (May 2026) — arXiv 2606.01057; executability vs. feedback-type measurements cited above.

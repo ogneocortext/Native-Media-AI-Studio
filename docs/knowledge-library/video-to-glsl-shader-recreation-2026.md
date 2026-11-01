@@ -160,8 +160,12 @@ no precision header). The studio consumes WebGL1 ES 1.00 (`main()`,
 `gl_FragColor`, `u_*`). The mapping is mechanical — entry-point wrap,
 `iTime → u_time`, `iResolution → u_resolution`, add precision header, drop
 `#version` — but it is a per-shader adapter step, and any library function
-using ES 3.00-only features needs a down-check (the project's own checker
-compiles as ES 3.00, so it will not catch ES 1.00 breaks).
+using ES 3.00-only features needs a down-check. The repo's
+`tools/check-glsl-compile.py` gate wraps embedded frontend shaders as ESSL
+1.00 and compiles them with Khronos glslang; the shader-skills library's own
+ES 3.00 CI does not prove that a down-adapted shader compiles as ES 1.00.
+Run the repo gate after adaptation, then check the shader in the browser's
+actual WebGL renderer.
 
 **Concrete uses, in order of payoff:**
 
@@ -200,3 +204,4 @@ real preset.
   trap)
 - Studio state: `features/visualizer/shaders.ts`,
   `features/visualizer/components/ShaderCanvas.tsx` (tree at `2fdd97a`)
+- [Khronos glslang 16.6.0](https://github.com/KhronosGroup/glslang/releases/tag/16.6.0) — reference GLSL/ESSL validator used by the repo compile gate.

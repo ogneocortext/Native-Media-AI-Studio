@@ -163,11 +163,16 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   paper, noting every ambiguity the schema must resolve.
   (4) Record open questions for the owner: asset-library source
   for refs; whether the frontend Three.js visualizer gets a third
-  builder.
+  builder. If a later Three.js builder emits custom GLSL, route that
+  source through the `glsl` gate from T-PLT-10 as ESSL 1.00 before
+  browser preview; `glslangValidator` checks shader source, not scene
+  JSON, ShaderLab, or runtime WebGL behavior.
 - **Files:** docs/plans/scene-spec-v0-2026-11.md,
   docs/knowledge-library/3d-viz-code-harnesses-2026.md
 - **Acceptance:** The spec document exists with the schema,
   validator rules, both builder outlines, and the worked example;
   no code or renders produced.
 - **Last session:** Orion, 2026-11-01 — Item created with the
-  knowledge doc; not started.
+  knowledge doc; not started. GPT-6, 2026-11-01 — amended the plan
+  to include the existing ESSL 1.00 compile gate if a future Three.js
+  builder emits custom GLSL.

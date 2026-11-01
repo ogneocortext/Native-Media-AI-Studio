@@ -77,7 +77,7 @@ def resolve_compiler() -> Path | None:
 
 COMPILER_INSTALL_SOURCE = (
     "https://github.com/KhronosGroup/glslang/releases/tag/16.6.0\n"
-    "  Windows asset: glslang-master-windows-x86_64-release.zip\n"
+    "  Windows asset: glslang-16.6.0-windows-x86_64-release.zip\n"
     "  Extract to: tools/glslang/bin/glslangValidator.exe  (gitignored location)\n"
     "  Or add glslangValidator to PATH."
 )
@@ -216,7 +216,6 @@ def compile_shader(
         return False, COMPILER_INSTALL_SOURCE
 
     suffix = ".vert" if shader_kind == "vertex" else ".frag"
-    stage = "vertex" if shader_kind == "vertex" else "fragment"
     tmp_file = temp_dir / f"shader_{abs(hash(shader_source)) % 100000}{suffix}"
     try:
         tmp_file.write_text(shader_source, encoding="utf-8")
@@ -227,9 +226,6 @@ def compile_shader(
         proc = subprocess.run(
             [
                 str(compiler),
-                "-V",
-                "100",  # GLSL ES 1.00
-                "-s", stage,
                 str(tmp_file),
             ],
             capture_output=True,
@@ -428,7 +424,8 @@ def main() -> int:
         rel = fr["file"]
         for s in fr["shaders"]:
             mark = "PASS" if s["status"] == "PASS" else s["status"]
-            print(f"  [{mark}] {rel}:{s['start_line']}  {s['prop']} ({s['kind']})")
+            kind_suffix = f" ({s['kind']})" if "kind" in s else ""
+            print(f"  [{mark}] {rel}:{s['start_line']}  {s['prop']}{kind_suffix}")
             if s["status"] == "SKIP":
                 print(f"        skipped: {s['reason']}")
             elif s["status"] == "FAIL":
