@@ -17,7 +17,7 @@ import {fileURLToPath} from 'url';
 
 if (process.argv.includes('--help')) {
 	console.log(
-		'Configure COUNTRIES, RIVER, BORDER, label bounds, and output paths in this script, then run: bun scripts/prep-geo.mjs',
+		'Configure COUNTRIES, RIVER, BORDER, label bounds, and output paths in this script, then run: bun packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/maptiler/scripts/prep-geo.mjs',
 	);
 	process.exit(0);
 }

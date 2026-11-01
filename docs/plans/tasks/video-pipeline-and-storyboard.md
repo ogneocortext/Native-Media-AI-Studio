@@ -69,14 +69,14 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
      `packages/video-editor/src/compositions/IntroTemplate.tsx`
      implementing the schema's Usage steps 1–5 (clear canvas → draw
      logo per placement/scale/opacity → apply intro_animation with
-     curve across the dwell → play sting with fades/gain → hold →
-     fade out), all animation derived from frame/fps
-     (useCurrentFrame) — no clocks, no randomness (determinism
-     guarantee). The recipe arrives as composition props;
-     calculateMetadata derives durationInFrames / width / height /
-     fps from it. Copy the logo to
-     `packages/video-editor/public/branding/logo.svg` so one
-     staticFile root serves both brand assets. Register the
+      curve across the dwell → play sting with fades/gain → hold →
+      fade out), all animation derived from frame/fps
+      (useCurrentFrame) — no clocks, no randomness (determinism
+      guarantee). The recipe arrives as composition props;
+      calculateMetadata derives durationInFrames / width / height /
+      fps from it. Copy the logo to
+      packages/frontend/public/logo.svg so one
+      staticFile root serves both brand assets. Register the
      composition in `packages/video-editor/src/Root.tsx` with id
      `IntroTemplate`, modeled on compositions/Template.tsx and the
      existing Root registrations.
@@ -99,8 +99,8 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   (input — do not modify); docs/plans/intro-recipes/neocortext-v1.recipe.json
   (new); packages/video-editor/src/compositions/IntroTemplate.tsx (new);
   packages/video-editor/src/Root.tsx (register composition);
-  packages/video-editor/public/branding/logo.svg +
-  packages/video-editor/public/branding/sting-v1.wav (new);
+  packages/frontend/public/logo.svg +
+  packages/frontend/public/branding/sting-v1.wav (new);
   tools/analyze_and_sync.py (existing — beat-grid measurement);
   output/intros/neocortext-v1.mp4 (local render artifact, gitignored)
 - **Acceptance:** Ledger §3.5 intro items pass: (a) an intro renders
