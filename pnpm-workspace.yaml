@@ -25,7 +25,7 @@ catalog:
   typescript: ^5.9.3
   tailwindcss: ^4.3.3
   '@tailwindcss/vite': ^4.3.3
-  eslint: ^10.9.1
+  eslint: ^10.14.0
   '@playwright/test': ^1.64.0
   playwright: ^1.64.0
   '@remotion/captions': 4.0.539
@@ -41,6 +41,7 @@ catalog:
   '@remotion/transitions': 4.0.539
   remotion: 4.0.539
   zod: 4.5.4
+  vite: 8.3.5
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 sharedWorkspaceLockfile: true
@@ -75,7 +76,7 @@ allowBuilds:
 # Overrides — pin specific dependency versions across the workspace
 # ---------------------------------------------------------------------------
 overrides:
-  typescript-eslint: 8.71.1
+  typescript-eslint: 8.72.1
   '@remotion/bundler@4.0.534': '>=4.0.534'
   '@remotion/canvas@4.0.534': '>=4.0.534'
   '@remotion/captions@4.0.534': '>=4.0.534'

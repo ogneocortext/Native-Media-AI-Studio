@@ -16,9 +16,7 @@
  * nav item.
  */
 
-import { useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { useNavigate } from "react-router-dom";
 import { useFirstRunDetector } from "./FirstRunDetector";
 import { OnboardingFlow } from "./OnboardingFlow";
 
@@ -37,31 +35,4 @@ export function OnboardingPage() {
       onComplete={() => complete()}
     />
   );
-}
-
-/**
- * Gate for the Dashboard route: sends a first-time user with an empty
- * library to the onboarding path. A user with a non-empty library is left
- * alone — the banner on the Dashboard offers the path instead of taking it.
- */
-export function FirstRunGate({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
-  const { isFirstRun } = useFirstRunDetector();
-  const { entries, isLoading } = useAudioLibrary();
-
-  useEffect(() => {
-    if (isFirstRun === undefined || isLoading) return;
-    if (entries.length === 0) navigate("/onboarding", { replace: true });
-  }, [isFirstRun, isLoading, entries.length, navigate]);
-
-  // While the gate is deciding, render nothing rather than flashing the
-  // dashboard at someone who is about to be redirected.
-  if (isFirstRun === true && !isLoading && entries.length === 0) return null;
-
-  return <>{children}</>;
-}
-
-/** Redirect helper for routes that should never render during the gate. */
-export function OnboardingRedirect() {
-  return <Navigate to="/onboarding" replace />;
 }

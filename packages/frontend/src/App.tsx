@@ -4,7 +4,7 @@ import { ErrorBoundary, PageLoader } from "./components/common";
 import { DebugPanel } from "./components/debug/DebugPanel";
 import { Layout } from "./components/layout/Layout";
 import { Dashboard } from "./features/dashboard/Dashboard";
-import { FirstRunGate } from "./features/onboarding/OnboardingPage";
+import { FirstRunGate } from "./features/onboarding/FirstRunGate";
 import { NotFound } from "./features/not-found/NotFound";
 import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";

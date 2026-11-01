@@ -12,7 +12,7 @@ once" are the same mechanism with different slot contents.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .remix_constants import STEM_NAMES
@@ -124,4 +124,4 @@ class RemixResult:
     mix_report: dict[str, Any] = field(default_factory=dict)
 
 
-__all__ = ["RemixLayer", "RemixSlot", "RemixRecipe", "RemixResult"]
+__all__ = ["RemixLayer", "RemixSlot", "RemixRecipe", "RemixResult", "asdict"]

@@ -166,10 +166,26 @@ export default defineConfig(({ mode }) => {
       },
       // Auto-open browser in dev mode for better DX.
       open: mode === "development",
+      // Forward browser runtime errors and warnings to the dev server terminal
+      // so coding agents can see client-side exceptions without opening the
+      // browser console. Vite 8 enables this automatically when an agent is
+      // detected; we set it explicitly for reliability.
+      forwardConsole: {
+        unhandledErrors: true,
+        logLevels: ["warn", "error"],
+      },
       // Restrict filesystem access for the dev server.
       fs: {
         allow: [__dirname, path.resolve(__dirname, "../../shared")],
-        deny: ["**/.env", "**/.env.*", "**/*.key", "**/*.pem"],
+        deny: [
+          "**/.env",
+          "**/.env.*",
+          "**/*.key",
+          "**/*.pem",
+          "**/*.{crt,p12,pfx,cer,der}",
+          "**/.npmrc",
+          "**/.yarnrc.yml",
+        ],
       },
     },
     // Pre-bundle common dependencies for faster dev startup.
@@ -203,6 +219,9 @@ export default defineConfig(({ mode }) => {
       minify: "esbuild",
       // Reduce console noise in production
       reportCompressedSize: false,
+      // Vite 8.1: keep chunk hashes stable when only one source file changes,
+      // improving browser cache efficiency across deploys.
+      chunkImportMap: true,
       rollupOptions: {
         output: {
           // Manual chunk splitting for better caching

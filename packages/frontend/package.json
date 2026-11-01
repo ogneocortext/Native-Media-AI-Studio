@@ -75,7 +75,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "^8.71.1",
-    "vite": "^8.3.4",
+    "vite": "catalog:",
     "vitest": "^5.0.5"
   },
   "lint-staged": {
