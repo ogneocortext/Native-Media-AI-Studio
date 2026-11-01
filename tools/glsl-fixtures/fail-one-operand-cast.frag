@@ -1,14 +1,11 @@
 #version 100
 precision highp float;
 
-// FAIL (one-operand cast): GLSL ES 1.00 does not allow
-// `float(vec3)` — a vec3 cannot be implicitly narrowed to float
-// with a single-argument constructor. Use component access
-// (color.r) or dot(color, vec3(1.0/3.0)) instead.
-// Expected: glslangValidator reports "no matching constructor"
-// or "cannot convert 'const highp vec3' to 'highp float'".
+// FAIL (uint type): GLSL ES 1.00 has no uint type — it was introduced in
+// ESSL 3.00. Declaring `uint` should produce "undeclared identifier" from
+// glslangValidator.
+// Expected: glslangValidator exits non-zero with a uint-related error.
 void main() {
-    vec3 color = vec3(1.0, 0.5, 0.2);
-    float c = float(color);  // <-- INVALID: single-argument vec3->float cast
-    gl_FragColor = vec4(c, c, c, 1.0);
+    uint x = 5u;  // <-- INVALID: uint does not exist in ESSL 1.00
+    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
 }
