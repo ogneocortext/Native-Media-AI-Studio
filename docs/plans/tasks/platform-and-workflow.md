@@ -218,3 +218,63 @@ Rules: `docs/plans/tasks/README.md`
   knowledge doc; no in-repo code removed.
 - **Last session:** Orion, 2026-11-01 — Item created with the
   knowledge doc; not started.
+
+### T-PLT-10 — Add a GLSL compile-check gate for embedded frontend shaders
+- **Status:** todo
+- **Goal:** Agent- and human-written GLSL gets compile-checked
+  before it can reach a render: a repo gate that extracts the
+  frontend's embedded shaders, compiles each with the Khronos
+  reference compiler, and reports errors in the file/line/message
+  form the T-AGT-03 loop consumes as feedback. This is the
+  execution leg that loop's contract assumes for GLSL.
+- **Plan:** Evidence: the 2026-11-01 Bolt language battery
+  (`docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md`
+  §"Coding languages") — a local model's shader fix passed a
+  read-through but failed GLSL ES 1.00 compilation (one-operand
+  cast), verified with glslangValidator 16.6.0 on the cloud
+  side the same day. Steps: (1) Acquire the compiler: pin
+  glslang **16.6.0** (KhronosGroup/glslang GitHub release,
+  Windows asset). The checker resolves the binary from PATH
+  or a gitignored local tools location; if it is absent, the
+  checker prints the exact install source and **fails
+  closed** — a missing compiler is a failed check, never a
+  silent pass. (2) Build `tools/check-glsl-compile.py`
+  (Python, stdlib only, explicit UTF-8 throughout). Corpus
+  for v0: GLSL embedded in frontend TS/TSX —
+  `fragmentShader` / `vertexShader` template literals under
+  `packages/frontend/src` (visualizer and three-js-studio
+  features; at least 8 files at item creation). Wrap each
+  extracted body in the authoring-dialect prologue
+  (`#version 100`, default precision, and the standard
+  three.js ShaderMaterial injected declarations — matrices,
+  `cameraPosition`, `position` / `normal` / `uv`) so author
+  code compiles the way three.js presents it; bodies that
+  carry their own prologue (raw shaders) compile as-is.
+  Report coverage every run: files scanned, shaders
+  extracted, checked, and skipped-with-reason — no silent
+  skips. (3) Out of scope, named: Unity `.shader` files
+  (ShaderLab/HLSL — a different compiler; the repo has 3),
+  WGSL/WebGPU, and any rendering or visual judgment (the
+  vision loop owns quality; this gate owns compilability).
+  (4) Wire it into `tools/run-gates.py` as a named gate
+  following the existing gate pattern: `--only glsl`
+  selectable, and scoped by the changed-file awareness
+  added in cee05b0, with a flag for a full-corpus run.
+  (5) Smoke fixtures from real evidence: the battery's
+  one-operand-cast shader must FAIL this checker and its
+  both-operands-cast correction must PASS; add one
+  deliberately broken shader as a third fixture. (6) Run
+  the first full-corpus pass and record the baseline in
+  Last session as findings — shaders that already fail are
+  reported, not fixed under this item.
+- **Files:** tools/check-glsl-compile.py, tools/run-gates.py,
+  packages/frontend/src (read-only corpus)
+- **Acceptance:** The checker runs on the Windows clone and
+  fails closed without the compiler; the three smoke
+  fixtures behave as specified; the gate runs via
+  `run-gates.py --only glsl` and respects changed-file
+  scoping; a full-corpus baseline with coverage counts is
+  recorded in Last session.
+- **Last session:** Orion, 2026-11-01 — Item created at the
+  owner's request after the cloud-side validator proved the
+  battery's GLSL miss mechanically; not started.
