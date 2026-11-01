@@ -378,9 +378,30 @@ warm GPU. Run it before pushing when you touched frontend behaviour.
 `pnpm exec playwright install`, check what is already under
 `C:\Users\<you>\AppData\Local\ms-playwright\`. If a `chromium-*`
 directory already exists, the browser is present — do not re-download
-it (~120 MB). The installed version is reported by
+it (~120 MB). The installed Playwright version is reported by
 `pnpm exec playwright --version`, and browser binaries live under
 `C:\Users\<you>\AppData\Local\ms-playwright/chromium-<revision>/`.
+
+To see which revisions are installed:
+
+```powershell
+Get-ChildItem "$env:LOCALAPPDATA\ms-playwright" -Directory | Select-Object Name
+```
+
+To uninstall old revisions you no longer need (keeping only the revision
+your Playwright version requires):
+
+```powershell
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\ms-playwright\chromium-<old-revision>"
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\ms-playwright\chromium_headless_shell-<old-revision>"
+```
+
+Playwright 1.64.x uses Chromium revision 1248 — keep `chromium-1248`
+and `chromium_headless_shell-1248`; delete everything older.
+
+**Never** run `pnpm exec playwright uninstall --all` — that removes
+every browser and forces a full re-download.
+
 
 ## 9. Anti-patterns seen in this repo
 
