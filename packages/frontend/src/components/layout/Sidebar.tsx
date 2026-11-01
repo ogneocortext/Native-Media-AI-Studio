@@ -546,7 +546,7 @@ export function Sidebar() {
   );
   const visibleGroups = useMemo(() => {
     const withExternal = NAV_GROUPS.map((g) =>
-      g.id === "manage" ? { ...g, items: [...g.items, remotionItem] } : g,
+      g.id === "create" ? { ...g, items: [...g.items, remotionItem] } : g,
     );
     if (!q) return withExternal;
     const terms = q.split(/\s+/).filter(Boolean);

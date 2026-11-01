@@ -260,7 +260,7 @@ def _scan_with_cache() -> list[OutputFile]:
     output_base = Path(config.output_dir)
 
     # Scan standard output directories (recursive: nested folders included)
-    for subdir in ["images", "video", "audio", "generated_3d"]:
+    for subdir in ["images", "video", "audio", "generated_3d", "remixes"]:
         dir_path = output_base / subdir
         if not dir_path.exists():
             continue
