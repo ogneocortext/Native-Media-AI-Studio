@@ -21,6 +21,10 @@ type: tracker
 
 ---
 
+## 2026-11-01 — Bolt E4B reference: API behavior from the live probe battery
+
+- Extended `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` with a "Calling it from an agent (API behavior)" section — reasoning in a separate `reasoning_content` field, empty-reply risk under tight token budgets, the API-level `enable_thinking` toggle with its measured speed/correctness trade, prompt caching, and probed instruction behaviors (injection resistance, clarify-vs-call, schema discipline, the exact-count limit) — plus two failure-mode bullets and the Ollama tailnet-bind note. Six matching entries appended to `tools/model-reliability/observed.jsonl` (route `tailscale_atomic_chat`).
+
 ## 2026-11-01 — Bolt E4B reference: cloud-agent access section
 
 - Extended `docs/knowledge-library/nemotron-3-5-bolt-e4b-2026.md` with a "Reaching it from the cloud agent (Orion)" section: the Tailscale route (rig `customrig`, cloud VM `muse`), Local-network bind instead of the public Remote-access tunnel, enforced API-key auth (401 verified), transient key handling, and the owner-controlled availability conditions — verified live end to end on 2026-11-01.

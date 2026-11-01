@@ -153,8 +153,54 @@ On 2026-11-01 the cloud-side route was built and verified end to end:
   (~23 tok/s generation measured on the GTX 1070 Ti in a first small
   test).
 
+## Calling it from an agent (API behavior)
+
+Measured 2026-11-01 by the cloud agent through the tailnet route
+above (9 probes; outcomes in `tools/model-reliability/observed.jsonl`).
+These are the behaviors a programmatic caller actually meets — they
+are not visible from the Atomic Chat UI:
+
+- **Reasoning is on by default and rides in a separate field.** The
+  response message carries `reasoning_content` (plan + worked steps)
+  alongside `content` (final answer only). A one-token answer ("10")
+  cost 177 completion tokens — roughly 176 of them hidden reasoning.
+- **Tight token budgets return empty replies.** With `max_tokens` of
+  60 and of 320, reasoning consumed the entire budget and `content`
+  came back empty. Budget ~200+ tokens of headroom for reasoning on
+  small tasks, or switch reasoning off deliberately (next bullet).
+- **The reasoning toggle works over the API:**
+  `chat_template_kwargs: {"enable_thinking": false}`. On the same
+  prompt: 177 tokens / 5.6s with thinking on vs 19 tokens / 0.8s with
+  it off — but the thinking-off answer was *wrong* (13.33 vs the
+  correct 10; it divided by the drain rate alone). Rule: thinking ON
+  for anything numeric or multi-step; OFF only for format/extraction
+  work whose output gets mechanically validated anyway.
+- **Prompt caching is active server-side** — usage reported cached
+  prompt tokens on repeat-shaped requests, so the repo's
+  stable-prefix convention pays off here too.
+- **Instruction behavior, probed live:** stayed JSON-only against an
+  embedded "SYSTEM OVERRIDE" instruction inside a document
+  (hierarchy holds); asked for clarification on an ambiguous tool
+  call (which report, which Sam, email address) instead of inventing
+  values; produced an exactly schema-valid JSON object (keys, id
+  format, enum, range); followed a counterintuitive reverse-sort +
+  capitalization rule in substance (no spaces after its commas).
+- **Exact counting is still a 4B limit:** asked for three 6-word
+  bullets it produced 5/5/4 words, while satisfying the harder
+  constraints (no repeated word anywhere; required terminal word).
+  Validate counts, lengths, and arithmetic mechanically — do not
+  trust the model to count.
+
 ## Failure modes and countermeasures
 
+- **Reasoning starves small token budgets.** Default reasoning can
+  consume an entire `max_tokens` budget and return empty content
+  (observed at 60 and 320 tokens). Size budgets for the reasoning,
+  or disable it explicitly — see §"Calling it from an agent".
+- **Thinking-off is fast but sloppy.** `enable_thinking: false`
+  cut one probe from 177 tokens / 5.6s to 19 tokens / 0.8s and
+  flipped its arithmetic answer from correct to wrong. Never use
+  it for numeric or multi-step work.
 - **Not a reasoning powerhouse.** It is an instruction-following /
   tool-use model, not a deep-reasoning one. For planning and diagnosis
   that needs extended thinking, prefer a larger cloud model (Super VL
@@ -165,7 +211,11 @@ On 2026-11-01 the cloud-side route was built and verified end to end:
 - **Single-loaded on Atomic Chat.** It is Atomic Chat's only model, so
   there is no local fallback if it is unloaded or fails. Ollama's
   `qwen3.5:4b` is the chat-class fallback; verify port 11434 before
-  depending on it.
+  depending on it. As of 2026-11-01 Ollama binds 127.0.0.1 only, so
+  the fallback is reachable from the rig itself but not over the
+  tailnet (the owner is holding on exposing it; if that ever
+  changes, bind the tailnet address rather than 0.0.0.0 — Ollama
+  has no auth and the home LAN is shared).
 - **Cold-start latency.** First-token times (~8s) reflect model load on
   this hardware. Keep it resident (set `keep_alive`) for interactive
   agent loops rather than loading/unloading per turn.
