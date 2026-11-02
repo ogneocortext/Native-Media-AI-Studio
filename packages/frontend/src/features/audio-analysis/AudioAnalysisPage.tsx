@@ -125,7 +125,14 @@ export function AudioAnalysisPage() {
     energy: v,
   })) ?? [];
 
-  const filename = audio.summary?.filename || audio.analysis?.stored_path || null;
+  // `stored_path` is the absolute on-disk path (e.g. D:\...\output\audio\track.wav)
+  // and is NOT a valid input for /api/audio/file/{filename}, which resolves under
+  // output/audio/. Prefer the output-relative path, then the bare filename.
+  const filename =
+    audio.analysis?.relative_path ||
+    audio.summary?.filename ||
+    audio.analysis?.stored_path ||
+    null;
   const audioUrl = filename ? `/api/audio/file/${encodeURIComponent(filename)}` : null;
 
   return (

@@ -164,6 +164,8 @@ export interface AudioAnalysisResult {
   confidence: number;
   amplitude_envelope: number[];
   stored_path: string | null;
+  /** Output-relative path (e.g. "audio/track.wav"), for /api/audio/file/*. */
+  relative_path?: string | null;
   job_id: string | null;
   beats_truncated?: boolean;
   downbeat_times?: number[];

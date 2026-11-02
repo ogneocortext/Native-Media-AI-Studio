@@ -34,8 +34,8 @@ import soundfile as sf
 from pedalboard import (
     Compressor,
     Gain,
-    HighShelfFilter,
     HighpassFilter,
+    HighShelfFilter,
     Limiter,
     LowShelfFilter,
     PeakFilter,

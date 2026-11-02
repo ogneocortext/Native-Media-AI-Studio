@@ -96,10 +96,8 @@ test.describe('LRC-Enhanced Visualizer', () => {
 
       // Return the first value whose LRC parsed as timestamped content.
       for (let i = 0; i < results.length; i++) {
-        if (
-          results[i].status === "fulfilled" &&
-          results[i].value === true
-        ) {
+        const settled = results[i];
+        if (settled.status === "fulfilled" && settled.value === true) {
           return probes[i].value;
         }
       }

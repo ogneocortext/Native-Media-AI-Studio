@@ -67,6 +67,7 @@ class AdapterBase(ABC):  # noqa: B024 - Mixin base class, abstract methods defin
             name: Human-readable name for this adapter.
             mock_mode: If True, skip service checks and use mock directly.
         """
+        self.name: str = name
         self._status: AdapterStatus = AdapterStatus.OFFLINE
         self._mock_mode: bool = mock_mode
         # Shared-session key for this adapter's service, keyed by adapter name

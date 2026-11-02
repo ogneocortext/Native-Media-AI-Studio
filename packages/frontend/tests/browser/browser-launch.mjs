@@ -123,7 +123,10 @@ export async function isMediaPseudoClassesSupported(page) {
     document.body.appendChild(testAudio);
     let result = false;
     try {
-      await testAudio.play().catch(() => {});
+      // `await` is not valid inside a synchronous page.evaluate callback; the
+      // play() promise is fire-and-forget here because the :playing state only
+      // settles after a user gesture anyway, and this is a capability probe.
+      testAudio.play().catch(() => {});
       const computed = window.getComputedStyle(testAudio, ':playing');
       result = computed && computed.display !== 'none';
       testAudio.pause();
