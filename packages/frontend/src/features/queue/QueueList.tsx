@@ -148,15 +148,20 @@ export function JobRow({
   const tsValue = isCompleted
     ? job.completed_at
       ? new Date(job.completed_at).toLocaleString()
-      : "N/A"
+      : job.duration_seconds != null
+        ? `~${job.duration_seconds.toFixed(0)}s duration`
+        : "N/A"
     : new Date(job.created_at).toLocaleString();
   // Progress visibility: a running job shows its bar, ETA, and per-step
-  // breakdown; a failed job shows how many attempts it has burned.
+  // breakdown; a completed job shows a 100% bar; a failed job shows how many
+  // attempts it has burned.
   const isRunning = job.status === "running";
   const eta = isRunning
     ? calculateEta(job.started_at, job.progress, job.status)
     : null;
   const steps = job.steps && job.steps.length > 0 ? job.steps : null;
+  // Completed jobs show a full 100% progress bar
+  const completedProgress = isCompleted ? 1 : job.progress;
 
   return (
     <div
@@ -184,7 +189,7 @@ export function JobRow({
         )}
         <div>
           <p className="font-medium capitalize">{job.job_type.replace(/_/g, " ")}</p>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted" title={job.id}>
             ID: {job.id.slice(0, 8)}... | {tsLabel}: {tsValue}
           </p>
           {isPending && index !== undefined && total !== undefined && (
@@ -192,23 +197,23 @@ export function JobRow({
               Queued #{index + 1} of {total}
             </p>
           )}
-          {/* Progress visibility: running jobs get a live bar, an ETA, and
-              their per-step breakdown. The model already carries these; the
-              row just never rendered them. */}
-          {isRunning && (
+          {/* Progress visibility: running and completed jobs get a live bar,
+              an ETA, and their per-step breakdown. The model already carries
+              these; the row just never rendered them for completed jobs. */}
+          {(isRunning || isCompleted) && (
             <div className="mt-3 w-full max-w-md">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-muted">
-                  {job.message || "Working…"}
+                  {job.message || (isCompleted ? "Finished" : "Working…")}
                 </span>
                 <span className="text-primary font-medium">
-                  {(job.progress * 100).toFixed(0)}%
+                  {(completedProgress * 100).toFixed(0)}%
                 </span>
               </div>
               {isAudioJob(job) ? (
-                <AudioWaveform progress={job.progress} />
+                <AudioWaveform progress={completedProgress} />
               ) : (
-                <ProgressBar progress={job.progress} showPercentage={false} />
+                <ProgressBar progress={completedProgress} showPercentage={false} />
               )}
               <div className="flex items-center gap-3 mt-1 text-xs text-muted">
                 <span>Elapsed {formatElapsed(eta?.elapsedSeconds || 0)}</span>

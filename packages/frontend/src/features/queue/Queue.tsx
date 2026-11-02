@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  Search,
 } from "lucide-react";
 import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
 import type { Job, QueueMetrics } from "@shared/types";
@@ -251,6 +252,12 @@ export function Queue() {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [metrics, setMetrics] = useState<QueueMetrics | null>(null);
+  // Search/filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  // Auto-refresh toggle
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch jobs on mount so the queue page reflects the latest state
   // (SSE is managed centrally by Layout.tsx).
@@ -259,7 +266,41 @@ export function Queue() {
     fetchQueueMetrics().then(setMetrics).catch(() => {});
   }, [fetchJobs]);
 
-  // SSE is managed centrally by Layout.tsx; no per-component connect/disconnect.
+  // Auto-refresh jobs every 5 seconds when enabled.
+  useEffect(() => {
+    if (!autoRefresh) {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      return;
+    }
+    refreshIntervalRef.current = setInterval(() => {
+      fetchJobs().catch(() => {});
+      fetchQueueMetrics().then(setMetrics).catch(() => {});
+    }, 5000);
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [autoRefresh, fetchJobs]);
+
+  // Filter jobs based on search query and status filter
+  const filteredJobs = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return jobs.filter((job) => {
+      const matchesQuery =
+        !query ||
+        job.id.toLowerCase().includes(query) ||
+        job.job_type.toLowerCase().includes(query) ||
+        (job.message && job.message.toLowerCase().includes(query)) ||
+        (job.error && job.error.toLowerCase().includes(query));
+      const matchesStatus = !statusFilter || job.status === statusFilter;
+      return matchesQuery && matchesStatus;
+    });
+  }, [jobs, searchQuery, statusFilter]);
 
   const handleCancel = useCallback((id: string) => {
     setConfirmDialog({
@@ -355,11 +396,13 @@ export function Queue() {
   }, [clearFailed, stats]);
 
   // Separate jobs by status for organized display
-  const runningJob = jobs.find((j) => j.status === "running");
-  const pendingJobs = jobs.filter((j) => j.status === "pending" || j.status === "queued");
-  const completedJobs = jobs.filter((j) => j.status === "completed");
-  const failedJobs = jobs.filter((j) => j.status === "failed");
-  const cancelledJobs = jobs.filter((j) => j.status === "cancelled");
+  const runningJob = filteredJobs.find((j) => j.status === "running");
+  const pendingJobs = filteredJobs.filter(
+    (j) => j.status === "pending" || j.status === "queued",
+  );
+  const completedJobs = filteredJobs.filter((j) => j.status === "completed");
+  const failedJobs = filteredJobs.filter((j) => j.status === "failed");
+  const cancelledJobs = filteredJobs.filter((j) => j.status === "cancelled");
 
   if (isLoading && jobs.length === 0) {
     return (
@@ -394,6 +437,57 @@ export function Queue() {
                 <span className="text-sm text-muted">Polling</span>
               </>
             )}
+          </div>
+
+          {/* Search / filter */}
+          <div className="relative flex items-center gap-2">
+            <Search size={16} className="text-muted absolute left-3 top-3" />
+            <input
+              type="text"
+              placeholder="Search jobs…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-md text-white placeholder-text-gray-500 focus:border-primary focus:outline-none w-48 sm:w-64"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-3 text-muted hover:text-white p-1"
+                aria-label="Clear search"
+              >
+                <XCircle size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted">Status:</label>
+            <select
+              value={statusFilter ?? ""}
+              onChange={(e) => setStatusFilter(e.target.value || null)}
+              className="text-sm bg-gray-800 border border-gray-700 rounded-md text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">All</option>
+              <option value="running">Running</option>
+              <option value="queued">Queued</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Auto-refresh toggle */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded bg-gray-700 border-gray-600 text-primary focus:ring-primary"
+            />
+            <span className="text-xs text-muted">
+              {autoRefresh ? "Auto-refresh" : "Auto-refresh off"}
+            </span>
           </div>
 
           {stats && stats.failed > 0 && (
@@ -599,10 +693,22 @@ export function Queue() {
           </div>
         ) : (
           <EmptyState
-            title="No jobs in queue"
-            description="Nothing is rendering right now. Start a music video and it will appear here with live progress."
+            title={
+              searchQuery || statusFilter
+                ? "No matching jobs"
+                : "No jobs in queue"
+            }
+            description={
+              searchQuery || statusFilter
+                ? "Try adjusting your search or filter criteria."
+                : "Nothing is rendering right now. Start a music video and it will appear here with live progress."
+            }
             icon={<ListOrdered size={48} />}
-            action={{ label: "Create a video", onClick: () => navigate("/music-video-wizard") }}
+            action={
+              searchQuery || statusFilter
+                ? undefined
+                : { label: "Create a video", onClick: () => navigate("/music-video-wizard") }
+            }
           />
         )}
       </Card>
