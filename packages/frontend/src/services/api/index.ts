@@ -323,6 +323,8 @@ export type { MemoryDiagnostics, DiagnosticsModelsResponse } from "./diagnostics
 // Ollama
 export {
   getOllamaModels,
+  getUnifiedModels,
+  getTaskModelRoutes,
   ollamaEngineStatus,
   getBenchmarkResults,
   getHardwareBenchmarks,
@@ -340,6 +342,8 @@ export {
 } from "./ollama";
 export type {
   OllamaModel,
+  UnifiedModel,
+  TaskModelRoute,
   ChatMessage,
   ToolDefinition,
   OllamaBenchmarkResult,

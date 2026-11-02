@@ -1,6 +1,80 @@
 import { getApiBase } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
 
+export interface UnifiedModel {
+  source: "ollama" | "atomic-chat";
+  id: string;
+  name: string;
+  size: number;
+  digest: string;
+  capabilities: string[];
+  supports_tools: boolean;
+  supports_vision: boolean;
+  supports_thinking: boolean;
+  supports_embedding: boolean;
+  supports_rerank: boolean;
+  vram_required: number;
+  is_available: boolean;
+  verified: boolean;
+  verified_features: string[];
+  performance: { tokens_per_sec?: number; vision_latency_sec?: number };
+  verification_notes: string;
+  broken_reason: string;
+  chat_eligible: boolean;
+  task_routes: string[];
+  benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
+}
+
+export interface TaskModelRoute {
+  engine: string;
+  model: string;
+  reason: string;
+}
+
+export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedModel[]> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/models/unified?verified_only=${verifiedOnly}`, { timeout: 30000 });
+  if (!res.ok) throw new Error("Failed to get unified models");
+  const payload = await res.json();
+  const entries = Array.isArray(payload) ? payload : payload.models || [];
+  return entries.map((m: UnifiedModel & Record<string, unknown>) => {
+    const caps = (m.capabilities as string[] | undefined) ?? [];
+    const pick = (...keys: string[]): unknown => {
+      for (const k of keys) {
+        if (m[k] !== undefined && m[k] !== null) return m[k];
+      }
+      return undefined;
+    };
+    return {
+      ...m,
+      source: (pick("source") as "ollama" | "atomic-chat") || "ollama",
+      name: m.name || m.id || "",
+      size: (m.size as number) ?? (pick("model_size") as number) ?? 0,
+      capabilities: caps,
+      supports_tools: (pick("supports_tools") as boolean | undefined) ?? caps.includes("tools"),
+      supports_vision: (pick("supports_vision") as boolean | undefined) ?? caps.includes("vision"),
+      supports_thinking: (pick("supports_thinking") as boolean | undefined) ?? caps.includes("thinking"),
+      supports_embedding: (pick("supports_embedding") as boolean | undefined) ?? caps.includes("embed"),
+      supports_rerank: (pick("supports_rerank") as boolean | undefined) ?? caps.includes("rerank"),
+      vram_required: (pick("vram_required") as number | undefined) ?? 0,
+      verified: pick("verified") as boolean | undefined,
+      verified_features: pick("verified_features") as string[] | undefined,
+      performance: pick("performance") as { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
+      verification_notes: pick("verification_notes") as string | undefined,
+      broken_reason: pick("broken_reason") as string | undefined,
+      chat_eligible: pick("chat_eligible") as boolean | undefined ?? true,
+      task_routes: pick("task_routes") as string[] | undefined ?? [],
+    };
+  });
+}
+
+export async function getTaskModelRoutes(): Promise<{ routes: Record<string, TaskModelRoute>; excluded_from_chat: string[] }> {
+  const base = getApiBase();
+  const res = await fetchWithTimeout(`${base}/api/integrations/models/task-routes`, { timeout: 10000 });
+  if (!res.ok) throw new Error("Failed to get task model routes");
+  return res.json();
+}
+
 export interface OllamaModel {
   name: string;
   size: number;

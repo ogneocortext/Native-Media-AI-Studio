@@ -1,26 +1,52 @@
 import { useState, useEffect, useRef } from "react";
-import { Send, Loader2, Bot, User, ChevronDown, Wrench, Shield, Eye, Cpu, AlertCircle, Wifi, WifiOff, Music, Download } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  Bot,
+  User,
+  ChevronDown,
+  Wrench,
+  Shield,
+  Eye,
+  Brain,
+  AlertCircle,
+  Wifi,
+  WifiOff,
+  Music,
+  Download,
+  Zap,
+  GitBranch,
+  Activity,
+} from "lucide-react";
 import { Card } from "../../components/common";
 import { AudioTransport } from "../../components/audio";
 import {
   getApiBase,
-  getOllamaModels,
+  getUnifiedModels,
+  getTaskModelRoutes,
   ollamaChatStream,
   ollamaEngineStatus,
   parseOllamaStream,
   uploadAudioFile,
   getBenchmarkResults,
+  getAtomicChatStatus,
   type ChatMessage,
-  type OllamaModel,
   type ToolDefinition,
   type OllamaBenchmarkResult,
+  type UnifiedModel,
 } from "../../services/api";
 import { getOutputUrl } from "../../utils/url";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 
+/** Source badge configs keyed by engine source. */
+const SOURCE_BADGES: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  ollama: { label: "Ollama", icon: Activity, color: "text-emerald-400" },
+  "atomic-chat": { label: "Atomic Chat", icon: Zap, color: "text-pink-400" },
+};
+
 export function OllamaChat() {
   const { refresh: refreshLibrary } = useAudioLibrary();
-  const [models, setModels] = useState<OllamaModel[]>([]);
+  const [models, setModels] = useState<UnifiedModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -32,6 +58,8 @@ export function OllamaChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [engineStatus, setEngineStatus] = useState<"online" | "offline" | "checking">("checking");
+  const [atomicStatus, setAtomicStatus] = useState<"online" | "offline" | "checking">("checking");
+  const [taskRoutes, setTaskRoutes] = useState<{ routes: Record<string, { engine: string; model: string; reason: string }>; excluded_from_chat: string[] } | null>(null);
   const [extractRunning, setExtractRunning] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<{
@@ -51,6 +79,15 @@ export function OllamaChat() {
       setEngineStatus(status.online ? "online" : "offline");
     } catch {
       setEngineStatus("offline");
+    }
+  }
+
+  async function checkAtomicStatus() {
+    try {
+      const status = await getAtomicChatStatus();
+      setAtomicStatus(status.reachable ? "online" : "offline");
+    } catch {
+      setAtomicStatus("offline");
     }
   }
 
@@ -80,17 +117,20 @@ export function OllamaChat() {
 
   useEffect(() => {
     async function loadModels() {
-      // Detect which inference engine is running before allowing messages.
-      await checkEngineStatus();
+      // Detect which inference engines are running before allowing messages.
+      await Promise.all([checkEngineStatus(), checkAtomicStatus()]);
       try {
-        const [data, toolsData] = await Promise.all([
-          getOllamaModels(true),
+        const [data, toolsData, routes] = await Promise.all([
+          getUnifiedModels(true),
           fetch(`${getApiBase()}/api/integrations/ollama/tools`, {
             signal: AbortSignal.timeout(10000),
           })
             .then((r) => r.json())
             .catch(() => ({ tools: [] })),
+          getTaskModelRoutes().catch(() => null),
         ]);
+
+        if (routes) setTaskRoutes(routes);
 
         // Fetch benchmarks in parallel
         let benchMap: Record<string, OllamaBenchmarkResult> = {};
@@ -102,9 +142,11 @@ export function OllamaChat() {
           /* no benchmarks yet */
         }
 
-        // Sort by benchmark score desc, then latency asc — best first
-        // Verified models first
-        const sorted = [...data].sort((a, b) => {
+        // Filter: show chat-eligible models for chat
+        const chatEligible = data.filter((m) => m.chat_eligible);
+
+        // Sort chat-eligible by benchmark score desc, then latency asc
+        const sorted = [...chatEligible].sort((a, b) => {
           if (a.verified !== b.verified) return a.verified ? -1 : 1;
           const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
           const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
@@ -113,6 +155,7 @@ export function OllamaChat() {
           const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
           return la - lb;
         });
+
         setModels(sorted);
         setTools(toolsData.tools || []);
         const preferred = ["gemma4:e2b-it-qat", "qwen3.5:4b", "qwen3-vl:2b"];
@@ -133,13 +176,13 @@ export function OllamaChat() {
   }, [messages]);
 
   const buildHistory = (): ChatMessage[] => {
-    // Exclude the just-added user message from history; the API takes it as `message`.
     return messages.filter((m, i) => !(i === messages.length - 1 && m.role === "user"));
   };
 
   const handleSend = async () => {
-    if (engineStatus === "offline") return;
-    if (engineStatus === "checking") return;
+    const anyEngineOnline = engineStatus === "online" || atomicStatus === "online";
+    if (!anyEngineOnline) return;
+    if (engineStatus === "checking" || atomicStatus === "checking") return;
     if (!input.trim() || !selectedModel || loading) return;
     const userMsg: ChatMessage = { role: "user", content: input.trim(), timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -227,9 +270,6 @@ export function OllamaChat() {
         }
       }
 
-      // If the model emitted tool calls, append tool results from the stream's final message.
-      // The backend streaming loop already executes tools and appends their results,
-      // so we just refresh from the accumulated assistant content.
       if (!assistantContent && toolCalls.length === 0) {
         setMessages((prev) => {
           const next = [...prev];
@@ -245,7 +285,7 @@ export function OllamaChat() {
         ...prev,
         {
           role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : "failed to get response from Ollama."}`,
+          content: `Error: ${err instanceof Error ? err.message : "failed to get response."}`,
           timestamp: new Date(),
         },
       ]);
@@ -261,19 +301,42 @@ export function OllamaChat() {
     };
   }, []);
 
+  const selectedModelMeta = models.find((m) => m.name === selectedModel);
+  const selectedSource = selectedModelMeta?.source;
+  const sourceCfg = SOURCE_BADGES[selectedSource || "ollama"];
+
+  function anyEngineOnline(): boolean {
+    return engineStatus === "online" || atomicStatus === "online";
+  }
+
   return (
     <div className="p-6 flex flex-col h-[calc(100vh-0px)] max-h-screen">
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            Ollama Chat
-            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${engineStatus === "online" ? "bg-green-900/30 text-green-400 border-green-900/50" : engineStatus === "offline" ? "bg-red-900/30 text-red-400 border-red-900/50" : "bg-muted/50 text-muted border-muted/50"}`}>
-              {engineStatus === "checking" ? <Wifi size={12} className="mr-1.5 animate-pulse" /> : engineStatus === "online" ? <Wifi size={12} className="mr-1.5" /> : <WifiOff size={12} className="mr-1.5" />}
+            AI Chat
+            <span className="flex items-center gap-2">
+              {engineStatus === "checking" || atomicStatus === "checking" ? (
+                <Wifi size={12} className="mr-1.5 animate-pulse" />
+              ) : engineStatus === "online" ? (
+                <Wifi size={12} className="mr-1.5" />
+              ) : (
+                <WifiOff size={12} className="mr-1.5" />
+              )}
               {engineStatus === "checking" ? "Checking engine…" : engineStatus === "online" ? "Ollama online" : "Ollama offline"}
+              {atomicStatus === "online" ? (
+                <span className="ml-1 inline-flex items-center gap-1 bg-pink-900/30 text-pink-400 border border-pink-900/50 px-2 py-0.5 rounded text-xs font-medium">
+                  <Zap size={10} className="mr-0.5" /> Atomic Chat online
+                </span>
+              ) : atomicStatus === "offline" ? (
+                <span className="ml-1 inline-flex items-center gap-1 bg-red-900/30 text-red-400 border border-red-900/50 px-2 py-0.5 rounded text-xs font-medium">
+                  <WifiOff size={10} className="mr-0.5" /> Atomic Chat offline
+                </span>
+              ) : null}
             </span>
           </h1>
           <p className="text-sm text-muted mt-1">
-            Chat with local LLM models via Ollama (streaming + tools)
+            Chat with local LLM models via Ollama + Atomic Chat (streaming + tools)
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -297,7 +360,7 @@ export function OllamaChat() {
               {modelsLoading ? (
                 <option>Loading models…</option>
               ) : models.length === 0 ? (
-                <option>No verified models found</option>
+                <option>No chat-eligible models found</option>
               ) : (
                 models.map((m) => {
                   const bench = benchmarks[m.name];
@@ -313,9 +376,10 @@ export function OllamaChat() {
                     badge = " [—]";
                   }
                   const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                  const sourceCfg = SOURCE_BADGES[m.source];
                   return (
                     <option key={m.name} value={m.name}>
-                      {m.name}{m.verified ? " [verified]" : " [unverified]"}{badge}
+                      {m.name} [{sourceCfg.label}]{m.verified ? " [verified]" : " [unverified]"}{badge}
                       {isBest ? " [best]" : ""}
                     </option>
                   );
@@ -329,10 +393,12 @@ export function OllamaChat() {
                 const badges: React.ReactNode[] = [];
                 if (m.verified) badges.push(<span key="v" className="text-green-400" title="Verified Working"><Shield size={10} /></span>);
                 if (!m.verified && m.broken_reason) badges.push(<span key="b" className="text-red-400" title={m.broken_reason}><AlertCircle size={10} /></span>);
-                if (m.supportsTools) badges.push(<span key="t" className="text-amber-400" title="Tools"><Wrench size={10} /></span>);
-                if (m.supportsVision) badges.push(<span key="vi" className="text-blue-400" title="Vision"><Eye size={10} /></span>);
-                if (m.supportsThinking) badges.push(<span key="th" className="text-purple-400" title="Thinking"><Cpu size={10} /></span>);
-                const vram = m.vram_estimate_mb;
+                if (m.supports_tools) badges.push(<span key="t" className="text-amber-400" title="Tools"><Wrench size={10} /></span>);
+                if (m.supports_vision) badges.push(<span key="vi" className="text-blue-400" title="Vision"><Eye size={10} /></span>);
+                if (m.supports_thinking) badges.push(<span key="th" className="text-purple-400" title="Thinking"><Brain size={10} /></span>);
+                if (m.supports_embedding) badges.push(<span key="em" className="text-cyan-400 flex items-center gap-1" title="Embeddings"><Activity size={10} /> Embeddings</span>);
+                if (m.supports_rerank) badges.push(<span key="rr" className="text-violet-400 flex items-center gap-1" title="Reranker"><GitBranch size={10} /> Reranker</span>);
+                const vram = m.vram_required;
                 if (vram) {
                   const gb = (vram / 1024).toFixed(1);
                   const isHigh = vram > 7000;
@@ -345,6 +411,11 @@ export function OllamaChat() {
                     </span>
                   );
                 }
+                badges.push(
+                  <span key="src" className={`text-[10px] ${sourceCfg.color}`} title={SOURCE_BADGES[m.source || "ollama"].label}>
+                    {m.source === "atomic-chat" ? <Zap size={10} /> : <Activity size={10} />}
+                  </span>
+                );
                 badges.push(<ChevronDown key="d" size={14} className="text-muted" />);
                 return <>{badges}</>;
               })()}
@@ -353,14 +424,53 @@ export function OllamaChat() {
         </div>
       </div>
 
-      {engineStatus === "offline" && (
+      {/* Model routing info */}
+      {taskRoutes && (
+        <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10 flex items-start gap-3">
+          <Brain size={16} className="text-purple-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-purple-300">Task-specific model routing</p>
+            <div className="text-xs text-muted flex flex-wrap gap-2">
+              {Object.entries(taskRoutes.routes).map(([task, route]) => (
+                <span key={task} className="bg-purple-900/20 px-2 py-1 rounded border border-purple-900/50 text-xs text-purple-300">
+                  {task}: {route.model}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {engineStatus === "offline" && atomicStatus === "offline" && (
         <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-900/30 flex items-center gap-3">
           <AlertCircle size={18} className="text-red-400 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-red-300">Inference engine is offline</p>
+            <p className="text-sm font-semibold text-red-300">No inference engine online</p>
             <p className="text-xs text-red-200/70">
-              Ollama is not running, so messages cannot be sent. Start Ollama and refresh this page, or check
-              the <a href="/system/health" className="text-red-300 underline">Health page</a> for service status.
+              Neither Ollama nor Atomic Chat is running, so messages cannot be sent. Start an engine and
+              refresh this page, or check the <a href="/system/health" className="text-red-300 underline">Health page</a> for service status.
+            </p>
+          </div>
+        </div>
+      )}
+      {engineStatus === "offline" && atomicStatus === "online" && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-900/30 flex items-center gap-3">
+          <AlertCircle size={18} className="text-amber-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-300">Ollama offline — Atomic Chat available</p>
+            <p className="text-xs text-amber-200/70">
+              Ollama is not running but Atomic Chat is online. Select an Atomic Chat model from the dropdown above.
+            </p>
+          </div>
+        </div>
+      )}
+      {engineStatus === "online" && atomicStatus === "offline" && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-900/30 flex items-center gap-3">
+          <AlertCircle size={18} className="text-amber-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-300">Atomic Chat offline — Ollama available</p>
+            <p className="text-xs text-amber-200/70">
+              Atomic Chat is not running but Ollama is online. Ollama models are available for chat.
             </p>
           </div>
         </div>
@@ -445,7 +555,7 @@ export function OllamaChat() {
                 <Bot size={40} className="text-muted/30 mx-auto mb-3" />
                 <p className="text-sm text-muted">Ask anything about your music video project</p>
                 <p className="text-xs text-muted mt-1">
-                  Powered by {selectedModel || "Ollama"} running locally
+                  Powered by {selectedModel || "local model"} ({selectedSource || "ollama"}) running locally
                 </p>
               </div>
             </div>
@@ -514,12 +624,12 @@ export function OllamaChat() {
                 }
               }}
               placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}
-              disabled={!selectedModel || loading || engineStatus !== "online"}
+              disabled={!selectedModel || loading || !anyEngineOnline()}
               className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-muted focus:outline-none focus:border-violet-500 disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || !selectedModel || loading || engineStatus !== "online"}
+              disabled={!input.trim() || !selectedModel || loading || !anyEngineOnline()}
               className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

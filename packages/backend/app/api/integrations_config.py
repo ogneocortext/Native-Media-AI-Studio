@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
-from ..core.config import PROJECT_ROOT
+from ..core.config import PROJECT_ROOT, config
 from ..core.urls import backend_events_url, backend_ws_url, go_dashboard_url
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,169 @@ async def list_integrations() -> dict:
             {"name": "ollama", "type": "llm", "display": "Ollama"},
         ]
     }
+
+
+# Models reserved for specific tasks. These should NOT appear in the general
+# chat dropdown unless explicitly allowed. Each entry maps a task to the
+# preferred model name and the engine that serves it.
+TASK_MODEL_ROUTES: dict[str, dict[str, str]] = {
+    "embeddings": {
+        "engine": "ollama",
+        "model": config.embedding_model if hasattr(config, "embedding_model") else "nomic-embed-text",
+        "reason": "Dedicated embedding model for retrieval-augmented generation",
+    },
+    "reranker": {
+        "engine": "ollama",
+        "model": "reranker-multi-v1",
+        "reason": "Cross-encoder reranker for retrieval precision",
+    },
+    "chat": {
+        "engine": "ollama",
+        "model": config.default_model if hasattr(config, "default_model") else "gemma4:e2b-it-qat",
+        "reason": "General-purpose chat model",
+    },
+    "visualizer": {
+        "engine": "ollama",
+        "model": "gemma4:e2b-it-qat",
+        "reason": "Visualizer preset generation",
+    },
+}
+
+# Model capabilities that should NOT appear in the chat dropdown (task-only models)
+EXCLUDED_FROM_CHAT = {"embed", "rerank", "embedding", "reranker"}
+
+
+@router.get("/models/unified")
+async def get_unified_models(*, verified_only: bool = False) -> dict:
+    """
+    Unified model listing across all inference engines (Ollama + Atomic Chat).
+
+    Returns models from both engines with a ``source`` field indicating
+    which engine serves each model. Ollama models include capability
+    flags (tools, vision, thinking) and VRAM estimates. Atomic Chat
+    reports its single resident model discovered via /v1/models.
+
+    Task-only models (embeddings, reranker) are included with
+    ``chat_eligible=false`` so the frontend can filter them from the
+    general chat dropdown while still exposing them for task-specific
+    routing.
+    """
+    result: dict[str, list[dict]] = {
+        "ollama": [],
+        "atomic_chat": [],
+    }
+
+    # ---- Ollama models ----
+    try:
+        from ..core import ollama_client as _oc
+        entries = await _oc.list_models(timeout=10)
+        if entries:
+            # Deduplicate by model name
+            seen = set()
+            unique_entries = []
+            for m in entries:
+                name = m.get("name", "")
+                if name and name not in seen:
+                    seen.add(name)
+                    unique_entries.append(m)
+
+            resolved = await _oc.resolve_capabilities_for_entries(unique_entries, timeout=10)
+            for m in unique_entries:
+                name = m.get("name", "")
+                if not name:
+                    continue
+                caps = resolved.get(name) or []
+                capability_set = set(caps)
+                tool_capable = "tools" in capability_set
+
+                verified, verify_info = is_model_verified(name)
+
+                # Determine task eligibility: exclude embedding/reranker models
+                # from the general chat dropdown
+                name_lower = name.lower()
+                chat_eligible = not any(
+                    kw in name_lower for kw in EXCLUDED_FROM_CHAT
+                ) if not verified_only else verified
+
+                result["ollama"].append({
+                    "source": "ollama",
+                    "id": name,
+                    "name": name,
+                    "size": m.get("size", 0),
+                    "digest": m.get("digest", ""),
+                    "capabilities": caps,
+                    "supports_tools": tool_capable,
+                    "supports_vision": "vision" in capability_set,
+                    "supports_thinking": "thinking" in capability_set,
+                    "supports_embedding": "embed" in capability_set,
+                    "supports_rerank": "rerank" in capability_set,
+                    "vram_required": _oc.estimate_model_vram_mb(name, m.get("size", 0)),
+                    "is_available": True,
+                    "verified": verified,
+                    "verified_features": verify_info.get("verified_features", []),
+                    "performance": verify_info.get("performance", {}),
+                    "verification_notes": verify_info.get("notes", ""),
+                    "broken_reason": verify_info.get("broken_reason", ""),
+                    "chat_eligible": chat_eligible,
+                    "task_routes": [
+                        task for task, route in TASK_MODEL_ROUTES.items()
+                        if route["model"] == name
+                    ],
+                })
+    except Exception as e:
+        logger.warning("Unified models: Ollama listing failed: %s", e)
+
+    # ---- Atomic Chat model ----
+    try:
+        adapter = adapter_registry.get_adapter("atomic-chat")
+        if adapter is None:
+            from .atomic_chat import AtomicChatAdapter
+            adapter = AtomicChatAdapter(config.atomic_chat_url, mock_mode=False)
+        ac_models = await adapter._discover_model()
+        if ac_models:
+            result["atomic_chat"].append({
+                "source": "atomic-chat",
+                "id": ac_models,
+                "name": ac_models,
+                "size": 0,
+                "digest": "",
+                "capabilities": ["chat", "tools"],
+                "supports_tools": True,
+                "supports_vision": False,
+                "supports_thinking": False,
+                "supports_embedding": False,
+                "supports_rerank": False,
+                "vram_required": 0,
+                "is_available": True,
+                "verified": True,
+                "verified_features": ["chat", "tools"],
+                "performance": {},
+                "verification_notes": "Atomic Chat resident model",
+                "broken_reason": "",
+                "chat_eligible": True,
+                "task_routes": [],
+            })
+    except Exception as e:
+        logger.warning("Unified models: Atomic Chat discovery failed: %s", e)
+
+    total = len(result["ollama"]) + len(result["atomic_chat"])
+    return {
+        "models": result["ollama"] + result["atomic_chat"],
+        "by_source": result,
+        "count": total,
+    }
+
+
+@router.get("/models/task-routes")
+async def get_task_model_routes() -> dict:
+    """
+    Get task-specific model routing configuration.
+
+    Returns which model serves each task (embeddings, reranker, chat,
+    visualizer) and which engine serves it. Frontend can use this to
+    display task-specific model selectors or to understand routing.
+    """
+    return {"routes": TASK_MODEL_ROUTES, "excluded_from_chat": sorted(EXCLUDED_FROM_CHAT)}
 
 
 async def ensure_vram_available(required_mb: int = 4096) -> dict:
