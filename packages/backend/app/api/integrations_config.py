@@ -475,7 +475,7 @@ async def get_mock_mode() -> dict:
 @router.post("/config/mock-mode")
 async def set_mock_mode(*, enabled: bool) -> dict:
     """Enable or disable mock mode for all adapters"""
-    adapter_registry.set_mock_mode(enabled)
+    adapter_registry.set_mock_mode(enabled=enabled)
     return {
         "mock_mode": enabled,
         "message": f"Mock mode {'enabled' if enabled else 'disabled'}. Changes take effect on next health check."

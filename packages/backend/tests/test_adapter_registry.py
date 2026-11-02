@@ -67,7 +67,7 @@ async def test_set_mock_mode_resets_state():
     registry._initialized = True
     registry._adapters = {"comfyui": "stub"}
 
-    registry.set_mock_mode(True)
+    registry.set_mock_mode(enabled=True)
 
     assert registry._initialized is False, "set_mock_mode should reset _initialized"
     assert registry._adapters == {}, "set_mock_mode should clear adapters"
