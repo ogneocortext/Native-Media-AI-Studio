@@ -39,7 +39,7 @@ from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
 from .core.idle_monitor import idle_monitor
-from .core.logging_config import setup_logging
+from .core.logging_config import setup_logging, structured_logger
 from .core.metrics import MetricsMiddleware, metrics_endpoint
 from .core.port_manager import port_manager
 from .core.rate_limit import RateLimitMiddleware
@@ -156,16 +156,16 @@ def _verify_ace_bridge_startup() -> None:
             )
         else:
             for issue in integrity["issues"]:
-                logger.warning(f"ACE-Step bridge: {issue}")
+                structured_logger.warning("ace_step.bridge_issue", issue=issue)
         if integrity["warnings"]:
             for warning in integrity["warnings"]:
-                logger.info(f"ACE-Step bridge: {warning}")
+                structured_logger.info("ace_step.bridge_warning", warning=warning)
         if integrity["provider_update_detected"]:
             logger.warning(
                 "ACE-Step provider update detected -- review config/ace-step/bridge.json"
             )
     except Exception as e:
-        logger.warning(f"ACE-Step bridge verification skipped: {e}")
+        structured_logger.warning("ace_step.bridge_verification_skipped", error=str(e))
 
 
 async def _ensure_backend_port_free(port: int) -> None:
@@ -256,7 +256,7 @@ async def health_broadcast_loop():
         except Exception as e:
             consecutive_errors += 1
             backoff = min(2**consecutive_errors, max_backoff)
-            logger.error(f"Health broadcast error ({consecutive_errors}): {e}")
+            logger.error("health.broadcast_error", consecutive_errors=consecutive_errors, error=str(e))
             await asyncio.sleep(backoff)
 
 
@@ -271,7 +271,7 @@ async def _cancel_background_tasks():
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.warning(f"Background task error during shutdown: {e}")
+            structured_logger.warning("background.task_shutdown_error", error=str(e))
     _background_tasks.clear()
 
 
@@ -317,7 +317,7 @@ async def lifespan(app: FastAPI):
 
         logger.info("Database initialized")
     except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
+        structured_logger.error("database.initialization_failed", error=str(e))
         raise
 
     # Record the port layout in config/ports.json.
@@ -331,13 +331,14 @@ async def lifespan(app: FastAPI):
             port_config = port_manager.set_default_config()
         else:
             port_config = port_manager.get_resolved_config()
-        logger.info(f"Backend port: {port_config['backend_port']}")
-        logger.info(
-            f"SSE/events URL: {port_config.get('events_url') or port_config.get('sse_url')}"
+        structured_logger.info(
+            "config.port_resolved",
+            backend_port=port_config["backend_port"],
+            sse_url=port_config.get("events_url") or port_config.get("sse_url"),
+            frontend_port=port_config["frontend_port"],
         )
-        logger.info(f"Frontend port: {port_config['frontend_port']}")
     except Exception as e:
-        logger.error(f"Port configuration failed: {e}")
+        structured_logger.error("config.port_resolution_failed", error=str(e))
         raise
 
     # Subscribe to job updates -- fan-out to both SSE and legacy WS
@@ -355,7 +356,7 @@ async def lifespan(app: FastAPI):
         await processor.start()
         logger.info("Queue processor started")
     except Exception as e:
-        logger.error(f"Failed to start queue processor: {e}")
+        structured_logger.error("queue.processor_start_failed", error=str(e))
 
     # Start the stem separation worker (UVR5 hierarchical + Demucs queue)
     try:
@@ -364,7 +365,7 @@ async def lifespan(app: FastAPI):
         await source_separator.start_worker()
         logger.info("Stem separation worker started")
     except Exception as e:
-        logger.warning(f"Stem separation worker startup skipped: {e}")
+        structured_logger.warning("stem_separation.worker_start_skipped", error=str(e))
 
     logger.info("Native Media AI Studio started successfully")
 
@@ -372,9 +373,9 @@ async def lifespan(app: FastAPI):
     try:
         service_health = await adapter_registry.check_all_health()
         for name, status in service_health.items():
-            logger.info(f"{name}: {'healthy' if status else 'offline'}")
+            structured_logger.info("adapter.health", adapter=name, healthy=status)
     except Exception as e:
-        logger.warning(f"Adapter health check failed: {e}")
+        structured_logger.warning("adapter.health_check_failed", error=str(e))
 
     # Verify ACE-Step bridge integrity on startup.
     _verify_ace_bridge_startup()
@@ -408,13 +409,13 @@ async def lifespan(app: FastAPI):
     try:
         await queue_manager.unsubscribe(_fanout_job_update)
     except Exception as e:
-        logger.warning(f"Failed to unsubscribe job fan-out: {e}")
+        structured_logger.warning("queue.fanout_unsubscribe_failed", error=str(e))
 
     try:
         await processor.stop()
         logger.info("Queue processor stopped")
     except Exception as e:
-        logger.warning(f"Error stopping processor: {e}")
+        structured_logger.warning("queue.processor_stop_failed", error=str(e))
 
     # Release the shared httpx async client
     try:
@@ -422,7 +423,7 @@ async def lifespan(app: FastAPI):
 
         await close_async_client()
     except Exception as e:
-        logger.warning(f"Failed to close shared HTTP client: {e}")
+        structured_logger.warning("http.client_close_failed", error=str(e))
 
     # Release the shared aiohttp sessions (ComfyUI route client)
     try:
@@ -430,7 +431,7 @@ async def lifespan(app: FastAPI):
 
         await comfyui_client.close_shared_session()
     except Exception as e:
-        logger.warning(f"Failed to close shared aiohttp sessions: {e}")
+        structured_logger.warning("http.aiohttp_close_failed", error=str(e))
 
     # Close Ollama shared session
     try:
@@ -438,21 +439,21 @@ async def lifespan(app: FastAPI):
 
         await ollama_client.close_shared_session()
     except Exception as e:
-        logger.warning(f"Failed to close Ollama shared session: {e}")
+        structured_logger.warning("ollama.client_close_failed", error=str(e))
 
     # Close all adapter sessions
     try:
         await adapter_registry.close_all()
         logger.info("Adapter sessions closed")
     except Exception as e:
-        logger.warning(f"Failed to close adapter sessions: {e}")
+        structured_logger.warning("adapter.sessions_close_failed", error=str(e))
 
     # Close all bridge adapters (Unity, Blender subprocesses + shared sessions)
     try:
         await bridge_registry.close_all()
         logger.info("Bridge adapter sessions closed")
     except Exception as e:
-        logger.warning(f"Failed to close bridge adapters: {e}")
+        structured_logger.warning("bridge.adapters_close_failed", error=str(e))
 
     # Shutdown music generation services
     try:
@@ -462,7 +463,7 @@ async def lifespan(app: FastAPI):
         await close_shared_session()
         logger.info("Music generation services stopped")
     except Exception as e:
-        logger.warning(f"Failed to stop music generation services: {e}")
+        structured_logger.warning("music_gen.services_stop_failed", error=str(e))
 
     # Checkpoint the WAL file before releasing connections so the -wal file does
     # not keep growing between restarts on a long-running home server.
@@ -473,7 +474,7 @@ async def lifespan(app: FastAPI):
         if checkpointed is not None:
             logger.info("Checkpointed %d WAL frame(s) on shutdown", checkpointed)
     except Exception as e:
-        logger.warning(f"Failed to checkpoint WAL on shutdown: {e}")
+        structured_logger.warning("database.wal_checkpoint_failed", error=str(e))
 
     # Release pooled SQLite connections so the process does not exit holding file
     # handles. On Windows an open handle blocks the database file from being
@@ -485,7 +486,7 @@ async def lifespan(app: FastAPI):
         if closed:
             logger.info("Closed %d pooled database connection(s)", closed)
     except Exception as e:
-        logger.warning(f"Failed to close pooled database connections: {e}")
+        structured_logger.warning("database.pooled_connections_close_failed", error=str(e))
 
     logger.info("Shutdown complete")
 
@@ -1097,7 +1098,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.debug(f"WS connection ended: {e}")
+        structured_logger.debug("ws.connection_ended", error=str(e))
     finally:
         await connection_manager.disconnect(websocket)
 
@@ -1171,7 +1172,7 @@ async def sse_endpoint(request: Request):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(f"SSE connection error: {e}")
+            structured_logger.error("sse.connection_error", error=str(e))
         finally:
             await sse_manager.disconnect(queue)
 
@@ -1187,9 +1188,13 @@ async def main():
     try:
         resolved_config = await port_manager.resolve_all_ports()
         port = resolved_config["backend_port"]
-        logger.info(f"Resolved backend port: {port}")
+        structured_logger.info("backend.port_resolved", port=port)
     except Exception as e:
-        logger.warning(f"Port pre-resolution failed, using default port {config.backend_port}: {e}")
+        structured_logger.warning(
+            "backend.port_pre_resolution_failed",
+            default_port=config.backend_port,
+            error=str(e),
+        )
         port = config.backend_port
 
     # If our resolved port is already occupied by our own service, exit

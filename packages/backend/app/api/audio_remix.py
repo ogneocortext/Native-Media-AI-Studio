@@ -46,6 +46,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from ..core.logging_config import structured_logger
 from ..models.job import Job, JobCreateRequest, JobStatus, JobType
 from ..queue.manager import queue_manager
 from ..queue.processor import processor
@@ -256,8 +257,20 @@ async def _remix_build_handler(job: Job) -> dict[str, Any]:
     params = job.params or {}
     recipe_data = params.get("recipe")
     if not isinstance(recipe_data, dict):
+        structured_logger.error(
+            "remix.build.validation_failed",
+            job_id=job.id,
+            error="missing_recipe",
+        )
         raise ValueError("build job missing recipe")
     overwrite = bool(params.get("overwrite", True))
+
+    structured_logger.info(
+        "remix.build.started",
+        job_id=job.id,
+        recipe_name=recipe_data.get("name", "unnamed"),
+        overwrite=overwrite,
+    )
 
     recipe = _recipe_from_request(recipe_data)
     recipe.validate()
@@ -273,6 +286,15 @@ async def _remix_build_handler(job: Job) -> dict[str, Any]:
 
     # render_remix is CPU-bound (numpy/soundfile); run off the event loop.
     result = await asyncio.to_thread(render_remix, recipe, overwrite, progress_cb=_progress)
+
+    structured_logger.info(
+        "remix.build.completed",
+        job_id=job.id,
+        name=result.name,
+        directory=result.directory,
+        duration_sec=result.duration_sec,
+        warnings_count=len(result.warnings),
+    )
 
     return {
         "name": result.name,
@@ -294,13 +316,32 @@ async def _remix_enhance_handler(job: Job) -> dict[str, Any]:
     name = params.get("name")
     options = params.get("options") or {}
 
+    structured_logger.info(
+        "remix.enhance.started",
+        job_id=job.id,
+        remix_name=name,
+        options=options,
+    )
+
     try:
         remix_path = remix_dir(name)
     except ValueError as exc:
+        structured_logger.error(
+            "remix.enhance.validation_failed",
+            job_id=job.id,
+            remix_name=name,
+            error=str(exc),
+        )
         raise ValueError(f"Invalid remix name: {name!r}") from exc
 
     missing = [s for s in STEM_NAMES if not (remix_path / f"{s}.wav").exists()]
     if missing:
+        structured_logger.error(
+            "remix.enhance.missing_stems",
+            job_id=job.id,
+            remix_name=name,
+            missing_stems=missing,
+        )
         raise FileNotFoundError(
             f"Remix {name!r} is missing stems: {', '.join(missing)} -- build it first"
         )
@@ -323,6 +364,15 @@ async def _remix_enhance_handler(job: Job) -> dict[str, Any]:
         )
 
     result = await enhancer.enhance_stems(remix_path, remix_path / "enhanced", progress_cb=_progress)
+
+    structured_logger.info(
+        "remix.enhance.completed",
+        job_id=job.id,
+        remix_name=name,
+        success=result.success,
+        duration_sec=result.duration_sec or 0.0,
+        steps_count=len(result.steps),
+    )
 
     if not result.success:
         return {

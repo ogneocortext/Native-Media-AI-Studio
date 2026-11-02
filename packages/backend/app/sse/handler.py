@@ -28,6 +28,7 @@ import httpx
 from fastapi import HTTPException
 
 from ..core.config import config
+from ..core.logging_config import structured_logger
 from ..models.job import Job, JobStatus
 
 logger = logging.getLogger(__name__)
@@ -95,13 +96,21 @@ class SSEManager:
         queue = asyncio.Queue()
         async with self._lock:
             if len(self._active_connections) >= self._max_connections:
-                logger.warning("SSE connection rejected: at capacity (%d)", self._max_connections)
+                structured_logger.warning(
+                    "sse.connection_rejected",
+                    reason="at_capacity",
+                    active_connections=len(self._active_connections),
+                    max_connections=self._max_connections,
+                )
                 raise HTTPException(
                     status_code=503,
                     detail="Server at capacity, try again later",
                 )
             self._active_connections.append(queue)
-        logger.debug("SSE client connected. Active connections: %d", len(self._active_connections))
+        structured_logger.info(
+            "sse.connection_established",
+            active_connections=len(self._active_connections),
+        )
         return queue
 
     async def disconnect(self, queue: asyncio.Queue):
@@ -109,8 +118,9 @@ class SSEManager:
         async with self._lock:
             if queue in self._active_connections:
                 self._active_connections.remove(queue)
-        logger.debug(
-            "SSE client disconnected. Active connections: %d", len(self._active_connections)
+        structured_logger.info(
+            "sse.connection_disconnected",
+            active_connections=len(self._active_connections),
         )
 
     async def send_message(self, message: dict[str, Any]):
@@ -172,7 +182,10 @@ class SSEManager:
 
     async def broadcast_health_status(self, status: dict[str, Any]):
         """Broadcast health status to all connected clients"""
-        logger.debug("Broadcasting health status: %s", status.get("overall", "unknown"))
+        structured_logger.info(
+            "sse.health_broadcast",
+            overall=status.get("overall", "unknown"),
+        )
         await self.send_message(
             self._format_message(
                 "system.health_changed",
@@ -193,7 +206,12 @@ class SSEManager:
 
     async def send_job_update(self, job: Job):
         """Send job update to all clients"""
-        logger.debug("Broadcasting job update: %s", job.id)
+        structured_logger.info(
+            "sse.job_update",
+            job_id=job.id,
+            job_type=job.job_type.value if hasattr(job.job_type, "value") else str(job.job_type),
+            status=job.status.value if hasattr(job.status, "value") else str(job.status),
+        )
         priority = (
             "urgent"
             if job.status in (JobStatus.FAILED, JobStatus.DEAD)
@@ -213,7 +231,7 @@ class SSEManager:
 
     async def broadcast(self, type: str, data: dict[str, Any], priority: str = "medium"):
         """Broadcast a message to all clients"""
-        logger.debug("Broadcasting SSE message: type=%s", type)
+        structured_logger.debug("sse.broadcast", type=type)
         await self.send_message(self._format_message(type, data, priority=priority))
 
     def connection_count(self) -> int:

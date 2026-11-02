@@ -23,11 +23,13 @@ November 2026 best practices applied:
 import collections
 import contextlib
 import contextvars
+import functools
 import json
 import logging
 import logging.handlers
 import re
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -808,3 +810,73 @@ def _format_size(size: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+
+# ------------------------------------------------------------------
+# Timing decorator - November 2026 best practice: log function duration_ms
+# ------------------------------------------------------------------
+
+
+def timed(logger_name: str | None = None, level: int = logging.DEBUG):
+    """Decorator that logs function entry/exit with elapsed duration_ms.
+
+    Usage::
+
+        @timed()
+        def my_function(arg):
+            ...
+
+        @timed(logger_name="app.remotion", level=logging.INFO)
+        def render_video(composition_id):
+            ...
+
+    The decorated function's logs will include:
+    - event: "<module>.<function>.started" / "<module>.<function>.completed"
+    - duration_ms: elapsed wall-clock time
+    - function: the function name
+    - Plus any correlation IDs from contextvars (request_id, job_id)
+    """
+
+    def decorator(func):
+        func_logger = logging.getLogger(logger_name or func.__module__)
+        event_name = f"{func.__module__}.{func.__qualname__}"
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            structured_logger.debug(
+                f"{event_name}.started",
+                function=func.__qualname__,
+            )
+            try:
+                result = func(*args, **kwargs)
+                return result
+            except Exception:
+                structured_logger.error(
+                    f"{event_name}.failed",
+                    function=func.__qualname__,
+                    duration_ms=(time.perf_counter() - start) * 1000,
+                    exc_info=True,
+                )
+                raise
+            finally:
+                elapsed_ms = (time.perf_counter() - start) * 1000
+                func_logger.log(
+                    level,
+                    f"{event_name}.completed",
+                    extra={
+                        "event": f"{event_name}.completed",
+                        "duration_ms": round(elapsed_ms, 2),
+                        "function": func.__qualname__,
+                    },
+                )
+
+        return wrapper
+
+    return decorator
+
+
+# ------------------------------------------------------------------
+# Module-level instances
+# ------------------------------------------------------------------
+
+structured_logger = StructuredLogger()

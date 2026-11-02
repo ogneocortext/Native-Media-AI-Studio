@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.config import PROJECT_ROOT
+from ..core.logging_config import structured_logger
 from ..models.job import Job
 from ..queue.manager import queue_manager
 from ..services.audio_analyzer import AudioAnalyzer, AudioAnalyzerError
@@ -60,6 +61,11 @@ class AudioAnalysisHandler:
         # Get audio file path
         audio_path = params.get("audio_path")
         if not audio_path:
+            structured_logger.error(
+                "audio_analysis.validation_failed",
+                job_id=job.id,
+                error="missing_audio_path",
+            )
             raise ValueError("audio_path is required in job params")
 
         # Make path absolute if relative
@@ -67,7 +73,19 @@ class AudioAnalysisHandler:
             audio_path = PROJECT_ROOT / audio_path
 
         if not Path(audio_path).exists():
+            structured_logger.error(
+                "audio_analysis.validation_failed",
+                job_id=job.id,
+                error="audio_file_not_found",
+                audio_path=str(audio_path),
+            )
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        structured_logger.info(
+            "audio_analysis.job_started",
+            job_id=job.id,
+            audio_path=str(audio_path),
+        )
 
         try:
             loop = asyncio.get_running_loop()
@@ -82,7 +100,7 @@ class AudioAnalysisHandler:
                 str(audio_path), job_id=job.id, progress_cb=_progress
             )
 
-            return {
+            result_dict = {
                 "analysis_path": json_path,
                 "audio_file": str(audio_path),
                 "duration_seconds": result.waveform.duration_seconds,
@@ -93,11 +111,33 @@ class AudioAnalysisHandler:
                 "beat_confidence": result.beats.confidence,
                 "amplitude_points": len(result.waveform.amplitude_envelope),
             }
+
+            structured_logger.info(
+                "audio_analysis.job_completed",
+                job_id=job.id,
+                output_path=json_path,
+                duration_seconds=result.waveform.duration_seconds,
+                tempo_bpm=result.beats.tempo_bpm,
+                num_beats=len(result.beats.beat_times),
+                num_onsets=len(result.beats.onset_times),
+                beat_confidence=result.beats.confidence,
+            )
+            return result_dict
         except AudioAnalyzerError as e:
-            logger.error(f"Audio analysis job failed: {e}")
+            structured_logger.error(
+                "audio_analysis.job_failed",
+                job_id=job.id,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             raise
         except Exception as e:
-            logger.error(f"Unexpected error processing audio analysis job: {e}")
+            structured_logger.error(
+                "audio_analysis.unexpected_error",
+                job_id=job.id,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             raise AudioAnalyzerError(f"Job processing failed: {e}") from e
 
     def save_analysis(
