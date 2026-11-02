@@ -2,21 +2,35 @@
 Centralized logging configuration for Native Media AI Studio.
 
 Provides:
-- Structured logging to both console and files
+- Structured logging to both console and files (text and JSON formats)
 - Log rotation to prevent disk fill
 - Per-module log levels
 - stdout/stderr capture for print() calls
 - API endpoint to view logs from frontend
+- PII redaction (emails, phones, IPs, Windows paths)
+- Optional Sentry integration for structured log shipping
+- Log sampling for high-volume operations
+
+November 2026 best practices applied:
+- Structured JSON logging for machine-parseable output
+- Correlation IDs via contextvars (request_id, job_id)
+- Structured event names (snake_case)
+- PII redaction
+- Proper log levels (DEBUG/INFO/WARN/ERROR)
+- Log sampling for high-volume operations
 """
 
 import collections
 import contextlib
 import contextvars
+import json
 import logging
 import logging.handlers
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from ..core.config import PROJECT_ROOT
 
@@ -100,6 +114,181 @@ class _JobIdFilter(logging.Filter):
         if not hasattr(record, "job_id"):
             record.job_id = get_job_id()  # type: ignore[attr-defined]
         return True
+
+
+# ---------------------------------------------------------------------------
+# PII redaction - November 2026 best practice: never log emails, phones, IPs
+# ---------------------------------------------------------------------------
+
+_PII_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+_PII_PHONE_RE = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
+_PII_IP_V4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_PII_WINDOWS_PATH_RE = re.compile(r"[A-Za-z]:\\(?:[^\"'\n\r]+\\)*[^\"'\n\r:]+")
+_PII_API_KEY_RE = re.compile(r"\b[A-Za-z0-9]{32,}\b")  # crude API key heuristic
+
+
+class _PIIRedactionFilter(logging.Filter):
+    """Redact PII from log messages: emails, phones, IPs, Windows paths, API keys.
+
+    Applied as a filter so it runs on every record before formatting. The
+    original message object is mutated so formatters see the redacted text.
+    """
+
+    def __init__(self, *, enabled: bool = True):
+        super().__init__()
+        self.enabled = enabled
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not self.enabled:
+            return True
+        try:
+            msg = record.getMessage()
+            redacted = _redact_pii(msg)
+            if redacted != msg:
+                record.msg = redacted
+                record.args = ()  # clear args so they aren't re-formatted into raw text
+        except Exception:
+            pass  # never let redaction break logging
+        return True
+
+
+def _redact_pii(text: str) -> str:
+    """Return text with PII replaced by placeholders."""
+    text = _PII_EMAIL_RE.sub("<email>", text)
+    text = _PII_PHONE_RE.sub("<phone>", text)
+    text = _PII_IP_V4_RE.sub("<ipv4>", text)
+    text = _PII_WINDOWS_PATH_RE.sub("<path>", text)
+    text = _PII_API_KEY_RE.sub("<api_key>", text)
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Structured JSON formatter - November 2026 best practice
+# ---------------------------------------------------------------------------
+
+
+class _StructuredJSONFormatter(logging.Formatter):
+    """Emit log records as JSON for machine parsing by log aggregators.
+
+    Output fields (snake_case, with units where applicable):
+    - timestamp (ISO-8601)
+    - level (severity_text)
+    - logger (module name)
+    - message (the log message, PII-redacted)
+    - request_id (correlation id for the request)
+    - job_id (correlation id for the job)
+    - function (calling function name)
+    - line (calling line number)
+    - duration_ms (optional, set via extra)
+    - size_bytes (optional, set via extra)
+    - event (optional structured event name, snake_case)
+    - exception (optional, formatted traceback)
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", "-"),
+            "job_id": getattr(record, "job_id", "-"),
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+
+        # Add optional structured fields from extra= kwargs
+        for extra_key in ("duration_ms", "size_bytes", "event", "error_code", "retry_count"):
+            val = getattr(record, extra_key, None)
+            if val is not None:
+                payload[extra_key] = val
+
+        # Include exception info if present
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# Structured event logging helper - snake_case event names with structured fields
+# ---------------------------------------------------------------------------
+
+
+class StructuredLogger:
+    """Wrapper around :mod:`logging` that encourages structured event logging.
+
+    Usage::
+
+        from app.core.logging_config import structured_logger
+
+        structured_logger.info("job.completed", job_id="abc", duration_ms=450,
+                               size_bytes=1024000, stem="vocals")
+
+    Produces a JSON log record with ``event="job.completed"`` and the extra
+    fields as top-level queryable attributes.
+
+    Event names should be snake_case (e.g. ``job.completed``, ``stem.processed``,
+    ``audio.analysis.started``).
+    """
+
+    def __init__(self, name: str = "app.structured"):
+        self._logger = logging.getLogger(name)
+
+    def _log(self, level: int, event: str, message: str | None = None, **fields: Any) -> None:
+        extra: dict[str, Any] = {"event": event}
+        extra.update(fields)
+        msg = message or event
+        self._logger.log(level, msg, extra=extra)
+
+    def debug(self, event: str, message: str | None = None, **fields: Any) -> None:
+        self._log(logging.DEBUG, event, message, **fields)
+
+    def info(self, event: str, message: str | None = None, **fields: Any) -> None:
+        self._log(logging.INFO, event, message, **fields)
+
+    def warning(self, event: str, message: str | None = None, **fields: Any) -> None:
+        self._log(logging.WARNING, event, message, **fields)
+
+    def error(self, event: str, message: str | None = None, **fields: Any) -> None:
+        self._log(logging.ERROR, event, message, **fields)
+
+    def exception(self, event: str, message: str | None = None, **fields: Any) -> None:
+        self._log(logging.ERROR, event, message, exc_info=True, **fields)
+
+
+structured_logger = StructuredLogger()
+
+
+# ---------------------------------------------------------------------------
+# Log sampling for high-volume operations - November 2026 best practice
+# ---------------------------------------------------------------------------
+
+
+class LogSampler:
+    """Sample log events to prevent log volume explosion in tight loops.
+
+    Usage::
+
+        sampler = LogSampler(sample_rate=0.1)  # log 10% of events
+        if sampler.should_log():
+            logger.info("processing_item", item_id=..., duration_ms=...)
+
+    Rate is a float in (0, 1]. A rate of 1.0 logs everything.
+    """
+
+    def __init__(self, sample_rate: float = 1.0):
+        self.sample_rate = max(0.0, min(1.0, sample_rate))
+        self._count = 0
+
+    def should_log(self) -> bool:
+        """Return True if this event should be logged (based on sample rate)."""
+        import random
+
+        self._count += 1
+        if self.sample_rate >= 1.0:
+            return True
+        return random.random() < self.sample_rate
 
 
 # Log directory - use output/logs/ for consistency with service logs
@@ -243,7 +432,14 @@ def apply_log_level(level: str) -> str:
     return normalized
 
 
-def setup_logging(level: str = "INFO") -> None:
+def setup_logging(
+    level: str = "INFO",
+    *,
+    json_logs: bool = False,
+    pii_redaction: bool = True,
+    sentry_dsn: str | None = None,
+    sentry_env: str | None = None,
+) -> None:
     """Configure logging for the application.
 
     Sets up:
@@ -251,6 +447,16 @@ def setup_logging(level: str = "INFO") -> None:
     - Rotating file handler (all logs)
     - Error-only rotating file handler
     - Module-specific log files
+    - Optional JSON formatter (for log aggregation)
+    - Optional PII redaction
+    - Optional Sentry integration
+
+    Args:
+        level: Console log level (DEBUG/INFO/WARNING/ERROR/CRITICAL)
+        json_logs: Emit JSON-structured logs to file handlers (machine-parseable)
+        pii_redaction: Redact emails, phones, IPs, paths from all log records
+        sentry_dsn: Optional Sentry DSN for shipping logs/errors to Sentry
+        sentry_env: Optional Sentry environment name
     """
     root_logger = logging.getLogger()
     numeric_level = getattr(logging, level.upper(), logging.INFO)
@@ -269,6 +475,27 @@ def setup_logging(level: str = "INFO") -> None:
 
     _request_filter = _RequestIdFilter()
     _job_filter = _JobIdFilter()
+    _pii_filter = _PIIRedactionFilter(enabled=pii_redaction)
+
+    # Choose formatter based on json_logs flag
+    if json_logs:
+        console_fmt = _StructuredJSONFormatter()
+        app_fmt = _StructuredJSONFormatter()
+        error_fmt = _StructuredJSONFormatter()
+    else:
+        console_fmt = logging.Formatter(
+            "%(asctime)s | %(levelname)-7s | %(name)-30s | [%(request_id)s] [%(job_id)s] %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        app_fmt = logging.Formatter(
+            "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] [%(job_id)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        error_fmt = logging.Formatter(
+            "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] [%(job_id)s] %(message)s\n"
+            "  %(pathname)s:%(lineno)d",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
 
     # === Console Handler (Windows-compatible, no Unicode box chars) ===
     # Bind to the original stdout captured at import time. If we bound to the
@@ -280,12 +507,8 @@ def setup_logging(level: str = "INFO") -> None:
     console_handler.setLevel(numeric_level)
     console_handler._nma_console = True  # type: ignore[attr-defined]
     console_handler.addFilter(_request_filter)
-
     console_handler.addFilter(_job_filter)
-    console_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)-30s | [%(request_id)s] [%(job_id)s] %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    console_handler.addFilter(_pii_filter)
     console_handler.setFormatter(console_fmt)
     root_logger.addHandler(console_handler)
 
@@ -295,12 +518,8 @@ def setup_logging(level: str = "INFO") -> None:
     )
     app_handler.setLevel(logging.DEBUG)
     app_handler.addFilter(_request_filter)
-
     app_handler.addFilter(_job_filter)
-    app_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] [%(job_id)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    app_handler.addFilter(_pii_filter)
     app_handler.setFormatter(app_fmt)
     root_logger.addHandler(app_handler)
 
@@ -310,13 +529,8 @@ def setup_logging(level: str = "INFO") -> None:
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.addFilter(_request_filter)
-
     error_handler.addFilter(_job_filter)
-    error_fmt = logging.Formatter(
-        "%(asctime)s | %(levelname)-7s | %(name)-35s | %(funcName)-25s | [%(request_id)s] [%(job_id)s] %(message)s\n"
-        "  %(pathname)s:%(lineno)d",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    error_handler.addFilter(_pii_filter)
     error_handler.setFormatter(error_fmt)
     root_logger.addHandler(error_handler)
 
@@ -329,8 +543,8 @@ def setup_logging(level: str = "INFO") -> None:
     queue_handler.setLevel(logging.DEBUG)
     queue_handler.setFormatter(app_fmt)
     queue_handler.addFilter(_request_filter)
-
     queue_handler.addFilter(_job_filter)
+    queue_handler.addFilter(_pii_filter)
     queue_logger.addHandler(queue_handler)
 
     # === ComfyUI-specific Logger ===
@@ -342,8 +556,8 @@ def setup_logging(level: str = "INFO") -> None:
     comfyui_handler.setLevel(logging.DEBUG)
     comfyui_handler.setFormatter(app_fmt)
     comfyui_handler.addFilter(_request_filter)
-
     comfyui_handler.addFilter(_job_filter)
+    comfyui_handler.addFilter(_pii_filter)
     comfyui_logger.addHandler(comfyui_handler)
 
     # === Ollama-specific Logger ===
@@ -355,9 +569,13 @@ def setup_logging(level: str = "INFO") -> None:
     ollama_handler.setLevel(logging.DEBUG)
     ollama_handler.setFormatter(app_fmt)
     ollama_handler.addFilter(_request_filter)
-
     ollama_handler.addFilter(_job_filter)
+    ollama_handler.addFilter(_pii_filter)
     ollama_logger.addHandler(ollama_handler)
+
+    # === Optional Sentry integration ===
+    if sentry_dsn:
+        _setup_sentry(sentry_dsn, sentry_env)
 
     # === Quiet down noisy third-party loggers ===
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
@@ -385,10 +603,49 @@ def setup_logging(level: str = "INFO") -> None:
     std_capture = _StdCapture(logging.getLogger("app.stdout"), logging.INFO)
     std_capture.install()
 
-    root_logger.info("Logging initialized (level=%s, dir=%s)", level, LOG_DIR)
+    root_logger.info("Logging initialized (level=%s, dir=%s, json=%s, pii=%s)",
+                     level, LOG_DIR, json_logs, pii_redaction)
 
     # Cleanup old log files on startup
     cleanup_old_logs(LOG_DIR, LOG_RETENTION_DAYS)
+
+
+def _setup_sentry(dsn: str, env: str | None = None) -> None:
+    """Initialize Sentry SDK for structured log/error shipping.
+
+    Sentry captures logs alongside errors and traces, enabling
+    log-based alerting and dashboarding. Requires ``sentry-sdk`` package.
+
+    November 2026 best practice: logs, errors, and traces live together
+    so debugging doesn't require switching tools.
+    """
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.logging import LoggingIntegration
+
+        sentry_logging = LoggingIntegration(
+            level=logging.INFO,        # capture INFO+ as breadcrumbs
+            event_level=logging.ERROR,  # send ERROR+ as events
+            capture_sentry_logs=True,  # capture structured logs
+        )
+
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=env,
+            integrations=[sentry_logging],
+            # Attach release/version if available
+            release=getattr(__import__("app.core.config", fromlist=["__version__"]), "__version__", None),
+            # Only send errors, not every transaction (cost control)
+            traces_sample_rate=0.1,
+        )
+        logging.getLogger(__name__).info("Sentry logging integration enabled (env=%s)", env or "default")
+    except ImportError:
+        logging.getLogger(__name__).warning(
+            "Sentry DSN provided but sentry-sdk not installed; "
+            "install with: pip install sentry-sdk"
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logging.getLogger(__name__).warning("Sentry setup failed: %s", exc)
 
 
 def cleanup_old_logs(log_dir: Path, retention_days: int = 7) -> int:
