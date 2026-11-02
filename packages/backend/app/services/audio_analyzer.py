@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -804,7 +805,11 @@ class AudioAnalyzer:
             raise AudioAnalyzerError(f"sonara failed: {e}") from e
 
     def analyze_and_save(
-        self, audio_path: str, job_id: str | None = None, backend: str = "sonara"
+        self,
+        audio_path: str,
+        job_id: str | None = None,
+        backend: str = "sonara",
+        progress_cb: Callable[[float, str], None] | None = None,
     ) -> tuple[AudioAnalysisResult, str]:
         """
         Analyze audio file and save results in one call.
@@ -813,12 +818,22 @@ class AudioAnalyzer:
             audio_path: Path to audio file
             job_id: Optional job ID
             backend: Analysis backend (librosa, madmom, sonara)
+            progress_cb: Optional callback ``(frac, message)`` invoked at
+                key stages for real-time progress streaming.
 
         Returns:
             Tuple of (AudioAnalysisResult, output_path)
         """
+        if progress_cb:
+            progress_cb(0.1, "Loading audio...")
         result = self.analyze_file(audio_path, job_id, backend)
+        if progress_cb:
+            progress_cb(0.5, "Extracting features...")
         output_path = self._save_to_json(result)
+        if progress_cb:
+            progress_cb(0.9, "Saving results...")
+        if progress_cb:
+            progress_cb(1.0, "Analysis complete")
         return result, output_path
 
     def save_to_json(self, result: AudioAnalysisResult, output_path: str | None = None) -> str:

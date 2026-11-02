@@ -9,12 +9,16 @@ import operator
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 import aiohttp
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from ..adapters.adapter_base import AdapterStatus
 from ..adapters.registry import adapter_registry
 from ..core import comfyui_client as _cu
 from ..core.config import PROJECT_ROOT, config
@@ -584,8 +588,9 @@ async def upload_image_to_comfyui(request: Request) -> dict:
         raise HTTPException(status_code=400, detail="No image field in request")
 
     # Read the uploaded bytes
-    image_bytes = await image_file.read()
-    filename = image_file.filename or "uploaded.png"
+    upload_file = cast("UploadFile", image_file)
+    image_bytes = await upload_file.read()
+    filename = upload_file.filename or "uploaded.png"
 
     # Save to a temp file then upload via the shared client helper
     import tempfile
@@ -618,8 +623,9 @@ async def upload_audio_to_comfyui(request: Request) -> dict:
     if audio_file is None:
         raise HTTPException(status_code=400, detail="No audio field in request")
 
-    audio_bytes = await audio_file.read()
-    filename = audio_file.filename or "uploaded_audio.wav"
+    upload_file = cast("UploadFile", audio_file)
+    audio_bytes = await upload_file.read()
+    filename = upload_file.filename or "uploaded_audio.wav"
 
     import tempfile
 
@@ -651,8 +657,9 @@ async def upload_video_to_comfyui(request: Request) -> dict:
     if video_file is None:
         raise HTTPException(status_code=400, detail="No video field in request")
 
-    video_bytes = await video_file.read()
-    filename = video_file.filename or "uploaded_video.mp4"
+    upload_file = cast("UploadFile", video_file)
+    video_bytes = await upload_file.read()
+    filename = upload_file.filename or "uploaded_video.mp4"
 
     import tempfile
 
@@ -725,7 +732,7 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     from ..core import database as db
     candidates = []
     try:
-        tracks = db.get_all_tracks() if hasattr(db, "get_all_tracks") else []
+        tracks = getattr(db, "get_all_tracks", list)()
         for t in (tracks or [])[:200]:
             text = f"{t.get('title', '')} {t.get('artist', '')} {t.get('music_prompt', '')} {t.get('lyrics', '')[:200]}"
             candidates.append({"type": "track", "id": t.get("id"), "text": text, "meta": t})
@@ -769,7 +776,7 @@ async def get_vram_status() -> dict:
 
 
 @router.post("/vram/offload-ollama")
-async def offload_ollama() -> dict:
+async def offload_ollama() -> Any:
     """Manually offload Ollama models from GPU to free VRAM"""
     from ..services.vram_manager import _unload_ollama_models, vram_manager
     result = await _unload_ollama_models()
@@ -809,18 +816,21 @@ async def switch_backend_model(body: dict) -> dict:
 
 
 @router.post("/ollama/chat")
-async def ollama_chat(body: OllamaChatRequest) -> dict:
+async def ollama_chat(body: OllamaChatRequest) -> Any:
     """
     Chat with Ollama or Atomic Chat using the /api/chat endpoint with tool calling support.
     When ``atomic_chat_enabled`` is true, routes through Atomic Chat (Qwen) instead of Ollama (gemma4).
     """
     # Choose the adapter based on the Atomic Chat feature flag.
     # Atomic Chat (Qwen) and Ollama (gemma4) are separate adapters in separate files.
+    using_atomic_chat = False
     if config.atomic_chat_enabled:
         adapter = adapter_registry.get("atomic-chat")
-        if not adapter:
-            # Atomic Chat not available — fall back to Ollama
+        if not adapter or adapter.get_status() in (AdapterStatus.ERROR, AdapterStatus.OFFLINE):
+            # Atomic Chat not available or unhealthy — fall back to Ollama
             adapter = adapter_registry.get("ollama")
+        else:
+            using_atomic_chat = True
     else:
         adapter = adapter_registry.get("ollama")
     if not adapter:
@@ -830,10 +840,9 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     # operations independent of the chat model).
     tool_adapter = adapter_registry.get("ollama")
     message = body.message
-    # When Atomic Chat is the active engine, don't pass a default model name —
-    # the adapter discovers the resident model from /v1/models. Ollama needs
-    # an explicit default (gemma4:e2b-it-qat).
-    if config.atomic_chat_enabled:
+    # Ollama needs an explicit default model (gemma4:e2b-it-qat); Atomic Chat
+    # discovers the resident model from /v1/models.
+    if using_atomic_chat:
         model = body.model
     else:
         model = body.model or config.default_model
@@ -844,7 +853,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
     ollama_options = body.options or {}
     system_prompt = body.system
     # Track activity for this model
-    adapter.set_activity(model, "chat", message[:80])
+    adapter.set_activity(model or config.default_model, "chat", message[:80])
     # Normalize tools: can be boolean (True/False) or list
     tools_raw = body.tools if body.tools is not None else []
     if tools_raw is True:
@@ -853,6 +862,9 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
         tools = []
     else:
         tools = tools_raw
+    # If no Ollama adapter is available for tool execution, disable tools
+    if tool_adapter is None:
+        tools = []
     # Small local models are much more reliable when the request names one
     # tool. Keep the full registry for ambiguous requests, but narrow a
     # prompt such as "call get_project_structure" to that single callable.
@@ -923,13 +935,16 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     streamed_content = ""
                     saw_thinking = False
                     while tool_call_count < max_tool_calls:
-                        async for chunk in await adapter.chat(
-                            messages=current_messages,
-                            model=model,
-                            tools=tools,
-                            stream=True,
-                            think=think,
-                            **ollama_options,
+                        async for chunk in cast(
+                            "AsyncIterator[dict[str, Any]]",
+                            await adapter.chat(
+                                messages=current_messages,
+                                model=model,
+                                tools=tools,
+                                stream=True,
+                                think=think,
+                                **ollama_options,
+                            ),
                         ):
                             msg = chunk.get("message", {}) or {}
                             tool_calls = msg.get("tool_calls", [])
@@ -953,6 +968,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                     "tool_calls": tool_calls,
                                 })
                                 for tc in tool_calls:
+                                    assert tool_adapter is not None
                                     result = await tool_adapter.execute_tool_call(
                                         tc["function"]["name"],
                                         tc["function"]["arguments"],
@@ -1007,6 +1023,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                                         "event": "tool_calls",
                                         "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
                                     }
+                                    assert tool_adapter is not None
                                     result = await tool_adapter.execute_tool_call(name, args, {})
                                     yield {
                                         "event": "tool_result",
@@ -1054,7 +1071,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     # Send done event to properly close the stream
                     yield {"event": "done", "data": json.dumps({"status": "complete"})}
                 finally:
-                    adapter.clear_activity(model)
+                    adapter.clear_activity(model or config.default_model)
             return EventSourceResponse(event_generator())
         else:
             # Non-streaming response with agent loop
@@ -1078,6 +1095,9 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     think=think,
                     **ollama_options,
                 )
+                if not isinstance(result, dict):
+                    # Non-streaming chat should always return a dict
+                    raise RuntimeError("Unexpected async iterator from non-streaming chat")
                 msg = result.get("message", {})
                 tool_calls = msg.get("tool_calls", [])
                 content = msg.get("content", "")
@@ -1091,6 +1111,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                     })
                     # Execute each tool and add results
                     for tc in tool_calls:
+                        assert tool_adapter is not None
                         tool_result = await tool_adapter.execute_tool_call(
                             tc["function"]["name"],
                             tc["function"]["arguments"],
@@ -1109,7 +1130,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                 else:
                     last_response = content
                     break
-            adapter.clear_activity(model)
+            adapter.clear_activity(model or config.default_model)
             return {
                 "response": last_response,
                 "model": model,
@@ -1117,7 +1138,7 @@ async def ollama_chat(body: OllamaChatRequest) -> dict:
                 "tool_details": tool_details,
             }
     except Exception as e:
-        adapter.clear_activity(model)
+        adapter.clear_activity(model or config.default_model)
         logger.error("Ollama chat error: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1129,7 +1150,7 @@ async def ollama_generate(body: OllamaGenerateRequest) -> dict:
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
     try:
-        result = await adapter.generate(prompt=body.prompt, model=body.model)
+        result = await adapter.generate({"prompt": body.prompt, "model": body.model})
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -1255,7 +1276,7 @@ async def get_scene_state() -> dict:
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
-    return adapter._scene_state
+    return adapter._scene_state  # type: ignore[reportAttributeAccessIssue]
 
 
 @router.post("/ollama/scene-clear")
@@ -1264,7 +1285,7 @@ async def clear_scene() -> dict:
     adapter = adapter_registry.get("ollama")
     if not adapter:
         raise HTTPException(status_code=404, detail="Ollama not available")
-    adapter._scene_state = {
+    adapter._scene_state = {  # type: ignore[reportAttributeAccessIssue]
         "objects": [],
         "lights": [],
         "particles": {"count": 300, "color": "#8b5cf6", "speed": 0.5},

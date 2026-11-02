@@ -44,6 +44,21 @@ _LEASE_WINDOW_BY_TYPE: dict = {
     JobType.COMFYUI_WORKFLOW: 1800,
 }
 
+#: Job TTL: terminal jobs older than this many seconds are expired from memory
+#: (and the DB) to prevent unbounded growth. Set via ``queue_ttl_seconds`` in
+#: config, default 7 days.
+JOB_TTL_SECONDS = 604800
+
+#: Priority aging: jobs waiting in QUEUED longer than this many seconds get
+#: their effective priority boosted by 1, up to MAX_AGED_PRIORITY_BOOST, to
+#: prevent starvation of low-priority jobs behind a flood of high-priority ones.
+PRIORITY_AGE_THRESHOLD_SECONDS = 300
+MAX_AGED_PRIORITY_BOOST = 10
+
+#: Rate limiting: max jobs of a given type that may be QUEUED/RUNNING at once.
+#: Empty dict means no limit. Keyed by JobType.
+RATE_LIMIT_BY_TYPE: dict[JobType, int] = {}
+
 
 class QueueManager:
     """
@@ -64,6 +79,10 @@ class QueueManager:
         self._completed_count: int = 0  # Track completed jobs for auto-cleanup
         self._max_completed_cache: int = 100  # Auto-cleanup after this many completed
         self._new_job_event = asyncio.Event()
+        # Queue pause flag: when True, the processor will not dequeue new jobs.
+        # Instance attribute (not module global) so tests sharing the module
+        # don't leak pause state between each other.
+        self._queue_paused = False
         # Progress-lease table: job_id -> last sign of life (claim or any
         # update while RUNNING). In-memory on purpose: a persisted lease would
         # survive the crash it is meant to detect, letting a dead job look
@@ -336,6 +355,128 @@ class QueueManager:
                 count += 1
         return count
 
+    # ------------------------------------------------------------------
+    # Job TTL / expiration
+    # ------------------------------------------------------------------
+    async def expire_old_terminal_jobs(self, ttl_seconds: int | None = None) -> int:
+        """Expire terminal jobs older than ``ttl_seconds`` from memory and DB.
+
+        Returns the number of jobs expired. Called periodically by the
+        processor to prevent unbounded memory growth from completed jobs.
+        Runs asynchronously so DB deletion doesn't block the event loop.
+        """
+        ttl = ttl_seconds if ttl_seconds is not None else JOB_TTL_SECONDS
+        cutoff = datetime.now() - timedelta(seconds=ttl)
+        terminal_statuses = {
+            JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD
+        }
+        expired_ids: list[str] = []
+        for job in list(self._jobs.values()):
+            if job.status not in terminal_statuses:
+                continue
+            if job.completed_at is None:
+                continue
+            if job.completed_at > cutoff:
+                continue
+            expired_ids.append(job.id)
+
+        for job_id in expired_ids:
+            job = self._jobs.pop(job_id, None)
+            if job:
+                self._last_progress_at.pop(job_id, None)
+                try:
+                    await JobDatabaseManager.delete_job_async(job_id)
+                except Exception as e:
+                    logger.error("Failed to delete expired job %s from DB: %s", job_id, e)
+
+        if expired_ids:
+            logger.info("Expired %d terminal jobs older than %ds", len(expired_ids), ttl)
+        return len(expired_ids)
+
+    # ------------------------------------------------------------------
+    # Priority aging (starvation prevention)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def effective_priority(job: Job, now: datetime | None = None) -> int:
+        """Return the effective priority of a job, boosted by age.
+
+        Jobs waiting in QUEUED longer than ``PRIORITY_AGE_THRESHOLD_SECONDS``
+        get +1 effective priority per threshold interval, capped at
+        ``MAX_AGED_PRIORITY_BOOST``. This prevents starvation of low-priority
+        jobs behind a flood of high-priority ones (Nov 2026 best practice).
+        """
+        if job.status != JobStatus.QUEUED:
+            return job.priority
+        now = now or datetime.now()
+        wait_s = (now - job.created_at).total_seconds()
+        intervals = int(wait_s // PRIORITY_AGE_THRESHOLD_SECONDS)
+        boost = min(intervals, MAX_AGED_PRIORITY_BOOST)
+        return job.priority + boost
+
+    # ------------------------------------------------------------------
+    # Queue pause / resume
+    # ------------------------------------------------------------------
+    def pause_queue(self) -> None:
+        """Pause the queue: the processor will not dequeue new jobs."""
+        self._queue_paused = True
+        logger.warning("Job queue paused")
+
+    def resume_queue(self) -> None:
+        """Resume the queue: the processor may dequeue new jobs again."""
+        self._queue_paused = False
+        logger.warning("Job queue resumed")
+
+    def is_paused(self) -> bool:
+        """Return True if the queue is paused."""
+        return self._queue_paused
+
+    # ------------------------------------------------------------------
+    # Rate limiting per job type
+    # ------------------------------------------------------------------
+    def count_active_by_type(self, job_type: JobType) -> int:
+        """Count QUEUED + RUNNING jobs of a given type."""
+        return sum(
+            1 for j in self._jobs.values()
+            if j.job_type == job_type and j.status in (JobStatus.QUEUED, JobStatus.RUNNING)
+        )
+
+    def check_rate_limit(self, job_type: JobType) -> bool:
+        """Return True if a new job of ``job_type`` may be enqueued.
+
+        Rate limit is the max number of QUEUED+RUNNING jobs per type.
+        An empty/absent entry in ``RATE_LIMIT_BY_TYPE`` means no limit.
+        """
+        limit = RATE_LIMIT_BY_TYPE.get(job_type)
+        if limit is None:
+            return True
+        return self.count_active_by_type(job_type) < limit
+
+    # ------------------------------------------------------------------
+    # Job selection for processor (respects pause, rate limits, priority aging)
+    # ------------------------------------------------------------------
+    async def get_next_job(self) -> Job | None:
+        """Select the next job to process, respecting pause, rate limits, and
+        priority aging.
+
+        Returns the highest-effective-priority job that is not rate-limited,
+        or None if the queue is paused, empty, or all jobs are rate-limited.
+        """
+        if self.is_paused():
+            return None
+
+        now = datetime.now()
+        # Sort by effective priority (aged), then by created_at (oldest first)
+        candidates = sorted(
+            (j for j in self._jobs.values() if j.status == JobStatus.QUEUED),
+            key=lambda j: (-self.effective_priority(j, now), j.created_at),
+        )
+
+        for job in candidates:
+            if self.check_rate_limit(job.job_type):
+                return job
+        # All queued jobs are rate-limited: none can run right now.
+        return None
+
     def _load_jobs_json(self):
         """Fallback: Load jobs from JSON file."""
         if self._queue_file.exists():
@@ -399,6 +540,16 @@ class QueueManager:
 
     async def enqueue(self, request: JobCreateRequest) -> Job:
         """Add a new job to the queue -- checks system RAM first and auto-cleans if critical."""
+
+        # Rate limiting: reject if too many jobs of this type are already active
+        if not self.check_rate_limit(request.job_type):
+            active = self.count_active_by_type(request.job_type)
+            limit = RATE_LIMIT_BY_TYPE.get(request.job_type)
+            raise ValueError(
+                f"Rate limit exceeded for job type {request.job_type}: "
+                f"{active} active jobs, limit is {limit}"
+            )
+
         # System RAM guard: if >90% try cleanup, if still >92% warn
         try:
             import psutil
@@ -424,11 +575,14 @@ class QueueManager:
                 priority=request.priority,
             )
             self._jobs[job.id] = job
-            # Persist to SQLite offloaded to thread to avoid blocking event loop
-            await JobDatabaseManager.create_job_async(job)
-            await self._notify_subscribers(job)
             # Signal processor that a new job is available
             self._signal_new_job()
+        # Persist to SQLite offloaded to thread to avoid blocking event loop.
+        # Done outside the lock so enqueue operations aren't serialized on DB I/O.
+        try:
+            await JobDatabaseManager.create_job_async(job)
+        except Exception as e:
+            logger.error("Failed to persist new job %s: %s", job.id, e)
         # Log creation with the origin and a params fingerprint. Enqueue was
         # previously silent, so a job could exist in the database with nothing in
         # any log explaining who created it or with what - which is why the
@@ -456,17 +610,42 @@ class QueueManager:
                 job.id,
                 job.job_type,
             )
-        # Broadcast after release lock to avoid blocking
+        # Notify subscribers and broadcast outside the lock to avoid blocking
+        # other queue operations on slow subscribers or SSE fans-out.
+        await self._notify_subscribers(job)
         await self._broadcast_job_event("job.queued", job)
         return job
 
     async def get_job(self, job_id: str) -> Job | None:
-        """Get a job by ID"""
-        return self._jobs.get(job_id)
+        """Get a job by ID. Returns a copy to prevent callers from mutating
+        the in-memory job object."""
+        job = self._jobs.get(job_id)
+        if job is None:
+            return None
+        # Return a model copy so callers cannot mutate the cached job.
+        return Job.model_validate(job.model_dump())
+
+    async def is_cancelled(self, job_id: str) -> bool:
+        """Check whether a job has been cancelled.
+
+        Handlers call this at safe checkpoints to support cooperative
+        cancellation. Returns True when the job status is CANCELLED or the
+        job no longer exists (deleted while running).
+        """
+        job = self._jobs.get(job_id)
+        if job is None:
+            return True
+        return job.status == JobStatus.CANCELLED
 
     async def get_all_jobs(self) -> list[Job]:
-        """Get all jobs sorted by creation time"""
-        return sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
+        """Get all jobs sorted by creation time.
+
+        Returns model copies so callers cannot mutate the cached job objects.
+        """
+        return [
+            Job.model_validate(j.model_dump())
+            for j in sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
+        ]
 
     async def get_jobs_by_status(self, status: JobStatus) -> list[Job]:
         """Get jobs filtered by status, highest priority first then oldest first."""
@@ -609,7 +788,9 @@ class QueueManager:
                 await self._auto_cleanup_unlocked()
                 self._completed_count = 0
 
-            await self._notify_subscribers(job)
+        # Notify subscribers outside the lock so a slow subscriber cannot
+        # block other queue operations.
+        await self._notify_subscribers(job)
 
         # Broadcast event outside lock
         if status == JobStatus.RUNNING and old_status != JobStatus.RUNNING:
@@ -620,7 +801,7 @@ class QueueManager:
             await self._broadcast_job_event("job.failed", job)
         elif status == JobStatus.CANCELLED:
             await self._broadcast_job_event("job.cancelled", job)
-        elif progress is not None and old_status == JobStatus.RUNNING:
+        elif progress is not None:
             await self._broadcast_job_event("job.progress", job)
 
         return job
@@ -741,16 +922,16 @@ class QueueManager:
             for job_id in completed_ids:
                 del self._jobs[job_id]
                 self._last_progress_at.pop(job_id, None)
-            # Remove from SQLite
-            count = await JobDatabaseManager.clear_completed_async()
-            return count
+        # Also clear from database
+        await JobDatabaseManager.clear_completed_async()
+        return len(completed_ids)
 
     async def clear_failed(self) -> int:
         """Remove all unsuccessful jobs (FAILED and dead-lettered).
 
         The processor routes exhausted jobs to ``DEAD`` and never assigns
-        ``FAILED``, so this endpoint used to delete nothing. ``clear_dead``
-        remains available for the DLQ-only view.
+        ``FAILED``, so this endpoint clears both ``FAILED`` and ``DEAD``.
+        ``clear_dead`` remains available for the DLQ-only view.
         """
         async with self._lock:
             doomed = [
@@ -764,7 +945,7 @@ class QueueManager:
             count = 0
             for status in _UNSUCCESSFUL_STATUSES:
                 count += await JobDatabaseManager.clear_status_async(status)
-            return count
+            return len(doomed)
 
     async def clear_dead(self) -> int:
         """Remove all dead-lettered jobs"""
@@ -774,8 +955,9 @@ class QueueManager:
             for job_id in dead_ids:
                 del self._jobs[job_id]
                 self._last_progress_at.pop(job_id, None)
-            count = await JobDatabaseManager.clear_status_async(JobStatus.DEAD)
-            return count
+        # Also clear from database
+        await JobDatabaseManager.clear_status_async(JobStatus.DEAD)
+        return len(dead_ids)
 
     async def _auto_cleanup_unlocked(self) -> int:
         """Auto-cleanup old terminal jobs (must be called under lock).

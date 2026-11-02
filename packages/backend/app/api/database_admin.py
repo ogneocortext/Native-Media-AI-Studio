@@ -16,6 +16,7 @@ running them on the event loop would stall every other request. FastAPI runs
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 import threading
@@ -27,6 +28,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..core import database as db
+from ..core import migrations as db_migrations
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -110,7 +114,7 @@ class TableDetailResponse(BaseModel):
 
 
 class MigrationInfo(BaseModel):
-    """One ``_migrate_vN`` function discovered in ``core.database``."""
+    """One ``_migrate_vN`` function discovered in ``core.migrations``."""
 
     version: int
     applied: bool
@@ -237,7 +241,8 @@ def _last_activity(conn: sqlite3.Connection) -> dict[str, str | None]:
     """Most recent write timestamp in the append-heavy tables.
 
     Best-effort: each table is probed independently so a database without one of
-    them still reports the others.
+    them still reports the others. gpu_telemetry stores ts_ms as INTEGER; when
+    ts_iso is NULL we fall back to converting ts_ms via _as_text.
     """
 
     def _max_ts(table: str, column: str) -> str | None:
@@ -247,10 +252,26 @@ def _last_activity(conn: sqlite3.Connection) -> dict[str, str | None]:
         except sqlite3.Error:
             return None
 
+    def _max_ts_iso_or_ms(table: str) -> str | None:
+        """Return the latest activity timestamp, preferring ts_iso but falling
+        back to converting ts_ms when ts_iso is NULL."""
+        try:
+            row = conn.execute(
+                f'SELECT MAX("ts_iso"), MAX("ts_ms") FROM "{table}"'
+            ).fetchone()
+            if row is None:
+                return None
+            ts_iso, ts_ms = row
+            if ts_iso is not None:
+                return _as_text(ts_iso)
+            return _as_text(ts_ms)
+        except sqlite3.Error:
+            return None
+
     return {
         "log_events": _max_ts("log_events", "ts_iso"),
         "native_opens": _max_ts("native_app_opens", "created_at"),
-        "gpu_telemetry": _max_ts("gpu_telemetry", "ts_iso"),
+        "gpu_telemetry": _max_ts_iso_or_ms("gpu_telemetry"),
     }
 
 
@@ -271,9 +292,9 @@ def _dbstat_bytes(conn: sqlite3.Connection, name: str) -> int | None:
 
 
 def _discover_migrations() -> list[int]:
-    """Return the sorted migration versions present in ``core.database``."""
+    """Return the sorted migration versions present in ``core.migrations``."""
     versions: list[int] = []
-    for attr in dir(db):
+    for attr in dir(db_migrations):
         match = re.fullmatch(r"_migrate_v(\d+)", attr)
         if match:
             versions.append(int(match.group(1)))
@@ -400,7 +421,11 @@ def database_integrity_check(request: MaintenanceRequest | None = None) -> Integ
     thorough ``integrity_check``.
     """
     full = bool(request.full) if request else False
+    # Whitelist to prevent PRAGMA injection via f-string below.
+    pragma_whitelist = frozenset({"integrity_check", "quick_check"})
     pragma = "integrity_check" if full else "quick_check"
+    if pragma not in pragma_whitelist:
+        raise HTTPException(status_code=400, detail=f"Unknown pragma: {pragma}")
     start = time.perf_counter()
     with db.get_db() as conn:
         messages = [str(r[0]) for r in conn.execute(f"PRAGMA {pragma}").fetchall()]
@@ -457,7 +482,11 @@ def database_maintenance(
             # called without holding one - otherwise the two connections contend
             # for the single SQLite writer lock.
             detail["keep_days"] = keep_days
-            detail["rows_deleted"] = int(helper(keep_days=keep_days))
+            deleted = helper(keep_days=keep_days)
+            if deleted is None:
+                logger.warning("Maintenance helper %s returned None; treating as 0", action)
+                deleted = 0
+            detail["rows_deleted"] = int(deleted)
         else:
             with db.get_db() as conn:
                 if action == "vacuum":

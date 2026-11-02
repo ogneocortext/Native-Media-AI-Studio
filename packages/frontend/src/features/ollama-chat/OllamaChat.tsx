@@ -61,6 +61,12 @@ export function OllamaChat() {
   const [atomicStatus, setAtomicStatus] = useState<"online" | "offline" | "checking">("checking");
   const [taskRoutes, setTaskRoutes] = useState<{ routes: Record<string, { engine: string; model: string; reason: string }>; excluded_from_chat: string[] } | null>(null);
   const [extractRunning, setExtractRunning] = useState(false);
+  /** Real-time stream progress tracking */
+  const [streamStatus, setStreamStatus] = useState<"idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done">("idle");
+  const [toolStep, setToolStep] = useState(0);
+  const [totalToolSteps, setTotalToolSteps] = useState(0);
+  const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const [streamEvents, setStreamEvents] = useState<{ time: string; event: string; detail: string }[]>([]);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<{
     filename: string;
@@ -113,6 +119,11 @@ export function OllamaChat() {
     } finally {
       setExtractRunning(false);
     }
+  };
+
+  const logStreamEvent = (event: string, detail: string) => {
+    const time = new Date().toLocaleTimeString();
+    setStreamEvents((prev) => [...prev, { time, event, detail }]);
   };
 
   useEffect(() => {
@@ -188,6 +199,11 @@ export function OllamaChat() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+    setStreamStatus("idle");
+    setToolStep(0);
+    setTotalToolSteps(0);
+    setCurrentTool(null);
+    setStreamEvents([]);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -219,13 +235,25 @@ export function OllamaChat() {
 
       setMessages((prev) => [...prev, assistantMsg]);
 
+      logStreamEvent("connecting", "Opening stream to model…");
+      setStreamStatus("connecting");
+
       for await (const chunk of parseOllamaStream(stream)) {
         if (controller.signal.aborted) break;
 
         switch (chunk.type) {
+          case "connected": {
+            setStreamStatus("thinking");
+            logStreamEvent("connected", "Stream connected, model is thinking…");
+            break;
+          }
           case "content": {
             const text = typeof chunk.data === "string" ? chunk.data : "";
             assistantContent += text;
+            if (streamStatus !== "streaming_response") {
+              setStreamStatus("streaming_response");
+              logStreamEvent("streaming", "Model is generating response…");
+            }
             setMessages((prev) => {
               const next = [...prev];
               const last = next[next.length - 1];
@@ -244,6 +272,13 @@ export function OllamaChat() {
                 }
               )?.tool_calls || [];
             toolCalls = calls;
+            if (calls.length > 0) {
+              setStreamStatus("executing_tool");
+              setTotalToolSteps(calls.length);
+              setToolStep(0);
+              setCurrentTool(calls[0].name);
+              logStreamEvent("tool_calls", `${calls.length} tool call(s) scheduled: ${calls.map((c) => c.name).join(", ")}`);
+            }
             setMessages((prev) => {
               const next = [...prev];
               const last = next[next.length - 1];
@@ -254,10 +289,27 @@ export function OllamaChat() {
             });
             break;
           }
+          case "tool_result": {
+            setToolStep((prev) => prev + 1);
+            setCurrentTool((prev) => (prev ? null : prev));
+            logStreamEvent("tool_result", "Tool executed, continuing…");
+            if (toolStep + 1 < totalToolSteps) {
+              const nextCalls = toolCalls.slice(toolStep + 1);
+              if (nextCalls.length > 0) {
+                setCurrentTool(nextCalls[0].name);
+                logStreamEvent("executing_tool", `Running tool: ${nextCalls[0].name}`);
+              }
+            }
+            break;
+          }
           case "done":
+            setStreamStatus("done");
+            logStreamEvent("done", "Stream complete.");
             break;
           case "error":
             assistantContent += `\n[error: ${typeof chunk.data === "string" ? chunk.data : JSON.stringify(chunk.data)}]`;
+            setStreamStatus("done");
+            logStreamEvent("error", typeof chunk.data === "string" ? chunk.data : JSON.stringify(chunk.data));
             setMessages((prev) => {
               const next = [...prev];
               const last = next[next.length - 1];
@@ -291,6 +343,7 @@ export function OllamaChat() {
       ]);
     } finally {
       setLoading(false);
+      setStreamStatus("idle");
       abortRef.current = null;
     }
   };
@@ -545,6 +598,52 @@ export function OllamaChat() {
           </div>
         </div>
       </Card>
+
+      {/* Real-time stream progress banner */}
+      {streamStatus !== "idle" && (
+        <Card className="mb-4 shrink-0">
+          <div className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              {streamStatus === "connecting" && (
+                <Loader2 size={14} className="animate-spin text-emerald-400" />
+              )}
+              {streamStatus === "thinking" && (
+                <Brain size={14} className="text-purple-400 animate-pulse" />
+              )}
+              {streamStatus === "executing_tool" && (
+                <Wrench size={14} className="text-amber-400 animate-pulse" />
+              )}
+              {streamStatus === "streaming_response" && (
+                <Activity size={14} className="text-blue-400 animate-pulse" />
+              )}
+              {streamStatus === "done" && (
+                <Shield size={14} className="text-emerald-400" />
+              )}
+              <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                {streamStatus === "connecting" ? "Connecting…"
+                : streamStatus === "thinking" ? "Model is thinking…"
+                : streamStatus === "executing_tool" ? `Executing tool${currentTool ? `: ${currentTool}` : ""}${totalToolSteps > 0 ? ` (step ${toolStep + 1}/${totalToolSteps})` : ""}`
+                : streamStatus === "streaming_response" ? "Streaming response…"
+                : "Complete"}
+              </span>
+            </div>
+            {streamEvents.length > 0 && (
+              <details className="mt-2 text-xs" open>
+                <summary className="cursor-pointer text-muted hover:text-white mb-1">Processing details</summary>
+                <div className="bg-black/20 rounded-lg p-2 font-mono text-xs overflow-x-auto border border-white/5">
+                  {streamEvents.map((e, i) => (
+                    <div key={i} className="flex gap-2 mb-1">
+                      <span className="text-muted/60 w-12">{e.time}</span>
+                      <span className="text-purple-300">{e.event}</span>
+                      <span className="text-gray-300/80">{e.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Chat Messages */}
       <Card className="flex-1 min-h-0 flex flex-col">

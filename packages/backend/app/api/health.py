@@ -78,6 +78,7 @@ async def ping() -> dict:
     return {"status": "ok", "timestamp": ""}
 
 
+@router.get("", response_model=dict)
 @router.get("/", response_model=dict)
 async def health_root() -> dict:
     """Aggregate health check returning backend and all adapter statuses."""

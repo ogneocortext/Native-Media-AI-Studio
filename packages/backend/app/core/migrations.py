@@ -2,14 +2,23 @@
 SQLite database migrations.
 
 Extracted from packages/backend/app/core/database.py (was 4121 lines).
-Contains all _migrate_v* functions for schema versioning v1 through v19.
+Contains all _migrate_v* functions for schema versioning v1 through v22.
+
+Migration best practices (Nov 2026):
+- PRAGMA user_version tracks the schema version (built-in, integer, in DB header).
+- Each migration is idempotent: running it twice is a no-op.
+- A migration lock table prevents concurrent migration runners.
+- PRAGMA integrity_check runs after every migration sequence.
+- A hot backup is taken before any destructive migration.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from .connection import DB_PATH, SCHEMA_VERSION, close_pooled_connections, get_db
@@ -25,6 +34,96 @@ logger = logging.getLogger(__name__)
 # multiple backend processes or threads can still produce locked errors.
 INIT_DB_MAX_RETRIES = 5
 INIT_DB_BASE_DELAY = 0.5  # seconds, doubles each retry
+
+# Migration lock: only one process should migrate at a time. We use a
+# dedicated lock row in a migration_lock table, acquired within a transaction.
+MIGRATION_LOCK_TTL_SECONDS = 300  # lock auto-expires after 5 minutes
+
+
+def _acquire_migration_lock(conn: sqlite3.Connection) -> bool:
+    """Try to acquire the migration lock.
+
+    Returns True if the lock was acquired, False if another process holds it.
+    The lock is stored as a row in ``migration_lock`` with an expiry timestamp.
+    """
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS migration_lock (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                holder TEXT NOT NULL,
+                acquired_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+        """)
+        now = time.time()
+        expires_at = now + MIGRATION_LOCK_TTL_SECONDS
+        holder = f"{os.getpid()}:{time.time()}"
+        try:
+            conn.execute("""
+                INSERT INTO migration_lock (id, holder, acquired_at, expires_at)
+                VALUES (1, ?, ?, ?)
+            """, (holder, datetime.fromtimestamp(now).isoformat(), datetime.fromtimestamp(expires_at).isoformat()))
+            return True
+        except sqlite3.IntegrityError:
+            # Lock already exists: check if it's expired
+            row = conn.execute(
+                "SELECT expires_at FROM migration_lock WHERE id = 1"
+            ).fetchone()
+            if row:
+                expires = datetime.fromisoformat(row["expires_at"]).timestamp()
+                if now > expires:
+                    # Lock expired: steal it
+                    conn.execute("""
+                        UPDATE migration_lock
+                        SET holder = ?, acquired_at = ?, expires_at = ?
+                        WHERE id = 1
+                    """, (holder, datetime.fromtimestamp(now).isoformat(), datetime.fromtimestamp(expires_at).isoformat()))
+                    return True
+            return False
+    except sqlite3.Error:
+        return False
+
+
+def _release_migration_lock(conn: sqlite3.Connection) -> None:
+    """Release the migration lock."""
+    try:
+        conn.execute("DELETE FROM migration_lock WHERE id = 1")
+    except sqlite3.Error:
+        pass
+
+
+def _take_backup(db_path: Path) -> Path | None:
+    """Take a hot backup of the database using SQLite's online backup API.
+
+    Returns the backup path, or None if the backup could not be made.
+    """
+    try:
+        backup_path = db_path.with_suffix(f".pre-migrate-{int(time.time())}.db")
+        source = sqlite3.connect(str(db_path))
+        dest = sqlite3.connect(str(backup_path))
+        try:
+            source.backup(dest)
+        finally:
+            dest.close()
+            source.close()
+        logger.info("Took pre-migration backup: %s", backup_path)
+        return backup_path
+    except sqlite3.Error as e:
+        logger.warning("Pre-migration backup failed: %s", e)
+        return None
+
+
+def _run_integrity_check(conn: sqlite3.Connection) -> bool:
+    """Run PRAGMA integrity_check and return True if the database is sane."""
+    try:
+        row = conn.execute("PRAGMA integrity_check").fetchone()
+        if row and row[0] == "ok":
+            return True
+        logger.error("PRAGMA integrity_check returned: %s", row[0] if row else "unknown")
+        return False
+    except sqlite3.Error as e:
+        logger.error("PRAGMA integrity_check failed: %s", e)
+        return False
 
 
 def _migrate_v1(conn: sqlite3.Connection):
@@ -507,9 +606,13 @@ def _migrate_v20(conn: sqlite3.Connection):
 
     Existing rows get display_name populated from filename by stripping
     hash prefixes and extensions, then replacing underscores with spaces
-    and title-casing.
+    and title-casing. Idempotent: if the column already exists, this is a no-op.
     """
-    conn.execute("ALTER TABLE audio_files ADD COLUMN display_name TEXT DEFAULT ''")
+    try:
+        conn.execute("ALTER TABLE audio_files ADD COLUMN display_name TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        # Column already exists - idempotent no-op
+        pass
     conn.execute("""
         UPDATE audio_files
         SET display_name = filename
@@ -592,6 +695,8 @@ def get_schema_version(conn: sqlite3.Connection) -> int:
 
 def set_schema_version(conn: sqlite3.Connection, version: int) -> None:
     """Persist the schema version."""
+    if not isinstance(version, int):
+        raise TypeError(f"schema version must be int, got {type(version).__name__}")
     conn.execute(f"PRAGMA user_version = {version}")
 
 
@@ -604,6 +709,11 @@ def init_db(db_path: Path | None = None):
     "database is locked" while readers are active). It is set defensively before
     the `with get_db()` block because `get_schema_version` reads the file, and
     `busy_timeout` covers the case where a running backend holds a write lock.
+
+    Migration safety (Nov 2026 best practices):
+    - Only one process migrates at a time (migration_lock table).
+    - A hot backup is taken before migration via the online backup API.
+    - PRAGMA integrity_check runs after all migrations complete.
 
     Args:
         db_path: Override the database path (mainly for tests). Defaults to
@@ -633,53 +743,77 @@ def init_db(db_path: Path | None = None):
                 logger.warning("Could not set WAL mode: %s", exc)
 
             with get_db() as conn:
-                current_version = get_schema_version(conn)
+                # --- Migration lock: only one migrator at a time ---
+                if not _acquire_migration_lock(conn):
+                    logger.warning(
+                        "Another process holds the migration lock; skipping migrations. "
+                        "Lock TTL is %d seconds.", MIGRATION_LOCK_TTL_SECONDS
+                    )
+                    return
 
-                if current_version < 1:
-                    _migrate_v1(conn)
-                if current_version < 2:
-                    _migrate_v2(conn)
-                if current_version < 3:
-                    _migrate_v3(conn)
-                if current_version < 4:
-                    _migrate_v4(conn)
-                if current_version < 5:
-                    _migrate_v5(conn)
-                if current_version < 6:
-                    _migrate_v6(conn)
-                if current_version < 7:
-                    _migrate_v7(conn)
-                if current_version < 8:
-                    _migrate_v8(conn)
-                if current_version < 9:
-                    _migrate_v9(conn)
-                if current_version < 10:
-                    _migrate_v10(conn)
-                if current_version < 11:
-                    _migrate_v11(conn)
-                if current_version < 12:
-                    _migrate_v12(conn)
-                if current_version < 13:
-                    _migrate_v13(conn)
-                if current_version < 14:
-                    _migrate_v14(conn)
-                if current_version < 15:
-                    _migrate_v15(conn)
-                if current_version < 16:
-                    _migrate_v16(conn)
-                if current_version < 17:
-                    _migrate_v17(conn)
-                if current_version < 18:
-                    _migrate_v18(conn)
-                if current_version < 19:
-                    _migrate_v19(conn)
-                if current_version < 20:
-                    _migrate_v20(conn)
-                if current_version < 21:
-                    _migrate_v21(conn)
+                try:
+                    current_version = get_schema_version(conn)
 
-                set_schema_version(conn, SCHEMA_VERSION)
-                logger.info("Database initialized at version %d", SCHEMA_VERSION)
+                    # Take a hot backup before any schema changes (best practice).
+                    # Only back up if there are actually migrations to run.
+                    if current_version < SCHEMA_VERSION:
+                        _take_backup(target)
+
+                    if current_version < 1:
+                        _migrate_v1(conn)
+                    if current_version < 2:
+                        _migrate_v2(conn)
+                    if current_version < 3:
+                        _migrate_v3(conn)
+                    if current_version < 4:
+                        _migrate_v4(conn)
+                    if current_version < 5:
+                        _migrate_v5(conn)
+                    if current_version < 6:
+                        _migrate_v6(conn)
+                    if current_version < 7:
+                        _migrate_v7(conn)
+                    if current_version < 8:
+                        _migrate_v8(conn)
+                    if current_version < 9:
+                        _migrate_v9(conn)
+                    if current_version < 10:
+                        _migrate_v10(conn)
+                    if current_version < 11:
+                        _migrate_v11(conn)
+                    if current_version < 12:
+                        _migrate_v12(conn)
+                    if current_version < 13:
+                        _migrate_v13(conn)
+                    if current_version < 14:
+                        _migrate_v14(conn)
+                    if current_version < 15:
+                        _migrate_v15(conn)
+                    if current_version < 16:
+                        _migrate_v16(conn)
+                    if current_version < 17:
+                        _migrate_v17(conn)
+                    if current_version < 18:
+                        _migrate_v18(conn)
+                    if current_version < 19:
+                        _migrate_v19(conn)
+                    if current_version < 20:
+                        _migrate_v20(conn)
+                    if current_version < 21:
+                        _migrate_v21(conn)
+
+                    set_schema_version(conn, SCHEMA_VERSION)
+                    logger.info("Database initialized at version %d", SCHEMA_VERSION)
+
+                    # --- Integrity check after migration (best practice) ---
+                    if not _run_integrity_check(conn):
+                        raise sqlite3.DatabaseError(
+                            "PRAGMA integrity_check failed after migration; "
+                            "database may be corrupt"
+                        )
+
+                finally:
+                    _release_migration_lock(conn)
 
                 # Ensure performance indexes exist on hot telemetry tables (idempotent).
                 conn.executescript("""

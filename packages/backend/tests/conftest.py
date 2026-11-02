@@ -10,8 +10,6 @@ Provides:
 
 from __future__ import annotations
 
-import getpass
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -69,24 +67,36 @@ def _temp_root_usable(root: Path) -> bool:
         # in the root it calls ``entry.resolve().exists()``. ``Path.exists()``
         # re-raises PermissionError (only ENOENT/ENOTDIR/ELOOP are swallowed),
         # and ``os.path.realpath`` hides it — so use the pathlib call here.
+        # Wrap each entry check individually so one bad entry doesn't skip the
+        # whole directory.
         for entry in root.iterdir():
-            entry.resolve().exists()
-    except OSError:
+            try:
+                entry.resolve().exists()
+            except PermissionError:
+                return False
+    except (OSError, PermissionError):
         return False
     return True
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Point --basetemp at a repo-local directory when %TEMP% cannot be used."""
+    """Point --basetemp at a repo-local directory to avoid PermissionError.
+
+    This machine's %TEMP% lives in a profile folder that was renamed after the
+    Windows account was created, so pytest still computes the original
+    ``pytest-of-<user>`` root while stale entries inside it belong to the old
+    profile. pytest's internal ``cleanup_dead_symlinks`` and
+    ``_exit_stack.close()`` raise ``PermissionError`` when they try to stat
+    those entries — even though all tests passed — making an otherwise green
+    run exit non-zero. Using a repo-local basetemp avoids the problem entirely.
+    """
     global _USING_LOCAL_BASETEMP  # noqa: PLW0603
 
     if config.option.basetemp is not None:
         return  # an explicit --basetemp always wins
-    root = Path(tempfile.gettempdir()) / f"pytest-of-{getpass.getuser()}"
-    if not _temp_root_usable(root):
-        LOCAL_BASETEMP.mkdir(parents=True, exist_ok=True)
-        config.option.basetemp = str(LOCAL_BASETEMP)
-        _USING_LOCAL_BASETEMP = True
+    LOCAL_BASETEMP.mkdir(parents=True, exist_ok=True)
+    config.option.basetemp = str(LOCAL_BASETEMP)
+    _USING_LOCAL_BASETEMP = True
 
 
 def pytest_report_header(config: pytest.Config) -> str:
@@ -94,6 +104,37 @@ def pytest_report_header(config: pytest.Config) -> str:
     if _USING_LOCAL_BASETEMP:
         return f"basetemp: {config.option.basetemp} (shared %TEMP% root not usable)"
     return ""
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Wrap pytest's temp-directory cleanup to swallow PermissionError.
+
+    On this machine the shared %TEMP% root contains stale entries owned by a
+    renamed Windows profile. pytest's internal ``cleanup_dead_symlinks`` and
+    ``_exit_stack.close()`` raise ``PermissionError`` when they try to stat
+    those entries — even though all tests passed. Catching the error here
+    prevents an otherwise green run from exiting non-zero.
+    """
+    try:
+        tmp_path_factory = session.config._tmp_path_factory
+    except AttributeError:
+        return
+    basetemp = getattr(tmp_path_factory, "_basetemp", None)
+    if basetemp is None:
+        return
+    # The baseline cleanup already uses ignore_errors=True for rmtree, but
+    # cleanup_dead_symlinks and _exit_stack.close do not. Wrap both.
+    try:
+        tmp_path_factory._exit_stack.close()
+    except PermissionError:
+        pass
+    try:
+        if basetemp.is_dir():
+            from _pytest.pathlib import cleanup_dead_symlinks
+
+            cleanup_dead_symlinks(basetemp)
+    except PermissionError:
+        pass
 
 
 # ===========================================================================

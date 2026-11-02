@@ -6,9 +6,12 @@ threads. For songs, pass the isolated vocals stem as audio_path -- the full
 mix syncs markedly worse (research notes, D42).
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
+
+from ..queue.manager import queue_manager
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +75,23 @@ class LipSyncHandler:
             stem = Path(source).stem.replace(" ", "_")
             output_path = str(out_dir / f"{stem}_lipsync_{job.id[:8]}.mp4")
 
+        # Persist the resolved output path on the job so the frontend's
+        # pollJob can read it from job.output_path (not just result.output_path).
+        loop = asyncio.get_running_loop()
+        loop.create_task(queue_manager.update_job(job.id, output_path=output_path))
+
         def _progress(frac: float, message: str) -> None:
-            # Best-effort progress; the queue broadcasts job state separately.
+            # Report real-time progress to the queue (broadcasts job.progress via SSE).
             logger.info("lipsync %s: %.0f%% %s", job.id[:8], frac * 100, message)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(
+                    queue_manager.update_job(job.id, progress=frac, message=message)
+                )
+            except RuntimeError:
+                # No running event loop (e.g. callback invoked from a thread) --
+                # best-effort: log only.
+                logger.debug("lipsync progress update skipped (no event loop) for %s", job.id[:8])
 
         result = await adapter.lipsync(
             video_path=source,

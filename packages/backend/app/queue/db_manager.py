@@ -1,10 +1,22 @@
 """Database operations for job queue."""
 import asyncio
 import json
+import logging
+import sqlite3
+import time
 from datetime import datetime
 
-from ..core.database import get_db
+from ..core.connection import get_db
 from ..models.job import Job, JobStatus, JobType
+
+logger = logging.getLogger(__name__)
+
+# Slow query threshold: log any DB query taking longer than this (seconds).
+SLOW_QUERY_THRESHOLD_SECONDS = 0.5
+
+# Retry config for "database is locked" errors during write operations.
+DB_WRITE_MAX_RETRIES = 5
+DB_WRITE_BASE_DELAY = 0.1  # seconds, doubles each retry
 
 
 class JobDatabaseManager:
@@ -14,6 +26,55 @@ class JobDatabaseManager:
     def _run_sync(func, *args, **kwargs):
         """Run a sync DB function in a thread to avoid blocking the event loop."""
         return asyncio.to_thread(func, *args, **kwargs)
+
+    @staticmethod
+    def _retry_on_locked(func, *args, **kwargs):
+        """Run a DB write function with exponential backoff on 'database is locked'."""
+        last_exc = None
+        for attempt in range(DB_WRITE_MAX_RETRIES):
+            try:
+                return func(*args, **kwargs)
+            except sqlite3.OperationalError as exc:
+                if "database is locked" not in str(exc).lower():
+                    raise
+                last_exc = exc
+                if attempt < DB_WRITE_MAX_RETRIES - 1:
+                    delay = DB_WRITE_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        "DB write locked on attempt %d/%d, retrying in %.2fs: %s",
+                        attempt + 1, DB_WRITE_MAX_RETRIES, delay, exc,
+                    )
+                    time.sleep(delay)
+        raise last_exc
+
+    @staticmethod
+    def _timed_execute(conn, sql, params=(), label=""):
+        """Execute a statement, logging if it exceeds the slow query threshold."""
+        start = time.monotonic()
+        try:
+            return conn.execute(sql, params)
+        finally:
+            elapsed = time.monotonic() - start
+            if elapsed > SLOW_QUERY_THRESHOLD_SECONDS:
+                logger.warning(
+                    "Slow DB query (%.3fs): %s ... %s",
+                    elapsed, label or sql[:80], params,
+                )
+
+    @staticmethod
+    def execute_batch(statements: list[tuple[str, tuple]]) -> None:
+        """Execute multiple statements in a single transaction.
+
+        Each item is ``(sql, params_tuple)``. All statements run in one
+        transaction so they commit atomically. This reduces the per-statement
+        open/commit overhead and is the preferred path for bulk updates.
+        """
+        def _run():
+            with get_db() as conn:
+                for sql, params in statements:
+                    JobDatabaseManager._timed_execute(conn, sql, params, label="batch")
+
+        JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     async def create_job_async(job: Job) -> Job:
@@ -68,26 +129,40 @@ class JobDatabaseManager:
         return await JobDatabaseManager._run_sync(JobDatabaseManager.delete_jobs_batch, job_ids)
 
     @staticmethod
+    async def execute_batch_async(statements: list[tuple[str, tuple]]) -> None:
+        """Async wrapper for execute_batch."""
+        await JobDatabaseManager._run_sync(JobDatabaseManager.execute_batch, statements)
+
+    @staticmethod
     def create_job(job: Job) -> Job:
         """Insert a new job into the database."""
-        with get_db() as conn:
-            conn.execute('''
-                INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path, priority)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                job.id,
-                job.job_type.value if isinstance(job.job_type, JobType) else job.job_type,
-                job.status.value if isinstance(job.status, JobStatus) else job.status,
-                job.created_at.isoformat(),
-                job.progress,
-                job.message,
-                json.dumps(job.params),
-                job.retry_count,
-                job.max_retries,
-                job.output_path,
-                job.priority,
-            ))
-        return job
+
+        def _run():
+            with get_db() as conn:
+                JobDatabaseManager._timed_execute(
+                    conn,
+                    '''
+                    INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path, priority)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''',
+                    (
+                        job.id,
+                        job.job_type.value if isinstance(job.job_type, JobType) else job.job_type,
+                        job.status.value if isinstance(job.status, JobStatus) else job.status,
+                        job.created_at.isoformat(),
+                        job.progress,
+                        job.message,
+                        json.dumps(job.params),
+                        job.retry_count,
+                        job.max_retries,
+                        job.output_path,
+                        job.priority,
+                    ),
+                    label="create_job",
+                )
+            return job
+
+        return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     def get_job(job_id: str) -> Job | None:
@@ -112,13 +187,15 @@ class JobDatabaseManager:
         with get_db() as conn:
             rows = conn.execute(
                 'SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC',
-                (status_value,)
+                (status_value,),
             ).fetchall()
             return [JobDatabaseManager._row_to_job(row) for row in rows]
 
     # Columns that may be updated via update_job (prevents arbitrary SQL fragments)
+    # ``created_at`` and ``job_type`` are intentionally excluded: they are
+    # immutable once set and allowing updates risks data inconsistency.
     _UPDATABLE_COLUMNS = frozenset({
-        'job_type', 'status', 'created_at', 'started_at', 'completed_at',
+        'status', 'started_at', 'completed_at',
         'progress', 'message', 'error', 'result', 'params', 'output_path',
         'retry_count', 'max_retries', 'priority',
     })
@@ -148,48 +225,83 @@ class JobDatabaseManager:
             values.append(value)
 
         values.append(job_id)
-        with get_db() as conn:
-            conn.execute(
-                f'UPDATE jobs SET {", ".join(set_clauses)} WHERE id = ?',
-                values
-            )
-        return JobDatabaseManager.get_job(job_id)
+
+        def _run():
+            with get_db() as conn:
+                JobDatabaseManager._timed_execute(
+                    conn,
+                    f'UPDATE jobs SET {", ".join(set_clauses)} WHERE id = ?',
+                    values,
+                    label="update_job",
+                )
+            return JobDatabaseManager.get_job(job_id)
+
+        return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     def delete_job(job_id: str) -> bool:
         """Delete a job."""
-        with get_db() as conn:
-            cursor = conn.execute('DELETE FROM jobs WHERE id = ?', (job_id,))
-            return cursor.rowcount > 0
+
+        def _run():
+            with get_db() as conn:
+                cursor = JobDatabaseManager._timed_execute(
+                    conn,
+                    'DELETE FROM jobs WHERE id = ?',
+                    (job_id,),
+                    label="delete_job",
+                )
+                return cursor.rowcount > 0
+
+        return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     def clear_completed() -> int:
         """Delete completed and cancelled jobs."""
-        with get_db() as conn:
-            cursor = conn.execute(
-                "DELETE FROM jobs WHERE status IN ('completed', 'cancelled')"
-            )
-            return cursor.rowcount
+
+        def _run():
+            with get_db() as conn:
+                cursor = JobDatabaseManager._timed_execute(
+                    conn,
+                    "DELETE FROM jobs WHERE status IN ('completed', 'cancelled')",
+                    (),
+                    label="clear_completed",
+                )
+                return cursor.rowcount
+
+        return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     def clear_failed() -> int:
         """Delete failed jobs."""
-        with get_db() as conn:
-            cursor = conn.execute(
-                "DELETE FROM jobs WHERE status = 'failed'"
-            )
-            return cursor.rowcount
+
+        def _run():
+            with get_db() as conn:
+                cursor = JobDatabaseManager._timed_execute(
+                    conn,
+                    "DELETE FROM jobs WHERE status = 'failed'",
+                    (),
+                    label="clear_failed",
+                )
+                return cursor.rowcount
+
+        return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     def clear_status(status: JobStatus) -> int:
         """Delete jobs with a given status."""
         status_value = status.value if isinstance(status, JobStatus) else status
-        with get_db() as conn:
-            cursor = conn.execute(
-                "DELETE FROM jobs WHERE status = ?",
-                (status_value,),
-            )
-            return cursor.rowcount
+
+        def _run():
+            with get_db() as conn:
+                cursor = JobDatabaseManager._timed_execute(
+                    conn,
+                    "DELETE FROM jobs WHERE status = ?",
+                    (status_value,),
+                    label="clear_status",
+                )
+                return cursor.rowcount
+
+        return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
     def _row_to_job(row) -> Job:

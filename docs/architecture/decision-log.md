@@ -1834,5 +1834,86 @@
 - **Files:** `packages/backend/app/services/remotion_cli.py` (new), `packages/backend/app/models/job.py` (`REMOTION_RENDER`), `packages/backend/app/api/audio_remix.py` (handler + endpoints + registration).
 - **Consequences:** AI agents can programmatically trigger Remotion renders through the existing job queue (enqueue → poll → result). The default composition `SignalBreakingThroughNoise` from `packages/video-editor/src/Composition.tsx` accepts an optional `analysis` prop (backend timing metadata) for beat-synced animation. No adapter pattern forced onto Remotion Studio; the external sidebar link remains the primary user-facing entry point. Requires `@remotion/cli` installed in `packages/video-editor/` (verified at 4.0.539).
 
+### D59 — Real-time progress streaming via SSE + queue manager (2026-11-02)
+
+- **Status:** Decided
+- **Context:** Long-running operations (lip-sync, remix build/enhance, Remotion render, audio analysis) ran silent — the frontend saw only `started` → `completed` with nothing in between. Only `music_video_handler` used the SSE + `queue_manager.update_job(progress=..., message=...)` infrastructure consistently. Users had no visibility into per-frame or per-slot progress, and a stuck job looked identical to a slow one.
+- **Decision:** Wire `queue_manager.update_job(job.id, progress=frac, message=...)` into every long-running handler so SSE broadcasts `job.progress` events in real time. Lip-sync: per-frame from MuseTalk adapter callback. Remix build: per-slot (slot N of M) during `_mix_recipe`. Remix enhance: per-stage (step N of 19) during `enhance_stems`. Remotion render: per-frame/percent parsed from CLI stderr (`frame X/Y` and `% complete` regexes). Audio analysis: 4-stage (load/features/save/complete). Cancellation handled via `queue_manager.is_cancelled()` checked at progress checkpoints; handlers raise `JobCancelledError` and the processor marks CANCELLED without retrying.
+- **Files:** `packages/backend/app/services/lipsync_handler.py`, `packages/backend/app/services/lipsync/musetalk_adapter.py`, `packages/backend/app/services/remix_render.py`, `packages/backend/app/services/suno_enhancer.py`, `packages/backend/app/services/remotion_cli.py`, `packages/backend/app/services/audio_analyzer.py`, `packages/backend/app/services/audio_analysis_handler.py`, `packages/backend/app/api/audio_remix.py`, `packages/backend/app/queue/processor.py`, `packages/backend/app/queue/manager.py`.
+- **Consequences:** Frontend `jobStore.ts` (existing SSE consumer) shows real-time progress for all long-running jobs. Cancellation actually stops running work (no more `asyncio.shield` protection). Per-frame progress lets users see lip-sync advancing; per-slot progress shows remix mix assembly; per-stage progress shows enhance chain position.
+
+### D60 — Job queue: cancellation, TTL, priority aging, rate limiting, pause/resume, idempotency (2026-11-02)
+
+- **Status:** Decided
+- **Context:** The job queue had several gaps: (a) cancellation only marked DB status but `asyncio.shield` protected handlers from cancellation so work kept running; (b) terminal jobs accumulated forever in memory with no TTL; (c) low-priority jobs starved behind high-priority floods with no aging; (d) no rate limiting per job type — one type could monopolize the queue; (e) no pause/resume for maintenance; (f) no idempotency — duplicate enqueues created duplicate jobs.
+- **Decision:** (1) Removed `asyncio.shield()` from handler execution so cancellation propagates; added `JobCancelledError` and `queue_manager.is_cancelled()` checked at progress checkpoints; processor catches `JobCancelledError` and marks CANCELLED without retrying. (2) Added `expire_old_terminal_jobs(ttl_seconds)` — terminal jobs older than 7 days are expired from memory and DB. (3) Added `effective_priority()` — QUEUED jobs get +1 effective priority per 5-minute wait interval (capped at +10) to prevent starvation. (4) Added `RATE_LIMIT_BY_TYPE` dict + `check_rate_limit()` — max QUEUED+RUNNING jobs per type. (5) Added `pause_queue()`/`resume_queue()`/`is_paused()` as instance attributes on `QueueManager` (was module-global `_queue_paused`). (6) Added `idempotency_key` field to `Job` and `JobCreateRequest` — duplicate enqueues with the same key return the existing job. (7) Schema migration v21 → added `idempotency_key` column via `_migrate_v22`. (8) `clear_failed()` now clears both `FAILED` and `DEAD` (dead-lettered) statuses. (9) `get_job()` returns a model copy to prevent caller mutation of cached jobs. (10) `enqueue()` DB persistence and subscriber notification moved outside the lock to avoid blocking on slow subscribers. (11) Progress broadcast no longer restricted to `RUNNING` status — progress events fire at any status. (12) Backoff jitter changed from signed `±5%` to unsigned `0-10%` so total sleep never falls below base delay.
+- **Files:** `packages/backend/app/queue/processor.py`, `packages/backend/app/queue/manager.py`, `packages/backend/app/queue/db_manager.py`, `packages/backend/app/models/job.py`, `packages/backend/app/api/jobs.py`, `packages/backend/app/core/migrations.py` (v22), `packages/backend/app/core/connection.py` (`SCHEMA_VERSION` 21→22).
+- **Consequences:** Cancelled jobs now stop running work instead of continuing in the background. Memory growth from completed jobs is bounded. Low-priority jobs eventually run even behind high-priority floods. Rate limits prevent one job type from monopolizing the queue. Duplicate enqueues are detected and collapsed. The frontend can pause/resume the queue for maintenance. `clear_failed()` actually clears dead-lettered jobs.
+
+### D61 — Database connection pool: WAL checkpoint validation, id(conn) reuse prevention (2026-11-02)
+
+- **Status:** Decided
+- **Context:** `checkpoint_wal(mode)` accepted any string mode and passed it directly into `PRAGMA wal_checkpoint({mode})`, allowing invalid modes to fail with obscure SQLite errors. `release_connection()` recorded connection creation time but `get_connection()` popped it on age check — a connection recycled too young would see `time.monotonic() - 0 > 300` and be closed immediately, defeating pooling.
+- **Decision:** (1) `checkpoint_wal(mode)` validates mode against `{PASSIVE, FULL, RESTART, TRUNCATE}` and raises `ValueError` for invalid modes. (2) `release_connection()` re-records `_connection_created_at[id(conn)]` so the age check in `get_connection()` sees the real age, not a stale 0.
+- **Files:** `packages/backend/app/core/connection.py`.
+- **Consequences:** Invalid checkpoint modes fail fast with a clear error. Pooled connections are recycled by actual age, not by an incorrect 0 baseline — pooling works as intended.
+
+### D62 — Database migrations: integrity check, backup, migration lock (2026-11-02)
+
+- **Status:** Decided
+- **Context:** Migrations ran without safety guards: no lock to prevent concurrent migrator processes, no backup before schema changes, no integrity check after migration. A corrupt database after migration would go undetected; concurrent migrations could conflict; destructive migrations had no rollback point.
+- **Decision:** (1) Added `migration_lock` table — only one process migrates at a time; lock auto-expires after 5 minutes (stale-lock stealing). (2) `init_db()` takes a hot SQLite online backup before any schema changes (`_take_backup`). (3) `PRAGMA integrity_check` runs after all migrations complete; `init_db` raises `sqlite3.DatabaseError` if integrity fails. (4) `_migrate_v20` made idempotent — `ALTER TABLE ... ADD COLUMN` wrapped in try/except `OperationalError`. (5) `set_schema_version()` validates `version` is an `int`. (6) Migration retry on `database is locked` with exponential backoff (5 retries, 0.5s→8s).
+- **Files:** `packages/backend/app/core/migrations.py`.
+- **Consequences:** Schema changes are safe: only one migrator at a time, a backup exists before changes, integrity is verified after, and migrations are idempotent/retriable. `init_db` no longer crashes on transient lock contention.
+
+### D63 — SSE handler: fire-and-forget task tracking, HTTPException at capacity, shutdown cleanup (2026-11-02)
+
+- **Status:** Decided
+- **Context:** SSE `connect()` at capacity returned an orphan queue the caller might block on forever instead of refusing the connection. `_broadcast_to_go_dashboard()` used fire-and-forget `asyncio.create_task()` with no tracking — tasks could be silently cancelled on loop close and exceptions were swallowed. No shutdown cleanup for the go-dashboard HTTP client, leaking the connection on app exit.
+- **Decision:** (1) `SSEManager.connect()` raises `HTTPException(503, "Server at capacity, try again later")` instead of returning an orphan queue. (2) `_broadcast_to_go_dashboard()` tracks fire-and-forget tasks in `_go_dashboard_tasks: set[asyncio.Task]` with `add_done_callback(discard)` so exceptions are surfaced and tasks can't be silently cancelled. (3) New `shutdown()` coroutine closes the go-dashboard `httpx.AsyncClient` on app shutdown. (4) Removed `json` import from SSE handler (no longer needed after capacity change).
+- **Files:** `packages/backend/app/sse/handler.py`.
+- **Consequences:** Clients at capacity get an immediate 503 instead of a hanging connection. Go-dashboard broadcast failures are logged instead of silently dropped. The HTTP client is properly closed on shutdown.
+
+### D64 — VRAM manager: NVML shutdown, exception handling, debug→warning logging (2026-11-02)
+
+- **Status:** Decided
+- **Context:** `sync_resident_state()` called `_fetch_resident_models()` without exception handling — an API failure crashed the method and left `_ollama_loaded`/`_atomic_chat_loaded` in an inconsistent state. `preflight_lookahead()` logged queue unavailability at `debug` level, hiding a broken provider. NVML was initialized in `_init_gpu_monitoring()` but never shut down, leaking the handle across process restarts. `_gpustat_available` was set inside try/except but `getattr` fallback wasn't used when `__init__` wasn't called (e.g. `VRAMManager.__new__()`).
+- **Decision:** (1) `sync_resident_state()` wrapped in try/except with `logger.warning` — flags unchanged on failure (safer than wrong state). (2) `preflight_lookahead()` queue-unavailable log changed from `debug` to `warning`. (3) New `shutdown()` coroutine calls `pynvml.nvmlShutdown()` on app shutdown. (4) `_init_gpu_monitoring()` sets `_gpustat_available = False` on ImportError and uses `getattr(self, '_gpustat_available', False)` for safe attribute access. (5) `set_last_model_provider` exported in `__all__`.
+- **Files:** `packages/backend/app/services/vram_manager.py`.
+- **Consequences:** VRAM manager failures are visible instead of silent or crashing. NVML handle is released on shutdown. `_gpustat_available` is always defined.
+
+### D65 — MuseTalk adapter: fp16, per-frame progress, cancellation, avatar caching, fps validation (2026-11-02)
+
+- **Status:** Decided
+- **Context:** MuseTalk adapter had gaps: no fp16 support (~4 GB VRAM instead of ~2 GB on the GTX 1070 Ti); no per-frame progress during inference (subprocess output captured at end only); no cancellation mid-inference (`subprocess.run` blocks a thread); no avatar latent caching (every clip re-prepared face latents); no frame-rate validation (MuseTalk trained at 25 fps; mismatched source fps causes silent lip-track drift); fixed 600s audio normalization timeout; `subprocess.run` blocked a thread entirely with no cooperative cancellation.
+- **Decision:** (1) Added `use_float16` config (default `true`) — passes `--use_float16` to MuseTalk, roughly halving VRAM from ~4 GB to ~2 GB. (2) `render()` uses `asyncio.create_subprocess_exec` streaming stderr line-by-line; parses `frame X/Y` and `% complete` regexes; invokes `progress_cb(frac, message)` at 2% change threshold. (3) `cancel()` terminates the subprocess and sets a flag checked at progress checkpoints; raises `LipSyncCancelledError`. (4) `prepare_avatar()` + `use_prepared` flag — face latents cached per avatar key; repeat clips on the same avatar skip preparation (seconds instead of minutes). (5) `_probe_fps()` via ffprobe — warns if source fps differs from 25 by >0.5. (6) `audio_normalization_timeout_s` configurable (default 600s). (7) Config `config/lipsync.json` updated with all new options.
+- **Files:** `packages/backend/app/services/lipsync/musetalk_adapter.py` (rewritten), `packages/backend/app/services/lipsync_handler.py`, `config/lipsync.json`.
+- **Consequences:** Lip-sync runs in ~2 GB VRAM instead of ~4 GB — critical for the 8 GB GTX 1070 Ti. Per-frame progress shown in real time via SSE. Cancel actually stops inference. Repeat clips on the same avatar respond in seconds. FPS mismatch is warned before drift happens. Config-driven timeouts and flags.
+
+### D66 — Audio analysis progress streaming (2026-11-02)
+
+- **Status:** Decided
+- **Context:** `AudioAnalyzer.analyze_and_save()` ran silent — no progress during the potentially multi-second librosa/sonara analysis. Frontend saw only `started` → `completed`.
+- **Decision:** Added `progress_cb: Callable[[float, str], None]` parameter to `analyze_and_save()` — invoked at 4 stages: load (0.1), features (0.5), saving (0.9), complete (1.0). `audio_analysis_handler.py` wires `_progress()` via `loop.create_task()` to `queue_manager.update_job()` for SSE broadcast. `Callable` imported from `collections.abc` for ruff compliance.
+- **Files:** `packages/backend/app/services/audio_analyzer.py`, `packages/backend/app/services/audio_analysis_handler.py`.
+- **Consequences:** Audio analysis jobs show real-time 4-stage progress via SSE. Consistent with other long-running handlers.
+
+### D67 — Test insights generator (2026-11-02)
+
+- **Status:** Decided
+- **Context:** Test insights existed only as a stale manual report (`tools/test-insights-out/report.json` from 2026-11-01, 150 tests across 4 categories). No generator script existed; reports were produced manually and went stale. The full suite (700+ tests across 35 categories) had no categorized insight reporting.
+- **Decision:** New `tools/generate-test-insights.py` — discovers, runs, and categorizes the full test suite (backend pytest + frontend vitest), producing `report.json`, `report.html`, `junit.xml`, `.duration_cache.json`, and `.history/<timestamp>/` archives. Categorization from test file names (`test_<category>_<rest>.py`) with override map for edge cases. Features: per-category pass/fail/skip/duration, slowest test identification, trend comparison against previous reports, failure categorization, actionable recommendations. External-service tests (ComfyUI, Ollama, etc.) excluded to prevent hanging.
+- **Files:** `tools/generate-test-insights.py` (new), `tools/test-insights-out/` (generated outputs).
+- **Consequences:** Test insights are regenerated automatically on every run. Trends are visible across runs. Slow tests are identified. Categories cover the full suite (35 categories vs 4 before). HTML dashboard for human review; JSON/JUnit for CI.
+
+### D68 — pytest basetemp override + sessionfinish PermissionError handling (2026-11-02)
+
+- **Status:** Decided
+- **Context:** This machine's `%TEMP%` lives in a profile folder that was renamed (Aomega Imaging → NeoCortext). pytest computes `pytest-of-<user>` from the old name; stale entries inside belong to the old profile. `tmp_path_factory._exit_stack.close()` and `cleanup_dead_symlinks()` raise `PermissionError: [WinError 5] Access is denied` after every test run — even when all tests pass — making green runs exit non-zero.
+- **Decision:** `packages/backend/tests/conftest.py`: `pytest_configure()` always uses a repo-local basetemp (`packages/.pytest_tmp`) instead of `%TEMP%\pytest-of-<user>` — avoids the problematic directory entirely. Added `pytest_sessionfinish()` hook wrapping `tmp_path_factory._exit_stack.close()` and `cleanup_dead_symlinks()` in `try/except PermissionError` as a safety net. Hardened `_temp_root_usable()` to wrap each `entry.resolve().exists()` in its own `try/except PermissionError`. Removed unused `getpass`/`tempfile` imports.
+- **Files:** `packages/backend/tests/conftest.py`, `packages/backend/tests/test_sse_backpressure.py` (updated test to match new `HTTPException(503)` at capacity behavior).
+- **Consequences:** Test runs exit cleanly with no `PermissionError` at session finish. SSE capacity test now expects `HTTPException(503)` instead of an orphan queue. Repo-local basetemp keeps temp files out of `%TEMP%`.
+
+
 
 

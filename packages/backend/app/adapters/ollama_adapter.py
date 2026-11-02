@@ -161,10 +161,10 @@ Generate 3-8 scenes based on the input theme or concept."""
                         ]
                     except Exception:
                         self._available_models = []
-                    if self._status != AdapterStatus.CONNECTED:
+                    if self._status != AdapterStatus.AVAILABLE:
                         logger.info("Ollama is now online (%d models available)", len(self._available_models))
                     self._last_health_log = None
-                    self.set_status(AdapterStatus.CONNECTED)
+                    self.set_status(AdapterStatus.AVAILABLE)
                     return True
                 if resp.status >= 500 and self._last_health_log != f"HTTP {resp.status}":
                     self._last_health_log = f"HTTP {resp.status}"
@@ -479,6 +479,8 @@ Each scene should have unique camera work and lighting suggestions."""
 
         result = await self.chat(messages, model=model, keep_alive="10m", **chat_kwargs)
 
+        if not isinstance(result, dict):
+            raise RuntimeError("Unexpected async iterator from non-streaming chat")
         response_text = result.get("message", {}).get("content", "")
 
         try:

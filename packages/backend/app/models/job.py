@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 class JobStatus(StrEnum):
@@ -51,17 +51,46 @@ class Job(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    progress: float = 0.0
+    progress: float = Field(0.0, ge=0.0, le=1.0)
     message: str = ""
     error: str | None = None
     result: dict[str, Any] | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     output_path: str | None = None
-    retry_count: int = 0
-    max_retries: int = 3
-    priority: int = 0  # Higher priority runs first; tie-break by created_at
+    retry_count: int = Field(0, ge=0)
+    max_retries: int = Field(3, ge=0, le=100)
+    priority: int = Field(0, description="Higher priority runs first; tie-break by created_at")
 
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, json_schema_extra={
+        "example": {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "job_type": "audio_analysis",
+            "status": "queued",
+            "progress": 0.0,
+            "params": {"audio_path": "/path/to/audio.wav", "section": "chorus"},
+            "priority": 5,
+            "max_retries": 3,
+        }
+    })
+
+    @model_validator(mode="after")
+    def _validate_retry_budget(self) -> "Job":
+        """retry_count cannot exceed max_retries."""
+        if self.retry_count > self.max_retries:
+            raise ValueError(
+                f"retry_count ({self.retry_count}) cannot exceed max_retries ({self.max_retries})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_timestamps(self) -> "Job":
+        """started_at must be >= created_at; completed_at must be >= started_at."""
+        if self.started_at is not None and self.started_at < self.created_at:
+            raise ValueError("started_at must be >= created_at")
+        if self.completed_at is not None and self.started_at is not None:
+            if self.completed_at < self.started_at:
+                raise ValueError("completed_at must be >= started_at")
+        return self
 
     @computed_field
     @property
@@ -130,15 +159,24 @@ class JobCreateRequest(BaseModel):
 
     job_type: JobType
     params: dict[str, Any] = Field(default_factory=dict)
-    max_retries: int = 3
-    priority: int = 0
+    max_retries: int = Field(3, ge=0, le=100)
+    priority: int = Field(0, description="Higher priority runs first; tie-break by created_at")
+
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "job_type": "audio_analysis",
+            "params": {"audio_path": "/path/to/audio.wav", "section": "chorus"},
+            "max_retries": 3,
+            "priority": 5,
+        }
+    })
 
 
 class JobUpdateRequest(BaseModel):
     """Request to update job status"""
 
     status: JobStatus | None = None
-    progress: float | None = None
+    progress: float | None = Field(None, ge=0.0, le=1.0)
     message: str | None = None
     error: str | None = None
     result: dict[str, Any] | None = None

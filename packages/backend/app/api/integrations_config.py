@@ -446,21 +446,32 @@ async def get_integration(service_name: str) -> dict:
 
 @router.get("/atomic-chat/status")
 async def get_atomic_chat_status() -> dict:
-    """Health-check the Atomic Chat OpenAI-compatible endpoint.
+    """Health-check the Atomic Chat OpenAI-compatible endpoint."""
+    # Try the dedicated atomic-chat adapter first
+    adapter = adapter_registry.get_adapter("atomic-chat")
+    if adapter is not None:
+        healthy = await adapter.health_check()
+        return {
+            "reachable": healthy,
+            "model": getattr(adapter, "get_last_model", lambda: None)(),
+            "reason": None if healthy else "Health check failed",
+        }
 
-    Atomic Chat is an optional routing target inside the Ollama adapter,
-    not a registered adapter of its own, so it needs a dedicated probe:
-    the generic ``/{service_name}`` route only knows about the comfyui
-    and ollama adapters and would report Ollama's status regardless of
-    whether the Atomic Chat URL is reachable.
-    """
+    # Fallback: probe via Ollama adapter's base_url if Atomic Chat shares it
     adapter = adapter_registry.get_adapter("ollama")
     if adapter is None:
-        raise HTTPException(status_code=503, detail="Ollama adapter not available")
-    probe = getattr(adapter, "atomic_chat_health", None)
-    if not callable(probe):
-        raise HTTPException(status_code=501, detail="Atomic Chat probe not supported")
-    return await probe()
+        raise HTTPException(status_code=503, detail="No inference adapter available")
+    # Check if base_url points to Atomic Chat (port 1337 typically)
+    base_url = getattr(adapter, "base_url", None) or ""
+    if "1337" in base_url or "atomic" in base_url.lower():
+        healthy = await adapter.health_check()
+        return {
+            "reachable": healthy,
+            "model": getattr(adapter, "get_last_model", lambda: None)(),
+            "reason": None if healthy else "Health check failed",
+        }
+
+    raise HTTPException(status_code=501, detail="Atomic Chat probe not supported")
 
 
 @router.get("/config/mock-mode")

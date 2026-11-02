@@ -21,7 +21,9 @@ from app.sse.handler import SSEManager
 
 @pytest.mark.asyncio
 async def test_sse_rejects_connection_at_capacity():
-    """SSEManager.connect() must return an error queue when at max_connections."""
+    """SSEManager.connect() must raise HTTPException when at max_connections."""
+    from fastapi import HTTPException
+
     manager = SSEManager()
     manager._active_connections.clear()
     manager._max_connections = 2
@@ -31,16 +33,12 @@ async def test_sse_rejects_connection_at_capacity():
     q2 = asyncio.Queue()
     manager._active_connections.extend([q1, q2])
 
-    # Next connection should get a sentinel error
-    new_queue = await manager.connect()
+    # Next connection should raise HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        await manager.connect()
 
-    assert new_queue is not None
-    # The queue should contain a server-at-capacity error event
-    event = await asyncio.wait_for(new_queue.get(), timeout=0.5)
-    payload = json.loads(event["data"])
-    assert "capacity" in payload.get("message", "").lower() or "Server at capacity" in payload.get("message", ""), (
-        f"Expected capacity error message, got {payload}"
-    )
+    assert exc_info.value.status_code == 503
+    assert "capacity" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio

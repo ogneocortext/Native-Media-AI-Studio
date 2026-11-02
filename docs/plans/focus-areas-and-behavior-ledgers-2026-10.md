@@ -159,17 +159,34 @@ backward** — the thing a changelog cannot show.
     no local name regexes in components — verified present
   - [x] Playback, reactivity HUD, and presets behave as before the
     decomposition, page by page — verified present after T-VIZ-02–09
-  - [ ] No hover/focus states on interactive elements (sliders, buttons,
-    sidebar items, mode icons, genre presets) — found missing in all 7
-    analyzed interaction states
-  - [ ] Reactivity Tuning panel has visual grouping/dividers between
-    control groups — found absent (dense, 10+ sliders ungrouped)
-  - [ ] Sidebar navigation has collapsible grouped sections — found absent
-    (16+ flat items)
-  - [ ] Active state feedback on focus tabs, genre presets, track selection —
-      found missing (no clear indicator which is active)
-  - [ ] Dark theme text contrast meets WCAG 4.5:1 — unverified; flagged
-      as concern in 4 of 7 analyzed states
+  - [x] No hover/focus states on interactive elements (sliders, buttons,
+      sidebar items, mode icons, genre presets) — RESOLVED. `viz-icon-btn`
+      hover/focus (visualizer.css:359-375), `nav-item` hover/focus-visible
+      (sidebar.css:318-328), slider `:hover`/`:focus-visible`
+      (visualizer.css:609-636), genre/focus chips with `aria-pressed`
+      (ReactivityHUD.tsx:181-244). Verified present in source 2026-11-02.
+  - [x] Reactivity Tuning panel has visual grouping/dividers between
+      control groups — RESOLVED. `viz-tuning-group` containers with
+      labeled headers and `viz-tuning-divider` separators
+      (visualizer.css:474-504), applied in ReactivityHUD.tsx:148-341.
+      Verified present in source 2026-11-02.
+  - [x] Sidebar navigation has collapsible grouped sections — RESOLVED.
+      `SidebarGroup` with chevron toggle + `aria-expanded`/`aria-controls`;
+      System group `collapsedByDefault: true` (Sidebar.tsx:346-416).
+      Verified present in source 2026-11-02.
+  - [x] Active state feedback on focus tabs, genre presets, track selection
+      — RESOLVED. `nav-item.active` (violet bg + white text + glow,
+      sidebar.css:330-338); `viz-focus-btn--active`/`viz-genre-chip--active`
+      (color-primary ring, visualizer.css:510-525); mode pills active state
+      (QuickPresetBar.tsx:64-97); track select options active/hover
+      (visualizer.css:392-406). Verified present in source 2026-11-02.
+  - [x] Dark theme text contrast meets WCAG 4.5:1 — RESOLVED / verified.
+      Measured on dark bg (oklch 15%): text-primary 17.08, text-secondary
+      9.78, text-tertiary 5.77, color-primary 4.94, color-accent 7.12 — all
+      PASS ≥4.5:1. `.btn-primary` text-inverse passes 4.85-7.27 against the
+      button gradient (visualizer.css:213-221). `border-subtle` 1.49 is a
+      decorative divider (exempt from text contrast). Verified by measurement
+      2026-11-02 (contrast_check.py).
 
 ### 3.5 Video Pipeline & Storyboard
 

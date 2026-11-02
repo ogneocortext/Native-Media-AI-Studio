@@ -40,7 +40,10 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import numpy as np
 
@@ -812,6 +815,7 @@ class SunoEnhancer:
         self,
         stems_dir: str | Path,
         output_dir: str | Path | None = None,
+        progress_cb: Callable[[float, str], None] | None = None,
     ) -> EnhanceResult:
         """Run the full 10-step pipeline on a Demucs output directory."""
         steps: list[dict[str, Any]] = []
@@ -831,6 +835,13 @@ class SunoEnhancer:
         loaded: dict[str, np.ndarray] = {}
         sr = 22050
 
+        # Progress reporting across the enhance chain (max step 19).
+        _max_step = 19
+
+        def _report(step_num: int, step_name: str) -> None:
+            if progress_cb is not None:
+                progress_cb(step_num / _max_step, step_name)
+
         # -- Step 1: Load stems ----------------------------------------------
         try:
             for name in stem_names:
@@ -842,6 +853,7 @@ class SunoEnhancer:
                     y = await asyncio.to_thread(librosa.resample, y, loaded_sr, sr)
                 loaded[name] = y.astype(np.float32)
             steps.append({"step": 1, "name": "load", "stems": list(loaded.keys())})
+            _report(1, "load")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"load failed: {exc}")
 
@@ -879,6 +891,7 @@ class SunoEnhancer:
                 )
                 loaded[name] = filtered
             steps.append({"step": 2, "name": "pre_highpass", "cutoff_hz": adaptive_hp})
+            _report(2, "pre_highpass")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"pre_highpass failed: {exc}")
 
@@ -887,6 +900,7 @@ class SunoEnhancer:
             for name, y in loaded.items():
                 loaded[name] = _lufs_gain_stage(y, target_lufs=-14.0)
             steps.append({"step": 3, "name": "lufs_gain_stage", "target_lufs": -14.0})
+            _report(3, "lufs_gain_stage")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"lufs_gain_stage failed: {exc}")
 
@@ -895,6 +909,7 @@ class SunoEnhancer:
             for name, y in loaded.items():
                 loaded[name] = _normalize_peak(y, self.config.target_peak_dbfs)
             steps.append({"step": 4, "name": "normalize", "peak_dbfs": self.config.target_peak_dbfs})
+            _report(4, "normalize")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"normalize failed: {exc}")
 
@@ -922,6 +937,7 @@ class SunoEnhancer:
                         ))
                 loaded[name] = np.stack(chans, axis=0)
             steps.append({"step": 5, "name": "stem_processing", "vocal_expander": self.config.vocal_expander})
+            _report(5, "stem_processing")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"stem_processing failed: {exc}")
 
@@ -937,8 +953,10 @@ class SunoEnhancer:
                 ) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = deessed
                 steps.append({"step": 6, "name": "deess", "target": "vocals", "freq_hz": self.config.deess_freq_hz})
+                _report(6, "deess")
             else:
                 steps.append({"step": 6, "name": "deess", "skipped": True})
+                _report(6, "deess")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"deess failed: {exc}")
 
@@ -963,8 +981,10 @@ class SunoEnhancer:
                 ) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = comped
                 steps.append({"step": 7, "name": "karrra_vocal_chain", "air_boost_db": self.config.air_boost_gain_db})
+                _report(7, "karrra_vocal_chain")
             else:
                 steps.append({"step": 7, "name": "karrra_vocal_chain", "skipped": True})
+                _report(7, "karrra_vocal_chain")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"karrra_vocal_chain failed: {exc}")
 
@@ -981,6 +1001,7 @@ class SunoEnhancer:
                 if y.ndim >= 2 and y.shape[0] >= 2:
                     loaded[name] = _stereo_widen(y, self.config.stereo_widen_amount)
             steps.append({"step": 8, "name": "stereo_widen", "amount": self.config.stereo_widen_amount})
+            _report(8, "stereo_widen")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"stereo_widen failed: {exc}")
 
@@ -991,8 +1012,10 @@ class SunoEnhancer:
                 gated = np.stack([_spectral_gate(vocals[c], sr, threshold_db=self.config.vocal_spectral_gate_threshold_db) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = gated
                 steps.append({"step": 9, "name": "vocal_spectral_gate", "threshold_db": self.config.vocal_spectral_gate_threshold_db})
+                _report(9, "vocal_spectral_gate")
             else:
                 steps.append({"step": 9, "name": "vocal_spectral_gate", "skipped": True})
+                _report(9, "vocal_spectral_gate")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"vocal_spectral_gate failed: {exc}")
 
@@ -1003,8 +1026,10 @@ class SunoEnhancer:
                 tamed = np.stack([_dynamic_eq_tame_harshness(vocals[c], sr, max_reduction_db=self.config.vocal_dynamic_eq_max_reduction_db) for c in range(vocals.shape[0])], axis=0)
                 loaded["vocals"] = tamed
                 steps.append({"step": 10, "name": "vocal_dynamic_eq", "freq_hz": 3200.0, "max_reduction_db": self.config.vocal_dynamic_eq_max_reduction_db})
+                _report(10, "vocal_dynamic_eq")
             else:
                 steps.append({"step": 10, "name": "vocal_dynamic_eq", "skipped": True})
+                _report(10, "vocal_dynamic_eq")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"vocal_dynamic_eq failed: {exc}")
 
@@ -1014,6 +1039,7 @@ class SunoEnhancer:
                 for name, y in loaded.items():
                     loaded[name] = _parallel_weight_bus(y, self.config.parallel_weight_bus_db)
                 steps.append({"step": 11, "name": "parallel_weight_bus", "attenuation_db": self.config.parallel_weight_bus_db})
+                _report(11, "parallel_weight_bus")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"parallel_weight_bus failed: {exc}")
 
@@ -1041,6 +1067,7 @@ class SunoEnhancer:
                         other_y[:min_len] = pocket[0, :min_len]
                     loaded["other"] = other_y
                 steps.append({"step": 12, "name": "sidechain_pocket_eq", "freq_hz": 3000.0})
+                _report(12, "sidechain_pocket_eq")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"sidechain_pocket_eq failed: {exc}")
 
@@ -1057,6 +1084,7 @@ class SunoEnhancer:
                     )
                 loaded[name] = send_target
             steps.append({"step": 13, "name": "fx_sends", "reverb_mix": self.config.reverb_mix, "delay_mix": self.config.delay_mix, "vocals_excluded": True})
+            _report(13, "fx_sends")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"fx_sends failed: {exc}")
 
@@ -1064,6 +1092,7 @@ class SunoEnhancer:
         try:
             mixed = await asyncio.to_thread(self._mix_stems, loaded, sr)
             steps.append({"step": 14, "name": "mix", "method": "auto_level"})
+            _report(14, "mix")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"mix failed: {exc}")
 
@@ -1080,6 +1109,7 @@ class SunoEnhancer:
                     "name": "high_end_drift_correction",
                     "max_boost_db": self.config.max_drift_boost_db,
                 })
+                _report(15, "high_end_drift_correction")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"drift_correction failed: {exc}")
 
@@ -1100,7 +1130,8 @@ class SunoEnhancer:
                 steps.append({"step": 16, "name": "reference_match",
                               "reference": self.config.reference_track,
                               "strength": self.config.reference_match_strength,
-                              "profile": describe_profile(ref_profile)})
+                               "profile": describe_profile(ref_profile)})
+                _report(16, "reference_match")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"reference_match failed: {exc}")
 
@@ -1108,6 +1139,7 @@ class SunoEnhancer:
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
             steps.append({"step": 17, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
+            _report(17, "limiter")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"limiter failed: {exc}")
 
@@ -1120,10 +1152,12 @@ class SunoEnhancer:
                 wav_path = output_dir / f"{base_name}_enhanced.wav"
                 await asyncio.to_thread(self._write_wav, wav_path, mixed, sr)
                 steps.append({"step": 18, "name": "export_wav", "path": str(wav_path)})
+                _report(18, "export_wav")
             if self.config.output_format in ("mp3", "both"):
                 mp3_path = output_dir / f"{base_name}_enhanced.mp3"
                 await asyncio.to_thread(self._encode_mp3, wav_path or output_dir / f"{base_name}_enhanced.wav", mp3_path, mixed, sr)
                 steps.append({"step": 19, "name": "export_mp3", "path": str(mp3_path)})
+                _report(19, "export_mp3")
         except Exception as exc:
             return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=wav_path, mp3_path=mp3_path, steps=steps, error=f"export failed: {exc}")
 

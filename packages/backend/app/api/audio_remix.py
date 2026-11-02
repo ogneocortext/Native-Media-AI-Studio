@@ -262,8 +262,17 @@ async def _remix_build_handler(job: Job) -> dict[str, Any]:
     recipe = _recipe_from_request(recipe_data)
     recipe.validate()
 
+    loop = asyncio.get_running_loop()
+
+    def _progress(frac: float, message: str) -> None:
+        # Called from a worker thread (render_remix runs via to_thread).
+        # Schedule the async job update on the running event loop.
+        asyncio.run_coroutine_threadsafe(
+            queue_manager.update_job(job.id, progress=frac, message=message), loop
+        )
+
     # render_remix is CPU-bound (numpy/soundfile); run off the event loop.
-    result = await asyncio.to_thread(render_remix, recipe, overwrite)
+    result = await asyncio.to_thread(render_remix, recipe, overwrite, progress_cb=_progress)
 
     return {
         "name": result.name,
@@ -305,7 +314,15 @@ async def _remix_enhance_handler(job: Job) -> dict[str, Any]:
     )
 
     enhancer = SunoEnhancer(config=cfg)
-    result = await enhancer.enhance_stems(remix_path, remix_path / "enhanced")
+
+    loop = asyncio.get_running_loop()
+
+    def _progress(frac: float, message: str) -> None:
+        loop.create_task(
+            queue_manager.update_job(job.id, progress=frac, message=message)
+        )
+
+    result = await enhancer.enhance_stems(remix_path, remix_path / "enhanced", progress_cb=_progress)
 
     if not result.success:
         return {
@@ -364,12 +381,20 @@ async def _remotion_render_handler(job: Job) -> dict[str, Any]:
 
         output_path = str(PROJECT_ROOT / "output" / "remotion" / f"{composition_id}.mp4")
 
+    loop = asyncio.get_running_loop()
+
+    def _progress(frac: float, message: str) -> None:
+        loop.create_task(
+            queue_manager.update_job(job.id, progress=frac, message=message)
+        )
+
     result = await remotion_cli.render(
         composition_id=composition_id,
         output_path=output_path,
         props=props,
         codec=codec,
         concurrency=concurrency,
+        progress_cb=_progress,
     )
     return result
 

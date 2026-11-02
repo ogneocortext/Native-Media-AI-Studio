@@ -28,7 +28,11 @@ been split into focused modules:
 - ``native_opens.py`` -- Native app open logging
 """
 
+# ruff: noqa: E402  # re-export shim: imports grouped by category, functions delegate
+
 from __future__ import annotations
+
+import app.core.connection as _connection_module
 
 # Re-export audio CRUD
 from .audio import (
@@ -51,20 +55,48 @@ from .benchmark import (
 # Re-export connection management
 from .connection import (
     BUSY_TIMEOUT_MS,
-    DB_PATH,
     MAX_POOLED_CONNECTIONS,
     SCHEMA_VERSION,
     _local,
+    _resolve_db_path,
     async_get_db,
     checkpoint_wal,
     close_pooled_connections,
     get_connection,
     get_connection_unpooled,
-    get_db,
     release_connection,
     run_db_sync,
     safe_vacuum,
 )
+
+#: Database file path. Defined independently here so that monkeypatching
+#: ``database.DB_PATH`` in tests actually takes effect. ``get_db`` and
+#: ``init_db`` below sync it into the connection module before delegating.
+DB_PATH = _resolve_db_path()
+
+
+def get_db():
+    """Context manager yielding a pooled connection using ``database.DB_PATH``.
+
+    Syncs ``connection.DB_PATH`` with ``database.DB_PATH`` before delegating,
+    so that monkeypatching ``database.DB_PATH`` (as tests do) actually
+    redirects the connection to the throwaway database.
+    """
+    _connection_module.DB_PATH = DB_PATH
+    return _connection_module.get_db()
+
+
+def init_db(db_path=None):
+    """Initialize database tables and run migrations using ``database.DB_PATH``.
+
+    Syncs ``connection.DB_PATH`` before delegating, so monkeypatching
+    ``database.DB_PATH`` works correctly.
+    """
+    if db_path is None:
+        db_path = DB_PATH
+    _connection_module.DB_PATH = db_path
+    return _migrations_init_db(db_path)
+
 
 # Re-export GPU telemetry
 from .gpu import (
@@ -143,8 +175,10 @@ from .migrations import (
     _migrate_v18,
     _migrate_v19,
     get_schema_version,
-    init_db,
     set_schema_version,
+)
+from .migrations import (
+    init_db as _migrations_init_db,
 )
 
 # Re-export models

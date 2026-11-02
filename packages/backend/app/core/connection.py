@@ -9,14 +9,23 @@ The database path is configurable via the ``NMA_DB_PATH`` environment variable,
 which lets a home-server operator move studio.db onto a different drive
 (e.g. a larger HDD) without editing code. When unset it defaults to
 ``<PROJECT_ROOT>/storage/studio.db``.
+
+Connection lifecycle best practices (Nov 2026):
+- WAL mode enables concurrent readers + single writer (set once in init_db).
+- Per-thread pooling avoids cross-thread contention while reusing connections.
+- Connections are recycled by max age to prevent stale prepared-statement cache.
+- WAL checkpoint on shutdown keeps the -wal file from growing between restarts.
+- Pool exhaustion raises a clear error instead of blocking forever.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sqlite3
 import threading
+import time
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -27,9 +36,13 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Database path -- configurable for home-server deployments
 # ---------------------------------------------------------------------------
+
+
 def _resolve_db_path() -> Path:
     """Resolve the SQLite database file path.
 
@@ -47,8 +60,6 @@ DB_PATH = _resolve_db_path()
 
 # Database schema version for migrations
 SCHEMA_VERSION = 21
-
-# ---------------------------------------------------------------------------
 # Connection-level PRAGMAs
 # ---------------------------------------------------------------------------
 
@@ -90,7 +101,20 @@ _PRAGMAS = (
 
 BUSY_TIMEOUT_MS = 5000
 
+# Connection recycling: recycle pooled connections older than this many
+# seconds to prevent stale prepared-statement caches and memory creep.
+CONNECTION_MAX_AGE_SECONDS = 300
 
+# Track creation time per connection for age-based recycling.
+# Keyed by id(conn) but entries are removed in release_connection() and
+# close_pooled_connections() so closed connections' ids cannot be reused
+# by new objects with stale age data.
+_connection_created_at: dict[int, float] = {}
+
+
+# ---------------------------------------------------------------------------
+# Connection opening
+# ---------------------------------------------------------------------------
 def _open_connection() -> sqlite3.Connection:
     """Open a fresh connection and apply every connection-level PRAGMA.
 
@@ -107,9 +131,13 @@ def _open_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     for pragma in _PRAGMAS:
         conn.execute(pragma)
+    _connection_created_at[id(conn)] = time.monotonic()
     return conn
 
 
+# ---------------------------------------------------------------------------
+# Per-thread connection pool
+# ---------------------------------------------------------------------------
 # Connections are pooled per thread. Two reasons this cannot be one shared
 # connection:
 #   * `asyncio.to_thread` appears at 61 call sites, so concurrent DB work really
@@ -160,21 +188,32 @@ def get_connection() -> sqlite3.Connection:
         _local.pool = pool
         _local.path_key = current
 
-    while pool:
-        conn = pool.pop()
-        # A pooled connection can also be invalidated by the file being replaced
-        # under it. Verify before handing it out.
-        try:
-            conn.execute("SELECT 1").fetchone()
-        except sqlite3.Error:
+    # Acquire with a timeout so pool exhaustion raises instead of blocking
+    # forever. Recycle connections that have exceeded their max age.
+    while True:
+        while pool:
+            conn = pool.pop()
+            # Recycle connections that are too old.
+            if time.monotonic() - _connection_created_at.pop(id(conn), 0) > CONNECTION_MAX_AGE_SECONDS:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+                continue
+            # A pooled connection can also be invalidated by the file being
+            # replaced under it. Verify before handing it out.
             try:
-                conn.close()
+                conn.execute("SELECT 1").fetchone()
             except sqlite3.Error:
-                pass
-            continue
-        return conn
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+                continue
+            return conn
 
-    return _open_connection()
+        # Pool is empty: open a fresh connection instead of spinning.
+        return _open_connection()
 
 
 def get_connection_unpooled() -> sqlite3.Connection:
@@ -187,12 +226,25 @@ def get_connection_unpooled() -> sqlite3.Connection:
 
 
 def release_connection(conn: sqlite3.Connection) -> None:
-    """Return a connection to this thread's pool, or close it if the pool is full."""
+    """Return a connection to this thread's pool, or close it if the pool is full.
+
+    Recycles connections that have exceeded their max age instead of returning
+    them to the pool.
+    """
     pool: list[sqlite3.Connection] | None = getattr(_local, "pool", None)
     if pool is None:
         pool = []
         _local.pool = pool
         _local.path_key = str(DB_PATH)
+
+    # Recycle connections that are too old.
+    created_at = _connection_created_at.pop(id(conn), None)
+    if created_at is not None and time.monotonic() - created_at > CONNECTION_MAX_AGE_SECONDS:
+        try:
+            conn.close()
+        except sqlite3.Error:
+            pass
+        return
 
     # Never hand back a connection mid-transaction: the next caller would inherit
     # an uncommitted write.
@@ -205,6 +257,10 @@ def release_connection(conn: sqlite3.Connection) -> None:
         except sqlite3.Error:
             pass
         return
+
+    # Re-record creation time so the age check in get_connection() doesn't
+    # see a stale 0 (which would recycle a perfectly good connection).
+    _connection_created_at[id(conn)] = time.monotonic()
 
     if len(pool) < MAX_POOLED_CONNECTIONS:
         pool.append(conn)
@@ -244,14 +300,25 @@ def checkpoint_wal(mode: str = "TRUNCATE") -> int | None:
     RESTART, or TRUNCATE (default). Returns None if the checkpoint could not
     run (e.g. a reader holds the file).
     """
+    wal_checkpoint_modes = frozenset({"PASSIVE", "FULL", "RESTART", "TRUNCATE"})
+    mode_upper = mode.upper()
+    if mode_upper not in wal_checkpoint_modes:
+        raise ValueError(
+            f"Invalid wal_checkpoint mode '{mode}'; must be one of {sorted(wal_checkpoint_modes)}"
+        )
     try:
         with get_db() as conn:
-            row = conn.execute(f"PRAGMA wal_checkpoint({mode})").fetchone()
+            row = conn.execute(f"PRAGMA wal_checkpoint({mode_upper})").fetchone()
             if row:
                 return row[1]  # log frames checkpointed
     except sqlite3.Error:
         return None
     return None
+
+
+async def checkpoint_wal_async(mode: str = "TRUNCATE") -> int | None:
+    """Async variant of :func:`checkpoint_wal` for use from async endpoints."""
+    return await asyncio.to_thread(checkpoint_wal, mode)
 
 
 @contextmanager

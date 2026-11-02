@@ -164,13 +164,14 @@ def get_gpu_stats(since_ms: int | None = None) -> dict:
 def cleanup_old_gpu_telemetry(keep_days: int = 14, *, vacuum: bool = True) -> int:
     """Purge points older than keep_days. Returns deleted count."""
     cutoff_ms = int((_time.time() - keep_days * 86400) * 1000)
+    deleted = 0
     with get_db() as conn:
         cur = conn.execute("DELETE FROM gpu_telemetry WHERE ts_ms < ?", (cutoff_ms,))
         deleted = cur.rowcount
         if deleted and vacuum and deleted >= 500:
-            from .connection import safe_vacuum
-
-            safe_vacuum(conn)
+            # VACUUM cannot run inside a transaction; commit first, then vacuum
+            conn.commit()
+            conn.execute("VACUUM")
 
     if deleted:
         import logging as _logging

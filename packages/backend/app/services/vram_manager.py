@@ -109,8 +109,12 @@ class VRAMManager:
         model is resident when it isn't (or vice versa).  On an 8 GB card a
         wrong assumption means a ~10.8 GB OOM (gemma4 ~6 GB + qwen3.5 ~4.8 GB).
         """
-        resident = await _fetch_resident_models()
-        self._ollama_loaded, self._atomic_chat_loaded = classify_resident_models(resident)
+        try:
+            resident = await _fetch_resident_models()
+            self._ollama_loaded, self._atomic_chat_loaded = classify_resident_models(resident)
+        except Exception as exc:
+            logger.warning("VRAM resident state sync failed: %s", exc)
+            # Leave flags unchanged on failure - safer than assuming wrong state
 
     def set_queue_provider(
         self, provider: Callable[[], Awaitable[list[Any]]] | None
@@ -158,7 +162,7 @@ class VRAMManager:
             self._gpustat_available = True
             logger.info("VRAM Manager: GPU monitoring enabled via gpustat")
         except ImportError:
-            pass
+            self._gpustat_available = False
 
         try:
             import pynvml
@@ -167,7 +171,8 @@ class VRAMManager:
             if not self._gpustat_available:
                 logger.info("VRAM Manager: GPU monitoring enabled via pynvml")
         except Exception as e:
-            if not self._gpustat_available:
+            self._nvml_available = False
+            if not getattr(self, '_gpustat_available', False):
                 logger.warning("VRAM Manager: GPU monitoring not available: %s", e)
 
     @property
@@ -1113,7 +1118,7 @@ class VRAMManager:
             # Under-counting VRAM here is the safe direction to fail: we would
             # warn a little early rather than over-commit. Log it so a broken
             # provider is visible instead of silent.
-            logger.debug("VRAM reservation from queue unavailable: %s", exc)
+            logger.warning("VRAM reservation from queue unavailable: %s", exc)
 
         total_required = required_mb + queued_reservation
         result: dict[str, Any] = {
@@ -1286,6 +1291,21 @@ class VRAMManager:
                 "atomic_chat_loaded": self._atomic_chat_loaded,
             }
 
+    async def shutdown(self) -> None:
+        """Shut down NVML and release GPU handles.
+
+        Called on app shutdown to avoid leaking the NVML handle across
+        process restarts.
+        """
+        if self._nvml_available:
+            try:
+                import pynvml
+                pynvml.nvmlShutdown()
+                self._nvml_available = False
+                logger.debug("VRAM Manager: NVML shutdown complete")
+            except Exception as exc:
+                logger.debug("VRAM Manager: NVML shutdown failed: %s", exc)
+
 
 vram_manager = VRAMManager()
 
@@ -1296,6 +1316,7 @@ __all__ = [
     "VRAMManager",
     "vram_manager",
     "set_last_model_provider",
+    "set_last_atomic_chat_model_provider",
     "set_last_atomic_chat_model_provider",
     "_reload_ollama_models_sync",
     "_unload_ollama_models",

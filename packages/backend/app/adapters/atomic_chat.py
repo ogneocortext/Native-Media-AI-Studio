@@ -201,7 +201,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         Returns True only when both succeed.
         """
         if not self.base_url or self.base_url == "mock://internal":
-            self.set_status(AdapterStatus.CONNECTED)
+            self.set_status(AdapterStatus.AVAILABLE)
             return True
         try:
             session = await self._get_session()
@@ -243,10 +243,10 @@ Generate 3-8 scenes based on the input theme or concept."""
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:
-                    if self._status != AdapterStatus.CONNECTED:
+                    if self._status != AdapterStatus.AVAILABLE:
                         logger.info("Atomic Chat is now online (%d models available)", len(models))
                     self._last_health_log = None
-                    self.set_status(AdapterStatus.CONNECTED)
+                    self.set_status(AdapterStatus.AVAILABLE)
                     return True
                 reason = f"/v1/chat/completions returned HTTP {resp.status}"
                 if self._last_health_log != reason:

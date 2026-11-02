@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .adapter_base import AdapterBase, AdapterStatus, _handle_adapter_error  # noqa: F401
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+from .adapter_base import AdapterBase, AdapterStatus, _handle_adapter_error  # noqa: F401  # type: ignore[reportUnusedImport]
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +101,7 @@ class BaseAdapter(AdapterBase):
         # Require real service to be healthy
         healthy = await self.health_check()
         if not healthy:
-            self.set_status(AdapterStatus.DISCONNECTED)
+            self.set_status(AdapterStatus.OFFLINE)
             raise RuntimeError(
                 f"{self.name} unavailable at {self.base_url}. "
                 f"Start the service or set MOCK_GENERATION=true for placeholder output."
@@ -107,7 +110,7 @@ class BaseAdapter(AdapterBase):
         try:
             result = await self.generate(params)
             self.record_activity()
-            self.set_status(AdapterStatus.CONNECTED)
+            self.set_status(AdapterStatus.AVAILABLE)
             return result
         except Exception as e:
             self.set_status(AdapterStatus.ERROR)
@@ -124,3 +127,74 @@ class BaseAdapter(AdapterBase):
         so nothing is silent.
         """
         raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Activity tracking (stubs -- subclasses like OllamaAdapter/AtomicChatAdapter
+    # override with real implementations)
+    # ------------------------------------------------------------------
+
+    def set_activity(
+        self,
+        model: str,
+        task: str = "generate",
+        description: str = "",
+        timeout: float = 180,
+    ) -> None:
+        """Register that a model is actively processing a task."""
+        return None
+
+    def clear_activity(self, model: str) -> None:
+        """Mark a model's current task as complete."""
+        return None
+
+    def get_activity(self) -> dict[str, dict[str, Any]]:
+        """Get all currently active tasks."""
+        return {}
+
+    # ------------------------------------------------------------------
+    # Tool definitions (stub -- OllamaAdapter overrides)
+    # ------------------------------------------------------------------
+
+    def get_tool_definitions(self) -> list[dict[str, Any]]:
+        """Return the built-in tool definitions for this adapter."""
+        return []
+
+    # ------------------------------------------------------------------
+    # Chat (stub -- OllamaAdapter/AtomicChatAdapter override)
+    # ------------------------------------------------------------------
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        stream: bool = False,
+        think: bool | str | None = None,
+        format: Any | None = None,
+        keep_alive: str | int | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any] | AsyncIterator[dict[str, Any]]:
+        """Chat completion with tool calling support."""
+        raise NotImplementedError(f"{self.name} does not support chat")
+
+    # ------------------------------------------------------------------
+    # Tool execution (stub -- OllamaAdapter overrides)
+    # ------------------------------------------------------------------
+
+    async def execute_tool_call(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        tools_config: dict[str, Any],
+    ) -> str:
+        """Execute a tool call and return the result."""
+        raise NotImplementedError(f"{self.name} does not support tool execution")
+
+    # ------------------------------------------------------------------
+    # Submit-only (stub -- ComfyUIAdapter overrides)
+    # ------------------------------------------------------------------
+
+    async def submit_only(self, params: dict[str, Any]) -> str:
+        """Submit a generation job and return the prompt id immediately."""
+        raise NotImplementedError(f"{self.name} does not support submit_only")

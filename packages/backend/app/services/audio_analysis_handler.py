@@ -1,11 +1,13 @@
 """Audio analysis job handler for processing audio files and extracting features."""
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
 
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
+from ..queue.manager import queue_manager
 from ..services.audio_analyzer import AudioAnalyzer, AudioAnalyzerError
 
 logger = logging.getLogger(__name__)
@@ -68,9 +70,16 @@ class AudioAnalysisHandler:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
+            loop = asyncio.get_running_loop()
+
+            def _progress(frac: float, message: str) -> None:
+                loop.create_task(
+                    queue_manager.update_job(job.id, progress=frac, message=message)
+                )
+
             # Perform analysis
             result, json_path = self.analyzer.analyze_and_save(
-                str(audio_path), job_id=job.id
+                str(audio_path), job_id=job.id, progress_cb=_progress
             )
 
             return {

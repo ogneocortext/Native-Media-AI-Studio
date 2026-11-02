@@ -29,11 +29,15 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from ..core.config import PROJECT_ROOT
 
@@ -117,14 +121,19 @@ class RemotionCLI:
         concurrency: str | int = "auto",
         ffmpeg_log_level: str = "warning",
         should_cancel: object | None = None,  # placeholder for future coop cancellation
+        progress_cb: Callable[[float, str], None] | None = None,
     ) -> dict[str, Any]:
         """
         Render a Remotion composition to a video file.
 
         Runs ``npx remotion render <id> <out> --codec <codec>
         [--concurrency <n>] [--props <json>]`` inside the video-editor
-        directory. Runs off the event loop because esbuild + Chrome headless
-        are CPU-bound.
+        directory. Streams stderr for frame progress and invokes
+        ``progress_cb(frac, message)`` when parseable.
+
+        Runs off the event loop because esbuild + Chrome headless are
+        CPU-bound. On Windows with npx, uses a shell since npx.cmd is a
+        batch file.
 
         Returns a dict with ``output_path``, ``duration_sec`` (if measurable),
         ``command`` and ``exit_code``. Raises ``RemotionCLIError`` on failure.
@@ -161,39 +170,89 @@ class RemotionCLI:
             self.video_editor_dir,
         )
 
-        # CPU-bound Node work; run off the event loop.
-        def _run() -> subprocess.CompletedProcess:
-            # On Windows, npx resolves to npx.CMD (a batch file) which
-            # subprocess cannot exec directly; use shell=True so cmd.exe
-            # dispatches it. On Unix the local binary is a real executable.
-            use_shell = sys.platform == "win32" and not remotion_bin
-            if use_shell:
-                cmd_str = " ".join(f'"{c}"' if " " in c else c for c in cmd)
-                return subprocess.run(
-                    cmd_str,
-                    cwd=str(self.video_editor_dir),
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    shell=True,
-                    env={**os.environ, "CI": "1"},  # CI=1 avoids interactive prompts
-                )
-            return subprocess.run(
-                cmd,
+        env = {**os.environ, "CI": "1"}
+        use_shell = sys.platform == "win32" and not remotion_bin
+
+        if use_shell:
+            cmd_str = " ".join(f'"{c}"' if " " in c else c for c in cmd)
+            proc = await asyncio.create_subprocess_shell(
+                cmd_str,
                 cwd=str(self.video_editor_dir),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                env={**os.environ, "CI": "1"},  # CI=1 avoids interactive prompts
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        else:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=str(self.video_editor_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
 
+        # Stream stderr for frame progress (Remotion logs "frame X/Y" style lines)
+        frame_re = re.compile(r"frame\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
+        pct_re = re.compile(r"(\d{1,3})\s*%\s*(?:complete|done|rendered)", re.IGNORECASE)
+        last_prog = [0.0]
+
+        async def _read_stderr() -> None:
+            assert proc.stderr is not None
+            while True:
+                line = await proc.stderr.readline()
+                if not line:
+                    break
+                text = line.decode(errors="replace").strip()
+                if not text:
+                    continue
+                prog: float | None = None
+                msg = text
+                m = frame_re.search(text)
+                if m:
+                    cur, total = int(m.group(1)), int(m.group(2))
+                    if total > 0:
+                        prog = cur / total
+                        msg = f"Rendering frame {cur}/{total}"
+                if prog is None:
+                    m = pct_re.search(text)
+                    if m:
+                        pct = int(m.group(1))
+                        prog = pct / 100.0
+                        msg = f"Rendering {pct}%"
+                if prog is not None and progress_cb is not None:
+                    if prog - last_prog[0] >= 0.02:
+                        last_prog[0] = prog
+                        try:
+                            progress_cb(prog, msg)
+                        except Exception:
+                            logger.debug("remotion progress_cb raised", exc_info=True)
+
+        # The subprocess is already off the event loop; await it here so
+        # progress streaming runs concurrently.
         try:
-            proc = await asyncio.to_thread(_run)
+            await asyncio.gather(_read_stderr(), proc.wait())
         except Exception as exc:
-            raise RemotionCLIError(f"remotion render failed to start: {exc}") from exc
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            raise RemotionCLIError(f"remotion render failed: {exc}") from exc
+
+        # Collect remaining stdout/stderr for error reporting
+        stderr_text = ""
+        try:
+            if proc.stdout:
+                await proc.stdout.read()
+        except Exception:
+            pass
+        try:
+            if proc.stderr:
+                stderr_text = (await proc.stderr.read()).decode(errors="replace")
+        except Exception:
+            pass
 
         if proc.returncode != 0:
-            tail = proc.stderr[-2000:] if proc.stderr else ""
+            tail = stderr_text[-2000:] if len(stderr_text) > 2000 else stderr_text
             raise RemotionCLIError(f"remotion render exited {proc.returncode}: {tail}")
 
         # Probe output duration with ffprobe if available, else report 0.

@@ -44,7 +44,7 @@ STALE_JOB_MAX_AGE_SECONDS = 900
 STALE_JOB_REAP_INTERVAL_SECONDS = 60
 
 # How often (in seconds) to poll for cancellation while a handler runs.
-CANCELLATION_HEARTBEAT_INTERVAL = 5.0
+CANCELLATION_HEARTBEAT_INTERVAL = 2.0
 
 # ---------------------------------------------------------------------------
 # Error classification
@@ -133,6 +133,16 @@ class HandlerTimeoutError(RuntimeError):
 
     Deliberately **not** retryable: the same job, on the same 8GB card, will
     hit the same wall. Retrying burned up to four hours of queue time.
+    """
+
+
+class JobCancelledError(RuntimeError):
+    """Raised when a job is cancelled mid-execution.
+
+    Handlers that support cooperative cancellation should check
+    :meth:`queue_manager.is_cancelled` at safe checkpoints and raise this
+    to exit promptly. The processor catches it and marks the job CANCELLED
+    without retrying.
     """
 
 
@@ -339,10 +349,14 @@ class JobProcessor:
     async def _backoff_sleep(
         self, retry_count: int, base_seconds: float = 2.0, max_seconds: float = 60.0
     ) -> None:
-        """Exponential backoff with jitter for retries."""
+        """Exponential backoff with jitter for retries.
+
+        Jitter is applied as a fraction of the delay in [0, delay * 0.1]
+        so the total sleep never falls below the base delay.
+        """
         delay = min(base_seconds * (2**retry_count), max_seconds)
-        jitter = delay * 0.1  # 10% jitter
-        await asyncio.sleep(delay + (jitter * random.uniform(-0.5, 0.5)))
+        jitter = delay * 0.1 * random.random()  # 0-10% jitter, never negative
+        await asyncio.sleep(delay + jitter)
 
     async def _broadcast_progress(self, job: Job):
         """Broadcast job progress to SSE clients"""
@@ -406,13 +420,14 @@ class JobProcessor:
                 raise ValueError(f"No handler registered for job type: {job.job_type}")
 
             # Run the handler with a hard timeout so a hung adapter cannot
-            # stall the serial queue forever.
+            # stall the serial queue forever. Do NOT shield: cancellation must
+            # be able to reach the handler so a cancelled job actually stops.
             if inspect.iscoroutinefunction(handler):
                 handler_task = asyncio.create_task(handler(job))
                 watcher_task = asyncio.create_task(self._cancellation_watcher(job))
                 try:
                     result = await asyncio.wait_for(
-                        asyncio.shield(handler_task),
+                        handler_task,
                         timeout=HANDLER_TIMEOUT_SECONDS,
                     )
                 except TimeoutError:
@@ -455,6 +470,20 @@ class JobProcessor:
                 time.monotonic() - _job_started,
                 sorted(result.keys()) if isinstance(result, dict) else type(result).__name__,
             )
+
+        except JobCancelledError:
+            # Cooperative cancellation: mark the job CANCELLED without retrying.
+            # The handler checked the cancellation signal and exited promptly.
+            logger.warning("Job %s was cancelled cooperatively", job.id)
+            current = await queue_manager.get_job(job.id)
+            if current and current.status != JobStatus.CANCELLED:
+                await queue_manager.update_job(
+                    job.id,
+                    status=JobStatus.CANCELLED,
+                    message="Job cancelled",
+                    completed_at=datetime.now(),
+                )
+            return
 
         except Exception as e:
             error_msg = str(e)

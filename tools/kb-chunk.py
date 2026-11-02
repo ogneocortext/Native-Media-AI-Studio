@@ -110,7 +110,7 @@ BASE = REPO / "docs" / "knowledge-library"
 # structure-aware splitting; 400 is the middle of that band.
 DEFAULT_TARGET = 400
 
-FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", _re.DOTALL)
+FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)", re.DOTALL)
 
 # Chunks below this are merged into their neighbour: a heading with no body
 # becomes a content-free fragment, and "tiny-chunk merging" is the standard

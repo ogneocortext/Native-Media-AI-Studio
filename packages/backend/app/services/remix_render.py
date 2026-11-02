@@ -95,6 +95,7 @@ def _mix_recipe(
     recipe: RemixRecipe,
     cache: _SourceCache | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> tuple[dict[str, np.ndarray], dict[str, int], list[str], dict[str, float]]:
     """Render a recipe's slots into per-stem buffers, in memory.
 
@@ -146,6 +147,10 @@ def _mix_recipe(
             written += seg_n - xf
         previous = segment
         previous_n = seg_n
+        # Report per-slot progress (0.0 -> 1.0 across slots)
+        if progress_cb is not None:
+            frac = (index + 1) / len(recipe.slots)
+            progress_cb(frac, f"Mixing slot {index + 1} of {len(recipe.slots)}")
 
     assert written == total_n, f"write cursor {written} != planned length {total_n}"
 
@@ -267,6 +272,7 @@ def render_remix(
     *,
     overwrite: bool = True,
     should_cancel: Callable[[], bool] | None = None,
+    progress_cb: Callable[[float, str], None] | None = None,
 ) -> RemixResult:
     """Render a recipe to a four-stem directory under ``output/remixes/``.
 
@@ -282,7 +288,7 @@ def render_remix(
     from . import stem_remixer
 
     cache = stem_remixer._SourceCache(recipe.target_bpm)
-    mixed, plan, warnings, stretch_ratios = stem_remixer._mix_recipe(recipe, cache, should_cancel)
+    mixed, plan, warnings, stretch_ratios = stem_remixer._mix_recipe(recipe, cache, should_cancel, progress_cb)
     calibration = cache.calibration_report()
     for ref, rec in calibration.items():
         if rec["measured_lufs"] is None:

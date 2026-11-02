@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from fastapi import HTTPException
 
 from ..core.config import config
 from ..models.job import Job, JobStatus
@@ -46,15 +47,20 @@ def _get_go_dashboard_client() -> httpx.AsyncClient | None:
     return _go_dashboard_client
 
 
+#: Fire-and-forget tasks for go-dashboard broadcasts. Tracked so they can't
+#: be silently cancelled on loop close and so exceptions are surfaced.
+_go_dashboard_tasks: set[asyncio.Task] = set()
+
+
 async def _broadcast_to_go_dashboard(message: dict[str, Any]) -> None:
-    """Fire-and-forget POST to go-dashboard /publish."""
+    """POST to go-dashboard /publish (optional infra, failures are logged but not fatal)."""
     client = _get_go_dashboard_client()
     if client is None:
         return
     try:
         await client.post("/publish", json=message)
     except Exception:
-        pass  # go-dashboard is optional infra
+        logger.debug("go-dashboard broadcast failed (optional infra)", exc_info=True)
 
 
 class SSEManager:
@@ -81,25 +87,19 @@ class SSEManager:
         }
 
     async def connect(self) -> asyncio.Queue:
-        """Create a new SSE connection queue"""
+        """Create a new SSE connection queue.
+
+        Raises ``HTTPException(503)`` when at capacity instead of returning
+        an orphan queue that the caller may block on forever.
+        """
         queue = asyncio.Queue()
         async with self._lock:
             if len(self._active_connections) >= self._max_connections:
-                # Put a sentinel so the client gets a clean close message
-                await queue.put(
-                    {
-                        "id": "0",
-                        "data": json.dumps(
-                            self._format_message(
-                                "error",
-                                {"message": "Server at capacity, try again later"},
-                                priority="urgent",
-                            )
-                        ),
-                    }
-                )
                 logger.warning("SSE connection rejected: at capacity (%d)", self._max_connections)
-                return queue
+                raise HTTPException(
+                    status_code=503,
+                    detail="Server at capacity, try again later",
+                )
             self._active_connections.append(queue)
         logger.debug("SSE client connected. Active connections: %d", len(self._active_connections))
         return queue
@@ -147,8 +147,10 @@ class SSEManager:
                 if queue in self._active_connections:
                     self._active_connections.remove(queue)
 
-        # Fan out to go-dashboard without blocking the main path
-        asyncio.create_task(_broadcast_to_go_dashboard(message))
+        # Fan out to go-dashboard without blocking the main path.
+        task = asyncio.create_task(_broadcast_to_go_dashboard(message))
+        _go_dashboard_tasks.add(task)
+        task.add_done_callback(_go_dashboard_tasks.discard)
 
     async def get_replay_events(self, last_event_id: int) -> list[dict[str, Any]]:
         """Return events newer than last_event_id for client replay."""
@@ -217,6 +219,17 @@ class SSEManager:
     def connection_count(self) -> int:
         """Get number of active connections"""
         return len(self._active_connections)
+
+
+async def shutdown() -> None:
+    """Close the go-dashboard HTTP client on app shutdown."""
+    global _go_dashboard_client
+    if _go_dashboard_client is not None:
+        try:
+            await _go_dashboard_client.aclose()
+        except Exception:
+            logger.debug("go-dashboard client close failed", exc_info=True)
+        _go_dashboard_client = None
 
 
 # Global SSE manager

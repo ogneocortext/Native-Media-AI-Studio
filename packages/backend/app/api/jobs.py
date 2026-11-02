@@ -80,7 +80,7 @@ async def get_queue_metrics() -> QueueMetrics:
 
 
 @router.get("/dead-letter", response_model=list[Job])
-async def get_dead_letter(limit: int = 50) -> list[Job]:
+async def get_dead_letter(limit: int = Query(50, ge=1, le=500)) -> list[Job]:
     """List dead-lettered jobs (permanently failed after max retries)."""
     return await queue_manager.get_dead_letter_jobs(limit=limit)
 
