@@ -83,8 +83,10 @@ export const useJobStore = create<JobState>((set, get) => ({
 
   updateJob: (jobId: string, updates: Partial<Job>) => {
     set((state) => {
+      // structuredClone gives us a deep copy so nested objects (e.g. result)
+      // are never mutated by reference. November 2026 best practice.
       const updatedJobs = state.jobs.map((job) =>
-        job.id === jobId ? { ...job, ...updates } : job,
+        job.id === jobId ? structuredClone({ ...job, ...updates }) : job,
       );
       const updatedJob = updatedJobs.find((j) => j.id === jobId);
       const currentJob = updatedJob?.status === "running" ? updatedJob : state.currentJob;
@@ -109,10 +111,24 @@ export const useJobStore = create<JobState>((set, get) => ({
     try {
       await fetchPortConfig();
 
-      const [jobsData, statsData] = await Promise.all([fetchJobs(), fetchQueueStats()]);
+      // allSettled: one failed call doesn't abort the other — we refresh what
+      // we can and report the rest.
+      const [jobsResult, statsResult] = await Promise.allSettled([
+        fetchJobs(),
+        fetchQueueStats(),
+      ]);
 
-      get().setJobs(jobsData);
-      get().setStats(statsData);
+      if (jobsResult.status === "fulfilled") {
+        get().setJobs(jobsResult.value);
+      } else {
+        console.error("[jobStore] fetchJobs failed:", jobsResult.reason);
+      }
+
+      if (statsResult.status === "fulfilled") {
+        get().setStats(statsResult.value);
+      } else {
+        console.error("[jobStore] fetchQueueStats failed:", statsResult.reason);
+      }
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "Failed to fetch jobs",

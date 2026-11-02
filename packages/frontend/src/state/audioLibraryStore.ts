@@ -71,14 +71,19 @@ let settled: Promise<void> | null = null;
 
 function buildEntries(files: readonly AudioLibraryFile[]): AudioLibraryEntry[] {
   const deduped = dedupeAudioFiles(files);
-  return deduped.map((file) => ({
-    ...file,
-    displayName: audioEntryLabel(file),
-    // Compare against the full deduped set so the label does not depend on
-    // which subset of the library a given selector happens to render.
-    optionLabel: audioOptionLabel(file, deduped),
-    ref: audioRefFor(file),
-  }));
+  return deduped.map((file) =>
+    // structuredClone deep-copies the file so the entry object is fully
+    // independent from the original array element (November 2026 best
+    // practice for immutable state updates).
+    structuredClone({
+      ...file,
+      displayName: audioEntryLabel(file),
+      // Compare against the full deduped set so the label does not depend on
+      // which subset of the library a given selector happens to render.
+      optionLabel: audioOptionLabel(file, deduped),
+      ref: audioRefFor(file),
+    }),
+  );
 }
 
 export const useAudioLibraryStore = create<AudioLibraryState>()((set) => {

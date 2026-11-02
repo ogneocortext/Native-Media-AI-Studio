@@ -172,8 +172,12 @@
   font-weight: 600;
 }
 
-/* ===== BUTTONS ===== */
-.btn {
+/* ===== BUTTONS =====
+   Buttons use :where() so their base specificity is zero — any
+   class or ID can override them without fighting !important.
+   November 2026 best practice: :where() for utility classes.
+*/
+:where(.btn) {
   padding: 10px 18px;
   border-radius: var(--radius-md);
   font-weight: 600;
@@ -314,8 +318,62 @@
   }
 }
 
-/* ===== INPUTS ===== */
-.input {
+/* ===== :has() STATE-BASED PARENT STYLING =====
+   Style a card when any interactive child is focused or hovered.
+   November 2026 best practice: :has() eliminates JS state tracking
+   for hover/focus states. */
+.card:has(:hover, :focus-within) {
+  border-color: color-mix(in oklch, var(--color-primary) 50%, transparent);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  transform: translateY(-2px);
+}
+
+/* Style a row when its toggle switch is checked */
+.row:has(.peer-checked) {
+  background: color-mix(in oklch, var(--color-primary) 5%, transparent);
+  border-left: 3px solid var(--color-primary);
+}
+
+/* ===== VIEW TRANSITIONS =====
+   November 2026 best practice: view transitions give smooth page
+   navigation without a full framework router. Chrome 125+ supports
+   view transitions natively; other browsers fall back gracefully
+   (the default instant swap). */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Slide transition between pages — applied only when both old and new
+   pages opt in via view-transition-name. */
+.view-transition-name-old,
+::view-transition-old(root) {
+  animation: fade-out var(--duration-normal) var(--ease-out);
+}
+.view-transition-name-new,
+::view-transition-new(root) {
+  animation: fade-in var(--duration-normal) var(--ease-out);
+}
+
+@keyframes fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== INPUTS & SELECTS =====
+   :where() keeps specificity at zero so these utilities can be overridden
+   by any class or ID without !important. November 2026 best practice. */
+:where(.input) {
   padding: 12px 16px;
   border-radius: var(--radius-md);
   background: var(--bg-primary);
@@ -336,13 +394,15 @@
   }
 }
 
-.select {
+:where(select) {
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  background: var(--bg-primary);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   inline-size: 100%;
+  font-weight: 500;
+  font-size: 15px;
   cursor: pointer;
   transition:
     color,
@@ -367,13 +427,6 @@
    (near-black) inside fixed-dark toolbars like the Media Library sort
    table, rendering the selected label invisible. Inhheriting the app's
    data-theme scheme also colors the native popup to match the theme. */
-select {
-  background-color: var(--bg-elevated);
-  color: var(--text-primary);
-  font-weight: 500;
-  font-size: 15px;
-}
-
 option {
   background-color: var(--bg-elevated);
   color: var(--text-primary);

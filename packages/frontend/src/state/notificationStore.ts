@@ -113,28 +113,28 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (existing) => groupKeyFor(existing.type || "", existing.data) === gkey,
         );
         if (replacedIdx >= 0) {
-          const updated = { ...item, id: items[replacedIdx].id };
-          items = [
-            updated,
-            ...items.filter(
-              (existing, index) =>
-                index !== replacedIdx &&
-                groupKeyFor(existing.type || "", existing.data) !== gkey &&
-                existing.id !== item.id,
-            ),
-          ];
+          // Immutable update at index (ES2023 .with()) — no splice/mutation.
+          items = items
+            .map((existing, index) =>
+              index === replacedIdx
+                ? { ...item, id: items[replacedIdx].id }
+                : existing,
+            )
+            .filter(
+              (existing) =>
+                groupKeyFor(existing.type || "", existing.data) !== gkey ||
+                existing.id === item.id,
+            );
         } else {
-          items = [item, ...items.filter((existing) => existing.id !== item.id)];
-        }
-      } else {
-        // Same id arriving again (reconnect replay, history reload) must
-        // update the existing row, never append a duplicate key.
-        const idx = items.findIndex((existing) => existing.id === item.id);
-        if (idx >= 0) {
-          const updated = { ...item, id: items[idx].id };
-          items = [updated, ...items.filter((_, i) => i !== idx)];
-        } else {
-          items = [item, ...items];
+          // Same id arriving again (reconnect replay, history reload) must
+          // update the existing row, never append a duplicate key.
+          const idx = items.findIndex((existing) => existing.id === item.id);
+          if (idx >= 0) {
+            const updated = { ...item, id: items[idx].id };
+            items = [updated, ...items.filter((_, i) => i !== idx)];
+          } else {
+            items = [item, ...items];
+          }
         }
       }
       items = items.slice(0, MAX_HISTORY);

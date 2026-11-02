@@ -20,7 +20,157 @@
     /* Inform the browser which color schemes we support */
     color-scheme: light dark;
 
+    /* === Animated custom properties (typed via @property) ===
+       Registering these lets browsers animate them smoothly and
+       validates values at parse time — invalid declarations are
+       dropped instead of silently ignored. */
+    @property --color-primary {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(55% 0.22 260);
+    }
+    @property --color-accent {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(65% 0.25 310);
+    }
+    @property --color-cyan {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(70% 0.15 200);
+    }
+    @property --color-danger {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(55% 0.22 25);
+    }
+    @property --color-success {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(70% 0.15 145);
+    }
+    @property --color-warning {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(80% 0.15 85);
+    }
+    @property --color-info {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(70% 0.15 200);
+    }
+    @property --color-muted {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(40% 0 0), oklch(76% 0.004 260));
+    }
+    @property --color-surface {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(97% 0 0), oklch(20% 0.012 260));
+    }
+    @property --color-background {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(99% 0 0), oklch(15% 0.012 260));
+    }
+    @property --color-foreground {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(15% 0 0), oklch(93% 0.004 260));
+    }
+    @property --color-border {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(88% 0 0), oklch(30% 0 0 260));
+    }
+    @property --color-border-subtle {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(95% 0 0), oklch(25% 0 0 260));
+    }
+    @property --color-link {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(55% 0.22 260), oklch(78% 0.18 260));
+    }
+    @property --color-error-text {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(55% 0.22 25), oklch(72% 0.2 25));
+    }
+    @property --color-success-text {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(47% 0.15 145), oklch(78% 0.16 145));
+    }
+
+    @property --radius-md {
+      syntax: "<length>";
+      inherits: false;
+      initial-value: 10px;
+    }
+    @property --radius-sm {
+      syntax: "<length>";
+      inherits: false;
+      initial-value: 6px;
+    }
+    @property --radius-lg {
+      syntax: "<length>";
+      inherits: false;
+      initial-value: 16px;
+    }
+    @property --duration-normal {
+      syntax: "<time>";
+      inherits: false;
+      initial-value: 250ms;
+    }
+    @property --duration-fast {
+      syntax: "<time>";
+      inherits: false;
+      initial-value: 150ms;
+    }
+    @property --duration-slow {
+      syntax: "<time>";
+      inherits: false;
+      initial-value: 400ms;
+    }
+    @property --glow-primary {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(55% 0.22 260 / 0.35);
+    }
+    @property --glow-accent {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(65% 0.25 310 / 0.35);
+    }
+    @property --glow-cyan {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: oklch(70% 0.15 200 / 0.35);
+    }
+    @property --text-primary {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(15% 0 0), oklch(93% 0.004 260));
+    }
+    @property --text-secondary {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(40% 0 0), oklch(76% 0.004 260));
+    }
+    @property --text-tertiary {
+      syntax: "<color>";
+      inherits: false;
+      initial-value: light-dark(oklch(55% 0 0), oklch(62% 0.004 260));
+    }
+
     /* === Primary palette (OKLCH for perceptual uniformity) === */
+    /* NOTE: These are redeclared after @property so Tailwind's @theme
+       block can consume them. The @property declarations above give
+       them type safety; these redeclarations keep the custom property
+       values in sync for direct use in CSS. */
     --color-primary: oklch(55% 0.22 260);
     --color-accent: oklch(65% 0.25 310);
     --color-cyan: oklch(70% 0.15 200);
