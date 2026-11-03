@@ -1205,17 +1205,26 @@ def main(argv=None):
         changed = set(changed_arg)
     run_selected = []
     skipped = []
+    _changed_temp_files: list[str] = []
     for g in selected:
         if changed is not None and not _gate_relevant(g, changed):
             skipped.append(g)
             continue
         run_selected.append(g)
-        if g.name == "docs" and changed:
-            # check-all.py scopes its checks internally via --changed.
-            g.argv = g.argv + ["--changed"] + sorted(changed)
-        if g.name == "glsl" and changed:
-            # check-glsl-compile.py scopes its scan via --changed.
-            g.argv = g.argv + ["--changed"] + sorted(changed)
+        if g.name in ("docs", "glsl") and changed:
+            # check-all.py / check-glsl-compile.py scope via --changed.
+            # Write changed paths to a temp file and pass it via
+            # --changed-from-file instead of as individual args: Windows'
+            # CreateProcessW command-line limit (32,767 chars) is easily
+            # exceeded by a large unpushed batch (e.g. a vendored package
+            # removal lists hundreds of deleted files).
+            fd, tmp_path = tempfile.mkstemp(
+                prefix="nma-changed-", suffix=".txt", text=True)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                for fpath in sorted(changed):
+                    f.write(fpath + "\n")
+            g.argv = g.argv + ["--changed-from-file", tmp_path]
+            _changed_temp_files.append(tmp_path)
 
     if not run_selected:
         available = ", ".join(g.name for g in all_gates)
@@ -1223,6 +1232,11 @@ def main(argv=None):
         if skipped:
             print("  (all selected gates skipped by --changed: "
                   + ", ".join(g.name for g in skipped) + ")")
+        for tmp_path in _changed_temp_files:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
         return 0
 
     # In JSON mode stdout must stay pure JSON, so the streamed lines AND the
@@ -1334,6 +1348,11 @@ def main(argv=None):
 
     # Exit code is the same in every output mode: --json used to fall through
     # to `return 0`, so a failing run looked green to any CI reading the code.
+    for tmp_path in _changed_temp_files:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
     return 1 if failed else 0
 
 

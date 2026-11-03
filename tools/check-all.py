@@ -318,12 +318,27 @@ def main():
     parser.add_argument("--changed", nargs="*", metavar="FILE",
                         help="only run checks that could be affected by these "
                              "changed file names (default: run every check)")
+    parser.add_argument("--changed-from-file", metavar="PATH",
+                        help="read changed file names from a file, one per "
+                             "line (used instead of --changed when the list "
+                             "is long enough to exceed the OS command-line "
+                             "limit); can be combined with --changed")
     parser.add_argument("--serial", action="store_true",
                         help="run checks sequentially instead of concurrently")
     args = parser.parse_args()
 
     verbose = args.verbose
     changed = set(args.changed) if args.changed else None
+    if args.changed_from_file:
+        try:
+            from_file = {
+                line.strip() for line in Path(args.changed_from_file).read_text(
+                    encoding="utf-8").splitlines() if line.strip()
+            }
+        except OSError as e:
+            print(f"could not read --changed-from-file {args.changed_from_file}: {e}", file=sys.stderr)
+            return 1
+        changed = from_file if changed is None else changed | from_file
     serial = args.serial
 
     # Categorise every check: run, skip as report-only, or skip due to
