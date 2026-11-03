@@ -33,8 +33,9 @@ requires_ffmpeg = pytest.mark.skipif(
     not FFMPEG, reason="ffmpeg not on PATH; master end-to-end skipped"
 )
 
-import app.services.mastering as mastering  # noqa: E402
 from scipy import signal as scipy_signal  # noqa: E402
+
+import app.services.mastering as mastering  # noqa: E402
 
 SR = 44100
 
@@ -133,7 +134,7 @@ def _presence_share(samples, sample_rate):
 def _response_db(design, freqs):
     b, a = design
     _, h = scipy_signal.freqz(b, a, worN=list(freqs), fs=SR)
-    return {f: float(20.0 * math.log10(abs(mag))) for f, mag in zip(freqs, h)}
+    return {f: float(20.0 * math.log10(abs(mag))) for f, mag in zip(freqs, h, strict=True)}
 
 
 def test_lowshelf_zero_gain_is_identity():
@@ -207,14 +208,14 @@ async def _run_finishing_master(tmp_path, **overrides):
     mastering.AUDIO_DIR = tmp_path
     mastering.MASTERED_DIR = tmp_path / "mastered"
     mastering.MASTERED_DIR.mkdir(parents=True, exist_ok=True)
-    kwargs = dict(
-        target_lufs=-14.0,
-        ceiling_dbtp=-1.0,
-        tone_fixes=True,
-        finishing=True,
-        sub_cut_db=3.0,
-        presence_db=2.5,
-    )
+    kwargs = {
+        "target_lufs": -14.0,
+        "ceiling_dbtp": -1.0,
+        "tone_fixes": True,
+        "finishing": True,
+        "sub_cut_db": 3.0,
+        "presence_db": 2.5,
+    }
     kwargs.update(overrides)
     report = await mastering.master_file("defect.m4a", **kwargs)
     assert report.get("error") is None, report.get("error")
