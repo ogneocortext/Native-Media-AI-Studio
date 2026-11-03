@@ -16,6 +16,36 @@ logger = logging.getLogger(__name__)
 OUTPUT_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+#: Tracked fire-and-forget background tasks so progress updates are not
+#: silently garbage-collected (asyncio holds only a weak reference to
+#: unowned tasks -- see Python 3.12+ docs on asyncio.create_task).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    """Schedule a fire-and-forget coroutine and keep it alive until done.
+
+    The returned task is held in a strong-reference set and removed via a
+    done callback. Any exception is logged instead of vanishing silently.
+    """
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+
+    def _on_done(t: asyncio.Task) -> None:
+        _background_tasks.discard(t)
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.error(
+                "audio_analysis.background_task_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
+    task.add_done_callback(_on_done)
+    return task
+
 
 class AudioAnalysisHandler:
     """
@@ -56,7 +86,7 @@ class AudioAnalysisHandler:
             - num_beats: Number of detected beats
             - num_onsets: Number of detected onsets
         """
-        params = job.params
+        params = job.params or {}
 
         # Get audio file path
         audio_path = params.get("audio_path")
@@ -72,7 +102,30 @@ class AudioAnalysisHandler:
         if not Path(audio_path).is_absolute():
             audio_path = PROJECT_ROOT / audio_path
 
-        if not Path(audio_path).exists():
+        # Confine to the output tree to block path traversal (../ escapes).
+        try:
+            audio_path = Path(audio_path).resolve()
+        except (OSError, ValueError) as exc:
+            structured_logger.error(
+                "audio_analysis.validation_failed",
+                job_id=job.id,
+                error="invalid_audio_path",
+                audio_path=str(audio_path),
+            )
+            raise ValueError(f"Invalid audio path: {audio_path}") from exc
+        if (
+            PROJECT_ROOT.resolve() not in audio_path.parents
+            and audio_path != PROJECT_ROOT.resolve()
+        ):
+            structured_logger.error(
+                "audio_analysis.validation_failed",
+                job_id=job.id,
+                error="path_traversal",
+                audio_path=str(audio_path),
+            )
+            raise ValueError(f"Audio path escapes project root: {audio_path}")
+
+        if not audio_path.exists():
             structured_logger.error(
                 "audio_analysis.validation_failed",
                 job_id=job.id,
@@ -88,12 +141,9 @@ class AudioAnalysisHandler:
         )
 
         try:
-            loop = asyncio.get_running_loop()
 
             def _progress(frac: float, message: str) -> None:
-                loop.create_task(
-                    queue_manager.update_job(job.id, progress=frac, message=message)
-                )
+                _spawn(queue_manager.update_job(job.id, progress=frac, message=message))
 
             # Perform analysis
             result, json_path = self.analyzer.analyze_and_save(

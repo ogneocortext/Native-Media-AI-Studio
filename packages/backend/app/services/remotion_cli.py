@@ -82,12 +82,13 @@ class RemotionCLI:
     # Discovery
     # ------------------------------------------------------------------
 
-    def _remotion_bin(self) -> str | None:
-        """Resolve the remotion CLI binary.
+    def remotion_bin(self) -> str | None:
+        """Resolve the remotion CLI binary (public accessor).
 
         On Windows the local ``node_modules/.bin/remotion`` is a Unix shell
         script (``#!/bin/sh``) that cannot be executed directly, so prefer
         ``npx remotion`` there. On Unix-like systems the local binary is fine.
+        Returns None when npx should be used instead of a direct binary.
         """
         import sys
 
@@ -101,8 +102,17 @@ class RemotionCLI:
             return str(local)
         return shutil.which("remotion")
 
-    def _npx_available(self) -> bool:
+    def npx_available(self) -> bool:
+        """True if the npx binary is on PATH."""
         return shutil.which(self.npx_bin) is not None
+
+    def _remotion_bin(self) -> str | None:
+        """Backward-compatible alias for :meth:`remotion_bin`."""
+        return self.remotion_bin()
+
+    def _npx_available(self) -> bool:
+        """Backward-compatible alias for :meth:`npx_available`."""
+        return self.npx_available()
 
     def is_available(self) -> bool:
         """True if the remotion CLI can be invoked (local install or npx)."""

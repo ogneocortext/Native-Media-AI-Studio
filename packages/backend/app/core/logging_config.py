@@ -30,6 +30,7 @@ import logging.handlers
 import re
 import sys
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -46,9 +47,7 @@ _ORIGINAL_STDERR = sys.stderr
 
 # Request-scoped correlation id, set per-request by RequestIDMiddleware.
 # Defaults to "-" so log format stays stable outside a request.
-request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "nma_request_id", default="-"
-)
+request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("nma_request_id", default="-")
 
 
 def set_request_id(request_id: str) -> None:
@@ -80,9 +79,7 @@ class _RequestIdFilter(logging.Filter):
 # is why an untraceable failure could not be followed: there was no second line
 # to find. Set it with ``job_context`` so the handler's own loggers pick it up
 # without threading a parameter through every call.
-job_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "nma_job_id", default="-"
-)
+job_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("nma_job_id", default="-")
 
 
 def set_job_id(job_id: str) -> None:
@@ -93,6 +90,26 @@ def set_job_id(job_id: str) -> None:
 def get_job_id() -> str:
     """Return the job correlation id for the current execution context."""
     return job_id_var.get()
+
+
+# Capture correlation IDs at record-creation time, not format time.
+#
+# By the time a handler runs a formatter, the emitting coroutine may have
+# yielded and the ambient contextvar may belong to a different request/job.
+# A record factory stamps request_id/job_id onto each record at the moment
+# it is created, so the value travels with the record. This is the
+# recommended pattern for async logging (contextvars are copied per task).
+_base_record_factory = logging.getLogRecordFactory()
+
+
+def _context_record_factory(*args, **kwargs):
+    record = _base_record_factory(*args, **kwargs)
+    record.request_id = request_id_var.get()
+    record.job_id = job_id_var.get()
+    return record
+
+
+logging.setLogRecordFactory(_context_record_factory)
 
 
 @contextlib.contextmanager
@@ -122,11 +139,27 @@ class _JobIdFilter(logging.Filter):
 # PII redaction - November 2026 best practice: never log emails, phones, IPs
 # ---------------------------------------------------------------------------
 
-_PII_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-_PII_PHONE_RE = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
-_PII_IP_V4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# Mask (not full-replace) PII to preserve debugging structure while protecting
+# identity. Full replacement (`<email>`, `<ipv4>`) destroys the ability to
+# correlate related records; masking keeps enough shape to debug.
+
+_PII_EMAIL_RE = re.compile(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
+_PII_PHONE_RE = re.compile(r"\b(\d{3})[-.\s]?(\d{3})[-.\s]?(\d{4})\b")
+# Validate octets 0-255 so we don't redact arbitrary digit sequences like
+# version numbers (e.g. 3.14.7) or semantic versions.
+_PII_IP_V4_RE = re.compile(
+    r"\b((?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\."
+    r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\."
+    r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\."
+    r"(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d))\b"
+)
 _PII_WINDOWS_PATH_RE = re.compile(r"[A-Za-z]:\\(?:[^\"'\n\r]+\\)*[^\"'\n\r:]+")
-_PII_API_KEY_RE = re.compile(r"\b[A-Za-z0-9]{32,}\b")  # crude API key heuristic
+# Narrower API-key heuristic: common prefixes or 40+ hex/base64 chars, to avoid
+# redacting innocuous long alphanumeric tokens (hashes, UUIDs without dashes).
+_PII_API_KEY_RE = re.compile(
+    r"\b(sk|pk|ghp|glpat|xoxb|ai-)[A-Za-z0-9_\-]{16,}\b"
+    r"|\b[A-Za-z0-9+/]{40,}={0,2}\b"
+)
 
 
 class _PIIRedactionFilter(logging.Filter):
@@ -134,6 +167,7 @@ class _PIIRedactionFilter(logging.Filter):
 
     Applied as a filter so it runs on every record before formatting. The
     original message object is mutated so formatters see the redacted text.
+    Masking (not full replacement) preserves debugging structure.
     """
 
     def __init__(self, *, enabled: bool = True):
@@ -154,13 +188,49 @@ class _PIIRedactionFilter(logging.Filter):
         return True
 
 
+# Redaction audit trail: counts per PII type. Logged periodically so operators
+# can detect a feature that is leaking sensitive data into logs. Counts never
+# record the actual PII values.
+REDACTION_COUNTS: dict[str, int] = defaultdict(int)
+
+
+def _redaction_audit(kind: str) -> None:
+    REDACTION_COUNTS[kind] += 1
+
+
+def _mask_email(match: re.Match) -> str:
+    local, domain = match.group(1), match.group(2)
+    masked_local = local[0] + "***" if local else "***"
+    return f"{masked_local}@{domain}"
+
+
+def _mask_phone(match: re.Match) -> str:
+    return f"{match.group(1)}-***-{match.group(3)}"
+
+
+def _mask_ip(match: re.Match) -> str:
+    octets = match.group(1).split(".")
+    octets[-1] = "xxx"
+    return ".".join(octets)
+
+
 def _redact_pii(text: str) -> str:
-    """Return text with PII replaced by placeholders."""
-    text = _PII_EMAIL_RE.sub("<email>", text)
-    text = _PII_PHONE_RE.sub("<phone>", text)
-    text = _PII_IP_V4_RE.sub("<ipv4>", text)
-    text = _PII_WINDOWS_PATH_RE.sub("<path>", text)
-    text = _PII_API_KEY_RE.sub("<api_key>", text)
+    """Return text with PII replaced by masked placeholders.
+
+    Masking preserves structure (email domain, phone area code, IP prefix) so
+    logs remain debuggable without exposing identities. Each redaction is
+    counted in REDACTION_COUNTS for compliance auditing.
+    """
+    text, n = _PII_EMAIL_RE.subn(_mask_email, text)
+    REDACTION_COUNTS["email"] += n
+    text, n = _PII_PHONE_RE.subn(_mask_phone, text)
+    REDACTION_COUNTS["phone"] += n
+    text, n = _PII_IP_V4_RE.subn(_mask_ip, text)
+    REDACTION_COUNTS["ipv4"] += n
+    text, n = _PII_WINDOWS_PATH_RE.subn("<path>", text)
+    REDACTION_COUNTS["windows_path"] += n
+    text, n = _PII_API_KEY_RE.subn("<api_key>", text)
+    REDACTION_COUNTS["api_key"] += n
     return text
 
 
@@ -238,10 +308,11 @@ class StructuredLogger:
         self._logger = logging.getLogger(name)
 
     def _log(self, level: int, event: str, message: str | None = None, **fields: Any) -> None:
+        exc_info = fields.pop("exc_info", False)
         extra: dict[str, Any] = {"event": event}
         extra.update(fields)
         msg = message or event
-        self._logger.log(level, msg, extra=extra)
+        self._logger.log(level, msg, extra=extra, exc_info=exc_info)
 
     def debug(self, event: str, message: str | None = None, **fields: Any) -> None:
         self._log(logging.DEBUG, event, message, **fields)
@@ -257,9 +328,6 @@ class StructuredLogger:
 
     def exception(self, event: str, message: str | None = None, **fields: Any) -> None:
         self._log(logging.ERROR, event, message, exc_info=True, **fields)
-
-
-structured_logger = StructuredLogger()
 
 
 # ---------------------------------------------------------------------------
@@ -605,8 +673,13 @@ def setup_logging(
     std_capture = _StdCapture(logging.getLogger("app.stdout"), logging.INFO)
     std_capture.install()
 
-    root_logger.info("Logging initialized (level=%s, dir=%s, json=%s, pii=%s)",
-                     level, LOG_DIR, json_logs, pii_redaction)
+    root_logger.info(
+        "Logging initialized (level=%s, dir=%s, json=%s, pii=%s)",
+        level,
+        LOG_DIR,
+        json_logs,
+        pii_redaction,
+    )
 
     # Cleanup old log files on startup
     cleanup_old_logs(LOG_DIR, LOG_RETENTION_DAYS)
@@ -626,7 +699,7 @@ def _setup_sentry(dsn: str, env: str | None = None) -> None:
         from sentry_sdk.integrations.logging import LoggingIntegration
 
         sentry_logging = LoggingIntegration(
-            level=logging.INFO,        # capture INFO+ as breadcrumbs
+            level=logging.INFO,  # capture INFO+ as breadcrumbs
             event_level=logging.ERROR,  # send ERROR+ as events
             capture_sentry_logs=True,  # capture structured logs
         )
@@ -636,15 +709,18 @@ def _setup_sentry(dsn: str, env: str | None = None) -> None:
             environment=env,
             integrations=[sentry_logging],
             # Attach release/version if available
-            release=getattr(__import__("app.core.config", fromlist=["__version__"]), "__version__", None),
+            release=getattr(
+                __import__("app.core.config", fromlist=["__version__"]), "__version__", None
+            ),
             # Only send errors, not every transaction (cost control)
             traces_sample_rate=0.1,
         )
-        logging.getLogger(__name__).info("Sentry logging integration enabled (env=%s)", env or "default")
+        logging.getLogger(__name__).info(
+            "Sentry logging integration enabled (env=%s)", env or "default"
+        )
     except ImportError:
         logging.getLogger(__name__).warning(
-            "Sentry DSN provided but sentry-sdk not installed; "
-            "install with: pip install sentry-sdk"
+            "Sentry DSN provided but sentry-sdk not installed; install with: pip install sentry-sdk"
         )
     except Exception as exc:  # pragma: no cover - defensive
         logging.getLogger(__name__).warning("Sentry setup failed: %s", exc)
@@ -663,7 +739,10 @@ def cleanup_old_logs(log_dir: Path, retention_days: int = 7) -> int:
             continue
         # Match active logs (app.log) and rotated logs (app.log.1, app.log.2, ...)
         name = f.name
-        if not (name.startswith(("app.log", "error.log", "queue.log", "comfyui.log", "ollama.log")) or f.suffix in (".log", ".err")):
+        if not (
+            name.startswith(("app.log", "error.log", "queue.log", "comfyui.log", "ollama.log"))
+            or f.suffix in (".log", ".err")
+        ):
             continue
         try:
             if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
@@ -672,7 +751,9 @@ def cleanup_old_logs(log_dir: Path, retention_days: int = 7) -> int:
         except OSError:
             pass
     if removed:
-        logging.getLogger(__name__).info("Cleaned up %d old log files (>%d days)", removed, retention_days)
+        logging.getLogger(__name__).info(
+            "Cleaned up %d old log files (>%d days)", removed, retention_days
+        )
     return removed
 
 
@@ -720,9 +801,17 @@ def clear_log_files() -> list[str]:
     """
     cleared: list[str] = []
     # Flush all handlers first so buffered records land before truncation.
-    for logger in [logging.getLogger(), *[logging.getLogger(n) for n in (
-        "app.queue", "app.adapters.comfyui", "app.adapters.ollama",
-    )]]:
+    for logger in [
+        logging.getLogger(),
+        *[
+            logging.getLogger(n)
+            for n in (
+                "app.queue",
+                "app.adapters.comfyui",
+                "app.adapters.ollama",
+            )
+        ],
+    ]:
         for handler in logger.handlers:
             try:
                 handler.acquire()
@@ -754,7 +843,9 @@ def clear_log_files() -> list[str]:
     return cleared
 
 
-def get_recent_errors(log_file: Path = ERROR_LOG, minutes: int = 60, max_errors: int = 50) -> list[str]:
+def get_recent_errors(
+    log_file: Path = ERROR_LOG, minutes: int = 60, max_errors: int = 50
+) -> list[str]:
     """Get error log entries from the last N minutes (newest first scan)."""
     if not log_file.exists():
         return []
@@ -810,6 +901,7 @@ def _format_size(size: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+
 
 # ------------------------------------------------------------------
 # Timing decorator - November 2026 best practice: log function duration_ms

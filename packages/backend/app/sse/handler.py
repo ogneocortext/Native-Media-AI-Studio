@@ -21,11 +21,11 @@ import asyncio
 import collections
 import json
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
 import httpx
-from fastapi import HTTPException
 
 from ..core.config import config
 from ..core.logging_config import structured_logger
@@ -73,25 +73,41 @@ class SSEManager:
         self._event_id = 0
         self._max_connections = 50
         self._queue_put_timeout = 5.0  # Drop slow clients after 5s
-        self._replay_buffer: collections.deque = collections.deque(maxlen=100)
+        # Bounded by both count and age: a reconnecting client may be away
+        # longer than the retry interval (DNS/TCP/TLS/cold start), so retain
+        # enough history to cover a realistic gap without unbounded growth.
+        self._replay_buffer: collections.deque = collections.deque(maxlen=1000)
+        self._replay_max_age_ms = 300_000  # 5 minutes
 
     @staticmethod
     def _format_message(
-        message_type: str, data: dict[str, Any], priority: str = "medium"
+        message_type: str,
+        data: dict[str, Any],
+        priority: str = "medium",
+        retry_ms: int | None = None,
     ) -> dict[str, Any]:
-        """Wrap a payload in the standard SSE envelope."""
-        return {
+        """Wrap a payload in the standard SSE envelope.
+
+        ``retry_ms``, when set, instructs the client to reconnect after the
+        given milliseconds (used on capacity rejection and as a sane default).
+        """
+        envelope: dict[str, Any] = {
             "type": message_type,
             "data": data,
             "timestamp": datetime.now().isoformat(),
             "priority": priority,
         }
+        if retry_ms is not None:
+            envelope["retry_ms"] = retry_ms
+        return envelope
 
-    async def connect(self) -> asyncio.Queue:
+    async def connect(self) -> asyncio.Queue | None:
         """Create a new SSE connection queue.
 
-        Raises ``HTTPException(503)`` when at capacity instead of returning
-        an orphan queue that the caller may block on forever.
+        Returns ``None`` (instead of refusing the HTTP request) when at
+        capacity. A non-200 response makes ``EventSource`` fail permanently,
+        so the caller should return a 200 ``text/event-stream`` with a
+        ``retry:`` directive and let the browser back off and reconnect.
         """
         queue = asyncio.Queue()
         async with self._lock:
@@ -102,10 +118,7 @@ class SSEManager:
                     active_connections=len(self._active_connections),
                     max_connections=self._max_connections,
                 )
-                raise HTTPException(
-                    status_code=503,
-                    detail="Server at capacity, try again later",
-                )
+                return None
             self._active_connections.append(queue)
         structured_logger.info(
             "sse.connection_established",
@@ -136,7 +149,8 @@ class SSEManager:
             }
 
             # Store in replay buffer for late-reconnecting clients
-            self._replay_buffer.append((self._event_id, message))
+            self._replay_buffer.append((self._event_id, message, time.monotonic() * 1000))
+            self._evict_replay_buffer()
 
             dead_connections = []
             for queue in self._active_connections:
@@ -162,13 +176,27 @@ class SSEManager:
         _go_dashboard_tasks.add(task)
         task.add_done_callback(_go_dashboard_tasks.discard)
 
+    def _evict_replay_buffer(self) -> None:
+        """Drop replay events older than ``_replay_max_age_ms`` (age bound)."""
+        if not self._replay_buffer:
+            return
+        cutoff = time.monotonic() * 1000 - self._replay_max_age_ms
+        while self._replay_buffer and self._replay_buffer[0][2] < cutoff:
+            self._replay_buffer.popleft()
+
     async def get_replay_events(self, last_event_id: int) -> list[dict[str, Any]]:
-        """Return events newer than last_event_id for client replay."""
-        return [
-            {"id": str(eid), "data": json.dumps(msg)}
-            for eid, msg in self._replay_buffer
-            if eid > last_event_id
-        ]
+        """Return events newer than last_event_id for client replay.
+
+        Holds the lock so a concurrent connect/disconnect cannot mutate the
+        buffer mid-iteration, and drops entries that have aged out.
+        """
+        async with self._lock:
+            self._evict_replay_buffer()
+            return [
+                {"id": str(eid), "data": json.dumps(msg)}
+                for eid, msg, _ts in self._replay_buffer
+                if eid > last_event_id
+            ]
 
     async def send_health_update(self, health: dict[str, Any]):
         """Send health update to all clients"""

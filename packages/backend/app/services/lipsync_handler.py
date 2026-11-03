@@ -16,6 +16,36 @@ from ..queue.manager import queue_manager
 
 logger = logging.getLogger(__name__)
 
+#: Tracked fire-and-forget background tasks so progress / completion updates
+#: are not silently garbage-collected (asyncio holds only a weak reference to
+#: unowned tasks -- see Python 3.12+ docs on asyncio.create_task).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    """Schedule a fire-and-forget coroutine and keep it alive until done.
+
+    The returned task is held in a strong-reference set and removed via a
+    done callback. Any exception is logged instead of vanishing silently.
+    """
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+
+    def _on_done(t: asyncio.Task) -> None:
+        _background_tasks.discard(t)
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.error(
+                "lipsync.background_task_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
+    task.add_done_callback(_on_done)
+    return task
+
 
 class LipSyncHandler:
     """Processes lip-sync jobs via the local MuseTalk adapter."""
@@ -119,28 +149,36 @@ class LipSyncHandler:
 
         # Persist the resolved output path on the job so the frontend's
         # pollJob can read it from job.output_path (not just result.output_path).
-        loop = asyncio.get_running_loop()
-        loop.create_task(queue_manager.update_job(job.id, output_path=output_path))
+        _spawn(queue_manager.update_job(job.id, output_path=output_path))
 
         def _progress(frac: float, message: str) -> None:
             # Report real-time progress to the queue (broadcasts job.progress via SSE).
             logger.info("lipsync %s: %.0f%% %s", job.id[:8], frac * 100, message)
             try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(
-                    queue_manager.update_job(job.id, progress=frac, message=message)
-                )
+                _spawn(queue_manager.update_job(job.id, progress=frac, message=message))
             except RuntimeError:
                 # No running event loop (e.g. callback invoked from a thread) --
                 # best-effort: log only.
                 logger.debug("lipsync progress update skipped (no event loop) for %s", job.id[:8])
 
-        result = await adapter.lipsync(
-            video_path=source,
-            audio_path=audio_path,
-            output_path=output_path,
-            progress_cb=_progress,
-        )
+        # Bound the adapter call so a hung MuseTalk process cannot block the
+        # job indefinitely. 10 minutes is generous for a lipsync render.
+        try:
+            async with asyncio.timeout(600):
+                result = await adapter.lipsync(
+                    video_path=source,
+                    audio_path=audio_path,
+                    output_path=output_path,
+                    progress_cb=_progress,
+                )
+        except TimeoutError as exc:
+            structured_logger.error(
+                "lipsync.job_timeout",
+                job_id=job.id,
+                source=source,
+                audio_path=audio_path,
+            )
+            raise TimeoutError("MuseTalk lipsync timed out after 600 s") from exc
         result["section"] = section
         result["job_id"] = job.id
 

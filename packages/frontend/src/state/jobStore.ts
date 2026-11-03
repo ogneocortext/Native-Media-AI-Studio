@@ -252,6 +252,15 @@ export const useJobStore = create<JobState>((set, get) => ({
   },
 
   connectSSE: () => {
+    // Guard against double-connect: release any previous subscription before
+    // installing a new one to prevent listener leaks when connectSSE is called
+    // more than once without an intervening disconnectSSE.
+    if (sseSubscriptions) {
+      sseSubscriptions.unsubMessage();
+      sseSubscriptions.unsubState();
+      sseSubscriptions = null;
+    }
+
     const unsubMessage = sseService.subscribe((message) => {
       handleSSEMessage(message, get, set);
     });
@@ -263,10 +272,9 @@ export const useJobStore = create<JobState>((set, get) => ({
     sseSubscriptions = { unsubMessage, unsubState };
     sseService.connect();
 
-    // Subscribe to job event channels
-    if (sseService.connected) {
-      set({ sseConnected: true, error: null });
-    }
+    // Note: sseService.connect() opens the EventSource asynchronously, so
+    // `sseService.connected` is not yet true here. The onStateChange listener
+    // above sets sseConnected once the socket actually opens.
   },
 
   disconnectSSE: () => {

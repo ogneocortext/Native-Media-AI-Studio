@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -256,7 +256,9 @@ async def health_broadcast_loop():
         except Exception as e:
             consecutive_errors += 1
             backoff = min(2**consecutive_errors, max_backoff)
-            logger.error("health.broadcast_error", consecutive_errors=consecutive_errors, error=str(e))
+            logger.error(
+                "health.broadcast_error", consecutive_errors=consecutive_errors, error=str(e)
+            )
             await asyncio.sleep(backoff)
 
 
@@ -1111,6 +1113,16 @@ async def sse_endpoint(request: Request):
     handles automatic reconnection and event resumption.
     """
     queue = await sse_manager.connect()
+    if queue is None:
+        # At capacity. Return 200 text/event-stream with a jittered retry so
+        # EventSource backs off and reconnects instead of failing permanently.
+        # A non-200 (e.g. 503) would make EventSource stop retrying altogether.
+        retry_ms = 5000 + int(time.time() * 1000) % 25000  # 5–30 s jitter
+        return StreamingResponse(
+            content=f"retry: {retry_ms}\n\n",
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     # Support Last-Event-ID replay: capture for use inside the generator
     last_event_id = request.headers.get("Last-Event-ID")

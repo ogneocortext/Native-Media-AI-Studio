@@ -104,14 +104,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set((state) => {
       const gkey = groupKeyFor(item.type || "", item.data);
       let items = state.items;
+
+      // Precompute each existing item's group key once so the regex tests run
+      // once per item instead of once per map/filter pass.
+      const existingKeys = items.map((existing) =>
+        groupKeyFor(existing.type || "", existing.data),
+      );
+
       if (gkey) {
         // Replace the most recent item of the same group in place (keeping
         // its id, so an already-read notification stays read), drop any
         // older ones of the same group, and keep nothing pre-existing
         // matching the incoming id.
-        const replacedIdx = items.findIndex(
-          (existing) => groupKeyFor(existing.type || "", existing.data) === gkey,
-        );
+        const replacedIdx = existingKeys.findIndex((k) => k === gkey);
         if (replacedIdx >= 0) {
           // Immutable update at index (ES2023 .with()) — no splice/mutation.
           items = items
@@ -121,9 +126,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                 : existing,
             )
             .filter(
-              (existing) =>
-                groupKeyFor(existing.type || "", existing.data) !== gkey ||
-                existing.id === item.id,
+              (existing, index) =>
+                existingKeys[index] !== gkey || existing.id === item.id,
             );
         } else {
           // Same id arriving again (reconnect replay, history reload) must

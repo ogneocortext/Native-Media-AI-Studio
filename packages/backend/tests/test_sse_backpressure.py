@@ -3,6 +3,7 @@ Tests for SSE backpressure and connection limits:
 - Max connections cap rejects new connections
 - Slow consumers are dropped after queue_put_timeout
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,9 +22,9 @@ from app.sse.handler import SSEManager
 
 @pytest.mark.asyncio
 async def test_sse_rejects_connection_at_capacity():
-    """SSEManager.connect() must raise HTTPException when at max_connections."""
-    from fastapi import HTTPException
-
+    """SSEManager.connect() returns None at max_connections (caller sends a
+    200 text/event-stream with a retry: directive so EventSource reconnects;
+    raising HTTP 503 would make EventSource fail permanently)."""
     manager = SSEManager()
     manager._active_connections.clear()
     manager._max_connections = 2
@@ -33,12 +34,9 @@ async def test_sse_rejects_connection_at_capacity():
     q2 = asyncio.Queue()
     manager._active_connections.extend([q1, q2])
 
-    # Next connection should raise HTTPException
-    with pytest.raises(HTTPException) as exc_info:
-        await manager.connect()
-
-    assert exc_info.value.status_code == 503
-    assert "capacity" in exc_info.value.detail.lower()
+    # Next connection returns None instead of raising (no permanent disconnect)
+    result = await manager.connect()
+    assert result is None
 
 
 @pytest.mark.asyncio

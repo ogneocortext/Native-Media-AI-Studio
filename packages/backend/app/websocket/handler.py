@@ -1,6 +1,7 @@
 """
 WebSocket handler for real-time job updates.
 """
+
 import asyncio
 import json
 from datetime import datetime
@@ -53,7 +54,9 @@ class ConnectionManager:
 
         for ws in connections:
             try:
-                await ws.send_text(message_json)
+                # Bound each send so one slow client cannot stall the whole
+                # broadcast (backpressure).
+                await asyncio.wait_for(ws.send_text(message_json), timeout=5.0)
             except Exception:
                 dead_connections.append(ws)
 
@@ -64,19 +67,19 @@ class ConnectionManager:
 
     async def send_job_update(self, job: Job):
         """Send job update to all clients"""
-        await self.send_message({
-            "type": "job_update",
-            "data": job.model_dump(mode='json'),
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(
+            {
+                "type": "job_update",
+                "data": job.model_dump(mode="json"),
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     async def send_health_update(self, health: dict[str, Any]):
         """Send health update to all clients"""
-        await self.send_message({
-            "type": "health_update",
-            "data": health,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(
+            {"type": "health_update", "data": health, "timestamp": datetime.now().isoformat()}
+        )
 
     async def broadcast_health_status(self, status: dict[str, Any]):
         """Broadcast health status to all connected clients.
@@ -87,27 +90,25 @@ class ConnectionManager:
                 - adapters: {...}
                 - overall: "healthy|degraded"
         """
-        await self.send_message({
-            "type": "system.health_changed",
-            "data": status,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(
+            {
+                "type": "system.health_changed",
+                "data": status,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     async def send_queue_update(self, stats: dict[str, Any]):
         """Send queue stats update to all clients"""
-        await self.send_message({
-            "type": "queue_update",
-            "data": stats,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(
+            {"type": "queue_update", "data": stats, "timestamp": datetime.now().isoformat()}
+        )
 
     async def broadcast(self, type: str, data: dict[str, Any]):
         """Broadcast a message to all clients"""
-        await self.send_message({
-            "type": type,
-            "data": data,
-            "timestamp": datetime.now().isoformat()
-        })
+        await self.send_message(
+            {"type": type, "data": data, "timestamp": datetime.now().isoformat()}
+        )
 
     def connection_count(self) -> int:
         """Get number of active connections"""

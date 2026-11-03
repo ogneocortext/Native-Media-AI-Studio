@@ -44,7 +44,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..core.logging_config import structured_logger
 from ..models.job import Job, JobCreateRequest, JobStatus, JobType
@@ -121,47 +121,55 @@ _STATUS_MAP = {
 # Request / response models
 
 
-class _BuildRequest:
-    """Lightweight validation wrapper for the /build request body.
+class _BuildRequest(BaseModel):
+    """Pydantic validation wrapper for the /build request body.
 
-    Kept as a plain namespace rather than a pydantic model so the recipe can be
-    converted to the backend's RemixRecipe dataclasses without an intermediate
-    schema layer. Fields mirror RemixRecipeSpec in the frontend.
+    Fields mirror RemixRecipeSpec in the frontend. Extra fields (e.g. ``recipe``)
+    are ignored so the full wire payload can round-trip through this model.
     """
 
-    __slots__ = ("name", "target_bpm", "slots", "beats_per_bar", "key", "overwrite")
+    model_config = ConfigDict(extra="ignore")
 
-    def __init__(self, data: dict[str, Any]) -> None:
-        self.name = str(data.get("name", "mashup")).strip() or "mashup"
-        self.target_bpm = float(data.get("target_bpm", 120.0))
-        self.slots = list(data.get("slots") or [])
-        self.beats_per_bar = int(data.get("beats_per_bar", 4))
-        self.key = data.get("key")
-        self.overwrite = bool(data.get("overwrite", True))
+    name: str = "mashup"
+    target_bpm: float = 120.0
+    slots: list[dict[str, Any]] = []
+    beats_per_bar: int = 4
+    key: str | None = None
+    overwrite: bool = True
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _coerce_name(cls, v: Any) -> str:
+        if v is None:
+            return "mashup"
+        return str(v).strip() or "mashup"
 
 
-class _EnhanceRequest:
+class _EnhanceRequest(BaseModel):
     """Fields accepted by POST /{name}/enhance."""
 
-    __slots__ = ("vocal_balance_db", "pre_highpass_hz", "target_peak_dbfs", "master_ceiling_dbfs")
+    model_config = ConfigDict(extra="ignore")
 
-    def __init__(self, data: dict[str, Any] | None) -> None:
-        data = data or {}
-        self.vocal_balance_db = data.get("vocal_balance_db", 0.0)
-        self.pre_highpass_hz = data.get("pre_highpass_hz", 30.0)
-        self.target_peak_dbfs = data.get("target_peak_dbfs", -1.0)
-        self.master_ceiling_dbfs = data.get("master_ceiling_dbfs", -1.0)
+    vocal_balance_db: float = 0.0
+    pre_highpass_hz: float = 30.0
+    target_peak_dbfs: float = -1.0
+    master_ceiling_dbfs: float = -1.0
 
 
-class _DraftRequest:
+class _DraftRequest(BaseModel):
     """Fields accepted by POST /from-prompt."""
 
-    __slots__ = ("prompt", "base_recipe")
+    model_config = ConfigDict(extra="ignore")
 
-    def __init__(self, data: dict[str, Any] | None) -> None:
-        data = data or {}
-        self.prompt = str(data.get("prompt") or "").strip()
-        self.base_recipe = data.get("base_recipe")
+    prompt: str = ""
+    base_recipe: Any = None
+
+    @field_validator("prompt", mode="before")
+    @classmethod
+    def _coerce_prompt(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        return str(v).strip()
 
 
 # Recipe conversion
@@ -227,8 +235,13 @@ def _check_stems_available(recipe: RemixRecipe) -> None:
 
 def _job_to_status(job: Job) -> dict[str, Any]:
     """Map a persisted Job to the frontend's RemixJobStatus shape."""
-    started_at = job.started_at.timestamp() if job.started_at else None
-    finished_at = job.completed_at.timestamp() if job.completed_at else None
+
+    def _ts(value: Any) -> float | None:
+        # Guard against non-datetime values (float/str) that lack .timestamp().
+        return value.timestamp() if value is not None and hasattr(value, "timestamp") else None
+
+    started_at = _ts(job.started_at)
+    finished_at = _ts(job.completed_at)
     return {
         "job_id": job.id,
         "kind": job.job_type,
@@ -359,11 +372,11 @@ async def _remix_enhance_handler(job: Job) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
 
     def _progress(frac: float, message: str) -> None:
-        loop.create_task(
-            queue_manager.update_job(job.id, progress=frac, message=message)
-        )
+        loop.create_task(queue_manager.update_job(job.id, progress=frac, message=message))
 
-    result = await enhancer.enhance_stems(remix_path, remix_path / "enhanced", progress_cb=_progress)
+    result = await enhancer.enhance_stems(
+        remix_path, remix_path / "enhanced", progress_cb=_progress
+    )
 
     structured_logger.info(
         "remix.enhance.completed",
@@ -434,9 +447,7 @@ async def _remotion_render_handler(job: Job) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
 
     def _progress(frac: float, message: str) -> None:
-        loop.create_task(
-            queue_manager.update_job(job.id, progress=frac, message=message)
-        )
+        loop.create_task(queue_manager.update_job(job.id, progress=frac, message=message))
 
     result = await remotion_cli.render(
         composition_id=composition_id,
@@ -816,18 +827,16 @@ async def serve_remix_file(
 # Remotion Studio control endpoints
 
 
-class _RemotionRenderRequest:
+class _RemotionRenderRequest(BaseModel):
     """Fields accepted by POST /remotion/render."""
 
-    __slots__ = ("composition_id", "output_path", "props", "codec", "concurrency")
+    model_config = ConfigDict(extra="ignore")
 
-    def __init__(self, data: dict[str, Any] | None) -> None:
-        data = data or {}
-        self.composition_id = str(data.get("composition_id") or DEFAULT_COMPOSITION_ID)
-        self.output_path = data.get("output_path")
-        self.props = data.get("props")
-        self.codec = str(data.get("codec", "h264"))
-        self.concurrency = data.get("concurrency", "auto")
+    composition_id: str = DEFAULT_COMPOSITION_ID
+    output_path: str | None = None
+    props: Any = None
+    codec: str = "h264"
+    concurrency: str | int = "auto"
 
 
 @router.get("/remotion/status")
@@ -839,8 +848,8 @@ async def remotion_status() -> dict[str, Any]:
     """
     return {
         "available": remotion_cli.is_available(),
-        "cli_bin": remotion_cli._remotion_bin(),
-        "npx_available": remotion_cli._npx_available(),
+        "cli_bin": remotion_cli.remotion_bin(),
+        "npx_available": remotion_cli.npx_available(),
         "video_editor_dir": str(remotion_cli.video_editor_dir),
         "default_composition_id": DEFAULT_COMPOSITION_ID,
     }

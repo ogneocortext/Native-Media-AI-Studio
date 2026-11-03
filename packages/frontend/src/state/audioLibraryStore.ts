@@ -68,6 +68,25 @@ interface AudioLibraryState {
  */
 let inFlight: Promise<void> | null = null;
 let settled: Promise<void> | null = null;
+/** Epoch ms when `settled` resolved, or null if never settled. */
+let settledAt: number | null = null;
+
+// Abort a `listAudioFiles()` request that hangs longer than this so
+// `isLoading` cannot stay true forever.
+const LOAD_TIMEOUT_MS = 10_000;
+// Reuse settled data only within this window; after it elapses the next
+// `ensureLoaded()` refetches so the library does not go stale all session.
+const CACHE_TTL_MS = 300_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("audio library load timed out")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 function buildEntries(files: readonly AudioLibraryFile[]): AudioLibraryEntry[] {
   const deduped = dedupeAudioFiles(files);
@@ -89,15 +108,19 @@ function buildEntries(files: readonly AudioLibraryFile[]): AudioLibraryEntry[] {
 export const useAudioLibraryStore = create<AudioLibraryState>()((set) => {
   const load = async (force: boolean): Promise<void> => {
     if (!force) {
-      // Reuse the last settled load unless the caller wants fresh data.
-      if (settled) return settled;
+      // Reuse the last settled load unless the caller wants fresh data, but
+      // only within the TTL window so the library does not go stale all
+      // session.
+      if (settled && settledAt && Date.now() - settledAt < CACHE_TTL_MS) {
+        return settled;
+      }
       if (inFlight) return inFlight;
     }
 
     const request = (async () => {
       set({ isLoading: true, error: null });
       try {
-        const files = await listAudioFiles();
+        const files = await withTimeout(listAudioFiles(), LOAD_TIMEOUT_MS);
         set({
           entries: buildEntries(files),
           isLoading: false,
@@ -116,6 +139,7 @@ export const useAudioLibraryStore = create<AudioLibraryState>()((set) => {
 
     inFlight = request;
     settled = request;
+    settledAt = Date.now();
     return request;
   };
 
@@ -140,5 +164,6 @@ export const useAudioLibraryStore = create<AudioLibraryState>()((set) => {
 export function __resetAudioLibraryCache(): void {
   inFlight = null;
   settled = null;
+  settledAt = null;
   useAudioLibraryStore.setState({ entries: [], isLoading: false, error: null, lastLoadedAt: null });
 }
