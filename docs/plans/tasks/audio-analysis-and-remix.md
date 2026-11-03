@@ -221,23 +221,16 @@ Rules: `docs/plans/tasks/README.md`
   not present in this repo, so the in-app chain was verified on a
   stand-in output/audio file (Clever Mistakes (Vibe Shift).wav,
   44.1kHz stereo) with finishing=True, sub_cut_db=3.0, presence_db=2.5,
-  target_lufs=-14.0 via `master_file` + `compute_loudness`:
-  - sub share: 80.8% → 0.0% (≤48% PASS; reference E1: 75.6% → 43.8%)
-  - presence share: 1.4% → 45.5% (≥12% PASS; reference E1: 3.8% → 14.6%)
-  - final loudness: -14.6 LUFS via compute_loudness (−14.0 ± 0.5 target;
-    reference E1 hit exactly -14.0; stand-in deviates ~0.6 LU because
-    the 3.2 kHz presence shelf shifts ebur128 K-weighting).
-  **Written exception (Kilo, 2026-11-03):** The −14.6 LUFS stand-in result
-  is outside the ±0.5 LU tolerance, but this is a deliberate accept, not a
-  pass: the measurement was on Clever Mistakes (Vibe Shift).wav, a
-  stand-in file, not the E1 reference take ("Don't Recommend", Lyria),
-  which is not present in this repo. Orion measured the actual E1 take at
-  exactly −14.0 LUFS with this same chain (tools/finish.py), so the
-  tolerance miss is attributed to the stand-in's program material, not
-  to the chain. Sub (0.0% ≤ 48%) and presence (45.5% ≥ 12%) both PASS.
-  The finishing stage defaults off (finishing=False), so existing callers
-  are unchanged regardless. Status remains done with this documented
-  exception.
+  target_lufs=-14.0 via `master_file` + `compute_loudness`, after fixing
+  the RBJ cookbook filter design in mastering.py (_design_lowshelf,
+  _design_peaking, _design_highshelf: w0 = 2*pi*f/Fs, A = 10^(dB/40),
+  correct a-array normalization):
+  - sub share: 80.8% → 0.2% (≤48% PASS; reference E1: 75.6% → 43.8%)
+  - presence share: 1.4% → 20.6% (≥12% PASS; reference E1: 3.8% → 14.6%)
+  - final loudness: −14.30 LUFS via compute_loudness (−14.0 ± 0.5 PASS;
+    all three acceptance criteria pass with no exception needed).
+  Callers passing no finishing params produce unchanged output
+  (finishing=False default). tools/run-gates.py green.
 
 ### T-AUD-09 — Wire Pydantic request models into audio_remix endpoints (hardening)
 - **Status:** done
