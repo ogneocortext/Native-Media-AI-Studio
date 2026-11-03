@@ -413,16 +413,16 @@ def _design_lowshelf(
     RBJ cookbook: w0 = 2*pi*f/Fs, A = 10^(dB/40), alpha = sin(w0)/(2*Q).
     """
     w0 = 2 * math.pi * cutoff_hz / sample_rate
-    A = 10 ** (gain_db / 40.0)
+    amp = 10 ** (gain_db / 40.0)
     alpha = math.sin(w0) / (2 * q)
     cos_w0 = math.cos(w0)
-    sqrt_A = math.sqrt(A)
-    b0 = A * ((A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
-    b1 = 2 * A * ((A - 1) - (A + 1) * cos_w0)
-    b2 = A * ((A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha)
-    a0 = (A + 1) + (A - 1) * cos_w0 + 2 * sqrt_A * alpha
-    a1 = -2 * ((A - 1) + (A + 1) * cos_w0)
-    a2 = (A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha
+    sqrt_amp = math.sqrt(amp)
+    b0 = amp * ((amp + 1) - (amp - 1) * cos_w0 + 2 * sqrt_amp * alpha)
+    b1 = 2 * amp * ((amp - 1) - (amp + 1) * cos_w0)
+    b2 = amp * ((amp + 1) - (amp - 1) * cos_w0 - 2 * sqrt_amp * alpha)
+    a0 = (amp + 1) + (amp - 1) * cos_w0 + 2 * sqrt_amp * alpha
+    a1 = -2 * ((amp - 1) + (amp + 1) * cos_w0)
+    a2 = (amp + 1) + (amp - 1) * cos_w0 - 2 * sqrt_amp * alpha
     b = np.array([b0, b1, b2]) / a0
     a = np.array([1.0, a1 / a0, a2 / a0])
     return b, a
@@ -436,16 +436,16 @@ def _design_highshelf(
     RBJ cookbook: w0 = 2*pi*f/Fs, A = 10^(dB/40), alpha = sin(w0)/(2*Q).
     """
     w0 = 2 * math.pi * cutoff_hz / sample_rate
-    A = 10 ** (gain_db / 40.0)
+    amp = 10 ** (gain_db / 40.0)
     alpha = math.sin(w0) / (2 * q)
     cos_w0 = math.cos(w0)
-    sqrt_A = math.sqrt(A)
-    b0 = A * ((A + 1) + (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
-    b1 = -2 * A * ((A - 1) + (A + 1) * cos_w0)
-    b2 = A * ((A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha)
-    a0 = (A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha
-    a1 = 2 * ((A - 1) - (A + 1) * cos_w0)
-    a2 = (A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha
+    sqrt_amp = math.sqrt(amp)
+    b0 = amp * ((amp + 1) + (amp - 1) * cos_w0 + 2 * sqrt_amp * alpha)
+    b1 = -2 * amp * ((amp - 1) + (amp + 1) * cos_w0)
+    b2 = amp * ((amp + 1) + (amp - 1) * cos_w0 - 2 * sqrt_amp * alpha)
+    a0 = (amp + 1) - (amp - 1) * cos_w0 + 2 * sqrt_amp * alpha
+    a1 = 2 * ((amp - 1) - (amp + 1) * cos_w0)
+    a2 = (amp + 1) - (amp - 1) * cos_w0 - 2 * sqrt_amp * alpha
     b = np.array([b0, b1, b2]) / a0
     a = np.array([1.0, a1 / a0, a2 / a0])
     return b, a
@@ -459,15 +459,15 @@ def _design_peaking(
     RBJ cookbook: w0 = 2*pi*f/Fs, A = 10^(dB/40), alpha = sin(w0)/(2*Q).
     """
     w0 = 2 * math.pi * cutoff_hz / sample_rate
-    A = 10 ** (gain_db / 40.0)
+    amp = 10 ** (gain_db / 40.0)
     alpha = math.sin(w0) / (2 * q)
     cos_w0 = math.cos(w0)
-    b0 = 1 + alpha * A
+    b0 = 1 + alpha * amp
     b1 = -2 * cos_w0
-    b2 = 1 - alpha * A
-    a0 = 1 + alpha / A
+    b2 = 1 - alpha * amp
+    a0 = 1 + alpha / amp
     a1 = -2 * cos_w0
-    a2 = 1 - alpha / A
+    a2 = 1 - alpha / amp
     b = np.array([b0, b1, b2]) / a0
     a = np.array([1.0, a1 / a0, a2 / a0])
     return b, a
