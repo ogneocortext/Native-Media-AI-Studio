@@ -46,8 +46,14 @@
 > (map: `docs/plans/focus-areas-and-behavior-ledgers-2026-10.md`). When
 > starting work in an area, read its task file and resume at the first
 > open item. Mark items `doing` when you start them, `done` only when
-> their acceptance check passes, and **commit the task file after each
-> item**: sessions end without warning, and the file is the handoff.
+> their acceptance check passes. **An item is not done until its
+> task-file update — status flip plus a Last session line naming the
+> commit and the acceptance evidence — is in the SAME commit as the
+> work.** A code commit that leaves the task file untouched is an
+> incomplete commit, however good the code is: three landed items
+> (2026-11-03 review) sat at `todo` in the ledger until someone else
+> repaired the entries. Sessions end without warning, and the file
+> is the handoff — there is no "update it next commit."
 > Format and rules: `docs/plans/tasks/README.md`.
 >
 > **Project skills** live in `.kilo/skills/` (local-only, auto-discovered
