@@ -262,13 +262,22 @@ class SSEManager:
         structured_logger.debug("sse.broadcast", type=type)
         await self.send_message(self._format_message(type, data, priority=priority))
 
-    def connection_count(self) -> int:
-        """Get number of active connections"""
-        return len(self._active_connections)
+    async def connection_count(self) -> int:
+        """Get number of active connections (lock-safe for concurrent
+        connect/disconnect)."""
+        async with self._lock:
+            return len(self._active_connections)
 
 
 async def shutdown() -> None:
-    """Close the go-dashboard HTTP client on app shutdown."""
+    """Close the go-dashboard HTTP client on app shutdown.
+
+    Awaits any in-flight go-dashboard broadcast tasks so they aren't
+    abandoned mid-flight when the loop stops.
+    """
+    if _go_dashboard_tasks:
+        await asyncio.gather(*_go_dashboard_tasks, return_exceptions=True)
+        _go_dashboard_tasks.clear()
     global _go_dashboard_client
     if _go_dashboard_client is not None:
         try:

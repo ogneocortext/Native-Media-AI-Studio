@@ -69,6 +69,38 @@ from ..services.suno_enhancer import EnhanceConfig, SunoEnhancer
 
 logger = logging.getLogger(__name__)
 
+#: Tracked fire-and-forget background tasks so progress updates from remix
+#: job handlers are not silently garbage-collected (asyncio holds only a
+#: weak reference to unowned tasks -- see Python 3.12+ docs on
+#: asyncio.create_task).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    """Schedule a fire-and-forget coroutine and keep it alive until done.
+
+    The returned task is held in a strong-reference set and removed via a
+    done callback. Any exception is logged instead of vanishing silently.
+    """
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+
+    def _on_done(t: asyncio.Task) -> None:
+        _background_tasks.discard(t)
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.error(
+                "audio_remix.background_task_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
+    task.add_done_callback(_on_done)
+    return task
+
+
 # ----------------------------------------------------------------------
 # Request model used by the test suite to round-trip a manifest back into
 # a buildable recipe payload. Kept here so `app.api.audio_remix` exposes
@@ -369,10 +401,8 @@ async def _remix_enhance_handler(job: Job) -> dict[str, Any]:
 
     enhancer = SunoEnhancer(config=cfg)
 
-    loop = asyncio.get_running_loop()
-
     def _progress(frac: float, message: str) -> None:
-        loop.create_task(queue_manager.update_job(job.id, progress=frac, message=message))
+        _spawn(queue_manager.update_job(job.id, progress=frac, message=message))
 
     result = await enhancer.enhance_stems(
         remix_path, remix_path / "enhanced", progress_cb=_progress
@@ -444,10 +474,8 @@ async def _remotion_render_handler(job: Job) -> dict[str, Any]:
 
         output_path = str(PROJECT_ROOT / "output" / "remotion" / f"{composition_id}.mp4")
 
-    loop = asyncio.get_running_loop()
-
     def _progress(frac: float, message: str) -> None:
-        loop.create_task(queue_manager.update_job(job.id, progress=frac, message=message))
+        _spawn(queue_manager.update_job(job.id, progress=frac, message=message))
 
     result = await remotion_cli.render(
         composition_id=composition_id,

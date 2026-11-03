@@ -4,6 +4,7 @@
  */
 
 import { create } from "zustand";
+import { useMemo } from "react";
 import { fetchPortConfig } from "../services/portConfig";
 import {
   Job,
@@ -421,7 +422,12 @@ export const useSelectedJobId = () => useJobStore((state) => state.selectedJobId
 export const useSelectedJob = () => {
   const jobs = useJobStore((state) => state.jobs);
   const selectedJobId = useJobStore((state) => state.selectedJobId);
-  return jobs.find((j) => j.id === selectedJobId) ?? null;
+  // useMemo so components re-render only when the selected job actually changes,
+  // not on every store update.
+  return useMemo(
+    () => jobs.find((j) => j.id === selectedJobId) ?? null,
+    [jobs, selectedJobId],
+  );
 };
 
 /** Subscribe to all job actions (stable reference, doesn't re-render on state change) */

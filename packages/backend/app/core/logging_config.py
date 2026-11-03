@@ -92,24 +92,18 @@ def get_job_id() -> str:
     return job_id_var.get()
 
 
-# Capture correlation IDs at record-creation time, not format time.
+# Capture correlation IDs at filter time, not record-creation time.
 #
-# By the time a handler runs a formatter, the emitting coroutine may have
-# yielded and the ambient contextvar may belong to a different request/job.
-# A record factory stamps request_id/job_id onto each record at the moment
-# it is created, so the value travels with the record. This is the
-# recommended pattern for async logging (contextvars are copied per task).
-_base_record_factory = logging.getLogRecordFactory()
-
-
-def _context_record_factory(*args, **kwargs):
-    record = _base_record_factory(*args, **kwargs)
-    record.request_id = request_id_var.get()
-    record.job_id = job_id_var.get()
-    return record
-
-
-logging.setLogRecordFactory(_context_record_factory)
+# Per November 2026 observability best practice: request-scoped context
+# belongs in a logging.Filter attached to the app's handlers, not in the
+# global log record factory. A factory stamps request_id/job_id onto EVERY
+# record the process creates (library logs, startup logs, third-party
+# records), producing noise in every index. Filters run only on the app's
+# handlers and only stamp records that flow through them, so out-of-scope
+# records simply lack the field rather than carrying a meaningless "-".
+#
+# The filters (_RequestIdFilter, _JobIdFilter) read contextvars at filter
+# time and are attached to every handler in setup_logging().
 
 
 @contextlib.contextmanager

@@ -819,7 +819,7 @@ async def get_service_status() -> dict:
     return {
         "adapters": adapter_registry.get_status_all(),
         "adapter_details": adapter_registry.get_status_with_errors(),
-        "connections": sse_manager.connection_count(),
+        "connections": await sse_manager.connection_count(),
     }
 
 
