@@ -529,16 +529,16 @@ async def remix_probe(track: str = Query(...)) -> dict[str, Any]:
 
 
 @router.post("/preview")
-async def preview_remix_recipe(body: dict[str, Any]) -> dict[str, Any]:
+async def preview_remix_recipe(body: RemixRecipeRequest) -> dict[str, Any]:
     """Preview a recipe without committing to a render.
 
     Returns the exact timeline, per-source levels and stretch ratios so the
     caller can sanity-check before paying for a build. No audio is written.
     """
+    recipe = _recipe_from_request(body.model_dump())
     try:
-        recipe = _recipe_from_request(body)
         recipe.validate()
-    except (KeyError, TypeError, ValueError) as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid recipe: {exc}") from exc
     _check_stems_available(recipe)
 
@@ -607,18 +607,15 @@ async def serve_preview_file(filename: str) -> FileResponse:
 
 
 @router.post("/from-prompt")
-async def draft_from_prompt(body: dict[str, Any]) -> dict[str, Any]:
+async def draft_from_prompt(body: _DraftRequest) -> dict[str, Any]:
     """Draft (or revise) a remix recipe from natural language.
 
     Body: ``{"prompt": "..."}`` for a fresh draft, or
     ``{"prompt": "...", "base_recipe": {...}}`` for a revision (R1).
     Falls back to a deterministic heuristic when Ollama is unavailable.
     """
-    try:
-        prompt = str(body.get("prompt") or "").strip()
-        base_recipe = body.get("base_recipe")
-    except (AttributeError, TypeError) as exc:
-        raise HTTPException(status_code=400, detail="Invalid request body") from exc
+    prompt = body.prompt
+    base_recipe = body.base_recipe
 
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt is required")
@@ -645,23 +642,19 @@ async def draft_from_prompt(body: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/build")
-async def build_remix(body: dict[str, Any]) -> dict[str, Any]:
+async def build_remix(body: _BuildRequest) -> dict[str, Any]:
     """Start a remix build as a background job.
 
     The recipe is validated synchronously (bad recipe or missing stem throws
     here), then a REMIX_BUILD job is enqueued and polled via GET /jobs/{id}.
     """
-    try:
-        request = _BuildRequest(body)
-        recipe = _recipe_from_request(body)
-        recipe.validate()
-    except (KeyError, TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid recipe: {exc}") from exc
+    recipe = _recipe_from_request(body.model_dump())
+    recipe.validate()
     _check_stems_available(recipe)
 
     job_request = JobCreateRequest(
         job_type=JobType.REMIX_BUILD,
-        params={"recipe": body, "overwrite": request.overwrite},
+        params={"recipe": body.model_dump(), "overwrite": body.overwrite},
         max_retries=3,
         priority=0,
     )
@@ -676,7 +669,7 @@ async def build_remix(body: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/{name}/enhance")
-async def enhance_remix(name: str, body: dict[str, Any]) -> dict[str, Any]:
+async def enhance_remix(name: str, body: _EnhanceRequest) -> dict[str, Any]:
     """Start a master/enhance of a rendered remix as a background job.
 
     Checks the remix and its stems exist synchronously, then enqueues a
@@ -694,7 +687,7 @@ async def enhance_remix(name: str, body: dict[str, Any]) -> dict[str, Any]:
             detail=f"Remix {name!r} is missing stems: {', '.join(missing)} -- build it first",
         )
 
-    options = _EnhanceRequest(body)
+    options = body
     job_request = JobCreateRequest(
         job_type=JobType.REMIX_ENHANCE,
         params={
@@ -884,7 +877,7 @@ async def remotion_status() -> dict[str, Any]:
 
 
 @router.post("/remotion/render")
-async def remotion_render(body: dict[str, Any]) -> dict[str, Any]:
+async def remotion_render(body: _RemotionRenderRequest) -> dict[str, Any]:
     """Start a Remotion composition render as a background job.
 
     Body fields (all optional):
@@ -903,7 +896,7 @@ async def remotion_render(body: dict[str, Any]) -> dict[str, Any]:
             "packages/video-editor or ensure `remotion` is on PATH.",
         )
 
-    request = _RemotionRenderRequest(body)
+    request = body
     job_request = JobCreateRequest(
         job_type=JobType.REMOTION_RENDER,
         params={
