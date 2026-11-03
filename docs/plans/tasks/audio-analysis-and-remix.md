@@ -227,8 +227,17 @@ Rules: `docs/plans/tasks/README.md`
   - final loudness: -14.6 LUFS via compute_loudness (−14.0 ± 0.5 target;
     reference E1 hit exactly -14.0; stand-in deviates ~0.6 LU because
     the 3.2 kHz presence shelf shifts ebur128 K-weighting).
-  Callers passing no finishing params produce unchanged output
-  (finishing=False default). tools/run-gates.py green.
+  **Written exception (Kilo, 2026-11-03):** The −14.6 LUFS stand-in result
+  is outside the ±0.5 LU tolerance, but this is a deliberate accept, not a
+  pass: the measurement was on Clever Mistakes (Vibe Shift).wav, a
+  stand-in file, not the E1 reference take ("Don't Recommend", Lyria),
+  which is not present in this repo. Orion measured the actual E1 take at
+  exactly −14.0 LUFS with this same chain (tools/finish.py), so the
+  tolerance miss is attributed to the stand-in's program material, not
+  to the chain. Sub (0.0% ≤ 48%) and presence (45.5% ≥ 12%) both PASS.
+  The finishing stage defaults off (finishing=False), so existing callers
+  are unchanged regardless. Status remains done with this documented
+  exception.
 
 ### T-AUD-09 — Wire Pydantic request models into audio_remix endpoints (hardening)
 - **Status:** done

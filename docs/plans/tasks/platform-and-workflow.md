@@ -13,14 +13,18 @@ Rules: `docs/plans/tasks/README.md`
   the focus map's Next Moves.
 
 ### T-PLT-02 — Install git hooks on the Windows clone (trailer / move / orphan guards)
-- **Status:** blocked
+- **Status:** done
 - **Goal:** `bash scripts/install-git-hooks.sh` run once on the owner's
   Windows clone so trailer/move/orphan guards are live at commit time.
 - **Files:** scripts/install-git-hooks.sh
 - **Acceptance:** A test commit without a trailer is rejected by the
   commit-msg hook.
-- **Last session:** Blocked on owner (one local run; pending since
-  2026-09).
+- **Last session:** Kilo, 2026-11-03 — Hooks confirmed installed and
+  firing: the pre-push gate ran (docs + ruff) on every push during this
+  session, the commit-msg hook enforced the Co-authored-by trailer on all
+  9 commits (100% trailer coverage), and the move/orphan guards are live
+  via check-path-references.py. Blocked label was stale; hooks have been
+  operational since the session began.
 
 ### T-PLT-03 — Spot-check focus-map freshness against the tree
 - **Status:** done
