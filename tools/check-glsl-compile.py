@@ -301,10 +301,26 @@ def main() -> int:
         help="only scan these changed file names (e.g. the unpushed batch). "
         "Without this, every file under packages/frontend/src is scanned.",
     )
+    parser.add_argument(
+        "--changed-from-file", metavar="PATH",
+        help="read changed file names from a file, one per line (used instead "
+        "of --changed when the list is long enough to exceed the OS "
+        "command-line limit); can be combined with --changed",
+    )
     args = parser.parse_args()
 
     json_mode = bool(args.json or args.save_json)
     changed = set(args.changed) if args.changed else None
+    if args.changed_from_file:
+        try:
+            from_file = {
+                line.strip() for line in Path(args.changed_from_file).read_text(
+                    encoding="utf-8").splitlines() if line.strip()
+            }
+        except OSError as e:
+            print(f"could not read --changed-from-file {args.changed_from_file}: {e}", file=sys.stderr)
+            return 1
+        changed = from_file if changed is None else changed | from_file
 
     compiler = resolve_compiler()
     compiler_missing = compiler is None

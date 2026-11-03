@@ -832,33 +832,6 @@ def _tail(text, limit=8000):
     return "...(truncated)...\n" + text[-limit:]
 
 
-def _select_gates(all_gates, only, include_e2e):
-    """The gates to run, applying --only and the opt-in rule.
-
-    A name matches by exact equality or as a substring, so `--only py` runs
-    pytest — *and* tools-pytest, because the substring sits inside that name
-    too: `--only py` is the cheap way to run every backend suite. Naming a
-    gate exactly (`--only pytest`) is the precise form. An optional gate is
-    skipped unless --e2e is given OR it is named explicitly in --only -
-    naming it is itself the opt-in, so `--only e2e` runs the browser suite
-    instead of silently selecting nothing.
-    """
-    def matches(gate, names):
-        return any(
-            n.lower() == gate.name.lower() or n.lower() in gate.name.lower()
-            for n in names
-        )
-
-    selected = []
-    for g in all_gates:
-        if only and not matches(g, only):
-            continue
-        if g.optional and not include_e2e and not (only and matches(g, only)):
-            continue
-        selected.append(g)
-    return selected
-
-
 def _gate_relevant(gate: Gate, changed: set[str]) -> bool:
     """Return True if `gate` could be affected by changed file names.
 
@@ -930,11 +903,15 @@ def _gate_relevant(gate: Gate, changed: set[str]) -> bool:
 
 def _changed_from_git() -> set[str] | None:
     """Return the set of changed file names in the unpushed commit batch
-    (`git diff --name-only origin/main..HEAD`), or None if it cannot be
-    determined (no origin/main, git error). Used for bare `--changed`."""
+    (`git diff --name-only @{upstream}..HEAD`), or None if it cannot be
+    determined (no upstream, git error). Used for bare `--changed`.
+
+    Uses `@{upstream}` instead of a hardcoded `origin/main..HEAD` so it works
+    regardless of the default branch name (main, master, ...) and does not
+    require the `origin` remote to exist."""
     try:
         out = subprocess.run(
-            ["git", "diff", "--name-only", "origin/main..HEAD"],
+            ["git", "diff", "--name-only", "@{upstream}..HEAD"],
             cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
             timeout=15,
         )
