@@ -282,3 +282,40 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Files:** `packages/frontend/src/features/visualizer/useSpectralTimeline.ts`, `motion/useMotionDriver.ts`, `sectionStateMachine.ts`
 - **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-19.
 - **Acceptance:** click-track fixture: visual beat peaks within one frame of audio beat times at 60 fps; section changes alter motion intensity without a mode switch.
+
+### T-VIZ-20 — Feedback/Warp preset mode (Milkdrop idiom, native)
+- **Status:** todo
+- **Goal:** Promote ShaderVisualizer's existing ping-pong feedback (ShaderCanvas `feedback` props: zoom/rotation/decay) from a lab feature into an audience-facing preset mode: one warp engine, many looks, presets as data.
+- **Files:** `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx`, `components/ShaderCanvas.tsx`, new `packages/frontend/src/features/visualizer/warpPresets.ts`
+- **Plan:** Research: `docs/knowledge/visualizer-mode-research-2026-11-03/README.md` §1 (native path A chosen by owner, 2026-11-03). Steps: (1) generalize the feedback resample beyond zoom/rotate/decay scalars — add swirl and radial-flow terms driven by uniforms; (2) define the preset format in `warpPresets.ts` (warp params, palette, draw-element selection, audio-response gains) as typed data; (3) author 6 starter presets spanning calm→aggressive; (4) cycle presets on section boundaries via sectionStateMachine, crossfading through the feedback buffer (the buffer makes transitions free — never hard-cut); (5) consume enveloped bands/onset envelope per T-VIZ-15/16 contracts, not raw FFT.
+- **Acceptance:** 6 presets selectable and visibly distinct on the same track; preset change at a section boundary produces no hard cut (frame-diff check per `docs/guides/visualizer-debug.md`); GLSL passes the repo compile check; frame time inside the T-VIZ-18 budget at DPR cap.
+
+### T-VIZ-21 — Kinetic Typography mode (lyrics as the visual)
+- **Status:** todo
+- **Goal:** A mode where the song's words are the scene: line/word animation (snap, stack, scale, scatter) driven by vocal-stem energy and beat phase over a minimal reactive ground — not an overlay on another visual.
+- **Files:** `packages/frontend/src/features/visualizer/canvas2dModes.ts`, `visualizerHelpers.ts` (CANVAS_2D_MODES), `lyricsSync.ts`, `components/LyricOverlay.tsx`, `motion/motionMoves.ts`
+- **Plan:** Research: mode-research doc §2. Steps: (1) register mode id `kinetic-type` in CANVAS_2D_MODES + budget table (text is the focal point; global effects minimal per the budget rules); (2) reuse the lyricsSync line lookup (currentLine/nextLine/progress) — extend to word-level only if line timing proves too coarse in testing; (3) choreography vocabulary from existing motion moves: line entry on the vocal onset, hook lines get the squash/impact move on beat phase, exit by decay — deadpan register: restrained palette, no bouncy easing (owner's songs are dry/skeptical; match the brand); (4) instrumental tracks fall back to title/section cards so the mode never sits empty.
+- **Acceptance:** on a lyric-timed track, line entries land within one frame of the line start at 60 fps; hook repetition is visibly emphasised over verse lines; mode is readable with audio muted (screenshot check); reduced-motion setting freezes choreography to fades.
+- **Depends on:** T-VIZ-15/16 data contracts (enveloped vocal energy, onset envelope) — spec against them, build after they land.
+
+### T-VIZ-22 — Stem Scene (one visual agent per stem)
+- **Status:** todo
+- **Goal:** A 3D style where each stem is a visual agent in one scene: drums = percussive geometry striking on hits, bass = ground mass heaving, vocals = central form, other = atmosphere field; layout from stemSpatial.
+- **Files:** new `packages/frontend/src/features/visualizer/viz-styles/stemScene.tsx`, `viz-styles/helpers.ts` (getStemEnergy), `stemSpatial.ts`, `viz-styles/index.ts`
+- **Plan:** Research: mode-research doc §3. Steps: (1) per-stem agents as instanced/merged geometry — draw calls inside the T-VIZ-18 budget (~150) from the start; (2) drive agents from getStemEnergy per-stem bands/onsets (the API instancedParticles and aurora already use); (3) solo/mute a stem in the StemMixer and the matching agent must respond alone — that isolation check is the mode's correctness test; (4) when stems are absent, degrade to the mixed-signal agents (bass/mid/treble split) rather than an empty scene.
+- **Acceptance:** stem isolation check passes for drums/bass/vocals; draw calls ≤ budget on the reference track; no per-frame React state (refs only, per architecture rules).
+- **Depends on:** T-VIZ-16 (per-stem onset envelopes improve strike timing; mode can ship on energy alone if scheduled first).
+
+### T-VIZ-23 — Spectral Terrain Flyover style
+- **Status:** todo
+- **Goal:** An endless ridged-terrain flyover as a WebGL style: spectrum shapes the ridgeline, enveloped bass drives speed, sub drives heave, treble adds rim sparkle.
+- **Files:** new `packages/frontend/src/features/visualizer/viz-styles/terrain.tsx`, `viz-styles/index.ts`
+- **Plan:** Research: mode-research doc §4 (ranked #1 wow-per-cost in the Synesthesia spec). Pure GLSL displaced grid on the ShaderCanvas pattern (fullscreen approach, no scene graph); scroll phase from the audio clock (architecture rule 2 — never performance.now for motion); DPR governed by T-VIZ-18 when it lands.
+- **Acceptance:** forward motion is continuous with no visible tile repetition over 60 s; a bass drop measurably increases speed/heave within one beat; frame time inside budget at DPR cap.
+
+### T-VIZ-24 — Kaleidoscope post pass (VisualizationFX)
+- **Status:** todo
+- **Goal:** 6/8/12-fold mirror symmetry as a toggleable ShaderPass in the VisualizationFX composer chain, intensity driven by section state and the onset envelope — a multiplier over every existing mode, not a new mode.
+- **Files:** `packages/frontend/src/features/visualizer/VisualizationFX.tsx`
+- **Plan:** Research: mode-research doc §5. Insert the pass after UnrealBloomPass and before the grade pass; fold count selectable; intensity defaults to 0 (off) and presets/sections may raise it.
+- **Acceptance:** enabling the pass on any 3D style produces stable symmetry with no seam artifacts at fold boundaries; pass cost ≤ 1 ms at 1080p on the reference GPU (RenderStats frame-time delta).
