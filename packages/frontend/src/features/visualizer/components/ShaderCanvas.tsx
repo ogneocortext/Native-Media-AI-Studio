@@ -17,6 +17,10 @@ interface ShaderCanvasProps {
   feedbackRotation?: number;
   /** Feedback decay/fade factor (0.95 = slow fade, 0.99 = long trails) */
   feedbackDecay?: number;
+  /** Feedback swirl intensity — vortex rotation scaled by distance from center (0 = off) */
+  feedbackSwirl?: number;
+  /** Feedback radial flow — push/pull from center (negative = inward, positive = outward) */
+  feedbackRadial?: number;
   /**
    * Where the rendered canvas element is published. Frame-accurate export
    * captures the canvas the frames actually land on, and the visualizer page
@@ -275,6 +279,8 @@ export function ShaderCanvas({
       uniform float u_feedback_decay;
       uniform float u_feedback_zoom;
       uniform float u_feedback_rotation;
+      uniform float u_feedback_swirl;
+      uniform float u_feedback_radial;
       uniform vec2 u_resolution;
 
       void main() {
@@ -287,6 +293,19 @@ export function ShaderCanvas({
           centered.x * cosR - centered.y * sinR,
           centered.x * sinR + centered.y * cosR
         );
+
+        // Swirl: extra rotation scaled by distance from center (vortex effect)
+        float dist = length(centered);
+        float swirlAngle = u_feedback_swirl * dist;
+        float cosS = cos(swirlAngle);
+        float sinS = sin(swirlAngle);
+        centered = vec2(
+          centered.x * cosS - centered.y * sinS,
+          centered.x * sinS + centered.y * cosS
+        );
+
+        // Radial flow: push outward or pull inward from center
+        centered *= (1.0 + u_feedback_radial * dist);
 
         centered /= u_feedback_zoom;
         uv = centered + 0.5;
@@ -506,11 +525,15 @@ export function ShaderCanvas({
               u_feedback_decay: gl.getUniformLocation(compProgram, "u_feedback_decay"),
               u_feedback_zoom: gl.getUniformLocation(compProgram, "u_feedback_zoom"),
               u_feedback_rotation: gl.getUniformLocation(compProgram, "u_feedback_rotation"),
+              u_feedback_swirl: gl.getUniformLocation(compProgram, "u_feedback_swirl"),
+              u_feedback_radial: gl.getUniformLocation(compProgram, "u_feedback_radial"),
               u_resolution: gl.getUniformLocation(compProgram, "u_resolution"),
             };
             gl.uniform1f(compLocs.u_feedback_decay, feedbackDecayRef.current);
             gl.uniform1f(compLocs.u_feedback_zoom, feedbackZoomRef.current);
             gl.uniform1f(compLocs.u_feedback_rotation, feedbackRotationRef.current);
+            gl.uniform1f(compLocs.u_feedback_swirl, u.feedbackSwirl ?? 0);
+            gl.uniform1f(compLocs.u_feedback_radial, u.feedbackRadial ?? 0);
             gl.uniform2f(compLocs.u_resolution, canvas.width, canvas.height);
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, write.texture);

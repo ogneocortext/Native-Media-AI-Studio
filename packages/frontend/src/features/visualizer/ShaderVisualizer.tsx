@@ -26,6 +26,11 @@ import type { AudioData, StemAnalysisData } from "./types";
 import type { StemName } from "./components/StemMixer";
 import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionPreset } from "./sectionStateMachine";
+import {
+  getWarpPreset,
+  nextWarpPresetId,
+  type WarpPresetId,
+} from "./warpPresets";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import {
   AudioReactivityProcessor,
@@ -317,6 +322,10 @@ export function ShaderVisualizer({
     // because uniformsRef is a flat number map.
     cameraOffsetX: 0,
     cameraOffsetY: 0,
+    // T-VIZ-20: audio-driven feedback warp uniforms, consumed by
+    // ShaderCanvas's composite shader for swirl and radial flow.
+    feedbackSwirl: 0,
+    feedbackRadial: 0,
     // Key-derived palette, written by the rAF loop each frame from
     // keyPaletteRef (static per track). Declared here so the ref's inferred type
     // matches what the loop assigns.
@@ -388,6 +397,7 @@ export function ShaderVisualizer({
   const { sampleAtTime: sampleSpectral, loading: spectralLoading, error: spectralError } = useSpectralTimeline(trackFile, 24);
   const sectionPresetRef = useRef(getSectionPreset("verse"));
   const lastSectionRef = useRef<string>("");
+  const warpPresetIdRef = useRef<WarpPresetId>("deepCalm");
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
   const [feedbackZoom, setFeedbackZoom] = useState(1.0);
   const [feedbackRotation, setFeedbackRotation] = useState(0.0);
@@ -533,6 +543,10 @@ export function ShaderVisualizer({
         setFeedbackZoom(mapping.feedbackZoom);
         setFeedbackRotation(mapping.feedbackRotation);
         setFeedbackDecay(mapping.feedbackDecay);
+        // T-VIZ-20: cycle warp preset on section boundary. Transitions ride
+        // the feedback buffer — only uniforms change, never a hard cut.
+        const nextId = nextWarpPresetId(warpPresetIdRef.current);
+        warpPresetIdRef.current = nextId;
       }
 
       const sectionMapping = getSectionPreset(sectionType);
@@ -618,6 +632,16 @@ export function ShaderVisualizer({
       const baseBeat = Math.min(1, beatPulse + stemEnergy.drums * 0.45);
       const baseEnergy = Math.min(1, lrcEnergy + stemBoost * 0.25);
 
+      // T-VIZ-20: audio-driven feedback warp. Swirl is driven by bass (kick
+      // energy spins the vortex), radial by overall energy (push/pull from
+      // center). Gains come from the current warp preset so each preset has
+      // its own audio-response curve. Values are per-frame (consistent with
+      // feedbackZoom/rotation/decay), so at quiet moments the warp fades to
+      // near-zero and at loud moments it hits the preset's full strength.
+      const currentWarpPreset = getWarpPreset(warpPresetIdRef.current);
+      const feedbackSwirl = currentWarpPreset.swirl * currentWarpPreset.audioGains.bass * baseBass;
+      const feedbackRadial = currentWarpPreset.radial * currentWarpPreset.audioGains.energy * baseEnergy;
+
       uniformsRef.current = {
         bass: reactivityUniforms
           ? Math.min(1, reactivityUniforms.bass * 0.6 + baseBass * 0.4)
@@ -646,6 +670,10 @@ export function ShaderVisualizer({
         // ShaderCanvas as the `u_camera_offset` vec2.
         cameraOffsetX: motionCameraOffsetX,
         cameraOffsetY: motionCameraOffsetY,
+        // T-VIZ-20: audio-driven feedback warp uniforms, consumed by
+        // ShaderCanvas's composite shader for swirl and radial flow.
+        feedbackSwirl,
+        feedbackRadial,
         // Static per track; merged here because uniformsRef is rebuilt each frame.
         keyHue: keyPaletteRef.current.hue,
         keySat: keyPaletteRef.current.saturation,
