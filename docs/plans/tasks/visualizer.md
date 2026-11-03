@@ -240,3 +240,45 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   integration fixed (fuzzy model matching + backend-aware routing) but not used
   for analysis due to VRAM constraints.
 
+
+### T-VIZ-14 — Frame-rate-independent damping for all visualizer motion
+- **Status:** todo
+- **Goal:** Replace fixed per-frame smoothing constants (springK 0.28/0.26 in canvas2dModes.ts and equivalents) with dt-based exponential damping so motion speed is a property of the music, not the display refresh rate.
+- **Files:** `packages/frontend/src/features/visualizer/canvas2dHelpers.ts`, `canvas2dModes.ts`, `particles.ts`, `viz-styles/*`
+- **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-14 (damp helper, lambda conversion table).
+- **Acceptance:** unit test: 1 s of damping in 60 steps vs 120 steps lands within 1%; motion speed visually identical at 60 Hz vs 120 Hz.
+
+### T-VIZ-15 — Single attack/release envelope stage, wired into all modes
+- **Status:** todo
+- **Goal:** Wire the long-dormant asymmetricSmoothBands into a single time-constant envelope stage between band data and every mode; delete per-mode springs it replaces.
+- **Files:** `packages/frontend/src/features/visualizer/canvas2dHelpers.ts`, `Canvas2DVisualizer.tsx`, `canvas2dModes.ts`
+- **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-15 (per-band time constants from the veffects reference).
+- **Acceptance:** no mode reads raw band arrays (grep); kick hit peaks within one frame, decays over ~0.5 s.
+
+### T-VIZ-16 — Float frequency data + split transient/onset path
+- **Status:** todo
+- **Goal:** Main visual path reads getFloatFrequencyData (dB floats) instead of 256-level byte data; onset detection runs on an unsmoothed path via spectral flux and is exposed as a decaying envelope.
+- **Files:** `packages/frontend/src/features/visualizer/audioHooks.ts`, `useAudioGraph.ts`, `audioReactivityProcessor.ts`
+- **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-16 (two-path analysis; lower smoothingTimeConstant once T-VIZ-15 owns smoothing).
+- **Acceptance:** onset envelope fires on isolated hits in a fixture; beat-to-visual latency vs the precomputed timeline measurably reduced on a click track.
+
+### T-VIZ-17 — Remove shadowBlur; pre-rendered glow sprites + cached gradients
+- **Status:** todo
+- **Goal:** Eliminate all 22 shadowBlur call sites in the 2D path; replace with pre-rendered glow sprites (drawImage, 'lighter') and per-mode cached gradients; batch draw state changes.
+- **Files:** `packages/frontend/src/features/visualizer/Canvas2DVisualizer.tsx`, `canvas2dModes.ts`, `particles.ts`
+- **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-17.
+- **Acceptance:** grep shadowBlur in the visualizer tree returns zero; busy-section p95 frame time inside budget per the plan's measurement protocol.
+
+### T-VIZ-18 — Adaptive quality governor (Canvas2D + R3F)
+- **Status:** todo
+- **Goal:** Extend RenderStats' FPS measurement into a stepped quality governor (DPR ladder, particle counts, post toggles) with hysteresis, on both the Canvas2D and R3F surfaces (drei PerformanceMonitor).
+- **Files:** `packages/frontend/src/features/visualizer/components/RenderStats.tsx`, `Canvas2DVisualizer.tsx`, `components/ShaderCanvas.tsx`, `VisualizationFX.tsx`
+- **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-18.
+- **Acceptance:** under 4x CPU throttle the governor steps down and frame time returns inside budget without oscillation; renderer.info draw calls surfaced, budget ~150.
+
+### T-VIZ-19 — Anticipation: phase-driven beats + interpolated spectral timeline
+- **Status:** todo
+- **Goal:** Drive visual beats from the precomputed beat phase (peaks land on beats) with live flux as fallback only; interpolate useSpectralTimeline lookups between analysis frames; scale motion intensity by section via sectionStateMachine.
+- **Files:** `packages/frontend/src/features/visualizer/useSpectralTimeline.ts`, `motion/useMotionDriver.ts`, `sectionStateMachine.ts`
+- **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-19.
+- **Acceptance:** click-track fixture: visual beat peaks within one frame of audio beat times at 60 fps; section changes alter motion intensity without a mode switch.
