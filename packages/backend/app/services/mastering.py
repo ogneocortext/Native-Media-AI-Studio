@@ -454,22 +454,20 @@ def _design_peaking(
 ) -> tuple[np.ndarray, np.ndarray]:
     """RBJ peaking EQ: boost/cut at *cutoff_hz* by *gain_db* dB.
 
-    Generalized from ``_design_presence_filter`` (which is hardcoded to
-    PRESENCE_HZ/PRESENCE_GAIN_DB).
+    RBJ cookbook: w0 = 2*pi*f/Fs, A = 10^(dB/40), alpha = sin(w0)/(2*Q).
     """
-    nyq = sample_rate / 2.0
-    f0 = min(cutoff_hz / nyq, 0.99)
-    w0 = 2 * math.pi * f0
+    w0 = 2 * math.pi * cutoff_hz / sample_rate
+    A = 10 ** (gain_db / 40.0)
     alpha = math.sin(w0) / (2 * q)
-    gain_linear = _db_to_linear(gain_db)
-    b0 = 1 + (gain_linear * alpha)
-    b1 = -2 * math.cos(w0)
-    b2 = 1 - (gain_linear * alpha)
-    a0 = 1 + alpha / gain_linear
-    a1 = -2 * math.cos(w0)
-    a2 = 1 - (alpha / gain_linear)
+    cos_w0 = math.cos(w0)
+    b0 = 1 + alpha * A
+    b1 = -2 * cos_w0
+    b2 = 1 - alpha * A
+    a0 = 1 + alpha / A
+    a1 = -2 * cos_w0
+    a2 = 1 - alpha / A
     b = np.array([b0, b1, b2]) / a0
-    a = np.array([a1, a2]) / a0
+    a = np.array([1.0, a1, a2]) / a0
     return b, a
 
 
