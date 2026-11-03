@@ -12,6 +12,8 @@
 import {
   asymmetricSmoothStep,
   clamp,
+  damp,
+  dampLambda,
   easeOutBack,
   fbm,
   hexToRgb,
@@ -67,6 +69,7 @@ export interface BarModeState {
   waveVelocities: number[] | null;
   smoothed: Uint8Array | null;
   particles: Particle[];
+  lastMs: number | null;
 }
 
 const PEAK_DECAY = 0.985;
@@ -87,12 +90,13 @@ function boostedValue(
   );
 }
 
-/** Common per-bar preamble: compute freq, boosted target, and update spring state. */
+/** Common per-bar preamble: compute freq, boosted target, and update smoothing state. */
 function computeBarTarget(
   i: number,
   freqMap: (barIndex: number) => number,
   ctx: BarModeContext,
   state: BarModeState,
+  dt: number,
 ): { targetNorm: number; smoothH: number; springRising: boolean } {
   const rawV = sampleMappedBand(ctx.freq, freqMap, i) / 255;
   const boosted = boostedValue(rawV, ctx);
@@ -107,11 +111,14 @@ function computeBarTarget(
   } else {
     const prev = state.barPeaks?.[i] ?? 0;
     const targetH = targetNorm * ctx.h * 0.78;
-    const springK = 0.28;
-    const displacement = targetH - prev;
-    state.barVelocities![i] = (state.barVelocities![i] + springK * displacement) * 0.72;
-    smoothH = Math.max(0, prev + state.barVelocities![i]);
-    springRising = state.barVelocities![i] > 0;
+    // Frame-rate-independent exponential smoothing toward targetH.
+    // lambda = -60 * ln(1 - k) where k = springK * damping is the effective
+    // per-frame convergence weight at 60 Hz.
+    const lambda = dampLambda(0.28 * 0.72);
+    const next = damp(prev, targetH, lambda, dt);
+    state.barPeaks![i] = Math.max(0, next);
+    smoothH = state.barPeaks![i];
+    springRising = next > prev;
   }
   return { targetNorm, smoothH, springRising };
 }
@@ -224,15 +231,20 @@ export function renderBars(
   if (!state.barPeaks || state.barPeaks.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
-  }
   if (!state.smoothedBars || state.smoothedBars.length !== barCount) {
     state.smoothedBars = new Array(barCount).fill(0);
   }
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
 
-  const barGradients = modeCtx.getGradients("bars", modeCtx.colors);
-  const baseY = Math.round(h * 0.88);
+  if (!state.barVelocities || state.barVelocities.length !== barCount) {
+    state.barVelocities = new Array(barCount).fill(0);
+  }
+
   const freqLen = modeCtx.freq?.length || 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
@@ -241,8 +253,11 @@ export function renderBars(
     modeCtx.analyser?.context?.sampleRate,
   );
 
+  const barGradients = modeCtx.getGradients("bars", modeCtx.colors);
+  const baseY = Math.round(h * 0.88);
+
   for (let i = 0; i < barCount; i++) {
-    const { smoothH, springRising } = computeBarTarget(i, freqMap, modeCtx, state);
+    const { smoothH, springRising } = computeBarTarget(i, freqMap, modeCtx, state, dt);
     const easeT = clamp(smoothH / Math.max(1, h * 0.78 * modeCtx.energyMod), 0, 1);
     const easedH = modeCtx.asymmetric
       ? smoothH
@@ -306,9 +321,12 @@ export function renderMirroredBars(
   if (!state.barPeaks || state.barPeaks.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
   }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
 
   const barGradients = modeCtx.getGradients("mirrored-bars", modeCtx.colors);
   const centerY = Math.round(h * 0.5);
@@ -325,13 +343,12 @@ export function renderMirroredBars(
     const rawV = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(rawV, modeCtx);
     const targetH = boosted * maxBarH * modeCtx.energyMod;
-    const springK = 0.26;
-    const damping = 0.73;
-    const displacement = targetH - (state.barPeaks[i] ?? 0);
-    state.barVelocities[i] = (state.barVelocities[i] + springK * displacement) * damping;
-    const bh = Math.max(0, (state.barPeaks[i] ?? 0) + state.barVelocities[i]);
-    if (bh > state.barPeaks[i]) state.barPeaks[i] = bh;
-    else state.barPeaks[i] = Math.max(bh, state.barPeaks[i] * PEAK_DECAY);
+    // Frame-rate-independent exponential smoothing toward targetH.
+    const lambda = dampLambda(0.26 * 0.73);
+    const prev = state.barPeaks[i] ?? 0;
+    const next = damp(prev, targetH, lambda, dt);
+    const bh = Math.max(0, next);
+    state.barPeaks[i] = bh;
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
     const radius = Math.min(bw / 2, 3 * dpr);
@@ -403,6 +420,13 @@ export function renderSegmentedLedBars(
   const baseY = Math.round(h * 0.92);
   const barGradients = modeCtx.getGradients("segmented-led-bars", modeCtx.colors);
 
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
+
   if (!state.barVelocities || state.barVelocities.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
   }
@@ -419,13 +443,14 @@ export function renderSegmentedLedBars(
     const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(v, modeCtx);
     const targetSegs = boosted * segmentsPerBar * modeCtx.energyMod;
-    const springK = 0.24;
-    const damping = 0.74;
-    const displacement = targetSegs - state.barVelocities[i];
-    state.barVelocities[i] = (state.barVelocities[i] + springK * displacement) * damping;
+    // Frame-rate-independent exponential smoothing toward targetSegs.
+    const lambda = dampLambda(0.24 * 0.74);
+    const prev = state.barVelocities[i] ?? 0;
+    const next = damp(prev, targetSegs, lambda, dt);
+    state.barVelocities[i] = next;
     const activeSegments = Math.max(
       0,
-      Math.min(segmentsPerBar, Math.round(state.barVelocities[i])),
+      Math.min(segmentsPerBar, Math.round(next)),
     );
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
@@ -473,11 +498,15 @@ export function renderStereoSplitBars(
   ];
   const baseY = Math.round(h * 0.88);
 
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
+
   if (!state.barPeaks || state.barPeaks.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
-  }
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
   }
 
   const freqLen = modeCtx.freq?.length || 1024;
@@ -495,13 +524,12 @@ export function renderStereoSplitBars(
       const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
       const boosted = boostedValue(v, modeCtx);
       const targetH = boosted * h * 0.65 * modeCtx.energyMod;
-      const springK = 0.26;
-      const damping = 0.73;
-      const displacement = targetH - (state.barPeaks[i] ?? 0);
-      state.barVelocities[i] = (state.barVelocities[i] + springK * displacement) * damping;
-      const bh = Math.max(0, (state.barPeaks[i] ?? 0) + state.barVelocities[i]);
-      if (bh > state.barPeaks[i]) state.barPeaks[i] = bh;
-      else state.barPeaks[i] = Math.max(bh, state.barPeaks[i] * PEAK_DECAY);
+      // Frame-rate-independent exponential smoothing toward targetH.
+      const lambda = dampLambda(0.26 * 0.73);
+      const prev = state.barPeaks[i] ?? 0;
+      const next = damp(prev, targetH, lambda, dt);
+      const bh = Math.max(0, next);
+      state.barPeaks[i] = bh;
       const x = Math.round(i * barW);
       const y = Math.round(baseY - bh);
       const bw = Math.round(barW) - 2;
@@ -551,6 +579,23 @@ export function renderStackedFrequencyBands(
       color: modeCtx.colors[2] || modeCtx.colors[1],
     },
   ];
+
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
+
+  if (!state.barPeaks || state.barPeaks.length !== barCount) {
+    state.barPeaks = new Array(barCount).fill(0);
+  }
+  if (!state.barVelocities || state.barVelocities.length !== barCount) {
+    state.barVelocities = new Array(barCount).fill(0);
+  }
+  if (!state.smoothedStack || state.smoothedStack.length !== barCount * layers.length) {
+    state.smoothedStack = new Array(barCount * layers.length).fill(0);
+  }
 
   if (!state.barPeaks || state.barPeaks.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
@@ -608,11 +653,11 @@ export function renderStackedFrequencyBands(
     if (modeCtx.asymmetric) {
       smoothStackH = stackH;
     } else {
-      const springK = 0.24;
-      const damping = 0.74;
-      const displacement = stackH - (state.barPeaks[i] ?? 0);
-      state.barVelocities[i] = (state.barVelocities[i] + springK * displacement) * damping;
-      smoothStackH = Math.max(0, (state.barPeaks[i] ?? 0) + state.barVelocities[i]);
+      // Frame-rate-independent exponential smoothing toward stackH.
+      const lambda = dampLambda(0.24 * 0.74);
+      const prev = state.barVelocities[i] ?? stackH;
+      smoothStackH = Math.max(0, damp(prev, stackH, lambda, dt));
+      state.barVelocities[i] = smoothStackH;
     }
     if (smoothStackH > state.barPeaks[i]) state.barPeaks[i] = smoothStackH;
     else state.barPeaks[i] = Math.max(smoothStackH, state.barPeaks[i] * PEAK_DECAY);
@@ -650,9 +695,12 @@ export function renderDotPeakMatrix(
   const dotR = Math.min(cellW, cellH) * 0.35;
   const barGradients = modeCtx.getGradients("dot-peak-matrix", modeCtx.colors);
 
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
   }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
 
   const freqLen = modeCtx.freq?.length || 1024;
   const freqMap = makeFreqMapper(
@@ -666,11 +714,12 @@ export function renderDotPeakMatrix(
     const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(v, modeCtx);
     const targetRows = boosted * rows * modeCtx.energyMod;
-    const springK = 0.22;
-    const damping = 0.75;
-    const displacement = targetRows - state.barVelocities[i];
-    state.barVelocities[i] = (state.barVelocities[i] + springK * displacement) * damping;
-    const activeRows = Math.max(0, Math.min(rows, Math.round(state.barVelocities[i])));
+    // Frame-rate-independent exponential smoothing toward targetRows.
+    const lambda = dampLambda(0.22 * 0.75);
+    const prev = state.barVelocities![i] ?? 0;
+    const next = damp(prev, targetRows, lambda, dt);
+    state.barVelocities![i] = next;
+    const activeRows = Math.max(0, Math.min(rows, Math.round(next)));
     const cIdx = Math.floor((i / cols) * modeCtx.colors.length);
     for (let r = 0; r < rows; r++) {
       const cx = Math.round(i * cellW + cellW / 2);
@@ -740,6 +789,17 @@ export function renderWaveform(
     state.smoothed[i] = prev * 0.25 + wave[i] * 0.5 + next * 0.25;
   }
 
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
+
+  if (!state.waveEnvelope || state.waveEnvelope.length !== state.smoothed.length) {
+    state.waveEnvelope = new Array(state.smoothed.length).fill(0);
+  }
+
   ctx.strokeStyle = colors[1];
   ctx.lineWidth = 2.2 * dpr;
   ctx.shadowColor = colors[0];
@@ -748,15 +808,9 @@ export function renderWaveform(
   ctx.beginPath();
   const slice = w / state.smoothed.length;
 
-  // Spring-smoothed amplitude envelope for the waveform path.
-  const springK = 0.22;
-  const damping = 0.75;
-  if (!state.waveEnvelope || state.waveEnvelope.length !== state.smoothed.length) {
-    state.waveEnvelope = new Array(state.smoothed.length).fill(0);
-  }
-  if (!state.waveVelocities || state.waveVelocities.length !== state.smoothed.length) {
-    state.waveVelocities = new Array(state.smoothed.length).fill(0);
-  }
+  // Frame-rate-independent exponential smoothing of the amplitude envelope.
+  // lambda = -60 * ln(1 - k) where k = springK * damping at 60 Hz.
+  const lambda = dampLambda(0.22 * 0.75);
   const d = modeCtx.d;
   for (let i = 0; i < state.smoothed.length; i++) {
     const x = i * slice;
@@ -770,9 +824,8 @@ export function renderWaveform(
       h *
       0.35 *
       (1 + energyMod * 0.85 + phraseFlash * 0.45 + d.bass * 0.25 + beatPhaseAnt);
-    const displacement = targetAmp - state.waveEnvelope[i];
-    state.waveVelocities[i] = (state.waveVelocities[i] + springK * displacement) * damping;
-    state.waveEnvelope[i] = state.waveEnvelope[i] + state.waveVelocities[i];
+    const prev = state.waveEnvelope[i];
+    state.waveEnvelope[i] = Math.max(0, damp(prev, targetAmp, lambda, dt));
     const y = h / 2 + state.waveEnvelope[i];
     const xOff =
       syncLineProgress * 14 * dpr * Math.sin(i * 0.01 + nowMs() * 0.001);
@@ -850,6 +903,13 @@ export function renderRadial(
   const baseR = Math.min(w, h) * 0.18;
   const sectionRot = sectionProgress * Math.PI * 0.5;
 
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
+
   if (!state.barVelocities || state.barVelocities.length !== 64) {
     state.barVelocities = new Array(64).fill(0);
   }
@@ -868,11 +928,12 @@ export function renderRadial(
     const targetR1 =
       baseR +
       v * baseR * 1.2 * (1 + phraseFlash * 0.6 + energyMod * 0.4 + beatPhaseAnt);
-    const springK = 0.24;
-    const damping = 0.74;
-    const displacement = targetR1 - (state.barVelocities[i] || 0);
-    state.barVelocities[i] = (state.barVelocities[i] + springK * displacement) * damping;
-    const r1 = Math.max(r0, state.barVelocities[i] + r0);
+    // Frame-rate-independent exponential smoothing toward targetR1.
+    const lambda = dampLambda(0.24 * 0.74);
+    const prev = state.barVelocities[i] ?? targetR1;
+    const next = damp(prev, targetR1, lambda, dt);
+    state.barVelocities[i] = next;
+    const r1 = Math.max(r0, next);
     const x0 = cx + Math.cos(angle) * r0;
     const y0 = cy + Math.sin(angle) * r0;
     const x1 = cx + Math.cos(angle) * r1;
@@ -1118,10 +1179,15 @@ export function renderConstellation(
   }
   ctx.globalAlpha = 1;
 
-  // Draw nodes with spring-smoothed radius per point
-  const constellationSpringK = 0.22;
-  const constellationDamping = 0.75;
-  const pointVelocities = new Array(maxPoints).fill(0);
+  // Draw nodes with frame-rate-independent exponential smoothing of radius.
+  const constellationLambda = dampLambda(0.22 * 0.75);
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
+
   const pointRadii = new Array(maxPoints).fill(0);
   const d = modeCtx.d;
   for (let i = 0; i < maxPoints; i++) {
@@ -1131,10 +1197,8 @@ export function renderConstellation(
       p.v * 5 * dpr +
       (d.beat && p.v > 0.7 ? 3 * dpr : 0) +
       analyzedPunch * 3 * dpr;
-    const displacement = targetR - pointRadii[i];
-    pointVelocities[i] =
-      (pointVelocities[i] + constellationSpringK * displacement) * constellationDamping;
-    pointRadii[i] = Math.max(0, pointRadii[i] + pointVelocities[i]);
+    const prev = pointRadii[i];
+    pointRadii[i] = Math.max(0, damp(prev, targetR, constellationLambda, dt));
     const r = pointRadii[i];
     ctx.fillStyle =
       colors[Math.floor(p.v * colors.length) % colors.length];
@@ -1238,9 +1302,14 @@ export function renderParticles(
   modeCtx: BarModeContext,
   state: BarModeState,
 ): void {
-  void state;
   const { ctx, colors, phraseFlash, energyMod, analyzedPunch, rand } = modeCtx;
   const { particles } = state;
+  if (state.lastMs === null) {
+    state.lastMs = modeCtx.nowMs();
+  }
+  const now = modeCtx.nowMs();
+  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  state.lastMs = now;
   updateAndDrawParticles(
     ctx,
     particles,
@@ -1254,6 +1323,7 @@ export function renderParticles(
     colors,
     phraseFlash,
     rand,
+    dt,
   );
 }
 

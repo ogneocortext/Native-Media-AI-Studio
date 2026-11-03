@@ -78,6 +78,46 @@ export function easeOutQuad(t: number): number {
   return 1 - (1 - t) * (1 - t);
 }
 
+/**
+ * Frame-rate-independent exponential smoothing (exponential decay toward a
+ * target).
+ *
+ * `lambda` is the continuous decay rate in "per-60Hz-seconds", derived from a
+ * per-frame weight `k` (designed for a 60 Hz frame budget) as:
+ *
+ *     lambda = -60 * ln(1 - k)
+ *
+ * `dt` is the elapsed time in seconds since the last frame. At 60 Hz,
+ * `dt = 1/60`, so `exp(-lambda * dt) = exp(log(1 - k)) = 1 - k`, reproducing
+ * the original fixed-per-frame lerp `state += k * (target - state)`. At any
+ * other frame rate, N steps of `damp()` with `dt = 1 / (60 * N)` converge to
+ * the same state as 60 steps with `dt = 1/60` — smoothness no longer depends
+ * on the monitor's refresh rate.
+ *
+ * Example: a spring with `springK = 0.28` at 60 Hz has
+ * `lambda = -60 * ln(1 - 0.28) ≈ 1.978`. Running 60 steps at 60 Hz or 120
+ * steps at 120 Hz both converge to the same state.
+ *
+ * Mutates nothing: returns the next state value.
+ */
+export function damp(current: number, target: number, lambda: number, dt: number): number {
+  const factor = Math.exp(-lambda * dt);
+  return target + (current - target) * factor;
+}
+
+/**
+ * Convert a per-60Hz-frame smoothing weight `k` (e.g. `springK = 0.28`) into
+ * the continuous decay rate `lambda` used by `damp()`.
+ *
+ *     lambda = -60 * ln(1 - k)
+ *
+ * At `dt = 1/60` (60 Hz), `damp(current, target, lambda, dt)` equals
+ * `current + k * (target - current)`.
+ */
+export function dampLambda(k: number): number {
+  return -60 * Math.log(1 - k);
+}
+
 // ============================================================================
 // 2026 visualization research additions
 // ============================================================================

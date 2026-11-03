@@ -8,7 +8,7 @@
  * Particles spawn from center on energy/beat, accelerate outward, and fade.
  * A center glow completes the mode.
  */
-import { hslToRgb } from "./canvas2dHelpers";
+import { damp, dampLambda, hslToRgb } from "./canvas2dHelpers";
 
 export interface Particle {
   x: number;
@@ -67,19 +67,23 @@ export function updateAndDrawParticles(
   colors: string[],
   phraseFlash: number,
   rand: () => number = Math.random,
+  dt: number = 1 / 60,
 ): void {
   const spawnCount = Math.floor(energy * 6 + analyzedPunch * 8 + (beat ? 14 : 0));
   for (let i = 0; i < spawnCount; i++) spawnParticle(particles, w, h, energy, beat, rand);
 
+  // Frame-rate-independent velocity decay toward 0.
+  // lambda = -60 * ln(1 - k) where k = 1 - 0.995 = 0.005 at 60 Hz.
+  const dragLambda = dampLambda(1 - 0.995);
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     // Audio-reactive velocity: particles accelerate outward on beat/energy
     const accel = 1 + energy * 0.5 + analyzedPunch * 0.6 + (beat ? 1.5 : 0);
     p.vx *= accel;
     p.vy *= accel;
-    // Slight drag to prevent runaway speeds
-    p.vx *= 0.995;
-    p.vy *= 0.995;
+    // Slight drag to prevent runaway speeds — frame-rate independent via damp().
+    p.vx = damp(p.vx, 0, dragLambda, dt);
+    p.vy = damp(p.vy, 0, dragLambda, dt);
     p.x += p.vx;
     p.y += p.vy;
     p.life -= 0.012 + energy * 0.01;

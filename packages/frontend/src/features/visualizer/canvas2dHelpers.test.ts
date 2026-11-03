@@ -7,6 +7,7 @@ import {
   barkToHz,
   clamp,
   DEFAULT_ASYMMETRIC_SMOOTHING,
+  damp,
   easeOutBack,
   easeOutQuad,
   fbm,
@@ -227,6 +228,82 @@ describe("asymmetricSmoothBands", () => {
     const smoothed = [0];
     for (let i = 0; i < 100; i++) asymmetricSmoothBands([0.5], smoothed);
     expect(smoothed[0]).toBeCloseTo(0.5, 4);
+  });
+});
+
+/**
+ * damp() frame-rate invariance: running 60 steps at 60 Hz must converge to
+ * the same state as 120 steps at 120 Hz, given the same continuous decay rate
+ * `lambda = -60 * ln(1 - k)` derived from a per-60Hz-frame weight `k`.
+ *
+ * Without damp(), a fixed per-frame lerp `state += k * (target - state)`
+ * converges faster at higher frame rates — 120 steps at 120 Hz overshoots
+ * relative to 60 steps at 60 Hz — so the visual smoothness depends on the
+ * monitor's refresh rate. damp() removes that dependency.
+ */
+describe("damp", () => {
+  it("converges to the target", () => {
+    const lambda = -60 * Math.log(1 - 0.28);
+    let v = 0;
+    for (let i = 0; i < 600; i++) v = damp(v, 1, lambda, 1 / 60);
+    expect(v).toBeCloseTo(1, 4);
+  });
+
+  it("is invariant: 60 steps at 60 Hz == 120 steps at 120 Hz", () => {
+    // springK = 0.28 from computeBarTarget in canvas2dModes.ts
+    const lambda = -60 * Math.log(1 - 0.28);
+
+    let v60 = 0;
+    for (let i = 0; i < 60; i++) v60 = damp(v60, 1, lambda, 1 / 60);
+
+    let v120 = 0;
+    for (let i = 0; i < 120; i++) v120 = damp(v120, 1, lambda, 1 / 120);
+
+    expect(v120).toBeCloseTo(v60, 4);
+  });
+
+  it("is invariant: 60 steps at 60 Hz == 30 steps at 30 Hz", () => {
+    const lambda = -60 * Math.log(1 - 0.22);
+
+    let v60 = 0;
+    for (let i = 0; i < 60; i++) v60 = damp(v60, 1, lambda, 1 / 60);
+
+    let v30 = 0;
+    for (let i = 0; i < 30; i++) v30 = damp(v30, 1, lambda, 1 / 30);
+
+    expect(v30).toBeCloseTo(v60, 4);
+  });
+
+  it("matches a fixed per-frame lerp at exactly 60 Hz", () => {
+    // At dt = 1/60, damp(lambda, dt) must equal state + k * (target - state).
+    const k = 0.28;
+    const lambda = -60 * Math.log(1 - k);
+
+    let vDamp = 0;
+    let vLerp = 0;
+    for (let i = 0; i < 60; i++) {
+      vDamp = damp(vDamp, 1, lambda, 1 / 60);
+      vLerp = vLerp + k * (1 - vLerp);
+    }
+    expect(vDamp).toBeCloseTo(vLerp, 6);
+  });
+
+  it("decays toward zero when target is 0", () => {
+    const lambda = -60 * Math.log(1 - 0.5);
+    let v = 1;
+    for (let i = 0; i < 60; i++) v = damp(v, 0, lambda, 1 / 60);
+    // (1 - 0.5)^60 ≈ 8.7e-19, essentially zero after 60 frames at k=0.5
+    expect(v).toBeLessThan(1e-10);
+  });
+
+  it("handles dt = 0 as a no-op", () => {
+    expect(damp(0.3, 1, 5, 0)).toBeCloseTo(0.3, 6);
+  });
+
+  it("handles lambda = 0 as a no-op (no decay)", () => {
+    let v = 0.3;
+    for (let i = 0; i < 100; i++) v = damp(v, 1, 0, 1 / 60);
+    expect(v).toBeCloseTo(0.3, 6);
   });
 });
 
