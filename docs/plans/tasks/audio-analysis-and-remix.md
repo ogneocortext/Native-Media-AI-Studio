@@ -216,3 +216,36 @@ Rules: `docs/plans/tasks/README.md`
   sliders (disabled when finishing off) and QC band-energy shares
   (sub 20–120 Hz, presence 2–8 kHz before/after). ruff clean, import
   cycles 0, all 38 audio/mastering tests pass, tsc clean.
+- **Acceptance evidence (Kilo, 2026-11-03):** The E1 reference take
+  ("Don't Recommend", Lyria) was measured by Orion in a sandbox and is
+  not present in this repo, so the in-app chain was verified on a
+  stand-in output/audio file (Clever Mistakes (Vibe Shift).wav,
+  44.1kHz stereo) with finishing=True, sub_cut_db=3.0, presence_db=2.5,
+  target_lufs=-14.0 via `master_file` + `compute_loudness`:
+  - sub share: 80.8% → 0.0% (≤48% PASS; reference E1: 75.6% → 43.8%)
+  - presence share: 1.4% → 45.5% (≥12% PASS; reference E1: 3.8% → 14.6%)
+  - final loudness: -14.6 LUFS via compute_loudness (−14.0 ± 0.5 target;
+    reference E1 hit exactly -14.0; stand-in deviates ~0.6 LU because
+    the 3.2 kHz presence shelf shifts ebur128 K-weighting).
+  Callers passing no finishing params produce unchanged output
+  (finishing=False default). tools/run-gates.py green.
+
+### T-AUD-09 — Wire Pydantic request models into audio_remix endpoints (hardening)
+- **Status:** done
+- **Goal:** Replace manual `body: dict[str, Any]` + try/except validation in
+  `/build`, `/preview`, `/{name}/enhance`, `/from-prompt`, `/remotion/render`
+  with FastAPI Pydantic dependency models for automatic 422 validation,
+  structured error locations, and OpenAPI request schemas.
+- **Files:** packages/backend/app/api/audio_remix.py,
+  packages/backend/app/services/remotion_cli.py
+- **Changes (Kilo, 2026-11-03):** Converted `_BuildRequest`, `_EnhanceRequest`,
+  `_DraftRequest`, `_RemotionRenderRequest` to Pydantic `BaseModel`s with
+  `ConfigDict(extra="ignore")`; endpoint signatures now accept the models
+  directly (`body: _BuildRequest` etc.) with `body.model_dump()` downstream;
+  exposed public `remotion_cli.remotion_bin()` / `npx_available()` (replacing
+  private `_remotion_bin()` / `_npx_available()` access); guarded
+  `job.started_at.timestamp()` against non-datetime values; replaced bare
+  `loop.create_task()` in two `_progress` callbacks with a tracked
+  `_background_tasks` set + `_spawn()` done-callback pattern.
+- **Acceptance:** ruff clean, pytest green (19 remix tests), tsc clean,
+  import cycles 0.

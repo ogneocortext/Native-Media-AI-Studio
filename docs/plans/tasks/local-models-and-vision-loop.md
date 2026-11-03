@@ -112,6 +112,8 @@ Rules: `docs/plans/tasks/README.md`
   in `packages/backend/tests/test_adapter_reasoning.py` (11 tests, all pass)
   covering reasoning preservation, think→chat_template_kwargs mapping, headroom
   application, and route-truth logging for both adapters. Live Bolt validation
-  call (step 6) blocked: neither Atomic Chat (1337) nor Ollama (11434) is
-  running on this machine; unit tests cover the normalization/policy mapping
-  acceptance criteria.
+  call (step 6) blocked: neither Atomic Chat's `/v1/models` API nor Ollama on
+  11434 is responding (ports show bound but return dashboard HTML / service
+  disabled / connection refused). Unit tests cover the normalization/policy
+  mapping acceptance criteria; live call pending service availability.
+- **Status:** todo (step 6 blocked pending service availability)
