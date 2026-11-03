@@ -424,7 +424,7 @@ def _design_lowshelf(
     a1 = -2 * ((A - 1) + (A + 1) * cos_w0)
     a2 = (A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha
     b = np.array([b0, b1, b2]) / a0
-    a = np.array([1.0, a1, a2]) / a0
+    a = np.array([1.0, a1 / a0, a2 / a0])
     return b, a
 
 
@@ -447,7 +447,7 @@ def _design_highshelf(
     a1 = 2 * ((A - 1) - (A + 1) * cos_w0)
     a2 = (A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha
     b = np.array([b0, b1, b2]) / a0
-    a = np.array([1.0, a1, a2]) / a0
+    a = np.array([1.0, a1 / a0, a2 / a0])
     return b, a
 
 
@@ -469,7 +469,7 @@ def _design_peaking(
     a1 = -2 * cos_w0
     a2 = 1 - alpha / A
     b = np.array([b0, b1, b2]) / a0
-    a = np.array([1.0, a1, a2]) / a0
+    a = np.array([1.0, a1 / a0, a2 / a0])
     return b, a
 
 
