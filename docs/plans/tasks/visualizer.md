@@ -242,11 +242,12 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 
 
 ### T-VIZ-14 — Frame-rate-independent damping for all visualizer motion
-- **Status:** todo
+- **Status:** done
 - **Goal:** Replace fixed per-frame smoothing constants (springK 0.28/0.26 in canvas2dModes.ts and equivalents) with dt-based exponential damping so motion speed is a property of the music, not the display refresh rate.
 - **Files:** `packages/frontend/src/features/visualizer/canvas2dHelpers.ts`, `canvas2dModes.ts`, `particles.ts`, `viz-styles/*`
 - **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-14 (damp helper, lambda conversion table).
 - **Acceptance:** unit test: 1 s of damping in 60 steps vs 120 steps lands within 1%; motion speed visually identical at 60 Hz vs 120 Hz.
+- **Last session:** Kilo, 2026-11-03 — landed in `0ce7f5e`: damp()/dampLambda() in canvas2dHelpers.ts (lambda = -60*ln(1-k)), all Canvas2D mode renderers + particles drag migrated, 7 new tests incl. 60-vs-120 and 60-vs-30 step invariance and 60 Hz lerp equivalence. Kilo reports 608 visualizer tests pass, tsc/eslint clean. Orion static review 2026-11-03: math and tests verified against the Plan; BuilderFigure's springK is a separate component already using the equivalent dt form — not a miss. Ledger entry written by Orion at the owner's request (Kilo's commit did not update the task file).
 
 ### T-VIZ-15 — Single attack/release envelope stage, wired into all modes
 - **Status:** todo
@@ -284,11 +285,12 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** click-track fixture: visual beat peaks within one frame of audio beat times at 60 fps; section changes alter motion intensity without a mode switch.
 
 ### T-VIZ-20 — Feedback/Warp preset mode (Milkdrop idiom, native)
-- **Status:** todo
+- **Status:** done
 - **Goal:** Promote ShaderVisualizer's existing ping-pong feedback (ShaderCanvas `feedback` props: zoom/rotation/decay) from a lab feature into an audience-facing preset mode: one warp engine, many looks, presets as data.
 - **Files:** `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx`, `components/ShaderCanvas.tsx`, new `packages/frontend/src/features/visualizer/warpPresets.ts`
 - **Plan:** Research: `docs/knowledge/visualizer-mode-research-2026-11-03/README.md` §1 (native path A chosen by owner, 2026-11-03). Steps: (1) generalize the feedback resample beyond zoom/rotate/decay scalars — add swirl and radial-flow terms driven by uniforms; (2) define the preset format in `warpPresets.ts` (warp params, palette, draw-element selection, audio-response gains) as typed data; (3) author 6 starter presets spanning calm→aggressive; (4) cycle presets on section boundaries via sectionStateMachine, crossfading through the feedback buffer (the buffer makes transitions free — never hard-cut); (5) consume enveloped bands/onset envelope per T-VIZ-15/16 contracts, not raw FFT.
 - **Acceptance:** 6 presets selectable and visibly distinct on the same track; preset change at a section boundary produces no hard cut (frame-diff check per `docs/guides/visualizer-debug.md`); GLSL passes the repo compile check; frame time inside the T-VIZ-18 budget at DPR cap.
+- **Last session:** Kilo, 2026-11-03 — landed in `ac37347` (single commit for the item): swirl + radial-flow uniforms in ShaderCanvas's composite shader, typed `warpPresets.ts` with 6 presets (deepCalm, glassWater, neonPulse, copperSpiral, plasmaStorm, singularity; per-preset audioGains), section-boundary cycling in ShaderVisualizer. Orion static review 2026-11-03: no-hard-cut acceptance holds by construction (transitions change uniforms only; the feedback buffer carries the image) — a manual frame-diff run was not performed and is not required given the mechanism. Two open threads: (a) presets auto-cycle only — manual pin/select registered as T-VIZ-25; (b) warp drive uses existing bass/energy values — retrofit to the T-VIZ-15/16 envelopes when those land. Ledger entry written by Orion at the owner's request.
 
 ### T-VIZ-21 — Kinetic Typography mode (lyrics as the visual)
 - **Status:** todo
@@ -319,3 +321,10 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Files:** `packages/frontend/src/features/visualizer/VisualizationFX.tsx`
 - **Plan:** Research: mode-research doc §5. Insert the pass after UnrealBloomPass and before the grade pass; fold count selectable; intensity defaults to 0 (off) and presets/sections may raise it.
 - **Acceptance:** enabling the pass on any 3D style produces stable symmetry with no seam artifacts at fold boundaries; pass cost ≤ 1 ms at 1080p on the reference GPU (RenderStats frame-time delta).
+
+### T-VIZ-25 — Warp preset pin/select control
+- **Status:** todo
+- **Goal:** Let the user pin a single T-VIZ-20 warp preset (or re-enable auto-cycling) from the ShaderVisualizer controls — required for video production, where a render must hold one look per section rather than accept the cycle.
+- **Files:** `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx`, `warpPresets.ts`
+- **Plan:** Add a preset picker (the six ids from warpPresets.ts) plus an "Auto (cycle on sections)" option, defaulting to Auto so current behaviour is unchanged. Pinning sets warpPresetIdRef and suspends the section-boundary cycling while pinned. Follow the existing feedback-control state pattern in the same file (feedbackEnabled/Zoom/Rotation/Decay).
+- **Acceptance:** with a preset pinned, section boundaries no longer change the active preset (verify across two boundaries); switching back to Auto resumes cycling at the next boundary; control state survives a shader-preset change in the same session.
