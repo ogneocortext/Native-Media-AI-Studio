@@ -97,8 +97,13 @@ PNPM = "__PNPM__PLACEHOLDER__"
 # PNPM itself is resolved dynamically - see resolve_pnpm(). A hardcoded path here
 # would go stale the moment pnpm is reinstalled, and would silently pin agents
 # to whatever version happened to be current on one afternoon.
+@functools.lru_cache(maxsize=1)
 def resolve_pnpm():
-    """Prefer pnpm.cmd on PATH; fall back to the npm global shim location."""
+    """Prefer pnpm.cmd on PATH; fall back to the npm global shim location.
+
+    Cached for the process lifetime: PATH lookup is cheap but there is no
+    reason to repeat it on every call within a single run.
+    """
     if shutil.which("pnpm.cmd"):
         return shutil.which("pnpm.cmd")
     if shutil.which("pnpm"):
@@ -893,7 +898,7 @@ def _gate_relevant(gate: Gate, changed: set[str]) -> bool:
     if name in ("type", "lint"):
         return ts_changed and frontend_src
     if name == "unit":
-        return ts_changed and (frontend_src or frontend_test)
+        return ts_changed and (frontend_src or frontend_test or frontend_root)
     if name == "build":
         return frontend_src or frontend_root
     if name == "e2e":
@@ -1003,7 +1008,10 @@ def _build_parser():
                    help="only run gates that could be affected by these "
                         "changed file names (e.g. the unpushed commit batch). "
                         "Gates that cannot be affected are reported [SKIP]. "
-                        "Without this, every selected gate runs as before.")
+                        "Without this, every selected gate runs as before. "
+                        "When the list is long, paths are written to a temp "
+                        "file and passed via --changed-from-file to avoid the "
+                        "OS command-line length limit.")
     return p
 
 
@@ -1058,9 +1066,10 @@ def _run_lane(lane_name, lane_gates, python, pnpm, shared):
         preview = " ".join(argv[1:3])
         desc = f" — {g.desc}" if g.desc else ""
         with shared["print_lock"]:
-            sys.stdout.write(
+            dest = shared["out_file"] or sys.stdout
+            dest.write(
                 f"[{status}] {g.name:<12} {spent:6.1f} s  {preview}{desc}{reg}\n")
-            sys.stdout.flush()
+            dest.flush()
             shared["results"][g.name] = record
             if code != 0:
                 # Keep the captured output for the JSON report as well as the
@@ -1071,13 +1080,15 @@ def _run_lane(lane_name, lane_gates, python, pnpm, shared):
                 lines = [ln for ln in out.splitlines() if ln.strip()]
                 lines = lines[-60:]  # bounded: two lanes can both fail hard
                 for line in lines:
-                    print(f"         {line}")
+                    dest.write(f"         {line}\n")
+                    dest.flush()
                 if shared["fail_fast"]:
                     shared["stop"].set()
             elif shared["verbose"]:
                 for line in out.strip().splitlines()[-2:]:
                     if line.strip():
-                        print(f"         {line}")
+                        dest.write(f"         {line}\n")
+                        dest.flush()
 
 
 def main(argv=None):
