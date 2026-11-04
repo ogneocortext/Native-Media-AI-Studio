@@ -281,13 +281,13 @@ export function validateLyricsData(data: LyricsData): string[] {
  * Convert legacy LyricLine format to new JSON format.
  */
 export function legacyToLyricsData(
-  lines: Array<{
+  lines: {
     start: number;
     end: number;
     text: string;
     section?: string;
-    words?: Array<{ word: string; start: number; end: number }>;
-  }>,
+    words?: { word: string; start: number; end: number }[];
+  }[],
 ): LyricsData {
   return {
     version: "1.0",
@@ -309,13 +309,13 @@ export function legacyToLyricsData(
 /**
  * Convert JSON format to legacy LyricLine array (for backward compatibility).
  */
-export function lyricsDataToLegacy(data: LyricsData): Array<{
+export function lyricsDataToLegacy(data: LyricsData): {
   start: number;
   end: number;
   text: string;
   section: string;
-  words?: Array<{ word: string; start: number; end: number }>;
-}> {
+  words?: { word: string; start: number; end: number }[];
+}[] {
   return data.lines.map((l) => ({
     start: l.start,
     end: l.end,

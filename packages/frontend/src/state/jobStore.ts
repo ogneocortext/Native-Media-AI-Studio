@@ -6,9 +6,10 @@
 import { create } from "zustand";
 import { useMemo } from "react";
 import { fetchPortConfig } from "../services/portConfig";
-import {
+import type {
   Job,
-  QueueStats,
+  QueueStats} from "../services/api";
+import {
   fetchJobs,
   fetchQueueStats,
   createJob as apiCreateJob,
@@ -18,7 +19,7 @@ import {
   clearCompletedJobs as apiClearCompletedJobs,
   clearFailedJobs as apiClearFailedJobs,
 } from "../services/api";
-import { JobStatus } from "@shared/types";
+import type { JobStatus } from "@shared/types";
 import { sseService } from "../services/sseService";
 
 const AUTO_REFRESH_INTERVAL_MS = 5000;
@@ -139,7 +140,7 @@ export const useJobStore = create<JobState>((set, get) => ({
     }
   },
 
-  createJob: async (jobType: string, params: Record<string, unknown>, maxRetries: number = 3) => {
+  createJob: async (jobType: string, params: Record<string, unknown>, maxRetries = 3) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -331,7 +332,7 @@ function handleSSEMessage(
     import("../utils/toast").then(({ showToast }) => {
       showToast(toastMessage, {
         type: toastType,
-        priority: priority as "urgent" | "high",
+        priority: priority,
         detail: jobId,
         key: `job-${jobId}`,
       });
@@ -347,7 +348,7 @@ function handleSSEMessage(
       {
         // Prefer the full nested job object when present, otherwise the flat fields
         const updates: Partial<Job> = nestedJob
-          ? (nestedJob as Partial<Job>)
+          ? (nestedJob)
           : {
               status: data.status as JobStatus,
               progress: data.progress as number,
@@ -372,7 +373,7 @@ function handleSSEMessage(
 
     case "job_update": {
       // Legacy shape: { type: "job_update", data: <job object> }
-      get().updateJob(jobId, data as unknown as Partial<Job>);
+      get().updateJob(jobId, data);
       break;
     }
 

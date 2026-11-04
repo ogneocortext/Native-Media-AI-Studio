@@ -587,7 +587,7 @@ describe("perceptual scales", () => {
   /** Every mode the picker offers must resolve to a real budget, no orphans. */
   it("all pickable Canvas2D modes are known to the frequency mapper", () => {
     for (const mode of CANVAS_2D_MODES) {
-      const mapper = makeFreqMapper("bark" as PerceptualScale, 32, 1024);
+      const mapper = makeFreqMapper("bark", 32, 1024);
       expect(Number.isFinite(mapper(0))).toBe(true);
       expect(typeof mode).toBe("string");
     }

@@ -47,7 +47,7 @@ export function VRAMManagerCard({ className = "" }: VRAMManagerCardProps) {
   const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
   const granular = useHealthStore((s) => s.granular);
 
-  const manager = (granular.manager ?? {}) as Record<string, unknown>;
+  const manager = (granular.manager ?? {});
   const vramData = granular.vram as
     | {
         percent: number;
@@ -98,7 +98,7 @@ export function VRAMManagerCard({ className = "" }: VRAMManagerCardProps) {
           <Loader2 size={20} className="animate-spin mb-3" />
           <p className="text-sm">Loading VRAM manager status…</p>
           <button
-            onClick={() => fetchVRAM()}
+            onClick={async () => fetchVRAM()}
             className="mt-3 text-[11px] px-2 py-1 rounded bg-white/10 border border-white/10 text-white hover:bg-white/20"
           >
             Refresh now
@@ -110,10 +110,10 @@ export function VRAMManagerCard({ className = "" }: VRAMManagerCardProps) {
 
   // ---- Safe value extraction (null/void evaluated AFTER early return) -------
   // TypeScript can now narrow these to `number` because hasData is true.
-  const percent = vramData!.percent;
-  const usedGB = vramData!.used_mb / 1024;
-  const totalGB = vramData!.total_mb / 1024;
-  const freeGB = vramData!.free_mb / 1024;
+  const percent = vramData.percent;
+  const usedGB = vramData.used_mb / 1024;
+  const totalGB = vramData.total_mb / 1024;
+  const freeGB = vramData.free_mb / 1024;
 
   const workload = (manager.current_workload ?? "idle") as string;
   const hasWorkload = hasManager && manager.current_workload != null;

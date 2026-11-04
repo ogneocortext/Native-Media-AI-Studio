@@ -139,7 +139,7 @@ export function Dashboard() {
       <StageHero
         latestVideo={recentOutputs.find((o) => o.file_type === "video") ?? null}
         hasOutputs={hasOutputs}
-        onOpenStage={() => navigate("/visualizer")}
+        onOpenStage={async () => navigate("/visualizer")}
       />
 
       {/* ONE drop zone — the whole action */}
@@ -313,7 +313,7 @@ export function Dashboard() {
                   </div>
                 </a>
                 <button
-                  onClick={(e) => handleDelete(e, o)}
+                  onClick={async (e) => handleDelete(e, o)}
                   disabled={deleting === o.relative_path}
                   className="absolute top-1 right-1 p-1.5 rounded-lg bg-black/60 backdrop-blur-sm text-white/70 hover:text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                   title="Delete"
@@ -335,7 +335,7 @@ export function Dashboard() {
             Check Queue — videos render one at a time to avoid VRAM errors.
           </p>
           <button
-            onClick={() => navigate("/queue")}
+            onClick={async () => navigate("/queue")}
             className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10"
           >
             View Queue →
@@ -358,7 +358,7 @@ export function Dashboard() {
               in 6s.
             </p>
             <button
-              onClick={() => navigate("/music-video-wizard")}
+              onClick={async () => navigate("/music-video-wizard")}
               className="mt-2 text-xs text-violet-300 light:text-violet-700 hover:underline"
             >
               Open wizard →
@@ -369,11 +369,11 @@ export function Dashboard() {
 
       <p className="text-center text-[11px] text-muted mt-6">
         Looking for something else?{" "}
-        <button onClick={() => navigate("/music-video-wizard")} className="underline hover:text-white">
+        <button onClick={async () => navigate("/music-video-wizard")} className="underline hover:text-white">
           Music Video Wizard
         </button>{" "}
         or{" "}
-        <button onClick={() => navigate("/visualizer")} className="underline hover:text-white">
+        <button onClick={async () => navigate("/visualizer")} className="underline hover:text-white">
           Visualizer
         </button>{" "}
         — hidden from this view on purpose.
@@ -416,7 +416,7 @@ function QuickStartBanner() {
       </div>
       <button
         type="button"
-        onClick={() => navigate("/onboarding")}
+        onClick={async () => navigate("/onboarding")}
         className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition flex items-center gap-1.5"
       >
         Quick start

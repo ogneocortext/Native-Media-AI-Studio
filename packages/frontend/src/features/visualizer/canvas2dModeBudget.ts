@@ -300,7 +300,7 @@ export function allowsPhraseFlash(mode: string | null | undefined, hasLyrics: bo
  * frame-dependent; what must never happen is three firing at once.
  */
 export function assertEffectBudget(
-  budgets: Record<string, ModeBudget> = MODE_BUDGETS as Record<string, ModeBudget>,
+  budgets: Record<string, ModeBudget> = MODE_BUDGETS,
 ): void {
   const failures: string[] = [];
 
@@ -354,7 +354,7 @@ export function assertEffectBudget(
 
 /** Modes with more declared effects than the cap. Diagnostic, not a failure. */
 export function findWideBudgetModes(
-  budgets: Record<string, ModeBudget> = MODE_BUDGETS as Record<string, ModeBudget>,
+  budgets: Record<string, ModeBudget> = MODE_BUDGETS,
 ): string[] {
   return Object.entries(budgets)
     .filter(([, b]) => b.effects.length > MAX_EFFECTS)

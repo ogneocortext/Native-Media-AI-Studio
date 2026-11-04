@@ -71,7 +71,7 @@ export function UnityControlPage() {
   const [commandsLoaded, setCommandsLoaded] = useState(false);
   const [commandsError, setCommandsError] = useState("");
   const [commandHistory, setCommandHistory] = useState<
-    Array<{ id: string; time: string; command: string; result: UnityCommandResult }>
+    { id: string; time: string; command: string; result: UnityCommandResult }[]
   >([]);
   const [activeTab, setActiveTab] = useState<"quick" | "custom" | "history">("quick");
   const [customCommand, setCustomCommand] = useState("");
@@ -250,7 +250,7 @@ export function UnityControlPage() {
     const result = await listUnityShaders();
     if (result?.ok) {
       const payload = result.data as
-        { success?: boolean; result?: Array<{ name?: string }> } | undefined;
+        { success?: boolean; result?: { name?: string }[] } | undefined;
       const names = (payload?.result ?? [])
         .map((item) => item.name)
         .filter((name): name is string => typeof name === "string");
@@ -382,7 +382,7 @@ export function UnityControlPage() {
         <h1 className="text-2xl font-bold">Unity Control</h1>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => refreshStatus(true)}
+            onClick={async () => refreshStatus(true)}
             className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
             title="Refresh status"
           >
@@ -845,7 +845,7 @@ export function UnityControlPage() {
                   type="text"
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCustomCommand()}
+                  onKeyDown={async (e) => e.key === "Enter" && handleCustomCommand()}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500"
                   placeholder="e.g. create_gameobject, editor_status, list_animations"
                 />
@@ -878,7 +878,7 @@ export function UnityControlPage() {
                 </button>
                 {commandsError ? (
                   <button
-                    onClick={() => loadCommands()}
+                    onClick={async () => loadCommands()}
                     className="px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/40 text-amber-300 rounded-lg transition-colors hover:bg-amber-500/20"
                     title={commandsError}
                   >

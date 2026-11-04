@@ -56,7 +56,7 @@ export function parseTrackLyricsCSV(csvText: string): TrackLyricsData[] {
 
     if (isVariation) {
       // Find base track name
-      const match = trackName.match(/\((?:same prompt as #(\d+)|variation)\)/);
+      const match = /\((?:same prompt as #(\d+)|variation)\)/.exec(trackName);
       if (match) {
         baseTrack = trackName.replace(/\s*\([^)]+\)/g, "").trim();
       }

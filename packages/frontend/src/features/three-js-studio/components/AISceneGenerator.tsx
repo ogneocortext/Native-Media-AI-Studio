@@ -109,7 +109,7 @@ export function AISceneGenerator({
     const path = storyboardPaths[storyboard];
     if (path) {
       fetch(path)
-        .then((r) => r.text())
+        .then(async (r) => r.text())
         .then(setStoryboardContent)
         .catch(() => {});
     }
@@ -496,7 +496,7 @@ Return ONLY the function, no fences.`;
                       {models.length === 0 && <option value="">Click to load verified models...</option>}
                       {models.map((m) => {
                         const full = benchmarks[m.name] as any;
-                        const bench = (full || m.benchmark) as any;
+                        const bench = (full || m.benchmark);
                         const score = bench?.validation?.score ?? bench?.score ?? null;
                         const latency = bench?.latency_ms ?? null;
                         const success = bench?.success;
@@ -528,9 +528,9 @@ Return ONLY the function, no fences.`;
                     const active = models.find((x) => x.name === selectedModel);
                     const bFull = active ? (benchmarks[active.name] as any) : null;
                     const bShallow = active?.benchmark as any;
-                    const b = (bFull || bShallow) as any;
+                    const b = (bFull || bShallow);
                     // Need full validation for details view; if only shallow, show summary and prompt to benchmark
-                    if (!b || !b.validation) {
+                    if (!b?.validation) {
                       if (b && b.score !== undefined) {
                         const scShallow = b.score;
                         const colS =
@@ -769,7 +769,7 @@ Return ONLY the function, no fences.`;
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-white/40">Preview</span>
                     <button
-                      onClick={() =>
+                      onClick={async () =>
                         navigator.clipboard.writeText(variations[activeVariation]?.prompt || "")
                       }
                       className="text-[10px] text-violet-300 hover:text-violet-200 flex items-center gap-1"

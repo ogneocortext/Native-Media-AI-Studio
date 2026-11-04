@@ -1,4 +1,5 @@
-import { ChangeEvent, useState } from "react";
+import type { ChangeEvent} from "react";
+import { useState } from "react";
 import { Loader2, Radio } from "lucide-react";
 import { DS } from "../../../styles/designSystem";
 

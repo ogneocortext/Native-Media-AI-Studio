@@ -211,7 +211,7 @@ function JobDetailModal({
 
           {/* Output */}
           {(job.output_path ||
-            ((job.result as Record<string, unknown> | null)?.output_path as
+            ((job.result)?.output_path as
               string)) && (
             <div>
               <h4 className="text-sm font-semibold text-white mb-2">
@@ -219,7 +219,7 @@ function JobDetailModal({
               </h4>
               <p className="text-xs text-muted break-all">
                 {((job.output_path ||
-                  (job.result as Record<string, unknown> | null)?.output_path) as
+                  (job.result)?.output_path) as
                   string)}
               </p>
             </div>
@@ -515,7 +515,7 @@ export function Queue() {
             <p className="text-xs text-muted mt-1">
               Try refreshing the page or check the Diagnostics page for more info.
             </p>
-            <button className="btn btn-secondary btn-sm mt-2" onClick={() => fetchJobs()}>
+            <button className="btn btn-secondary btn-sm mt-2" onClick={async () => fetchJobs()}>
               <RotateCcw size={14} className="inline mr-1" />
               Retry
             </button>
@@ -707,7 +707,7 @@ export function Queue() {
             action={
               searchQuery || statusFilter
                 ? undefined
-                : { label: "Create a video", onClick: () => navigate("/music-video-wizard") }
+                : { label: "Create a video", onClick: async () => navigate("/music-video-wizard") }
             }
           />
         )}

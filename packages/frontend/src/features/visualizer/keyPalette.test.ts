@@ -60,7 +60,7 @@ describe("classifyAnalysisResponse (Phase 0.3)", () => {
 describe("pitch class -> hue", () => {
   // The full circle-of-fifths table from the spec. Fifths order, not chromatic,
   // so harmonically adjacent keys are 30 degrees apart.
-  const FIFTHS: Array<[string, number]> = [
+  const FIFTHS: [string, number][] = [
     ["C", 0],
     ["G", 30],
     ["D", 60],
@@ -175,7 +175,7 @@ describe("keyPalette", () => {
       { estimated_key: "A minor", key_confidence_r: "0.9" as unknown as number },
     ];
     for (const input of inputs) {
-      const p = keyPalette(input as never);
+      const p = keyPalette(input);
       expect(Number.isFinite(p.hue)).toBe(true);
       expect(Number.isFinite(p.saturation)).toBe(true);
       expect(Number.isFinite(p.confidence)).toBe(true);

@@ -53,13 +53,13 @@ import type { AudioAnalysisData } from "./types";
 const FX_STORAGE_PREFIX = "visualizerFx:";
 const FX_PREF_KEY = "visualizer_fx_defaults";
 
-type FxValues = {
+interface FxValues {
   speed: number;
   brightness: number;
   contrast: number;
   hue: number;
   saturation: number;
-};
+}
 
 const DEFAULT_FX: FxValues = {
   speed: 1,
@@ -90,7 +90,7 @@ function writeFxNumber(key: string, value: number) {
   }
 }
 
-function readFxFromApi(): Promise<FxValues | null> {
+async function readFxFromApi(): Promise<FxValues | null> {
   return getPreferences("visualizer")
     .then((prefs) => {
       const raw = prefs[FX_PREF_KEY];
@@ -126,7 +126,7 @@ function sampleStemEnergy(
   return Math.min(1, Math.max(0, stem.energy_curve[index] ?? 0));
 }
 
-function writeFxToApi(values: FxValues): Promise<void> {
+async function writeFxToApi(values: FxValues): Promise<void> {
   return setPreference(FX_PREF_KEY, values, "visualizer").catch(() => {
     // no-op
   });

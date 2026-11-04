@@ -12,9 +12,7 @@ import type { StemName } from "./types";
 export type BusName = "vocals" | "drums" | "bass" | "other" | "master";
 
 /** Routing map: which bus each stem feeds. */
-export interface StemRouting {
-  [stem: string]: BusName;
-}
+export type StemRouting = Record<string, BusName>;
 
 /** Default routing: each stem → its namesake bus. */
 export const DEFAULT_STEM_ROUTING: StemRouting = {
@@ -34,31 +32,31 @@ export const ROUTING_PRESETS: Record<string, StemRouting> = {
     drums: "drums",
     bass: "bass",
     other: "other",
-  } as StemRouting,
+  },
   rhythmSection: {
     vocals: "vocals",
     drums: "drums",
     bass: "bass",
     other: "drums", // other → drums bus so percussion+FX share a fader
-  } as StemRouting,
+  },
   threeWay: {
     vocals: "vocals",
     drums: "drums",
     bass: "bass",
     other: "bass", // other → bass bus for low-end weight
-  } as StemRouting,
+  },
   everythingVocals: {
     vocals: "vocals",
     drums: "vocals",
     bass: "vocals",
     other: "vocals",
-  } as StemRouting,
+  },
   everythingDrums: {
     vocals: "drums",
     drums: "drums",
     bass: "drums",
     other: "drums",
-  } as StemRouting,
+  },
 };
 
 /** Bus display labels for the UI. */

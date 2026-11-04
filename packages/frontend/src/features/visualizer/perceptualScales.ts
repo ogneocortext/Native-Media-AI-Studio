@@ -105,8 +105,8 @@ export function melToHz(mel: number): number {
 export function generatePerceptualBands(
   scale: "bark" | "erb" | "mel" | "log" | "linear",
   numBands: number,
-  minHz: number = 20,
-  maxHz: number = 22050,
+  minHz = 20,
+  maxHz = 22050,
 ): number[] {
   // Band centers are interpolated with i / (numBands - 1): a single band would
   // divide by zero and return NaN centers, poisoning every mapped band value.
@@ -182,7 +182,7 @@ export function mapToPerceptualBands(
   freqData: Uint8Array,
   sampleRate: number,
   scale: "bark" | "erb" | "mel" | "log" | "linear" = "mel",
-  numBands: number = 40,
+  numBands = 40,
   bands?: number[],
 ): number[] {
   const centers = bands ?? generatePerceptualBands(scale, numBands, 20, sampleRate / 2);
@@ -237,8 +237,8 @@ export function getBandCenterHz(
   bandIndex: number,
   numBands: number,
   scale: "bark" | "erb" | "mel" | "log" | "linear" = "mel",
-  minHz: number = 20,
-  maxHz: number = 22050,
+  minHz = 20,
+  maxHz = 22050,
 ): number {
   const bands = generatePerceptualBands(scale, numBands, minHz, maxHz);
   return bands[bandIndex] || 0;

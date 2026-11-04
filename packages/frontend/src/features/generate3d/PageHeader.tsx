@@ -61,7 +61,7 @@ export function PageHeader({ hook }: PageHeaderProps) {
           <RefreshCw size={14} className={statusLoading ? "animate-spin" : ""} /> Refresh
         </button>
         <button
-          onClick={() => navigate("/music-video-wizard")}
+          onClick={async () => navigate("/music-video-wizard")}
           className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2"
         >
           <Wand2 size={14} /> Open Wizard <ArrowRight size={14} />

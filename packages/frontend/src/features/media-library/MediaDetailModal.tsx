@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AudioTransport } from "../../components/audio";
-import { OutputFile } from "../../state/outputStore";
+import type { OutputFile } from "../../state/outputStore";
 import { WaveformDisplay } from "./WaveformDisplay";
 import { ExportMatrixPanel } from "./ExportMatrixPanel";
 import { ExtractAudioPanel } from "./ExtractAudioPanel";

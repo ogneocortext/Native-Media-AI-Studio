@@ -260,13 +260,13 @@ export function JobRow({
           {isCompleted &&
             !!(
               job.output_path ||
-              ((job.result as Record<string, unknown> | null)?.output_path as string) ||
+              ((job.result)?.output_path as string) ||
               ""
             ) &&
             (() => {
               const raw = (job.output_path ||
-                ((job.result as Record<string, unknown> | null)?.output_path as string) ||
-                "") as string;
+                ((job.result)?.output_path as string) ||
+                "");
               // Extract filename from absolute Windows path or relative
               const filename = raw.split(/[\\/]/).pop() || "";
               if (!filename) return null;

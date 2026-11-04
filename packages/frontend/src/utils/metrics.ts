@@ -26,8 +26,8 @@ interface MetricStats {
 }
 
 class MetricsStore {
-  private metrics: Map<string, MetricSample[]> = new Map();
-  private maxSamples: number = 1000;
+  private metrics = new Map<string, MetricSample[]>();
+  private maxSamples = 1000;
 
   record(name: string, value: number, tags?: Record<string, string>) {
     if (!this.metrics.has(name)) {
@@ -72,7 +72,7 @@ class MetricsStore {
     };
   }
 
-  getRecent(name: string, count: number = 10): MetricSample[] {
+  getRecent(name: string, count = 10): MetricSample[] {
     const samples = this.metrics.get(name);
     if (!samples) return [];
     return samples.slice(-count);

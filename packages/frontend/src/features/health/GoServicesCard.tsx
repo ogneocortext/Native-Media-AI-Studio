@@ -40,14 +40,14 @@ export function GoServicesCard() {
         signal: signal ?? AbortSignal.timeout(4000),
       });
       if (!response.ok) throw new Error(`Service diagnostics returned HTTP ${response.status}`);
-      type SidecarResponse = {
+      interface SidecarResponse {
         status?: string;
         url?: string | null;
         port?: number;
         error?: string;
         role?: string;
         latency_ms?: number;
-      };
+      }
 
       const payload = (await response.json()) as { sidecars?: Record<string, SidecarResponse> };
       return GO_SERVICES.map((svc) => {

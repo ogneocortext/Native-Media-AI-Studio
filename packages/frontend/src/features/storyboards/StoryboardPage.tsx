@@ -165,7 +165,7 @@ export function StoryboardPage() {
   useEffect(() => {
     if (!selected) return;
     fetch(selected.path)
-      .then((r) => r.text())
+      .then(async (r) => r.text())
       .then((text) => {
         setContent(text);
         setScenes(parseScenes(text));
@@ -436,7 +436,7 @@ export function StoryboardPage() {
       // Render production notes as cards
       if (inProductionNotes && (line.startsWith("- ") || line.startsWith("* "))) {
         const content = line.slice(2);
-        const match = content.match(/^\*\*([^*]+):\*\*\s*(.*)$/);
+        const match = /^\*\*([^*]+):\*\*\s*(.*)$/.exec(content);
         if (match) {
           const label = match[1];
           const value = match[2];
@@ -657,7 +657,7 @@ function TracksTab({
             size="sm"
             action={{
               label: "Upload track",
-              onClick: () => navigate("/audio-analysis"),
+              onClick: async () => navigate("/audio-analysis"),
               icon: <Upload size={14} />,
             }}
           />

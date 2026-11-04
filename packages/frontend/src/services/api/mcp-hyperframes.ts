@@ -61,7 +61,7 @@ export interface CompileStoryboardRequest {
     track?: string;
     title?: string;
     duration?: number;
-    scenes: Array<{
+    scenes: {
       id?: string;
       title?: string;
       description?: string;
@@ -69,7 +69,7 @@ export interface CompileStoryboardRequest {
       end?: number;
       duration_seconds?: number;
       palette?: Record<string, string>;
-    }>;
+    }[];
   };
   name?: string;
   title?: string;
@@ -110,14 +110,14 @@ export interface HyperFramesAudioPayload {
   totalFrames: number;
   beat_times: number[];
   downbeat_times: number[];
-  frames: Array<{
+  frames: {
     time: number;
     rms: number;
     energy: number;
     bands: number[];
     isBeat: boolean;
     isDownbeat: boolean;
-  }>;
+  }[];
   lyrics: unknown[];
 }
 

@@ -19,7 +19,8 @@ import { GpuTrendingControls } from "./GpuTrendingControls";
 import { GpuCharts } from "./GpuCharts";
 import { GpuLongTermOverview } from "./GpuLongTermOverview";
 import { GpuProcessList } from "./GpuProcessList";
-import { MAX_HISTORY, RANGE_OPTIONS, RangeId, DataPoint } from "./gpuConstants";
+import type { RangeId, DataPoint } from "./gpuConstants";
+import { MAX_HISTORY, RANGE_OPTIONS } from "./gpuConstants";
 
 const POLL_OPTIONS = [5, 10, 30] as const;
 
@@ -171,7 +172,7 @@ export function GpuMonitorPage() {
       const snapshotProcs = (gpu.processes || []).map((p) => ({
         pid: p.pid,
         name: p.name,
-        mem_mb: (p.used_mb || 0) as number,
+        mem_mb: (p.used_mb || 0),
       }));
       const hasSnapshotMemory = snapshotProcs.some((p) => p.mem_mb > 0);
       setProcesses(hasSnapshotMemory ? snapshotProcs : procs.processes || []);
@@ -212,7 +213,7 @@ export function GpuMonitorPage() {
   }, [fetchAll]);
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => fetchAll(false), intervalSec * 1000);
+    const id = setInterval(async () => fetchAll(false), intervalSec * 1000);
     return () => clearInterval(id);
   }, [fetchAll, paused, intervalSec]);
 
@@ -359,8 +360,8 @@ export function GpuMonitorPage() {
         snapshotName={snapshot.name}
         onSetIntervalSec={setIntervalSec}
         onTogglePaused={() => setPaused((p) => !p)}
-        onRefresh={() => fetchAll(true)}
-        onSyncDB={() => hydrateFromDB(range)}
+        onRefresh={async () => fetchAll(true)}
+        onSyncDB={async () => hydrateFromDB(range)}
         syncDisabled={refreshing || initialLoading}
       />
 
@@ -376,7 +377,7 @@ export function GpuMonitorPage() {
               ` (attempt ${consecutiveErrors} — auto-retries every ${intervalSec}s)`}
           </span>
           <button
-            onClick={() => fetchAll(true)}
+            onClick={async () => fetchAll(true)}
             className="text-[11px] px-2.5 py-1 rounded-md bg-red-500/15 border border-red-500/25 text-red-200 hover:bg-red-500/25"
           >
             Retry now

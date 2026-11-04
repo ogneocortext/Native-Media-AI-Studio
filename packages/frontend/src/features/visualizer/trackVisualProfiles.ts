@@ -313,7 +313,7 @@ function squashTrackName(name: string): string {
 export function resolveTrackVisualProfile(trackName: string): TrackVisualProfile | null {
   const squashed = squashTrackName(trackName);
   if (!squashed) return null;
-  const candidates: Array<{ profile: TrackVisualProfile; fragment: string }> = [];
+  const candidates: { profile: TrackVisualProfile; fragment: string }[] = [];
   for (const profile of Object.values(trackVisualProfiles)) {
     for (const raw of profile.matchFragments) {
       const fragment = squashTrackName(raw);

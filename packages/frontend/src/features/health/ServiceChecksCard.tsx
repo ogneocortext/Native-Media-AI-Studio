@@ -41,7 +41,7 @@ export function ServiceChecksCard() {
   }, []);
 
   const checkAll = useCallback(async () => {
-    await Promise.all(PROBED_SERVICES.map((service) => handleCheck(service)));
+    await Promise.all(PROBED_SERVICES.map(async (service) => handleCheck(service)));
   }, [handleCheck]);
 
   useEffect(() => {
@@ -130,7 +130,7 @@ export function ServiceChecksCard() {
                     {check.status}
                   </span>
                   <button
-                    onClick={() => handleCheck(service)}
+                    onClick={async () => handleCheck(service)}
                     className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
                     title={`Re-check ${service}`}
                     aria-label={`Re-check ${service}`}
@@ -140,7 +140,7 @@ export function ServiceChecksCard() {
                 </div>
               ) : (
                 <button
-                  onClick={() => handleCheck(service)}
+                  onClick={async () => handleCheck(service)}
                   className="text-xs px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 hover:bg-violet-500/30"
                 >
                   Check

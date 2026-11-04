@@ -73,7 +73,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
   const result: LyricLine[] = [];
   let currentSection = "VERSE";
   let offsetMs = 0;
-  const offsetMatch = lrcContent.match(/\[offset:\s*([+-]?\d+)\]/i);
+  const offsetMatch = /\[offset:\s*([+-]?\d+)\]/i.exec(lrcContent);
   if (offsetMatch) offsetMs = parseInt(offsetMatch[1], 10) || 0;
 
   const sectionFor = (m: string) => {
@@ -105,9 +105,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     if (/^\[offset:/i.test(line)) continue;
 
     // Standalone section marker like [Chorus] (no timestamp)
-    const standaloneSection = line.match(
-      /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i,
-    );
+    const standaloneSection = /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i.exec(line);
     if (standaloneSection) {
       currentSection = sectionFor(standaloneSection[1]);
       continue;
@@ -122,9 +120,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     const wordTagRegex = /<(\d{1,3}):(\d{2})[.:](\d{1,3})>/g;
     const inlineWordTags = [...text.matchAll(wordTagRegex)];
     // Section marker embedded as text after timestamps: [00:12.00][Chorus]
-    const embeddedSection = text.match(
-      /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i,
-    );
+    const embeddedSection = /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i.exec(text);
     if (embeddedSection) {
       currentSection = sectionFor(embeddedSection[1]);
       continue;
@@ -144,7 +140,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
         parseInt(lineStartFrac, 10) / lineStartDiv +
         offsetMs / 1000;
       // Split text by word tags to reconstruct words with timing
-      const words: Array<{ word: string; start: number; end: number }> = [];
+      const words: { word: string; start: number; end: number }[] = [];
       const lastTime = Math.max(0, lineStart);
       // First word is before first <tag>
       const firstTagIdx = text.indexOf("<");
@@ -185,7 +181,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
           text: lineText,
           section: currentSection,
           words,
-        } as any);
+        });
       }
       continue;
     }
@@ -277,7 +273,7 @@ function parseLyricsFromLegacyCsv(
     .trim();
 
   for (const line of lines) {
-    const match = line.match(/^"\d+","([^"]+)"/);
+    const match = /^"\d+","([^"]+)"/.exec(line);
     if (!match) continue;
 
     const csvName = match[1];
@@ -289,7 +285,7 @@ function parseLyricsFromLegacyCsv(
     // Fuzzy match: track name contains CSV name or vice versa
     if (cleanTrackName.includes(cleanCsvName) || cleanCsvName.includes(cleanTrackName)) {
       // Extract lyrics from the 4th column - everything after the 3rd comma-separated field
-      const lyricsColMatch = line.match(/^"\d+","[^"]*","[^"]*","(.*)"$/);
+      const lyricsColMatch = /^"\d+","[^"]*","[^"]*","(.*)"$/.exec(line);
       if (!lyricsColMatch) continue;
 
       const lyricsText = lyricsColMatch[1];
@@ -330,9 +326,7 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
       if (!part) continue;
 
       // Check if this part is a section marker
-      const sectionMatch = part.match(
-        /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i,
-      );
+      const sectionMatch = /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i.exec(part);
       if (sectionMatch) {
         if (currentLines.length) {
           sections.push({ section: currentSection, lines: [...currentLines] });
@@ -367,7 +361,7 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
   } else {
     // Format 2: Theme + quoted lyrics
     // Extract quoted text between "" and ""
-    const quotedMatch = lyricsText.match(/"{2}(.+?)"{2}/);
+    const quotedMatch = /"{2}(.+?)"{2}/.exec(lyricsText);
     if (quotedMatch) {
       const quotedText = quotedMatch[1];
       // Split by / or – or newlines
@@ -438,7 +432,7 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
  * - Metadata tags [ar:...], [ti:...], [al:...] (ignored)
  */
 export function parseLrc(lrcContent: string): LyricLine[] {
-  if (!lrcContent || !lrcContent.trim()) return [];
+  if (!lrcContent?.trim()) return [];
 
   const lines = lrcContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const result: LyricLine[] = [];
@@ -467,7 +461,7 @@ export function parseLrc(lrcContent: string): LyricLine[] {
     if (timestamps.length === 0) continue;
 
     // Check for inline section markers like [00:33.92][Drop]
-    const sectionMatch = line.match(/\]\[([A-Za-z\s]+)\]$/);
+    const sectionMatch = /\]\[([A-Za-z\s]+)\]$/.exec(line);
     if (sectionMatch) {
       currentSection = sectionMatch[1].trim().toUpperCase();
     }

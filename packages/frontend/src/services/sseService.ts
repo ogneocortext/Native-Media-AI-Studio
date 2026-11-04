@@ -23,7 +23,7 @@ class SSEService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10; // Give up after 10 failed attempts (covers optional Go dashboard)
   private syncChannel: BroadcastChannel | null = null;
-  private offlineQueue: Array<Record<string, unknown>> = [];
+  private offlineQueue: Record<string, unknown>[] = [];
 
   // Track connection state for UI indicators
   private _connectionState: "connected" | "reconnecting" | "disconnected" = "disconnected";
@@ -42,7 +42,7 @@ class SSEService {
   }
 
   /** Drain and return the queued offline messages, clearing the queue. */
-  drainOfflineQueue(): Array<Record<string, unknown>> {
+  drainOfflineQueue(): Record<string, unknown>[] {
     const queued = this.offlineQueue;
     this.offlineQueue = [];
     return queued;
@@ -244,7 +244,7 @@ class SSEService {
       this.eventSource.addEventListener("connected", (event) => {
         let message: Record<string, unknown>;
         try {
-          message = JSON.parse((event as MessageEvent).data);
+          message = JSON.parse((event).data);
           this._dispatchToListeners(message);
         } catch {
           // ignore

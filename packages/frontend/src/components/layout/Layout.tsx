@@ -17,7 +17,7 @@ interface LayoutProps {
 }
 
 // Single source of truth: package.json version (bumped per release).
-const APP_VERSION = pkg.version as string;
+const APP_VERSION = pkg.version;
 const COPYRIGHT = "Internext Ventures LLC";
 
 // Expose stores on window for test harnesses / debug tooling.

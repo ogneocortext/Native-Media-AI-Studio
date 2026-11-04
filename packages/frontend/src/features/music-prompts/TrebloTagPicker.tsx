@@ -90,7 +90,7 @@ export function TrebloTagPicker() {
       : `${getApiBase()}/api/treblo-tags/suno/production-vocab?limit=12`;
     const timer = window.setTimeout(() => {
       fetch(url)
-        .then((r) => readJson<{ results: string[] }>(r))
+        .then(async (r) => readJson<{ results: string[] }>(r))
         .then((d) => !cancelled && setProduction(d.results ?? []))
         .catch(() => !cancelled && setProduction([]));
     }, q ? 180 : 0);
@@ -103,7 +103,7 @@ export function TrebloTagPicker() {
   useEffect(() => {
     let cancelled = false;
     fetch(`${getApiBase()}/api/treblo-tags/count`)
-      .then((r) => readJson<{ count: number }>(r))
+      .then(async (r) => readJson<{ count: number }>(r))
       .then((d) => !cancelled && setTotal(d.count))
       .catch(() => !cancelled && setTotal(null));
     return () => {
@@ -123,7 +123,7 @@ export function TrebloTagPicker() {
     const id = ++reqId.current;
     const timer = window.setTimeout(() => {
       fetch(`${getApiBase()}/api/treblo-tags/search?q=${encodeURIComponent(q)}&limit=40`)
-        .then((r) => readJson<SearchResponse>(r))
+        .then(async (r) => readJson<SearchResponse>(r))
         .then((d) => {
           if (id !== reqId.current) return;
           setResults(d.results);
@@ -149,7 +149,7 @@ export function TrebloTagPicker() {
     }
     let cancelled = false;
     fetch(`${getApiBase()}/api/treblo-tags/related?tag=${encodeURIComponent(focus)}&limit=12`)
-      .then((r) => readJson<RelatedResponse>(r))
+      .then(async (r) => readJson<RelatedResponse>(r))
       .then((d) => !cancelled && setRelated(d.related))
       .catch(() => !cancelled && setRelated([]));
     return () => {

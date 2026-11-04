@@ -161,7 +161,7 @@ describe("nextFreeName", () => {
 });
 // ─── A6: timeline segment widths ─────────────────────────────────────────
 
-const slotOf = (bars: number, crossfade: number, stems: Array<"drums" | "bass" | "vocals" | "other">) => ({
+const slotOf = (bars: number, crossfade: number, stems: ("drums" | "bass" | "vocals" | "other")[]) => ({
   bars,
   crossfade_bars: crossfade,
   layers: stems.map((stem) => newEditableLayer("t", stem)),

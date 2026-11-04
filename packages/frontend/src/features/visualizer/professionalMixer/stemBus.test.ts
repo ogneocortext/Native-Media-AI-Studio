@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
+import type {
+  StemRouting} from "./stemBus";
 import {
   DEFAULT_STEM_ROUTING,
   ROUTABLE_STEMS,
   ROUTING_PRESETS,
-  StemRouting,
   describeRouting,
   isDefaultRouting,
 } from "./stemBus";

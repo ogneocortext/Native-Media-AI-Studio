@@ -844,7 +844,7 @@ export function renderWaveform(
   ctx.beginPath();
   for (let i = 0; i < state.smoothed.length; i++) {
     const x = i * slice;
-    const y = h / 2 + state.waveEnvelope![i];
+    const y = h / 2 + state.waveEnvelope[i];
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }

@@ -185,7 +185,7 @@ export function usePhraseMarkers(lyrics: LyricLine[]): PhraseMarker[] {
 export function usePhraseTrigger(
   lyrics: LyricLine[],
   elapsed: number,
-  windowMs: number = 150,
+  windowMs = 150,
 ): { isTriggering: boolean; currentIdx: number; progress: number } {
   return useMemo(() => {
     if (!lyrics.length) return { isTriggering: false, currentIdx: -1, progress: 0 };

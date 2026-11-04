@@ -22,7 +22,7 @@ interface StudioHeaderProps {
   isAudioPlaying: boolean;
   tracksLoading: boolean;
   tracksError: string | null;
-  libraryTracks: Array<{ filename: string; optionLabel: string }>;
+  libraryTracks: { filename: string; optionLabel: string }[];
   trackMetadata: Record<string, { bpm?: number; duration?: number }>;
   onExportFrame: () => void;
   /** F5: deterministic MP4 export (exact frame grid, virtual clock). */

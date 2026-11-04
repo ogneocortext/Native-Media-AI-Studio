@@ -9,22 +9,15 @@ import { fetchPortConfig } from "./services/portConfig";
 // default (dark) theme on startup.
 applyTheme(getStoredTheme());
 
-// Suppress Theatre.js "not initialized" warning — we intentionally lazy-load
-// Theatre only when the Visualizer's Theatre Studio panel is opened.
-const theatreWarn = /@theatre\/studio/;
-// R3F still constructs THREE.Clock internally; Three r185 emits a deprecation
-// warning for that internal compatibility path. The app does not create a Clock
-// itself, so suppress only this known library warning in development.
-const threeClockWarn = /THREE\.Clock: This module has been deprecated/;
 const origWarn = console.warn;
 const origError = console.error;
 console.warn = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && (theatreWarn.test(args[0]) || threeClockWarn.test(args[0])))
+  if (typeof args[0] === "string" && (args[0].includes('@theatre/studio') || args[0].includes('THREE.Clock: This module has been deprecated')))
     return;
   origWarn.apply(console, args);
 };
 console.error = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && theatreWarn.test(args[0])) return;
+  if (typeof args[0] === "string" && args[0].includes('@theatre/studio')) return;
   origError.apply(console, args);
 };
 

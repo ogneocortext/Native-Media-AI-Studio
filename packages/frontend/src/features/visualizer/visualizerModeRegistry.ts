@@ -51,7 +51,7 @@ export interface VisualizerModeRenderContext {
  */
 export interface VisualizerModeState {
   barValues?: number[];
-  particles?: Array<{ x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }>;
+  particles?: { x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }[];
   [key: string]: unknown;
 }
 
@@ -119,7 +119,7 @@ export interface VisualizerModeDef {
 // Registry
 // ---------------------------------------------------------------------------
 
-const MODE_REGISTRY: Map<string, VisualizerModeDef> = new Map();
+const MODE_REGISTRY = new Map<string, VisualizerModeDef>();
 
 export function registerVisualizerMode(def: VisualizerModeDef): VisualizerModeDef {
   if (MODE_REGISTRY.has(def.id)) {
@@ -166,7 +166,7 @@ export function getVisualizerModeLabel(id: string): string {
   return mode ? mode.label : id;
 }
 
-export function getVisualizerModeOptions(): Array<{ value: string; label: string }> {
+export function getVisualizerModeOptions(): { value: string; label: string }[] {
   return Array.from(MODE_REGISTRY.values()).map((m) => ({
     value: m.id,
     label: m.label,
@@ -219,7 +219,7 @@ export function isVisualizerModeDef(value: unknown): value is VisualizerModeDef 
 export function getVisualizerModeRegistrySummary(): {
   totalModes: number;
   categories: string[];
-  modes: Array<{
+  modes: {
     id: string;
     label: string;
     shortLabel: string;
@@ -229,7 +229,7 @@ export function getVisualizerModeRegistrySummary(): {
     effects: string[];
     hasTrails: boolean;
     paramCount: number;
-  }>;
+  }[];
 } {
   const modes = Array.from(MODE_REGISTRY.values()).map((m) => ({
     id: m.id,

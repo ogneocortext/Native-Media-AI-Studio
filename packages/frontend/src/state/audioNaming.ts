@@ -95,7 +95,7 @@ export function audioRefFor(file: AudioLibraryFile): string {
 /** The leading 8-hex content hash, used to disambiguate same-named tracks. */
 export function shortHashOf(file: AudioLibraryFile | string): string {
   const raw = typeof file === "string" ? file : file.filename;
-  return raw.match(/^[0-9a-f]{8}/i)?.[0] ?? "";
+  return (/^[0-9a-f]{8}/i.exec(raw))?.[0] ?? "";
 }
 
 /**
@@ -219,7 +219,7 @@ export function variantFileName(
   const stem = stripAudioExtension(stripHashPrefixes(base));
   const ext =
     extension ??
-    base.match(new RegExp(EXTENSION_GROUP, "i"))?.[1] ??
+    (new RegExp(EXTENSION_GROUP, "i").exec(base))?.[1] ??
     "wav";
   // Brackets inside a preset id would make the marker ambiguous, so they are
   // collapsed rather than silently producing a name that parses back wrong.

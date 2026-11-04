@@ -212,7 +212,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
                 </button>
                 <button
                   className="viz-gallery-icon"
-                  onClick={() => handleCopy(p)}
+                  onClick={async () => handleCopy(p)}
                   title="Copy JSON"
                 >
                   <Copy size={12} />
@@ -226,7 +226,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
                 </button>
                 <button
                   className="viz-gallery-icon danger"
-                  onClick={() => handleDelete(p)}
+                  onClick={async () => handleDelete(p)}
                   title="Delete"
                 >
                   <Trash2 size={12} />

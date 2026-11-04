@@ -9,7 +9,7 @@ interface SceneTabProps {
   fps: number;
   backgroundImageUrl: string;
   backgroundImageVisible: boolean;
-  libraryImages: Array<{ url: string; label: string }>;
+  libraryImages: { url: string; label: string }[];
   onSceneConfigChange: (config: SceneConfig) => void;
   onParticleConfigChange: (config: ParticleConfig) => void;
   onCameraModeChange: (mode: CameraMode) => void;
@@ -77,7 +77,7 @@ export function SceneTab({
                   className="w-full h-full object-cover"
                   loading="lazy"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                    (e.currentTarget).style.display = "none";
                   }}
                 />
               </button>

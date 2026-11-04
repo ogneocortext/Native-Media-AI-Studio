@@ -226,7 +226,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     if (!sourcesLoaded || tracks.length === 0) return;
     let live = true;
     void Promise.all(
-      tracks.map((t) =>
+      tracks.map(async (t) =>
         probeRemixTrack(t)
           .then((p) => [t, p.duration_sec, p.first_audible_sec, p.bpm] as const)
           .catch(() => [t, 0, 0, 0] as const),

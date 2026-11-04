@@ -216,7 +216,7 @@ export function AIVisualsPanel({
     }
 
     // Extract track name from default prompt
-    const trackMatch = defaultPrompt.match(/for "(.+?)"/);
+    const trackMatch = /for "(.+?)"/.exec(defaultPrompt);
     const trackName = trackMatch ? trackMatch[1] : "music track";
 
     // Initialize previews as loading
@@ -310,7 +310,7 @@ export function AIVisualsPanel({
       const style = PROMPT_STYLES.find((s) => s.id === styleId);
       if (style && defaultPrompt) {
         // Extract track name from the auto-style prompt or use raw defaultPrompt
-        const trackMatch = defaultPrompt.match(/for "(.+?)"/);
+        const trackMatch = /for "(.+?)"/.exec(defaultPrompt);
         const trackName = trackMatch ? trackMatch[1] : defaultPrompt;
         setPrompt(style.buildPrompt(trackName));
       }

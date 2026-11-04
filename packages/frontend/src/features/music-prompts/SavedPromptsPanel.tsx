@@ -59,7 +59,7 @@ export function SavedPromptsPanel() {
         for (const r of remote) {
           try {
             const obj = JSON.parse(r.text || "{}");
-            if (obj && obj.id) parsed.push(obj as SavedPrompt);
+            if (obj?.id) parsed.push(obj as SavedPrompt);
           } catch {
             /* skip malformed */
           }
@@ -188,7 +188,7 @@ export function SavedPromptsPanel() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => copyAll(p)}
+                    onClick={async () => copyAll(p)}
                     className="text-gray-500 hover:text-white"
                     aria-label="Copy all prompt fields"
                     title="Copy all"
@@ -222,7 +222,7 @@ export function SavedPromptsPanel() {
                     <span className="text-gray-400 font-medium">Style</span>
                     <button
                       type="button"
-                      onClick={() => copy(p.id + ":style", p.style)}
+                      onClick={async () => copy(p.id + ":style", p.style)}
                       className="text-gray-500 hover:text-white"
                       aria-label="Copy style"
                     >
@@ -238,7 +238,7 @@ export function SavedPromptsPanel() {
                     <span className="text-gray-400 font-medium">Lyrics</span>
                     <button
                       type="button"
-                      onClick={() => copy(p.id + ":lyrics", p.lyrics)}
+                      onClick={async () => copy(p.id + ":lyrics", p.lyrics)}
                       className="text-gray-500 hover:text-white"
                       aria-label="Copy lyrics"
                     >

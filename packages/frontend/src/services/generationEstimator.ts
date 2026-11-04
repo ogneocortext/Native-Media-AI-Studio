@@ -155,7 +155,7 @@ export function estimateVideoGeneration(options: {
   // Estimate output size
   const resolution =
     width >= 2560 ? "4k" : width >= 1920 ? "1440p" : width >= 1280 ? "1080p" : "720p";
-  const sizePerFrame = OUTPUT_SIZE_PER_FRAME[resolution as keyof typeof OUTPUT_SIZE_PER_FRAME];
+  const sizePerFrame = OUTPUT_SIZE_PER_FRAME[resolution];
   const estimatedOutputSizeMB = Math.round(totalFrames * sizePerFrame);
 
   // Warnings
@@ -293,7 +293,7 @@ export function getRecommendedSettings(options: {
 /**
  * Estimate VRAM usage for given settings.
  */
-export function estimateVRAMUsage(width: number, height: number, batchSize: number = 1): number {
+export function estimateVRAMUsage(width: number, height: number, batchSize = 1): number {
   const pixelCount = width * height;
   // Rough estimate: 4 bytes per pixel * 3 (RGB) + model overhead + buffer
   const imageMB = (pixelCount * 4 * 3) / (1024 * 1024);

@@ -70,7 +70,7 @@ export function HealthPage() {
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
   const [vramStatus, setVramStatus] = useState<Record<string, unknown> | null>(null);
   const [actionLog, setActionLog] = useState<
-    Array<{ time: string; message: string; type: string }>
+    { time: string; message: string; type: string }[]
   >([]);
   const [pendingHighVram, setPendingHighVram] = useState<number | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
@@ -118,7 +118,7 @@ export function HealthPage() {
   }, [granular.vram]);
 
   // Add a log message
-  const addLog = (message: string, type: string = "info") => {
+  const addLog = (message: string, type = "info") => {
     const time = new Date().toLocaleTimeString();
     setActionLog((prev) => [...prev.slice(-49), { time, message, type }]);
   };
@@ -367,7 +367,7 @@ export function HealthPage() {
             heavy app first, or confirm below.
           </span>
           <button
-            onClick={() => handleComfyUIAction("start")}
+            onClick={async () => handleComfyUIAction("start")}
             disabled={comfyuiLoading}
             className="text-[11px] px-2.5 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50"
           >
@@ -586,7 +586,7 @@ interface AxeViolation {
   description: string;
   help: string;
   helpUrl: string;
-  nodes: Array<{ target: string; html: string }>;
+  nodes: { target: string; html: string }[];
 }
 
 interface AxeResult {

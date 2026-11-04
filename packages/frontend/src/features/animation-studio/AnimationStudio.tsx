@@ -50,7 +50,7 @@ interface Keyframe {
 interface Preset {
   name: string;
   icon: string;
-  keyframes: Array<{ trackId: string; time: number; value: number }>;
+  keyframes: { trackId: string; time: number; value: number }[];
 }
 
 const TRACKS: TrackDef[] = [
@@ -195,7 +195,7 @@ export function AnimationStudio() {
       rotation: 0,
       opacity: 1,
     });
-    theatreObjRef.current = obj as unknown as { value: Record<string, number> };
+    theatreObjRef.current = obj;
     const unsubscribe = obj.onValuesChange((vals) => {
       const v = vals as Record<string, number>;
       setValues((prev) => {

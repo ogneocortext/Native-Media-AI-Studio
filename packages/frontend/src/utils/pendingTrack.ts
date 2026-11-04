@@ -20,7 +20,7 @@ type WindowWithPendingTrack = Window & {
 
 function getWindow(): WindowWithPendingTrack | null {
   if (typeof window === "undefined") return null;
-  return window as WindowWithPendingTrack;
+  return window;
 }
 
 const KEY = "__pendingRemixRecipe";

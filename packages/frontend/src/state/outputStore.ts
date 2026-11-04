@@ -50,18 +50,18 @@ interface OutputState {
   renameOutput: (relativePath: string, newName: string) => Promise<unknown>;
   bulkDelete: (paths: string[]) => Promise<unknown>;
   fetchDuplicates: (quick?: boolean) => Promise<
-    Array<{
+    {
       hash: string;
       count: number;
       size_bytes: number;
       wasted_bytes: number;
-      files: Array<{
+      files: {
         filename: string;
         relative_path: string;
         size_bytes: number;
         created_at: string;
-      }>;
-    }>
+      }[];
+    }[]
   >;
   clearError: () => void;
 }
@@ -249,18 +249,18 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
     });
     if (!res.ok) throw new Error("Failed to fetch duplicates");
     return res.json() as Promise<
-      Array<{
+      {
         hash: string;
         count: number;
         size_bytes: number;
         wasted_bytes: number;
-        files: Array<{
+        files: {
           filename: string;
           relative_path: string;
           size_bytes: number;
           created_at: string;
-        }>;
-      }>
+        }[];
+      }[]
     >;
   },
 

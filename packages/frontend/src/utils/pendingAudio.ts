@@ -12,7 +12,7 @@ type WindowWithPending = Window & { __pendingAudioFile?: File };
 
 function getWindow(): WindowWithPending | null {
   if (typeof window === "undefined") return null;
-  return window as WindowWithPending;
+  return window;
 }
 
 export function setPendingAudioFile(file: File): void {

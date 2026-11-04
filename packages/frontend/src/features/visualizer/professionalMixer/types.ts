@@ -23,9 +23,7 @@ export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
 export type BusName = "vocals" | "drums" | "bass" | "other" | "master";
 
 /** Routing map: which bus each stem feeds. */
-export interface StemRouting {
-  [stem: string]: BusName;
-}
+export type StemRouting = Record<string, BusName>;
 
 /** Default routing: each stem → its namesake bus. */
 export const DEFAULT_STEM_ROUTING: StemRouting = {

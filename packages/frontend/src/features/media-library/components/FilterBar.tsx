@@ -1,4 +1,4 @@
-import { ChangeEvent } from "react";
+import type { ChangeEvent } from "react";
 import { Search, X, Tag as TagIcon } from "lucide-react";
 import { DS } from "../../../styles/designSystem";
 import type { Tag } from "../../../services/api";
@@ -11,7 +11,7 @@ export interface FilterState {
   sortOrder: "asc" | "desc";
 }
 
-const FILE_TYPE_OPTIONS: Array<{ value: string; label: string; icon?: string }> = [
+const FILE_TYPE_OPTIONS: { value: string; label: string; icon?: string }[] = [
   { value: "all", label: "All Files" },
   { value: "audio", label: "Audio", icon: "🎵" },
   { value: "video", label: "Video", icon: "🎬" },

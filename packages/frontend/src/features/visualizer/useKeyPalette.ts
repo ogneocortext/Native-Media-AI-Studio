@@ -74,7 +74,7 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
 
     const encoded = encodeURIComponent(filename);
     fetch(`/api/audio/analysis/by-filename/${encoded}`)
-      .then((res) => {
+      .then(async (res) => {
         // A 404 is the expected answer for an unanalyzed track, not a failure.
         const outcome = classifyAnalysisResponse(res.status);
         if (outcome.kind === "error") {

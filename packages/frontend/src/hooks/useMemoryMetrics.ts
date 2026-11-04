@@ -17,7 +17,7 @@ export interface MemoryMetrics {
   available: boolean;
 }
 
-export function useMemoryMetrics(pollInterval: number = 2000) {
+export function useMemoryMetrics(pollInterval = 2000) {
   const [metrics, setMetrics] = useState<MemoryMetrics>({
     usedJSHeapSize: 0,
     totalJSHeapSize: 0,
@@ -32,7 +32,6 @@ export function useMemoryMetrics(pollInterval: number = 2000) {
   const updateMetrics = useCallback(() => {
     if (
       typeof performance === "undefined" ||
-      !(performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory ||
       !(performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize
     ) {
       setMetrics((prev) => ({ ...prev, available: false }));

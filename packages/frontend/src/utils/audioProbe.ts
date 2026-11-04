@@ -13,7 +13,7 @@ const AUDIO_EXTENSIONS = ["mp3", "wav", "flac", "ogg", "m4a", "aac", "opus", "we
 
 export function getFileExtension(name: string): string {
   const parts = (name || "").toLowerCase().split(".");
-  return parts.length > 1 ? (parts.pop() as string) : "";
+  return parts.length > 1 ? (parts.pop()!) : "";
 }
 
 /** MIME may be empty on Windows — accept by extension fallback. */
@@ -31,7 +31,7 @@ export function isAudioFile(file: File, accept?: string): boolean {
   return false;
 }
 
-function probeViaElement(file: File, timeoutMs = 8000): Promise<AudioProbeResult> {
+async function probeViaElement(file: File, timeoutMs = 8000): Promise<AudioProbeResult> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const el = document.createElement("audio");

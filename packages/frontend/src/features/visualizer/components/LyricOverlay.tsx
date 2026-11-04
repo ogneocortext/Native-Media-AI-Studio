@@ -7,7 +7,7 @@ export interface LyricLine {
   end: number;
   text: string;
   section: string;
-  words?: Array<{ word: string; start: number; end: number }>;
+  words?: { word: string; start: number; end: number }[];
 }
 
 interface Props {

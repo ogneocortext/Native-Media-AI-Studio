@@ -189,7 +189,7 @@ export async function createWebGPURenderer(
  * Cached: `requestAdapter()` is not free, and both the detector hook and the
  * renderer factory need the same answer.
  */
-export function detectWebGPUSupport(): Promise<boolean> {
+export async function detectWebGPUSupport(): Promise<boolean> {
   if (adapterProbe) return adapterProbe;
   adapterProbe = (async () => {
     try {

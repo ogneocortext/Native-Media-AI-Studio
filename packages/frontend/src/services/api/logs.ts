@@ -27,7 +27,7 @@ export async function getLogInfo(): Promise<LogInfo> {
   return res.json();
 }
 
-export async function getLogContent(logName: string, lines: number = 100): Promise<LogContent> {
+export async function getLogContent(logName: string, lines = 100): Promise<LogContent> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/logs/${logName}?lines=${lines}`, {
     timeout: 30000,
@@ -47,10 +47,10 @@ export interface LogAnalyticsSummary {
   total_events: number;
   last_event_at: string | null;
   last_cleanup_at: string | null;
-  levels: Array<{ level: string; count: number }>;
-  top_loggers: Array<{ logger: string; count: number }>;
-  top_messages: Array<{ message: string; count: number; level: string }>;
-  sources: Array<{ source: string; count: number }>;
+  levels: { level: string; count: number }[];
+  top_loggers: { logger: string; count: number }[];
+  top_messages: { message: string; count: number; level: string }[];
+  sources: { source: string; count: number }[];
 }
 
 export interface LogAnalyticsTrendPoint {
@@ -62,9 +62,9 @@ export interface LogAnalyticsTrendPoint {
 }
 
 export interface LogAnalyticsPatterns {
-  levels: Array<{ level: string; count: number }>;
-  loggers: Array<{ logger: string; count: number }>;
-  messages: Array<{ message: string; count: number; level: string }>;
+  levels: { level: string; count: number }[];
+  loggers: { logger: string; count: number }[];
+  messages: { message: string; count: number; level: string }[];
 }
 
 export interface LogAnalyticsErrorPattern {

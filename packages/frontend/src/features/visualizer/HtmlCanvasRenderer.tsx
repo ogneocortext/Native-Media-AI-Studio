@@ -79,8 +79,8 @@ export function HtmlCanvasRenderer({
           position: "absolute",
           left: x,
           y,
-          width: width ?? canvas!.offsetWidth,
-          height: height ?? canvas!.offsetHeight,
+          width: width ?? canvas.offsetWidth,
+          height: height ?? canvas.offsetHeight,
           pointerEvents: "none",
           zIndex: 10,
         }}

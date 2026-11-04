@@ -66,7 +66,7 @@ export type StagingChannel = "global" | "local" | "shader" | "none";
  * `global`; the next gets `local`, then `shader`. Two onsets with no measurable
  * energy get `none` rather than being promoted on array order.
  */
-export function assignStaging(onsets: Array<{ energy: number }>): StagingChannel[] {
+export function assignStaging(onsets: { energy: number }[]): StagingChannel[] {
   const order = onsets
     .map((o, i) => ({ i, energy: Number.isFinite(o.energy) ? o.energy : 0 }))
     .sort((a, b) => b.energy - a.energy);

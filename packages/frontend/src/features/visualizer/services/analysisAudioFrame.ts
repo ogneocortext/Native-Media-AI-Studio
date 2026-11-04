@@ -252,7 +252,7 @@ function fillSpectrumBins(  bins: Uint8Array,
   binCount: number,
   sampleRate: number,
 ): void {
-  const bands: Array<{ min: number; max: number; energy: number }> = [
+  const bands: { min: number; max: number; energy: number }[] = [
     { min: BAND_EDGES.sub.min, max: BAND_EDGES.sub.max, energy: unit(bandEnergy.sub) },
     { min: BAND_EDGES.mid.min, max: BAND_EDGES.mid.max, energy: unit(bandEnergy.mid) },
     { min: BAND_EDGES.high.min, max: BAND_EDGES.high.max, energy: unit(bandEnergy.high) },

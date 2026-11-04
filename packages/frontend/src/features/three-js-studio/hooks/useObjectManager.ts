@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as THREE from "three";
+import type * as THREE from "three";
 import type { AnimObject, CameraMode } from "../types";
 import type { SceneTemplate } from "../sceneTemplates";
 
@@ -128,7 +128,7 @@ export function useObjectManager({
 
   const refreshCharacterAnimState = useCallback((objId: string) => {
     const data = characterAnimDataRef.current.get(objId);
-    if (data && data.action) {
+    if (data?.action) {
       setCharacterAnimState({
         isPlaying: data.action.isRunning(),
         currentTime: data.action.time,
@@ -143,7 +143,7 @@ export function useObjectManager({
   const handleAnimPlayPause = useCallback(() => {
     if (!selectedObject) return;
     const data = characterAnimDataRef.current.get(selectedObject);
-    if (data && data.action) {
+    if (data?.action) {
       if (data.action.isRunning()) {
         data.action.pause();
       } else {
@@ -157,7 +157,7 @@ export function useObjectManager({
     (time: number) => {
       if (!selectedObject) return;
       const data = characterAnimDataRef.current.get(selectedObject);
-      if (data && data.action) {
+      if (data?.action) {
         data.action.time = time;
         data.mixer.update(0);
         refreshCharacterAnimState(selectedObject);
@@ -170,7 +170,7 @@ export function useObjectManager({
     (clipName: string) => {
       if (!selectedObject) return;
       const data = characterAnimDataRef.current.get(selectedObject);
-      if (data && data.mixer) {
+      if (data?.mixer) {
         const clip = data.mixer.existingAction(clipName) ? clipName : data.clips[0];
         if (clip) {
           data.action?.stop();

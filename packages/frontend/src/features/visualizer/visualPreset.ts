@@ -1101,9 +1101,9 @@ export function importPresetFromString(json: string): VisualPreset | null {
     if (!Array.isArray(keyframes) || keyframes.length === 0) return null;
     for (const kf of keyframes) {
       if (!isObject(kf)) return null;
-      if (typeof (kf as Record<string, unknown>).at !== "number") return null;
-      if (!isNumberTuple((kf as Record<string, unknown>).position)) return null;
-      if (!isNumberTuple((kf as Record<string, unknown>).target)) return null;
+      if (typeof (kf).at !== "number") return null;
+      if (!isNumberTuple((kf).position)) return null;
+      if (!isNumberTuple((kf).target)) return null;
     }
 
     return p as unknown as VisualPreset;

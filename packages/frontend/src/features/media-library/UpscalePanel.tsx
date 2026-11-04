@@ -106,7 +106,7 @@ export function UpscalePanel({ imagePath, onComplete }: Props) {
               </span>
               <p
                 className="text-xs text-white font-mono truncate flex-1"
-                title={result.relative_path!}
+                title={result.relative_path}
               >
                 {result.relative_path.split("/").pop()}
               </p>

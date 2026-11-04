@@ -276,7 +276,7 @@ export function ImageGeneration() {
   // Fetch available checkpoint models (filtered to image models only)
   useEffect(() => {
     fetch("/api/integrations/comfyui/checkpoints")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.checkpoints?.length) {
           // Filter to show only image generation models
@@ -531,7 +531,7 @@ export function ImageGeneration() {
             </p>
           </div>
           <button
-            onClick={() => startComfyUI(comfyUiStatus.port || 8188)}
+            onClick={async () => startComfyUI(comfyUiStatus.port || 8188)}
             className="btn btn-primary btn-sm flex items-center gap-2 whitespace-nowrap"
           >
             Start ComfyUI

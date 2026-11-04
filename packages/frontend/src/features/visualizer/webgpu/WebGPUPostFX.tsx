@@ -25,7 +25,7 @@ const bloomEffect = Fn(([input, strength, radius]: [any, any, any]) => {
   const lumR = float(0.2126).mul(input.r) as any;
   const lumG = float(0.7152).mul(input.g) as any;
   const lumB = float(0.0722).mul(input.b) as any;
-  const lum = lumR.add(lumG).add(lumB) as any;
+  const lum = lumR.add(lumG).add(lumB);
   const bright = float(1).sub(float(1).div(float(1).add(lum.mul(float(20))))) as any;
 
   const o00 = texture(input, uv.add(vec2(-1, -1).mul(radius))).mul(bright) as any;
@@ -45,8 +45,8 @@ const bloomEffect = Fn(([input, strength, radius]: [any, any, any]) => {
     .add(o05)
     .add(o06)
     .add(o07)
-    .mul(float(0.125)) as any;
-  return input.add(blurred.mul(strength)) as any;
+    .mul(float(0.125));
+  return input.add(blurred.mul(strength));
 });
 
 const chromaticAberrationEffect = Fn(([input, strength]: [any, any]) => {
@@ -76,7 +76,7 @@ const grainEffect = Fn(([input, amount, time]: [any, any, any]) => {
       screenUV.x
         .mul(127.1)
         .add(screenUV.y.mul(311.7))
-        .add(time.mod(float(100)) as any) as any,
+        .add(time.mod(float(100))) as any,
     ),
   )
     .fract()
@@ -129,7 +129,7 @@ export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef, postfx }: WebGPUP
       const output = renderOutput(color) as any;
 
       return {
-        output: output as any,
+        output: output,
         uniforms: {
           bloomStrength,
           bloomRadius,

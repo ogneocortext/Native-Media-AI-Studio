@@ -21,7 +21,7 @@ function installBrowserStubs(): void {
     get length() {
       return store.size;
     },
-  } as unknown as Storage;
+  };
 }
 
 const RECIPE: RemixRecipeSpec = {

@@ -3,14 +3,14 @@ import { fetchWithTimeout } from "../fetchWithTimeout";
 
 export async function searchDocs(
   q: string,
-  limit: number = 20,
+  limit = 20,
 ): Promise<
-  Array<{
+  {
     path: string;
     title: string;
     score: number;
     snippet: string | null;
-  }>
+  }[]
 > {
   const base = getApiBase();
   const res = await fetchWithTimeout(
@@ -28,7 +28,7 @@ export async function getDocsBootstrap(): Promise<Record<string, unknown>> {
   return res.json();
 }
 
-export async function getProjectStructure(depth: number = 3): Promise<{
+export async function getProjectStructure(depth = 3): Promise<{
   root: string;
   structure: Record<string, unknown>;
 }> {

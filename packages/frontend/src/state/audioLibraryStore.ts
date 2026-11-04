@@ -78,7 +78,7 @@ const LOAD_TIMEOUT_MS = 10_000;
 // `ensureLoaded()` refetches so the library does not go stale all session.
 const CACHE_TTL_MS = 300_000;
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error("audio library load timed out")), ms);
@@ -149,8 +149,8 @@ export const useAudioLibraryStore = create<AudioLibraryState>()((set) => {
     error: null,
     lastLoadedAt: null,
 
-    ensureLoaded: (opts) => load(opts?.force === true),
-    refresh: () => load(true),
+    ensureLoaded: async (opts) => load(opts?.force === true),
+    refresh: async () => load(true),
     clearError: () => set({ error: null }),
   };
 });

@@ -101,7 +101,7 @@ export function createMp4Recorder(opts: Mp4RecorderOptions = {}): Mp4Recorder {
     const keyFrame = frameIndex % Math.max(1, Math.round(fps * 2)) === 0;
     frameIndex++;
     frameQueue = frameQueue
-      .then(() => source?.add(elapsedSeconds, 1 / fps, { keyFrame }))
+      .then(async () => source?.add(elapsedSeconds, 1 / fps, { keyFrame }))
       .catch((error: unknown) => console.error("[Mp4Recorder] frame encode failed:", error));
     raf = requestAnimationFrame((t) => tick(canvas, t));
   };

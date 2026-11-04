@@ -11,8 +11,9 @@
  *     (ctx: CanvasRenderingContext2D, ctxInfo: VisualizerModeRenderContext, state: VisualizerModeState) => void
  */
 
+import type {
+  VisualizerModeRenderContext} from "./visualizerModeRegistry";
 import {
-  VisualizerModeRenderContext,
   createVisualizerModeDef,
   registerVisualizerMode,
 } from "./visualizerModeRegistry";

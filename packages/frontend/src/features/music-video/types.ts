@@ -31,7 +31,7 @@ export type WizardStep = "upload" | "analyze" | "configure" | "generate" | "revi
 export interface AudioAnalysis {
   tempo_bpm: number;
   duration_seconds: number;
-  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  sections: { type: string; start: number; end: number; energy: number }[];
   beat_count: number;
   beat_times?: number[];
   onset_times?: number[];

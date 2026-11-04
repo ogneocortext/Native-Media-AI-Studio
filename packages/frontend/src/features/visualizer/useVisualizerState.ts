@@ -25,7 +25,7 @@ const REACTIVITY_STORAGE_KEY = "visualizerReactivity:triad";
 
 export type OverlayId = "shortcuts" | "more" | "fx" | null;
 
-export type VisualizerState = {
+export interface VisualizerState {
   bgColor: string; meshColor: string; demoEnabled: boolean;
   audioUrl: string | null; currentFilename: string | null;
   isPlaying: boolean; isPaused: boolean; error: string | null;
@@ -88,11 +88,11 @@ export type VisualizerState = {
   kineticPreset: string; visualizationStyle: VisualizationStyle;
   perceptualScale: PerceptualScale | undefined;
   loadedPreset: VisualPreset | null;
-};
+}
 
 type Setter<T> = (value: T | ((prev: T) => T)) => void;
 
-export type VisualizerStateSetters = {
+export interface VisualizerStateSetters {
   setBgColor: Setter<string>;
   setMeshColor: Setter<string>;
   setDemoEnabled: Setter<boolean>;
@@ -148,7 +148,7 @@ export type VisualizerStateSetters = {
   setVisualizationStyle: Setter<VisualizationStyle>;
   setPerceptualScale: Setter<PerceptualScale | undefined>;
   setLoadedPreset: Setter<VisualizerState["loadedPreset"]>;
-};
+}
 
 
 export function useVisualizerState() {

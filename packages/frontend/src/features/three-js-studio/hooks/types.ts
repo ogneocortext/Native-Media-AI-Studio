@@ -1,5 +1,5 @@
 import type React from "react";
-import * as THREE from "three";
+import type * as THREE from "three";
 import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
 import type { SectionDriverHandle } from "./useTrackMetadata";
 
@@ -136,7 +136,7 @@ export interface UseTrackManagerOptions {
   >;
   /** Library entries from the shared audio store; `optionLabel` is display-ready. */
   setLibraryTracks: React.Dispatch<
-    React.SetStateAction<Array<{ filename: string; optionLabel: string }>>
+    React.SetStateAction<{ filename: string; optionLabel: string }[]>
   >;
   setTracksLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setTracksError: React.Dispatch<React.SetStateAction<string | null>>;

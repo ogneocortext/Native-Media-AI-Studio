@@ -66,7 +66,7 @@ export function isStudioReady(): boolean {
 /**
  * Create a Theatre.js project. Ensures studio is initialized first.
  */
-export async function createTheatreProject(projectId: string, sheetId: string = "Scene") {
+export async function createTheatreProject(projectId: string, sheetId = "Scene") {
   await getStudio();
 
   const project = theatreCore.getProject(projectId);
@@ -79,7 +79,7 @@ export async function createTheatreProject(projectId: string, sheetId: string = 
  */
 export function createAnimationTracks(
   sheet: any,
-  trackDefs: Array<{ label: string; prop: string; min: number; max: number }>,
+  trackDefs: { label: string; prop: string; min: number; max: number }[],
 ) {
   const objects: Record<string, any> = {};
   for (const def of trackDefs) {

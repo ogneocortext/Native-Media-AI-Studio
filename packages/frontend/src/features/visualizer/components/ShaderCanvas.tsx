@@ -192,7 +192,7 @@ export function ShaderCanvas({
       return;
     }
 
-    const program = gl.createProgram()!;
+    const program = gl.createProgram();
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
     gl.linkProgram(program);
@@ -331,7 +331,7 @@ export function ShaderCanvas({
       return;
     }
 
-    const program = gl.createProgram()!;
+    const program = gl.createProgram();
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
     gl.linkProgram(program);
@@ -486,31 +486,31 @@ export function ShaderCanvas({
           gl.viewport(0, 0, write.width, write.height);
           gl.useProgram(program);
 
-          gl.uniform1f(locs["u_time"], time);
-          gl.uniform1f(locs["u_bass"], u.bass ?? 0);
-          gl.uniform1f(locs["u_mid"], u.mid ?? 0);
-          gl.uniform1f(locs["u_treble"], u.treble ?? 0);
-          gl.uniform1f(locs["u_beat"], u.beat ?? 0);
-          gl.uniform1f(locs["u_energy"], u.energy ?? 0);
-          gl.uniform1f(locs["u_peak"], u.peak ?? 0);
-          gl.uniform1f(locs["u_sub"], u.sub ?? 0);
-          gl.uniform1f(locs["u_high"], u.high ?? 0);
-          gl.uniform1f(locs["u_transient"], u.transient ?? 0);
-          gl.uniform1f(locs["u_centroid"], u.centroid ?? 0);
-          gl.uniform1f(locs["u_trail"], u.trail ?? 0);
+          gl.uniform1f(locs.u_time, time);
+          gl.uniform1f(locs.u_bass, u.bass ?? 0);
+          gl.uniform1f(locs.u_mid, u.mid ?? 0);
+          gl.uniform1f(locs.u_treble, u.treble ?? 0);
+          gl.uniform1f(locs.u_beat, u.beat ?? 0);
+          gl.uniform1f(locs.u_energy, u.energy ?? 0);
+          gl.uniform1f(locs.u_peak, u.peak ?? 0);
+          gl.uniform1f(locs.u_sub, u.sub ?? 0);
+          gl.uniform1f(locs.u_high, u.high ?? 0);
+          gl.uniform1f(locs.u_transient, u.transient ?? 0);
+          gl.uniform1f(locs.u_centroid, u.centroid ?? 0);
+          gl.uniform1f(locs.u_trail, u.trail ?? 0);
           gl.uniform2f(
-            locs["u_camera_offset"],
+            locs.u_camera_offset,
             u.cameraOffsetX ?? 0,
             u.cameraOffsetY ?? 0,
           );
-          gl.uniform1f(locs["u_key_hue"], u.keyHue ?? 0);
-          gl.uniform1f(locs["u_key_sat"], u.keySat ?? 0);
-          gl.uniform1f(locs["u_key_conf"], u.keyConf ?? 0);
-          gl.uniform2f(locs["u_resolution"], write.width, write.height);
+          gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
+          gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
+          gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);
+          gl.uniform2f(locs.u_resolution, write.width, write.height);
 
           gl.activeTexture(gl.TEXTURE0);
           gl.bindTexture(gl.TEXTURE_2D, read.texture);
-          const feedbackLoc = locs["u_feedback_texture"];
+          const feedbackLoc = locs.u_feedback_texture;
           if (feedbackLoc) gl.uniform1i(feedbackLoc, 0);
 
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -547,27 +547,27 @@ export function ShaderCanvas({
           gl.viewport(0, 0, canvas.width, canvas.height);
           gl.useProgram(program);
 
-          gl.uniform1f(locs["u_time"], time);
-          gl.uniform1f(locs["u_bass"], u.bass ?? 0);
-          gl.uniform1f(locs["u_mid"], u.mid ?? 0);
-          gl.uniform1f(locs["u_treble"], u.treble ?? 0);
-          gl.uniform1f(locs["u_beat"], u.beat ?? 0);
-          gl.uniform1f(locs["u_energy"], u.energy ?? 0);
-          gl.uniform1f(locs["u_peak"], u.peak ?? 0);
-          gl.uniform1f(locs["u_sub"], u.sub ?? 0);
-          gl.uniform1f(locs["u_high"], u.high ?? 0);
-          gl.uniform1f(locs["u_transient"], u.transient ?? 0);
-          gl.uniform1f(locs["u_centroid"], u.centroid ?? 0);
-          gl.uniform1f(locs["u_trail"], u.trail ?? 0);
+          gl.uniform1f(locs.u_time, time);
+          gl.uniform1f(locs.u_bass, u.bass ?? 0);
+          gl.uniform1f(locs.u_mid, u.mid ?? 0);
+          gl.uniform1f(locs.u_treble, u.treble ?? 0);
+          gl.uniform1f(locs.u_beat, u.beat ?? 0);
+          gl.uniform1f(locs.u_energy, u.energy ?? 0);
+          gl.uniform1f(locs.u_peak, u.peak ?? 0);
+          gl.uniform1f(locs.u_sub, u.sub ?? 0);
+          gl.uniform1f(locs.u_high, u.high ?? 0);
+          gl.uniform1f(locs.u_transient, u.transient ?? 0);
+          gl.uniform1f(locs.u_centroid, u.centroid ?? 0);
+          gl.uniform1f(locs.u_trail, u.trail ?? 0);
           gl.uniform2f(
-            locs["u_camera_offset"],
+            locs.u_camera_offset,
             u.cameraOffsetX ?? 0,
             u.cameraOffsetY ?? 0,
           );
-          gl.uniform1f(locs["u_key_hue"], u.keyHue ?? 0);
-          gl.uniform1f(locs["u_key_sat"], u.keySat ?? 0);
-          gl.uniform1f(locs["u_key_conf"], u.keyConf ?? 0);
-          gl.uniform2f(locs["u_resolution"], canvas.width, canvas.height);
+          gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
+          gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
+          gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);
+          gl.uniform2f(locs.u_resolution, canvas.width, canvas.height);
 
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }

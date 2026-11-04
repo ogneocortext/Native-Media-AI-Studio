@@ -133,7 +133,7 @@ interface TrackInfo {
   energy?: number;
   beatTimes?: number[];
   energyCurve?: number[];
-  sections?: Array<{ type: string; start: number; end: number; energy: number }>;
+  sections?: { type: string; start: number; end: number; energy: number }[];
 }
 
 // Helper: find the closest beat time index for a given time
@@ -281,12 +281,12 @@ export function KineticTypographyPage() {
       .catch(() => {});
     // Load normalized lyrics CSV (fallback to legacy if not found)
     fetch("/track-lyrics-normalized.csv")
-      .then((r) => r.text())
+      .then(async (r) => r.text())
       .then(setCsvContent)
       .catch(() => {
         // Fallback to legacy CSV
         fetch("/track-prompts-lyrics.csv")
-          .then((r) => r.text())
+          .then(async (r) => r.text())
           .then(setCsvContent)
           .catch(() => {});
       });
@@ -1010,7 +1010,7 @@ export function KineticTypographyPage() {
                   className="kt-select"
                   aria-label="Select track"
                   value={selectedTrack?.filename || ""}
-                  onChange={(e) =>
+                  onChange={async (e) =>
                     e.target.value ? handleTrackSelect(e.target.value) : setSelectedTrack(null)
                   }
                 >
@@ -1048,7 +1048,7 @@ export function KineticTypographyPage() {
                   className="kt-select"
                   aria-label="Select a track from the lyric library"
                   value={selectedLibraryTrackId || ""}
-                  onChange={(e) => handleLibraryTrackSelect(e.target.value)}
+                  onChange={async (e) => handleLibraryTrackSelect(e.target.value)}
                 >
                   <option value="">None — use audio library above</option>
                   {libraryTracks.map((t) => (
@@ -1100,7 +1100,7 @@ export function KineticTypographyPage() {
                 {selectedTrack && (
                   <button
                     className="kt-transcribe-btn"
-                    onClick={() => handleTranscribe(selectedTrack.filename)}
+                    onClick={async () => handleTranscribe(selectedTrack.filename)}
                     disabled={isTranscribing}
                   >
                     {isTranscribing ? (

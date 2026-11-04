@@ -12,8 +12,10 @@ import {
   MemoryStick,
   Activity,
 } from "lucide-react";
-import { RANGE_OPTIONS, RangeId } from "./gpuConstants";
-import { calcStats, trendIcon } from "./gpuHelpers";
+import type { RangeId } from "./gpuConstants";
+import { RANGE_OPTIONS } from "./gpuConstants";
+import type { calcStats} from "./gpuHelpers";
+import { trendIcon } from "./gpuHelpers";
 
 interface TrendingControlsProps {
   range: RangeId;

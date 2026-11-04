@@ -77,7 +77,7 @@ export function AudioAnalysisPage() {
     setError(null);
   };
 
-  const handleAnalyze = async (useCuda: boolean = false) => {
+  const handleAnalyze = async (useCuda = false) => {
     if (!file && !libraryTrack) {
       setError("Please select a file or track first");
       return;
@@ -176,7 +176,7 @@ export function AudioAnalysisPage() {
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-sm text-muted">{file.name}</span>
                 <button
-                  onClick={() => handleAnalyze(cudaAvailable)}
+                  onClick={async () => handleAnalyze(cudaAvailable)}
                   disabled={analyzing}
                   className={DS.btnPrimarySm}
                 >
@@ -196,7 +196,7 @@ export function AudioAnalysisPage() {
             <LibraryTrackList onSelect={handleLibrarySelect} />
             {libraryTrack && (
               <button
-                onClick={() => handleAnalyze(cudaAvailable)}
+                onClick={async () => handleAnalyze(cudaAvailable)}
                 disabled={analyzing}
                 className={DS.btnFull}
               >

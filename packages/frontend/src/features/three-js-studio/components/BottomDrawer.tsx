@@ -20,7 +20,7 @@ interface BottomDrawerProps {
   fps: number;
   backgroundImageUrl: string;
   backgroundImageVisible: boolean;
-  libraryImages: Array<{ url: string; label: string }>;
+  libraryImages: { url: string; label: string }[];
   onDrawerTabChange: (tab: "objects" | "inspector" | "scene") => void;
   onSelectObject: (id: string) => void;
   onAddObject: (

@@ -20,7 +20,7 @@ export interface FrameRateMetrics {
 const JANK_THRESHOLD_MS = 33.33; // 30 FPS threshold
 const MAX_FRAME_SAMPLES = 300; // Keep last 5 seconds at 60fps
 
-export function useFrameRateMonitor(enabled: boolean = true) {
+export function useFrameRateMonitor(enabled = true) {
   const [metrics, setMetrics] = useState<FrameRateMetrics>({
     fps: 0,
     frameTime: 0,

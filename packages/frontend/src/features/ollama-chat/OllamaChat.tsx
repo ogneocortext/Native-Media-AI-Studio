@@ -136,7 +136,7 @@ export function OllamaChat() {
           fetch(`${getApiBase()}/api/integrations/ollama/tools`, {
             signal: AbortSignal.timeout(10000),
           })
-            .then((r) => r.json())
+            .then(async (r) => r.json())
             .catch(() => ({ tools: [] })),
           getTaskModelRoutes().catch(() => null),
         ]);
@@ -225,7 +225,7 @@ export function OllamaChat() {
       });
 
       let assistantContent = "";
-      let toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+      let toolCalls: { name: string; arguments: Record<string, unknown> }[] = [];
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: "",
@@ -268,7 +268,7 @@ export function OllamaChat() {
             const calls =
               (
                 chunk.data as {
-                  tool_calls?: Array<{ name: string; arguments: Record<string, unknown> }>;
+                  tool_calls?: { name: string; arguments: Record<string, unknown> }[];
                 }
               )?.tool_calls || [];
             toolCalls = calls;

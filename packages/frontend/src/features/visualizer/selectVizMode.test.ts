@@ -92,7 +92,7 @@ describe("selectVizMode", () => {
   });
 
   it("returns only valid VizMode values", () => {
-    const cases: Array<Parameters<typeof selectVizMode>> = [
+    const cases: Parameters<typeof selectVizMode>[] = [
       ["track"],
       ["track", "synthwave"],
       ["track", undefined, 0.9],

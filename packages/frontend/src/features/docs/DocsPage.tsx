@@ -81,7 +81,7 @@ interface BootstrapData {
   project?: string;
   description?: string;
   ports?: Record<string, number>;
-  vault_docs?: Array<{ path: string; title: string; tags: string[] }>;
+  vault_docs?: { path: string; title: string; tags: string[] }[];
   quick_start?: Record<string, string>;
   [key: string]: unknown;
 }
@@ -107,8 +107,8 @@ function JsonView({ text, filePath }: { text: string; filePath?: string }) {
     "nodes" in (parsed as Record<string, unknown>)
   ) {
     const canvas = parsed as {
-      nodes?: Array<{ id: string; type?: string; text?: string }>;
-      edges?: Array<unknown>;
+      nodes?: { id: string; type?: string; text?: string }[];
+      edges?: unknown[];
     };
     return (
       <div className="space-y-3">
@@ -338,7 +338,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
     }
 
     // Heading
-    const h = line.match(/^(#{1,6})\s+(.*)/);
+    const h = /^(#{1,6})\s+(.*)/.exec(line);
     if (h) {
       flushList();
       const level = h[1].length;
@@ -384,7 +384,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
     }
 
     // Unordered list
-    const ul = line.match(/^\s*[-*]\s+(.*)/);
+    const ul = /^\s*[-*]\s+(.*)/.exec(line);
     if (ul) {
       if (!listBuffer || listBuffer.type !== "ul") {
         flushList();
@@ -394,7 +394,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
       continue;
     }
     // Ordered list
-    const ol = line.match(/^\s*\d+\.\s+(.*)/);
+    const ol = /^\s*\d+\.\s+(.*)/.exec(line);
     if (ol) {
       if (!listBuffer || listBuffer.type !== "ol") {
         flushList();
@@ -521,8 +521,8 @@ export function DocsPage() {
             type: "directory",
             children: val.map((n: BackendNode) => backendToTree(n)),
           });
-        } else if (val && typeof val === "object" && "children" in (val as BackendNode)) {
-          normalized.push(backendToTree(val as BackendNode));
+        } else if (val && typeof val === "object" && "children" in (val)) {
+          normalized.push(backendToTree(val));
         } else {
           // fallback
           normalized.push({ name: key, type: "directory", children: [] });
@@ -817,7 +817,7 @@ export function DocsPage() {
                   {filteredResults.map((r, i) => (
                     <button
                       key={i}
-                      onClick={() => openDoc(r.path)}
+                      onClick={async () => openDoc(r.path)}
                       className="w-full text-left p-3 bg-gray-700/30 hover:bg-gray-700/60 rounded-lg border border-transparent hover:border-gray-600 transition-colors group"
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -899,7 +899,7 @@ export function DocsPage() {
                     {browsingDocs.slice(0, visibleCount).map((d) => (
                       <button
                         key={d.path}
-                        onClick={() => openDoc(d.path)}
+                        onClick={async () => openDoc(d.path)}
                         className={`text-left p-3 rounded-lg border transition-colors group ${
                           selectedPath === d.path
                             ? "bg-purple-600/20 border-purple-500/50"
@@ -1065,7 +1065,7 @@ export function DocsPage() {
             {structureError ? (
               <p className="text-amber-400 text-sm">
                 Failed to load structure ({structureError}).{" "}
-                <button onClick={() => loadStructure()} className="underline hover:text-amber-300">
+                <button onClick={async () => loadStructure()} className="underline hover:text-amber-300">
                   Retry
                 </button>
               </p>

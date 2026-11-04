@@ -62,7 +62,7 @@ async function fetchJson<T>(path: string): Promise<T> {
 }
 
 /** Load the library manifest (lightweight: metadata only, no lyric text). */
-export function fetchTrackLyricsIndex(): Promise<TrackLyricsIndex> {
+export async function fetchTrackLyricsIndex(): Promise<TrackLyricsIndex> {
   return fetchJson<TrackLyricsIndex>(`${BASE}/index.json`);
 }
 
@@ -88,7 +88,7 @@ export function toLyricLines(
   doc: TrackLyricsDoc,
   opts: ToLyricLinesOptions = {},
 ): LyricLine[] {
-  const flat: Array<{ text: string; section: string }> = [];
+  const flat: { text: string; section: string }[] = [];
   for (const section of doc.sections ?? []) {
     for (const text of section.lines ?? []) {
       const trimmed = text.trim();

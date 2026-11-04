@@ -26,7 +26,7 @@ export async function withDirectBackendFallback<T>(
       init.headers = { "Content-Type": "application/json", ...(init.headers || {}) };
     }
     return fetchWithTimeout(directUrl, { timeout: options?.timeout || 30000, ...init }).then(
-      (resp) => {
+      async (resp) => {
         if (!resp.ok) throw new Error(`Direct backend request failed: ${resp.status}`);
         return resp.json();
       },

@@ -108,7 +108,7 @@ export function useBeatTimeline(filename: string | null) {
           ready: false,
         };
       }
-      const beats = analysis!.beat_times;
+      const beats = analysis.beat_times;
       const windowSec = beatWindowMs / 1000;
 
       // Shared binary-search beat lookup
@@ -120,15 +120,15 @@ export function useBeatTimeline(filename: string | null) {
       const nextBeatIn = getNextBeatInFromArray(beats, elapsedSec);
 
       // Smoothed sub-beat energy from amplitude_envelope (interpolated)
-      if (analysis!.amplitude_envelope && analysis!.amplitude_envelope.length > 0) {
-        const duration = analysis!.duration_seconds || 1;
-        const envPos = (elapsedSec / duration) * (analysis!.amplitude_envelope.length - 1);
+      if (analysis.amplitude_envelope && analysis.amplitude_envelope.length > 0) {
+        const duration = analysis.duration_seconds || 1;
+        const envPos = (elapsedSec / duration) * (analysis.amplitude_envelope.length - 1);
         const envIdx = Math.floor(envPos);
         const envFrac = envPos - envIdx;
-        const envA = analysis!.amplitude_envelope[envIdx] ?? 0;
+        const envA = analysis.amplitude_envelope[envIdx] ?? 0;
         const envB =
-          analysis!.amplitude_envelope[
-            Math.min(envIdx + 1, analysis!.amplitude_envelope.length - 1)
+          analysis.amplitude_envelope[
+            Math.min(envIdx + 1, analysis.amplitude_envelope.length - 1)
           ] ?? 0;
         const target = envA + (envB - envA) * envFrac;
         smoothedEnergyRef.current += (target - smoothedEnergyRef.current) * SMOOTH_ENERGY_LERP;

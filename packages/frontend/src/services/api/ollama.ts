@@ -49,7 +49,7 @@ export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedMod
       ...m,
       source: (pick("source") as "ollama" | "atomic-chat") || "ollama",
       name: m.name || m.id || "",
-      size: (m.size as number) ?? (pick("model_size") as number) ?? 0,
+      size: (m.size) ?? (pick("model_size") as number) ?? 0,
       capabilities: caps,
       supports_tools: (pick("supports_tools") as boolean | undefined) ?? caps.includes("tools"),
       supports_vision: (pick("supports_vision") as boolean | undefined) ?? caps.includes("vision"),
@@ -98,7 +98,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
   timestamp?: Date;
-  tool_calls?: Array<{ name: string; arguments: Record<string, unknown> }>;
+  tool_calls?: { name: string; arguments: Record<string, unknown> }[];
   tool_name?: string;
 }
 
@@ -131,7 +131,7 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
   // of the frontend can trust the type.
   return entries
     .map((model: OllamaModel & Record<string, unknown>) => {
-      const caps = (model.capabilities as string[] | undefined) ?? [];
+      const caps = (model.capabilities) ?? [];
       const pick = (...keys: string[]): unknown => {
         for (const k of keys) {
           if (model[k] !== undefined && model[k] !== null) return model[k];
@@ -140,8 +140,8 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
       };
       return {
         ...model,
-        name: (model.name as string) || (pick("model_name", "id") as string) || "",
-        size: (model.size as number) ?? (pick("model_size") as number) ?? 0,
+        name: (model.name) || (pick("model_name", "id") as string) || "",
+        size: (model.size) ?? (pick("model_size") as number) ?? 0,
         capabilities: caps,
         // Prefer the server's explicit flags; fall back to the capability list,
         // which Ollama populates authoritatively on 0.35.x.
@@ -206,7 +206,7 @@ export interface OllamaBenchmarkResult {
     max_score: number;
     passed_rules: number;
     total_rules: number;
-    details: Array<{ rule: string; description: string; weight: number; passed: boolean }>;
+    details: { rule: string; description: string; weight: number; passed: boolean }[];
     metrics: {
       lines: number;
       chars: number;
@@ -357,7 +357,7 @@ export interface CodingBenchmarkTaskResult {
     max_score: number;
     passed_rules: number;
     total_rules: number;
-    details: Array<{ rule: string; passed: boolean; weight: number }>;
+    details: { rule: string; passed: boolean; weight: number }[];
     metrics: Record<string, unknown>;
   };
   preview: string;
@@ -420,7 +420,7 @@ export async function getBestCodingModel(): Promise<{
 
 export async function ollamaChat(
   message: string,
-  model: string = "gemma4:e2b-it-qat",
+  model = "gemma4:e2b-it-qat",
   options?: {
     history?: ChatMessage[];
     tools?: ToolDefinition[];
@@ -431,7 +431,7 @@ export async function ollamaChat(
   response: string;
   model: string;
   toolCalls: number;
-  toolDetails?: Array<{ name: string; arguments: Record<string, unknown>; result: string }>;
+  toolDetails?: { name: string; arguments: Record<string, unknown>; result: string }[];
 }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/chat`, {
@@ -454,7 +454,7 @@ export async function ollamaChat(
 
 export async function ollamaChatStream(
   message: string,
-  model: string = "gemma4:e2b-it-qat",
+  model = "gemma4:e2b-it-qat",
   options?: {
     history?: ChatMessage[];
     tools?: ToolDefinition[] | boolean;
@@ -560,7 +560,7 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
 
 export async function ollamaGenerate(
   prompt: string,
-  model: string = "gemma4:e2b-it-qat",
+  model = "gemma4:e2b-it-qat",
 ): Promise<{ response: string; model: string; done: boolean }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/generate`, {
@@ -598,12 +598,12 @@ export interface AIGeneratedPreset {
     rotation: boolean;
   };
   camera: {
-    keyframes: Array<{
+    keyframes: {
       at: number;
       position: [number, number, number];
       target: [number, number, number];
       easing?: string;
-    }>;
+    }[];
     mode: string;
     fov: number;
   };
@@ -630,8 +630,8 @@ export interface AIGeneratedPreset {
 
 export async function generateVisualizerPreset(
   description: string,
-  model: string = "gemma4:e2b-it-qat",
-  temperature: number = 0.7,
+  model = "gemma4:e2b-it-qat",
+  temperature = 0.7,
   track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
 ): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
   const base = getApiBase();
@@ -650,8 +650,8 @@ export async function generateVisualizerPreset(
 
 export async function generateVisualizerPresetAtomic(
   description: string,
-  model: string = "qwen3.5:4b",
-  temperature: number = 0.7,
+  model = "qwen3.5:4b",
+  temperature = 0.7,
   track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
 ): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
   const base = getApiBase();

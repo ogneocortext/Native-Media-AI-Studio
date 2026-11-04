@@ -146,7 +146,7 @@ const MOTIF_META: Record<
   },
 };
 
-const KEYWORDS: Array<{ motif: StoryMotif; words: string[] }> = [
+const KEYWORDS: { motif: StoryMotif; words: string[] }[] = [
   {
     motif: "triumph",
     words: ["worth it", "finally works", "crown", "rise", "arrived", "triumph", "victory", "worth"],
@@ -290,7 +290,7 @@ export function buildStoryboard(
     analysis?.duration_seconds ?? (lyrics.length ? lyrics[lyrics.length - 1].end + 5 : 0);
   const energy = analysis?.energy_curve;
 
-  type Run = { section: string; lines: LyricLine[]; start: number; end: number };
+  interface Run { section: string; lines: LyricLine[]; start: number; end: number }
   const runs: Run[] = [];
 
   if (lyrics.length) {
@@ -331,7 +331,7 @@ export function buildStoryboard(
   const beats: StoryBeat[] = [];
   let prevMotif: StoryMotif | null = null;
   const rawMoods: number[] = [];
-  const pending: Array<Omit<StoryBeat, "mood"> & { rawMood: number }> = [];
+  const pending: (Omit<StoryBeat, "mood"> & { rawMood: number })[] = [];
   runs.forEach((run, i) => {
     const isLast = i === runs.length - 1;
     const position01 = duration > 0 ? run.start / duration : 0;
@@ -397,7 +397,7 @@ export function buildStoryboard(
 /** Binary-search lookup of the active beat (O(log n)). Pure — safe per-frame. */
 export function getStoryState(board: Storyboard | null, elapsed: number): StoryState {
   const empty: StoryState = { beat: null, index: -1, shotProgress: 0, next: null, timeToNext: 0 };
-  if (!board || !board.beats.length) return empty;
+  if (!board?.beats.length) return empty;
   const beats = board.beats;
   if (elapsed < beats[0].start) {
     return { ...empty, next: beats[0], timeToNext: Math.max(0, beats[0].start - elapsed) };

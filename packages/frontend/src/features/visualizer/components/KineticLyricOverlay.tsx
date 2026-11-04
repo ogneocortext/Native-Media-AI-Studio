@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { animate } from "animejs";
+import type { animate } from "animejs";
 import { getSectionColors, getSectionIntensity } from "../sectionHelpers";
 import { getTrackFeatures } from "../trackFeatures";
 import {
@@ -138,7 +138,7 @@ export function KineticLyricOverlay({
     const el = containerRef.current.querySelector(".kinetic-active-line");
     if (el && preset.beatAnimation) {
       const intensity =
-        0.4 + features.energy * 0.4 + getSectionIntensity(displayLine!.section) * 0.2;
+        0.4 + features.energy * 0.4 + getSectionIntensity(displayLine.section) * 0.2;
       (el as HTMLElement).style.setProperty("--beat-intensity", String(intensity));
       try {
         beatAnimRef.current?.pause();
@@ -153,7 +153,7 @@ export function KineticLyricOverlay({
   // not on every elapsed tick (20fps → would otherwise re-animate 20×/sec).
   useEffect(() => {
     if (!displayLine || isGapPreview || !containerRef.current) return;
-    const dl = displayLine!;
+    const dl = displayLine;
     const words =
       dl.words && dl.words.length > 0 ? dl.words : estimateWordTiming(dl.text, dl.start, dl.end);
     const currentWordIdx = findCurrentWord(words, elapsed);

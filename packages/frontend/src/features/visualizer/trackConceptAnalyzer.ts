@@ -278,7 +278,7 @@ function analyzeTrackConcept(trackName: string, prompt: string, lyrics: string):
   }
 
   // Extract BPM
-  const bpmMatch = combined.match(/(\d+)\s*bpm/);
+  const bpmMatch = /(\d+)\s*bpm/.exec(combined);
   const bpm = bpmMatch ? parseInt(bpmMatch[1]) : 120;
 
   // Determine energy level

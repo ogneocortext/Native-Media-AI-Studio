@@ -20,9 +20,9 @@ export const BeatDensityTooltip = ({
   payload,
 }: {
   active: boolean;
-  payload?: Array<{ payload: unknown }>;
+  payload?: { payload: unknown }[];
 }) => {
-  if (!active || !payload || !payload.length) return null;
+  if (!active || !payload?.length) return null;
   const data = payload[0].payload as {
     bar: number;
     time: number;

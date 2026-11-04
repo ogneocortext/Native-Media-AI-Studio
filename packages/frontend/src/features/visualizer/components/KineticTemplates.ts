@@ -59,7 +59,7 @@ export const kineticTemplates = {
 export type KineticTemplateId = keyof typeof kineticTemplates;
 
 export const kineticTemplateList = Object.entries(kineticTemplates).map(([id, t]) => ({
-  id: id as KineticTemplateId,
+  id: id,
   name: t.name,
   description: t.description,
 }));

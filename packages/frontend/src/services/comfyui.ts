@@ -124,14 +124,14 @@ export async function getQueueStatus(): Promise<{
  */
 export async function getSystemStats(): Promise<{
   system: { os: string; ram_total: number; ram_free: number };
-  devices: Array<{
+  devices: {
     name: string;
     type: string;
     vram_total: number;
     vram_free: number;
     torch_vram_total: number;
     torch_vram_free: number;
-  }>;
+  }[];
 }> {
   const COMFYUI_URL = getComfyuiUrl();
   const response = await checkResponse(
@@ -194,7 +194,7 @@ export async function getAvailableModels(): Promise<AvailableModels> {
       for (const value of Object.values(section as Record<string, unknown>)) {
         if (Array.isArray(value) && value.length > 0 && Array.isArray(value[0])) {
           const list = value[0] as unknown[];
-          if (list.every((v) => typeof v === "string")) return list as string[];
+          if (list.every((v) => typeof v === "string")) return list;
         }
         if (
           Array.isArray(value) &&
@@ -205,7 +205,7 @@ export async function getAvailableModels(): Promise<AvailableModels> {
         ) {
           const opts = (value[1] as Record<string, unknown>).options;
           if (Array.isArray(opts) && opts.every((v) => typeof v === "string")) {
-            return opts as string[];
+            return opts;
           }
         }
       }

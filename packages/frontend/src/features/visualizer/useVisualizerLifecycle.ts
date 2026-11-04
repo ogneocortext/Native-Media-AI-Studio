@@ -375,7 +375,7 @@ export function useVisualizerLifecycle({
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     (window as any).__VIZ_TEST__ = {
-      selectTrack: (filename: string) => handleSelectLibraryTrack(filename),
+      selectTrack: async (filename: string) => handleSelectLibraryTrack(filename),
       setMode: (mode: "3d" | "shader" | "2d") => setVizMode(mode),
       set2DMode: (mode: Canvas2DMode) => setCanvas2DMode(mode),
       getState: () => ({ ...testStateRef.current }),

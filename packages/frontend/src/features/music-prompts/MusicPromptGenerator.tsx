@@ -225,7 +225,7 @@ export function MusicPromptGenerator({
 
   useEffect(() => {
     fetch(`${getApiBase()}/api/music-prompts/templates`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.default_model) setModel(d.default_model);
         if (d?.platforms) setSpecs(d.platforms);
@@ -234,7 +234,7 @@ export function MusicPromptGenerator({
       })
       .catch(() => {});
     fetch(`${getApiBase()}/api/music-prompts/presets`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.presets) setPresets(d);
       })
@@ -758,7 +758,7 @@ export function MusicPromptGenerator({
               <h2 className="font-semibold text-sm">Title</h2>
               <button
                 type="button"
-                onClick={() => copy("title", result.title ?? "")}
+                onClick={async () => copy("title", result.title ?? "")}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy title"
               >
@@ -778,7 +778,7 @@ export function MusicPromptGenerator({
               <h2 className="font-semibold text-sm">Style — paste into {LABELS[platform]}</h2>
               <button
                 type="button"
-                onClick={() => copy("style", result.style ?? result.prompt ?? "")}
+                onClick={async () => copy("style", result.style ?? result.prompt ?? "")}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy style"
               >
@@ -807,7 +807,7 @@ export function MusicPromptGenerator({
                 </h2>
                 <button
                   type="button"
-                  onClick={() => copy("exclude", result.exclude ?? "")}
+                  onClick={async () => copy("exclude", result.exclude ?? "")}
                   className="text-white/60 hover:text-white"
                   aria-label="Copy exclude"
                 >
@@ -824,7 +824,7 @@ export function MusicPromptGenerator({
               <h2 className="font-semibold text-sm">Lyrics — with section tags</h2>
               <button
                 type="button"
-                onClick={() => copy("lyrics", result.lyrics)}
+                onClick={async () => copy("lyrics", result.lyrics)}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy lyrics"
               >
@@ -855,7 +855,7 @@ export function MusicPromptGenerator({
               </h2>
               <button
                 type="button"
-                onClick={() => copy("settings", JSON.stringify(result.settings ?? {}, null, 2))}
+                onClick={async () => copy("settings", JSON.stringify(result.settings ?? {}, null, 2))}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy settings"
               >
@@ -880,7 +880,7 @@ export function MusicPromptGenerator({
           <Card className="p-4 md:col-span-2">
             <button
               type="button"
-              onClick={() =>
+              onClick={async () =>
                 copy(
                   "all",
                   [result.title, result.style ?? result.prompt, result.exclude, result.lyrics]
@@ -894,7 +894,7 @@ export function MusicPromptGenerator({
             </button>
               {(result.warnings ?? []).map((w, i) => {
                 const isObj = typeof w === "object" && w !== null;
-                const kind = isObj ? (w as LyricWarning).kind : "generic";
+                const kind = isObj ? (w).kind : "generic";
                 const kindColor: Record<string, string> = {
                   instruction_text: "bg-red-500/20 text-red-400 border-red-500/40",
                   production_direction: "bg-amber-500/20 text-amber-400 border-amber-500/40",

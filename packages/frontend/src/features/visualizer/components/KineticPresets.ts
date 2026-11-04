@@ -19,12 +19,12 @@ export interface LyricLine {
   end: number;
   text: string;
   section: string;
-  words?: Array<{
+  words?: {
     word: string;
     start: number;
     end: number;
     probability?: number;
-  }>;
+  }[];
 }
 
 export interface KineticPreset {
@@ -627,7 +627,7 @@ export function estimateWordTiming(
   text: string,
   lineStart: number,
   lineEnd: number,
-): Array<{ word: string; start: number; end: number }> {
+): { word: string; start: number; end: number }[] {
   const words = text.split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 0) return [];
   const duration = Math.max(0.6, lineEnd - lineStart);
@@ -652,7 +652,7 @@ export function estimateWordTiming(
 
 /** Find current word index based on elapsed time */
 export function findCurrentWord(
-  words: Array<{ start: number; end: number }>,
+  words: { start: number; end: number }[],
   elapsed: number,
 ): number {
   for (let i = 0; i < words.length; i++) {
@@ -722,7 +722,7 @@ export function selectPresetForTrack(genre: string, energy: number): string {
   if (has("dreamy")) return "blurReveal";
 
   // Generic catalog match, longest genre phrase first.
-  const candidates: Array<{ id: string; phrase: string }> = [];
+  const candidates: { id: string; phrase: string }[] = [];
   for (const preset of Object.values(kineticPresets)) {
     for (const genreTag of preset.genres) {
       const phrase = normalizeKineticText(genreTag);

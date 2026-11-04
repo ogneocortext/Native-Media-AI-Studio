@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { VISUALIZATION_OPTIONS, VisualizationStyle } from "../trackConceptAnalyzer";
+import type { VisualizationStyle } from "../trackConceptAnalyzer";
+import { VISUALIZATION_OPTIONS } from "../trackConceptAnalyzer";
 
 interface Props {
   active: VisualizationStyle;

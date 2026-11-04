@@ -32,7 +32,7 @@ export interface SpectralTimelineState {
 
 export function useSpectralTimeline(
   filename: string | null,
-  fps: number = 24,
+  fps = 24,
 ): SpectralTimelineState {
   const [timeline, setTimeline] = useState<SpectralTimeline | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,7 +52,7 @@ export function useSpectralTimeline(
 
     const encoded = encodeURIComponent(filename);
     fetch(`/api/audio/spectral-timeline/${encoded}?fps=${fps}`)
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to fetch spectral timeline: ${res.status}`);
         return res.json();
       })
@@ -75,7 +75,7 @@ export function useSpectralTimeline(
 
   const sampleAtTime = useCallback((time: number): SpectralFrame | null => {
     const tl = timelineRef.current;
-    if (!tl || !tl.timeline || tl.timeline.length === 0) return null;
+    if (!tl?.timeline || tl.timeline.length === 0) return null;
 
     const frameIndex = Math.floor(time * tl.fps);
     const clamped = Math.max(0, Math.min(frameIndex, tl.timeline.length - 1));

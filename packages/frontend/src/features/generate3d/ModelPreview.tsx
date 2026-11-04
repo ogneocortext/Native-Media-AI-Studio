@@ -94,7 +94,7 @@ async function processScene(scene: THREE.Object3D): Promise<THREE.Object3D> {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
 
-    const geom = mesh.geometry as THREE.BufferGeometry;
+    const geom = mesh.geometry;
     // Ensure the geometry is indexed (computeVertexNormals needs indices
     // for correct smoothing across shared vertices). If the GLB emits
     // a non-indexed buffer, computeVertexNormals on it produces flat
@@ -106,7 +106,7 @@ async function processScene(scene: THREE.Object3D): Promise<THREE.Object3D> {
         mesh.geometry = merged;
       }
     }
-    const g = mesh.geometry as THREE.BufferGeometry;
+    const g = mesh.geometry;
 
     // Recompute normals from positions. This is the key fix — without
     // it, the "spike forest" rendering happens.
@@ -284,7 +284,7 @@ class ErrorCatcher extends Component<
   componentDidCatch() {
     this.props.onError();
   }
-  render() {
+  async render() {
     if (this.state.failed) return null;
     return this.props.children;
   }

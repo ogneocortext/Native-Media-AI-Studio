@@ -45,7 +45,7 @@ export function AIToolsPage() {
   const [thinking, setThinking] = useState<string>("");
   const [showThinking, setShowThinking] = useState(false);
   const [toolCalls, setToolCalls] = useState<
-    Array<{ name: string; arguments: Record<string, unknown>; result?: string }>
+    { name: string; arguments: Record<string, unknown>; result?: string }[]
   >([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,11 +206,11 @@ export function AIToolsPage() {
       );
 
       let fullResponse = "";
-      const toolDetails: Array<{
+      const toolDetails: {
         name: string;
         arguments: Record<string, unknown>;
         result?: string;
-      }> = [];
+      }[] = [];
 
       for await (const event of parseOllamaStream(stream)) {
         if (controller.signal.aborted) break;
@@ -223,7 +223,7 @@ export function AIToolsPage() {
           }
       } else if (event.type === "tool_calls") {
         const data = event.data as {
-          tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
+          tool_calls: { name: string; arguments: Record<string, unknown> }[];
         };
         for (const tc of data.tool_calls) {
           toolDetails.push(tc);
@@ -340,7 +340,7 @@ export function AIToolsPage() {
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className={DS.select + " flex-1"}
-                    onClick={() => loadModels(!showAllModels)}
+                    onClick={async () => loadModels(!showAllModels)}
                     aria-label="Model"
                   >
                     {models.map((m) => {
@@ -475,7 +475,7 @@ export function AIToolsPage() {
                 )}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => loadModels(true)}
+                    onClick={async () => loadModels(true)}
                     className={DS.btnSecondary + " flex items-center gap-1"}
                   >
                     <RefreshCw size={14} /> Retry

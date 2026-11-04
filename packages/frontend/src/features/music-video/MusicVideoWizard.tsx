@@ -78,7 +78,7 @@ export function MusicVideoWizard() {
     const pending = peekPendingTrack();
     if (!pending) return;
     fetch(`/api/audio/file/${encodeURIComponent(pending)}`)
-      .then((r) => {
+      .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.blob();
       })
@@ -291,7 +291,7 @@ export function MusicVideoWizard() {
             audioUrl={audioUrl}
             onDrop={handleDrop}
             onFileSelect={handleFileUpload}
-            onNext={() => audioFile && analyzeAudio()}
+            onNext={async () => audioFile && analyzeAudio()}
             analyzing={analyzing}
           />
         );

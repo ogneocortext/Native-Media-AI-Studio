@@ -12,7 +12,7 @@ export interface DisplaySection {
 
 /** Merge consecutive sections that share the same `type`. */
 export function coalesceSections(
-  sections: Array<{ type: string; start: number; end: number; energy: number }>,
+  sections: { type: string; start: number; end: number; energy: number }[],
 ): DisplaySection[] {
   const out: DisplaySection[] = [];
   for (const section of sections) {

@@ -12,7 +12,7 @@ export function useJobs() {
   const loading = useJobStore((state) => state.isLoading);
   const error = useJobStore((state) => state.error);
 
-  const refreshJobs = useCallback(() => {
+  const refreshJobs = useCallback(async () => {
     return useJobStore.getState().fetchJobs();
   }, []);
 

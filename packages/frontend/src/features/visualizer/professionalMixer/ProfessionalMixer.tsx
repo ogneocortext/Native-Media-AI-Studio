@@ -35,7 +35,7 @@ export function ProfessionalMixer({
     stems: stems
       ? (Object.fromEntries(
           Object.entries(stems).filter(([, v]) => v),
-        ) as Record<string, string>)
+        ))
       : null,
   });
 

@@ -26,7 +26,7 @@ import {
  * as silent drift between the doc and the code.
  */
 
-const CURVES: Array<[string, EasingFn]> = [
+const CURVES: [string, EasingFn][] = [
   ["easeInQuad", easeInQuad],
   ["easeOutQuad", easeOutQuad],
   ["easeInExpo", easeInExpo],

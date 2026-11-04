@@ -20,7 +20,7 @@ export interface TrackMetadata {
   confidence: number;
   suggestedVisualization?: string;
   suggestedVisualizationConfidence?: number;
-  suggestedVisualizationCandidates?: Array<{ value: string; confidence: number }>;
+  suggestedVisualizationCandidates?: { value: string; confidence: number }[];
   suggestedKineticPreset?: string;
   suggestedKineticPresetConfidence?: number;
   suggestedThemeSeed?: string;

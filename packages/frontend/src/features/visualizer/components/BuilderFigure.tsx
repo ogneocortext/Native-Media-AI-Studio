@@ -458,7 +458,7 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       const target = beat ? (POSES[beat.motif] ?? IDLE_POSE) : IDLE_POSE;
 
       // --- Base pose: story truth, frame-rate independent, per-joint tuned ---
-      (Object.keys(target) as Array<keyof Pose>).forEach((k) => {
+      (Object.keys(target) as (keyof Pose)[]).forEach((k) => {
         const fk = 1 - Math.pow(1 - springK(k), dt * 60);
         cur[k] += (target[k] - cur[k]) * fk;
       });

@@ -39,7 +39,7 @@ export interface ComfyUIStopResponse {
   suggestion?: string;
 }
 
-export async function startComfyUI(port: number = 8188): Promise<ComfyUIStartResponse> {
+export async function startComfyUI(port = 8188): Promise<ComfyUIStartResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/services/comfyui/start?port=${port}`, {
     method: "POST",
@@ -59,7 +59,7 @@ export async function stopComfyUI(): Promise<ComfyUIStopResponse> {
   return res.json() as Promise<ComfyUIStopResponse>;
 }
 
-export async function restartComfyUI(port: number = 8188): Promise<unknown> {
+export async function restartComfyUI(port = 8188): Promise<unknown> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/services/comfyui/restart?port=${port}`, {
     method: "POST",

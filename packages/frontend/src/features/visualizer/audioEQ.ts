@@ -42,9 +42,7 @@ export interface EQInstance {
   dispose(): void;
 }
 
-export interface EQPresets {
-  [name: string]: EQBand[];
-}
+export type EQPresets = Record<string, EQBand[]>;
 
 /** Studio-friendly starting points. */
 export const DEFAULT_EQ_PRESETS: EQPresets = {

@@ -123,7 +123,7 @@ export function useThreeScene({
   // Scene lights + their authored colors, captured at scene build so
   // a section's palette shift can hue-rotate against the base.
   const sectionLightsRef = useRef<
-    Array<{ light: THREE.Light; baseColor: THREE.Color }> | null
+    { light: THREE.Light; baseColor: THREE.Color }[] | null
   >(null);
   // F5: deterministic-export clock hijack. While `active`, the loop
   // takes delta/elapsed from the export driver instead of the
@@ -941,9 +941,9 @@ export function useThreeScene({
             }
           } else {
             mesh.visible = obj.visible;
-            mesh.position.set(...(obj.position as [number, number, number]));
-            mesh.rotation.set(...(obj.rotation as [number, number, number]));
-            mesh.scale.set(...(obj.scale as [number, number, number]));
+            mesh.position.set(...(obj.position));
+            mesh.rotation.set(...(obj.rotation));
+            mesh.scale.set(...(obj.scale));
             if (
               obj.type === "character" &&
               obj.modelUrl &&

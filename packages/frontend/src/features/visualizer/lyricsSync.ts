@@ -36,7 +36,7 @@ export function parseLRC(lrcContent: string): LyricLine[] {
 
     // Get text after the last timestamp
     const lastMatch = matches[matches.length - 1];
-    const text = line.slice(lastMatch.index! + lastMatch[0].length).trim();
+    const text = line.slice(lastMatch.index + lastMatch[0].length).trim();
     if (!text) continue;
 
     // Use the first timestamp as the line start time
@@ -68,7 +68,7 @@ export function parseWordLevelLRC(lrcContent: string): LyricLine[] {
   const wordTimestampRegex = /<(\d{2}):(\d{2})\.(\d{2,3})>\s*([^<]+)/g;
 
   for (const line of lrcContent.split("\n")) {
-    const lineMatch = line.match(lineTimestampRegex);
+    const lineMatch = lineTimestampRegex.exec(line);
     if (!lineMatch) continue;
 
     const minutes = parseInt(lineMatch[1]);
@@ -80,7 +80,7 @@ export function parseWordLevelLRC(lrcContent: string): LyricLine[] {
     const words: WordTiming[] = [];
     const wordText: string[] = [];
 
-    const wordLine = line.slice(lineMatch.index! + lineMatch[0].length);
+    const wordLine = line.slice(lineMatch.index + lineMatch[0].length);
     for (const match of wordLine.matchAll(wordTimestampRegex)) {
       const wMin = parseInt(match[1]);
       const wSec = parseInt(match[2]);
@@ -98,7 +98,7 @@ export function parseWordLevelLRC(lrcContent: string): LyricLine[] {
       lines.push({ start: lineStart, end, text, words });
     } else {
       // Fallback to standard LRC parsing
-      const text = line.slice(lineMatch.index! + lineMatch[0].length).trim();
+      const text = line.slice(lineMatch.index + lineMatch[0].length).trim();
       if (text) {
         lines.push({ start: lineStart, end: lineStart + 5, text });
       }

@@ -7,6 +7,11 @@
 
 import { create } from "zustand";
 import { fetchPortConfig } from "../services/portConfig";
+import type {
+  AggregateHealth,
+  AdapterHealth,
+  SystemHealth,
+  ServiceStatus} from "../services/api";
 import {
   healthCheck,
   getSystemHealth,
@@ -22,10 +27,6 @@ import {
   restartComfyUI,
   getSettings,
   updateSettings,
-  AggregateHealth,
-  AdapterHealth,
-  SystemHealth,
-  ServiceStatus,
   type ComfyUIStatus,
   type VRAMStatus,
 } from "../services/api";

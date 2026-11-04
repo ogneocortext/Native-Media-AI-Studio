@@ -264,7 +264,7 @@ export async function cleanupIncompleteScenes(
 }
 
 export async function listSavedScenes(): Promise<{
-  scenes: Array<{ filename: string; path: string; size: number; modified: string }>;
+  scenes: { filename: string; path: string; size: number; modified: string }[];
 }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/data/saved-scenes`, { timeout: 30000 });

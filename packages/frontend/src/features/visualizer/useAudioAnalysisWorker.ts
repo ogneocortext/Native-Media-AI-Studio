@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import type { AudioData, PerceptualScale } from "./types";
-import type { WorkerAudioData, AnalyzeMessage, ResetMessage } from "./audioAnalysis.worker";
+import type { WorkerAudioData, AnalyzeMessage } from "./audioAnalysis.worker";
 
 export interface UseAudioAnalysisWorkerOptions {
   enabled?: boolean;
@@ -103,7 +103,7 @@ export function useAudioAnalysisWorker({
           isDownbeat: d.isDownbeat,
           analyzedEnergy: d.analyzedEnergy,
           perceptualBands: d.perceptualBands,
-          perceptualScale: d.perceptualScale as PerceptualScale,
+          perceptualScale: d.perceptualScale,
         };
         pendingRef.current = false;
         clearWatchdog();
@@ -185,7 +185,7 @@ export function useAudioAnalysisWorker({
   const reset = useCallback(() => {
     const worker = workerRef.current;
     if (!worker) return;
-    worker.postMessage({ type: "reset" } as ResetMessage);
+    worker.postMessage({ type: "reset" });
   }, []);
 
   // Return null when disabled so callers fall back to the inline analyser path

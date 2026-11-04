@@ -66,7 +66,6 @@ import { AudioLatencyCard } from "../../components/AudioLatencyCard";
 import { FrameRateCard } from "../../components/FrameRateCard";
 import type {
   AudioData,
-  StemAnalysisData,
 } from "./types";
 import { useUIStore } from "../../state/uiStore";
 import {
@@ -76,7 +75,6 @@ import {
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
-import { type EQBand } from "./audioEQ";
 import { ShaderVisualizer, type ShaderFrameAccurateApi } from "./ShaderVisualizer";
 import { ACESFilmicToneMapping } from "three";
 import {
@@ -388,7 +386,7 @@ export function Visualizer() {
   // Handle Canvas onCreated
   const handleCanvasCreated = useCallback(({ gl }: { gl: any }) => {
     gl.toneMappingExposure = 0.8;
-    if ((gl as any)?.isWebGPURenderer) {
+    if ((gl)?.isWebGPURenderer) {
       setRendererBackend("WebGPU");
     } else {
       gl.toneMapping = ACESFilmicToneMapping;
@@ -637,7 +635,7 @@ export function Visualizer() {
   // Load CSV and library
   useEffect(() => {
     fetch("/track-prompts-lyrics.csv")
-      .then((r) => r.text())
+      .then(async (r) => r.text())
       .then(setCsvContent)
       .catch(() => {});
   }, []);
@@ -671,7 +669,7 @@ export function Visualizer() {
           if (!cancelled && data.separated && Object.keys(data.stems).length > 0) {
             setStemsData((prev) => ({
               ...prev,
-              [currentFilename]: data.stems as StemAnalysisData,
+              [currentFilename]: data.stems,
             }));
           }
         },
@@ -729,7 +727,7 @@ export function Visualizer() {
             <label>
               Track
               <select
-                onChange={(e) => handleSelectLibraryTrack(e.target.value)}
+                onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
                 value={currentFilename || ""}
               >
                 <option value="" disabled>
@@ -808,7 +806,7 @@ export function Visualizer() {
             data-testid="viz-track-select"
             id="viz-track-select"
             aria-label="Select a track"
-            onChange={(e) => handleSelectLibraryTrack(e.target.value)}
+            onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
             value={currentFilename || ""}
             className="viz-track-select"
           >
@@ -848,7 +846,7 @@ export function Visualizer() {
           {currentFilename && !currentAnalysisData && (
             <button
               className="viz-analyze-btn"
-              onClick={() => handleAnalyzeTrack(currentFilename)}
+              onClick={async () => handleAnalyzeTrack(currentFilename)}
               disabled={analyzing}
               aria-describedby="viz-analyze-status"
             >
@@ -1058,7 +1056,7 @@ export function Visualizer() {
                     lane's own button (it owns its clock hijack). */}
                 {(vizMode === "shader" || vizMode === "2d") && (
                   <button
-                    onClick={() => startFrameAccurateExport(10)}
+                    onClick={async () => startFrameAccurateExport(10)}
                     disabled={isRecording || isExporting}
                     className="viz-icon-btn viz-more-item"
                     aria-label="Export 10 seconds frame-accurate"
@@ -1744,10 +1742,7 @@ export function Visualizer() {
             <EqualizerPanel
               title="Master EQ"
               eqRef={
-                eqRef as React.MutableRefObject<{
-                  setBands: (bands: EQBand[]) => void;
-                  applyPreset: (name: string) => void;
-                } | null>
+                eqRef
               }
             />
           )}

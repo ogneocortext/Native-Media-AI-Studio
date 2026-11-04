@@ -176,7 +176,7 @@ export interface AssembleResponse {
 }
 
 export async function assembleBeatQuantized(params: {
-  shot_manifest: Array<Record<string, unknown>>;
+  shot_manifest: Record<string, unknown>[];
   output_path?: string | null;
   audio_path?: string | null;
   engine?: string;

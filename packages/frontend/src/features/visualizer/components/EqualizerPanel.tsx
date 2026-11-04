@@ -124,7 +124,7 @@ export function EqualizerPanel({
       if (!preset) return;
       const mapped: EQBand[] = preset.map((b) => ({
         id: b.id,
-        type: b.type as EQBand["type"],
+        type: b.type,
         frequency: b.frequency,
         Q: b.Q,
         gain: b.gain,

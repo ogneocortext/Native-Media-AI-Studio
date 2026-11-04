@@ -11,12 +11,12 @@ export interface GPUSnapshot {
   gpu_utilization: number;
   memory_controller_utilization?: number;
   temperature_c: number;
-  processes?: Array<{
+  processes?: {
     pid: number;
     name: string;
     used_mb: number | null;
     kind: string;
-  }>;
+  }[];
   memory_available?: boolean;
   vram_total_mb?: number;
   vram_used_mb?: number;
@@ -60,7 +60,7 @@ export interface GPUHistoryPoint {
 
 export async function getGPUHistory(
   range?: string,
-  limit: number = 2000,
+  limit = 2000,
 ): Promise<{ points: GPUHistoryPoint[]; count: number }> {
   const base = getApiBase();
   const params = new URLSearchParams();
@@ -84,7 +84,7 @@ export async function getGPUStats(range?: string): Promise<Record<string, unknow
   return res.json();
 }
 
-export async function clearGPUHistory(keepDays: number = 0): Promise<{ deleted: number }> {
+export async function clearGPUHistory(keepDays = 0): Promise<{ deleted: number }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/health/gpu/history?keep_days=${keepDays}`, {
     method: "DELETE",

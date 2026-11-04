@@ -38,7 +38,7 @@ export interface FavoriteToggleResponse {
 }
 
 export async function listMediaFavorites(
-  limit: number = 200
+  limit = 200
 ): Promise<string[]> {
   
   const res = await fetchWithTimeout(
@@ -327,7 +327,7 @@ export interface MoveToTrashRequest {
 
 export async function moveItemToTrash(
   relativePath: string,
-  retentionDays: number = 30
+  retentionDays = 30
 ): Promise<TrashItem> {
   
   const res = await fetchWithTimeout(

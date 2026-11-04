@@ -121,7 +121,7 @@ export function ArtDirection() {
 
   useEffect(() => {
     fetch(`/docs/${activeDoc}`)
-      .then((r) => r.text())
+      .then(async (r) => r.text())
       .then(setDocContent)
       .catch(() => setDocContent("Failed to load doc"));
   }, [activeDoc]);
@@ -411,13 +411,13 @@ export function ArtDirection() {
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Key</span>
                               <p className="font-mono font-medium text-sm">
-                                {String((analysis as Record<string, unknown>).estimated_key ?? "")}
+                                {String((analysis).estimated_key ?? "")}
                               </p>
                             </div>
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Loudness</span>
                               <p className="font-mono font-medium text-sm">
-                                {String((analysis as Record<string, unknown>).rms_db ?? "")} dB
+                                {String((analysis).rms_db ?? "")} dB
                               </p>
                             </div>
                           </div>

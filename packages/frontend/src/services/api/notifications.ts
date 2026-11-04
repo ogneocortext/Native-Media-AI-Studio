@@ -63,7 +63,7 @@ export async function fetchNotifications(limit = 50): Promise<NotificationItem[]
 
 export async function fetchEventsSince(
   lastId: number,
-): Promise<Array<{ id: string; data: Record<string, unknown> | null }>> {
+): Promise<{ id: string; data: Record<string, unknown> | null }[]> {
   const base = getApiBase();
   const res = await fetchWithTimeout(
     `${base}/api/events/since?last_id=${encodeURIComponent(String(lastId))}`,

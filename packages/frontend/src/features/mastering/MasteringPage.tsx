@@ -17,7 +17,7 @@ import { Suspense, lazy } from "react";
 import { DS } from "../../styles/designSystem";
 
 const MasteringPanel = lazy(
-  () => import("../audio-analysis/components/MasteringPanel").then((mod) => ({ default: mod.MasteringPanel })),
+  async () => import("../audio-analysis/components/MasteringPanel").then((mod) => ({ default: mod.MasteringPanel })),
 );
 
 export function MasteringPage() {

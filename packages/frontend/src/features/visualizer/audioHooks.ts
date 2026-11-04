@@ -19,7 +19,7 @@ export function useDemoAudio(
   enabled: boolean,
   bpm: number,
   perceptualScale: PerceptualScale = "mel",
-  numPerceptualBands: number = 40,
+  numPerceptualBands = 40,
 ) {
   const data = useRef<AudioData>({
     bass: 0,
@@ -70,7 +70,7 @@ export function useRealAudio(
   analysisData?: AudioAnalysisData | null,
   audioElapsedRef?: React.MutableRefObject<number>,
   perceptualScale: PerceptualScale = "mel",
-  numPerceptualBands: number = 40,
+  numPerceptualBands = 40,
   worker?: UseAudioAnalysisWorkerResult | null,
 ) {
   const data = useRef<AudioData>({
@@ -189,7 +189,7 @@ export function useRealAudio(
     }
 
     if (!freqArray.current || freqArray.current.length !== analyser.frequencyBinCount) {
-      freqArray.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array;
+      freqArray.current = new Uint8Array(analyser.frequencyBinCount);
     }
     analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
     const arr = freqArray.current;
@@ -341,8 +341,7 @@ export function useRealAudio(
     // Downbeat detection from backend downbeat times (150ms window)
     let isDownbeat = false;
     if (
-      analysisData &&
-      analysisData.downbeat_times &&
+      analysisData?.downbeat_times &&
       analysisData.downbeat_times.length > 0 &&
       elapsed > 0
     ) {

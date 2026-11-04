@@ -84,7 +84,7 @@ export interface SeparationQualityOptions {
 
 export async function separateAudioStems(
   file: File,
-  model: string = "mdx_extra_q",
+  model = "mdx_extra_q",
   quality: SeparationQualityOptions = {},
 ): Promise<StemSeparationResponse> {
   const base = getApiBase();
@@ -118,10 +118,10 @@ export interface AudioStemsResponse {
 export async function getAudioStems(filename: string): Promise<AudioStemsResponse> {
   const base = getApiBase();
   return withDirectBackendFallback(
-    () =>
+    async () =>
       fetchWithTimeout(`${base}/api/audio/stems/${encodeURIComponent(filename)}`, {
         timeout: 30000,
-      }).then((res) => {
+      }).then(async (res) => {
         if (!res.ok) throw new Error("Failed to load stems");
         return res.json();
       }),
@@ -132,19 +132,19 @@ export async function getAudioStems(filename: string): Promise<AudioStemsRespons
 
 export async function separateAudioFile(
   filename: string,
-  model: string = "mdx_extra_q",
+  model = "mdx_extra_q",
   quality: SeparationQualityOptions = {},
 ): Promise<StemSeparationResponse> {
   const base = getApiBase();
   const payload: Record<string, unknown> = { filename, model, ...quality };
   return withDirectBackendFallback(
-    () =>
+    async () =>
       fetchWithTimeout(`${base}/api/audio/separate-file`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
         timeout: 600000,
-      }).then((res) => {
+      }).then(async (res) => {
         if (!res.ok) throw new Error("Stem separation failed");
         return res.json();
       }),
@@ -157,7 +157,7 @@ export interface AudioAnalysisResult {
   tempo_bpm: number;
   duration_seconds: number;
   beat_count: number;
-  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  sections: { type: string; start: number; end: number; energy: number }[];
   beat_times: number[];
   onset_times: number[];
   energy_curve: number[];
@@ -180,15 +180,15 @@ export interface AudioAnalysisResult {
     duration: number;
     bpm: number;
     bpmConfidence: number;
-    beats: Array<{
+    beats: {
       time: number;
       drumType: string | null;
       energy: number;
       isDownbeat?: boolean;
       bpm?: number;
-    }>;
-    sections: Array<{ type: string; start: number; end: number; energy: number }>;
-    energyCurve: Array<{ time: number; value: number }>;
+    }[];
+    sections: { type: string; start: number; end: number; energy: number }[];
+    energyCurve: { time: number; value: number }[];
     amplitudeEnvelope: number[];
   };
   spectral_centroid?: number[];
@@ -197,7 +197,7 @@ export interface AudioAnalysisResult {
   zero_crossing_rate?: number[];
   suggested_visualization?: string;
   suggested_visualization_confidence?: number;
-  suggested_visualization_candidates?: Array<{ value: string; confidence: number }>;
+  suggested_visualization_candidates?: { value: string; confidence: number }[];
   suggested_kinetic_preset?: string;
   suggested_kinetic_preset_confidence?: number;
   suggested_theme_seed?: string;
@@ -232,7 +232,7 @@ export interface EnsureAnalysisResponse {
 
 export async function ensureAnalysis(
   filename: string,
-  backend: string = "sonara",
+  backend = "sonara",
 ): Promise<EnsureAnalysisResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/ensure-analysis`, {
@@ -263,7 +263,7 @@ export async function getCudaStatus(): Promise<{
 
 export async function analyzeAudio(
   file: File,
-  backend: string = "sonara",
+  backend = "sonara",
 ): Promise<AudioAnalysisResult> {
   const base = getApiBase();
   const formData = new FormData();
@@ -314,15 +314,15 @@ export interface TimingMetadata {
   duration: number;
   bpm: number;
   bpmConfidence: number;
-  beats: Array<{
+  beats: {
     time: number;
     drumType: string | null;
     energy: number;
     isDownbeat?: boolean;
     bpm?: number;
-  }>;
-  sections: Array<{ type: string; start: number; end: number; energy: number }>;
-  energyCurve: Array<{ time: number; value: number }>;
+  }[];
+  sections: { type: string; start: number; end: number; energy: number }[];
+  energyCurve: { time: number; value: number }[];
   amplitudeEnvelope: number[];
 }
 
@@ -386,13 +386,13 @@ export async function getStemsStatus(): Promise<StemsStatusResponse> {
 }
 
 export async function listAudioFiles(): Promise<
-  Array<{
+  {
     filename: string;
     relative_path: string;
     folder: string;
     size_bytes: number;
     modified: number;
-  }>
+  }[]
 > {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/audio/files`, { timeout: 30000 });
@@ -425,7 +425,7 @@ export async function getAnalysisSummary(filename: string): Promise<{
   duration_seconds: number | null;
   beat_count: number | null;
   confidence: number | null;
-  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  sections: { type: string; start: number; end: number; energy: number }[];
   has_beat_times: boolean;
   has_onset_times: boolean;
   has_energy_curve: boolean;
@@ -445,12 +445,12 @@ export async function getAnalysisSummary(filename: string): Promise<{
   return res.json();
 }
 
-export async function analyzeAllPending(backend: string = "sonara"): Promise<{
+export async function analyzeAllPending(backend = "sonara"): Promise<{
   status: string;
   analyzed: number;
   total: number;
-  files: Array<{ filename: string; bpm: number; beats: number; confidence: number }>;
-  errors: Array<{ filename: string; error: string }>;
+  files: { filename: string; bpm: number; beats: number; confidence: number }[];
+  errors: { filename: string; error: string }[];
 }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(
@@ -472,11 +472,11 @@ export interface LyricLine {
   end: number;
   text: string;
   section?: string;
-  words?: Array<{
+  words?: {
     word: string;
     start: number;
     end: number;
-  }>;
+  }[];
 }
 
 export interface TranscriptionResult {
@@ -594,14 +594,14 @@ export async function exportLRC(trackId: string): Promise<{ lrc: string; format:
 }
 
 export async function getTracksWithLyrics(): Promise<
-  Array<{
+  {
     id: string;
     title: string;
     artist: string;
     filename: string;
     duration_seconds: number;
     lyric_count: number;
-  }>
+  }[]
 > {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/lyrics/tracks-with-lyrics`, { timeout: 30000 });
@@ -709,13 +709,13 @@ export async function extractVideoAudio(params: {
 }): Promise<ExtractAudioResponse> {
   const base = getApiBase();
   return withDirectBackendFallback(
-    () =>
+    async () =>
       fetchWithTimeout(`${base}/api/audio/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
         timeout: 600000,
-      }).then((res) => {
+      }).then(async (res) => {
         if (!res.ok) throw new Error("Audio extraction failed");
         return res.json();
       }),
@@ -788,7 +788,7 @@ export interface EnhanceStemsResponse {
   stems: string[];
   wav_path: string | null;
   mp3_path: string | null;
-  steps: Array<Record<string, unknown>>;
+  steps: Record<string, unknown>[];
   error: string | null;
   duration: number;
 }

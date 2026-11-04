@@ -104,7 +104,7 @@ function resetState() {
 let smoothedBass = 0;
 let smoothedMid = 0;
 let smoothedTreble = 0;
-const peakState = { peak: 0, decayFrames: 0 } as { peak: number; decayFrames: number };
+const peakState = { peak: 0, decayFrames: 0 };
 let smoothedPhase = 0;
 let lastBass = 0;
 let beatCooldown = 0;

@@ -45,7 +45,7 @@ describe("smoothBeatPhase", () => {
   });
 
   it("always returns a phase in [0, 1)", () => {
-    const cases: Array<[number, number]> = [
+    const cases: [number, number][] = [
       [0.99, 0.0],
       [0.0, 0.99],
       [1.5, -0.25],

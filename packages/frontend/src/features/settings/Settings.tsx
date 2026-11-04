@@ -254,7 +254,7 @@ export function Settings() {
                 <button
                   className="btn btn-secondary"
                   title="Test Connection"
-                  onClick={() => testConnection(settings.comfyui_url, "comfyui")}
+                  onClick={async () => testConnection(settings.comfyui_url, "comfyui")}
                   disabled={connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing"}
                 >
                   {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing" ? (
@@ -346,7 +346,7 @@ export function Settings() {
                 <button
                   className="btn btn-secondary"
                   title="Test Connection"
-                  onClick={() => testConnection(settings.ollama_url, "ollama")}
+                  onClick={async () => testConnection(settings.ollama_url, "ollama")}
                   disabled={connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing"}
                 >
                   {connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing" ? (

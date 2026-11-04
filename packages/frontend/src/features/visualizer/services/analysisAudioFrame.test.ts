@@ -38,7 +38,7 @@ function analysis(over: Partial<AudioAnalysisData> = {}): AudioAnalysisData {
     confidence: 1,
     duration_seconds: 4,
     ...over,
-  } as AudioAnalysisData;
+  };
 }
 
 /** One sampled spectral frame: what `useSpectralTimeline` hands over. */
@@ -312,7 +312,7 @@ describe("synthWaveform", () => {
     const crossings = (b: Uint8Array) => {
       let n = 0;
       for (let i = 1; i < b.length; i++) {
-        if ((b[i - 1]! < 128) !== (b[i]! < 128)) n++;
+        if ((b[i - 1] < 128) !== (b[i] < 128)) n++;
       }
       return n;
     };

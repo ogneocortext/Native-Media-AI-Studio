@@ -44,14 +44,14 @@ export function ThreeJSStudio() {
   const [activeTemplateId, _setActiveTemplateId] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
   const [backgroundImageVisible, setBackgroundImageVisible] = useState(true);
-  const [libraryImages, _setLibraryImages] = useState<Array<{ url: string; label: string }>>([]);
+  const [libraryImages, _setLibraryImages] = useState<{ url: string; label: string }[]>([]);
   const [bpm, setBpm] = useState(150);
   const [beatSync, setBeatSync] = useState(false);
   const [fps, setFps] = useState(24);
   // Mirrored from the shared audio library store by useTrackManager; each entry
   // carries a pre-computed `optionLabel` so the header needs no local naming logic.
   const [libraryTracks, setLibraryTracks] = useState<
-    Array<{ filename: string; optionLabel: string }>
+    { filename: string; optionLabel: string }[]
   >([]);
   const [tracksLoading, setTracksLoading] = useState(true);
   const [tracksError, setTracksError] = useState<string | null>(null);
@@ -108,12 +108,12 @@ export function ThreeJSStudio() {
   // above (it lands after the scene engine is built) and is created here
   // so the scene engine can consume it on its first frame.
   const sectionDriver = useSectionDriver(
-    () => (beatAnalysisRef.current?.sections ?? []) as Array<{
+    () => (beatAnalysisRef.current?.sections ?? []) as {
       type: string;
       start: number;
       end: number;
       energy: number;
-    }>,
+    }[],
     () => (beatAnalysisRef.current?.beat_times ?? []) as readonly number[],
   );
   const activeTemplate = activeTemplateId

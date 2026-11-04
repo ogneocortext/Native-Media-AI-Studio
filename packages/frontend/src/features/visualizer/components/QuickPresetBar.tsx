@@ -31,7 +31,7 @@ const FEATURED_3D_PRESETS = [
 ];
 
 // Curated 2D modes for immediate one-click visual variety
-const FEATURED_2D_MODES: Array<{ mode: Canvas2DMode; label: string }> = [
+const FEATURED_2D_MODES: { mode: Canvas2DMode; label: string }[] = [
   { mode: "bars", label: "Bars" },
   { mode: "mirrored-bars", label: "Mirrored" },
   { mode: "radial", label: "Radial" },

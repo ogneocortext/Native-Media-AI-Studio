@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
 // gpuHelpers.ts — pure functions for the GPU Monitor page
 // ---------------------------------------------------------------------------
-import { PROCESS_LABELS, DataPoint } from "./gpuConstants";
+import type { DataPoint } from "./gpuConstants";
+import { PROCESS_LABELS } from "./gpuConstants";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import type { CSSProperties } from "react";
 
 // ---------------------------------------------------------------------------
 // Process → app-function mapping
@@ -219,7 +219,7 @@ export function ChartTooltip({ active, payload, label }: ChartTipProps) {
           fontSize: 12,
           padding: "8px 10px",
           boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-        } as CSSProperties
+        }
       }
     >
       {typeof ms === "number" && (

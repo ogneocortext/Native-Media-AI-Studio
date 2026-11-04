@@ -82,7 +82,7 @@ export function useOllamaStream() {
           typeof onMessageOrUseTools === "boolean" ||
           onMessageOrUseTools === undefined
         ) {
-          ollamaOptions = ollamaOptionsOrUseTools as Record<string, unknown>;
+          ollamaOptions = ollamaOptionsOrUseTools;
           if (typeof onMessageOrUseTools === "function") {
             onMessage = onMessageOrUseTools;
             useTools = useToolsArg;

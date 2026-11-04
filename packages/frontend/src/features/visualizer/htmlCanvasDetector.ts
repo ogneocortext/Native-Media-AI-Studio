@@ -104,7 +104,7 @@ export function useHtmlInCanvas(): HtmlInCanvasResult {
  * Cached: drawHTML() probe is not free, and both hook and renderer factory
  * share the same answer.
  */
-export function detectHtmlInCanvasSupport(): Promise<boolean> {
+export async function detectHtmlInCanvasSupport(): Promise<boolean> {
   if (htmlInCanvasProbe) return htmlInCanvasProbe;
 
   htmlInCanvasProbe = (async () => {
@@ -154,8 +154,8 @@ export function detectHtmlInCanvasSupport(): Promise<boolean> {
 export async function drawHtmlIntoCanvas(
   canvas: HTMLCanvasElement,
   htmlElement: HTMLElement,
-  x: number = 0,
-  y: number = 0,
+  x = 0,
+  y = 0,
   width?: number,
   height?: number,
 ): Promise<boolean> {

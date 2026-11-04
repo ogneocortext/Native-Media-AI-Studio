@@ -72,7 +72,7 @@ export interface AudioAnalysisData {
   onset_times: number[];
   energy_curve: number[];
   amplitude_envelope: number[];
-  sections: Array<{ type: string; start: number; end: number; energy: number }>;
+  sections: { type: string; start: number; end: number; energy: number }[];
   confidence: number;
   duration_seconds: number;
   spectral_centroid?: number[];
@@ -87,26 +87,26 @@ export interface AudioAnalysisData {
     duration: number;
     bpm: number;
     bpmConfidence: number;
-    beats: Array<{
+    beats: {
       time: number;
       drumType: string | null;
       energy: number;
       isDownbeat?: boolean;
       bpm?: number;
-    }>;
-    sections: Array<{
+    }[];
+    sections: {
       type: string;
       start: number;
       end: number;
       energy: number;
-    }>;
-    energyCurve: Array<{ time: number; value: number }>;
+    }[];
+    energyCurve: { time: number; value: number }[];
     amplitudeEnvelope: number[];
   };
   // Suggested visualization parameters for AI/agent-driven presets
   suggested_visualization?: string;
   suggested_visualization_confidence?: number;
-  suggested_visualization_candidates?: Array<{ value: string; confidence: number }>;
+  suggested_visualization_candidates?: { value: string; confidence: number }[];
   suggested_kinetic_preset?: string;
   suggested_kinetic_preset_confidence?: number;
   suggested_theme_seed?: string;

@@ -156,7 +156,7 @@ export function getWarpPresetIds(): WarpPresetId[] {
 /** Next preset in the calm→aggressive sequence, wrapping around. */
 export function nextWarpPresetId(currentId: string): WarpPresetId {
   const ids = getWarpPresetIds();
-  const idx = ids.indexOf(currentId as WarpPresetId);
+  const idx = ids.indexOf(currentId);
   const nextIdx = idx >= 0 ? (idx + 1) % ids.length : 0;
   return ids[nextIdx];
 }
@@ -164,7 +164,7 @@ export function nextWarpPresetId(currentId: string): WarpPresetId {
 /** Previous preset in the calm→aggressive sequence, wrapping around. */
 export function prevWarpPresetId(currentId: string): WarpPresetId {
   const ids = getWarpPresetIds();
-  const idx = ids.indexOf(currentId as WarpPresetId);
+  const idx = ids.indexOf(currentId);
   const prevIdx = idx >= 0 ? (idx + ids.length - 1) % ids.length : 0;
   return ids[prevIdx];
 }

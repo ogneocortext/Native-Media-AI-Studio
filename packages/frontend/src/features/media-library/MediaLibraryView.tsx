@@ -700,9 +700,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                       id="add-to-collection"
                       className="w-32 text-xs bg-black/40 border border-gray-600 rounded px-2 py-1 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
                       onChange={(e) => {
-                        const collectionId = (e.target as HTMLSelectElement).value;
+                        const collectionId = (e.target).value;
                         if (!collectionId) return;
-                        (e.target as HTMLSelectElement).value = "";
+                        (e.target).value = "";
                         void handleAddToCollection(selectedFile, collectionId);
                       }}
                     >

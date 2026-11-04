@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import type { useNavigate } from "react-router-dom";
 import { generate3D, generate3DFromImage, get3DStatus, updateMCPContext } from "../../services/api";
 
 export interface CharacterBible {

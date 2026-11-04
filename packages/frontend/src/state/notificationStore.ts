@@ -7,11 +7,12 @@
 
 import { create } from "zustand";
 import { sseService } from "../services/sseService";
+import type {
+  NotificationItem,
+  NotificationPreferences} from "../services/api/notifications";
 import {
   fetchNotifications,
   fetchEventsSince,
-  NotificationItem,
-  NotificationPreferences,
   getNotificationPreferences,
   saveNotificationPreferences,
 } from "../services/api/notifications";
@@ -26,10 +27,10 @@ const MAX_HISTORY = 100;
 // Rules receive the event payload too, so a grouping key can keep distinct
 // variants alive (e.g. health stays collapsed per level, so a critical
 // alert is never silently replaced by a later "healthy" event).
-const GROUP_RULES: Array<{
+const GROUP_RULES: {
   match: RegExp;
   key: (name: string, data: Record<string, unknown> | null) => string;
-}> = [
+}[] = [
   {
     match: /^job\.progress\.\d+$/,
     key: (name) => name.replace(/\.\d+$/, ""),

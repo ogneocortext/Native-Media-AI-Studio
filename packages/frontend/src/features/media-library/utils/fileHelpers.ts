@@ -62,7 +62,7 @@ export function getFileTypeCategory(fileType: string): string {
 
   const extension = fileType.split(".").pop()?.toLowerCase() || "";
   if (extension in categoryMap) {
-    return categoryMap[extension as keyof typeof categoryMap];
+    return categoryMap[extension];
   }
 
   if (fileType.includes("audio")) return "audio";
@@ -126,7 +126,7 @@ export function getFileIcon(fileType: string): string {
   };
 
   if (ext in iconMap) {
-    return iconMap[ext as keyof typeof iconMap];
+    return iconMap[ext];
   }
 
   if (fileType.includes("audio")) return "🎵";

@@ -19,7 +19,7 @@ const loadNamedModule = async (
 ): Promise<{ default: unknown }> => {
   try {
     const module = await loadModule();
-    return { default: module[name] as unknown };
+    return { default: module[name] };
   } catch (error) {
     if (retries <= 0) throw error;
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -28,104 +28,104 @@ const loadNamedModule = async (
 };
 
 const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: string) =>
-  lazy(() =>
+  lazy(async () =>
     loadNamedModule(loadModule, name).then((module) => ({
       default: module.default as React.LazyExoticComponent<React.ComponentType<unknown>>,
     })),
   );
 
 // Heavy pages loaded on-demand
-const MasteringPage = lazyNamed(() => import("./features/mastering/MasteringPage"), "MasteringPage");
-const HealthPage = lazyNamed(() => import("./features/health/HealthPage"), "HealthPage");
+const MasteringPage = lazyNamed(async () => import("./features/mastering/MasteringPage"), "MasteringPage");
+const HealthPage = lazyNamed(async () => import("./features/health/HealthPage"), "HealthPage");
 const DataManagementPage = lazyNamed(
-  () => import("./features/data-management/DataManagementPage"),
+  async () => import("./features/data-management/DataManagementPage"),
   "DataManagementPage",
 );
 const DatabasePage = lazyNamed(
-  () => import("./features/database/DatabasePage"),
+  async () => import("./features/database/DatabasePage"),
   "DatabasePage",
 );
 const ImageGeneration = lazyNamed(
-  () => import("./features/image-generation/ImageGeneration"),
+  async () => import("./features/image-generation/ImageGeneration"),
   "ImageGeneration",
 );
 const ImageProcessingPage = lazyNamed(
-  () => import("./features/image-processing/ImageProcessingPage"),
+  async () => import("./features/image-processing/ImageProcessingPage"),
   "ImageProcessingPage",
 );
 const MediaLibrary = lazyNamed(
-  () => import("./features/media-library/MediaLibrary"),
+  async () => import("./features/media-library/MediaLibrary"),
   "MediaLibrary",
 );
 const VideoLibrary = lazyNamed(
-  () => import("./features/media-library/VideoLibrary"),
+  async () => import("./features/media-library/VideoLibrary"),
   "VideoLibrary",
 );
 const AudioLibrary = lazyNamed(
-  () => import("./features/media-library/AudioLibrary"),
+  async () => import("./features/media-library/AudioLibrary"),
   "AudioLibrary",
 );
 const MusicVideoWizard = lazyNamed(
-  () => import("./features/music-video/MusicVideoWizard"),
+  async () => import("./features/music-video/MusicVideoWizard"),
   "MusicVideoWizard",
 );
 const ThreeJSStudio = lazyNamed(
-  () => import("./features/three-js-studio/ThreeJSStudio"),
+  async () => import("./features/three-js-studio/ThreeJSStudio"),
   "ThreeJSStudio",
 );
-const Visualizer = lazyNamed(() => import("./features/visualizer/Visualizer"), "Visualizer");
+const Visualizer = lazyNamed(async () => import("./features/visualizer/Visualizer"), "Visualizer");
 const AudioAnalysisPage = lazyNamed(
-  () => import("./features/audio-analysis/AudioAnalysisPage"),
+  async () => import("./features/audio-analysis/AudioAnalysisPage"),
   "AudioAnalysisPage",
 );
-const AIToolsPage = lazyNamed(() => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
-const OllamaChat = lazyNamed(() => import("./features/ollama-chat/OllamaChat"), "OllamaChat");
-const SubAgentChat = lazyNamed(() => import("./features/sub-agent/SubAgentChat"), "SubAgentChat");
+const AIToolsPage = lazyNamed(async () => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
+const OllamaChat = lazyNamed(async () => import("./features/ollama-chat/OllamaChat"), "OllamaChat");
+const SubAgentChat = lazyNamed(async () => import("./features/sub-agent/SubAgentChat"), "SubAgentChat");
 const VideoGenerationPage = lazyNamed(
-  () => import("./features/video-generation/VideoGenerationPage"),
+  async () => import("./features/video-generation/VideoGenerationPage"),
   "VideoGenerationPage",
 );
-const DocsPage = lazyNamed(() => import("./features/docs/DocsPage"), "DocsPage");
+const DocsPage = lazyNamed(async () => import("./features/docs/DocsPage"), "DocsPage");
 const StoryboardPage = lazyNamed(
-  () => import("./features/storyboards/StoryboardPage"),
+  async () => import("./features/storyboards/StoryboardPage"),
   "StoryboardPage",
 );
 const KineticTypographyPage = lazyNamed(
-  () => import("./features/kinetic-typography/KineticTypographyPage"),
+  async () => import("./features/kinetic-typography/KineticTypographyPage"),
   "KineticTypographyPage",
 );
-const Preview = lazyNamed(() => import("./features/preview/Preview"), "Preview");
-const GpuMonitorPage = lazyNamed(() => import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
+const Preview = lazyNamed(async () => import("./features/preview/Preview"), "Preview");
+const GpuMonitorPage = lazyNamed(async () => import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
 const LogAnalyticsPage = lazyNamed(
-  () => import("./features/log-analytics/LogAnalytics"),
+  async () => import("./features/log-analytics/LogAnalytics"),
   "LogAnalytics",
 );
 const HyperFramesPage = lazyNamed(
-  () => import("./features/hyperframes/HyperFramesPage"),
+  async () => import("./features/hyperframes/HyperFramesPage"),
   "HyperFramesPage",
 );
 const MusicPromptsWorkbench = lazyNamed(
-  () => import("./features/music-prompts/MusicPromptsWorkbench"),
+  async () => import("./features/music-prompts/MusicPromptsWorkbench"),
   "MusicPromptsWorkbench",
 );
 const MusicGenPage = lazyNamed(
-  () => import("./features/music-gen/MusicGenPage"),
+  async () => import("./features/music-gen/MusicGenPage"),
   "MusicGenPage",
 );
-const RemixPage = lazyNamed(() => import("./features/remix/RemixPage"), "RemixPage");
+const RemixPage = lazyNamed(async () => import("./features/remix/RemixPage"), "RemixPage");
 const UnityControlPage = lazyNamed(
-  () => import("./features/unity-control/UnityControlPage"),
+  async () => import("./features/unity-control/UnityControlPage"),
   "UnityControlPage",
 );
 const NotificationsPage = lazyNamed(
-  () => import("./features/notifications/NotificationsPage"),
+  async () => import("./features/notifications/NotificationsPage"),
   "NotificationsPage",
 );
 const AnimationStudio = lazyNamed(
-  () => import("./features/animation-studio/AnimationStudio"), "AnimationStudio",
+  async () => import("./features/animation-studio/AnimationStudio"), "AnimationStudio",
 );
 const OnboardingPage = lazyNamed(
-  () => import("./features/onboarding/OnboardingPage"), "OnboardingPage",
+  async () => import("./features/onboarding/OnboardingPage"), "OnboardingPage",
 );
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;

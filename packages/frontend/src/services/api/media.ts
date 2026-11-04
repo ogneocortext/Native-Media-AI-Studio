@@ -54,7 +54,7 @@ export interface WaveformResponse {
 
 export async function getMediaWaveform(
   path: string,
-  maxPoints: number = 240,
+  maxPoints = 240,
 ): Promise<WaveformResponse> {
   const base = getApiBase();
   const url = `${base}/api/media/waveform?path=${encodeURIComponent(path)}&max_points=${encodeURIComponent(String(maxPoints))}`;

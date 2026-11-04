@@ -41,7 +41,7 @@ export async function fetchQueueMetrics(): Promise<QueueMetrics> {
 export async function createJob(
   jobType: string,
   params: Record<string, unknown>,
-  maxRetries: number = 3,
+  maxRetries = 3,
 ): Promise<Job> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/jobs/`, {

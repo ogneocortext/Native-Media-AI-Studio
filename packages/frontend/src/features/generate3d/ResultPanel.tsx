@@ -161,7 +161,7 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                 </>
               )}
                 <button
-                  onClick={() => navigate("/music-video-wizard")}
+                  onClick={async () => navigate("/music-video-wizard")}
                   className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm flex items-center gap-2"
                 >
                   Use in Music Video <ArrowRight size={14} />
@@ -181,7 +181,7 @@ export function ResultPanel({ hook }: ResultPanelProps) {
               </pre>
               <div className="flex gap-2 mt-3">
                 <button
-                  onClick={() => navigate("/music-video-wizard")}
+                  onClick={async () => navigate("/music-video-wizard")}
                   className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm flex items-center gap-2"
                 >
                   Use in Music Video <ArrowRight size={14} />

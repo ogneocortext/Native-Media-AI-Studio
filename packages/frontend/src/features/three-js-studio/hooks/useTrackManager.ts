@@ -170,10 +170,10 @@ export function useTrackManager({
       if (custom.detail) handleQueue(custom.detail);
     };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("pendingCharacter", onCustom as EventListener);
+    window.addEventListener("pendingCharacter", onCustom);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("pendingCharacter", onCustom as EventListener);
+      window.removeEventListener("pendingCharacter", onCustom);
     };
   }, [addObject]);
 

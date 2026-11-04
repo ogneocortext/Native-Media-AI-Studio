@@ -185,12 +185,12 @@ function clamp01(v: number): number {
  * so re-renders are frame-accurate and deterministic.
  */
 export class BeatPhaseWave {
-  private phase: number = 0;
-  private lastBeatTime: number = -1;
-  private beatIndex: number = 0;
+  private phase = 0;
+  private lastBeatTime = -1;
+  private beatIndex = 0;
   private bpm: number;
 
-  constructor(bpm: number = 120) {
+  constructor(bpm = 120) {
     this.bpm = bpm;
   }
 
@@ -260,7 +260,7 @@ export class BeatPhaseWave {
 export class AudioReactivityProcessor {
   private smoothed: ReactivityUniforms;
   private beatWave: BeatPhaseWave;
-  private lastBpm: number = 120;
+  private lastBpm = 120;
 
   private attackAlpha: number;
   private releaseAlpha: number;
@@ -336,7 +336,7 @@ export class AudioReactivityProcessor {
     return Math.pow(safe, 1.0 / this.config.gamma);
   }
 
-  update(frame: SpectralFrame | null, beatTimes: number[] = [], bpm: number = 120) {
+  update(frame: SpectralFrame | null, beatTimes: number[] = [], bpm = 120) {
     if (!frame) return;
 
     // Update BPM if changed

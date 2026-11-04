@@ -30,9 +30,7 @@ interface ParsedLogLine {
 
 function parseLogLine(line: string): ParsedLogLine {
   // Format: 2026-08-22 08:47:43 | INFO    | app.queue.manager | reload_from_db | Loaded 13 jobs
-  const match = line.match(
-    /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*\|\s*(\w+)\s*\|\s*([\w.]+)\s*\|\s*([\w.]+)\s*\|\s*(.+)$/,
-  );
+  const match = /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*\|\s*(\w+)\s*\|\s*([\w.]+)\s*\|\s*([\w.]+)\s*\|\s*(.+)$/.exec(line);
   if (!match) {
     return {
       timestamp: "",
@@ -286,7 +284,7 @@ export function LogsViewer() {
               Errors Only
             </button>
             <button
-              onClick={() => fetchLogContent()}
+              onClick={async () => fetchLogContent()}
               disabled={loading}
               className="btn btn-ghost btn-sm flex items-center gap-1.5"
             >

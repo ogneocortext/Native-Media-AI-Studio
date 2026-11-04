@@ -3,8 +3,8 @@ import { fetchWithTimeout } from "../fetchWithTimeout";
 
 export async function visionOCR(
   file: File,
-  prompt: string = "ocr",
-  model: string = "minicpm-v:8b",
+  prompt = "ocr",
+  model = "minicpm-v:8b",
 ): Promise<{ text: string; model: string; prompt: string }> {
   const base = getApiBase();
   const fd = new FormData();
@@ -22,8 +22,8 @@ export async function visionOCR(
 
 export async function analyzeVisualizer(
   file: File,
-  mode: string = "bars",
-  model: string = "minicpm-v:8b",
+  mode = "bars",
+  model = "minicpm-v:8b",
 ): Promise<{ text: string; model: string; mode: string }> {
   const base = getApiBase();
   const fd = new FormData();

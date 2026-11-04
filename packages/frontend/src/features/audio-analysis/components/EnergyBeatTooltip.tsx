@@ -10,9 +10,9 @@ export const EnergyBeatTooltip = ({
   payload,
 }: {
   active: boolean;
-  payload?: Array<{ payload: unknown }>;
+  payload?: { payload: unknown }[];
 }) => {
-  if (!active || !payload || !payload.length) return null;
+  if (!active || !payload?.length) return null;
   const data = payload[0].payload as {
     time: number;
     energy: number;

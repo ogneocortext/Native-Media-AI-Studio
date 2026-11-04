@@ -357,7 +357,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
                       </button>
                     )}
                     <button
-                      onClick={() => deleteTrack(track.id)}
+                      onClick={async () => deleteTrack(track.id)}
                       className="p-1 text-red-400 hover:bg-red-900/30 rounded"
                       title="Delete"
                     >

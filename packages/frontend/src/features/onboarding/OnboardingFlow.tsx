@@ -385,7 +385,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           outputUrl={state.outputUrl}
           filename={state.filename ?? ""}
           onSave={() => undefined}
-          onOpenStudio={() => navigate("/visualizer")}
+          onOpenStudio={async () => navigate("/visualizer")}
           onMakeAnother={() => setState((s) => startOver(s))}
         />
       )}

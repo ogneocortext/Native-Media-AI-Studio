@@ -232,7 +232,7 @@ export function useCodeApplier({
           scene.remove(oldGroup);
         }
         scene.children.slice().forEach((c: any) => {
-          if (c.userData && c.userData.__ai) {
+          if (c.userData?.__ai) {
             disposeGroup(c);
             scene.remove(c);
           }
