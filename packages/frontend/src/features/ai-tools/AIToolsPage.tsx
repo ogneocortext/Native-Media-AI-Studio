@@ -33,6 +33,7 @@ import {
 import { DS } from "../../styles/designSystem";
 import { formatSize } from "../../utils/format";
 import { VisualizationCanvas } from "./VisualizationCanvas";
+import type { VisualizationConfig } from "./VisualizationCanvas";
 import { Sidebar } from "./Sidebar";
 import { ToolEditor } from "./ToolEditor";
 import { DEFAULT_TOOLS, type Tool, type HistoryEntry } from "./types";
@@ -60,7 +61,7 @@ export function AIToolsPage() {
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
   const [vizConfig, setVizConfig] = useState<
-    import("./VisualizationCanvas").VisualizationConfig | null
+    VisualizationConfig | null
   >(null);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
   const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary>>({});
@@ -241,7 +242,7 @@ export function AIToolsPage() {
         setToolCalls([...toolDetails]);
         if (data.name === "generate_visualization") {
           try {
-            const cfg = JSON.parse(data.result) as import("./VisualizationCanvas").VisualizationConfig;
+            const cfg = JSON.parse(data.result) as VisualizationConfig;
             if (cfg?.style && cfg.colors) {
               setVizConfig(cfg);
             }

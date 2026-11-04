@@ -22,7 +22,7 @@ export class ComfyUIError extends Error {
  * the same `if (!response.ok) throw ...statusText` block. Centralized here
  * so error shape can't drift between endpoints.
  */
-async function checkResponse(response: Response, action: string): Promise<Response> {
+function checkResponse(response: Response, action: string): Response {
   if (!response.ok) {
     throw new ComfyUIError(`ComfyUI ${action} failed: ${response.statusText}`, response.status);
   }
@@ -85,7 +85,7 @@ export async function queuePrompt(
       if (nodeErrors && Object.keys(nodeErrors).length > 0) {
         const nodeSummary = Object.entries(nodeErrors)
           .map(([nodeId, nodeErr]) => {
-            const errors = (nodeErr as { errors?: unknown[] })?.errors;
+            const errors = (nodeErr as { errors?: unknown[] }).errors;
             return `node ${nodeId}: ${Array.isArray(errors) ? errors.length : "?"} error(s)`;
           })
           .join("; ");
@@ -297,7 +297,7 @@ export async function generateText2Image(options: {
     },
     "4": {
       class_type: "CheckpointLoaderSimple",
-      inputs: { ckpt_name: checkpoint || "v1-5-pruned-emaonly.safetensors" },
+      inputs: { ckpt_name: checkpoint ?? "v1-5-pruned-emaonly.safetensors" },
     },
     "5": {
       class_type: "EmptyLatentImage",
@@ -331,7 +331,7 @@ export async function getImage(filename: string, subfolder = "", type = "output"
   const COMFYUI_URL = getComfyuiUrl();
   // Sanitize filename/subfolder to prevent path-traversal when calling
   // ComfyUI /view directly (bypasses the backend's own sanitization).
-  const safeName = filename.replace(/\\/g, "/").split("/").pop() || "";
+  const safeName = filename.replace(/\\/g, "/").split("/").pop() ?? "";
   if (!safeName || safeName === "." || safeName === "..") {
     throw new ComfyUIError(`Invalid ComfyUI filename: ${filename}`, 400);
   }

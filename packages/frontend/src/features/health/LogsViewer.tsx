@@ -136,7 +136,7 @@ export function LogsViewer() {
       await startComfyUI();
       // Switch to comfyui log tab and refresh
       setActiveLog("comfyui");
-      fetchLogContent("comfyui");
+      void fetchLogContent("comfyui");
     } catch (err) {
       console.error("Failed to start ComfyUI:", err);
     }
@@ -144,8 +144,8 @@ export function LogsViewer() {
 
   useEffect(() => {
     if (expanded) {
-      fetchLogInfo();
-      fetchLogContent();
+      void fetchLogInfo();
+      void fetchLogContent();
     }
   }, [expanded, activeLog]);
 
@@ -153,8 +153,8 @@ export function LogsViewer() {
   useEffect(() => {
     if (!expanded || !autoRefresh) return;
     const interval = setInterval(() => {
-      fetchLogContent();
-      fetchLogInfo();
+      void fetchLogContent();
+      void fetchLogInfo();
     }, 10000); // Increased from 3s to 10s
     return () => clearInterval(interval);
   }, [expanded, autoRefresh, activeLog]);
@@ -212,7 +212,7 @@ export function LogsViewer() {
             <h3 className="font-semibold">Application Logs</h3>
             <p className="text-xs text-muted">
               {logInfo
-                ? `${parsedLines.length} entries • ${logInfo.files?.app?.size_human || "0 B"}`
+                ? `${parsedLines.length} entries • ${logInfo.files.app.size_human || "0 B"}`
                 : "View application logs"}
             </p>
           </div>

@@ -139,7 +139,7 @@ export async function generate3DFromImage(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(
-      (err as { detail?: string }).detail || "Failed to trigger image-to-3D generation",
+      (err as { detail?: string }).detail ?? "Failed to trigger image-to-3D generation",
     );
   }
   return res.json();

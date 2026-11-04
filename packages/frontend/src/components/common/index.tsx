@@ -204,7 +204,7 @@ export function ErrorState({ title, description, icon, retry }: ErrorStateProps)
   return (
     <div className="text-center py-12 animate-fade-in" role="alert">
       <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error">
-        {icon || <AlertCircle size={28} />}
+        {icon ?? <AlertCircle size={28} />}
       </div>
       <p className="text-muted text-base font-medium">{title}</p>
       {description && <p className="text-muted/70 text-sm mt-2 max-w-md mx-auto">{description}</p>}

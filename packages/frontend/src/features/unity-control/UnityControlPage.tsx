@@ -143,10 +143,10 @@ export function UnityControlPage() {
   }, []);
 
   useEffect(() => {
-    refreshStatus(true);
-    loadCommands();
+    void refreshStatus(true);
+    void loadCommands();
     const interval = setInterval(() => {
-      refreshStatus();
+      void refreshStatus();
     }, 15000);
     return () => clearInterval(interval);
   }, [refreshStatus, loadCommands]);
@@ -172,7 +172,7 @@ export function UnityControlPage() {
         const raw = await sendUnityCommand(command, parameters);
         const result: UnityCommandResult = raw.ok
           ? raw
-          : { ...raw, error: raw.error || "Unknown error" };
+          : { ...raw, error: raw.error ?? "Unknown error" };
         record(result);
         if (result.ok) {
           showToast(`Command "${command}" succeeded`, "success");
@@ -248,7 +248,7 @@ export function UnityControlPage() {
 
   const handleListShaders = async () => {
     const result = await listUnityShaders();
-    if (result?.ok) {
+    if (result.ok) {
       const payload = result.data as
         { success?: boolean; result?: { name?: string }[] } | undefined;
       const names = (payload?.result ?? [])
@@ -269,7 +269,7 @@ export function UnityControlPage() {
       return;
     }
     const result = await getUnityShaderProperties({ shader: selectedShader });
-    if (result?.ok) {
+    if (result.ok) {
       setShaderMaterialOutput(result.data);
     }
   };
@@ -283,7 +283,7 @@ export function UnityControlPage() {
       object_name: materialTarget,
       material_name: materialName || undefined,
     });
-    if (result?.ok) {
+    if (result.ok) {
       setShaderMaterialOutput(result.data);
     }
   };
@@ -304,7 +304,7 @@ export function UnityControlPage() {
       material_name: materialName || undefined,
       properties: { [materialPropertyKey]: value },
     });
-    if (result?.ok) {
+    if (result.ok) {
       setShaderMaterialOutput(result.data);
     }
   };
@@ -343,7 +343,7 @@ export function UnityControlPage() {
           | undefined
       )?.result;
       setPreviewDataUrl(payload?.base64 ? `data:image/png;base64,${payload.base64}` : null);
-      const dims = payload?.width && payload?.height ? ` (${payload.width}×${payload.height})` : "";
+      const dims = payload?.width && payload.height ? ` (${payload.width}×${payload.height})` : "";
       showToast(
         payload?.savedPath
           ? `Scene captured${dims}: ${payload.savedPath}`

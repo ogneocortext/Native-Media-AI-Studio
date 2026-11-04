@@ -77,7 +77,7 @@ export function useWebGPUDector(): WebGPUDetectResult {
   useEffect(() => {
     mountedRef.current = true;
 
-    (async () => {
+    void (async () => {
       try {
         const hasWebGPU = await detectWebGPUSupport();
 

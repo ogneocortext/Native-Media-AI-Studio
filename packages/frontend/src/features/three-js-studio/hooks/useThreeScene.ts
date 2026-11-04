@@ -517,7 +517,7 @@ export function useThreeScene({
         // on rAF, so backgrounding drops nothing).
         if (document.hidden && !ec.active) {
           controls.update();
-          (finalComposerRef.current || composerRef.current)?.render();
+          (finalComposerRef.current ?? composerRef.current)?.render();
           return;
         }
         let audioBass = 0,
@@ -525,8 +525,7 @@ export function useThreeScene({
           audioMid = 0;
         if (analyserRef.current && isAudioPlayingRef.current) {
           if (
-            !audioFreqArrayRef.current ||
-            audioFreqArrayRef.current.length !== analyserRef.current.frequencyBinCount
+            audioFreqArrayRef.current?.length !== analyserRef.current.frequencyBinCount
           )
             audioFreqArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(
@@ -788,7 +787,7 @@ export function useThreeScene({
             const mesh = objectsMapRef.current.get(track.target);
             if (!mesh) return;
             const time = animationTimeRef.current;
-            const kfs = track.keyframes || [];
+            const kfs = track.keyframes ?? [];
             if (kfs.length < 2) return;
             let prevKf = kfs[0];
             let nextKf = kfs[kfs.length - 1];
@@ -869,7 +868,7 @@ export function useThreeScene({
           | Float32Array
           | undefined;
         const init = initialParticlePositionsRef.current;
-        if (particles && pos && init && pos.length === init.length) {
+        if (particles && pos && pos.length === init?.length) {
           pos.set(init);
           (particles.geometry.attributes.position as THREE.BufferAttribute).needsUpdate =
             true;
@@ -889,7 +888,7 @@ export function useThreeScene({
       window.addEventListener("resize", onResize);
       setSceneLoading(false);
     };
-    initScene();
+    void initScene();
     return () => {
       cancelAnimationFrame(animationRef.current);
       window.removeEventListener("resize", onResize);
@@ -903,9 +902,9 @@ export function useThreeScene({
       objectsMapRef.current.forEach((mesh, id) => disposeEntry(id, mesh));
       objectsMapRef.current.clear();
       characterMixersRef.current.clear();
-      finalComposerRef.current?.dispose?.();
-      composerRef.current?.dispose?.();
-      bloomComposerRef.current?.dispose?.();
+      finalComposerRef.current?.dispose();
+      composerRef.current?.dispose();
+      bloomComposerRef.current?.dispose();
       clockRef.current?.dispose();
       rendererRef.current?.dispose();
       sceneRef.current = null;
@@ -929,7 +928,7 @@ export function useThreeScene({
           disposeEntry(id, mesh);
         }
       });
-      (async () => {
+      void (async () => {
         for (const obj of objects) {
           if (cancelled) break;
           let mesh = objectsMapRef.current.get(obj.id);
@@ -1056,7 +1055,7 @@ export function useThreeScene({
       return;
     }
     let cancelled = false;
-    (async () => {
+    void (() => {
       if (cancelled) return;
       const img = new Image();
       img.crossOrigin = "anonymous";

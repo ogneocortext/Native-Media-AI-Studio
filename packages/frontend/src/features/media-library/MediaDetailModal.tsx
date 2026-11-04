@@ -318,7 +318,7 @@ export function MediaDetailModal({
                               <Video size={12} /> Resolution
                             </div>
                             <p className="text-sm text-white font-medium">
-                              {String(videoStream.width || "")}×{String(videoStream.height || "")}
+                              {String(videoStream.width ?? "")}×{String(videoStream.height ?? "")}
                             </p>
                           </div>
                           <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/5">
@@ -326,7 +326,7 @@ export function MediaDetailModal({
                               <FileType size={12} /> Video Codec
                             </div>
                             <p className="text-sm text-white font-medium">
-                              {String(videoStream.codec_name || "")}
+                              {String(videoStream.codec_name ?? "")}
                             </p>
                           </div>
                         </>
@@ -337,7 +337,7 @@ export function MediaDetailModal({
                             <Music size={12} /> Audio Codec
                           </div>
                           <p className="text-sm text-white font-medium">
-                            {String(audioStream.codec_name || "")}
+                            {String(audioStream.codec_name ?? "")}
                           </p>
                         </div>
                       )}

@@ -18,7 +18,7 @@ export function getFileExtension(name: string): string {
 
 /** MIME may be empty on Windows — accept by extension fallback. */
 export function isAudioFile(file: File, accept?: string): boolean {
-  if (file.type?.startsWith("audio/")) return true;
+  if (file.type.startsWith("audio/")) return true;
   // Some containers report video/* or application/* (e.g. ogg, m4a)
   if (file.type && /^(video\/ogg|application\/ogg|audio\/x-)/.test(file.type)) return true;
   const ext = getFileExtension(file.name);

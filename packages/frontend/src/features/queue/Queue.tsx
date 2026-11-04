@@ -139,14 +139,14 @@ function JobDetailModal({
                 <li className="flex items-start gap-3 text-sm">
                   <span
                     className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${
-                      job.status === "completed"
+                      job.status === JobStatus.COMPLETED
                         ? "bg-success-text"
                         : "bg-error-text"
                     }`}
                   />
                   <div>
                     <p className="text-muted">
-                      {job.status === "completed" ? "Completed" : "Ended"}{" "}
+                      {job.status === JobStatus.COMPLETED ? "Completed" : "Ended"}{" "}
                       {new Date(job.completed_at).toLocaleString()}
                     </p>
                   </div>
@@ -210,7 +210,7 @@ function JobDetailModal({
           )}
 
           {/* Output */}
-          {(job.output_path ||
+          {(job.output_path ??
             ((job.result)?.output_path as
               string)) && (
             <div>
@@ -218,7 +218,7 @@ function JobDetailModal({
                 Output
               </h4>
               <p className="text-xs text-muted break-all">
-                {((job.output_path ||
+                {((job.output_path ??
                   (job.result)?.output_path) as
                   string)}
               </p>
@@ -262,7 +262,7 @@ export function Queue() {
   // Fetch jobs on mount so the queue page reflects the latest state
   // (SSE is managed centrally by Layout.tsx).
   useEffect(() => {
-    fetchJobs();
+    void fetchJobs();
     fetchQueueMetrics().then(setMetrics).catch(() => { void 0; });
   }, [fetchJobs]);
 
@@ -295,7 +295,7 @@ export function Queue() {
         !query ||
         job.id.toLowerCase().includes(query) ||
         job.job_type.toLowerCase().includes(query) ||
-        (job.message?.toLowerCase().includes(query)) ||
+        (job.message.toLowerCase().includes(query)) ||
         (job.error?.toLowerCase().includes(query));
       const matchesStatus = !statusFilter || job.status === statusFilter;
       return matchesQuery && matchesStatus;
@@ -358,7 +358,7 @@ export function Queue() {
   }, [deleteJob]);
 
   const handleClearCompleted = useCallback(() => {
-    const count = stats?.completed || 0;
+    const count = stats?.completed ?? 0;
     setConfirmDialog({
       title: "Clear Completed",
       message: `This will remove ${count} completed job${count === 1 ? "" : "s"} from the queue.`,
@@ -377,7 +377,7 @@ export function Queue() {
   }, [clearCompleted, stats]);
 
   const handleClearFailed = useCallback(() => {
-    const count = stats?.failed || 0;
+    const count = stats?.failed ?? 0;
     setConfirmDialog({
       title: "Clear Failed",
       message: `This will remove ${count} failed job${count === 1 ? "" : "s"} from the queue.`,
@@ -396,13 +396,13 @@ export function Queue() {
   }, [clearFailed, stats]);
 
   // Separate jobs by status for organized display
-  const runningJob = filteredJobs.find((j) => j.status === "running");
+  const runningJob = filteredJobs.find((j) => j.status === JobStatus.RUNNING);
   const pendingJobs = filteredJobs.filter(
-    (j) => j.status === "pending" || j.status === "queued",
+    (j) => j.status === JobStatus.PENDING || j.status === JobStatus.QUEUED,
   );
-  const completedJobs = filteredJobs.filter((j) => j.status === "completed");
-  const failedJobs = filteredJobs.filter((j) => j.status === "failed");
-  const cancelledJobs = filteredJobs.filter((j) => j.status === "cancelled");
+  const completedJobs = filteredJobs.filter((j) => j.status === JobStatus.COMPLETED);
+  const failedJobs = filteredJobs.filter((j) => j.status === JobStatus.FAILED);
+  const cancelledJobs = filteredJobs.filter((j) => j.status === JobStatus.CANCELLED);
 
   if (isLoading && jobs.length === 0) {
     return (
@@ -526,29 +526,29 @@ export function Queue() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
         <Card className="text-center">
-          <p className="text-2xl font-bold">{stats?.total_jobs || 0}</p>
+          <p className="text-2xl font-bold">{stats?.total_jobs ?? 0}</p>
           <p className="text-sm text-muted">Total</p>
         </Card>
         <Card className="text-center">
           <p className="text-2xl font-bold text-warning">
-            {(stats?.pending || 0) + (stats?.queued || 0)}
+            {(stats?.pending ?? 0) + (stats?.queued ?? 0)}
           </p>
           <p className="text-sm text-muted">Pending</p>
         </Card>
         <Card className="text-center">
-          <p className="text-2xl font-bold text-primary">{stats?.running || 0}</p>
+          <p className="text-2xl font-bold text-primary">{stats?.running ?? 0}</p>
           <p className="text-sm text-muted">Running</p>
         </Card>
         <Card className="text-center">
-          <p className="text-2xl font-bold text-success-text">{stats?.completed || 0}</p>
+          <p className="text-2xl font-bold text-success-text">{stats?.completed ?? 0}</p>
           <p className="text-sm text-muted">Completed</p>
         </Card>
         <Card className="text-center">
-          <p className="text-2xl font-bold text-error-text">{stats?.failed || 0}</p>
+          <p className="text-2xl font-bold text-error-text">{stats?.failed ?? 0}</p>
           <p className="text-sm text-muted">Failed</p>
         </Card>
         <Card className="text-center">
-          <p className="text-2xl font-bold text-muted">{stats?.cancelled || 0}</p>
+          <p className="text-2xl font-bold text-muted">{stats?.cancelled ?? 0}</p>
           <p className="text-sm text-muted">Cancelled</p>
         </Card>
       </div>

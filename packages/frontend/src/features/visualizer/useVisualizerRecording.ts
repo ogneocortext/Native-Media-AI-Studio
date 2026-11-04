@@ -186,7 +186,7 @@ export function useVisualizerRecording(
       // The lane's own canvas, not "a canvas" from the DOM: the page mounts a
       // three-js canvas that can come first, and capturing it yields a
       // well-formed video of nothing.
-      const canvas = api.canvas?.() ?? canvasHostRef.current?.querySelector("canvas") ?? null;
+      const canvas = api.canvas() ?? canvasHostRef.current?.querySelector("canvas") ?? null;
       if (!canvas) {
         onError("Export failed — no visualizer canvas found");
         return;

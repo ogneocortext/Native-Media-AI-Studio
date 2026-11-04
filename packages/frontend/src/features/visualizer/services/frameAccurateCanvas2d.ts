@@ -98,7 +98,7 @@ export class FrameAccurateCanvas2D implements FrameAccurateRenderApi {
     const analyser = this.deps.analyserRef.current;
     const binCount = analyser?.frequencyBinCount ?? 1024;
     const fftSize = analyser?.fftSize ?? 2048;
-    const sampleRate = analyser?.context?.sampleRate ?? 44100;
+    const sampleRate = analyser?.context.sampleRate ?? 44100;
     const frame = deterministicAudioFrame({
       analysis: this.deps.analysisHolder.current ?? null,
       spectralFrame: this.deps.sampleSpectralTimeline(tSec),

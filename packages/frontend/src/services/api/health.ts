@@ -1,4 +1,5 @@
 import { getApiBase, withDirectBackendFallback } from "./core";
+import type { AggregateHealth, SystemHealth, ServiceStatus } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
 
 /** Ping the backend (liveness probe). */
@@ -9,7 +10,7 @@ export async function ping(): Promise<{ status: string }> {
   return res.json();
 }
 
-export async function healthCheck(): Promise<import("./core").AggregateHealth> {
+export async function healthCheck(): Promise<AggregateHealth> {
   const base = getApiBase();
   return withDirectBackendFallback(
     async () =>
@@ -21,7 +22,7 @@ export async function healthCheck(): Promise<import("./core").AggregateHealth> {
   );
 }
 
-export async function getSystemHealth(): Promise<import("./core").SystemHealth> {
+export async function getSystemHealth(): Promise<SystemHealth> {
   const base = getApiBase();
   return withDirectBackendFallback(
     async () =>
@@ -33,7 +34,7 @@ export async function getSystemHealth(): Promise<import("./core").SystemHealth> 
   );
 }
 
-export async function getServiceStatus(): Promise<import("./core").ServiceStatus> {
+export async function getServiceStatus(): Promise<ServiceStatus> {
   const base = getApiBase();
   return withDirectBackendFallback(
     async () =>

@@ -96,7 +96,7 @@ export function useOllamaStream() {
         const stream = await ollamaChatStream(
           prompt,
           model,
-          { system: systemPrompt, think: false, tools: useTools, ...(ollamaOptions || {}) },
+          { system: systemPrompt, think: false, tools: useTools, ...(ollamaOptions ?? {}) },
           controller.signal,
         );
         const reader = stream.getReader();
@@ -111,7 +111,7 @@ export function useOllamaStream() {
 
           // Parse SSE events
           const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+          buffer = lines.pop() ?? "";
 
           for (const line of lines) {
             if (line.startsWith("event: ")) {
@@ -122,7 +122,7 @@ export function useOllamaStream() {
                 let msg: StreamMessage | null = null;
 
                 if (lastEvent === "content") {
-                  const content = data.content || "";
+                  const content = data.content ?? "";
                   if (content) {
                     msg = { type: "content", data: content };
                     outputRef.current += content;

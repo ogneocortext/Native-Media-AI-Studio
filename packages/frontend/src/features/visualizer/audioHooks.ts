@@ -188,7 +188,7 @@ export function useRealAudio(
       return;
     }
 
-    if (!freqArray.current || freqArray.current.length !== analyser.frequencyBinCount) {
+    if (freqArray.current?.length !== analyser.frequencyBinCount) {
       freqArray.current = new Uint8Array(analyser.frequencyBinCount);
     }
     analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
@@ -307,8 +307,7 @@ export function useRealAudio(
     // changes; the two-pointer mapper itself is already O(n+m).
     const cache = perceptualBandCache.current;
     if (
-      !cache ||
-      cache.scale !== perceptualScale ||
+      cache?.scale !== perceptualScale ||
       cache.numBands !== numPerceptualBands ||
       cache.sampleRate !== sampleRate
     ) {

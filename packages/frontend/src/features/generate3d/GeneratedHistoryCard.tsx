@@ -53,7 +53,7 @@ export function GeneratedHistoryCard({ hook }: GeneratedHistoryCardProps) {
                   </div>
                   <div className="text-[10px] text-gray-500 mt-0.5">
                     {ageLabel}
-                    {bibles[f.filename]?.name ? ` • ${bibles[f.filename].name}` : ""}
+                    {bibles[f.filename].name ? ` • ${bibles[f.filename].name}` : ""}
                   </div>
                 </div>
                 <span className="text-xs text-gray-400 shrink-0 tabular-nums">

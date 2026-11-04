@@ -85,7 +85,7 @@ export function GoServicesCard() {
         setLastChecked(Date.now());
       }
     };
-    run();
+    void run();
     const interval = setInterval(run, 15000);
     return () => {
       cancelled = true;

@@ -20,7 +20,7 @@ export function WaveformDisplay({
   const wavesurferRef = useRef<WaveSurfer | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current || !peaks?.length) return;
+    if (!containerRef.current || !peaks.length) return;
 
     const ws = WaveSurfer.create({
       container: containerRef.current,
@@ -49,7 +49,7 @@ export function WaveformDisplay({
     };
   }, [peaks, duration, height, audioElement]);
 
-  if (!peaks?.length) {
+  if (!peaks.length) {
     return (
       <div
         className={`bg-black/40 rounded-lg border border-white/5 flex items-center justify-center text-xs text-muted ${className}`}

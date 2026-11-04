@@ -113,7 +113,7 @@ export const QuickPresetBar = memo(function QuickPresetBar({
                     ? "bg-white/20 text-white font-medium border border-white/25 shadow-sm"
                     : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
-                title={visualPresets[p.id]?.description ?? p.name}
+                title={visualPresets[p.id].description ?? p.name}
               >
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"

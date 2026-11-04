@@ -1,5 +1,5 @@
 export function getFileTypeCategory(fileType: string): string {
-  const ext = fileType.split(".").pop()?.toLowerCase() || "";
+  const ext = fileType.split(".").pop()?.toLowerCase() ?? "";
   const categoryMap: Record<string, string> = {
     mp3: "audio",
     wav: "audio",
@@ -60,7 +60,7 @@ export function getFileTypeCategory(fileType: string): string {
     log: "document",
   };
 
-  const extension = fileType.split(".").pop()?.toLowerCase() || "";
+  const extension = fileType.split(".").pop()?.toLowerCase() ?? "";
   if (extension in categoryMap) {
     return categoryMap[extension];
   }
@@ -79,7 +79,7 @@ export function getFileTypeCategory(fileType: string): string {
 }
 
 export function getFileIcon(fileType: string): string {
-  const ext = fileType.split(".").pop()?.toLowerCase() || "";
+  const ext = fileType.split(".").pop()?.toLowerCase() ?? "";
   const iconMap: Record<string, string> = {
     mp3: "🎵",
     wav: "🎵",

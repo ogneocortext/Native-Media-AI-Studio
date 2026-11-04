@@ -147,7 +147,7 @@ export function StoryboardPage() {
       if (meta.bpm) return; // already fetched
       getAnalysis(meta.filename)
         .then((data: AudioAnalysisResponse) => {
-          if (data?.tempo_bpm) {
+          if (data.tempo_bpm) {
             setTrackMetadata((prev) => ({
               ...prev,
               [storyboardName]: {
@@ -239,7 +239,7 @@ export function StoryboardPage() {
     setCompiling(true);
     setCompileError(null);
     try {
-      const audioFilename = trackMetadata[selected.name]?.filename;
+      const audioFilename = trackMetadata[selected.name].filename;
       const audioData = audioFilename
         ? await getHyperFramesAudioPayload(audioFilename).catch(() => undefined)
         : undefined;
@@ -262,9 +262,9 @@ export function StoryboardPage() {
     (storyboard: StoryboardFile) => {
       const params = new URLSearchParams();
       const meta = trackMetadata[storyboard.name];
-      if (meta?.filename) params.set("track", meta.filename);
+      if (meta.filename) params.set("track", meta.filename);
       params.set("storyboard", storyboard.name);
-      navigate(`/three-js-studio?${params.toString()}`);
+      void navigate(`/three-js-studio?${params.toString()}`);
     },
     [navigate, trackMetadata],
   );
@@ -273,11 +273,11 @@ export function StoryboardPage() {
     (storyboard: StoryboardFile, sceneIdx: number) => {
       const params = new URLSearchParams();
       const meta = trackMetadata[storyboard.name];
-      if (meta?.filename) params.set("track", meta.filename);
+      if (meta.filename) params.set("track", meta.filename);
       params.set("storyboard", storyboard.name);
       params.set("scene", String(sceneIdx));
       params.set("autogenerate", "true");
-      navigate(`/three-js-studio?${params.toString()}`);
+      void navigate(`/three-js-studio?${params.toString()}`);
     },
     [navigate, trackMetadata],
   );
@@ -568,7 +568,7 @@ export function StoryboardPage() {
               const params = new URLSearchParams();
               params.set("track", track.trackName);
               params.set("autogenerate", "true");
-              navigate(`/three-js-studio?${params.toString()}`);
+              void navigate(`/three-js-studio?${params.toString()}`);
             }}
           />
         ) : selected ? (
@@ -787,19 +787,19 @@ function StoryboardGrid({
                 />
               </div>
               <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
-                {meta?.bpm && (
+                {meta.bpm && (
                   <span className="flex items-center gap-1">
                     <Zap size={10} className="text-amber-400" />
                     {meta.bpm} BPM
                   </span>
                 )}
-                {meta?.duration && (
+                {meta.duration && (
                   <span className="flex items-center gap-1">
                     <Clock size={10} />
                     {meta.duration}s
                   </span>
                 )}
-                {!meta?.filename && (
+                {!meta.filename && (
                   <span className="text-gray-600 italic">Track not in library</span>
                 )}
               </div>
@@ -961,7 +961,7 @@ function StoryboardDetail({
               <Box size={12} /> Open in 3D Studio
             </button>
             <button
-              onClick={() => onGenerateScene(activeScene || 0)}
+              onClick={() => onGenerateScene(activeScene ?? 0)}
               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5"
             >
               <Sparkles size={12} /> Generate Scene

@@ -87,7 +87,7 @@ export function ImageProcessingPage() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Processing failed" }));
-        throw new Error(err.detail || "Image processing failed");
+        throw new Error(err.detail ?? "Image processing failed");
       }
 
       const data = await res.json();

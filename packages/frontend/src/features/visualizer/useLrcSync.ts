@@ -130,7 +130,7 @@ export function computeLrcSync(
       nextLine,
       lineProgress: 0,
       sectionProgress: 0,
-      currentSection: nextLine?.section || lyrics[0]?.section || "VERSE",
+      currentSection: nextLine.section || lyrics[0]?.section || "VERSE",
       timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : 0,
       isPhraseStart: false,
       totalLines: lyrics.length,

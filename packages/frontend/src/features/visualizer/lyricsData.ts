@@ -297,7 +297,7 @@ export function legacyToLyricsData(
       start: l.start,
       end: l.end,
       text: l.text,
-      section: l.section || "VERSE",
+      section: l.section ?? "VERSE",
       words: l.words,
       animation: createDefaultAnimation(),
       transition: { type: "dissolve", duration: 0.3, easing: "easeInOut" },

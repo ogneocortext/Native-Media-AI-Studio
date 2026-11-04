@@ -65,7 +65,7 @@ export function useHtmlInCanvas(): HtmlInCanvasResult {
   useEffect(() => {
     mountedRef.current = true;
 
-    (async () => {
+    void (async () => {
       try {
         const hasHtmlInCanvas = await detectHtmlInCanvasSupport();
 
@@ -107,7 +107,7 @@ export function useHtmlInCanvas(): HtmlInCanvasResult {
 export async function detectHtmlInCanvasSupport(): Promise<boolean> {
   if (htmlInCanvasProbe) return htmlInCanvasProbe;
 
-  htmlInCanvasProbe = (async () => {
+  htmlInCanvasProbe = (() => {
     try {
       // Check for drawHTML method on CanvasRenderingContext2D
       if (
@@ -151,14 +151,14 @@ export async function detectHtmlInCanvasSupport(): Promise<boolean> {
  * @param height - Height
  * @returns True if HTML was drawn into canvas, false if fallback needed
  */
-export async function drawHtmlIntoCanvas(
+export function drawHtmlIntoCanvas(
   canvas: HTMLCanvasElement,
   htmlElement: HTMLElement,
   x = 0,
   y = 0,
   width?: number,
   height?: number,
-): Promise<boolean> {
+): boolean {
   const ctx = canvas.getContext("2d");
   if (!ctx) return false;
 

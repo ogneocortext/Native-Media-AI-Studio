@@ -197,6 +197,7 @@ export function BeatTimeline({
         return <PauseCircle size={14} />;
       case "transition":
         return <SkipForward size={14} />;
+      case "beat": { throw new Error('Not implemented yet: "beat" case') }
       default:
         return <Music size={14} />;
     }
@@ -403,7 +404,7 @@ export function BeatTimeline({
               <label className="label text-xs">Note</label>
               <input
                 type="text"
-                value={selectedMarker.note || ""}
+                value={selectedMarker.note ?? ""}
                 onChange={(e) => updateMarker(selectedMarker.id, { note: e.target.value })}
                 placeholder="Optional note..."
                 className="input w-full"

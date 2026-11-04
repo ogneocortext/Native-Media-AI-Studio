@@ -1,4 +1,5 @@
 import { getApiBase } from "./core";
+import type { SystemHealth } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
 
 export async function getDiagnostics(): Promise<Record<string, unknown>> {
@@ -8,7 +9,7 @@ export async function getDiagnostics(): Promise<Record<string, unknown>> {
   return res.json();
 }
 
-export async function getSystemDiagnostics(): Promise<import("./core").SystemHealth> {
+export async function getSystemDiagnostics(): Promise<SystemHealth> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/health/diagnostics/system`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get system diagnostics");

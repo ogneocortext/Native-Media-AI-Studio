@@ -182,7 +182,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
         serviceStatusPromise,
       ]);
 
-      const hasPartialData = systemHealth || serviceStatus;
+      const hasPartialData = systemHealth ?? serviceStatus;
       const hasErrors = !systemHealth || !serviceStatus;
 
       set({
@@ -214,7 +214,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     const unsubMessage = sseService.subscribe((message) => {
       // Handle health change events
       if (message.type === "system.health_changed" || message.event === "health_changed") {
-        const healthData = (message.data || message) as Record<string, unknown>;
+        const healthData = (message.data ?? message) as Record<string, unknown>;
 
         const health: AggregateHealth = {
           backend:
@@ -226,7 +226,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
             (healthData.status as AggregateHealth["overall"]) ||
             "unhealthy",
           adapters: (healthData.adapters as Record<string, AdapterHealth>) || {},
-          timestamp: (healthData.timestamp as string | undefined) || new Date().toISOString(),
+          timestamp: (healthData.timestamp as string | undefined) ?? new Date().toISOString(),
         };
 
         get().setHealth(health);
@@ -304,8 +304,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   fetchVRAMStatus: async () => {
     try {
       const data = await getVRAMStatus();
-      const vram = data.vram != null ? data.vram : null;
-      const manager = data.manager != null ? data.manager : null;
+      const vram = data.vram ?? null;
+      const manager = data.manager ?? null;
       set((s) => ({ granular: { ...s.granular, vram, manager } }));
       return vram;
     } catch {

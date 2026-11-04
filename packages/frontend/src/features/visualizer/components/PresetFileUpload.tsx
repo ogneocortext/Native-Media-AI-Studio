@@ -92,7 +92,7 @@ export function PresetFileUpload({
         if (isInput) return; // let normal paste happen in inputs
         try {
           const text = await navigator.clipboard.readText();
-          if (text?.trim().startsWith("{")) {
+          if (text.trim().startsWith("{")) {
             e.preventDefault();
             processText(text);
           }

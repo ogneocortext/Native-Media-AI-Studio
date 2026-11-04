@@ -94,7 +94,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   const collectionItemCounts = new Map<string, number>();
   itemCollections.forEach((colls) => {
     colls.forEach((c) => {
-      collectionItemCounts.set(c.id, (collectionItemCounts.get(c.id) || 0) + 1);
+      collectionItemCounts.set(c.id, (collectionItemCounts.get(c.id) ?? 0) + 1);
     });
   });
   const [playingFile, setPlayingFile] = useState<{
@@ -205,9 +205,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
       const trimmed = name.trim();
       if (!trimmed) return;
       let tag = tags.find((t) => t.name === trimmed);
-      if (!tag) {
-        tag = await createTag(trimmed);
-      }
+      tag ??= await createTag(trimmed);
       await addTagToItem(file.relative_path, tag.id);
       await loadItemTags(file.relative_path);
     },
@@ -263,7 +261,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   ]);
 
   const loading = filesLoading || orgLoading;
-  const combinedError = error || orgError;
+  const combinedError = error ?? orgError;
 
   const isTypeScoped = defaultFileType !== "all";
 
@@ -502,7 +500,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                     e.stopPropagation();
                     window.alert(
                       `Collection: ${collection.name} (${
-                        collectionItemCounts.get(collection.id) || 0
+                        collectionItemCounts.get(collection.id) ?? 0
                       } items)`,
                     );
                   }}
@@ -516,7 +514,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                         {collection.name}
                       </div>
                       <div className="text-xs text-muted">
-                        {collectionItemCounts.get(collection.id) || 0} items
+                        {collectionItemCounts.get(collection.id) ?? 0} items
                       </div>
                     </div>
                   </div>
@@ -601,7 +599,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             <div className="space-y-2 text-sm text-muted">
               <p>File Type: {selectedFile.file_type}</p>
               <p>Size: {formatFileSize(selectedFile.size_bytes ?? selectedFile.size ?? 0)}</p>
-              <p>Modified: {formatDateTime(selectedFile.modified_at || selectedFile.modified_time || "")}</p>
+              <p>Modified: {formatDateTime((selectedFile.modified_at ?? selectedFile.modified_time) ?? "")}</p>
               {selectedFile.has_cover && selectedFile.cover_image && (
                 <p className="text-green-400">Cover art extracted</p>
               )}
@@ -737,7 +735,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                 </button>
                 <button
                   onClick={() => {
-                    handleProbe(selectedFile.filename);
+                    void handleProbe(selectedFile.filename);
                     setDetailOpen(false);
                     setSelectedFile(null);
                   }}

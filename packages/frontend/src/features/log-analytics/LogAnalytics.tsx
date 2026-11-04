@@ -95,7 +95,7 @@ export function LogAnalytics() {
   }, [eventLevelFilter]);
 
   useEffect(() => {
-    refreshAll();
+    void refreshAll();
   }, [refreshAll]);
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export function LogAnalytics() {
     const buckets = new Map<string, { time: string; count: number; errors: number }>();
     for (const entry of events) {
       const minute = entry.ts_iso.slice(0, 16);
-      const existing = buckets.get(minute) || { time: minute, count: 0, errors: 0 };
+      const existing = buckets.get(minute) ?? { time: minute, count: 0, errors: 0 };
       existing.count += 1;
       if (entry.level === "ERROR" || entry.level === "CRITICAL") existing.errors += 1;
       buckets.set(minute, existing);
@@ -159,7 +159,7 @@ export function LogAnalytics() {
 
   const levelCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const entry of patterns?.levels || []) {
+    for (const entry of patterns?.levels ?? []) {
       counts[entry.level] = entry.count;
     }
     return counts;
@@ -236,7 +236,7 @@ export function LogAnalytics() {
             <Hash size={12} /> Total Events
           </div>
           <p className="text-2xl font-bold tabular-nums">
-            {summary?.total_events?.toLocaleString() || 0}
+            {summary?.total_events.toLocaleString() ?? 0}
           </p>
         </Card>
         <Card className="p-3">
@@ -244,8 +244,8 @@ export function LogAnalytics() {
             <AlertCircle size={12} className="text-error-text" /> Errors
           </div>
           <p className="text-2xl font-bold tabular-nums text-error-text">
-            {(summary?.levels.find((l) => l.level === "ERROR")?.count || 0) +
-              (summary?.levels.find((l) => l.level === "CRITICAL")?.count || 0)}
+            {(summary?.levels.find((l) => l.level === "ERROR")?.count ?? 0) +
+              (summary?.levels.find((l) => l.level === "CRITICAL")?.count ?? 0)}
           </p>
         </Card>
         <Card className="p-3">
@@ -253,7 +253,7 @@ export function LogAnalytics() {
             <Zap size={12} className="text-warning" /> Warnings
           </div>
           <p className="text-2xl font-bold tabular-nums text-warning">
-            {summary?.levels.find((l) => l.level === "WARNING")?.count || 0}
+            {summary?.levels.find((l) => l.level === "WARNING")?.count ?? 0}
           </p>
         </Card>
         <Card className="p-3">
@@ -261,7 +261,7 @@ export function LogAnalytics() {
             <Info size={12} className="text-info" /> Info
           </div>
           <p className="text-2xl font-bold tabular-nums text-info">
-            {summary?.levels.find((l) => l.level === "INFO")?.count || 0}
+            {summary?.levels.find((l) => l.level === "INFO")?.count ?? 0}
           </p>
         </Card>
         <Card className="p-3">
@@ -487,7 +487,7 @@ export function LogAnalytics() {
             <Activity size={14} className="text-accent" />
             Top Loggers
           </h3>
-          {patterns?.loggers?.length ? (
+          {patterns?.loggers.length ? (
             <div style={{ height: 260 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart

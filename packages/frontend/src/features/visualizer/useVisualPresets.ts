@@ -136,17 +136,17 @@ export function useVisualPresets({
         embers: "inferno",
         shockwave: "storm",
       };
-      if (incoming.visualizer?.style && styleMap[incoming.visualizer.style]) {
+      if (incoming.visualizer.style && styleMap[incoming.visualizer.style]) {
         setVisualizationStyle(styleMap[incoming.visualizer.style] as any);
       }
 
       // Apply theme colors
-      if (incoming.theme?.background) setBgColor(incoming.theme.background);
-      if (incoming.theme?.primary) setMeshColor(incoming.theme.primary);
+      if (incoming.theme.background) setBgColor(incoming.theme.background);
+      if (incoming.theme.primary) setMeshColor(incoming.theme.primary);
 
       // Compute track-aware multipliers
       const bpm = trackAnalysis?.tempo_bpm ?? 120;
-      const energyAvg = trackAnalysis?.energy_curve?.length
+      const energyAvg = trackAnalysis?.energy_curve.length
         ? trackAnalysis.energy_curve.reduce((a, b) => a + b, 0) / trackAnalysis.energy_curve.length
         : 0.5;
       const duration = trackAnalysis?.duration_seconds ?? 240;
@@ -154,7 +154,7 @@ export function useVisualPresets({
       const energyFactor = 0.5 + energyAvg;
 
       // Apply postfx simulation via fog and light intensity
-      const postfx = (incoming as any).postfx || {};
+      const postfx = (incoming as any).postfx ?? {};
       const bloomIntensity = clampNum(postfx.bloom, 0, 1, 0);
       // Accept both `vignette` (built-in catalog) and `vignetteStrength` (AI-generated presets)
       const vignetteStrength = clampNum(postfx.vignette ?? postfx.vignetteStrength, 0, 1, 0);
@@ -167,19 +167,19 @@ export function useVisualPresets({
         ...prev,
         particleCount: Math.round(
           clampNum(
-            incoming.visualizer?.particleCount ?? prev.particleCount,
+            incoming.visualizer.particleCount ?? prev.particleCount,
             50,
             2000,
             prev.particleCount,
           ) * clampNum(energyFactor, 0.5, 1.5, 1),
         ),
-        scale: clampNum(incoming.visualizer?.scale ?? prev.scale, 0.1, 5, prev.scale),
-        glowIntensity: incoming.visualizer?.glow
+        scale: clampNum(incoming.visualizer.scale ?? prev.scale, 0.1, 5, prev.scale),
+        glowIntensity: incoming.visualizer.glow
           ? Math.min(1.0, 0.8 * energyFactor + bloomIntensity * 0.2)
           : 0.2,
-        rotationSpeed: clampNum((incoming.visualizer?.rotation ? 1.0 : 0.0) * bpmFactor, -5, 5, 0),
+        rotationSpeed: clampNum((incoming.visualizer.rotation ? 1.0 : 0.0) * bpmFactor, -5, 5, 0),
         colorShift: clampNum(
-          incoming.visualizer?.intensity ?? prev.colorShift,
+          incoming.visualizer.intensity ?? prev.colorShift,
           0,
           3,
           prev.colorShift,
@@ -208,7 +208,7 @@ export function useVisualPresets({
         shake: "phonk",
         disappear: "ambient",
       };
-      if (incoming.lyrics?.style && kineticMap[incoming.lyrics.style]) {
+      if (incoming.lyrics.style && kineticMap[incoming.lyrics.style]) {
         setKineticPreset(kineticMap[incoming.lyrics.style]);
       }
 
@@ -276,16 +276,16 @@ export function useVisualPresets({
     try {
       const cleanName = cleanTrackName(currentFilename ?? "") || "track";
       const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
-      const desc = (concept as any)?.prompt || (concept as any)?.visualConcept || cleanName;
-      const genre = (concept as any)?.genre?.join(", ") || "";
-      const energy = currentAnalysisData.energy_curve?.length
+      const desc = ((concept as any)?.prompt ?? (concept as any)?.visualConcept) ?? cleanName;
+      const genre = (concept as any)?.genre?.join(", ") ?? "";
+      const energy = currentAnalysisData.energy_curve.length
         ? currentAnalysisData.energy_curve.reduce((a, b) => a + b, 0) /
           currentAnalysisData.energy_curve.length
         : 0.5;
       // Dynamic import keeps Ollama out of the critical module graph.
       const { generateVisualizerPreset } = await import("../../services/api");
       const res = await generateVisualizerPreset(
-        `${desc} — ${genre} — mood: ${(concept as any)?.mood?.join(", ") || "auto"}`.trim(),
+        `${desc} — ${genre} — mood: ${(concept as any)?.mood?.join(", ") ?? "auto"}`.trim(),
         undefined,
         0.7,
         {
@@ -297,12 +297,12 @@ export function useVisualPresets({
           genre,
         },
       );
-      const preset = toVisualPreset(res?.preset);
+      const preset = toVisualPreset(res.preset);
       if (preset) {
         const beforeCount = vizParamsRef.current.particleCount;
         applyPreset(preset, currentAnalysisData);
         showToast(
-          `AI applied: "${preset.name}" (was ${beforeCount} particles → ${preset.visualizer?.particleCount ?? "?"})`,
+          `AI applied: "${preset.name}" (was ${beforeCount} particles → ${preset.visualizer.particleCount ?? "?"})`,
           "success",
         );
       } else {

@@ -13,7 +13,7 @@ export function GPUCard() {
   const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchGPUData();
+    void fetchGPUData();
     const interval = setInterval(fetchGPUData, 10000); // Increased from 5s to 10s
     return () => clearInterval(interval);
   }, [fetchGPUData]);
@@ -22,7 +22,7 @@ export function GPUCard() {
     const snapshot = granular.gpu.snapshot;
     const procData = granular.gpu.processes;
     if (snapshot) setGpu(snapshot);
-    if (procData?.processes) setProcesses(procData.processes);
+    if (procData.processes) setProcesses(procData.processes);
   }, [granular.gpu.snapshot, granular.gpu.processes]);
 
   if (!gpu?.available) {
@@ -68,7 +68,7 @@ export function GPUCard() {
             <CpuIcon size={20} className="text-purple-400" />
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm truncate">{gpu.name || "GPU"}</h3>
+            <h3 className="font-semibold text-sm truncate">{gpu.name ?? "GPU"}</h3>
             <p className="text-xs text-muted tabular-nums truncate">
               {formatGB(gpu.memory_free_mb)} free / {formatGB(gpu.memory_total_mb)} total
             </p>

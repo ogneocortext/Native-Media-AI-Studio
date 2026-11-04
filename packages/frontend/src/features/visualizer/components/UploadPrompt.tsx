@@ -34,7 +34,7 @@ export function UploadPrompt({ hasAudio, onFile, quiet = false }: Props) {
       onDrop={(e) => {
         e.preventDefault();
         setDragOver(false);
-        const file = e.dataTransfer.files?.[0];
+        const file = e.dataTransfer.files[0];
         if (file) onFile(file);
       }}
     >

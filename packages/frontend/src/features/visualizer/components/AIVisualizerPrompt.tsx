@@ -43,7 +43,7 @@ export function AIVisualizerPrompt({
   useEffect(() => {
     getOllamaModels(true)
       .then(async (data) => {
-        if (data?.length) {
+        if (data.length) {
           setModels(data);
           
           // Fetch benchmarks in parallel
@@ -60,11 +60,11 @@ export function AIVisualizerPrompt({
           // Verified models first
           const sorted = [...data].sort((a, b) => {
             if (a.verified !== b.verified) return a.verified ? -1 : 1;
-            const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
-            const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
+            const sa = a.benchmark?.score ?? benchMap[a.name].validation.score ?? -1;
+            const sb = b.benchmark?.score ?? benchMap[b.name].validation.score ?? -1;
             if (sa !== sb) return sb - sa;
-            const la = a.benchmark?.latency_ms ?? benchMap[a.name]?.latency_ms ?? 999999;
-            const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
+            const la = a.benchmark?.latency_ms ?? benchMap[a.name].latency_ms ?? 999999;
+            const lb = b.benchmark?.latency_ms ?? benchMap[b.name].latency_ms ?? 999999;
             return la - lb;
           });
           setModels(sorted);
@@ -119,22 +119,22 @@ export function AIVisualizerPrompt({
     setDescription("");
   }, [generatedPreset, onApplyPreset]);
 
-  const hasTrack = trackMeta && (trackMeta.bpm || trackMeta.energy !== undefined);
+  const hasTrack = trackMeta && (trackMeta.bpm ?? trackMeta.energy !== undefined);
 
   const presetSummary = generatedPreset
     ? [
-        { label: "Style", value: generatedPreset.visualizer?.style },
+        { label: "Style", value: generatedPreset.visualizer.style },
         {
           label: "Colors",
-          value: `${generatedPreset.theme?.primary}, ${generatedPreset.theme?.secondary}`,
+          value: `${generatedPreset.theme.primary}, ${generatedPreset.theme.secondary}`,
         },
         {
           label: "Intensity",
-          value: `${Math.round((generatedPreset.visualizer?.intensity ?? 0.5) * 100)}%`,
+          value: `${Math.round((generatedPreset.visualizer.intensity ?? 0.5) * 100)}%`,
         },
-        { label: "Particles", value: generatedPreset.visualizer?.particleCount?.toString() },
-        { label: "Lyrics", value: generatedPreset.lyrics?.style },
-        { label: "Bass React", value: generatedPreset.audioReactivity?.bass },
+        { label: "Particles", value: generatedPreset.visualizer.particleCount.toString() },
+        { label: "Lyrics", value: generatedPreset.lyrics.style },
+        { label: "Bass React", value: generatedPreset.audioReactivity.bass },
       ].filter((v) => v.value)
     : [];
 
@@ -166,7 +166,7 @@ export function AIVisualizerPrompt({
       {hasTrack && (
         <div className="viz-ai-track-context">
           <Music2 size={12} />
-          <span>{trackName || "Loaded track"}</span>
+          <span>{trackName ?? "Loaded track"}</span>
           {trackMeta.bpm && <span className="viz-ai-track-stat">{trackMeta.bpm} BPM</span>}
           {trackMeta.energy !== undefined && (
             <span className="viz-ai-track-stat">
@@ -184,7 +184,7 @@ export function AIVisualizerPrompt({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleGenerate();
           }}
           rows={3}
         />
@@ -210,9 +210,9 @@ export function AIVisualizerPrompt({
                   ) : (
                     models.map((m) => {
                       const bench = benchmarks[m.name];
-                      const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
-                      const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
-                      const success = bench?.success ?? m.benchmark?.success ?? null;
+                      const score = bench.validation.score ?? m.benchmark?.score ?? null;
+                      const latency = bench.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                      const success = bench.success ?? m.benchmark?.success ?? null;
                       let badge = "";
                       if (score !== null && score >= 0) {
                         const s = Math.round(score);

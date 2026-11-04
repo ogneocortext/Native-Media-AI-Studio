@@ -62,7 +62,7 @@ export function VideoPreview({
     if (!video) return;
 
     if (video.paused) {
-      video.play();
+      void video.play();
       setIsPlaying(true);
     } else {
       video.pause();
@@ -181,7 +181,7 @@ export function VideoPreview({
       </div>
 
       {/* Frame strip / Scrubber */}
-      {(previewUrl || isGenerating) && (
+      {(previewUrl ?? isGenerating) && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted">Frame Scrubber</span>

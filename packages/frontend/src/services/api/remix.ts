@@ -181,7 +181,7 @@ export interface RemixTrackLineage {
 async function unwrap<T>(res: Response, fallback: string): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: fallback }));
-    throw new Error(body.detail || fallback);
+    throw new Error(body.detail ?? fallback);
   }
   return res.json() as Promise<T>;
 }
@@ -417,7 +417,7 @@ async function awaitJob<T>(jobId: string, failure: string): Promise<T> {
   if (status.state === "cancelled") {
     throw new RemixCancelledError("Cancelled");
   }
-  throw new Error(status.error || failure);
+  throw new Error(status.error ?? failure);
 }
 
 export async function listRemixes(): Promise<RemixSummary[]> {

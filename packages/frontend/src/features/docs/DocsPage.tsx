@@ -128,7 +128,7 @@ function JsonView({ text, filePath }: { text: string; filePath?: string }) {
                 className="p-2 bg-gray-900/50 rounded border border-gray-700/30 text-xs"
               >
                 <span className="text-gray-500 font-mono">{n.id.slice(0, 8)}</span>
-                <span className="ml-2 text-gray-400">{n.type || "text"}</span>
+                <span className="ml-2 text-gray-400">{n.type ?? "text"}</span>
                 {n.text && (
                   <p className="text-gray-300 mt-1 line-clamp-2">{n.text.slice(0, 120)}</p>
                 )}
@@ -324,7 +324,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
     // Table detection — collect consecutive | lines
     if (line.trim().startsWith("|") && line.includes("|")) {
       flushList();
-      if (!tableBuffer) tableBuffer = [];
+      tableBuffer ??= [];
       tableBuffer.push(line.trim());
       continue;
     } else if (tableBuffer) {
@@ -386,7 +386,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
     // Unordered list
     const ul = /^\s*[-*]\s+(.*)/.exec(line);
     if (ul) {
-      if (!listBuffer || listBuffer.type !== "ul") {
+      if (listBuffer?.type !== "ul") {
         flushList();
         listBuffer = { type: "ul", items: [] };
       }
@@ -396,7 +396,7 @@ function MarkdownView({ text, filePath }: { text: string; filePath?: string }) {
     // Ordered list
     const ol = /^\s*\d+\.\s+(.*)/.exec(line);
     if (ol) {
-      if (!listBuffer || listBuffer.type !== "ol") {
+      if (listBuffer?.type !== "ol") {
         flushList();
         listBuffer = { type: "ol", items: [] };
       }
@@ -467,14 +467,14 @@ export function DocsPage() {
 
   // ---- bootstrap + structure + docs list ----
   useEffect(() => {
-    loadBootstrap();
-    loadStructure();
-    loadDocsList();
+    void loadBootstrap();
+    void loadStructure();
+    void loadDocsList();
   }, []);
 
   useEffect(() => {
     // reload structure when depth changes (skip initial)
-    loadStructure(structureDepth);
+    void loadStructure(structureDepth);
     // Only `structureDepth` is a real input. `loadStructure` is re-created on
     // every render, so listing it would re-fetch the tree on each render.
   }, [structureDepth]);
@@ -547,7 +547,7 @@ export function DocsPage() {
       return {
         name: node.name,
         type: "directory",
-        children: (node.children || []).map(backendToTree),
+        children: (node.children ?? []).map(backendToTree),
         size: node.size,
       };
     }
@@ -709,7 +709,7 @@ export function DocsPage() {
         {bootstrap && (
           <div className="flex items-center gap-2 text-xs">
             <span className="px-2 py-1 bg-gray-800 rounded border border-gray-700 text-gray-300">
-              v{bootstrap.version || "2026-08-24"}
+              v{bootstrap.version ?? "2026-08-24"}
             </span>
             {bootstrap.ports && (
               <span className="px-2 py-1 bg-gray-800 rounded border border-gray-700 text-gray-400 hidden sm:inline">
@@ -740,7 +740,7 @@ export function DocsPage() {
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleSearch();
+                if (e.key === "Enter") void handleSearch();
                 if (e.key === "Escape") handleClearSearch();
               }}
               className="w-full pl-9 pr-8 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500/50 text-sm"
@@ -977,13 +977,13 @@ export function DocsPage() {
                   <div className="p-2.5 bg-gray-700/40 rounded-lg border border-gray-700/50">
                     <span className="text-gray-500 text-xs block">Project</span>
                     <span className="text-white text-sm font-medium">
-                      {String(bootstrap.project || "—")}
+                      {String(bootstrap.project ?? "—")}
                     </span>
                   </div>
                   <div className="p-2.5 bg-gray-700/40 rounded-lg border border-gray-700/50">
                     <span className="text-gray-500 text-xs block">Version</span>
                     <span className="text-white text-sm font-mono">
-                      {String(bootstrap.version || "—")}
+                      {String(bootstrap.version ?? "—")}
                     </span>
                   </div>
                   {bootstrap.ports && (

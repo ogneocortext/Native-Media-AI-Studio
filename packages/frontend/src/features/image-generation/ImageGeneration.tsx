@@ -268,7 +268,7 @@ export function ImageGeneration() {
         setComfyUiStatus({ running: false });
       }
     };
-    fetchStatus();
+    void fetchStatus();
     const id = setInterval(fetchStatus, 30000);
     return () => clearInterval(id);
   }, []);
@@ -323,10 +323,10 @@ export function ImageGeneration() {
         const res = await fetch(`/api/integrations/comfyui/progress/${promptId}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setProgress(data.progress || 0);
-          setCurrentStep(data.step || 0);
-          setTotalSteps(data.total_steps || options.steps);
-          setProgressStatus(data.status || "running");
+          setProgress(data.progress ?? 0);
+          setCurrentStep(data.step ?? 0);
+          setTotalSteps(data.total_steps ?? options.steps);
+          setProgressStatus(data.status ?? "running");
 
           if (data.status === "completed") {
             // Fetch the final result
@@ -337,7 +337,7 @@ export function ImageGeneration() {
                 if (resultData.status === "completed" && resultData.output_path) {
                   setResult({
                     output_path: resultData.output_path,
-                    seed: resultData.seed || 0,
+                    seed: resultData.seed ?? 0,
                   });
                   setProgress(100);
                   setProgressStatus("Completed");
@@ -446,7 +446,7 @@ export function ImageGeneration() {
 
       if (!submitRes.ok) {
         const err = await submitRes.json().catch(() => ({ detail: "Failed to submit prompt" }));
-        throw new Error(err.detail || `Failed to submit prompt (${submitRes.status})`);
+        throw new Error(err.detail ?? `Failed to submit prompt (${submitRes.status})`);
       }
 
       const submitData = await submitRes.json();
@@ -531,7 +531,7 @@ export function ImageGeneration() {
             </p>
           </div>
           <button
-            onClick={async () => startComfyUI(comfyUiStatus.port || 8188)}
+            onClick={async () => startComfyUI(comfyUiStatus.port ?? 8188)}
             className="btn btn-primary btn-sm flex items-center gap-2 whitespace-nowrap"
           >
             Start ComfyUI
@@ -919,7 +919,7 @@ export function ImageGeneration() {
                       try {
                         localStorage.setItem(
                           "nma:i2v:image",
-                          result.output_path.split(/[/\\]/).pop() || "",
+                          result.output_path.split(/[/\\]/).pop() ?? "",
                         );
                       } catch {
                         // localStorage unavailable — proceed without cross-page handoff

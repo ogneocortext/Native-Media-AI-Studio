@@ -34,7 +34,7 @@ function formatTime(iso: string | null) {
 }
 
 export function NotificationItem({ item, onRead }: { item: NotificationItem; onRead?: () => void }) {
-  const Icon = iconFor(item.type || "");
+  const Icon = iconFor(item.type ?? "");
   const message =
     (item.data?.message as string | undefined) ??
     (item.type ? String(item.type) : "Notification");

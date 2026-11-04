@@ -224,6 +224,6 @@ export function mergeConfigs(
   return {
     ...base,
     ...override,
-    params: { ...base.params, ...(override.params || {}) },
+    params: { ...base.params, ...(override.params ?? {}) },
   };
 }

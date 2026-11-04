@@ -328,7 +328,7 @@ export function KineticTypographyPage() {
   // preview never advances because nothing drives `elapsed`.
   // Playback duration: real audio track first, then the lyric-library
   // preview track (estimated timing), then the 60s demo default.
-  const playbackDuration = selectedTrack?.duration || libraryTrackDuration || 60;
+  const playbackDuration = (selectedTrack?.duration ?? libraryTrackDuration) ?? 60;
   const demoDuration = playbackDuration;
   const elapsedRef = useRef(elapsed);
   const demoBaseRef = useRef(0);
@@ -480,7 +480,7 @@ export function KineticTypographyPage() {
           // Ensure section is always a string
           const lines: LyricLine[] = dbLyrics.lines.map((l) => ({
             ...l,
-            section: l.section || "VERSE",
+            section: l.section ?? "VERSE",
           }));
           setLyrics(lines);
           setLyricsData(legacyToLyricsData(lines));
@@ -580,7 +580,7 @@ export function KineticTypographyPage() {
           end: l.end,
           text: l.text,
           words: l.words,
-          section: l.section || "VERSE",
+          section: l.section ?? "VERSE",
         }));
         setLyrics(lines);
         setLyricsData(legacyToLyricsData(lines));
@@ -629,7 +629,7 @@ export function KineticTypographyPage() {
         if (trackRequestRef.current !== requestId) return;
         const analysis = result.analysis;
         if (analysis) {
-          const energy = analysis.energy_curve?.length
+          const energy = analysis.energy_curve.length
             ? analysis.energy_curve.reduce((a: number, b: number) => a + b, 0) /
               analysis.energy_curve.length
             : 0.5;
@@ -648,7 +648,7 @@ export function KineticTypographyPage() {
             setActivePreset(presetId);
           }
           // Load lyrics from database (or CSV fallback)
-          loadLyricsForTrack(file.name, filename, analysis.duration_seconds || 60);
+          void loadLyricsForTrack(file.name, filename, analysis.duration_seconds || 60);
         }
       } catch {
         if (trackRequestRef.current !== requestId) return;
@@ -717,7 +717,7 @@ export function KineticTypographyPage() {
   // chain once instead of leaving stale sample lyrics with source "none".
   useEffect(() => {
     if ((csvContent || libraryTracks.length > 0) && selectedTrack && lyricsSource === "none") {
-      loadLyricsForTrack(selectedTrack.name, selectedTrack.filename, selectedTrack.duration || 60);
+      void loadLyricsForTrack(selectedTrack.name, selectedTrack.filename, selectedTrack.duration ?? 60);
     }
   }, [csvContent, libraryTracks.length, selectedTrack, lyricsSource, loadLyricsForTrack]);
 
@@ -727,7 +727,7 @@ export function KineticTypographyPage() {
     if (pendingTrackRef.current && libraryFiles.length > 0) {
       const match = libraryFiles.find((f) => f.filename === pendingTrackRef.current);
       if (match) {
-        handleTrackSelect(match.filename);
+        void handleTrackSelect(match.filename);
         pendingTrackRef.current = null;
         return;
       }
@@ -735,7 +735,7 @@ export function KineticTypographyPage() {
     // Auto-select first real track when library loads and nothing is selected
     // (a lyric-library preview selection also counts as "something selected")
     if (!selectedTrack && !selectedLibraryTrackId && libraryFiles.length > 0) {
-      handleTrackSelect(libraryFiles[0].filename);
+      void handleTrackSelect(libraryFiles[0].filename);
     }
   }, [libraryFiles.length, handleTrackSelect, selectedTrack, selectedLibraryTrackId]);
 
@@ -771,7 +771,7 @@ export function KineticTypographyPage() {
     try {
       const result = await generateKineticVideo({
         audio_filename: selectedTrack.filename,
-        duration: selectedTrack.duration || 60,
+        duration: selectedTrack.duration ?? 60,
         preset_id: activePreset,
         lyrics: lyrics,
         prompt: `Kinetic typography lyric video with ${activePreset} preset`,
@@ -844,7 +844,7 @@ export function KineticTypographyPage() {
                 <div
                   className="kt-bass-bar"
                   style={{
-                    height: `${Math.min(100, (selectedTrack?.energy || 0.5) * 100 * (isPlaying ? 1.2 : 0.3))}%`,
+                    height: `${Math.min(100, (selectedTrack?.energy ?? 0.5) * 100 * (isPlaying ? 1.2 : 0.3))}%`,
                   }}
                 />
               </div>
@@ -1009,7 +1009,7 @@ export function KineticTypographyPage() {
                   id="kt-track-select"
                   className="kt-select"
                   aria-label="Select track"
-                  value={selectedTrack?.filename || ""}
+                  value={selectedTrack?.filename ?? ""}
                   onChange={async (e) =>
                     e.target.value ? handleTrackSelect(e.target.value) : setSelectedTrack(null)
                   }
@@ -1047,7 +1047,7 @@ export function KineticTypographyPage() {
                   id="kt-lyrics-library-select"
                   className="kt-select"
                   aria-label="Select a track from the lyric library"
-                  value={selectedLibraryTrackId || ""}
+                  value={selectedLibraryTrackId ?? ""}
                   onChange={async (e) => handleLibraryTrackSelect(e.target.value)}
                 >
                   <option value="">None — use audio library above</option>
@@ -1140,7 +1140,7 @@ export function KineticTypographyPage() {
                 )}
                 {videoJob && (
                   <span className="kt-transcription-status text-emerald-400">
-                    {videoJob.message || `Queued job ${videoJob.job_id?.slice(0, 8)}`}
+                    {videoJob.message ?? `Queued job ${videoJob.job_id?.slice(0, 8)}`}
                   </span>
                 )}
                 {videoJobError && (

@@ -304,7 +304,7 @@ export function synthWaveform(
     ? Math.max(0, Math.min(zcrCurve.length - 1, Math.floor(progress * (zcrCurve.length - 1))))
     : -1;
   const zcr = zcrIndex >= 0 ? (zcrCurve?.[zcrIndex] ?? 0) : 0;
-  const envelope = analysis.amplitude_envelope?.length
+  const envelope = analysis.amplitude_envelope.length
     ? getEnergyAtTime(analysis.amplitude_envelope, duration, tSec)
     : 0;
   const amplitude = unit(envelope) * 0.9;
@@ -376,7 +376,7 @@ export function deterministicAudioFrame(input: DeterministicFrameInput): Determi
   // Without an energy curve the measured RMS stands alone.
   const energy = analyzedEnergy > 0 ? rms * 0.6 + analyzedEnergy * 0.4 : rms;
   const phase = analysis ? getBeatPhase(analysis.beat_times ?? [], t) : null;
-  const envelope = analysis?.amplitude_envelope?.length
+  const envelope = analysis?.amplitude_envelope.length
     ? getEnergyAtTime(analysis.amplitude_envelope, duration, t)
     : rms;
 

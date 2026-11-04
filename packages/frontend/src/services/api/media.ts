@@ -14,7 +14,7 @@ export async function probeMedia(path: string): Promise<MediaProbeResponse> {
   const res = await fetchWithTimeout(url, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "probe failed" }));
-    throw new Error(err.detail || "Failed to probe media");
+    throw new Error(err.detail ?? "Failed to probe media");
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -36,7 +36,7 @@ export async function getMediaLoudness(path: string): Promise<LoudnessResponse> 
   const res = await fetchWithTimeout(url, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "loudness failed" }));
-    throw new Error(err.detail || "Failed to compute loudness");
+    throw new Error(err.detail ?? "Failed to compute loudness");
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -61,7 +61,7 @@ export async function getMediaWaveform(
   const res = await fetchWithTimeout(url, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "waveform failed" }));
-    throw new Error(err.detail || "Failed to extract waveform");
+    throw new Error(err.detail ?? "Failed to extract waveform");
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -97,7 +97,7 @@ export async function extractThumbnailAtTime(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "thumbnail failed" }));
-    throw new Error(err.detail || "Failed to extract thumbnail");
+    throw new Error(err.detail ?? "Failed to extract thumbnail");
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -117,7 +117,7 @@ export async function regenerateAudioCover(path: string): Promise<RegenerateCove
   const res = await fetchWithTimeout(url, { method: "POST", timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "cover regeneration failed" }));
-    throw new Error(err.detail || "Failed to regenerate cover");
+    throw new Error(err.detail ?? "Failed to regenerate cover");
   }
   const data = await res.json();
   if (data.error) throw new Error(data.error);

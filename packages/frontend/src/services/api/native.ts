@@ -13,7 +13,7 @@ export async function openInBlender(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to open in Blender" }));
-    throw new Error((err as { detail?: string }).detail || "Failed to open in Blender");
+    throw new Error((err as { detail?: string }).detail ?? "Failed to open in Blender");
   }
   return res.json();
 }
@@ -30,7 +30,7 @@ export async function openInUnity(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to open in Unity" }));
-    throw new Error((err as { detail?: string }).detail || "Failed to open in Unity");
+    throw new Error((err as { detail?: string }).detail ?? "Failed to open in Unity");
   }
   return res.json();
 }

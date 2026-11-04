@@ -74,7 +74,7 @@ export function Settings() {
   const [settings, setSettings] = useState<AppSettings>(() => {
     const env = getPortConfigFromEnv();
     return {
-      comfyui_url: env.comfyui_url || "http://127.0.0.1:8188",
+      comfyui_url: env.comfyui_url ?? "http://127.0.0.1:8188",
       ollama_url: "http://127.0.0.1:11434",
       atomic_chat_url: "http://127.0.0.1:1337",
       atomic_chat_enabled: false,
@@ -101,7 +101,7 @@ export function Settings() {
         setLoading(false);
       }
     };
-    loadSettings();
+    void loadSettings();
   }, []);
 
   const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
@@ -131,7 +131,7 @@ export function Settings() {
       });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(detail.detail || "Failed to save settings");
+        throw new Error(detail.detail ?? "Failed to save settings");
       }
       setSaved(true);
       setHasUnsavedChanges(false);
@@ -255,21 +255,21 @@ export function Settings() {
                   className="btn btn-secondary"
                   title="Test Connection"
                   onClick={async () => testConnection(settings.comfyui_url, "comfyui")}
-                  disabled={connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing"}
+                  disabled={connectionTests[`comfyui-${settings.comfyui_url}`].status === "testing"}
                 >
-                  {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing" ? (
+                  {connectionTests[`comfyui-${settings.comfyui_url}`].status === "testing" ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <Link2 size={16} />
                   )}
                 </button>
               </div>
-              {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "success" && (
+              {connectionTests[`comfyui-${settings.comfyui_url}`].status === "success" && (
                 <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} /> {connectionTests[`comfyui-${settings.comfyui_url}`].message}
                 </p>
               )}
-              {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "error" && (
+              {connectionTests[`comfyui-${settings.comfyui_url}`].status === "error" && (
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                   <AlertCircle size={12} /> {connectionTests[`comfyui-${settings.comfyui_url}`].message}
                 </p>
@@ -285,13 +285,13 @@ export function Settings() {
                 <div>
                   <p className="font-medium">ComfyUI Status</p>
                   <p className="text-xs text-muted">
-                    {isAdapterUp(serviceStatus?.adapters?.comfyui)
+                    {isAdapterUp(serviceStatus?.adapters.comfyui)
                       ? "Connected and ready"
                       : "Not connected"}
                   </p>
                 </div>
               </div>
-              <StatusBadge status={serviceStatus?.adapters?.comfyui || "offline"} />
+              <StatusBadge status={serviceStatus?.adapters.comfyui ?? "offline"} />
             </div>
 
             <div>
@@ -299,7 +299,7 @@ export function Settings() {
               <select
                 className="select"
                 aria-label="Default workflow"
-                value={settings.default_workflow || "default"}
+                value={settings.default_workflow ?? "default"}
                 onChange={(e) => updateSetting("default_workflow", e.target.value)}
               >
                 <option value="default">Standard Image Generation</option>
@@ -318,7 +318,7 @@ export function Settings() {
                 type="text"
                 className="input"
                 aria-label="Output node ID"
-                value={settings.output_node_id || "9"}
+                value={settings.output_node_id ?? "9"}
                 onChange={(e) => updateSetting("output_node_id", e.target.value)}
                 placeholder="SaveImage node ID"
               />
@@ -347,21 +347,21 @@ export function Settings() {
                   className="btn btn-secondary"
                   title="Test Connection"
                   onClick={async () => testConnection(settings.ollama_url, "ollama")}
-                  disabled={connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing"}
+                  disabled={connectionTests[`ollama-${settings.ollama_url}`].status === "testing"}
                 >
-                  {connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing" ? (
+                  {connectionTests[`ollama-${settings.ollama_url}`].status === "testing" ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <Link2 size={16} />
                   )}
                 </button>
               </div>
-              {connectionTests[`ollama-${settings.ollama_url}`]?.status === "success" && (
+              {connectionTests[`ollama-${settings.ollama_url}`].status === "success" && (
                 <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} /> {connectionTests[`ollama-${settings.ollama_url}`].message}
                 </p>
               )}
-              {connectionTests[`ollama-${settings.ollama_url}`]?.status === "error" && (
+              {connectionTests[`ollama-${settings.ollama_url}`].status === "error" && (
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                   <AlertCircle size={12} /> {connectionTests[`ollama-${settings.ollama_url}`].message}
                 </p>
@@ -375,13 +375,13 @@ export function Settings() {
                 <div>
                   <p className="font-medium">Ollama Status</p>
                   <p className="text-xs text-muted">
-                    {isAdapterUp(serviceStatus?.adapters?.ollama)
+                    {isAdapterUp(serviceStatus?.adapters.ollama)
                       ? "Connected and ready"
                       : "Not connected"}
                   </p>
                 </div>
               </div>
-              <StatusBadge status={serviceStatus?.adapters?.ollama || "offline"} />
+              <StatusBadge status={serviceStatus?.adapters.ollama ?? "offline"} />
             </div>
 
             <div className="border-t border-border pt-4">
@@ -420,24 +420,24 @@ export function Settings() {
                     title="Test Connection"
                     disabled={
                       !settings.atomic_chat_enabled ||
-                      connectionTests["atomic-chat"]?.status === "testing"
+                      connectionTests["atomic-chat"].status === "testing"
                     }
                     onClick={testAtomicChat}
                   >
-                    {connectionTests["atomic-chat"]?.status === "testing" ? (
+                    {connectionTests["atomic-chat"].status === "testing" ? (
                       <Loader2 size={16} className="animate-spin" />
                     ) : (
                       <Link2 size={16} />
                     )}
                   </button>
                 </div>
-                {connectionTests["atomic-chat"]?.status === "success" && (
+                {connectionTests["atomic-chat"].status === "success" && (
                   <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
                     <CheckCircle2 size={12} />{" "}
                     {connectionTests["atomic-chat"].message}
                   </p>
                 )}
-                {connectionTests["atomic-chat"]?.status === "error" && (
+                {connectionTests["atomic-chat"].status === "error" && (
                   <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                     <AlertCircle size={12} />{" "}
                     {connectionTests["atomic-chat"].message}
@@ -454,7 +454,7 @@ export function Settings() {
               <select
                 className="select"
                 aria-label="Default model"
-                value={settings.default_model || "qwen3.5:4b"}
+                value={settings.default_model ?? "qwen3.5:4b"}
                 onChange={(e) => updateSetting("default_model", e.target.value)}
               >
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
@@ -766,12 +766,10 @@ function PushNotificationRow({
 
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        subscription = await registration.pushManager.subscribe({
+      subscription ??= await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: base64ToUint8Array(vapidKey),
         });
-      }
       // toJSON() already yields the standard PushSubscriptionJSON wire format
       // (base64url keys) — pass it through rather than decode/re-encode
       // round-trips, which also risk a stack overflow spreading large key arrays.

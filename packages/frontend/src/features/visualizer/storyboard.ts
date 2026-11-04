@@ -303,7 +303,7 @@ export function buildStoryboard(
       // runs (a 10 s+ hole is an editorial cut in disguise — e.g. verse 1 →
       // verse 2 across a breakdown, even when the tag repeats).
       const gapSplit = cur !== null && cur.lines.length > 0 && gap > 8 && cur.end - cur.start > 30;
-      if (!cur || cur.section !== sec || gapSplit) {
+      if (cur?.section !== sec || gapSplit) {
         if (cur) runs.push(cur);
         cur = { section: sec, lines: [], start: line.start, end: line.end };
       }
@@ -312,7 +312,7 @@ export function buildStoryboard(
       prevEnd = line.end;
     }
     if (cur) runs.push(cur);
-  } else if (analysis?.sections?.length) {
+  } else if (analysis?.sections.length) {
     for (const s of analysis.sections) {
       runs.push({
         section: (s.type || "VERSE").toUpperCase(),

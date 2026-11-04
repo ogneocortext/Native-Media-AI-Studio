@@ -51,7 +51,7 @@ export async function renderClip(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Render request failed");
+    throw new Error(err.detail ?? "Render request failed");
   }
   return res.json();
 }
@@ -91,7 +91,7 @@ export async function buildExportMatrix(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Export matrix failed");
+    throw new Error(err.detail ?? "Export matrix failed");
   }
   return res.json();
 }
@@ -126,7 +126,7 @@ export async function createCanvasLoop(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Canvas loop creation failed");
+    throw new Error(err.detail ?? "Canvas loop creation failed");
   }
   return res.json();
 }
@@ -157,7 +157,7 @@ export async function routeScene(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Scene routing failed");
+    throw new Error(err.detail ?? "Scene routing failed");
   }
   return res.json();
 }
@@ -193,7 +193,7 @@ export async function assembleBeatQuantized(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Assembly failed");
+    throw new Error(err.detail ?? "Assembly failed");
   }
   return res.json();
 }
@@ -234,7 +234,7 @@ export async function getStemVisualization(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Stem visualization failed");
+    throw new Error(err.detail ?? "Stem visualization failed");
   }
   return res.json();
 }

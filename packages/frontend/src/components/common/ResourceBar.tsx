@@ -45,7 +45,7 @@ export function ResourceBar({
   criticalThreshold = 90,
 }: ResourceBarProps) {
   const Icon = icon !== "custom" ? iconMap[icon] : null;
-  const barColor = color || getUsageColor(value, warningThreshold, criticalThreshold);
+  const barColor = color ?? getUsageColor(value, warningThreshold, criticalThreshold);
   const heightClass = size === "sm" ? "h-1.5" : size === "lg" ? "h-3" : "h-2";
 
   return (

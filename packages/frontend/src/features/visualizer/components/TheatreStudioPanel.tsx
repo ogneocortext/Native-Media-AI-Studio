@@ -68,7 +68,7 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
 
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       try {
         const { sheet } = await createTheatreProject(`Kinetic Studio — ${activePresetId}/${phase}`);
         if (cancelled) return;
@@ -226,9 +226,9 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
               {(["enter", "beat", "exit"] as AnimationPhase[]).map((p) => (
                 <button
                   key={p}
-                  className={`theatre-phase-tab ${phase === p ? "active" : ""} ${!preset?.beatAnimation && p === "beat" ? "disabled" : ""}`}
+                  className={`theatre-phase-tab ${phase === p ? "active" : ""} ${!preset.beatAnimation && p === "beat" ? "disabled" : ""}`}
                   onClick={() => setPhase(p)}
-                  disabled={!preset?.beatAnimation && p === "beat"}
+                  disabled={!preset.beatAnimation && p === "beat"}
                 >
                   {p.charAt(0).toUpperCase() + p.slice(1)}
                 </button>

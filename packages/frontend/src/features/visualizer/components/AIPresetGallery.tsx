@@ -51,7 +51,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
       }).catch(() => null);
       if (res2?.ok) {
         const data2 = await res2.json();
-        setPresets(data2.presets || []);
+        setPresets(data2.presets ?? []);
       }
     } catch {
       // silent
@@ -61,7 +61,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
   }, []);
 
   useEffect(() => {
-    fetchPresets();
+    void fetchPresets();
   }, [fetchPresets, refreshKey]);
 
   const handleApply = useCallback(
@@ -175,12 +175,12 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
       <div className="viz-gallery-grid">
         {filtered.map((p) => {
           const preset = p.params as any;
-          const theme = preset.theme || {};
+          const theme = preset.theme ?? {};
           return (
             <div
               key={p.id}
               className="viz-gallery-card"
-              style={{ borderLeftColor: theme.primary || "#6366f1" }}
+              style={{ borderLeftColor: theme.primary ?? "#6366f1" }}
             >
               <div className="viz-gallery-card-top">
                 <div className="viz-gallery-card-colors">

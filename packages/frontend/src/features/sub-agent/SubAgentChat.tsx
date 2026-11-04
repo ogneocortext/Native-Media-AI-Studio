@@ -91,7 +91,7 @@ export function SubAgentChat() {
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: event.data.text || "",
+                text: event.data.text ?? "",
                 type: "output",
               },
             ]);
@@ -104,7 +104,7 @@ export function SubAgentChat() {
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: `\n✅ Task completed.\n\nResult:\n${event.data.result || "(no output)"}${metricsText}`,
+                text: `\n✅ Task completed.\n\nResult:\n${event.data.result ?? "(no output)"}${metricsText}`,
                 type: "done",
               },
             ]);
@@ -119,7 +119,7 @@ export function SubAgentChat() {
               ...prev,
               {
                 id: crypto.randomUUID(),
-                text: `\n❌ Task failed: ${event.data.error || "unknown error"}${
+                text: `\n❌ Task failed: ${event.data.error ?? "unknown error"}${
                   event.data.error_detail ? `\n\nDetails:\n${event.data.error_detail}` : ""
                 }`,
                 type: "error",
@@ -263,7 +263,7 @@ export function SubAgentChat() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSend();
+                  void handleSend();
                 }
               }}
               placeholder="e.g. 'run the ruff gate on the backend and report any violations' or 'read packages/backend/tests/conftest.py and report the fixture scope'"

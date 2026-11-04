@@ -83,10 +83,10 @@ export function useCodeApplier({
     else if (t === "character") {
       const group = new THREE.Group();
       const bodyMat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(objDesc.color || "#fbbf24"),
+        color: new THREE.Color(objDesc.color ?? "#fbbf24"),
         metalness: objDesc.metalness ?? 0.1,
         roughness: objDesc.roughness ?? 0.7,
-        emissive: new THREE.Color(objDesc.emissive || "#1a1000"),
+        emissive: new THREE.Color(objDesc.emissive ?? "#1a1000"),
         emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
       });
       const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.0, 8, 16), bodyMat);
@@ -107,10 +107,10 @@ export function useCodeApplier({
     } else geometry = new THREE.BoxGeometry(1, 1, 1);
 
     const mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(objDesc.color || "#ffffff"),
+      color: new THREE.Color(objDesc.color ?? "#ffffff"),
       metalness: objDesc.metalness ?? 0.6,
       roughness: objDesc.roughness ?? 0.3,
-      emissive: new THREE.Color(objDesc.emissive || "#000000"),
+      emissive: new THREE.Color(objDesc.emissive ?? "#000000"),
       emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
     });
     const mesh = new THREE.Mesh(geometry, mat);

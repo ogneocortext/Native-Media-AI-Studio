@@ -278,11 +278,11 @@ export function MusicPromptGenerator({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || "Generation failed");
+        throw new Error(err.detail ?? "Generation failed");
       }
       const data = await res.json();
       setResult(data);
-      savePromptResult({
+      void savePromptResult({
         platform,
         model,
         title: data.title ?? "",
@@ -375,7 +375,7 @@ export function MusicPromptGenerator({
             <div className="mb-4 rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
               <div className="flex items-start gap-2 mb-1">
                 <span className="text-xs font-bold text-violet-400">
-                  Credit notes — {creditNotes[platform].label || platform}
+                  Credit notes — {creditNotes[platform].label ?? platform}
                 </span>
                 {creditNotes[platform].balance_visible !== undefined && (
                   <span className={`ml-auto text-[10px] ${creditNotes[platform].balance_visible ? "text-emerald-400" : "text-gray-500"}`}>

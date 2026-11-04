@@ -80,8 +80,8 @@ export function MusicGenPage() {
         }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.detail || r.statusText);
-      const name = j.output_name || outputName;
+      if (!r.ok) throw new Error(j.detail ?? r.statusText);
+      const name = j.output_name ?? outputName;
       if (name) setAudioUrl(`${api}/api/music-gen/audio/${name}`);
       // Refresh the audio library so the new track appears in all selectors.
       void refreshAudioLibrary();

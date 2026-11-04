@@ -307,10 +307,10 @@ export function Visualizer() {
   const proMixerStems = useMemo(() => {
     if (!currentStemsData || !currentFilename) return null;
     const stems: Record<StemName, string> = {
-      vocals: currentStemsData.vocals?.url || "",
-      drums: currentStemsData.drums?.url || "",
-      bass: currentStemsData.bass?.url || "",
-      other: currentStemsData.other?.url || "",
+      vocals: currentStemsData.vocals?.url ?? "",
+      drums: currentStemsData.drums?.url ?? "",
+      bass: currentStemsData.bass?.url ?? "",
+      other: currentStemsData.other?.url ?? "",
     };
     return Object.values(stems).some((v) => v) ? stems : null;
   }, [currentStemsData, currentFilename]);
@@ -376,7 +376,7 @@ export function Visualizer() {
     audio: {
       filename: currentFilename ?? undefined,
       bpm: currentAnalysisData?.tempo_bpm,
-      energy: currentAnalysisData?.energy_curve?.length
+      energy: currentAnalysisData?.energy_curve.length
         ? currentAnalysisData.energy_curve.reduce((a, b) => a + b, 0) /
           currentAnalysisData.energy_curve.length
         : undefined,
@@ -554,7 +554,7 @@ export function Visualizer() {
       setAnalyzing(true);
       try {
         const result = await ensureAnalysis(filename);
-        const analysis = toAnalysisData(result?.analysis);
+        const analysis = toAnalysisData(result.analysis);
         if (!analysis) {
           setError("Analysis returned an unusable payload — try again");
           return;
@@ -728,7 +728,7 @@ export function Visualizer() {
               Track
               <select
                 onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
-                value={currentFilename || ""}
+                value={currentFilename ?? ""}
               >
                 <option value="" disabled>
                   Select a track...
@@ -738,7 +738,7 @@ export function Visualizer() {
                   return (
                     <option key={ref} value={ref}>
                       {optionLabelForFile(f)}
-                      {trackMetadata[ref]?.bpm ? ` (${trackMetadata[ref]?.bpm} BPM)` : ""}
+                      {trackMetadata[ref].bpm ? ` (${trackMetadata[ref].bpm} BPM)` : ""}
                       {analysisData[ref] ? " ✓" : ""}
                     </option>
                   );
@@ -807,7 +807,7 @@ export function Visualizer() {
             id="viz-track-select"
             aria-label="Select a track"
             onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
-            value={currentFilename || ""}
+            value={currentFilename ?? ""}
             className="viz-track-select"
           >
             <option value="" disabled>
@@ -818,7 +818,7 @@ export function Visualizer() {
               const name = optionLabelForFile(f);
               const meta = trackMetadata[ref];
               const badge = analysisData[ref] ? " ✓" : "";
-              const metaStr = meta?.bpm ? ` (${meta.bpm} BPM)` : "";
+              const metaStr = meta.bpm ? ` (${meta.bpm} BPM)` : "";
               return (
                 <option key={ref} value={ref}>
                   {name}
@@ -1256,7 +1256,7 @@ export function Visualizer() {
               <button
                 onClick={() => {
                   setShowExportModal(false);
-                  if (!isRecording) startRecording();
+                  if (!isRecording) void startRecording();
                 }}
                 className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
               >
@@ -1458,7 +1458,7 @@ export function Visualizer() {
                   stems={currentStemsData}
                   stemsMuted={stemsMixerState?.muted}
                   stemsVolumes={stemsMixerState?.volumes}
-                  stemsProMeters={proMixerMeters || undefined}
+                  stemsProMeters={proMixerMeters ?? undefined}
                   sampleAudio={sampleAudio}
                   analysisData={currentAnalysisData}
                   analyserRef={analyserRef}
@@ -1675,7 +1675,7 @@ export function Visualizer() {
             data-main-player
             className="viz-audio"
             crossOrigin={
-              audioUrl?.startsWith("http://") || audioUrl?.startsWith("https://")
+              audioUrl.startsWith("http://") || audioUrl.startsWith("https://")
                 ? "anonymous"
                 : undefined
             }

@@ -92,7 +92,7 @@ export function KineticLyricOverlay({
 
   // Section transition animation — only when the *displayed* section actually changes.
   useEffect(() => {
-    const activeSection = displayLine?.section || currentSection;
+    const activeSection = displayLine?.section ?? currentSection;
     if (!displayLine || !containerRef.current) return;
     if (prevSectionRef.current !== activeSection && prevSectionRef.current) {
       const el = containerRef.current.querySelector(".kinetic-active-line");

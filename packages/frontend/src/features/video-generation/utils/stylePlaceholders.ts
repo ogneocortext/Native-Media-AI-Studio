@@ -13,7 +13,7 @@ export function generateStylePlaceholder(
   styleName: string
 ): string {
   const colors =
-    STYLE_GRADIENTS[styleId]?.match(/#[0-9a-f]{6}/gi) || ["#667eea", "#764ba2"];
+    STYLE_GRADIENTS[styleId].match(/#[0-9a-f]{6}/gi) ?? ["#667eea", "#764ba2"];
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="144" viewBox="0 0 256 144">
     <defs>
       <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">

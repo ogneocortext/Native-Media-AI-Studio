@@ -22,7 +22,7 @@ export function FirstRunGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isFirstRun === undefined || isLoading) return;
-    if (entries.length === 0) navigate("/onboarding", { replace: true });
+    if (entries.length === 0) void navigate("/onboarding", { replace: true });
   }, [isFirstRun, isLoading, entries.length, navigate]);
 
   // While the gate is deciding, render nothing rather than flashing the

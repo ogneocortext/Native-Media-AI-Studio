@@ -72,7 +72,7 @@ export const useJobStore = create<JobState>((set, get) => ({
 
   setJobs: (jobs: Job[]) => {
     // Find the currently running job
-    const runningJob = jobs.find((j) => j.status === "running") || null;
+    const runningJob = jobs.find((j) => j.status === JobStatus.RUNNING) ?? null;
     set({ jobs, currentJob: runningJob, error: null });
   },
 
@@ -91,7 +91,7 @@ export const useJobStore = create<JobState>((set, get) => ({
         job.id === jobId ? structuredClone({ ...job, ...updates }) : job,
       );
       const updatedJob = updatedJobs.find((j) => j.id === jobId);
-      const currentJob = updatedJob?.status === "running" ? updatedJob : state.currentJob;
+      const currentJob = updatedJob?.status === JobStatus.RUNNING ? updatedJob : state.currentJob;
       return { jobs: updatedJobs, currentJob, error: null };
     });
   },
@@ -321,7 +321,7 @@ function handleSSEMessage(
   // Route to toast based on priority
   const shouldToast = priority === "urgent" || priority === "high";
   if (shouldToast) {
-    const jobStatus = nestedJob?.status || data.status || eventName;
+    const jobStatus = (nestedJob?.status ?? data.status) ?? eventName;
     const toastType = priority === "urgent" ? "error" : "success";
     const toastMessage =
       typeof nestedJob?.message === "string"
@@ -329,7 +329,7 @@ function handleSSEMessage(
         : typeof data.message === "string"
           ? data.message
           : `Job ${jobId}: ${jobStatus}`;
-    import("../utils/toast").then(({ showToast }) => {
+    void import("../utils/toast").then(({ showToast }) => {
       showToast(toastMessage, {
         type: toastType,
         priority: priority,
@@ -347,9 +347,7 @@ function handleSSEMessage(
     case "job.cancelled":
       {
         // Prefer the full nested job object when present, otherwise the flat fields
-        const updates: Partial<Job> = nestedJob
-          ? (nestedJob)
-          : {
+        const updates: Partial<Job> = nestedJob ?? {
               status: data.status as JobStatus,
               progress: data.progress as number,
               message: data.message as string,

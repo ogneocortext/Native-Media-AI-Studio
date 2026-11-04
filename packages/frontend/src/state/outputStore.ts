@@ -66,7 +66,7 @@ interface OutputState {
   clearError: () => void;
 }
 
-async function getBackendUrl(): Promise<string> {
+function getBackendUrl(): string {
   // Use relative URLs so requests go through the Vite proxy.
   // This avoids CORS, localhost/127.0.0.1 mismatch, and stale ports.json issues.
   return "";
@@ -109,7 +109,7 @@ export async function fetchOutputsByTypeFromAPI(
   );
   if (!res.ok) throw new Error("Failed to fetch " + fileType + " outputs");
   const data = await res.json();
-  return data.outputs || [];
+  return data.outputs ?? [];
 }
 
 export const useOutputStore = create<OutputState>()((set, get) => ({
@@ -150,7 +150,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
           images: response.images_count,
           videos: response.videos_count,
           audio: response.audio_count,
-          models_3d: response.models_3d_count || 0,
+          models_3d: response.models_3d_count ?? 0,
         },
         error: null,
       });
@@ -219,7 +219,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Rename failed" }));
-      throw new Error(err.detail || "Rename failed");
+      throw new Error(err.detail ?? "Rename failed");
     }
     // Refresh after rename
     await get().fetchOutputs();

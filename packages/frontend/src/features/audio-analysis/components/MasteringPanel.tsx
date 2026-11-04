@@ -67,7 +67,7 @@ function masteredBasename(
 ): string | null {
   if (!masteredPath) return null;
   const name = masteredPath.split(/[/\\]/).pop();
-  return name ? name : null;
+  return name ?? null;
 }
 
 /** True-peak gain reduction is limited; the LUFS match is not, so show the
@@ -626,7 +626,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                       </span>
                     </>
                   )}
-                  {result.applied?.band_energy && (
+                  {result.applied.band_energy && (
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
                       <span className={`flex items-center gap-1 ${bandDeltaColor(
                         result.applied.band_energy.before.sub_db,

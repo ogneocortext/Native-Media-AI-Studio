@@ -128,7 +128,7 @@ const PENDING_CHARACTER_KEY = "pendingCharacter";
 
 function loadBibles(): Record<string, CharacterBible> {
   try {
-    return JSON.parse(localStorage.getItem("characterBibles") || "{}") as Record<
+    return JSON.parse(localStorage.getItem("characterBibles") ?? "{}") as Record<
       string,
       CharacterBible
     >;
@@ -319,7 +319,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       } catch {
         /* ignore */
       }
-      navigate("/three-js-studio");
+      void navigate("/three-js-studio");
     },
     [bibles, bibleForResult, navigate],
   );
@@ -367,7 +367,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       const res2 = await fetch(`/api/outputs`);
       if (res2.ok) {
         const d2 = await res2.json();
-        const outs = d2.outputs || [];
+        const outs = d2.outputs ?? [];
         setGeneratedList(
           outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10),
         );
@@ -380,8 +380,8 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   }, []);
 
   useEffect(() => {
-    loadStatus();
-    loadHistory();
+    void loadStatus();
+    void loadHistory();
   }, [loadStatus, loadHistory]);
 
   useEffect(() => {
@@ -452,7 +452,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError(
-          (data as { error?: string }).error || "Generation failed — check ComfyUI and VRAM",
+          (data as { error?: string }).error ?? "Generation failed — check ComfyUI and VRAM",
         );
       } else {
         const mp = (data as { model_path?: string }).model_path;
@@ -473,8 +473,8 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
           });
         }
       }
-      loadStatus();
-      loadHistory();
+      void loadStatus();
+      void loadHistory();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("timeout") || msg.includes("504")) {
@@ -518,7 +518,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError(
-          (data as { error?: string }).error ||
+          (data as { error?: string }).error ??
             "Reference generation failed — check ComfyUI and VRAM",
         );
       } else {
@@ -526,8 +526,8 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         const fn = mp ? String(mp).split(/[\\/]/).pop() : null;
         if (fn) saveBible(fn, bibleForResult());
       }
-      loadStatus();
-      loadHistory();
+      void loadStatus();
+      void loadHistory();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Reference generation failed");
     } finally {

@@ -218,15 +218,15 @@ export function AnimationStudio() {
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
-    (async () => {
+    void (async () => {
       const studioMod = await import("@theatre/studio");
       try {
-        await studioMod.default.initialize();
+        studioMod.default.initialize();
       } catch {
         // Already initialized - safe to ignore.
       }
       try {
-        studioMod.default.ui?.hide?.();
+        studioMod.default.ui.hide();
       } catch {
         // UI hide not available (repo convention: own controls only).
       }

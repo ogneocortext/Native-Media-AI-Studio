@@ -25,7 +25,7 @@ export function buildBeatDensity(
   // Count beats per bar
   for (const beat of beats) {
     const bar = Math.floor(beat / BEATS_PER_BAR);
-    const existing = barMap.get(bar) || { count: 0, section: "", energy: 0 };
+    const existing = barMap.get(bar) ?? { count: 0, section: "", energy: 0 };
     barMap.set(bar, { count: existing.count + 1, section: existing.section, energy: existing.energy });
   }
 
@@ -34,7 +34,7 @@ export function buildBeatDensity(
     const startBar = Math.floor(section.start / BEATS_PER_BAR);
     const endBar = Math.floor(section.end / BEATS_PER_BAR);
     for (let bar = startBar; bar <= endBar; bar++) {
-      const existing = barMap.get(bar) || { count: 0, section: "", energy: 0 };
+      const existing = barMap.get(bar) ?? { count: 0, section: "", energy: 0 };
       barMap.set(bar, { count: existing.count, section: section.type, energy: section.energy });
     }
   }

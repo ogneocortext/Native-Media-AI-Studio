@@ -65,12 +65,12 @@ export function useMeshFactory() {
             });
             const mixer = new THREE.AnimationMixer(model);
             if (gltf.animations && gltf.animations.length > 0) {
-              const requestedName = obj.animationName || gltf.animations[0].name;
+              const requestedName = obj.animationName ?? gltf.animations[0].name;
               const clipName = gltf.animations.find((a: any) => a.name === requestedName)
                 ? requestedName
                 : gltf.animations[0].name;
               const action = mixer.clipAction(
-                gltf.animations.find((a: any) => a.name === clipName) || gltf.animations[0],
+                gltf.animations.find((a: any) => a.name === clipName) ?? gltf.animations[0],
               );
               action.setLoop(
                 obj.animationLoop !== false ? THREE.LoopRepeat : THREE.LoopOnce,

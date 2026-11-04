@@ -109,8 +109,8 @@ export function ArtDirection() {
     getAnalysis(selectedTrack)
       .then((data) => {
         setAnalysis(data as unknown as Record<string, unknown>);
-        const bpm = data?.tempo_bpm ? `${Math.round(data.tempo_bpm)} BPM` : "";
-        const dur = data?.duration_seconds ? `${Math.round(data.duration_seconds)}s` : "";
+        const bpm = data.tempo_bpm ? `${Math.round(data.tempo_bpm)} BPM` : "";
+        const dur = data.duration_seconds ? `${Math.round(data.duration_seconds)}s` : "";
         setTrackBadge([dur, bpm].filter(Boolean).join(" • "));
       })
       .catch(() => {
@@ -134,10 +134,10 @@ export function ArtDirection() {
 
   // Compute derived values for the style tile
   const activePalette =
-    paletteVariants[modules.find((m) => m.id === "palette")?.variant || "nocturnal"];
-  const activeMotion = modules.find((m) => m.id === "motion")?.variant || "restrained";
+    paletteVariants[modules.find((m) => m.id === "palette")?.variant ?? "nocturnal"];
+  const activeMotion = modules.find((m) => m.id === "motion")?.variant ?? "restrained";
   const activeTypography =
-    typographyVariants[modules.find((m) => m.id === "typography")?.variant || "kinetic"];
+    typographyVariants[modules.find((m) => m.id === "typography")?.variant ?? "kinetic"];
   const motionIntensity =
     activeMotion === "restrained" ? 0.42 : activeMotion === "maximalist" ? 0.88 : 0.05;
 
@@ -447,7 +447,7 @@ export function ArtDirection() {
                           </p>
                         </div>
                         <div className="flex gap-2">
-                          {(paletteVariants[mod.variant]?.swatches || []).map((c, i) => (
+                          {(paletteVariants[mod.variant].swatches || []).map((c, i) => (
                             <div key={i} className="flex-1 text-center">
                               <div
                                 className="w-full h-10 rounded-lg border border-white/10 mb-1"
@@ -459,7 +459,7 @@ export function ArtDirection() {
                             </div>
                           ))}
                         </div>
-                        <p className="text-xs text-muted">{paletteVariants[mod.variant]?.desc}</p>
+                        <p className="text-xs text-muted">{paletteVariants[mod.variant].desc}</p>
                       </div>
                     )}
 
@@ -500,7 +500,7 @@ export function ArtDirection() {
                             STILL I RISE
                           </span>
                           <p className="text-xs text-muted mt-2">
-                            {typographyVariants[mod.variant]?.desc}
+                            {typographyVariants[mod.variant].desc}
                           </p>
                         </div>
                       </div>
@@ -803,9 +803,9 @@ function getVariantLabel(moduleId: ModuleId, variant: string): string {
     case "audio":
       return variant;
     case "palette":
-      return paletteVariants[variant]?.name || variant;
+      return paletteVariants[variant].name || variant;
     case "typography":
-      return typographyVariants[variant]?.name || variant;
+      return typographyVariants[variant].name || variant;
     case "motion":
       return variant.charAt(0).toUpperCase() + variant.slice(1);
     case "texture":

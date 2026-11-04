@@ -56,7 +56,7 @@ export function GpuMonitorHeader({
           )}
         </h1>
         <p className="text-xs text-muted mt-1">
-          Real-time telemetry for {snapshotName || "your GPU"} — temperature, VRAM, utilization, and
+          Real-time telemetry for {snapshotName ?? "your GPU"} — temperature, VRAM, utilization, and
           per-process attribution.
         </p>
         {lastUpdated && (

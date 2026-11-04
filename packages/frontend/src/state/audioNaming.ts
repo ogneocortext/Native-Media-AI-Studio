@@ -347,7 +347,7 @@ export function groupAudioEntries<T extends GroupableAudioFile>(
       name,
       source: entry,
       variants: [],
-      label: entry.optionLabel || name,
+      label: entry.optionLabel ?? name,
     };
     groups.set(key, group);
     if (!byName.has(name)) byName.set(name, group);

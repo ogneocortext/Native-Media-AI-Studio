@@ -40,17 +40,17 @@ export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps)
   useFrame(() => {
     if (!groupRef.current) return;
     const elapsed = audioElapsedRef?.current ?? 0;
-    const live = audioData?.current;
+    const live = audioData.current;
     const stemEnergy = getStemEnergy(stems, elapsed);
 
     // Prefer the real spectral bands; fall back to analysed stem curves when
     // stems haven't been separated yet. Both are real audio — never a clock.
     const d = drivers.current;
-    d.bass = live?.bass ?? stemEnergy.bass;
-    d.mid = live?.mid ?? stemEnergy.vocals;
-    d.treble = live?.treble ?? stemEnergy.drums;
-    d.beat = live?.beat ?? false;
-    d.beatPhase = live?.beatPhase ?? 0;
+    d.bass = live.bass ?? stemEnergy.bass;
+    d.mid = live.mid ?? stemEnergy.vocals;
+    d.treble = live.treble ?? stemEnergy.drums;
+    d.beat = live.beat ?? false;
+    d.beatPhase = live.beatPhase ?? 0;
 
     // Beat-quantized radial displacement (2026): the field
     // swells ON the grid, so the blob thumps with the kick

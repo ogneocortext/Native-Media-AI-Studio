@@ -1134,6 +1134,7 @@ function applyCameraEasing(easing: CameraKeyframe["easing"], t: number): number 
     case "easeInOut":
       return clamped < 0.5 ? 2 * clamped * clamped : 1 - Math.pow(-2 * clamped + 2, 2) / 2;
     case "linear":
+    case undefined: { throw new Error('Not implemented yet: undefined case') }
     default:
       return clamped;
   }

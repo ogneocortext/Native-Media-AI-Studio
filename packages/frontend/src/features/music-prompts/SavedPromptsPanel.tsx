@@ -51,7 +51,7 @@ export function SavedPromptsPanel() {
   // Hydrate from backend DB (source of truth) on mount, falling back to localStorage.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const remote = await getPrompts({ prompt_type: "music_prompt", limit: 500 });
         if (cancelled) return;

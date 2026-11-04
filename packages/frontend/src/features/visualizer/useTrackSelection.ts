@@ -26,6 +26,7 @@ import type { ReactivityGenrePreset } from "./reactivityGenrePresets";
 import type { VisualPreset } from "./visualPresets";
 import type { TrackVisualProfile } from "./trackVisualProfiles";
 import type { VisualizerState, VisualizerStateSetters } from "./useVisualizerState";
+import type { LrcSyncData } from "./useLrcSync";
 import { consumePendingTrack } from "../../utils/pendingTrack";
 import type { ToastOptions, ToastType } from "../../utils/toast";
 
@@ -103,7 +104,7 @@ export interface UseTrackSelectionOptions {
     lastBeatIdxRef: React.MutableRefObject<number>;
     lastBeatAtRef: React.MutableRefObject<number>;
     last3DUiUpdateRef: React.MutableRefObject<number>;
-    lrcSyncLiveRef: React.MutableRefObject<import("./useLrcSync").LrcSyncData | null>;
+    lrcSyncLiveRef: React.MutableRefObject<LrcSyncData | null>;
     audioElapsedRef: React.MutableRefObject<number>;
     userPickedGenrePresetRef: React.MutableRefObject<boolean>;
     userPickedVizModeRef: React.MutableRefObject<boolean>;
@@ -329,7 +330,7 @@ export function useTrackSelection({
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
-      let realBpm = trackMetadata[fileRef]?.bpm;
+      let realBpm = trackMetadata[fileRef].bpm;
       if (!analysis) {
         // Surface progress: a fresh analysis can take a while, during which the
         // visualizer runs on the fallback (threshold) beat detector — visibly
@@ -365,7 +366,7 @@ export function useTrackSelection({
       setLyricsVisible(trackLyrics.length > 0);
 
       // Auto-select kinetic preset based on track genre
-      const energy = analysis?.energy_curve?.length
+      const energy = analysis.energy_curve.length
         ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
         : 0.5;
       let kineticPresetId = selectPresetForTrack(cleanName, energy);
@@ -374,7 +375,7 @@ export function useTrackSelection({
       // suggestion, prefer the data-driven pick.
       if (
         kineticPresetId === "cinematic" &&
-        analysis?.suggested_kinetic_preset &&
+        analysis.suggested_kinetic_preset &&
         (analysis.suggested_kinetic_preset_confidence ?? 0) > 0.6
       ) {
         kineticPresetId = analysis.suggested_kinetic_preset;
@@ -413,7 +414,7 @@ export function useTrackSelection({
       if (
         !trackProfile &&
         visualPresetId === "balanced" &&
-        analysis?.suggested_visualization &&
+        analysis.suggested_visualization &&
         (analysis.suggested_visualization_confidence ?? 0) > 0.55
       ) {
         const styleMapped = visualizationStyleToPresetId(analysis.suggested_visualization);
@@ -509,7 +510,7 @@ export function useTrackSelection({
 
   const deriveTrackMeta = useCallback((analysis: AudioAnalysisData | null) => {
     if (!analysis) return null;
-    const energyAvg = analysis.energy_curve?.length
+    const energyAvg = analysis.energy_curve.length
       ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
       : undefined;
     return {

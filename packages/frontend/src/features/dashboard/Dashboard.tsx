@@ -51,12 +51,12 @@ export function Dashboard() {
   const dragCounter = useRef(0);
 
   useEffect(() => {
-    fetchRecent(4);
+    void fetchRecent(4);
   }, [fetchRecent]);
 
   const hasOutputs = recentOutputs.length > 0;
   const hasActiveJobs = jobs.some(
-    (j) => j.status === "pending" || j.status === "queued" || j.status === "running",
+    (j) => j.status === JobStatus.PENDING || j.status === JobStatus.QUEUED || j.status === JobStatus.RUNNING,
   );
 
   const handleDelete = async (e: React.MouseEvent, output: (typeof recentOutputs)[0]) => {
@@ -70,7 +70,7 @@ export function Dashboard() {
       console.error("Failed to delete:", err);
     } finally {
       setDeleting(null);
-      fetchRecent(4);
+      void fetchRecent(4);
     }
   };
 
@@ -111,7 +111,7 @@ export function Dashboard() {
     }
     // Handoff via shared pending-audio slot — wizard consumes on mount (no second drop)
     setPendingAudioFile(f);
-    navigate("/music-video-wizard");
+    void navigate("/music-video-wizard");
   };
 
   const openPicker = () => fileInputRef.current?.click();
@@ -178,7 +178,7 @@ export function Dashboard() {
           void handleFiles(e.dataTransfer.files);
         }}
         onPaste={(e) => {
-          const pasted = Array.from(e.clipboardData?.files ?? []);
+          const pasted = Array.from(e.clipboardData.files ?? []);
           if (pasted.length > 0) {
             e.preventDefault();
             void handleFiles(pasted);

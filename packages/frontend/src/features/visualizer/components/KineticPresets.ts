@@ -326,7 +326,7 @@ const wavyPreset: KineticPreset = {
   wordClass: "kinetic-word-wavy",
   enterAnimation: (el) => {
     // Split text into characters for wave effect
-    const chars = el.textContent?.split("") || [];
+    const chars = el.textContent.split("") || [];
     el.innerHTML = chars.map((c) => `<span class="char">${c}</span>`).join("");
 
     const charElements = el.querySelectorAll(".char");
@@ -369,7 +369,7 @@ const rainingPreset: KineticPreset = {
   containerClass: "kinetic-raining",
   wordClass: "kinetic-word-raining",
   enterAnimation: (el) => {
-    const chars = el.textContent?.split("") || [];
+    const chars = el.textContent.split("") || [];
     el.innerHTML = chars.map((c) => `<span class="char">${c}</span>`).join("");
 
     const charElements = el.querySelectorAll(".char");
@@ -452,7 +452,7 @@ const explodePreset: KineticPreset = {
   containerClass: "kinetic-explode",
   wordClass: "kinetic-word-explode",
   enterAnimation: (el) => {
-    const chars = el.textContent?.split("") || [];
+    const chars = el.textContent.split("") || [];
     el.innerHTML = chars
       .map((c) => `<span class="char" style="display:inline-block">${c}</span>`)
       .join("");
@@ -634,7 +634,7 @@ export function estimateWordTiming(
   // Weight by visible length + syllable heuristic (longer words & those with more vowels take longer)
   const weights = words.map((w) => {
     const clean = w.replace(/[^a-zA-Z0-9']/g, "");
-    const syllables = Math.max(1, (clean.match(/[aeiouy]{1,2}/gi) || []).length);
+    const syllables = Math.max(1, (clean.match(/[aeiouy]{1,2}/gi) ?? []).length);
     return Math.max(1.5, clean.length * 0.6 + syllables * 0.9);
   });
   const totalWeight = weights.reduce((a, b) => a + b, 0);

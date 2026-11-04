@@ -201,7 +201,7 @@ export async function upscaleImage(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Upscale failed");
+    throw new Error(err.detail ?? "Upscale failed");
   }
   return res.json();
 }

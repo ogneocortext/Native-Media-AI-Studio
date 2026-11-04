@@ -30,7 +30,7 @@ export function useDisposeOnUnmount(...resources: Disposable[]): void {
     return () => {
       for (const resource of resources) {
         try {
-          resource?.dispose?.();
+          resource.dispose?.();
         } catch {
           /* already disposed / renderer gone */
         }

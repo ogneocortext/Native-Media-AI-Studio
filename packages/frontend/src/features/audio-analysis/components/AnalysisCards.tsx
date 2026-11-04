@@ -24,7 +24,7 @@ export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
           <span className="text-xs text-muted">Tempo</span>
         </div>
         <p className="text-xl font-bold text-foreground">
-          {analysis.tempo_bpm?.toFixed(0) || "--"} BPM
+          {analysis.tempo_bpm.toFixed(0) || "--"} BPM
         </p>
         <p className="text-xs text-muted">
           {analysis.confidence != null
@@ -38,7 +38,7 @@ export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
           <span className="text-xs text-muted">Duration</span>
         </div>
         <p className="text-xl font-bold text-foreground">
-          {analysis.duration_seconds?.toFixed(1) || "--"}s
+          {analysis.duration_seconds.toFixed(1) || "--"}s
         </p>
         <p className="text-xs text-muted">
           {analysis.beat_count != null
@@ -52,7 +52,7 @@ export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
           <span className="text-xs text-muted">Visual Style</span>
         </div>
         <p className="text-sm font-bold text-foreground truncate">
-          {analysis.suggested_visualization || "--"}
+          {analysis.suggested_visualization ?? "--"}
         </p>
         <p className="text-xs text-muted">
           {analysis.suggested_visualization_confidence != null

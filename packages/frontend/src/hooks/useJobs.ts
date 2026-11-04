@@ -45,7 +45,7 @@ export function useHealth() {
     let cancelled = false;
     setInitialLoading(true);
 
-    Promise.all([
+    void Promise.all([
       useHealthStore
         .getState()
         .fetchHealth()

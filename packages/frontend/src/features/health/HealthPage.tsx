@@ -146,7 +146,7 @@ export function HealthPage() {
           addLog("Checking VRAM availability...", "info");
           {
             const vramData = await fetchVRAM();
-            const _vram = (vramData as unknown as { vram?: { percent: number } })?.vram;
+            const _vram = (vramData as unknown as { vram?: { percent: number } }).vram;
             if (_vram && _vram.percent > 80 && pendingHighVram !== _vram.percent) {
               // Non-blocking two-step confirm: arm the inline banner, let the user decide.
               setPendingHighVram(_vram.percent);
@@ -221,8 +221,8 @@ export function HealthPage() {
           break;
       }
       // Refresh status after action
-      fetchComfyUI();
-      fetchVRAM();
+      void fetchComfyUI();
+      void fetchVRAM();
     } catch (err) {
       addLog(`Error: ${err instanceof Error ? err.message : String(err)}`, "error");
       console.error(`ComfyUI ${action} failed:`, err);
@@ -265,16 +265,16 @@ export function HealthPage() {
     );
   }
 
-  const cpuUsage = health?.cpu?.usage_percent || 0;
-  const memUsage = health?.memory?.percent || 0;
-  const diskUsage = health?.disk?.percent || 0;
+  const cpuUsage = health?.cpu.usage_percent ?? 0;
+  const memUsage = health?.memory.percent ?? 0;
+  const diskUsage = health?.disk.percent ?? 0;
 
   // Banner reflects BOTH host resources and adapter services — previously it only
   // read health.status (host), so it said "Healthy" while ComfyUI was offline.
-  const offlineAdapters = Object.entries(serviceStatus?.adapters || {})
+  const offlineAdapters = Object.entries(serviceStatus?.adapters ?? {})
     .filter(([, s]) => s !== "connected" && s !== "online" && s !== "healthy")
     .map(([name]) => name.replace(/_/g, " "));
-  const hostStatus = health?.status || "unknown";
+  const hostStatus = health?.status ?? "unknown";
   const overallHealth = offlineAdapters.length > 0 ? "degraded" : hostStatus;
   const overallDetail =
     offlineAdapters.length > 0
@@ -289,8 +289,8 @@ export function HealthPage() {
 
   // Backend sends platform="Windows" + platform_version="Windows 11 ..." — dedupe the prefix.
   const platformLabel = (() => {
-    const p = (health?.platform || "").trim();
-    const v = (health?.platform_version || "").trim();
+    const p = (health?.platform ?? "").trim();
+    const v = (health?.platform_version ?? "").trim();
     if (!p) return v || "Unknown platform";
     if (!v) return p;
     return v.toLowerCase().startsWith(p.toLowerCase()) ? v : `${p} ${v}`;
@@ -406,7 +406,7 @@ export function HealthPage() {
               icon={Cpu}
               iconColor="blue"
               label="CPU"
-              cores={health?.cpu?.count}
+              cores={health?.cpu.count}
               usage={cpuUsage}
             />
             <div className="relative">
@@ -416,7 +416,7 @@ export function HealthPage() {
                 label="Memory"
                 cores={undefined}
                 usage={memUsage}
-                subtext={`${health?.memory?.used_gb?.toFixed(1)}GB / ${health?.memory?.total_gb?.toFixed(1)}GB`}
+                subtext={`${health?.memory.used_gb.toFixed(1)}GB / ${health?.memory.total_gb.toFixed(1)}GB`}
               />
               {memUsage >= 80 && (
                 <button
@@ -446,7 +446,7 @@ export function HealthPage() {
               label="Disk"
               cores={undefined}
               usage={diskUsage}
-              subtext={`${health?.disk?.free_gb?.toFixed(1)}GB free`}
+              subtext={`${health?.disk.free_gb?.toFixed(1)}GB free`}
             />
             <GPUCard />
             <VRAMManagerCard />
@@ -483,7 +483,7 @@ export function HealthPage() {
         {serviceStatus?.adapters && Object.keys(serviceStatus.adapters).length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(serviceStatus.adapters).map(([name, status]) => {
-              const adapter = serviceStatus?.adapter_details?.[name];
+              const adapter = serviceStatus.adapter_details?.[name];
               const error = adapter?.error;
               const url = adapter?.url;
               const isHealthy =

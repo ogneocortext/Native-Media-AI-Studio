@@ -32,7 +32,7 @@ export function useJobProgress() {
   }, []);
 
   const startProgressPolling = useCallback(
-    async (jobId: string) => {
+    (jobId: string) => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }

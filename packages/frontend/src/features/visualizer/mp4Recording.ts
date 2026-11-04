@@ -69,7 +69,7 @@ export async function canRecordMp4(width?: number, height?: number): Promise<boo
       bitrate: 8_000_000,
       framerate: 60,
     });
-    return support?.supported === true;
+    return support.supported === true;
   } catch {
     return false;
   }
@@ -152,7 +152,7 @@ export function createMp4Recorder(opts: Mp4RecorderOptions = {}): Mp4Recorder {
         await frameQueue;
         activeSource?.close();
         if (activeOutput) await activeOutput.finalize();
-        return activeTarget?.buffer || null;
+        return activeTarget?.buffer ?? null;
       } catch (e) {
         console.error("[Mp4Recorder] finalize failed:", e);
         return null;

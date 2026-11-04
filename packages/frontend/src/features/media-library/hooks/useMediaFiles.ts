@@ -48,7 +48,7 @@ export function useMediaFiles() {
       );
       if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
       const data = await res.json();
-      const outputFiles: MediaFile[] = data.outputs || [];
+      const outputFiles: MediaFile[] = data.outputs ?? [];
       const mediaFiles: MediaFile[] = outputFiles.map((f) => ({
         filename: f.filename || f.relative_path || "unknown",
         path: f.path || "",
@@ -56,19 +56,19 @@ export function useMediaFiles() {
         file_type: f.file_type || "unknown",
         size_bytes: f.size_bytes ?? f.size ?? 0,
         created_at: f.created_at || new Date().toISOString(),
-        modified_at: f.modified_at || f.modified_time || null,
+        modified_at: (f.modified_at ?? f.modified_time) ?? null,
         cover_image: f.cover_image ?? null,
         has_cover: f.has_cover ?? false,
         metadata: f.metadata ?? null,
         job_id: f.job_id ?? null,
         size: f.size_bytes ?? f.size ?? 0,
-        modified_time: f.modified_at || f.modified_time || undefined,
+        modified_time: (f.modified_at ?? f.modified_time) ?? undefined,
         duration: f.duration_seconds ?? f.duration,
         loudness: f.loudness_lufs ?? f.loudness,
         waveform: f.waveform,
         analysis: f.analysis,
         thumbnail: f.thumbnail,
-        recording: f.recording || false,
+        recording: f.recording ?? false,
       }));
       setFiles(mediaFiles);
     } catch (e) {
@@ -80,7 +80,7 @@ export function useMediaFiles() {
   };
 
   useEffect(() => {
-    loadFiles();
+    void loadFiles();
   }, []);
 
   return {

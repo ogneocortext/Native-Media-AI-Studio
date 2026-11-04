@@ -329,7 +329,7 @@ export async function savePromptVersion(entry: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to save prompt version");
+    throw new Error(err.detail ?? "Failed to save prompt version");
   }
   return res.json();
 }

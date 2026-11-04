@@ -54,8 +54,8 @@ export function PerformanceHistoryCard() {
             label: timeLabel,
             gpu: gpuData?.gpu_utilization ?? vramData?.vram?.gpu_utilization ?? 0,
             vram: gpuData?.memory_percent ?? vramData?.vram?.percent ?? 0,
-            cpu: systemHealth?.cpu?.usage_percent ?? 0,
-            memory: systemHealth?.memory?.percent ?? 0,
+            cpu: systemHealth?.cpu.usage_percent ?? 0,
+            memory: systemHealth?.memory.percent ?? 0,
             temp: gpuData?.temperature_c ?? vramData?.vram?.temperature ?? 0,
           },
         ];
@@ -66,7 +66,7 @@ export function PerformanceHistoryCard() {
   }, [fetchGPUData, fetchVRAMStatus]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
     if (!autoRefresh) return;
     const interval = setInterval(loadData, 10000); // Increased from 5s to 10s
     return () => clearInterval(interval);
@@ -123,7 +123,7 @@ export function PerformanceHistoryCard() {
       domain: "temp" as const,
     },
   ];
-  const activeMetric = metrics.find((m) => m.key === activeChart) || metrics[0];
+  const activeMetric = metrics.find((m) => m.key === activeChart) ?? metrics[0];
 
   // Temperature needs its own scale — plotting °C on a 0–100% axis flattens the line.
   const tempDomain: [number, number] = (() => {
@@ -256,7 +256,7 @@ export function PerformanceHistoryCard() {
                 >
                   <span className="text-[10px] text-gray-400 block">{m.label}</span>
                   <span className="text-sm font-bold tabular-nums" style={{ color: m.statColor }}>
-                    {last?.toFixed(0) ?? "—"}
+                    {last.toFixed(0) ?? "—"}
                     {m.unit}
                   </span>
                 </button>

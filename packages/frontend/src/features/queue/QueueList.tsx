@@ -135,15 +135,15 @@ export function JobRow({
   onDelete,
 }: JobRowProps) {
   const loading = actionLoading === job.id;
-  const isPending = job.status === "pending" || job.status === "queued";
-  const isFailed = job.status === "failed";
+  const isPending = job.status === JobStatus.PENDING || job.status === JobStatus.QUEUED;
+  const isFailed = job.status === JobStatus.FAILED;
   // Manual retries always run: the backend resets an exhausted budget, because
   // the user pressing Retry declares the fault fixed. Automatic retries stay
   // bounded by max_retries.
   const showRetry = isFailed;
   const showCancel = isPending;
   const showDelete = !isPending;
-  const isCompleted = job.status === "completed";
+  const isCompleted = job.status === JobStatus.COMPLETED;
   const tsLabel = isCompleted ? "Completed" : "Created";
   const tsValue = isCompleted
     ? job.completed_at
@@ -155,7 +155,7 @@ export function JobRow({
   // Progress visibility: a running job shows its bar, ETA, and per-step
   // breakdown; a completed job shows a 100% bar; a failed job shows how many
   // attempts it has burned.
-  const isRunning = job.status === "running";
+  const isRunning = job.status === JobStatus.RUNNING;
   const eta = isRunning
     ? calculateEta(job.started_at, job.progress, job.status)
     : null;
@@ -216,7 +216,7 @@ export function JobRow({
                 <ProgressBar progress={completedProgress} showPercentage={false} />
               )}
               <div className="flex items-center gap-3 mt-1 text-xs text-muted">
-                <span>Elapsed {formatElapsed(eta?.elapsedSeconds || 0)}</span>
+                <span>Elapsed {formatElapsed(eta?.elapsedSeconds ?? 0)}</span>
                 {eta?.canEstimate && eta.remainingFormatted ? (
                   <span>~{eta.remainingFormatted} remaining</span>
                 ) : (
@@ -242,11 +242,11 @@ export function JobRow({
               burned; retrying jobs show the attempt in flight. Backoff
               countdown needs backend state the model doesn't carry, so it
               is shown only when the server reports a message. */}
-          {(isFailed || job.status === "retrying") && (
+          {(isFailed || job.status === JobStatus.RETRYING) && (
             <p className="text-xs text-muted mt-1">
-              {job.status === "retrying" ? "Retrying" : "Retries"}: attempt{" "}
+              {job.status === JobStatus.RETRYING ? "Retrying" : "Retries"}: attempt{" "}
               {job.retry_count + 1} of {job.max_retries + 1}
-              {job.status === "retrying" && job.message
+              {job.status === JobStatus.RETRYING && job.message
                 ? ` · ${job.message}`
                 : ""}
             </p>
@@ -259,16 +259,16 @@ export function JobRow({
           )}
           {isCompleted &&
             !!(
-              job.output_path ||
-              ((job.result)?.output_path as string) ||
+              (job.output_path ??
+              ((job.result)?.output_path as string)) ||
               ""
             ) &&
             (() => {
-              const raw = (job.output_path ||
-                ((job.result)?.output_path as string) ||
+              const raw = ((job.output_path ??
+                ((job.result)?.output_path as string)) ||
                 "");
               // Extract filename from absolute Windows path or relative
-              const filename = raw.split(/[\\/]/).pop() || "";
+              const filename = raw.split(/[\\/]/).pop() ?? "";
               if (!filename) return null;
               // Try to determine subfolder from path
               const isPreview = raw.includes("previews") || filename.includes("preview");

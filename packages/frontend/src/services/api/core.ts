@@ -16,16 +16,16 @@ export async function withDirectBackendFallback<T>(
     return await proxyCall();
   } catch {
     const cached = getCachedConfig();
-    const backendUrl = cached?.backend_url || getBackendUrl();
+    const backendUrl = cached?.backend_url ?? getBackendUrl();
     const directUrl = `${backendUrl.replace(/\/$/, "")}${directPath}`;
     const init: RequestInit = {
-      method: options?.method || "GET",
+      method: options?.method ?? "GET",
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
     };
     if (options?.method === "POST") {
-      init.headers = { "Content-Type": "application/json", ...(init.headers || {}) };
+      init.headers = { "Content-Type": "application/json", ...(init.headers ?? {}) };
     }
-    return fetchWithTimeout(directUrl, { timeout: options?.timeout || 30000, ...init }).then(
+    return fetchWithTimeout(directUrl, { timeout: options?.timeout ?? 30000, ...init }).then(
       async (resp) => {
         if (!resp.ok) throw new Error(`Direct backend request failed: ${resp.status}`);
         return resp.json();

@@ -435,6 +435,6 @@ export function getVisualizationForTrack(
       (t) =>
         t.trackName.toLowerCase().includes(trackName.toLowerCase()) ||
         trackName.toLowerCase().includes(t.trackName.toLowerCase()),
-    ) || null
+    ) ?? null
   );
 }

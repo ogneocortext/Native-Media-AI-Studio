@@ -183,7 +183,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           : undefined,
       });
       if (!res.success || !res.job_id) {
-        throw new Error(res.error || res.message || "The render did not start");
+        throw new Error((res.error ?? res.message) ?? "The render did not start");
       }
       const outputPath = await pollJob(res.job_id);
       setState((s) => renderSucceeded(s, outputPath));
@@ -204,7 +204,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
     if (onExit) {
       onExit();
     } else {
-      navigate("/");
+      void navigate("/");
     }
   }, [navigate, onExit, onComplete]);
 
@@ -237,7 +237,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            const f = e.dataTransfer.files?.[0];
+            const f = e.dataTransfer.files[0];
             if (f) handleFile(f);
           }}
           data-testid="onboarding-drop"
@@ -527,11 +527,11 @@ async function pollJob(jobId: string, maxWaitSeconds = 180): Promise<string> {
     const job = await res.json();
     if (job.status === "completed") {
       const path: string =
-        job.output_path || job.result?.output_path || `output/video/${jobId}.mp4`;
+        (job.output_path ?? job.result?.output_path) ?? `output/video/${jobId}.mp4`;
       return toOutputUrl(path);
     }
     if (job.status === "failed" || job.status === "dead") {
-      throw new Error(job.error || "The render failed");
+      throw new Error(job.error ?? "The render failed");
     }
     await new Promise((r) => setTimeout(r, 1200));
   }

@@ -19,8 +19,7 @@ function parseCSVLine(line: string): string[] {
   let current = "";
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (const char of line) {
     if (char === '"') {
       inQuotes = !inQuotes;
     } else if (char === "," && !inQuotes) {
@@ -147,12 +146,12 @@ export function getPromptForTrack(trackName: string): string {
     const baseTrack = getUniqueTracks().find((t) =>
       track.trackName.toLowerCase().includes(t.trackName.toLowerCase().split(" ")[0]),
     );
-    return baseTrack?.prompt || track.prompt;
+    return baseTrack?.prompt ?? track.prompt;
   }
   return track.prompt;
 }
 
 export function getLyricsForTrack(trackName: string): string {
   const track = getTrackByName(trackName);
-  return track?.lyrics || "";
+  return track?.lyrics ?? "";
 }

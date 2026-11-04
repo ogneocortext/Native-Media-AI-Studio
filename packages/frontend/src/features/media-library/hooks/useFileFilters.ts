@@ -17,7 +17,7 @@ export function useFileFilters(
         const key = f.relative_path || f.filename;
         const nameMatch =
           f.filename.toLowerCase().includes(query) ||
-          (f.relative_path?.toLowerCase().includes(query));
+          (f.relative_path.toLowerCase().includes(query));
         const tags = itemTags.get(key) ?? [];
         const tagMatch = tags.some((t) => t.name.toLowerCase().includes(query));
         return nameMatch || tagMatch;

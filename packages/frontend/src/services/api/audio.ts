@@ -59,7 +59,7 @@ export async function uploadAudioFile(file: File): Promise<AudioUploadResponse> 
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-    throw new Error(err.detail || "Failed to upload audio file");
+    throw new Error(err.detail ?? "Failed to upload audio file");
   }
   return res.json();
 }
@@ -103,7 +103,7 @@ export async function separateAudioStems(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Separation failed" }));
-    throw new Error(err.detail || "Failed to separate audio stems");
+    throw new Error(err.detail ?? "Failed to separate audio stems");
   }
   return res.json();
 }
@@ -220,7 +220,7 @@ export async function getAnalysis(filename: string): Promise<AudioAnalysisResult
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No cached analysis found");
+    throw new Error(err.detail ?? "No cached analysis found");
   }
   return res.json();
 }
@@ -243,7 +243,7 @@ export async function ensureAnalysis(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to ensure analysis");
+    throw new Error(err.detail ?? "Failed to ensure analysis");
   }
   return res.json();
 }
@@ -278,7 +278,7 @@ export async function analyzeAudio(
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Analysis failed");
+    throw new Error(err.detail ?? "Analysis failed");
   }
   return res.json();
 }
@@ -294,7 +294,7 @@ export async function analyzeAudioCuda(file: File): Promise<AudioAnalysisResult>
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "CUDA analysis failed");
+    throw new Error(err.detail ?? "CUDA analysis failed");
   }
   return res.json();
 }
@@ -304,7 +304,7 @@ export async function getAnalysisResult(jobId: string): Promise<AudioAnalysisRes
   const res = await fetchWithTimeout(`${base}/api/audio/analysis/${jobId}`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to get analysis result");
+    throw new Error(err.detail ?? "Failed to get analysis result");
   }
   return res.json();
 }
@@ -334,7 +334,7 @@ export async function getTimingMetadata(filename: string): Promise<TimingMetadat
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No timing metadata found");
+    throw new Error(err.detail ?? "No timing metadata found");
   }
   return res.json();
 }
@@ -366,7 +366,7 @@ export async function getStemsAnalysis(filename: string): Promise<StemsAnalysisR
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to load stems analysis" }));
-    throw new Error(err.detail || "Failed to load stems analysis");
+    throw new Error(err.detail ?? "Failed to load stems analysis");
   }
   return res.json();
 }
@@ -380,7 +380,7 @@ export async function getStemsStatus(): Promise<StemsStatusResponse> {
   const res = await fetchWithTimeout(`${base}/api/audio/stems-status`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to load stems status" }));
-    throw new Error(err.detail || "Failed to load stems status");
+    throw new Error(err.detail ?? "Failed to load stems status");
   }
   return res.json();
 }
@@ -398,10 +398,10 @@ export async function listAudioFiles(): Promise<
   const res = await fetchWithTimeout(`${base}/api/audio/files`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to list audio files");
+    throw new Error(err.detail ?? "Failed to list audio files");
   }
   const data = await res.json();
-  return Array.isArray(data) ? data : data?.files || [];
+  return Array.isArray(data) ? data : data?.files ?? [];
 }
 
 export interface AudioBackendsResponse {
@@ -414,7 +414,7 @@ export async function getAvailableAudioBackends(): Promise<AudioBackendsResponse
   const res = await fetchWithTimeout(`${base}/api/audio/backends`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to get audio backends");
+    throw new Error(err.detail ?? "Failed to get audio backends");
   }
   return res.json();
 }
@@ -440,7 +440,7 @@ export async function getAnalysisSummary(filename: string): Promise<{
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No analysis summary found");
+    throw new Error(err.detail ?? "No analysis summary found");
   }
   return res.json();
 }
@@ -462,7 +462,7 @@ export async function analyzeAllPending(backend = "sonara"): Promise<{
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "analyze-all failed");
+    throw new Error(err.detail ?? "analyze-all failed");
   }
   return res.json();
 }
@@ -500,7 +500,7 @@ export async function transcribeAudio(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Transcription failed");
+    throw new Error(err.detail ?? "Transcription failed");
   }
   return res.json();
 }
@@ -513,7 +513,7 @@ export async function getTranscription(filename: string): Promise<TranscriptionR
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No transcription found");
+    throw new Error(err.detail ?? "No transcription found");
   }
   return res.json();
 }
@@ -529,7 +529,7 @@ export async function getLyricsForTrack(trackId: string): Promise<{
   const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No lyrics found");
+    throw new Error(err.detail ?? "No lyrics found");
   }
   return res.json();
 }
@@ -547,7 +547,7 @@ export async function saveLyricsForTrack(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to save lyrics");
+    throw new Error(err.detail ?? "Failed to save lyrics");
   }
   return res.json();
 }
@@ -560,7 +560,7 @@ export async function deleteLyricsForTrack(trackId: string): Promise<{ status: s
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to delete lyrics");
+    throw new Error(err.detail ?? "Failed to delete lyrics");
   }
   return res.json();
 }
@@ -578,7 +578,7 @@ export async function importLRC(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to import LRC");
+    throw new Error(err.detail ?? "Failed to import LRC");
   }
   return res.json();
 }
@@ -588,7 +588,7 @@ export async function exportLRC(trackId: string): Promise<{ lrc: string; format:
   const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}/lrc`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to export LRC");
+    throw new Error(err.detail ?? "Failed to export LRC");
   }
   return res.json();
 }
@@ -607,7 +607,7 @@ export async function getTracksWithLyrics(): Promise<
   const res = await fetchWithTimeout(`${base}/api/lyrics/tracks-with-lyrics`, { timeout: 30000 });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to get tracks");
+    throw new Error(err.detail ?? "Failed to get tracks");
   }
   return res.json();
 }
@@ -626,7 +626,7 @@ export async function getLyricsByFilename(filename: string): Promise<{
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "No lyrics found");
+    throw new Error(err.detail ?? "No lyrics found");
   }
   return res.json();
 }
@@ -644,7 +644,7 @@ export async function renameAudioFile(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to rename file");
+    throw new Error(err.detail ?? "Failed to rename file");
   }
   return res.json();
 }
@@ -684,7 +684,7 @@ export async function trimAudioFile(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to trim audio");
+    throw new Error(err.detail ?? "Failed to trim audio");
   }
   return res.json();
 }
@@ -829,7 +829,7 @@ export async function enhanceStems(params: EnhanceStemsParams): Promise<EnhanceS
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to enhance stems");
+    throw new Error(err.detail ?? "Failed to enhance stems");
   }
   return res.json();
 }
@@ -920,7 +920,7 @@ export async function measureMasterLoudness(
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to measure loudness");
+    throw new Error(err.detail ?? "Failed to measure loudness");
   }
   return res.json();
 }
@@ -937,7 +937,7 @@ export async function masterAudio(body: MasterRequest): Promise<MasterResponse> 
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to master audio");
+    throw new Error(err.detail ?? "Failed to master audio");
   }
   return res.json();
 }
@@ -950,7 +950,7 @@ export async function generateKineticVideo(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      prompt: request.prompt || `Kinetic typography lyric video with ${request.preset_id} preset`,
+      prompt: request.prompt ?? `Kinetic typography lyric video with ${request.preset_id} preset`,
       negative_prompt: "blurry, low quality, distorted text, unreadable",
       steps: 20,
       cfg_scale: 7.0,
@@ -966,14 +966,14 @@ export async function generateKineticVideo(
         resolution: "1080p",
         fps: 30,
         preset_id: request.preset_id,
-        lyrics: request.lyrics || [],
+        lyrics: request.lyrics ?? [],
       },
     }),
     timeout: 30000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to generate kinetic video");
+    throw new Error(err.detail ?? "Failed to generate kinetic video");
   }
   return res.json();
 }

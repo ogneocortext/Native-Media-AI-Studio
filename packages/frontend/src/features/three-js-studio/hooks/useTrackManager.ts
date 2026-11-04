@@ -69,7 +69,7 @@ export function useTrackManager({
       }
       setTrackMetadata(metadata);
     };
-    fetchMetadata();
+    void fetchMetadata();
   }, [selectedTrack, setTrackMetadata]);
 
   // Auto-set BPM from analysis metadata when it loads
@@ -134,7 +134,7 @@ export function useTrackManager({
       if (!raw) return;
       localStorage.removeItem("pendingCharacter");
       const handoff = JSON.parse(raw) as { modelUrl?: string; name?: string; bible?: string };
-      if (!handoff?.modelUrl) return;
+      if (!handoff.modelUrl) return;
       addObject("character", {
         ...(handoff.name ? { name: handoff.name } : {}),
         modelUrl: handoff.modelUrl,
@@ -151,7 +151,7 @@ export function useTrackManager({
       if (!raw) return;
       try {
         const handoff = JSON.parse(raw) as { modelUrl?: string; name?: string; bible?: string };
-        if (!handoff?.modelUrl) return;
+        if (!handoff.modelUrl) return;
         addObject("character", {
           ...(handoff.name ? { name: handoff.name } : {}),
           modelUrl: handoff.modelUrl,

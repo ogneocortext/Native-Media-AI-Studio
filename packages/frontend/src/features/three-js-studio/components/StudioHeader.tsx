@@ -64,7 +64,7 @@ export function StudioHeader({
   onViewportReset,
 }: StudioHeaderProps) {
   const meta = selectedTrack ? trackMetadata[selectedTrack] : undefined;
-  const metaStr = meta?.bpm && meta?.duration ? ` (${meta.bpm} BPM, ${meta.duration}s)` : "";
+  const metaStr = meta?.bpm && meta.duration ? ` (${meta.bpm} BPM, ${meta.duration}s)` : "";
 
   return (
     <div

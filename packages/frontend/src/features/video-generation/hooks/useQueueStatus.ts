@@ -9,7 +9,7 @@ function useQueueStatus() {
       const res = await fetchWithTimeout("/api/health/queue", { timeout: 10000 });
       if (res.ok) {
         const data = await res.json();
-        const stats = data.stats || data;
+        const stats = data.stats ?? data;
         setQueueInfo({
           running: stats.running ?? 0,
           pending: stats.pending ?? 0,
@@ -22,7 +22,7 @@ function useQueueStatus() {
 
   // Poll every 10 seconds
   useEffect(() => {
-    fetchQueueStatus();
+    void fetchQueueStatus();
     const id = setInterval(fetchQueueStatus, 10000);
     return () => clearInterval(id);
   }, []);

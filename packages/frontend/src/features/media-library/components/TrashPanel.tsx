@@ -33,8 +33,8 @@ export function TrashPanel({
     if (!window.confirm("Empty the trash? This cannot be undone.")) return;
     setEmptying(true);
     try {
-      await emptyTrash();
-      await refetchOrg();
+      emptyTrash();
+      refetchOrg();
     } finally {
       setEmptying(false);
     }

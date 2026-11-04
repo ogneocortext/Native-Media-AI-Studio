@@ -84,7 +84,7 @@ export function MusicVideoWizard() {
       })
       .then((blob) => {
         if (cancelled) return;
-        const ext = pending.split(".").pop()?.toLowerCase() || "mp3";
+        const ext = pending.split(".").pop()?.toLowerCase() ?? "mp3";
         const mime =
           ext === "wav"
             ? "audio/wav"
@@ -127,7 +127,7 @@ export function MusicVideoWizard() {
       const res = await fetch("/api/audio/analyze", { method: "POST", body: formData });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(detail.detail || `Analysis failed (${res.status})`);
+        throw new Error(detail.detail ?? `Analysis failed (${res.status})`);
       }
       const data: AudioAnalysis = await res.json();
       if (!data.sections || data.sections.length === 0)
@@ -156,7 +156,7 @@ export function MusicVideoWizard() {
     setGenerating(true);
     setGenerationProgress(0);
     setError(null);
-    const sections = analysis?.sections || [{ type: "full", start: 0, end: 10, energy: 0.5 }];
+    const sections = analysis?.sections ?? [{ type: "full", start: 0, end: 10, energy: 0.5 }];
     const results: string[] = [];
 
     const pollJob = async (jobId: string, sectionLabel: string) => {
@@ -172,7 +172,7 @@ export function MusicVideoWizard() {
             (job.result?.output_path as string) ||
             `output/video/${sectionLabel}_${jobId}.mp4`
           );
-        if (job.status === "failed") throw new Error(job.error || `Section ${sectionLabel} failed`);
+        if (job.status === "failed") throw new Error(job.error ?? `Section ${sectionLabel} failed`);
         await new Promise((res) => setTimeout(res, 1200));
       }
       throw new Error(`Timeout waiting for section ${sectionLabel}`);
@@ -196,13 +196,13 @@ export function MusicVideoWizard() {
             section: section.type,
             duration,
             vertical_first: config.verticalFirst,
-            audio_path: analysis?.stored_path || undefined,
+            audio_path: analysis?.stored_path ?? undefined,
             audio_filename: audioFile?.name,
           }),
         });
         if (!res.ok) {
           const detail = await res.json().catch(() => ({ detail: res.statusText }));
-          throw new Error(detail.detail || `Queue failed for ${section.type}`);
+          throw new Error(detail.detail ?? `Queue failed for ${section.type}`);
         }
         const data = await res.json();
         const jobId: string | undefined = data.job_id;
@@ -222,14 +222,14 @@ export function MusicVideoWizard() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 video_path: out,
-                audio_path: analysis?.stored_path || undefined,
+                audio_path: analysis?.stored_path ?? undefined,
                 audio_filename: audioFile?.name,
                 section: section.type,
               }),
             });
             if (!lsRes.ok) {
               const detail = await lsRes.json().catch(() => ({ detail: lsRes.statusText }));
-              throw new Error(detail.detail || "Lip-sync queue failed");
+              throw new Error(detail.detail ?? "Lip-sync queue failed");
             }
             const lsData = await lsRes.json();
             if (!lsData.job_id) throw new Error("No job_id for lip-sync");
@@ -241,7 +241,7 @@ export function MusicVideoWizard() {
         results.push(finalOut);
         // Auto-log the successful generation — versioned per track+section
         void savePromptVersion({
-          track_filename: audioFile?.name || undefined,
+          track_filename: audioFile?.name ?? undefined,
           section: section.type,
           section_index: i,
           prompt: sectionPrompt,
@@ -256,7 +256,7 @@ export function MusicVideoWizard() {
         results.push(`FAILED:${section.type}`);
         // Log the failed attempt as a repair entry (repair log)
         void savePromptVersion({
-          track_filename: audioFile?.name || undefined,
+          track_filename: audioFile?.name ?? undefined,
           section: section.type,
           section_index: i,
           prompt: sectionPrompt,

@@ -26,7 +26,7 @@ export interface VideoModel {
 
 export function getVideoModelInfo(modelName: string, meta?: Partial<RawVideoModel>): VideoModel {
   const base = modelName.toLowerCase();
-  const variant = meta?.variant || "";
+  const variant = meta?.variant ?? "";
   const vramMb = meta?.vram_mb;
   const supports8gb = meta?.supports_8gb ?? true;
 

@@ -60,7 +60,7 @@ export function ProfessionalMixer({
     setMasterVolume,
   } = mixer;
 
-  const stemEntries = Object.entries(stems || {}).filter(([, v]) => v);
+  const stemEntries = Object.entries(stems ?? {}).filter(([, v]) => v);
 
   return (
     <div className="w-full h-full bg-neutral-950 rounded-2xl border border-white/10 p-3 overflow-hidden flex flex-col">
@@ -82,7 +82,7 @@ export function ProfessionalMixer({
             <ChannelStrip
               key={name}
               name={name as any}
-              state={(strips as Record<string, any>)[name] || { volume: 1, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -24, compressorRatio: 4, compressorAttack: 10, compressorRelease: 120, reverbSend: 0, delaySend: 0 }}
+              state={(strips as Record<string, any>)[name] ?? { volume: 1, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -24, compressorRatio: 4, compressorAttack: 10, compressorRelease: 120, reverbSend: 0, delaySend: 0 }}
               meters={meters[name] || { rms: 0, peak: 0, dBFS: -60 }}
               soloCount={soloCount}
               routing={routing}

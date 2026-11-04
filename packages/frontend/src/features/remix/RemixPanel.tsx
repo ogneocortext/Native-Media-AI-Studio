@@ -1439,11 +1439,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
             </div>
           )}
 
-          {remixes.filter((r) => !built || r.name !== built.name).length > 0 && (
+          {remixes.filter((r) => r.name !== built?.name).length > 0 && (
             <details className="text-[10px] text-muted">
-              <summary className="cursor-pointer hover:text-white">Earlier remixes ({remixes.filter((r) => !built || r.name !== built.name).length})</summary>
+              <summary className="cursor-pointer hover:text-white">Earlier remixes ({remixes.filter((r) => r.name !== built?.name).length})</summary>
               <div className="flex flex-wrap gap-1 mt-1">
-                {remixes.filter((r) => !built || r.name !== built.name).map((r) => (
+                {remixes.filter((r) => r.name !== built?.name).map((r) => (
                   <button key={r.name} onClick={() => { setBuilt(r); void loadVersions(r.name); }} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white">
                     {r.name}{r.has_enhanced ? " ★" : ""}
                   </button>

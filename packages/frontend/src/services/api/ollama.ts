@@ -36,7 +36,7 @@ export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedMod
   const res = await fetchWithTimeout(`${base}/api/integrations/models/unified?verified_only=${verifiedOnly}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get unified models");
   const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : payload.models || [];
+  const entries = Array.isArray(payload) ? payload : payload.models ?? [];
   return entries.map((m: UnifiedModel & Record<string, unknown>) => {
     const caps = (m.capabilities as string[] | undefined) ?? [];
     const pick = (...keys: string[]): unknown => {
@@ -120,7 +120,7 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models?verified_only=${verifiedOnly}`, { timeout: 30000 });
   if (!res.ok) throw new Error("Failed to get Ollama models");
   const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : payload.models || [];
+  const entries = Array.isArray(payload) ? payload : payload.models ?? [];
   // The two handlers that have served this path disagreed on field names: the one
   // actually reachable returned snake_case (`model_name`, `supports_tools`,
   // `vram_required`), while this type declared camelCase. `name` and `size` were
@@ -240,12 +240,12 @@ export async function runBenchmark(
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ models: models || null, max_models }),
+    body: JSON.stringify({ models: models ?? null, max_models }),
     timeout: 900000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Benchmark failed" }));
-    throw new Error(err.detail || "Benchmark failed");
+    throw new Error(err.detail ?? "Benchmark failed");
   }
   return res.json();
 }
@@ -395,12 +395,12 @@ export async function runCodingBenchmark(
   const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ models: models || null, max_models }),
+    body: JSON.stringify({ models: models ?? null, max_models }),
     timeout: 900000,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Coding benchmark failed" }));
-    throw new Error(err.detail || "Coding benchmark failed");
+    throw new Error(err.detail ?? "Coding benchmark failed");
   }
   return res.json();
 }
@@ -440,11 +440,11 @@ export async function ollamaChat(
     body: JSON.stringify({
       message,
       model,
-      history: options?.history || [],
-      tools: options?.tools || [],
+      history: options?.history ?? [],
+      tools: options?.tools ?? [],
       think: options?.think,
       stream: false,
-      max_tool_calls: options?.maxToolCalls || 5,
+      max_tool_calls: options?.maxToolCalls ?? 5,
     }),
     timeout: 300000,
   });
@@ -473,7 +473,7 @@ export async function ollamaChatStream(
 ): Promise<ReadableStream<Uint8Array>> {
   const base = getApiBase();
   const ollamaOpts: Record<string, unknown> = {
-    ...(options?.ollamaOptions || {}),
+    ...(options?.ollamaOptions ?? {}),
   };
   const optionsRecord = options as Record<string, unknown> | undefined;
   for (const k of [
@@ -494,11 +494,11 @@ export async function ollamaChatStream(
     body: JSON.stringify({
       message,
       model,
-      history: options?.history || [],
-      tools: options?.tools || [],
+      history: options?.history ?? [],
+      tools: options?.tools ?? [],
       think: options?.think,
       stream: true,
-      max_tool_calls: options?.maxToolCalls || 5,
+      max_tool_calls: options?.maxToolCalls ?? 5,
       system: options?.system,
       ...(Object.keys(ollamaOpts).length ? { options: ollamaOpts } : {}),
     }),
@@ -525,7 +525,7 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      buffer = lines.pop() ?? "";
 
       for (const line of lines) {
         if (line.startsWith("event: ")) {
@@ -643,7 +643,7 @@ export async function generateVisualizerPreset(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to generate visualizer preset");
+    throw new Error(err.detail ?? "Failed to generate visualizer preset");
   }
   return res.json();
 }
@@ -663,7 +663,7 @@ export async function generateVisualizerPresetAtomic(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to generate visualizer preset");
+    throw new Error(err.detail ?? "Failed to generate visualizer preset");
   }
   return res.json();
 }

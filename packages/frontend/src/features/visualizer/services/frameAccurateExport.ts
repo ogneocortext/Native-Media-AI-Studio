@@ -114,7 +114,7 @@ export async function canExportFrameAccurate(
       bitrate: 8_000_000,
       framerate: 30,
     });
-    return support?.supported === true;
+    return support.supported === true;
   } catch {
     return false;
   }

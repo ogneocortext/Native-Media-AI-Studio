@@ -43,7 +43,7 @@ export function useVideoModels() {
       );
       if (!vmRes.ok) throw new Error(`video-models ${vmRes.status}`);
       const vmData: { video_models?: RawVideoModel[] } = await vmRes.json();
-      const raw: RawVideoModel[] = vmData?.video_models || [];
+      const raw: RawVideoModel[] = vmData.video_models ?? [];
 
       // Deduplicate by name, prefer entries with variant metadata
       const byName = new Map<string, RawVideoModel>();
@@ -99,13 +99,13 @@ export function useVideoModels() {
   }, []);
 
   useEffect(() => {
-    fetchVideoModels();
+    void fetchVideoModels();
   }, []);
 
   // Retry on error
   useEffect(() => {
     const retryTimer = setTimeout(() => {
-      if (error) fetchVideoModels();
+      if (error) void fetchVideoModels();
     }, 2000);
     return () => clearTimeout(retryTimer);
   }, [error]);

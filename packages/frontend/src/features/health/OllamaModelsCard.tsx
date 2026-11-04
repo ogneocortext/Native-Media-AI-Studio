@@ -10,7 +10,7 @@ export function OllamaModelsCard() {
   const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchOllamaModels();
+    void fetchOllamaModels();
     const interval = setInterval(fetchOllamaModels, 15000); // Increased from 5s to 15s
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => {
@@ -19,9 +19,9 @@ export function OllamaModelsCard() {
     };
   }, [fetchOllamaModels]);
 
-  const data = granular.ollamaModels || { loaded: false, models: [], activity: {} };
+  const data = granular.ollamaModels ?? { loaded: false, models: [], activity: {} };
   const models = data.models || [];
-  const activity = data.activity || {};
+  const activity = data.activity ?? {};
 
   return (
     <Card
@@ -41,7 +41,7 @@ export function OllamaModelsCard() {
         <div className="space-y-2">
           {models.map((m) => {
             const active = activity[m.name];
-            const elapsed = active?.started_at ? Math.floor(now / 1000 - active.started_at) : null;
+            const elapsed = active.started_at ? Math.floor(now / 1000 - active.started_at) : null;
             return (
               <div
                 key={m.name}

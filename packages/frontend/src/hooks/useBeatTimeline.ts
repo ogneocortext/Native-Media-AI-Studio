@@ -60,7 +60,7 @@ export function useBeatTimeline(filename: string | null) {
     setError(null);
     smoothedEnergyRef.current = 0;
 
-    (async () => {
+    void (async () => {
       try {
         // Use a relative path so the request goes through the Vite dev proxy
         // (same-origin). The full backend URL via getApiBase() hits CORS in

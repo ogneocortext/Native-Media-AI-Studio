@@ -128,13 +128,13 @@ export function DataManagementPage() {
     Object.keys(tabStates).forEach((key) => {
       const tab = key;
       if (!tabStates[tab].loaded && !tabStates[tab].loading) {
-        loadTab(tab);
+        void loadTab(tab);
       }
     });
   }, []);
 
   const reloadTab = useCallback((tab: TabKey) => {
-    loadTab(tab);
+    void loadTab(tab);
   }, [loadTab]);
 
   const prompts = (tabStates.prompts.data as StoredPrompt[] ?? []);
@@ -305,7 +305,7 @@ export function DataManagementPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleFavorite(p.id);
+                                void toggleFavorite(p.id);
                               }}
                               className="p-1 hover:bg-gray-700 rounded"
                               title={p.is_favorite ? "Unfavorite" : "Favorite"}
@@ -321,7 +321,7 @@ export function DataManagementPage() {
                             </button>
                           </Table.Col>
                           <Table.Col>
-                            {formatDate(p.last_used_at || p.created_at)}
+                            {formatDate(p.last_used_at ?? p.created_at)}
                           </Table.Col>
                           <Table.Col>{formatDate(p.created_at)}</Table.Col>
                           <Table.Col className="text-right">
@@ -329,7 +329,7 @@ export function DataManagementPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/music-video-wizard?prompt=${p.id}`);
+                                  void navigate(`/music-video-wizard?prompt=${p.id}`);
                                 }}
                                 className="p-1.5 hover:bg-gray-700 rounded text-xs"
                                 title="Use in wizard"
@@ -344,7 +344,7 @@ export function DataManagementPage() {
                                     p.id,
                                     p.name,
                                     () => {
-                                      deletePrompt(p.id).then(() => {
+                                      void deletePrompt(p.id).then(() => {
                                         reloadTab("prompts");
                                       });
                                     },
@@ -450,7 +450,7 @@ export function DataManagementPage() {
                             {s.actual_time_seconds || s.estimated_time_seconds}s
                           </Table.Col>
                           <Table.Col>{formatDate(s.created_at)}</Table.Col>
-                          <Table.Col>{formatDate(s.completed_at || "")}</Table.Col>
+                          <Table.Col>{formatDate(s.completed_at ?? "")}</Table.Col>
                         </Table.Row>
                       ))}
                     </Table.Body>
@@ -588,7 +588,7 @@ export function DataManagementPage() {
                                   h.id,
                                   `Prompt version "${truncate(h.prompt, 30)}"`,
                                   () => {
-                                    deletePromptVersion(h.id).then(() => {
+                                    void deletePromptVersion(h.id).then(() => {
                                       reloadTab("history");
                                     });
                                   },
@@ -634,18 +634,18 @@ export function DataManagementPage() {
                     <Table.Body>
                       {Object.entries(preferences).map(([key, value]) => {
                         const val = value as Record<string, unknown>;
-                        const valueStr = JSON.stringify(val?.value ?? value);
+                        const valueStr = JSON.stringify(val.value ?? value);
                         return (
                           <Table.Row key={key}>
                             <Table.Col>{key}</Table.Col>
-                            <Table.Col>{val?.category || "general"}</Table.Col>
+                            <Table.Col>{val.category ?? "general"}</Table.Col>
                             <Table.Col className="max-w-xs truncate" title={valueStr}>
                               {truncate(valueStr, 80)}
                             </Table.Col>
                             <Table.Col className="text-right">
                               <button
                                 onClick={() => {
-                                  navigator.clipboard.writeText(valueStr);
+                                  void navigator.clipboard.writeText(valueStr);
                                 }}
                                 className="p-1.5 hover:bg-gray-700 rounded text-xs"
                                 title="Copy value"

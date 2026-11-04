@@ -228,29 +228,27 @@ export function renderBars(
   const barCount = 64;
   const barW = w / barCount;
 
-  if (!state.barPeaks || state.barPeaks.length !== barCount) {
+  if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  if (!state.smoothedBars || state.smoothedBars.length !== barCount) {
+  if (state.smoothedBars?.length !== barCount) {
     state.smoothedBars = new Array(barCount).fill(0);
   }
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
+  if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
   }
 
-  const freqLen = modeCtx.freq?.length || 1024;
+  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
     freqLen,
-    modeCtx.analyser?.context?.sampleRate,
+    modeCtx.analyser?.context.sampleRate,
   );
 
   const barGradients = modeCtx.getGradients("bars", modeCtx.colors);
@@ -318,12 +316,10 @@ export function renderMirroredBars(
   const barCount = 64;
   const barW = w / barCount;
 
-  if (!state.barPeaks || state.barPeaks.length !== barCount) {
+  if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
@@ -331,12 +327,12 @@ export function renderMirroredBars(
   const barGradients = modeCtx.getGradients("mirrored-bars", modeCtx.colors);
   const centerY = Math.round(h * 0.5);
   const maxBarH = h * 0.38;
-  const freqLen = modeCtx.freq?.length || 1024;
+  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
     freqLen,
-    modeCtx.analyser?.context?.sampleRate,
+    modeCtx.analyser?.context.sampleRate,
   );
 
   for (let i = 0; i < barCount; i++) {
@@ -420,23 +416,21 @@ export function renderSegmentedLedBars(
   const baseY = Math.round(h * 0.92);
   const barGradients = modeCtx.getGradients("segmented-led-bars", modeCtx.colors);
 
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
+  if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
   }
 
-  const freqLen = modeCtx.freq?.length || 1024;
+  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
     freqLen,
-    modeCtx.analyser?.context?.sampleRate,
+    modeCtx.analyser?.context.sampleRate,
   );
 
   for (let i = 0; i < barCount; i++) {
@@ -498,23 +492,21 @@ export function renderStereoSplitBars(
   ];
   const baseY = Math.round(h * 0.88);
 
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  if (!state.barPeaks || state.barPeaks.length !== barCount) {
+  if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
 
-  const freqLen = modeCtx.freq?.length || 1024;
+  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
     freqLen,
-    modeCtx.analyser?.context?.sampleRate,
+    modeCtx.analyser?.context.sampleRate,
   );
 
   for (const band of bands) {
@@ -561,7 +553,7 @@ export function renderStackedFrequencyBands(
   state: BarModeState,
 ): void {
   const barCount = 48;
-  const step = Math.floor((modeCtx.freq?.length || 1024) / barCount);
+  const step = Math.floor((modeCtx.freq?.length ?? 1024) / barCount);
   const barW = w / barCount;
   const baseY = Math.round(h * 0.88);
   const layers = [
@@ -580,39 +572,37 @@ export function renderStackedFrequencyBands(
     },
   ];
 
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  if (!state.barPeaks || state.barPeaks.length !== barCount) {
+  if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
+  if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
   }
-  if (!state.smoothedStack || state.smoothedStack.length !== barCount * layers.length) {
+  if (state.smoothedStack?.length !== barCount * layers.length) {
     state.smoothedStack = new Array(barCount * layers.length).fill(0);
   }
 
-  if (!state.barPeaks || state.barPeaks.length !== barCount) {
+  if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  if (!state.barVelocities || state.barVelocities.length !== barCount) {
+  if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
   }
-  if (!state.smoothedStack || state.smoothedStack.length !== barCount * layers.length) {
+  if (state.smoothedStack?.length !== barCount * layers.length) {
     state.smoothedStack = new Array(barCount * layers.length).fill(0);
   }
 
-  const freqLen = modeCtx.freq?.length || 1024;
+  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
     freqLen,
-    modeCtx.analyser?.context?.sampleRate,
+    modeCtx.analyser?.context.sampleRate,
   );
 
   for (let i = 0; i < barCount; i++) {
@@ -626,7 +616,7 @@ export function renderStackedFrequencyBands(
       const layer = layers[li];
       const idx = Math.min(layer.start + i, freqLen - 1);
       const logIdx = Math.min(freqLen - 1, Math.floor(freqMap(idx)));
-      const v = (modeCtx.freq?.[logIdx] || 0) / 255;
+      const v = (modeCtx.freq?.[logIdx] ?? 0) / 255;
       const boosted = boostedValue(v, modeCtx);
       let lh = boosted * h * 0.22 * modeCtx.energyMod;
       if (modeCtx.asymmetric) {
@@ -668,7 +658,7 @@ export function renderStackedFrequencyBands(
     if (modeCtx.d.beat) {
       const topLayer = layers[layers.length - 1];
       const idx = Math.min(topLayer.start + i, freqLen - 1);
-      const v = (modeCtx.freq?.[idx] || 0) / 255;
+      const v = (modeCtx.freq?.[idx] ?? 0) / 255;
       if (v > 0.35) {
         modeCtx.ctx.shadowColor = topLayer.color;
         modeCtx.ctx.shadowBlur = 6 * dpr;
@@ -695,19 +685,17 @@ export function renderDotPeakMatrix(
   const dotR = Math.min(cellW, cellH) * 0.35;
   const barGradients = modeCtx.getGradients("dot-peak-matrix", modeCtx.colors);
 
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  const freqLen = modeCtx.freq?.length || 1024;
+  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
     freqLen,
-    modeCtx.analyser?.context?.sampleRate,
+    modeCtx.analyser?.context.sampleRate,
   );
 
   for (let i = 0; i < cols; i++) {
@@ -780,7 +768,7 @@ export function renderWaveform(
   }
 
   // 2026 smooth: 3-point Gaussian-ish moving average + HSB hue drift
-  if (!state.smoothed || state.smoothed.length !== wave.length) {
+  if (state.smoothed?.length !== wave.length) {
     state.smoothed = new Uint8Array(wave.length);
   }
   for (let i = 0; i < wave.length; i++) {
@@ -789,14 +777,12 @@ export function renderWaveform(
     state.smoothed[i] = prev * 0.25 + wave[i] * 0.5 + next * 0.25;
   }
 
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  if (!state.waveEnvelope || state.waveEnvelope.length !== state.smoothed.length) {
+  if (state.waveEnvelope?.length !== state.smoothed.length) {
     state.waveEnvelope = new Array(state.smoothed.length).fill(0);
   }
 
@@ -804,7 +790,7 @@ export function renderWaveform(
   ctx.lineWidth = 2.2 * dpr;
   ctx.shadowColor = colors[0];
   ctx.shadowBlur =
-    9 * dpr + phraseFlash * 14 + (modeCtx.d.peak || 0) * 10 * dpr + energyMod * 8 * dpr;
+    9 * dpr + phraseFlash * 14 + (modeCtx.d.peak ?? 0) * 10 * dpr + energyMod * 8 * dpr;
   ctx.beginPath();
   const slice = w / state.smoothed.length;
 
@@ -875,11 +861,11 @@ export function renderWaveform(
     const v = (wave[i] - 128) / 128;
     if (Math.abs(v) > 0.55) {
       const x = i * slice;
-      const y = h / 2 + v * h * 0.35 * (1 + (modeCtx.d.energy || 0) * 0.5);
+      const y = h / 2 + v * h * 0.35 * (1 + (modeCtx.d.energy ?? 0) * 0.5);
       ctx.fillStyle = d.beat ? "#ffffff" : colors[1];
       ctx.shadowColor = colors[0];
       ctx.beginPath();
-      ctx.arc(x, y, 2.5 * dpr + (modeCtx.d.peak || 0) * 2 * dpr, 0, Math.PI * 2);
+      ctx.arc(x, y, 2.5 * dpr + (modeCtx.d.peak ?? 0) * 2 * dpr, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -903,18 +889,16 @@ export function renderRadial(
   const baseR = Math.min(w, h) * 0.18;
   const sectionRot = sectionProgress * Math.PI * 0.5;
 
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
 
-  if (!state.barVelocities || state.barVelocities.length !== 64) {
+  if (state.barVelocities?.length !== 64) {
     state.barVelocities = new Array(64).fill(0);
   }
 
-  const freqLen = freq?.length || 1024;
+  const freqLen = freq?.length ?? 1024;
   if (!freq) return;
   for (let i = 0; i < 64; i++) {
     const v = freq[Math.floor((i / 64) * freqLen * 0.6)] / 255;
@@ -965,7 +949,7 @@ export function renderRadial(
   ctx.strokeStyle = colors[2] + "55";
   ctx.lineWidth = 1.5 * dpr;
   ctx.beginPath();
-  ctx.arc(cx, cy, coreR * 1.8 + (d.energy || 0) * 8 * dpr, 0, Math.PI * 2);
+  ctx.arc(cx, cy, coreR * 1.8 + (d.energy ?? 0) * 8 * dpr, 0, Math.PI * 2);
   ctx.stroke();
 
   // Solid core
@@ -1001,7 +985,7 @@ export function renderSpectrogram(
   ctx.fillRect(specW - sliceW, 0, sliceW, specH);
 
   // Draw new slice on the right — perceptual (log) frequency mapping
-  const freqLen = freq?.length || 1024;
+  const freqLen = freq?.length ?? 1024;
   for (let py = 0; py < specH; py++) {
     const t = py / specH; // 1 at top (high freq), 0 at bottom (low freq)
     const minLog = Math.log(1);
@@ -1009,7 +993,7 @@ export function renderSpectrogram(
     const logT = minLog + t * (maxLog - minLog);
     const linearT = (Math.exp(logT) - 1) / (freqLen - 1);
     const binIdx = Math.min(freqLen - 1, Math.max(0, Math.floor(linearT * freqLen)));
-    const v = (freq?.[binIdx] || 0) / 255;
+    const v = (freq?.[binIdx] ?? 0) / 255;
     if (v < 0.02) continue;
     const colorIdx = clamp(v * (colors.length - 1), 0, colors.length - 1);
     const ci = Math.floor(colorIdx);
@@ -1067,7 +1051,7 @@ export function renderLissajous(
 ): void {
   void state;
   const { ctx, colors, freq, phraseFlash, energyMod, nowMs } = modeCtx;
-  const freqLen = freq?.length || 1024;
+  const freqLen = freq?.length ?? 1024;
   const cx = w / 2;
   const cy = h / 2;
   const bassIdx = Math.floor(freqLen * 0.1);
@@ -1126,7 +1110,7 @@ export function renderConstellation(
   const { ctx, colors, freq, analyzedPunch } = modeCtx;
   const points: { x: number; y: number; v: number }[] = [];
   const step = 8;
-  const freqLen = freq?.length || 1024;
+  const freqLen = freq?.length ?? 1024;
   if (!freq) return;
   for (let i = 0; i < freqLen; i += step) {
     const v = freq[i] / 255;
@@ -1181,9 +1165,7 @@ export function renderConstellation(
 
   // Draw nodes with frame-rate-independent exponential smoothing of radius.
   const constellationLambda = dampLambda(0.22 * 0.75);
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;
@@ -1230,7 +1212,7 @@ export function renderAurora(
   const bandW = w / bandCount;
   const d = modeCtx.d;
   const bassEnergy = d.bass || 0;
-  const midEnergy = d.mid || 0;
+  const midEnergy = d.mid ?? 0;
   const energy = energyMod;
 
   for (let b = 0; b < bandCount; b++) {
@@ -1282,7 +1264,7 @@ export function renderAurora(
   ctx.strokeStyle = colors[2] + "55";
   ctx.lineWidth = 1.5 * dpr;
   ctx.beginPath();
-  ctx.arc(w / 2, h / 2, coreR * 1.8 + (modeCtx.d.energy || 0) * 8 * dpr, 0, Math.PI * 2);
+  ctx.arc(w / 2, h / 2, coreR * 1.8 + (modeCtx.d.energy ?? 0) * 8 * dpr, 0, Math.PI * 2);
   ctx.stroke();
 
   // Solid core
@@ -1304,9 +1286,7 @@ export function renderParticles(
 ): void {
   const { ctx, colors, phraseFlash, energyMod, analyzedPunch, rand } = modeCtx;
   const { particles } = state;
-  if (state.lastMs === null) {
-    state.lastMs = modeCtx.nowMs();
-  }
+  state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
   const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
   state.lastMs = now;

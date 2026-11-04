@@ -82,7 +82,7 @@ export async function runSubAgentTask(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Failed to start sub-agent task (${res.status})`);
+    throw new Error(body.detail ?? `Failed to start sub-agent task (${res.status})`);
   }
   return res.json();
 }
@@ -97,7 +97,7 @@ export async function cancelSubAgentTask(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `Failed to cancel sub-agent task (${res.status})`);
+    throw new Error(body.detail ?? `Failed to cancel sub-agent task (${res.status})`);
   }
   return res.json();
 }

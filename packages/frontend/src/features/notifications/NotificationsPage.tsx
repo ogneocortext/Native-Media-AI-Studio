@@ -14,6 +14,7 @@ function notificationTitle(item: NotificationItem): string {
       const status = typeof data?.status === "string" ? data.status : "changed";
       return `System health: ${status}`;
     }
+    case null: { throw new Error('Not implemented yet: null case') }
     default:
       break;
   }
@@ -55,7 +56,7 @@ export function NotificationsPage() {
   const loadHistory = useNotificationStore((s) => s.loadHistory);
 
   useEffect(() => {
-    loadHistory();
+    void loadHistory();
   }, [loadHistory]);
 
   return (

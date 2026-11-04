@@ -238,7 +238,7 @@ export function ChartTooltip({ active, payload, label }: ChartTipProps) {
               width: 8,
               height: 8,
               borderRadius: 4,
-              background: p.color || p.stroke,
+              background: p.color || p.str??e,
               marginRight: 6,
             }}
           />

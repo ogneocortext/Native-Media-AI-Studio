@@ -371,9 +371,7 @@ export function ShaderVisualizer({
   // impulse envelopes, so it persists across frames and resets on
   // a backwards seek (resolveMotion does that itself).
   const motionHistoryRef = useRef<MotionHistory | null>(null);
-  if (motionHistoryRef.current === null) {
-    motionHistoryRef.current = createMotionHistory();
-  }
+  motionHistoryRef.current ??= createMotionHistory();
   const prevLiveRmsRef = useRef(0);
   const lastFrameTimeRef = useRef<number | null>(null);
   // Plan 2.9 — virtual-time export state. When `virtualTimeRef` is
@@ -406,7 +404,7 @@ export function ShaderVisualizer({
   // Load FX defaults from backend preferences once, then fall back to localStorage.
   useEffect(() => {
     let cancelled = false;
-    readFxFromApi().then((values) => {
+    void readFxFromApi().then((values) => {
       if (cancelled) return;
       if (values) {
         setFxSpeed(values.speed);
@@ -494,10 +492,10 @@ export function ShaderVisualizer({
       // requires the analysis curves alone.
       if (!isVirtual && stemsProMetersRef.current) {
         const pm = stemsProMetersRef.current;
-        stemEnergy.vocals = pm.vocals?.rms ?? stemEnergy.vocals;
-        stemEnergy.drums = pm.drums?.rms ?? stemEnergy.drums;
-        stemEnergy.bass = pm.bass?.rms ?? stemEnergy.bass;
-        stemEnergy.other = pm.other?.rms ?? stemEnergy.other;
+        stemEnergy.vocals = pm.vocals.rms ?? stemEnergy.vocals;
+        stemEnergy.drums = pm.drums.rms ?? stemEnergy.drums;
+        stemEnergy.bass = pm.bass.rms ?? stemEnergy.bass;
+        stemEnergy.other = pm.other.rms ?? stemEnergy.other;
       }
       const stemBoost =
         stemEnergy.vocals * 0.18 +
@@ -739,7 +737,7 @@ export function ShaderVisualizer({
   );
 
   const applyFxDefaults = useCallback((presetName: ShaderPresetName) => {
-    const defaults = SHADER_PRESET_INFO[presetName]?.fxDefaults;
+    const defaults = SHADER_PRESET_INFO[presetName].fxDefaults;
     if (!defaults) return;
     if (defaults.speed !== undefined) setFxSpeed(defaults.speed);
     if (defaults.brightness !== undefined) setFxBrightness(defaults.brightness);
@@ -763,7 +761,7 @@ export function ShaderVisualizer({
     writeFxNumber("fxHue", fxHue);
     writeFxNumber("fxSaturation", fxSaturation);
     if (loadedFromApi) {
-      writeFxToApi(values);
+      void writeFxToApi(values);
     }
   }, [fxSpeed, fxBrightness, fxContrast, fxHue, fxSaturation, loadedFromApi]);
 

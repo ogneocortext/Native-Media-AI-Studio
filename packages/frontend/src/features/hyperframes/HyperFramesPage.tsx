@@ -50,7 +50,7 @@ export function HyperFramesPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    loadExamples().then(() => {
+    void loadExamples().then(() => {
       if (!cancelled) setLoading(false);
     });
     return () => {

@@ -98,7 +98,7 @@ export async function compileStoryboard(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to compile storyboard");
+    throw new Error(err.detail ?? "Failed to compile storyboard");
   }
   return res.json();
 }
@@ -133,7 +133,7 @@ export async function getHyperFramesAudioPayload(
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to build HyperFrames audio payload");
+    throw new Error(err.detail ?? "Failed to build HyperFrames audio payload");
   }
   return res.json();
 }
@@ -179,7 +179,7 @@ export async function renderHyperFramesComposition(params: {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Failed to render HyperFrames composition");
+    throw new Error(err.detail ?? "Failed to render HyperFrames composition");
   }
   return res.json();
 }

@@ -133,7 +133,7 @@ export function InspectorTab({
       </div>
 
       {/* Model/Animation controls — any object with modelUrl (blend->glb pipeline) or character */}
-      {(object.modelUrl || object.type === "character") && (
+      {(object.modelUrl ?? object.type === "character") && (
         <div className="border-t border-gray-800 pt-2 space-y-2">
           <div className="text-gray-400 font-medium">Character Model</div>
 
@@ -176,7 +176,7 @@ export function InspectorTab({
             <div className="flex gap-1">
               <input
                 type="text"
-                value={object.modelUrl || ""}
+                value={object.modelUrl ?? ""}
                 onChange={(e) => onUpdate(object.id, { modelUrl: e.target.value })}
                 placeholder="/output/generated_3d/character.glb"
                 className="bg-gray-800 rounded px-1.5 py-1 text-xs font-mono border border-gray-700 flex-1 min-w-0"
@@ -202,7 +202,7 @@ export function InspectorTab({
               <div>
                 <label className="text-gray-400 block mb-1">Clip</label>
                 <select
-                  value={object.animationName || animationState.clipNames[0]}
+                  value={object.animationName ?? animationState.clipNames[0]}
                   onChange={(e) => {
                     onUpdate(object.id, { animationName: e.target.value });
                     onAnimationSelect?.(e.target.value);
@@ -224,7 +224,7 @@ export function InspectorTab({
                 <label className="text-gray-400 block mb-1">Animation Clip Name</label>
                 <input
                   type="text"
-                  value={object.animationName || ""}
+                  value={object.animationName ?? ""}
                   onChange={(e) => onUpdate(object.id, { animationName: e.target.value })}
                   placeholder="auto-detect"
                   className="bg-gray-800 rounded px-1.5 py-1 text-xs font-mono border border-gray-700 w-full"
@@ -282,7 +282,7 @@ export function InspectorTab({
           <div className="border-t border-gray-800 pt-2">
             <label className="text-gray-400 block mb-1">Character Bible</label>
             <textarea
-              value={object.characterBible || ""}
+              value={object.characterBible ?? ""}
               onChange={(e) => onUpdate(object.id, { characterBible: e.target.value })}
               placeholder="Describe this character for prompt consistency..."
               rows={3}

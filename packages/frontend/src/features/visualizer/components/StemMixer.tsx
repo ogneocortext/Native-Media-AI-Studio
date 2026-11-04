@@ -183,8 +183,8 @@ export function computeStemQuality(
   // Mono-compatible: waveform roughly centered (no huge DC offset / asymmetry).
   let sum = 0;
   let absSum = 0;
-  for (let i = 0; i < timeDomain.length; i++) {
-    const v = (timeDomain[i] - 128) / 128;
+  for (const sample of timeDomain) {
+    const v = (sample - 128) / 128;
     sum += v;
     absSum += Math.abs(v);
   }
@@ -312,7 +312,7 @@ export function useStemMixer({
         denoise: true,
       });
       if (!result.success || Object.keys(result.stems || {}).length === 0) {
-        throw new Error(result.error || "Separation produced no stems");
+        throw new Error(result.error ?? "Separation produced no stems");
       }
       const data = await getAudioStems(audioFilename);
       const urls = data.found ? pickStemUrls(data) : null;
@@ -333,7 +333,7 @@ export function useStemMixer({
     if (!stems) return;
     let cancelled = false;
     const created: LoadedStem[] = [];
-    (async () => {
+    void (() => {
       try {
         const ctx =
           sharedAudioContext ?? (new AudioContext({ renderSizeHint: "hardware" } as any));
@@ -439,17 +439,15 @@ export function useStemMixer({
       for (const stem of loadedRef.current) {
         stem.analyser.getByteTimeDomainData(stem.buf);
         let sum = 0;
-        for (let i = 0; i < stem.buf.length; i++) {
-          const v = (stem.buf[i] - 128) / 128;
+        for (const sample of stem.buf) {
+          const v = (sample - 128) / 128;
           sum += v * v;
         }
         const rms = Math.sqrt(sum / stem.buf.length);
         levels[stem.name] = Math.min(1, rms * 2.5);
         // Compute honesty metrics once, on the first tick with real audio.
         if (!qualityComputedRef.current && ctx && rms > 0.005) {
-          if (!stemQualityRef.current) {
-            stemQualityRef.current = {} as Record<StemName, StemQuality>;
-          }
+          stemQualityRef.current ??= {} as Record<StemName, StemQuality>;
           const freqs = new Uint8Array(stem.analyser.frequencyBinCount);
           stem.analyser.getByteFrequencyData(freqs);
           stemQualityRef.current[stem.name] = computeStemQuality(
@@ -591,7 +589,7 @@ export function useStemMixer({
     mixPreset,
     muted,
     eqBands,
-    stemQuality: (stemQualityRef.current || {}) as Record<StemName, StemQuality>,
+    stemQuality: (stemQualityRef.current ?? {}) as Record<StemName, StemQuality>,
     setVolumeDb,
     resetStem,
     applyPreset,
@@ -705,7 +703,7 @@ export function StemMixerPanel({
             separating…
           </span>
         ) : status === "error" ? (
-          <span className="text-[10px] text-red-400" title={error || undefined}>
+          <span className="text-[10px] text-red-400" title={error ?? undefined}>
             unavailable
           </span>
         ) : null}
@@ -834,8 +832,8 @@ export function StemMixerPanel({
               {/* EQ presets row — apply the same preset to all stems at once */}
           <div className="flex flex-wrap gap-1">
             <span className="text-[9px] text-muted uppercase tracking-wider mr-1">EQ</span>
-            {Object.keys(eqPresets || DEFAULT_EQ_PRESETS).map((name) => {
-              const preset = (eqPresets || DEFAULT_EQ_PRESETS)[name];
+            {Object.keys(eqPresets ?? DEFAULT_EQ_PRESETS).map((name) => {
+              const preset = (eqPresets ?? DEFAULT_EQ_PRESETS)[name];
               return (
                 <button
                   key={name}

@@ -159,16 +159,16 @@ export function OllamaChat() {
         // Sort chat-eligible by benchmark score desc, then latency asc
         const sorted = [...chatEligible].sort((a, b) => {
           if (a.verified !== b.verified) return a.verified ? -1 : 1;
-          const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
-          const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
+          const sa = a.benchmark?.score ?? benchMap[a.name].validation.score ?? -1;
+          const sb = b.benchmark?.score ?? benchMap[b.name].validation.score ?? -1;
           if (sa !== sb) return sb - sa;
-          const la = a.benchmark?.latency_ms ?? benchMap[a.name]?.latency_ms ?? 999999;
-          const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
+          const la = a.benchmark?.latency_ms ?? benchMap[a.name].latency_ms ?? 999999;
+          const lb = b.benchmark?.latency_ms ?? benchMap[b.name].latency_ms ?? 999999;
           return la - lb;
         });
 
         setModels(sorted);
-        setTools(toolsData.tools || []);
+        setTools(toolsData.tools ?? []);
         const preferred = ["gemma4:e2b-it-qat", "qwen3.5:4b", "qwen3-vl:2b"];
         const preferredModel = preferred.find((name) => sorted.some((model) => model.name === name));
         if (preferredModel) setSelectedModel(preferredModel);
@@ -179,7 +179,7 @@ export function OllamaChat() {
         setModelsLoading(false);
       }
     }
-    loadModels();
+    void loadModels();
   }, []);
 
   useEffect(() => {
@@ -270,7 +270,7 @@ export function OllamaChat() {
                 chunk.data as {
                   tool_calls?: { name: string; arguments: Record<string, unknown> }[];
                 }
-              )?.tool_calls || [];
+              ).tool_calls ?? [];
             toolCalls = calls;
             if (calls.length > 0) {
               setStreamStatus("executing_tool");
@@ -356,7 +356,7 @@ export function OllamaChat() {
 
   const selectedModelMeta = models.find((m) => m.name === selectedModel);
   const selectedSource = selectedModelMeta?.source;
-  const sourceCfg = SOURCE_BADGES[selectedSource || "ollama"];
+  const sourceCfg = SOURCE_BADGES[selectedSource ?? "ollama"];
 
   function anyEngineOnline(): boolean {
     return engineStatus === "online" || atomicStatus === "online";
@@ -417,9 +417,9 @@ export function OllamaChat() {
               ) : (
                 models.map((m) => {
                   const bench = benchmarks[m.name];
-                  const score = bench?.validation?.score ?? m.benchmark?.score ?? null;
-                  const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
-                  const success = bench?.success ?? m.benchmark?.success ?? null;
+                  const score = bench.validation.score ?? m.benchmark?.score ?? null;
+                  const latency = bench.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                  const success = bench.success ?? m.benchmark?.success ?? null;
                   let badge = "";
                   if (score !== null && score >= 0) {
                     const s = Math.round(score);
@@ -549,7 +549,7 @@ export function OllamaChat() {
                 accept=".mp4,.mov,.mkv,.webm,.m4v,.avi"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleVideoUpload(file);
+                  if (file) void handleVideoUpload(file);
                   e.target.value = "";
                 }}
                 className="sr-only"
@@ -654,7 +654,7 @@ export function OllamaChat() {
                 <Bot size={40} className="text-muted/30 mx-auto mb-3" />
                 <p className="text-sm text-muted">Ask anything about your music video project</p>
                 <p className="text-xs text-muted mt-1">
-                  Powered by {selectedModel || "local model"} ({selectedSource || "ollama"}) running locally
+                  Powered by {selectedModel || "local model"} ({selectedSource ?? "ollama"}) running locally
                 </p>
               </div>
             </div>
@@ -719,7 +719,7 @@ export function OllamaChat() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSend();
+                  void handleSend();
                 }
               }}
               placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}

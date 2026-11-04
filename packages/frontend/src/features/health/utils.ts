@@ -29,7 +29,7 @@ export function getUsageLabel(percent: number): string {
 export function parseVRAMStatus(
   vramStatus: Record<string, unknown> | null,
 ): { percent: number; free_mb: number } | null {
-  const vram = (vramStatus as unknown as { vram?: { percent?: number; free_mb?: number } })?.vram;
+  const vram = (vramStatus as unknown as { vram?: { percent?: number; free_mb?: number } }).vram;
   if (!vram || typeof vram.percent !== "number") return null;
-  return { percent: vram.percent, free_mb: vram.free_mb || 0 };
+  return { percent: vram.percent, free_mb: vram.free_mb ?? 0 };
 }

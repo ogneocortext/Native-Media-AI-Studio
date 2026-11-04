@@ -132,7 +132,7 @@ export function useProfessionalMixer({
       const raw = localStorage.getItem("professionalMixer:snapshot");
       if (raw) {
         const parsed = JSON.parse(raw) as MixerSnapshot;
-        if (parsed?.strips && parsed.buses && parsed.master) {
+        if (parsed.strips && parsed.buses && parsed.master) {
           setSnapshot(parsed);
         }
       }
@@ -695,8 +695,8 @@ export function useProfessionalMixer({
         ch.analyser.getByteTimeDomainData(ch.meterBuf as any);
         let sum = 0;
         let peak = 0;
-        for (let i = 0; i < ch.meterBuf.length; i++) {
-          const v = (ch.meterBuf[i] - 128) / 128;
+        for (const sample of ch.meterBuf) {
+          const v = (sample - 128) / 128;
           sum += v * v;
           const abs = Math.abs(v);
           if (abs > peak) peak = abs;
@@ -720,8 +720,8 @@ export function useProfessionalMixer({
         bus.analyser.getByteTimeDomainData(bus.meterBuf as any);
         let sum = 0;
         let peak = 0;
-        for (let i = 0; i < bus.meterBuf.length; i++) {
-          const v = (bus.meterBuf[i] - 128) / 128;
+        for (const sample of bus.meterBuf) {
+          const v = (sample - 128) / 128;
           sum += v * v;
           const abs = Math.abs(v);
           if (abs > peak) peak = abs;
@@ -740,8 +740,8 @@ export function useProfessionalMixer({
         m.analyser.getByteTimeDomainData(m.meterBuf as any);
         let sum = 0;
         let peak = 0;
-        for (let i = 0; i < m.meterBuf.length; i++) {
-          const v = (m.meterBuf[i] - 128) / 128;
+        for (const sample of m.meterBuf) {
+          const v = (sample - 128) / 128;
           sum += v * v;
           const abs = Math.abs(v);
           if (abs > peak) peak = abs;

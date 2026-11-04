@@ -59,7 +59,7 @@ export function DuplicatesPanel({
       })
         .then(async (res) => {
           if (!res.ok) throw new Error(`bulk-delete ${res.status}`);
-          await onRefetch();
+          onRefetch();
           await findDuplicates();
         })
         .catch((e) => {

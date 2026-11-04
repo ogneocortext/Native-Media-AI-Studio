@@ -121,7 +121,7 @@ export function UploadStep({
           }}
           onDragLeave={() => setDragOver(false)}
           onPaste={(e) => {
-            const f = Array.from(e.clipboardData?.files ?? [])[0];
+            const f = Array.from(e.clipboardData.files ?? [])[0];
             if (f) onFileSelect(f);
           }}
           className={`mt-6 border-2 border-dashed rounded-xl p-8 md:p-10 transition-all cursor-pointer group ${dragOver ? "border-violet-500 bg-violet-500/5 ring-2 ring-violet-500/30" : "border-gray-600 hover:border-violet-500 hover:bg-violet-500/5"}`}
@@ -687,7 +687,7 @@ export function GenerateStep({
     setCanvasError(null);
     try {
       // Use the chorus as the Canvas source (most visually active segment)
-      const chorus = sections.find((s) => s.type === "chorus") || sections[0];
+      const chorus = sections.find((s) => s.type === "chorus") ?? sections[0];
       const sourcePath = `output/video/${chorus.type}_latest.mp4`;
       const res = await createCanvasLoop({
         source_path: sourcePath,
@@ -697,7 +697,7 @@ export function GenerateStep({
         crossfade: 0.3,
       });
       if (res.success && res.output_path) setCanvasOutput(res.output_path);
-      else setCanvasError(res.error || res.message || "Failed");
+      else setCanvasError((res.error ?? res.message) ?? "Failed");
     } catch (err) {
       setCanvasError(err instanceof Error ? err.message : "Failed to create Canvas loop");
     } finally {
@@ -725,14 +725,14 @@ export function GenerateStep({
       }));
       const res = await assembleBeatQuantized({
         shot_manifest,
-        audio_path: analysis.stored_path || undefined,
+        audio_path: analysis.stored_path ?? undefined,
         engine: "auto",
         transition: "xfade",
         transition_duration: 0.3,
         beat_times: analysis.beat_times,
       });
       if (res.success && res.output_path) setAssemblyOutput(res.output_path);
-      else setAssemblyError(res.error || res.message || "Failed");
+      else setAssemblyError((res.error ?? res.message) ?? "Failed");
     } catch (err) {
       setAssemblyError(err instanceof Error ? err.message : "Failed to assemble");
     } finally {
@@ -747,7 +747,7 @@ export function GenerateStep({
     setStemVizError(null);
     try {
       // Find the uploaded filename from analysis
-      const filename = analysis.stored_path?.split(/[\\/]/).pop() || "";
+      const filename = analysis.stored_path?.split(/[\\/]/).pop() ?? "";
       if (!filename) {
         setStemVizError("No audio filename found — upload and analyze first");
         return;
@@ -972,7 +972,7 @@ export function ReviewStep({
           </p>
         </div>
         <span className="hidden md:inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 shrink-0">
-          <CheckCircle2 size={12} /> {generatedSections.length || analysis?.sections.length || 0}{" "}
+          <CheckCircle2 size={12} /> {generatedSections.length || analysis?.sections.length ?? 0}{" "}
           sections
         </span>
       </div>

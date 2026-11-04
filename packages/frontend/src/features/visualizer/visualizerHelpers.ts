@@ -29,7 +29,7 @@ export interface LibraryFile {
 
 /** Canonical backend reference for a library file (POSIX, subfolder-aware). */
 export function audioRefForFile(f: LibraryFile): string {
-  return (f.relative_path || f.path || f.filename).replace(/\\/g, "/");
+  return ((f.relative_path ?? f.path) ?? f.filename).replace(/\\/g, "/");
 }
 
 /** Strip any folder prefix: "Suno-V6-Mini/track.m4a" → "track.m4a". */
@@ -183,7 +183,7 @@ export function selectVizMode(
   energy?: number,
   bpm?: number,
 ): VizMode {
-  const haystack = normalizeSearchText(`${genre || ""} ${trackName}`);
+  const haystack = normalizeSearchText(`${genre ?? ""} ${trackName}`);
   const has = (...tokens: string[]) =>
     tokens.some((t) => includesToken(haystack, normalizeSearchText(t)));
 

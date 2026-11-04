@@ -134,14 +134,14 @@ export function AudioVisualizer({
       }
     };
 
-    initAudio();
+    void initAudio();
 
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
       if (audioContextRef.current?.state !== "closed") {
-        audioContextRef.current?.close();
+        void audioContextRef.current?.close();
       }
       audioRef.current?.pause();
     };

@@ -274,7 +274,7 @@ export function TrebloTagPicker() {
                   >
                     <span className="flex items-center gap-2">
                       <span>{tag}</span>
-                      {badgeFor(attestation[tag]?.tier) && (
+                      {badgeFor(attestation[tag].tier) && (
                         <span
                           title={
                             attestation[tag].tier === 1
@@ -287,7 +287,7 @@ export function TrebloTagPicker() {
                               : "bg-gray-800 text-gray-400"
                           }`}
                         >
-                          {badgeFor(attestation[tag]?.tier)}
+                          {badgeFor(attestation[tag].tier)}
                         </span>
                       )}
                     </span>

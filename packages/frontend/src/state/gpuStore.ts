@@ -48,9 +48,9 @@ export const useGPUStore = create<GPUState>()(
         return;
       }
       pollingRefCount = 1;
-      get().fetchGPU();
+      void get().fetchGPU();
       pollingInterval = setInterval(() => {
-        get().fetchGPU();
+        void get().fetchGPU();
       }, intervalMs);
     },
 

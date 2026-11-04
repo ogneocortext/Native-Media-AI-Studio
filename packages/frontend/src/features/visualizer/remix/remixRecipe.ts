@@ -133,7 +133,7 @@ export function timelineSegments(slots: EditableSlot[]): TimelineSegment[] {
     // Canonical order, not insertion order: the chips read the same way
     // whichever order the layers happen to be listed in.
     const present = new Set(slot.layers.map((l) => l.stem));
-    const stems = TIMELINE_STEM_ORDER.filter((s) => present.has(s)) as EditableLayer["stem"][];
+    const stems = TIMELINE_STEM_ORDER.filter((s) => present.has(s));
     return {
       // R2: the true slots-array index, not the filtered position — click
       // and drag handlers operate on the slots array, so a filtered index

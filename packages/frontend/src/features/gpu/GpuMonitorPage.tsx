@@ -153,7 +153,7 @@ export function GpuMonitorPage() {
     }
   }, []);
   useEffect(() => {
-    hydrateFromDB(range);
+    void hydrateFromDB(range);
   }, [hydrateFromDB, range]);
 
   const fetchAll = useCallback(async (isManual = false) => {
@@ -169,10 +169,10 @@ export function GpuMonitorPage() {
         getGPUProcesses().catch(() => ({ processes: [] as GPUProcessInfo[], count: 0 })),
       ]);
       setSnapshot(gpu);
-      const snapshotProcs = (gpu.processes || []).map((p) => ({
+      const snapshotProcs = (gpu.processes ?? []).map((p) => ({
         pid: p.pid,
         name: p.name,
-        mem_mb: (p.used_mb || 0),
+        mem_mb: (p.used_mb ?? 0),
       }));
       const hasSnapshotMemory = snapshotProcs.some((p) => p.mem_mb > 0);
       setProcesses(hasSnapshotMemory ? snapshotProcs : procs.processes || []);
@@ -209,7 +209,7 @@ export function GpuMonitorPage() {
   }, []);
 
   useEffect(() => {
-    fetchAll();
+    void fetchAll();
   }, [fetchAll]);
   useEffect(() => {
     if (paused) return;
@@ -314,7 +314,7 @@ export function GpuMonitorPage() {
     localStorage.removeItem("gpu:history:v2");
     try {
       await clearGPUHistory(0);
-      hydrateFromDB(range);
+      void hydrateFromDB(range);
     } catch {
       /* ignore */
     }

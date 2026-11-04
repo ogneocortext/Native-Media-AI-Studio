@@ -31,7 +31,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
   const handleNavigate = (id: string) => {
     markRead(id);
     onClose();
-    navigate("/queue");
+    void navigate("/queue");
   };
 
   return (
@@ -45,7 +45,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
             title="Notification preferences"
             onClick={() => {
               onClose();
-              navigate("/settings");
+              void navigate("/settings");
             }}
           >
             <Settings size={14} />

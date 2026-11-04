@@ -90,7 +90,7 @@ function countUnread(items: NotificationItem[], readIds: string[]): number {
 
 /** Trim readIds so it never outgrows the items it refers to. */
 function pruneReadIds(readIds: string[], items: NotificationItem[]): string[] {
-  const present = new Set(items.map((item) => item.id).filter(Boolean) as string[]);
+  const present = new Set(items.map((item) => item.id).filter(Boolean));
   return readIds.filter((id) => present.has(id));
 }
 
@@ -103,13 +103,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   addItem: (item) => {
     set((state) => {
-      const gkey = groupKeyFor(item.type || "", item.data);
+      const gkey = groupKeyFor(item.type ?? "", item.data);
       let items = state.items;
 
       // Precompute each existing item's group key once so the regex tests run
       // once per item instead of once per map/filter pass.
       const existingKeys = items.map((existing) =>
-        groupKeyFor(existing.type || "", existing.data),
+        groupKeyFor(existing.type ?? "", existing.data),
       );
 
       if (gkey) {
@@ -162,7 +162,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const seenGroups = new Set<string>();
       const items = byId
         .filter((item) => {
-          const gkey = groupKeyFor(item.type || "", item.data);
+          const gkey = groupKeyFor(item.type ?? "", item.data);
           if (!gkey) return true;
           if (seenGroups.has(gkey)) return false;
           seenGroups.add(gkey);
@@ -176,7 +176,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   markAllRead: () =>
     set((state) => ({
-      readIds: state.items.map((item) => item.id).filter(Boolean) as string[],
+      readIds: state.items.map((item) => item.id).filter(Boolean),
       unreadCount: 0,
     })),
 
@@ -268,7 +268,7 @@ function handleIncomingSSE(
 
   const type = message.type as string | undefined;
   const eventType = data.type as string | undefined;
-  const name = type || eventType;
+  const name = type ?? eventType;
   if (!name) return;
 
   const isNotification = isNotificationEvent(name);
@@ -277,13 +277,13 @@ function handleIncomingSSE(
   const prefs = get().preferences;
   if (!matchesPreferences(name, prefs)) return;
 
-  const id = String(data.id || message.id || `${Date.now()}-${Math.random()}`);
+  const id = String((data.id ?? message.id) ?? `${Date.now()}-${Math.random()}`);
   const item: NotificationItem = {
     id,
     type: name,
     data,
     timestamp: (data.timestamp as string | null) ?? new Date().toISOString(),
-    priority: ((message.priority || data.priority || "medium") as NotificationItem["priority"]),
+    priority: (((message.priority ?? data.priority) ?? "medium") as NotificationItem["priority"]),
   };
 
   get().addItem(item);

@@ -165,7 +165,7 @@ export function LyricsEditorModal({
         ...prev,
         lines: prev.lines.map((l) => {
           if (l.id !== id) return l;
-          const currentPhase = l.animation?.[phase] || {};
+          const currentPhase = l.animation?.[phase] ?? {};
           return {
             ...l,
             animation: { ...l.animation, [phase]: { ...currentPhase, [field]: value } },
@@ -181,7 +181,7 @@ export function LyricsEditorModal({
       ...prev,
       lines: prev.lines.map((l) => {
         if (l.id !== id) return l;
-        const current = l.animation?.beatReact || {};
+        const current = l.animation?.beatReact ?? {};
         return { ...l, animation: { ...l.animation, beatReact: { ...current, [field]: value } } };
       }),
     }));
@@ -310,7 +310,7 @@ export function LyricsEditorModal({
                             <span className="kt-line-number">{i + 1}</span>
                             <div
                               className="kt-line-section-dot"
-                              style={{ background: data.colorScheme?.[line.section] || "#808080" }}
+                              style={{ background: data.colorScheme?.[line.section] ?? "#808080" }}
                               title={line.section}
                             />
                             <input
@@ -391,7 +391,7 @@ export function LyricsEditorModal({
                                     }
                                     className="kt-select-inline"
                                   >
-                                    {Object.keys(data.colorScheme || {}).map((s) => (
+                                    {Object.keys(data.colorScheme ?? {}).map((s) => (
                                       <option key={s} value={s}>
                                         {s}
                                       </option>
@@ -408,7 +408,7 @@ export function LyricsEditorModal({
                                 <div className="kt-detail-row">
                                   <label>Enter</label>
                                   <select
-                                    value={line.animation?.enter?.type || "fadeInUp"}
+                                    value={line.animation?.enter?.type ?? "fadeInUp"}
                                     onChange={(e) =>
                                       handleAnimChange(line.id, "enter", "type", e.target.value)
                                     }
@@ -421,7 +421,7 @@ export function LyricsEditorModal({
                                   </select>
                                   <label>Exit</label>
                                   <select
-                                    value={line.animation?.exit?.type || "fadeOut"}
+                                    value={line.animation?.exit?.type ?? "fadeOut"}
                                     onChange={(e) =>
                                       handleAnimChange(line.id, "exit", "type", e.target.value)
                                     }
@@ -436,7 +436,7 @@ export function LyricsEditorModal({
                                 <div className="kt-detail-row">
                                   <label>Loop</label>
                                   <select
-                                    value={line.animation?.loop?.type || "none"}
+                                    value={line.animation?.loop?.type ?? "none"}
                                     onChange={(e) =>
                                       handleAnimChange(line.id, "loop", "type", e.target.value)
                                     }
@@ -453,7 +453,7 @@ export function LyricsEditorModal({
                                     step="0.1"
                                     min="0"
                                     max="1"
-                                    value={line.animation?.loop?.intensity || 0.5}
+                                    value={line.animation?.loop?.intensity ?? 0.5}
                                     onChange={(e) =>
                                       handleAnimChange(
                                         line.id,
@@ -476,7 +476,7 @@ export function LyricsEditorModal({
                                     min="0.5"
                                     max="2"
                                     step="0.1"
-                                    value={line.animation?.beatReact?.scale || 1}
+                                    value={line.animation?.beatReact?.scale ?? 1}
                                     onChange={(e) =>
                                       handleBeatReactChange(
                                         line.id,
@@ -486,7 +486,7 @@ export function LyricsEditorModal({
                                     }
                                   />
                                   <span className="kt-range-val">
-                                    {(line.animation?.beatReact?.scale || 1).toFixed(1)}
+                                    {(line.animation?.beatReact?.scale ?? 1).toFixed(1)}
                                   </span>
                                 </div>
                                 <div className="kt-detail-row">
@@ -496,7 +496,7 @@ export function LyricsEditorModal({
                                     min="0"
                                     max="1"
                                     step="0.1"
-                                    value={line.animation?.beatReact?.glow || 0.5}
+                                    value={line.animation?.beatReact?.glow ?? 0.5}
                                     onChange={(e) =>
                                       handleBeatReactChange(
                                         line.id,
@@ -506,7 +506,7 @@ export function LyricsEditorModal({
                                     }
                                   />
                                   <span className="kt-range-val">
-                                    {(line.animation?.beatReact?.glow || 0.5).toFixed(1)}
+                                    {(line.animation?.beatReact?.glow ?? 0.5).toFixed(1)}
                                   </span>
                                 </div>
                               </div>
@@ -527,7 +527,7 @@ export function LyricsEditorModal({
                       <h3>Section Colors</h3>
                     </div>
                     <div className="kt-colors-grid">
-                      {Object.entries(data.colorScheme || {}).map(([section, color]) => (
+                      {Object.entries(data.colorScheme ?? {}).map(([section, color]) => (
                         <div key={section} className="kt-color-row">
                           <input
                             type="color"
@@ -556,7 +556,7 @@ export function LyricsEditorModal({
                       <h3>Global Effects</h3>
                     </div>
                     <div className="kt-toggles-grid">
-                      {Object.entries(data.globalEffects || {}).map(([key, val]) => (
+                      {Object.entries(data.globalEffects ?? {}).map(([key, val]) => (
                         <label key={key} className="kt-toggle">
                           <input
                             type="checkbox"

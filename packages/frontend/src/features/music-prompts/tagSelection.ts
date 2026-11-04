@@ -76,6 +76,8 @@ export function badgeFor(tier: AttestationTier | undefined): string | null {
       return "verified on Suno";
     case 2:
       return "community-used";
+    case 3: { throw new Error('Not implemented yet: 3 case') }
+    case undefined: { throw new Error('Not implemented yet: undefined case') }
     default:
       // Tier 3 and anything unknown: no badge. Absence of evidence is not evidence.
       return null;

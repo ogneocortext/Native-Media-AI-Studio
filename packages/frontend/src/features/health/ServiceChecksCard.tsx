@@ -26,7 +26,7 @@ export function ServiceChecksCard() {
     setChecks((prev) => ({ ...prev, [service]: { service, status: "checking" } }));
     try {
       const result = await checkService(service);
-      const serviceStatus = (result as { status?: string })?.status;
+      const serviceStatus = (result as { status?: string }).status;
       const isOnline = serviceStatus === "healthy" || serviceStatus === "online";
       setChecks((prev) => ({
         ...prev,
@@ -45,7 +45,7 @@ export function ServiceChecksCard() {
   }, [handleCheck]);
 
   useEffect(() => {
-    checkAll();
+    void checkAll();
     if (!autoRefresh) return;
     const interval = setInterval(checkAll, CHECK_INTERVAL_MS);
     return () => clearInterval(interval);
@@ -94,7 +94,7 @@ export function ServiceChecksCard() {
         </div>
         {PROBED_SERVICES.map((service) => {
           const check = checks[service];
-          const ago = check?.lastChecked
+          const ago = check.lastChecked
             ? Math.max(0, Math.round((Date.now() - check.lastChecked) / 1000))
             : null;
           return (
@@ -105,11 +105,11 @@ export function ServiceChecksCard() {
               <div className="flex items-center gap-2 min-w-0">
                 <div
                   className={`w-2 h-2 rounded-full shrink-0 ${
-                    check?.status === "online"
+                    check.status === "online"
                       ? "bg-emerald-400"
-                      : check?.status === "offline"
+                      : check.status === "offline"
                         ? "bg-red-400"
-                        : check?.status === "checking"
+                        : check.status === "checking"
                           ? "bg-amber-400 animate-pulse"
                           : "bg-gray-600"
                   }`}
@@ -119,9 +119,9 @@ export function ServiceChecksCard() {
                   <span className="text-[10px] text-muted/60 tabular-nums">{ago}s ago</span>
                 )}
               </div>
-              {check?.status === "checking" ? (
+              {check.status === "checking" ? (
                 <Loader2 size={14} className="animate-spin text-amber-400" />
-              ) : check?.status === "online" || check?.status === "offline" ? (
+              ) : check.status === "online" || check.status === "offline" ? (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span
                     className={`flex items-center gap-1 text-xs ${check.status === "online" ? "text-emerald-400" : "text-red-400"}`}

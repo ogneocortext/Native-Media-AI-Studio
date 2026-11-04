@@ -62,7 +62,7 @@ export function LineagePanel({ filename }: Props) {
     // separation dir can carry a hash prefix or extension the manifest does not,
     // so both are plausible join keys.
     const candidates = key === filename ? [filename] : [key, filename];
-    (async () => {
+    void (async () => {
       let lastError: string | null = null;
       for (const candidate of candidates) {
         try {
@@ -98,7 +98,7 @@ export function LineagePanel({ filename }: Props) {
       if (!entry.recipe) return;
       setPendingRemixRecipe(entry.recipe, filename);
       setPendingTrack(filename);
-      navigate("/visualizer");
+      void navigate("/visualizer");
     },
     [filename, navigate],
   );
@@ -110,7 +110,7 @@ export function LineagePanel({ filename }: Props) {
   const startMashup = useCallback(() => {
     setPendingTrack(filename);
     setPendingRemixOpen();
-    navigate("/visualizer");
+    void navigate("/visualizer");
   }, [filename, navigate]);
 
   return (

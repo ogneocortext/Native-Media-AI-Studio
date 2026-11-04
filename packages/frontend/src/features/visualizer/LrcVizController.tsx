@@ -95,8 +95,8 @@ export function LrcVizController({
     // Live per-frame sync preferred; React-state snapshot as fallback (demo mode).
     const lrcSync = lrcSyncRef?.current ?? lrcSyncProp;
     const story = storyRef?.current ?? null;
-    const section = lrcSync?.currentSection || "VERSE";
-    const color = getSectionColor(section, vizParams.meshColor || "#6366f1");
+    const section = lrcSync?.currentSection ?? "VERSE";
+    const color = getSectionColor(section, vizParams.meshColor ?? "#6366f1");
     const baseIntensity = getSectionIntensity(section);
     // Boost intensity by lineProgress (build within phrase) and sectionProgress (build within section)
     const lineBoost = lrcSync ? lrcSync.lineProgress * 0.15 : 0;

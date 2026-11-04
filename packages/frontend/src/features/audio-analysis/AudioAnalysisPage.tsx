@@ -109,7 +109,7 @@ export function AudioAnalysisPage() {
     }
   };
 
-  const handleGenerateVideo = async () => {
+  const handleGenerateVideo = () => {
     if (!audio.summary?.filename) return;
 
     setPendingTrack(audio.summary.filename);

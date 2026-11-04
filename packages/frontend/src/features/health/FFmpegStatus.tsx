@@ -20,7 +20,7 @@ export function FFmpegStatus() {
   const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
-    fetchFFmpegData();
+    void fetchFFmpegData();
     const interval = setInterval(fetchFFmpegData, 10000); // Increased from 3s to 10s
     return () => clearInterval(interval);
   }, [fetchFFmpegData]);
@@ -57,7 +57,7 @@ export function FFmpegStatus() {
           {ffmpeg.processes.map((p: FFmpegProcessInfo, i: number) => (
             <div key={i} className="flex items-center justify-between text-xs">
               <span className="text-muted">PID {String(p.pid)}</span>
-              <span className="text-white">{Math.round(Number(p.cpu || 0))}% CPU</span>
+              <span className="text-white">{Math.round(Number(p.cpu ?? 0))}% CPU</span>
             </div>
           ))}
         </div>

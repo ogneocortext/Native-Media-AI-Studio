@@ -225,7 +225,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       const onKey = (e: KeyboardEvent) => {
         if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "a") {
           e.preventDefault();
-          handleAnalyze();
+          void handleAnalyze();
         }
       };
       window.addEventListener("keydown", onKey);
@@ -330,7 +330,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // rAF loop stays alive but renders nothing. A live frame would advance
         // particle/spring state between captures and make two runs diverge;
         // virtual frames run the same code path with `virtualTime` set.
-        if (api?.isExportActive && api?.virtualTimeSec === null) {
+        if (api?.isExportActive && api.virtualTimeSec === null) {
           raf = requestAnimationFrame(draw);
           return;
         }
@@ -347,15 +347,15 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           vTime != null
             ? (lrcSyncAtHolder.current?.(vTime) ?? null)
             : (lrcSyncLiveHolder.current?.current ?? lrcSyncPropHolder.current);
-        const section = sync?.currentSection || "VERSE";
+        const section = sync?.currentSection ?? "VERSE";
         const target = palettes[section] || palettes.VERSE;
 
         // Prefer blended live+analysis energy for visual punch; fall back to raw
         // analyzed energy only when the blended value is actually invalid (NaN /
         // Infinity), not when it is legitimately 0 during silence.
-        const effectiveEnergy = Number.isFinite(d.energy) ? d.energy : d.analyzedEnergy || 0;
+        const effectiveEnergy = Number.isFinite(d.energy) ? d.energy : d.analyzedEnergy ?? 0;
         const energyMod = 1 + effectiveEnergy * 0.4;
-        const analyzedPunch = d.analyzedEnergy || 0;
+        const analyzedPunch = d.analyzedEnergy ?? 0;
 
         // Reduce motion when the user or OS requests it — scales down phraseFlash,
         // beat vignette, and trail persistence without disabling the visualizer.
@@ -365,17 +365,17 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // Always allocated (default 1024/2048) so downstream code never sees null —
         // buffers are only *filled* with real data while playing. A virtual
         // frame swaps in its synthesized buffers instead (see the API below).
-        if (!freq || freq.length !== (analyser?.frequencyBinCount ?? 1024)) {
+        if (freq?.length !== (analyser?.frequencyBinCount ?? 1024)) {
           freq = new Uint8Array(analyser?.frequencyBinCount ?? 1024);
         }
-        if (!wave || wave.length !== (analyser?.fftSize ?? 2048)) {
+        if (wave?.length !== (analyser?.fftSize ?? 2048)) {
           wave = new Uint8Array(analyser?.fftSize ?? 2048);
         }
-        if (isVirtual && api?.virtualFreqBuffer && api?.virtualWaveBuffer) {
+        if (isVirtual && api?.virtualFreqBuffer && api.virtualWaveBuffer) {
           freq = api.virtualFreqBuffer;
           wave = api.virtualWaveBuffer;
         }
-        if (!smoothed || smoothed.length !== wave.length) {
+        if (smoothed?.length !== wave.length) {
           smoothed = new Uint8Array(wave.length);
         }
 
@@ -444,13 +444,11 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           mode === "dot-peak-matrix"
         ) {
           if (
-            !barVelocities ||
-            barVelocities.length !==
-              (mode === "dot-peak-matrix"
+            barVelocities?.length !== mode === "dot-peak-matrix"
                 ? 64
                 : mode === "stereo-split-bars" || mode === "stacked-frequency-bands"
                   ? 48
-                  : 64)
+                  : 64
           ) {
             barVelocities = new Array(
               mode === "dot-peak-matrix"
@@ -692,7 +690,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         {/* HTML-in-Canvas rendered content when Chrome 157+, DOM overlay fallback when Chrome 156 */}
         <HtmlCanvasRenderer canvas={canvasRef.current} x={0} y={0}>
           <div className="text-white/80 text-[24px] font-semibold leading-tight text-center w-full">
-            <span className="block mb-2">{lrcSyncLive?.current?.currentSection?.toUpperCase() || "—"}</span>
+            <span className="block mb-2">{lrcSyncLive?.current?.currentSection.toUpperCase() ?? "—"}</span>
             <span className="block text-[18px]">{lrcSyncLive?.current?.sectionProgress}</span>
           </div>
         </HtmlCanvasRenderer>

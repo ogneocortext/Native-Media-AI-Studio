@@ -658,7 +658,7 @@ export function selectVisualPreset(
   // Combined normalized haystack: genre + track name. All catalog genres are
   // matched longest-first so "trap metal" wins over "trap"/"metal" and
   // "west coast" wins over generic single-word tags regardless of catalog order.
-  const haystack = normalizeSearchText(`${genre || ""} ${trackName}`);
+  const haystack = normalizeSearchText(`${genre ?? ""} ${trackName}`);
   const candidates: { presetId: string; phrase: string }[] = [];
   for (const preset of visualPresetList) {
     for (const pg of preset.genres) {

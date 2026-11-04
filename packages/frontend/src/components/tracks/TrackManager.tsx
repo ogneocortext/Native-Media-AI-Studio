@@ -78,7 +78,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
         timeout: 30000,
       });
       if (res.ok) {
-        loadTracks();
+        void loadTracks();
       }
     } catch (err) {
       console.error("Failed to import tracks:", err);
@@ -96,7 +96,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
       if (res.ok) {
         const data = await res.json();
         alert(`Imported ${data.imported} tracks from CSV!`);
-        loadTracks();
+        void loadTracks();
       }
     } catch (err) {
       console.error("Failed to import from CSV:", err);
@@ -139,7 +139,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
 
   const saveEdit = () => {
     if (editingId && editField) {
-      saveTrack(editingId, editField, editValue);
+      void saveTrack(editingId, editField, editValue);
     }
     setEditingId(null);
     setEditField(null);
@@ -153,7 +153,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
   };
 
   useEffect(() => {
-    loadTracks();
+    void loadTracks();
   }, [loadTracks]);
 
   const formatDuration = (seconds: number) => {

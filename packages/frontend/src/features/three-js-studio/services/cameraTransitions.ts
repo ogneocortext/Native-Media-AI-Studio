@@ -183,6 +183,7 @@ export function computeModePose(input: ModePoseInput): CameraPose {
       };
     }
     case "handheld":
+    case "static": { throw new Error('Not implemented yet: "static" case') }
     default: {
       // Free walk / static: the loop accumulates the walk
       // on the live position before sampling, so the pose

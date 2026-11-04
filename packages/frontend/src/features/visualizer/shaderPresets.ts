@@ -38,7 +38,7 @@ export function getShaderPresetForTrack(trackName: string): ShaderPresetName {
   // Blank name (initial mount before a track is selected): neutral default.
   // Without this, `"".includes` vacuity matches the first map entry and the
   // canvas flashes the wrong preset, then recompiles on selection.
-  if (!trackName?.trim()) return "abstractWaves";
+  if (!trackName.trim()) return "abstractWaves";
 
   // Normalize: strip artist prefix ("Artist - Track" → "Track") so fuzzy
   // matching works for library filenames that include the artist name.

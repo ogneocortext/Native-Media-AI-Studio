@@ -219,7 +219,7 @@ export function AudioTrimModal({
     (id: string, field: "start" | "end", value: number) => {
       const region = findLiveRegion(id);
       if (!region || !Number.isFinite(value)) return;
-      const max = wsRef.current?.getDuration() || totalDuration;
+      const max = wsRef.current?.getDuration() ?? totalDuration;
       const v = Math.max(0, Math.min(value, max));
       region.setOptions({ [field]: v });
       syncRegions();

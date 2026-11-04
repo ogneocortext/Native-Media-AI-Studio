@@ -222,8 +222,7 @@ function parseCsvLine(line: string): string[] {
   let current = "";
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (const char of line) {
     if (char === '"') {
       inQuotes = !inQuotes;
     } else if (char === "," && !inQuotes) {
@@ -321,12 +320,12 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
       /(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)/gi,
     );
 
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]?.trim();
-      if (!part) continue;
+    for (const part of parts) {
+      const trimmed = part?.trim();
+      if (!trimmed) continue;
 
       // Check if this part is a section marker
-      const sectionMatch = /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i.exec(part);
+      const sectionMatch = /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i.exec(trimmed);
       if (sectionMatch) {
         if (currentLines.length) {
           sections.push({ section: currentSection, lines: [...currentLines] });
@@ -432,7 +431,7 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
  * - Metadata tags [ar:...], [ti:...], [al:...] (ignored)
  */
 export function parseLrc(lrcContent: string): LyricLine[] {
-  if (!lrcContent?.trim()) return [];
+  if (!lrcContent.trim()) return [];
 
   const lines = lrcContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const result: LyricLine[] = [];
