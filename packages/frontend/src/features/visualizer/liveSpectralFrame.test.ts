@@ -51,6 +51,7 @@ describe("synthesizeLiveFrame", () => {
     // is low — what matters is that the energy lands in the right
     // band and nowhere else. Assert relative dominance.
     const subOnly = mockAnalyser(singleBinSpectrum(subBin));
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const subFrame = synthesizeLiveFrame(subOnly, 0)!;
     expect(subFrame.sub).toBeGreaterThan(0);
     expect(subFrame.sub).toBeGreaterThan(subFrame.mid);
@@ -59,6 +60,7 @@ describe("synthesizeLiveFrame", () => {
     expect(subFrame.high).toBe(0);
 
     const midOnly = mockAnalyser(singleBinSpectrum(midBin));
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const midFrame = synthesizeLiveFrame(midOnly, 0)!;
     expect(midFrame.mid).toBeGreaterThan(0);
     expect(midFrame.mid).toBeGreaterThan(midFrame.sub);
@@ -67,6 +69,7 @@ describe("synthesizeLiveFrame", () => {
     expect(midFrame.high).toBe(0);
 
     const highOnly = mockAnalyser(singleBinSpectrum(highBin));
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const highFrame = synthesizeLiveFrame(highOnly, 0)!;
     expect(highFrame.high).toBeGreaterThan(0);
     expect(highFrame.high).toBeGreaterThan(highFrame.sub);
@@ -80,11 +83,11 @@ describe("synthesizeLiveFrame", () => {
     // A hard-coded bin index would put it in `high` at 48 kHz.
     const binWidth48 = 48000 / 2048;
     const midBin48 = Math.round(1000 / binWidth48);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const frame = synthesizeLiveFrame(
       mockAnalyser(singleBinSpectrum(midBin48), { sampleRate: 48000 }),
       0,
     )!;
-    expect(frame.mid).toBeGreaterThan(0);
     expect(frame.mid).toBeGreaterThan(frame.high);
     expect(frame.mid).toBeGreaterThan(frame.sub);
     expect(frame.high).toBe(0);
@@ -95,15 +98,18 @@ describe("synthesizeLiveFrame", () => {
     const loud = new Uint8Array(1024).fill(200);
 
     // Flat input: no transient, whatever the level.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const flat = synthesizeLiveFrame(mockAnalyser(loud), 200 / 255)!;
     expect(flat.transient).toBe(0);
 
     // Rise: transient proportional to the jump, clamped to 1.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const rising = synthesizeLiveFrame(mockAnalyser(loud), 10 / 255)!;
     expect(rising.transient).toBeGreaterThan(0.5);
     expect(rising.transient).toBeLessThanOrEqual(1);
 
     // Fall: never a transient.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const falling = synthesizeLiveFrame(mockAnalyser(quiet), 200 / 255)!;
     expect(falling.transient).toBe(0);
   });
@@ -111,16 +117,19 @@ describe("synthesizeLiveFrame", () => {
   it("keeps the centroid inside [0, 1]", () => {
     const bins = new Uint8Array(1024);
     bins[1023] = 255; // all energy at Nyquist
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const frame = synthesizeLiveFrame(mockAnalyser(bins), 0)!;
     expect(frame.centroid).toBeGreaterThan(0.9);
     expect(frame.centroid).toBeLessThanOrEqual(1);
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const silent = synthesizeLiveFrame(mockAnalyser(new Uint8Array(1024)), 0)!;
     expect(silent.centroid).toBe(0);
   });
 
   it("normalizes RMS to [0, 1]", () => {
     const full = new Uint8Array(1024).fill(255);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const frame = synthesizeLiveFrame(mockAnalyser(full), 0)!;
     expect(frame.rms).toBeCloseTo(1, 6);
   });

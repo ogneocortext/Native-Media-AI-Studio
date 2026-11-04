@@ -130,7 +130,8 @@ export function useMeshFactory() {
             const shadowCanvas = document.createElement("canvas");
             shadowCanvas.width = 128;
             shadowCanvas.height = 128;
-            const ctx = shadowCanvas.getContext("2d")!;
+            const ctx = shadowCanvas.getContext("2d");
+            if (!ctx) throw new Error("Failed to get 2d canvas context for shadow texture");
             const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
             gradient.addColorStop(0, "rgba(0,0,0,0.5)");
             gradient.addColorStop(0.5, "rgba(0,0,0,0.3)");

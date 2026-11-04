@@ -1136,6 +1136,7 @@ export function renderConstellation(
     const gy = Math.floor(p.y / gridStep);
     const key = `${gx},${gy}`;
     if (!grid.has(key)) grid.set(key, []);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     grid.get(key)!.push(i);
   }
   for (let i = 0; i < maxPoints; i++) {

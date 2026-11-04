@@ -45,6 +45,8 @@ export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProp
     [onSelect],
   );
 
+  const selectedPreset = selectedId ? getPresetById(selectedId) : undefined;
+
   return (
     <div className="kt-preset-selector">
       <div className="kt-preset-tabs">
@@ -60,7 +62,7 @@ export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProp
           </button>
         ))}
       </div>
-      {selectedId && <PresetPreview preset={getPresetById(selectedId)!} />}
+      {selectedPreset && <PresetPreview preset={selectedPreset} />}
     </div>
   );
 }

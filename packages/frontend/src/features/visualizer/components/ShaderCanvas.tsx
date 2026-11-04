@@ -173,6 +173,7 @@ export function ShaderCanvas({
       }
     `;
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
@@ -183,6 +184,7 @@ export function ShaderCanvas({
     }
 
     const fsSource = fragmentShader;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
@@ -315,6 +317,7 @@ export function ShaderCanvas({
       }
     `;
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
@@ -323,6 +326,7 @@ export function ShaderCanvas({
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);

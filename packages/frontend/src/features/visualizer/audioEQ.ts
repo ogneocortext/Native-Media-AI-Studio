@@ -110,6 +110,7 @@ export function createEQ(ctx: AudioContext, bands: EQBand[] = []): EQInstance {
   const syncFilters = (next: EQBand[]) => {
     // Remove excess filters
     while (filters.length > next.length) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const f = filters.pop()!;
       try {
         f.disconnect();

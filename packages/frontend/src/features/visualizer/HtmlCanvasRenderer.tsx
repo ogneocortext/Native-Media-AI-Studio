@@ -58,9 +58,10 @@ export function HtmlCanvasRenderer({
 
   useEffect(() => {
     if (!ready || !supported || !canvas || !elementRef.current) return;
+    const element = elementRef.current;
 
     const draw = () => {
-      void drawHtmlIntoCanvas(canvas, elementRef.current!, x, y, width, height);
+      void drawHtmlIntoCanvas(canvas, element, x, y, width, height);
       rafRef.current = requestAnimationFrame(draw);
     };
 

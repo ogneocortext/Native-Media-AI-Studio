@@ -67,6 +67,7 @@ describe("exportPresetToString", () => {
 describe("importPresetFromString", () => {
   it("imports a valid preset", () => {
     const json = exportPresetToString(DEFAULT_VISUAL_PRESET);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const imported = importPresetFromString(json)!;
     expect(imported).not.toBeNull();
     expect(imported.id).toBe("default");
@@ -129,6 +130,7 @@ describe("getConfigAtTime", () => {
   });
 
   it("interpolates between keyframes", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const phonk = PRESET_LIBRARY.find((p) => p.id === "phonk-drift")!;
     const start = getConfigAtTime(phonk, 0);
     expect(start.camera.position).toEqual([0, 1, 4]);
@@ -137,6 +139,7 @@ describe("getConfigAtTime", () => {
   });
 
   it("clamps to last keyframe after the last keyframe time", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const phonk = PRESET_LIBRARY.find((p) => p.id === "phonk-drift")!;
     const late = getConfigAtTime(phonk, 999);
     expect(late.camera.position).toEqual([-2, 1, 4]);

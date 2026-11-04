@@ -323,7 +323,9 @@ export function useRealAudio(
         ),
       };
     }
-    const bands = perceptualBandCache.current!.boundaries;
+    const finalCache = perceptualBandCache.current;
+    if (!finalCache) throw new Error("Perceptual band cache not initialized");
+    const bands = finalCache.boundaries;
     const perceptualBands = mapToPerceptualBands(
       arr,
       sampleRate,

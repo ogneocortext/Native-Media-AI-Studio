@@ -76,7 +76,8 @@ describe("parseWordLevelLRC", () => {
   it("parses per-word timings", () => {
     const lines = parseWordLevelLRC(WORD_LRC);
     expect(lines).toHaveLength(1);
-    const words = lines[0]!.words!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const words = lines[0].words!;
     expect(words.map((w) => w.word)).toEqual(["Hello", "world", "again"]);
     expect(words[0].start).toBeCloseTo(12, 10);
     expect(words[1].start).toBeCloseTo(13, 10);
@@ -137,7 +138,7 @@ describe("findCurrentWord", () => {
 });
 
 describe("getWordProgress", () => {
-  const line = parseWordLevelLRC(WORD_LRC)[0]!;
+  const line = parseWordLevelLRC(WORD_LRC)[0];
 
   it("is 0 before the word and 1 after it", () => {
     expect(getWordProgress(line, 11, 0)).toBe(0);
@@ -145,6 +146,7 @@ describe("getWordProgress", () => {
   });
 
   it("ramps linearly through the word", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const word = line.words![0];
     const mid = (word.start + word.end) / 2;
     expect(getWordProgress(line, mid, 0)).toBeCloseTo(0.5, 10);
@@ -152,6 +154,7 @@ describe("getWordProgress", () => {
 
   it("stays within 0..1", () => {
     for (const t of [0, 11.9, 12.1, 13.5, 100]) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       for (let i = 0; i < line.words!.length; i++) {
         const p = getWordProgress(line, t, i);
         expect(p).toBeGreaterThanOrEqual(0);

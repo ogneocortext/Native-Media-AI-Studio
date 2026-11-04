@@ -136,7 +136,7 @@ export async function detectHtmlInCanvasSupport(): Promise<boolean> {
       return false;
     }
   })();
-  return htmlInCanvasProbe!;
+  return htmlInCanvasProbe;
 }
 
 /**

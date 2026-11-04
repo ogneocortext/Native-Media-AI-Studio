@@ -256,7 +256,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       const rand = (): number => api?.virtualRand?.() ?? Math.random();
       /** Wall clock for the frame being drawn: virtual time during export. */
       const nowMs = (): number =>
-        api?.virtualTimeSec != null ? api!.virtualTimeSec * 1000 : performance.now();
+        api?.virtualTimeSec != null ? api.virtualTimeSec * 1000 : performance.now();
 
       // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
       let barVelocities: number[] | null = null;

@@ -155,6 +155,7 @@ describe("pickHighestEnergyWindow", () => {
   it("finds the loud stretch in a flat-then-loud curve", () => {
     // 30s at 1 sample/second. Quiet 0..14, loud 15..29.
     const curve = new Array(30).fill(0.1).concat(new Array(15).fill(0.9));
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const w = pickHighestEnergyWindow(curve, undefined, 45)!;
     expect(w).not.toBeNull();
     // The window must sit inside the loud region.
@@ -163,6 +164,7 @@ describe("pickHighestEnergyWindow", () => {
   });
 
   it("clips the window to the track duration", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const w = pickHighestEnergyWindow(undefined, undefined, 4)!;
     expect(w).toEqual({ start: 0, end: 4 });
   });
@@ -173,6 +175,7 @@ describe("pickHighestEnergyWindow", () => {
       { start: 10, end: 20, energy: 0.9 },
       { start: 20, end: 30, energy: 0.4 },
     ];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const w = pickHighestEnergyWindow(undefined, sections, 30)!;
     expect(w.start).toBeGreaterThanOrEqual(10);
     expect(w.end - w.start).toBeCloseTo(CLIP_SECONDS, 1);
@@ -180,7 +183,9 @@ describe("pickHighestEnergyWindow", () => {
 
   it("is deterministic for a flat curve (earliest window wins)", () => {
     const curve = new Array(60).fill(0.5);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const a = pickHighestEnergyWindow(curve, undefined, 60)!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const b = pickHighestEnergyWindow(curve, undefined, 60)!;
     expect(a).toEqual(b);
     expect(a.start).toBe(0);
@@ -193,6 +198,7 @@ describe("describeSuggestion", () => {
   });
 
   it("describes a high-energy track in plain language", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const s = describeSuggestion({
       visualization: "pulse",
       confidence: 0.82,
@@ -205,6 +211,7 @@ describe("describeSuggestion", () => {
   });
 
   it("describes a low-energy track", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const s = describeSuggestion({
       visualization: "grid",
       tempoBpm: 70,
@@ -214,6 +221,7 @@ describe("describeSuggestion", () => {
   });
 
   it("never renders a percentage — the reason is the message", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const s = describeSuggestion({
       visualization: "pulse",
       confidence: 0.93,
@@ -225,6 +233,7 @@ describe("describeSuggestion", () => {
   });
 
   it("falls back to a generic reason when there is no energy or tempo", () => {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const s = describeSuggestion({ visualization: "grid" })!;
     expect(s.text).toBe("Matched to your track");
   });
