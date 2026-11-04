@@ -120,13 +120,17 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
         await ensureAudioContext();
 
         const ctx = audioCtxRef.current;
+        if (!ctx) throw new Error("AudioContext not initialized");
+        const analyser = analyserRef.current;
+        if (!analyser) throw new Error("AnalyserNode not initialized");
+
         const source = ctx.createMediaElementSource(el);
         sourceRef.current = source;
         const eq = eqRef.current;
         if (eq) {
           source.connect(eq.input);
         } else {
-          source.connect(analyserRef.current);
+          source.connect(analyser);
         }
       } catch (e) {
         throw e instanceof Error ? e : new Error("Web Audio setup failed");

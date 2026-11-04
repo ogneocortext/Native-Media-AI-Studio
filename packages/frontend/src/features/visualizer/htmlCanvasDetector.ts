@@ -107,7 +107,7 @@ export function useHtmlInCanvas(): HtmlInCanvasResult {
 export async function detectHtmlInCanvasSupport(): Promise<boolean> {
   if (htmlInCanvasProbe) return htmlInCanvasProbe;
 
-  htmlInCanvasProbe = (() => {
+  htmlInCanvasProbe = (async () => {
     try {
       // Check for drawHTML method on CanvasRenderingContext2D
       if (
@@ -136,7 +136,7 @@ export async function detectHtmlInCanvasSupport(): Promise<boolean> {
       return false;
     }
   })();
-  return htmlInCanvasProbe;
+  return htmlInCanvasProbe!;
 }
 
 /**

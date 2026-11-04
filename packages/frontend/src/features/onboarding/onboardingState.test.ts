@@ -155,7 +155,7 @@ describe("pickHighestEnergyWindow", () => {
   it("finds the loud stretch in a flat-then-loud curve", () => {
     // 30s at 1 sample/second. Quiet 0..14, loud 15..29.
     const curve = new Array(30).fill(0.1).concat(new Array(15).fill(0.9));
-    const w = pickHighestEnergyWindow(curve, undefined, 45);
+    const w = pickHighestEnergyWindow(curve, undefined, 45)!;
     expect(w).not.toBeNull();
     // The window must sit inside the loud region.
     expect(w.start).toBeGreaterThanOrEqual(14);
@@ -163,7 +163,7 @@ describe("pickHighestEnergyWindow", () => {
   });
 
   it("clips the window to the track duration", () => {
-    const w = pickHighestEnergyWindow(undefined, undefined, 4);
+    const w = pickHighestEnergyWindow(undefined, undefined, 4)!;
     expect(w).toEqual({ start: 0, end: 4 });
   });
 
@@ -173,15 +173,15 @@ describe("pickHighestEnergyWindow", () => {
       { start: 10, end: 20, energy: 0.9 },
       { start: 20, end: 30, energy: 0.4 },
     ];
-    const w = pickHighestEnergyWindow(undefined, sections, 30);
+    const w = pickHighestEnergyWindow(undefined, sections, 30)!;
     expect(w.start).toBeGreaterThanOrEqual(10);
     expect(w.end - w.start).toBeCloseTo(CLIP_SECONDS, 1);
   });
 
   it("is deterministic for a flat curve (earliest window wins)", () => {
     const curve = new Array(60).fill(0.5);
-    const a = pickHighestEnergyWindow(curve, undefined, 60);
-    const b = pickHighestEnergyWindow(curve, undefined, 60);
+    const a = pickHighestEnergyWindow(curve, undefined, 60)!;
+    const b = pickHighestEnergyWindow(curve, undefined, 60)!;
     expect(a).toEqual(b);
     expect(a.start).toBe(0);
   });
@@ -198,7 +198,7 @@ describe("describeSuggestion", () => {
       confidence: 0.82,
       tempoBpm: 126,
       energy: 0.8,
-    });
+    })!;
     expect(s).not.toBeNull();
     expect(s.text).toBe("High-energy track, 126 BPM");
     expect(s.visualization).toBe("pulse");
@@ -209,7 +209,7 @@ describe("describeSuggestion", () => {
       visualization: "grid",
       tempoBpm: 70,
       energy: 0.2,
-    });
+    })!;
     expect(s.text).toBe("Low-energy track, 70 BPM");
   });
 
@@ -219,13 +219,13 @@ describe("describeSuggestion", () => {
       confidence: 0.93,
       tempoBpm: 128,
       energy: 0.7,
-    });
+    })!;
     expect(s.text).not.toContain("%");
     expect(s.text).not.toContain("93");
   });
 
   it("falls back to a generic reason when there is no energy or tempo", () => {
-    const s = describeSuggestion({ visualization: "grid" });
+    const s = describeSuggestion({ visualization: "grid" })!;
     expect(s.text).toBe("Matched to your track");
   });
 });

@@ -173,7 +173,7 @@ export function ShaderCanvas({
       }
     `;
 
-    const vs = gl.createShader(gl.VERTEX_SHADER);
+    const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
     vsRef.current = vs;
@@ -183,7 +183,7 @@ export function ShaderCanvas({
     }
 
     const fsSource = fragmentShader;
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
     fsRef.current = fs;
@@ -315,7 +315,7 @@ export function ShaderCanvas({
       }
     `;
 
-    const vs = gl.createShader(gl.VERTEX_SHADER);
+    const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
@@ -323,7 +323,7 @@ export function ShaderCanvas({
       return;
     }
 
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {

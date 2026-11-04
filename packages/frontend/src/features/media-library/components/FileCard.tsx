@@ -389,13 +389,13 @@ export function FileCard({
                 src={mediaUrl}
                 preload="metadata"
                 onPlay={() => {
-                  pauseOtherAudios(audioRef.current);
+                  pauseOtherAudios(audioRef.current!);
                 }}
                 onPause={() => {
-                  playingAudios.delete(audioRef.current);
+                  playingAudios.delete(audioRef.current!);
                 }}
                 onEnded={() => {
-                  playingAudios.delete(audioRef.current);
+                  playingAudios.delete(audioRef.current!);
                 }}
               />
               <div className="flex items-center justify-between mt-1">

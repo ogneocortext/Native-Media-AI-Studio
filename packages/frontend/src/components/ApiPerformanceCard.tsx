@@ -27,7 +27,7 @@ export function ApiPerformanceCard() {
     if (!endpointStats.has(endpoint)) {
       endpointStats.set(endpoint, { duration: 0, count: 0, errors: 0 });
     }
-    const entry = endpointStats.get(endpoint);
+    const entry = endpointStats.get(endpoint)!;
     if (metric === "duration") {
       entry.duration = stats.p95;
     } else if (metric === "count") {

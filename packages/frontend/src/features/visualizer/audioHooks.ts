@@ -323,7 +323,7 @@ export function useRealAudio(
         ),
       };
     }
-    const bands = perceptualBandCache.current.boundaries;
+    const bands = perceptualBandCache.current!.boundaries;
     const perceptualBands = mapToPerceptualBands(
       arr,
       sampleRate,

@@ -60,7 +60,7 @@ export function PresetSelector({ currentPresetId, onSelect }: PresetSelectorProp
           </button>
         ))}
       </div>
-      {selectedId && <PresetPreview preset={getPresetById(selectedId)} />}
+      {selectedId && <PresetPreview preset={getPresetById(selectedId)!} />}
     </div>
   );
 }

@@ -51,7 +51,7 @@ describe("synthesizeLiveFrame", () => {
     // is low — what matters is that the energy lands in the right
     // band and nowhere else. Assert relative dominance.
     const subOnly = mockAnalyser(singleBinSpectrum(subBin));
-    const subFrame = synthesizeLiveFrame(subOnly, 0);
+    const subFrame = synthesizeLiveFrame(subOnly, 0)!;
     expect(subFrame.sub).toBeGreaterThan(0);
     expect(subFrame.sub).toBeGreaterThan(subFrame.mid);
     expect(subFrame.sub).toBeGreaterThan(subFrame.high);
@@ -59,7 +59,7 @@ describe("synthesizeLiveFrame", () => {
     expect(subFrame.high).toBe(0);
 
     const midOnly = mockAnalyser(singleBinSpectrum(midBin));
-    const midFrame = synthesizeLiveFrame(midOnly, 0);
+    const midFrame = synthesizeLiveFrame(midOnly, 0)!;
     expect(midFrame.mid).toBeGreaterThan(0);
     expect(midFrame.mid).toBeGreaterThan(midFrame.sub);
     expect(midFrame.mid).toBeGreaterThan(midFrame.high);
@@ -67,7 +67,7 @@ describe("synthesizeLiveFrame", () => {
     expect(midFrame.high).toBe(0);
 
     const highOnly = mockAnalyser(singleBinSpectrum(highBin));
-    const highFrame = synthesizeLiveFrame(highOnly, 0);
+    const highFrame = synthesizeLiveFrame(highOnly, 0)!;
     expect(highFrame.high).toBeGreaterThan(0);
     expect(highFrame.high).toBeGreaterThan(highFrame.sub);
     expect(highFrame.high).toBeGreaterThan(highFrame.mid);
@@ -95,33 +95,33 @@ describe("synthesizeLiveFrame", () => {
     const loud = new Uint8Array(1024).fill(200);
 
     // Flat input: no transient, whatever the level.
-    const flat = synthesizeLiveFrame(mockAnalyser(loud), 200 / 255);
+    const flat = synthesizeLiveFrame(mockAnalyser(loud), 200 / 255)!;
     expect(flat.transient).toBe(0);
 
     // Rise: transient proportional to the jump, clamped to 1.
-    const rising = synthesizeLiveFrame(mockAnalyser(loud), 10 / 255);
+    const rising = synthesizeLiveFrame(mockAnalyser(loud), 10 / 255)!;
     expect(rising.transient).toBeGreaterThan(0.5);
     expect(rising.transient).toBeLessThanOrEqual(1);
 
     // Fall: never a transient.
-    const falling = synthesizeLiveFrame(mockAnalyser(quiet), 200 / 255);
+    const falling = synthesizeLiveFrame(mockAnalyser(quiet), 200 / 255)!;
     expect(falling.transient).toBe(0);
   });
 
   it("keeps the centroid inside [0, 1]", () => {
     const bins = new Uint8Array(1024);
     bins[1023] = 255; // all energy at Nyquist
-    const frame = synthesizeLiveFrame(mockAnalyser(bins), 0);
+    const frame = synthesizeLiveFrame(mockAnalyser(bins), 0)!;
     expect(frame.centroid).toBeGreaterThan(0.9);
     expect(frame.centroid).toBeLessThanOrEqual(1);
 
-    const silent = synthesizeLiveFrame(mockAnalyser(new Uint8Array(1024)), 0);
+    const silent = synthesizeLiveFrame(mockAnalyser(new Uint8Array(1024)), 0)!;
     expect(silent.centroid).toBe(0);
   });
 
   it("normalizes RMS to [0, 1]", () => {
     const full = new Uint8Array(1024).fill(255);
-    const frame = synthesizeLiveFrame(mockAnalyser(full), 0);
+    const frame = synthesizeLiveFrame(mockAnalyser(full), 0)!;
     expect(frame.rms).toBeCloseTo(1, 6);
   });
 

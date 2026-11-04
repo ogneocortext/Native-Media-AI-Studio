@@ -253,10 +253,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       let api: FrameAccurateCanvas2D | null = null;
 
       /** Random for the frame being drawn: seeded during export, live otherwise. */
-      const rand = (): number => api.virtualRand?.() ?? Math.random();
+      const rand = (): number => api?.virtualRand?.() ?? Math.random();
       /** Wall clock for the frame being drawn: virtual time during export. */
       const nowMs = (): number =>
-        api.virtualTimeSec !== null ? api.virtualTimeSec * 1000 : performance.now();
+        api?.virtualTimeSec != null ? api!.virtualTimeSec * 1000 : performance.now();
 
       // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
       let barVelocities: number[] | null = null;
@@ -444,11 +444,12 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           mode === "dot-peak-matrix"
         ) {
           if (
-            barVelocities?.length !== mode === "dot-peak-matrix"
-                ? 64
-                : mode === "stereo-split-bars" || mode === "stacked-frequency-bands"
-                  ? 48
-                  : 64
+            barVelocities?.length !==
+            (mode === "dot-peak-matrix"
+              ? 64
+              : mode === "stereo-split-bars" || mode === "stacked-frequency-bands"
+                ? 48
+                : 64)
           ) {
             barVelocities = new Array(
               mode === "dot-peak-matrix"

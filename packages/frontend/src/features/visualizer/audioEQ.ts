@@ -110,7 +110,7 @@ export function createEQ(ctx: AudioContext, bands: EQBand[] = []): EQInstance {
   const syncFilters = (next: EQBand[]) => {
     // Remove excess filters
     while (filters.length > next.length) {
-      const f = filters.pop();
+      const f = filters.pop()!;
       try {
         f.disconnect();
       } catch {

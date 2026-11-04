@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { StatusBadge, ProgressBar } from "../../components/common";
 import type { Job, JobStep } from "@shared/types";
+import { JobStatus } from "@shared/types";
 import { getApiBase } from "../../services/api";
 import { calculateEta, formatElapsed } from "../../utils/eta";
 

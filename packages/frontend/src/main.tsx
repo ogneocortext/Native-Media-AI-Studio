@@ -33,7 +33,9 @@ async function initApp() {
   // Load port configuration first so all services use the correct backend URL
   await fetchPortConfig();
 
-  createRoot(document.getElementById("root")).render(
+  const rootEl = document.getElementById("root");
+  if (!rootEl) throw new Error("DOM element #root not found — cannot mount React app");
+  createRoot(rootEl).render(
     <App />,
   );
 }

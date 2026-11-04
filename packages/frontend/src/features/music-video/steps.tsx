@@ -972,7 +972,7 @@ export function ReviewStep({
           </p>
         </div>
         <span className="hidden md:inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 shrink-0">
-          <CheckCircle2 size={12} /> {generatedSections.length || analysis?.sections.length ?? 0}{" "}
+          <CheckCircle2 size={12} />           {generatedSections.length || (analysis?.sections.length ?? 0)}{" "}
           sections
         </span>
       </div>

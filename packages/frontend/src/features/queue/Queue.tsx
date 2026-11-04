@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Card, StatusBadge, ProgressBar, EmptyState, PageLoader } from "../../components/common";
 import type { Job, QueueMetrics } from "@shared/types";
+import { JobStatus } from "@shared/types";
 import {
   useJobStore,
   useJobs,

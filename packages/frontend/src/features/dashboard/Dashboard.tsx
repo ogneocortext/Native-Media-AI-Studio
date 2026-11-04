@@ -25,6 +25,7 @@ import { useJobs } from "../../hooks";
 import { useOutputStore, formatFileSize, getOutputUrl } from "../../state/outputStore";
 import { setPendingAudioFile } from "../../utils/pendingAudio";
 import { isAudioFile, probeAudioFile, formatDuration } from "../../utils/audioProbe";
+import { JobStatus } from "@shared/types";
 
 const AUDIO_ACCEPT = "audio/*,.mp3,.wav,.flac,.ogg,.m4a";
 const MAX_AUDIO_MB = 500;
