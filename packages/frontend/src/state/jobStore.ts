@@ -19,7 +19,7 @@ import {
   clearCompletedJobs as apiClearCompletedJobs,
   clearFailedJobs as apiClearFailedJobs,
 } from "../services/api";
-import type { JobStatus } from "@shared/types";
+import { JobStatus } from "@shared/types";
 import { sseService } from "../services/sseService";
 
 const AUTO_REFRESH_INTERVAL_MS = 5000;

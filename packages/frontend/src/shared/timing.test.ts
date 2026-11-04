@@ -25,7 +25,7 @@ describe("getBeatNearTimeFromArray", () => {
     const result = getBeatNearTimeFromArray(beats, 3.0, 1.0);
     expect(result).not.toBeNull();
     // 3.0 is equidistant (0.5) from beats[1]=2.5 and beats[2]=4.0; either is valid
-    expect(Math.abs(result.time - 3.0)).toBeLessThanOrEqual(1.0);
+    expect(Math.abs(result!.time - 3.0)).toBeLessThanOrEqual(1.0);
   });
 
   it("returns null when no beat within window", () => {
@@ -35,30 +35,34 @@ describe("getBeatNearTimeFromArray", () => {
   it("covers beats[lo] when mid==hi at loop exit (the bug case)", () => {
     const result = getBeatNearTimeFromArray([1.0, 4.0, 5.0], 3.0, 1.5);
     expect(result).not.toBeNull();
-    expect(result.time).toBe(4.0);
-    expect(result.index).toBe(1);
+    expect(result!.time).toBe(4.0);
+    expect(result!.index).toBe(1);
   });
 
   it("picks the closer of two adjacent beats", () => {
     const result = getBeatNearTimeFromArray(beats, 3.4, 1.0);
-    expect(result.time).toBe(4.0);
-    expect(result.index).toBe(2);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe(4.0);
+    expect(result!.index).toBe(2);
 
     const result2 = getBeatNearTimeFromArray(beats, 3.1, 1.0);
-    expect(result2.time).toBe(2.5);
-    expect(result2.index).toBe(1);
+    expect(result2).not.toBeNull();
+    expect(result2!.time).toBe(2.5);
+    expect(result2!.index).toBe(1);
   });
 
   it("handles elapsed before first beat", () => {
     const result = getBeatNearTimeFromArray(beats, 0.5, 1.0);
-    expect(result.time).toBe(1.0);
-    expect(result.index).toBe(0);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe(1.0);
+    expect(result!.index).toBe(0);
   });
 
   it("handles elapsed after last beat", () => {
     const result = getBeatNearTimeFromArray(beats, 9.5, 1.0);
-    expect(result.time).toBe(9.0);
-    expect(result.index).toBe(4);
+    expect(result).not.toBeNull();
+    expect(result!.time).toBe(9.0);
+    expect(result!.index).toBe(4);
   });
 
   it("handles single-element array", () => {
@@ -83,8 +87,8 @@ describe("getBeatPhase", () => {
     // At exactly a beat, phase is 0; nextBeatIn is time to the following beat
     const result = getBeatPhase(beats, 2.0);
     expect(result).not.toBeNull();
-    expect(result.phase).toBe(0);
-    expect(result.nextBeatIn).toBe(1);
+    expect(result!.phase).toBe(0);
+    expect(result!.nextBeatIn).toBe(1);
   });
 
   it("returns phase 0.5 midway between beats", () => {
@@ -94,8 +98,8 @@ describe("getBeatPhase", () => {
   it("returns phase approaching 1 before next beat", () => {
     const result = getBeatPhase(beats, 3.9);
     expect(result).not.toBeNull();
-    expect(result.phase).toBeCloseTo(0.9);
-    expect(result.nextBeatIn).toBeCloseTo(0.1);
+    expect(result!.phase).toBeCloseTo(0.9);
+    expect(result!.nextBeatIn).toBeCloseTo(0.1);
   });
 
   it("returns phase 1 when past last beat", () => {

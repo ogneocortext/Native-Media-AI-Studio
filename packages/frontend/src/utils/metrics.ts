@@ -34,6 +34,7 @@ class MetricsStore {
       this.metrics.set(name, []);
     }
     const samples = this.metrics.get(name);
+    if (!samples) return;
     samples.push({
       timestamp: Date.now(),
       value,
