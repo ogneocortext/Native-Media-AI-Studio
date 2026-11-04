@@ -122,7 +122,7 @@ CASES = [
     # untracked-and-ignored, and untracked-but-not-ignored.
     ("documented script is untracked and ignored", "check-repo-layout.py",
      SAMPLE,
-     lambda m: _untrack_then("scripts/check_ports.ps1", unignore=True),
+     lambda m: _untrack_then("scripts/check-ports.ps1", unignore=True),
      "gitignore excludes"),
     ("documented script is untracked only", "check-repo-layout.py",
       SAMPLE,

@@ -11,9 +11,9 @@
 .PARAMETER All
     Show all listening ports regardless of owning process.
 .EXAMPLE
-    pwsh -NoProfile -File scripts\check_ports.ps1
+    pwsh -NoProfile -File scripts\check-ports.ps1
 .EXAMPLE
-    pwsh -NoProfile -File scripts\check_ports.ps1 -All
+    pwsh -NoProfile -File scripts\check-ports.ps1 -All
 #>
 [CmdletBinding()]
 param(

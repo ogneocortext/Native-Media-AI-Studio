@@ -369,7 +369,7 @@ curl -s http://127.0.0.1:8000/api/health    # or just reload the browser tab
 
 Rules:
 
-- Check what is up before starting anything: `scripts\check_ports.ps1`.
+- Check what is up before starting anything: `scripts\check-ports.ps1`.
 - Start only what is actually down. `-Services` accepts one
   name, `all`, or an array.
 - **Leave services running when you finish.** The next step usually needs them,
@@ -502,7 +502,7 @@ they are not part of this project and should never be invoked for repo tasks.
 - Start: `scripts\start-services.ps1` (backend + frontend, dynamic ports → `config/ports.json`).
 - Status: `scripts\manage-servers.ps1 -Action status`
 - Interactive: `scripts\start-studio.ps1`
-- Ports: `scripts\check_ports.ps1`
+- Ports: `scripts\check-ports.ps1`
 
 Atomic Chat starts automatically with `start-services -Services all` (it's in the default service list). It runs on port 1337 (`atomic_chat_url` in `config/ports.json`) and serves your unsloth Qwen GGUF model (`unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M`). Ollama runs separately on port 11434. The backend chat endpoint routes through Atomic Chat when `atomic_chat_enabled` is true, falling back to Ollama on error.
 

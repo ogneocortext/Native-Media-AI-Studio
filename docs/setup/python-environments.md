@@ -35,7 +35,7 @@
   - Various test/debug scripts
 - **Dependencies:** see `tools/requirements-standalone.txt`
 
-> [!note] Backend-dependent scripts (`tools/batch_process.py`, `tools/analyze_and_sync.py`, `tools/demos/*.py`, `scripts/run_coding_benchmark.py`, etc.) must continue to use `nma-studio-cuda`.
+> [!note] Backend-dependent scripts (`tools/batch_process.py`, `tools/analyze_and_sync.py`, `tools/demos/*.py`, `scripts/run-coding-benchmark.py`, etc.) must continue to use `nma-studio-cuda`.
 
 ### Fallback (CPU-only)
 - **Path:** `D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\venv\Scripts\python.exe`

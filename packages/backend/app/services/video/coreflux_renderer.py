@@ -1,6 +1,6 @@
 """core-flux render engine -- MoviePy-compatible fast path (3--6x target).
 
-APIs verified against scripts/benchmark_video_tools.py::render_coreflux
+APIs verified against scripts/benchmark-video-tools.py::render_coreflux
 (core_flux.ColorLayer / Composition) which produced docs/knowledge-library/
 benchmarks/video-render-backends.json.
 """

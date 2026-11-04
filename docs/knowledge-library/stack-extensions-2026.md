@@ -284,8 +284,8 @@ Tools are grouped by pipeline stage. Each entry includes a **try-first** recomme
    ```bash
    pip install madmom-infer sonara core-flux MovieLite
    ```
-2. **Audio benchmark script:** Run `scripts/benchmark_audio_tools.py` on 10 tracks. Compare librosa vs madmom-infer vs sonara for beat accuracy + wall time.
-3. **Video benchmark script:** Run `scripts/benchmark_video_tools.py` rendering a 30-second composite. Compare MoviePy vs core-flux vs MovieLite.
+2. **Audio benchmark script:** Run `scripts/benchmark-audio-tools.py` on 10 tracks. Compare librosa vs madmom-infer vs sonara for beat accuracy + wall time.
+3. **Video benchmark script:** Run `scripts/benchmark-video-tools.py` rendering a 30-second composite. Compare MoviePy vs core-flux vs MovieLite.
 4. **Record results in** `docs/knowledge-library/benchmarks/stack-extensions-2026-bench.md`.
 
 ### Phase 2: Integration (only if Phase 1 wins)

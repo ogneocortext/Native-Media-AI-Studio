@@ -11,9 +11,9 @@
 .PARAMETER Clean
     Remove build artifacts and caches before starting.
 .EXAMPLE
-    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start_dev.ps1
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-dev.ps1
 .EXAMPLE
-    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start_dev.ps1 -NoBackend -Clean
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-dev.ps1 -NoBackend -Clean
 #>
 #Requires -Version 7.6
 [CmdletBinding(SupportsShouldProcess=$true)]

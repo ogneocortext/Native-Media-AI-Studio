@@ -78,7 +78,7 @@ Every path listed below was confirmed against the working tree.
 |--------|---------|
 | `manage-servers.ps1` | Unified server management: start/stop/restart/status/health |
 | `start-services.ps1` | Thin wrapper: starts managed services |
-| `check_ports.ps1` | List ports in use |
+| `check-ports.ps1` | List ports in use |
 | `start-studio.ps1` | Interactive studio session |
 | `start-unity-headless.ps1` | Unity headless mode |
 | `install-git-hooks.sh` | Install git commit-msg/pre-push hooks |

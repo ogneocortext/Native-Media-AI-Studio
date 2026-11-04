@@ -57,8 +57,8 @@
 | `faster-whisper` | `>=1.1.0` | **USED (optional)** | `app/services/transcription.py` (lazy import in `get_model()`); wired via `app/api/transcription.py`. |
 | `demucs` | `>=4.0.0` | **USED (optional)** | `app/services/source_separation.py` (subprocess `demucs` CLI); wired via `app/api/audio.py` `/separate` endpoint. |
 | `spleeter` | *(implied)* | **USED (optional)** | `app/services/source_separation.py` (subprocess `spleeter` CLI fallback); wired via same endpoint. |
-| `core-flux` | `>=0.1.0` | **VESTIGIAL** | Only referenced in `scripts/benchmark_video_tools.py`. Not in backend runtime. |
-| `MovieLite` | `>=0.1.0` | **VESTIGIAL** | Only referenced in `scripts/benchmark_video_tools.py`. Not in backend runtime. |
+| `core-flux` | `>=0.1.0` | **VESTIGIAL** | Only referenced in `scripts/benchmark-video-tools.py`. Not in backend runtime. |
+| `MovieLite` | `>=0.1.0` | **VESTIGIAL** | Only referenced in `scripts/benchmark-video-tools.py`. Not in backend runtime. |
 | `kaolin` | `>=0.17.0` | **VESTIGIAL** | **Zero hits** anywhere in repo. |
 | `gsplat` | `>=1.0` | **VESTIGIAL** | **Zero hits** anywhere in repo. |
 
@@ -223,7 +223,7 @@
 | `python-osc` | `requirements.txt` (backend) + `tools/pyproject.toml` | **NOT wired to backend API**. Only in `tools/audio_export.py`. | CLI tools only. | **HIGH** |
 | `mcp` (Python SDK) | `tools/pyproject.toml [test]` | **NOT wired to backend API**. Only in `tools/tests/test_mcp.py` and `test_mcp_stdio.py`. | Test scripts only. | **HIGH** |
 | `gpustat` / `nvidia-ml-py` | `requirements.txt` | `app/diagnostics/resources.py`, `app/services/vram_manager.py` | VRAM monitoring in health/resource endpoints. | **HIGH** |
-| `core-flux` / `MovieLite` | `requirements-experimental.txt` | **NOT wired to backend API**. Only in `scripts/benchmark_video_tools.py`. | Benchmark script only. | **HIGH** |
+| `core-flux` / `MovieLite` | `requirements-experimental.txt` | **NOT wired to backend API**. Only in `scripts/benchmark-video-tools.py`. | Benchmark script only. | **HIGH** |
 | `kaolin` / `gsplat` | `requirements-experimental.txt` | **Zero references** in code. | None. | **HIGH** |
 
 ### D.1 Feature Flags / Runtime Toggles

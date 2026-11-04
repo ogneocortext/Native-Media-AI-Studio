@@ -4,7 +4,7 @@
     "consumed_by": [
       "packages/frontend/src/services/portConfig.ts (fetched at runtime via /config/ports.json)",
       "packages/frontend/playwright.config.ts (reads frontend_port)",
-      "scripts/manage-servers.ps1, scripts/start-services.ps1, scripts/check_ports.ps1",
+      "scripts/manage-servers.ps1, scripts/start-services.ps1, scripts/check-ports.ps1",
       "packages/backend/app/core/config.py"
     ],
     "conventions": {
@@ -20,7 +20,7 @@
       "ollama_url / atomic_chat_url": "Local AI services. load_config reads these from THIS file; the same keys in settings.json are ignored on purpose (see core/config.py).",
       "atomic_chat_enabled": "Whether the Atomic Chat adapter is active. Also owned by this file; settings.json cannot override it."
     },
-    "note": "Two backend processes cannot bind the same port. Run scripts/check_ports.ps1 before starting a second instance, and prefer changing the value here over editing any script or component that hardcodes a port.",
+    "note": "Two backend processes cannot bind the same port. Run scripts/check-ports.ps1 before starting a second instance, and prefer changing the value here over editing any script or component that hardcodes a port.",
     "last_updated": "2026-10-11"
   },
   "backend_url": "http://127.0.0.1:8000",

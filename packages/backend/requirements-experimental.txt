@@ -30,6 +30,6 @@ demucs>=4.1.0         # Audio source separation → POST /api/audio/separate
 # spleeter is an optional fallback for separation; install via `pip install spleeter` if demucs is unavailable.
 
 # Video rendering alternatives
-# core-flux and MovieLite removed — only referenced in scripts/benchmark_video_tools.py, not wired to backend API.
+# core-flux and MovieLite removed — only referenced in scripts/benchmark-video-tools.py, not wired to backend API.
 # 3D / Gaussian splatting
 # kaolin and gsplat removed — zero runtime references in codebase.

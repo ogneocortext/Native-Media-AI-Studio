@@ -4,7 +4,7 @@ Every engine accepts the same `RenderSpec` and returns the same `RenderResult`,
 so callers (queue handlers, API routes, benchmarks) stay engine-agnostic.
 
 Spec kinds supported by all engines:
-    kind="color"  -- solid-color clip (matches scripts/benchmark_video_tools.py)
+    kind="color"  -- solid-color clip (matches scripts/benchmark-video-tools.py)
     kind="frames" -- image sequence from a directory (frame_%04d.png style)
     kind="image"  -- single still image held for `duration` seconds
 """

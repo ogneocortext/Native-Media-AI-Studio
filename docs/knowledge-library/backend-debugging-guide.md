@@ -21,7 +21,7 @@ type: concept
 
 Symptom: `manage-servers.ps1` reports _Backend: STOPPED_ yet _port 8000 occupied_; starting fails forever.
 
-1. **Map listeners to processes:** `scripts\check_ports.ps1` (LISTENING port → PID → process name).
+1. **Map listeners to processes:** `scripts\check-ports.ps1` (LISTENING port → PID → process name).
 2. **Watch for stale sockets:** `netstat -ano` can show LISTENING entries whose PID no longer exists (uvicorn `--reload` children orphaned after their reloader parent died). `Stop-Service` in `manage-servers.ps1` now kills the reloader parent (`app.main:app` cmdline match) first, then reaps listeners in up to 3 passes.
 3. **Health-probe timeouts matter:** `/api/health` probes adapters live (a down ComfyUI alone took ~2.1 s to answer). A 2 s probe timeout reports false STOPPED — the script now allows 6 s.
 4. **Sticky port:** the backend itself (`main.py` + `port_manager.resolve_port`) detects a healthy instance already on the resolved port and exits instead of spawning a duplicate — don't "fix" port drift by force-killing a responding server.

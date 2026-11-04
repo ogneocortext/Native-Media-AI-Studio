@@ -72,7 +72,7 @@ scripts/*.md
 scripts/*.yaml
 scripts/archive/
 !scripts/start.bat
-!scripts/start_dev.ps1
+!scripts/start-dev.ps1
 !scripts/start-tunnel.ps1
 !scripts/stop-tunnel.ps1
 !scripts/check-tunnel.ps1
@@ -91,7 +91,7 @@ scripts/utility/tunnel-urls.json
 # which makes the documented "Start:" and "Ports:" commands fail for anyone who
 # has not run them by hand on this machine first. Real source, not scratch.
 !scripts/start-services.ps1
-!scripts/check_ports.ps1
+!scripts/check-ports.ps1
 
 # Test
 coverage/

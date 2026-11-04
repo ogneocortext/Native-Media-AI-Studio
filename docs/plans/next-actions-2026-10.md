@@ -28,7 +28,7 @@ Backend / infra fixes:
 - `370efc3` `fix(api)`: shell-out handlers offloaded to threads —
   `POST /api/hyperframes/render`'s 600 s timeout was freezing the event
   loop (including the SSE health stream) for up to ten minutes.
-- `d022374` `fix(gitignore)`: restored `check_ports.ps1` re-include so the
+- `d022374` `fix(gitignore)`: restored `check-ports.ps1` re-include so the
   layout gate passes.
 - `a789a04` `docs(gates)`: stale-path-reference checker (D39).
 - `923241b` `docs(reliability)`: logged the demucs fix and the disproved

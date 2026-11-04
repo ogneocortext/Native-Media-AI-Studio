@@ -25,7 +25,7 @@ Quick reference for shells used by agents in this repo. Full detail: `AGENTS.md`
 - Gates: `python tools/run-gates.py` (or `--only type lint`).
 - Backend tests: `pytest` in `packages/backend/`.
 - Frontend unit: `pnpm test:unit` in `packages/frontend/`.
-- Ports: `scripts\check_ports.ps1`.
+- Ports: `scripts\check-ports.ps1`.
 
 ## Where to look
 - Index: `docs/README.md`. Decisions: `docs/architecture/decision-log.md`.

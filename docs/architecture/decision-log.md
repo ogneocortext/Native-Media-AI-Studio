@@ -76,7 +76,7 @@
 - **Context:** Backend, frontend, Go sidecars, and scripts each hardcoded ports.
 - **Decision:** `config/ports.json` is the single source of truth; everything
   reads from it. Backend binds 127.0.0.1, sticky-port with dynamic increment.
-- **Consequences:** `scripts/check_ports.ps1` for triage; `manage-servers.ps1`
+- **Consequences:** `scripts/check-ports.ps1` for triage; `manage-servers.ps1`
   for stale-port recovery.
 
 ### D7 — 8GB VRAM budget as a hard constraint

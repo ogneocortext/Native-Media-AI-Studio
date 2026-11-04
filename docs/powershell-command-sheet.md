@@ -106,7 +106,7 @@ Get-Service | Where-Object Name -EQ w32time
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1 -Action start -Services all
 
 # Check ports
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\check_ports.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\check-ports.ps1
 
 # Start services — one name per invocation, or use -Command for arrays
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all

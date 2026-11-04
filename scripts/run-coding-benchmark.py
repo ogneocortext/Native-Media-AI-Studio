@@ -5,7 +5,7 @@ Standalone CLI to benchmark Ollama coding models against the standardized
 coding tasks defined in tools/scripts/coding_benchmark.py.
 
 Usage:
-    python scripts/run_coding_benchmark.py [--model qwen2.5:7b] [--all]
+    python scripts/run-coding-benchmark.py [--model qwen2.5:7b] [--all]
 """
 
 from __future__ import annotations
