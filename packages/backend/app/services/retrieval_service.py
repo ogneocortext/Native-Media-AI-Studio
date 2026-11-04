@@ -9,7 +9,7 @@ Architecture (retrieval separated from generation):
      ├─ BM25 keyword search (exact term match, good for identifiers/paths)
      └─ Vector search via Ollama embeddings (semantic match)
   2. Reciprocal Rank Fusion (RRF) -- merge both result lists
-  3. Rerank via Ollama ``qllama/bge-reranker-v2-m3`` cross-encoder
+  3. Rerank via local cross-encoder ``qllama/bge-reranker-v2-m3``
      (636 MB, ~50 candidates -> top-5 in sub-100 ms on Pascal)
   4. Return top-k snippets to the generation model (qwen3.5:4b)
 
@@ -20,6 +20,12 @@ Models (all local, all installed):
 
 Total embedding+reranker VRAM: ~1.2 GB, leaving ~6.8 GB for qwen3.5:4b (3.4 GB)
 and OS overhead -- comfortable on 8 GB VRAM.
+
+Cross-encoder note: the reranker scores each (query, passage) pair *jointly*
+using HuggingFace ``transformers`` (AutoModelForSequenceClassification), the
+same pattern used by ``tools/kb-retrieval.py``. Ollama's ``/api/embed``
+endpoint is a dual-encoder (embeddings per input, cosine-scored) and cannot
+produce cross-encoder relevance logits, so it is *not* used for reranking.
 """
 
 from __future__ import annotations
@@ -45,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 EMBED_MODEL = config.embedding_model          # nomic-embed-text:v1.5
-RERANK_MODEL = "qllama/bge-reranker-v2-m3"     # just pulled to Ollama
+RERANK_MODEL = "qllama/bge-reranker-v2-m3"     # cross-encoder reranker
 VECTOR_MODEL_ALT = "embeddinggemma-2:270m"    # alternative embedder
 
 CHUNK_SIZE = 512          # tokens per chunk (respects embedding context)
@@ -54,6 +60,102 @@ RRF_K = 60                # RRF constant
 TOP_K_CANDIDATES = 50     # per-retriever depth before fusion/rerank
 TOP_K_FINAL = 5           # final results after rerank
 EMBED_DIM = 768           # nomic-embed-text / bge-reranker output dim
+
+# ---------------------------------------------------------------------------
+# Cross-encoder reranker (lazy, in-process via transformers)
+# ---------------------------------------------------------------------------
+
+_reranker_model = None
+_reranker_tokenizer = None
+_reranker_available: bool | None = None
+
+
+def _get_reranker() -> tuple[object, object] | None:
+    """Lazy-load the cross-encoder reranker model + tokenizer.
+
+    Returns (model, tokenizer) or None if transformers/torch are unavailable
+    or the model cannot be loaded. Results are cached after first load.
+    """
+    global _reranker_model, _reranker_tokenizer, _reranker_available
+
+    if _reranker_model is not None:
+        return _reranker_model, _reranker_tokenizer
+    if _reranker_available is False:
+        return None
+
+    try:
+        from transformers import (  # noqa: PLC0415
+            AutoModelForSequenceClassification,
+            AutoTokenizer,
+        )
+    except ImportError:
+        logger.warning(
+            "Reranker unavailable: transformers not installed; install with "
+            "pip install transformers torch"
+        )
+        _reranker_available = False
+        return None
+
+    try:
+        _reranker_tokenizer = AutoTokenizer.from_pretrained(RERANK_MODEL)
+        _reranker_model = AutoModelForSequenceClassification.from_pretrained(
+            RERANK_MODEL
+        )
+        _reranker_model.eval()
+        _reranker_available = True
+        logger.info("Reranker loaded: %s", RERANK_MODEL)
+        return _reranker_model, _reranker_tokenizer
+    except Exception as exc:
+        logger.warning("Reranker unavailable: failed to load %s: %s", RERANK_MODEL, exc)
+        _reranker_available = False
+        return None
+
+
+def _rerank_cross_encoder(
+    query: str, candidates: list[tuple[str, str]]
+) -> list[tuple[str, float]]:
+    """Score (query, passage) pairs jointly with a cross-encoder.
+
+    A cross-encoder reads the query and passage together and emits a single
+    relevance logit per pair -- unlike a dual-encoder (embedding + cosine)
+    which encodes each side independently. This is what enables true
+    reordering of the hybrid pool.
+    """
+    loaded = _get_reranker()
+    if loaded is None or not candidates:
+        return []
+
+    model, tokenizer = loaded
+    import torch  # noqa: PLC0415
+
+    passages = [text for _, text in candidates]
+    scores: list[float] = []
+
+    with torch.no_grad():
+        # Process in batches to bound memory on the 8 GB card.
+        batch_size = 16
+        for start in range(0, len(passages), batch_size):
+            batch = passages[start : start + batch_size]
+            enc = tokenizer(
+                [query] * len(batch),
+                batch,
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt",
+            )
+            logits = model(**enc).logits
+            # A cross-encoder emits a single relevance logit per pair.
+            if logits.shape[-1] == 1:
+                row = logits.squeeze(-1)
+            else:
+                # Two-logit head (query / relevance): take the difference.
+                row = logits[:, -1] - logits[:, 0]
+            scores.extend(float(x) for x in row.tolist())
+
+    scored = [(cid, s) for (cid, _), s in zip(candidates, scores, strict=True)]
+    scored.sort(key=lambda kv: -kv[1])
+    return scored
 
 # ---------------------------------------------------------------------------
 # In-memory index (rebuilt on startup / reindex)
@@ -197,34 +299,30 @@ class RetrievalIndex:
 
     async def rerank(self, query: str, candidates: list[tuple[str, str]]) -> list[tuple[str, float]]:
         """
-        Rerank candidates using Ollama's qllama/bge-reranker-v2-m3 cross-encoder.
+        Rerank candidates using a local cross-encoder (transformers).
+
+        A cross-encoder scores each (query, passage) pair jointly, emitting
+        a single relevance logit per pair. This is fundamentally different
+        from a dual-encoder (embedding + cosine), which encodes each side
+        independently and cannot reorder the pool meaningfully.
 
         candidates: [(chunk_id, chunk_text)]
         Returns: [(chunk_id, relevance_score)] sorted descending.
+        Falls back to the input order (unsorted) if the reranker is
+        unavailable, with a warning logged so the degradation is visible.
         """
         if not candidates:
             return []
 
-        # Ollama /api/embed returns one embedding per input. The reranker is a
-        # cross-encoder: we embed (query, doc) pairs and score by cosine.
-        inputs = [query] + [text for _, text in candidates]
-        embs = await embed_text_batch(inputs, model=RERANK_MODEL)
-        if not embs or len(embs) < len(inputs) + 1:
-            return []
-
-        q_emb = embs[0]
-        q_norm = math.sqrt(sum(x * x for x in q_emb)) or 1.0
-
-        scored: list[tuple[str, float]] = []
-        for i, (cid, _text) in enumerate(candidates):
-            d_emb = embs[i + 1]
-            d_norm = math.sqrt(sum(x * x for x in d_emb)) or 1.0
-            dot = sum(a * b for a, b in zip(q_emb, d_emb, strict=True))
-            sim = dot / (q_norm * d_norm)
-            scored.append((cid, sim))
-
-        scored.sort(key=lambda kv: -kv[1])
-        return scored
+        try:
+            return _rerank_cross_encoder(query, candidates) or [
+                (cid, 0.0) for cid, _ in candidates
+            ]
+        except Exception as exc:
+            logger.warning(
+                "Reranker failed for query %r: %s; returning input order", query, exc
+            )
+            return [(cid, 0.0) for cid, _ in candidates]
 
     # -- hybrid search ------------------------------------------------------
 
@@ -336,21 +434,6 @@ def _split_text_into_chunks(text: str, max_tokens: int = CHUNK_SIZE, overlap: in
         if start < 0:
             start = 0
     return chunks
-
-
-async def embed_text_batch(texts: list[str], model: str) -> list[list[float]] | None:
-    """Embed multiple texts via Ollama /api/embed, one at a time.
-
-    Ollama's /api/embed accepts a single input string. Batch by calling
-    sequentially (each is a fast local round-trip on this workstation).
-    """
-    results: list[list[float]] = []
-    for text in texts:
-        emb = await embed_text(text, model=model)
-        if emb is None:
-            return None
-        results.append(emb)
-    return results
 
 
 # ---------------------------------------------------------------------------

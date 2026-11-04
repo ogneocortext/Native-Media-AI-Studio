@@ -44,7 +44,7 @@ TASK_MODEL_ROUTES: dict[str, dict[str, str]] = {
     },
     "reranker": {
         "engine": "ollama",
-        "model": "reranker-multi-v1",
+        "model": "qllama/bge-reranker-v2-m3",
         "reason": "Cross-encoder reranker for retrieval precision",
     },
     "chat": {
