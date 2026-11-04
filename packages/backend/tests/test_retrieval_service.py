@@ -10,6 +10,8 @@ monkeypatching the module-level _get_reranker hook.
 
 from __future__ import annotations
 
+from collections import UserDict
+
 import pytest
 import pytest_asyncio
 
@@ -126,9 +128,10 @@ class TestRerankAvailable:
         ]
         result = await idx.rerank("queue scheduling", candidates)
         assert result[0][0] == "c1"  # queue manager first
-        assert result[0][1] == 1.0
-        assert result[1][1] == 0.1
-        assert result[2][1] == 0.1
+        # sigmoid(1.0) ≈ 0.731, sigmoid(0.1) ≈ 0.525
+        assert abs(result[0][1] - 0.7310585786300049) < 1e-6
+        assert abs(result[1][1] - 0.52497918747894) < 1e-6
+        assert abs(result[2][1] - 0.52497918747894) < 1e-6
 
     async def test_rerank_empty(self, idx):
         assert await idx.rerank("anything", []) == []
@@ -242,6 +245,9 @@ class TestRerankCrossEncoderDirect:
             def squeeze(self, dim):
                 return self
 
+            def cpu(self):
+                return self
+
             def tolist(self):
                 return list(self._values)
 
@@ -261,7 +267,14 @@ class TestRerankCrossEncoderDirect:
                 self.scores = scores
 
             def __call__(self, queries, texts, **kwargs):
-                return {}
+                return FakeEncoding()
+
+        class FakeEncoding(UserDict):
+            def __init__(self):
+                super().__init__({})
+
+            def to(self, device):
+                return self
 
         # Set module-level model/tokenizer directly so _get_reranker returns them
         scores = [0.9, 0.2, 0.7]
