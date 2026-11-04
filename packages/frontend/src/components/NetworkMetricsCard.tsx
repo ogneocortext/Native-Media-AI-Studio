@@ -4,6 +4,7 @@
 
 import { Wifi, WifiOff } from "lucide-react";
 import { Card } from "./common";
+import { formatBytes } from "../utils/format";
 
 interface NetworkMetricsCardProps {
   uptime: number;
@@ -24,12 +25,6 @@ export function NetworkMetricsCard({
   messageDropRate,
   connected,
 }: NetworkMetricsCardProps) {
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   const formatUptime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     if (seconds < 60) return `${seconds}s`;
