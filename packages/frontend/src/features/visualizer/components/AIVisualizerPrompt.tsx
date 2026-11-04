@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Sparkles, Wand2, Check, Loader2, RefreshCw, ChevronDown, Music2, Shield, Eye, AlertCircle, Zap, Palette, Code2 } from "lucide-react";
 import { generateVisualizerPreset, generateVisualizerPresetAtomic, getOllamaModels, getBenchmarkResults } from "../../../services/api";
 import type { AIGeneratedPreset, OllamaModel, OllamaBenchmarkResult } from "../../../services/api";
-import type { VisualPreset } from "../visualPreset";
+import type { VisualPreset } from "../aiPresetCatalog";
 import { AIPresetGallery } from "./AIPresetGallery";
 
 const TOOL_CAPABLE_MODELS = [

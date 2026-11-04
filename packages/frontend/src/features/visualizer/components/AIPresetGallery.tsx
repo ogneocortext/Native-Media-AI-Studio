@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Sparkles, Trash2, Play, Search, Clock, Heart, Layers, Copy, Download } from "lucide-react";
-import type { VisualPreset } from "../visualPreset";
+import type { VisualPreset } from "../aiPresetCatalog";
 import { fetchWithTimeout } from "../../../services/fetchWithTimeout";
 import { showToast } from "../../../utils/toast";
 

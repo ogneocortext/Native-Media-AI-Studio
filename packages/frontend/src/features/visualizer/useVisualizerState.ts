@@ -18,7 +18,7 @@ import type { RenderStats } from "./components/RenderStats";
 import type { LyricLine } from "./components/LyricOverlay";
 import type { VizMode, Canvas2DMode } from "./visualizerHelpers";
 import type { ShaderPresetName } from "./shaders";
-import type { VisualPreset } from "./visualPreset";
+import type { VisualPreset } from "./aiPresetCatalog";
 import type { VisualizationStyle } from "./trackConceptAnalyzer";
 import { DEFAULT_REACTIVITY_TRIAD } from "./audioReactivityProcessor";
 const REACTIVITY_STORAGE_KEY = "visualizerReactivity:triad";

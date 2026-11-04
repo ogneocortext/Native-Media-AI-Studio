@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { FileJson, X, Clipboard } from "lucide-react";
-import type { VisualPreset } from "../visualPreset";
-import { importPresetFromString } from "../visualPreset";
+import type { VisualPreset } from "../aiPresetCatalog";
+import { importPresetFromString } from "../aiPresetCatalog";
 
 interface PresetFileUploadProps {
   onPresetLoaded: (preset: VisualPreset) => void;

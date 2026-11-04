@@ -37,7 +37,7 @@ Audio-reactive visualization for the Native Media AI Studio: Canvas2D bars/wavef
 | `lyricsParser.ts` / `lyricsSync.ts` | LRC lyrics parsing and sync to playback |
 | `sectionHelpers.ts` | Section color/intensity/preset helpers |
 | `reactivityGenrePresets.ts` | Genre-based reactivity presets (EDM, ambient, vocal-led, etc.) |
-| `visualPreset.ts` / `visualPresets.ts` | Visual preset definitions and import/export |
+| `aiPresetCatalog.ts` / `visualPresets.ts` | Visual preset definitions and import/export |
 | `shaderPresets.ts` | Shader preset definitions |
 | `visualizerModeRegistry.ts` | Visualizer mode registration |
 | `visualizerConfigSchema.ts` | Visualizer config validation schema |

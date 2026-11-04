@@ -10,9 +10,9 @@ import {
   Star,
   Zap,
 } from "lucide-react";
-import { PRESET_LIBRARY, type VisualPreset, getPresetById } from "./visualPreset";
+import { PRESET_LIBRARY, type VisualPreset, getPresetById } from "./aiPresetCatalog";
 
-export type { VisualPreset } from "./visualPreset";
+export type { VisualPreset } from "./aiPresetCatalog";
 
 interface PresetSelectorProps {
   currentPresetId: string;

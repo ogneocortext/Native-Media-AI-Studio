@@ -25,7 +25,7 @@ import type { AudioAnalysisData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import type { ReactivityGenrePreset } from "./reactivityGenrePresets";
 import type { VizMode } from "./visualizerHelpers";
-import type { VisualPreset } from "./visualPreset";
+import type { VisualPreset } from "./aiPresetCatalog";
 import { visualPresets } from "./visualPresets";
 import { toVisualPreset } from "./visualizerHelpers";
 import type { VisualizerStateSetters } from "./useVisualizerState";

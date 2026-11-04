@@ -5,7 +5,7 @@
  * Everything here is module-private to the visualizer feature.
  */
 import type { AudioAnalysisData } from "./types";
-import type { VisualPreset } from "./visualPreset";
+import type { VisualPreset } from "./aiPresetCatalog";
 import {
   normalizeSearchText,
   includesToken,

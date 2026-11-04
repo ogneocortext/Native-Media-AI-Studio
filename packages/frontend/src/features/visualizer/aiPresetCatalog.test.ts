@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type {
-  VisualPreset} from "./visualPreset";
+  VisualPreset} from "./aiPresetCatalog";
 import {
   getPresetById,
   getPresetsByTag,
@@ -10,7 +10,7 @@ import {
   getConfigAtTime,
   DEFAULT_VISUAL_PRESET,
   PRESET_LIBRARY
-} from "./visualPreset";
+} from "./aiPresetCatalog";
 
 describe("getPresetById", () => {
   it("returns the preset with the given id", () => {
