@@ -116,7 +116,7 @@ export function SavedPromptsPanel() {
   const remove = (id: string) => {
     const item = items.find((i) => i.id === id) as (SavedPrompt & { backendId?: string }) | undefined;
     if (item?.backendId) {
-      void deletePrompt(item.backendId).catch(() => {});
+      void deletePrompt(item.backendId).catch(() => { void 0; });
     }
     setItems((prev) => prev.filter((i) => i.id !== id));
   };

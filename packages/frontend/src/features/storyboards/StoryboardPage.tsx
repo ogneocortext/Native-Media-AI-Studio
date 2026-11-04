@@ -158,7 +158,7 @@ export function StoryboardPage() {
             }));
           }
         })
-        .catch(() => {});
+        .catch(() => { void 0; });
     });
   }, [trackMetadata]);
 

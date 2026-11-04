@@ -147,7 +147,7 @@ export function AuroraRibbon({
       ribbon2Ref.current.position.z = -1.5;
       // Tint the secondary curtain toward the energy hue
       const m2 = ribbon2Ref.current.material as THREE.MeshStandardMaterial;
-      if (m2 && m2.color) m2.color.setHSL(eHue + 0.2, 0.7, 0.5);
+      if (m2?.color) m2.color.setHSL(eHue + 0.2, 0.7, 0.5);
     }
   });
 

@@ -242,7 +242,7 @@ export function AIToolsPage() {
         if (data.name === "generate_visualization") {
           try {
             const cfg = JSON.parse(data.result) as import("./VisualizationCanvas").VisualizationConfig;
-            if (cfg && cfg.style && cfg.colors) {
+            if (cfg?.style && cfg.colors) {
               setVizConfig(cfg);
             }
           } catch {

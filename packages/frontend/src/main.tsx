@@ -33,7 +33,7 @@ async function initApp() {
   // Load port configuration first so all services use the correct backend URL
   await fetchPortConfig();
 
-  createRoot(document.getElementById("root")!).render(
+  createRoot(document.getElementById("root")).render(
     <App />,
   );
 }

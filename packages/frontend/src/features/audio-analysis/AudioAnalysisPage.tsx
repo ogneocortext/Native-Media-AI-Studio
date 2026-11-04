@@ -289,8 +289,8 @@ export function AudioAnalysisPage() {
             if (audio.summary?.filename)
               void audio.ensure(audio.summary.filename, "sonara");
           }}
-          onAnalyzeFile={() => {}}
-          onSendToKinetic={() => {}}
+          onAnalyzeFile={() => { void 0; }}
+          onSendToKinetic={() => { void 0; }}
         />
       )}
     </div>

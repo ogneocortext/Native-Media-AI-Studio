@@ -90,7 +90,7 @@ export function LineagePanel({ filename }: Props) {
       el.src = url;
       el.currentTime = 0;
     }
-    void el.play().catch(() => {});
+    void el.play().catch(() => { void 0; });
   }, []);
 
   const reopen = useCallback(

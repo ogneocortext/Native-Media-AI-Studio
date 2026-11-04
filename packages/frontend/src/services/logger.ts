@@ -215,5 +215,5 @@ export function getLogger(source: string): Logger {
   if (!loggers.has(source)) {
     loggers.set(source, new Logger(source));
   }
-  return loggers.get(source)!;
+  return loggers.get(source);
 }

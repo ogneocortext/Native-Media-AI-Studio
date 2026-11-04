@@ -299,7 +299,7 @@ export function ImageGeneration() {
           );
         }
       })
-      .catch(() => {})
+      .catch(() => { void 0; })
       .finally(() => setLoadingModels(false));
   }, []);
 

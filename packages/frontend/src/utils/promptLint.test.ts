@@ -31,8 +31,8 @@ describe("lintVideoPrompt", () => {
     expect(result.wordCount).toBe(0);
     // specific passes vacuously (no generic words in empty string)
     expect(result.score).toBe(1);
-    expect(result.checks.find((c) => c.key === "specific")!.pass).toBe(true);
-    expect(result.checks.find((c) => c.key === "length")!.pass).toBe(false);
+    expect(result.checks.find((c) => c.key === "specific").pass).toBe(true);
+    expect(result.checks.find((c) => c.key === "length").pass).toBe(false);
   });
 
   it("returns all checks passing for a well-formed prompt", () => {
@@ -43,38 +43,38 @@ describe("lintVideoPrompt", () => {
 
   it("fails shot check when no shot token present", () => {
     const result = lintVideoPrompt("A warrior standing in a field at golden hour");
-    const shot = result.checks.find((c) => c.key === "shot")!;
+    const shot = result.checks.find((c) => c.key === "shot");
     expect(shot.pass).toBe(false);
   });
 
   it("fails angle check when no angle token present", () => {
     const result = lintVideoPrompt("Close-up of a warrior in a field");
-    const angle = result.checks.find((c) => c.key === "angle")!;
+    const angle = result.checks.find((c) => c.key === "angle");
     expect(angle.pass).toBe(false);
   });
 
   it("fails lighting check when no light token present", () => {
     const result = lintVideoPrompt("Close-up of a warrior at low angle");
-    const lighting = result.checks.find((c) => c.key === "lighting")!;
+    const lighting = result.checks.find((c) => c.key === "lighting");
     expect(lighting.pass).toBe(false);
   });
 
   it("fails length check when over 75 words", () => {
     const longPrompt = "word ".repeat(80);
     const result = lintVideoPrompt(longPrompt);
-    const length = result.checks.find((c) => c.key === "length")!;
+    const length = result.checks.find((c) => c.key === "length");
     expect(length.pass).toBe(false);
   });
 
   it("fails specific check when generic filler present", () => {
     const result = lintVideoPrompt("Close-up of a beautiful warrior at low angle");
-    const specific = result.checks.find((c) => c.key === "specific")!;
+    const specific = result.checks.find((c) => c.key === "specific");
     expect(specific.pass).toBe(false);
   });
 
   it("passes specific check with 'cool' as part of another word", () => {
     const result = lintVideoPrompt("Close-up of a coolant system at low angle, neon lighting");
-    const specific = result.checks.find((c) => c.key === "specific")!;
+    const specific = result.checks.find((c) => c.key === "specific");
     expect(specific.pass).toBe(true);
   });
 
@@ -85,7 +85,7 @@ describe("lintVideoPrompt", () => {
 
   it("gives useful hints for failing checks", () => {
     const result = lintVideoPrompt("");
-    const lengthHint = result.checks.find((c) => c.key === "length")!.hint;
+    const lengthHint = result.checks.find((c) => c.key === "length").hint;
     expect(lengthHint).toContain("Describe one subject per shot");
   });
 });

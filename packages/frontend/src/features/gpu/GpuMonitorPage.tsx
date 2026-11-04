@@ -65,7 +65,7 @@ export function GpuMonitorPage() {
         const hasOllama = processes.some((p) => /ollama|llama-server/i.test(p.name));
         setInferenceEngine(s.atomic_chat_enabled && !hasOllama ? "Atomic Chat" : "Ollama");
       })
-      .catch(() => {});
+      .catch(() => { void 0; });
     return () => {
       cancelled = true;
     };

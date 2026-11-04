@@ -132,7 +132,7 @@ export function useProfessionalMixer({
       const raw = localStorage.getItem("professionalMixer:snapshot");
       if (raw) {
         const parsed = JSON.parse(raw) as MixerSnapshot;
-        if (parsed && parsed.strips && parsed.buses && parsed.master) {
+        if (parsed?.strips && parsed.buses && parsed.master) {
           setSnapshot(parsed);
         }
       }
@@ -467,7 +467,7 @@ export function useProfessionalMixer({
         strips: { ...prev.strips, [name]: { ...prev.strips[name], volume: clamp(v, 0, 1) } },
       };
       const ch = internalStemsRef.current.get(name);
-      if (ch?.fader) ch.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current!.currentTime, 0.02);
+      if (ch?.fader) ch.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current.currentTime, 0.02);
       return next;
     });
   }, []);
@@ -479,7 +479,7 @@ export function useProfessionalMixer({
         strips: { ...prev.strips, [name]: { ...prev.strips[name], pan: clamp(p, -1, 1) } },
       };
       const ch = internalStemsRef.current.get(name);
-      if (ch?.pan) ch.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current!.currentTime, 0.02);
+      if (ch?.pan) ch.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current.currentTime, 0.02);
       return next;
     });
   }, []);
@@ -494,7 +494,7 @@ export function useProfessionalMixer({
       const ch = internalStemsRef.current.get(name);
       if (ch?.input) {
         const target = nextMuted ? 0 : ch.state.volume;
-        ch.input.gain.setTargetAtTime(target, ctxRef.current!.currentTime, 0.02);
+        ch.input.gain.setTargetAtTime(target, ctxRef.current.currentTime, 0.02);
       }
       return next;
     });
@@ -549,7 +549,7 @@ export function useProfessionalMixer({
       const ch = internalStemsRef.current.get(name);
       if (ch) {
         const gainNode = send === "reverbSend" ? ch.reverbSend : ch.delaySend;
-        gainNode.gain.setTargetAtTime(clamp(v, 0, 1), ctxRef.current!.currentTime, 0.02);
+        gainNode.gain.setTargetAtTime(clamp(v, 0, 1), ctxRef.current.currentTime, 0.02);
       }
       return next;
     });
@@ -574,7 +574,7 @@ export function useProfessionalMixer({
     setSnapshot((prev) => {
       const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], volume: clamp(v, 0, 1) } } };
       const bus = internalBusesRef.current.get(name);
-      if (bus?.fader) bus.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current!.currentTime, 0.02);
+      if (bus?.fader) bus.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current.currentTime, 0.02);
       return next;
     });
   }, []);
@@ -583,7 +583,7 @@ export function useProfessionalMixer({
     setSnapshot((prev) => {
       const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], pan: clamp(p, -1, 1) } } };
       const bus = internalBusesRef.current.get(name);
-      if (bus?.pan) bus.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current!.currentTime, 0.02);
+      if (bus?.pan) bus.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current.currentTime, 0.02);
       return next;
     });
   }, []);
@@ -594,7 +594,7 @@ export function useProfessionalMixer({
       const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], muted: nextMuted } } };
       const bus = internalBusesRef.current.get(name);
       if (bus?.fader) {
-        bus.fader.gain.setTargetAtTime(nextMuted ? 0 : bus.state.volume, ctxRef.current!.currentTime, 0.02);
+        bus.fader.gain.setTargetAtTime(nextMuted ? 0 : bus.state.volume, ctxRef.current.currentTime, 0.02);
       }
       return next;
     });
@@ -639,7 +639,7 @@ export function useProfessionalMixer({
     setSnapshot((prev) => {
       const next = { ...prev, master: { ...prev.master, volume: clamp(v, 0, 1) } };
       if (masterRef.current?.fader) {
-        masterRef.current.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current!.currentTime, 0.02);
+        masterRef.current.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current.currentTime, 0.02);
       }
       return next;
     });

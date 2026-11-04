@@ -488,7 +488,7 @@ export function useStemMixer({
         if (Math.abs(stem.element.currentTime - main.currentTime) > 0.2) {
           stem.element.currentTime = main.currentTime;
         }
-        if (stem.element.paused) stem.element.play().catch(() => {});
+        if (stem.element.paused) stem.element.play().catch(() => { void 0; });
       }
       // Blend the main track down (not mute) when stems are active so the
       // original stereo imaging and mastering survive underneath the widened

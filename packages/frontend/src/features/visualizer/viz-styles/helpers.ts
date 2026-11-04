@@ -53,7 +53,7 @@ export function setPositionAttribute(
   count: number,
 ): void {
   const existing = geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
-  if (existing && existing.array === values) {
+  if (existing?.array === values) {
     existing.needsUpdate = true;
     geometry.setDrawRange(0, count);
     return;

@@ -86,7 +86,7 @@ export function useTrackManager({
     if (wasPlaying && audioElementRef.current) {
       setIsAudioPlaying(false);
       setTimeout(() => {
-        audioElementRef.current?.play().catch(() => {});
+        audioElementRef.current?.play().catch(() => { void 0; });
       }, 50);
     }
   };

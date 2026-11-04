@@ -209,7 +209,7 @@ export function LogAnalytics() {
         </div>
       )}
 
-      {summary && summary.last_cleanup_at && (
+      {summary?.last_cleanup_at && (
         <div className="mb-4 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] flex items-center gap-2 text-emerald-300">
           <Activity size={12} className="shrink-0" />
           <span>
@@ -275,7 +275,7 @@ export function LogAnalytics() {
       </div>
 
       {/* Source Breakdown */}
-      {summary && summary.sources && summary.sources.length > 0 && (
+      {summary?.sources && summary.sources.length > 0 && (
         <div className="mb-4 p-3 bg-white/5 border border-border rounded-lg">
           <div className="text-[10px] text-muted uppercase tracking-wide mb-2">Sources</div>
           <div className="flex flex-wrap gap-2">

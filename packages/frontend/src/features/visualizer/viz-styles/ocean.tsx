@@ -92,7 +92,7 @@ export function OceanWaves({
     // Tint the wave field toward the energy hue so the
     // ocean warms in loud sections instead of staying teal.
     const m = meshRef.current.material as THREE.MeshStandardMaterial;
-    if (m && m.color) m.color.setHSL(eHue, 0.75, 0.5);
+    if (m?.color) m.color.setHSL(eHue, 0.75, 0.5);
   });
 
   return (

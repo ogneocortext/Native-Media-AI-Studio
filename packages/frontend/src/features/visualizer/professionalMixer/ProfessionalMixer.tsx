@@ -112,9 +112,9 @@ export function ProfessionalMixer({
               onPan={(p) => setBusPan(bus, p)}
               onMute={() => toggleBusMute(bus)}
               onSolo={() => toggleBusSolo(bus)}
-              onCompressorPreset={() => {}}
+              onCompressorPreset={() => { void 0; }}
               collapsed={collapsedBuses}
-              onToggleCollapse={() => {}}
+              onToggleCollapse={() => { void 0; }}
             />
           ))}
 

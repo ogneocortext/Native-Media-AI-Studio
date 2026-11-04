@@ -69,8 +69,8 @@ describe("importPresetFromString", () => {
     const json = exportPresetToString(DEFAULT_VISUAL_PRESET);
     const imported = importPresetFromString(json);
     expect(imported).not.toBeNull();
-    expect(imported!.id).toBe("default");
-    expect(imported!.name).toBe("Default Preset");
+    expect(imported.id).toBe("default");
+    expect(imported.name).toBe("Default Preset");
   });
 
   it("returns null for invalid JSON", () => {
@@ -129,7 +129,7 @@ describe("getConfigAtTime", () => {
   });
 
   it("interpolates between keyframes", () => {
-    const phonk = PRESET_LIBRARY.find((p) => p.id === "phonk-drift")!;
+    const phonk = PRESET_LIBRARY.find((p) => p.id === "phonk-drift");
     const start = getConfigAtTime(phonk, 0);
     expect(start.camera.position).toEqual([0, 1, 4]);
     const end = getConfigAtTime(phonk, 10);
@@ -137,7 +137,7 @@ describe("getConfigAtTime", () => {
   });
 
   it("clamps to last keyframe after the last keyframe time", () => {
-    const phonk = PRESET_LIBRARY.find((p) => p.id === "phonk-drift")!;
+    const phonk = PRESET_LIBRARY.find((p) => p.id === "phonk-drift");
     const late = getConfigAtTime(phonk, 999);
     expect(late.camera.position).toEqual([-2, 1, 4]);
   });

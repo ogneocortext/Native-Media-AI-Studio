@@ -184,7 +184,7 @@ export function useRealAudio(
     // Ensure AudioContext is running
     const ctx = analyser.context as AudioContext;
     if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
+      ctx.resume().catch(() => { void 0; });
       return;
     }
 
@@ -324,7 +324,7 @@ export function useRealAudio(
         ),
       };
     }
-    const bands = perceptualBandCache.current!.boundaries;
+    const bands = perceptualBandCache.current.boundaries;
     const perceptualBands = mapToPerceptualBands(
       arr,
       sampleRate,

@@ -111,7 +111,7 @@ export function AISceneGenerator({
       fetch(path)
         .then(async (r) => r.text())
         .then(setStoryboardContent)
-        .catch(() => {});
+        .catch(() => { void 0; });
     }
   }, [storyboard]);
 
@@ -226,7 +226,7 @@ export function AISceneGenerator({
       generationIdRef.current = id;
       saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown")
         .then((result) => setSavedFile(result.filename))
-        .catch(() => {});
+        .catch(() => { void 0; });
     }
   }, [generating, output, selectedTrack, selectedModel, savedFile]);
 
@@ -243,7 +243,7 @@ export function AISceneGenerator({
     if (!selectedModel || !metadata) return;
     // Reset saved file tracking and cleanup old incomplete files
     setSavedFile(null);
-    cleanupIncompleteScenes(selectedTrack || "unknown", 3).catch(() => {});
+    cleanupIncompleteScenes(selectedTrack || "unknown", 3).catch(() => { void 0; });
 
     // Build scene context from storyboard if available
     let sceneContext = "";
@@ -531,7 +531,7 @@ Return ONLY the function, no fences.`;
                     const b = (bFull || bShallow);
                     // Need full validation for details view; if only shallow, show summary and prompt to benchmark
                     if (!b?.validation) {
-                      if (b && b.score !== undefined) {
+                      if (b?.score !== undefined) {
                         const scShallow = b.score;
                         const colS =
                           scShallow >= 80

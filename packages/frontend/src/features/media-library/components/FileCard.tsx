@@ -389,13 +389,13 @@ export function FileCard({
                 src={mediaUrl}
                 preload="metadata"
                 onPlay={() => {
-                  pauseOtherAudios(audioRef.current!);
+                  pauseOtherAudios(audioRef.current);
                 }}
                 onPause={() => {
-                  playingAudios.delete(audioRef.current!);
+                  playingAudios.delete(audioRef.current);
                 }}
                 onEnded={() => {
-                  playingAudios.delete(audioRef.current!);
+                  playingAudios.delete(audioRef.current);
                 }}
               />
               <div className="flex items-center justify-between mt-1">
@@ -405,7 +405,7 @@ export function FileCard({
                     const audio = audioRef.current;
                     if (!audio) return;
                     if (audio.paused) {
-                      audio.play().catch(() => {});
+                      audio.play().catch(() => { void 0; });
                     } else {
                       audio.pause();
                     }
@@ -448,7 +448,7 @@ export function FileCard({
                   const video = videoRef.current;
                   if (!video) return;
                   if (video.paused) {
-                    video.play().catch(() => {});
+                    video.play().catch(() => { void 0; });
                     setIsVideoPlaying(true);
                   } else {
                     video.pause();

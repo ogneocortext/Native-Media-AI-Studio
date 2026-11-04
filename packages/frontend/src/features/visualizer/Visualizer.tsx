@@ -637,7 +637,7 @@ export function Visualizer() {
     fetch("/track-prompts-lyrics.csv")
       .then(async (r) => r.text())
       .then(setCsvContent)
-      .catch(() => {});
+      .catch(() => { void 0; });
   }, []);
 
   // Fetch per-stem visualization data when the track changes (optional enrichment).

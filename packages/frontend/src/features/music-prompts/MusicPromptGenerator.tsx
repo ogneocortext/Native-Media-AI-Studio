@@ -232,13 +232,13 @@ export function MusicPromptGenerator({
         if (d?.lyric_techniques) setLyricTechniques(d.lyric_techniques);
         if (d?.credit_notes) setCreditNotes(d.credit_notes);
       })
-      .catch(() => {});
+      .catch(() => { void 0; });
     fetch(`${getApiBase()}/api/music-prompts/presets`)
       .then(async (r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.presets) setPresets(d);
       })
-      .catch(() => {});
+      .catch(() => { void 0; });
   }, []);
 
   const generate = async () => {
@@ -371,7 +371,7 @@ export function MusicPromptGenerator({
               ))}
             </div>
           </fieldset>
-          {creditNotes && creditNotes[platform] && (
+          {creditNotes?.[platform] && (
             <div className="mb-4 rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
               <div className="flex items-start gap-2 mb-1">
                 <span className="text-xs font-bold text-violet-400">

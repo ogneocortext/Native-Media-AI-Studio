@@ -368,7 +368,7 @@ let vramPollInterval: ReturnType<typeof setInterval> | null = null;
 export function startVRAMPolling(intervalMs = 5000) {
   if (vramPollInterval) clearInterval(vramPollInterval);
   vramPollInterval = setInterval(() => {
-    useHealthStore.getState().fetchVRAMStatus().catch(() => {});
+    useHealthStore.getState().fetchVRAMStatus().catch(() => { void 0; });
   }, intervalMs);
 }
 
@@ -393,7 +393,7 @@ let comfyuiPollInterval: ReturnType<typeof setInterval> | null = null;
 export function startComfyUIPolling(intervalMs = 30000) {
   if (comfyuiPollInterval) clearInterval(comfyuiPollInterval);
   comfyuiPollInterval = setInterval(() => {
-    useHealthStore.getState().fetchComfyUIStatus().catch(() => {});
+    useHealthStore.getState().fetchComfyUIStatus().catch(() => { void 0; });
   }, intervalMs);
 }
 

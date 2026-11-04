@@ -278,7 +278,7 @@ export function KineticTypographyPage() {
         libraryTracksRef.current = complete;
         setLibraryTracks(complete);
       })
-      .catch(() => {});
+      .catch(() => { void 0; });
     // Load normalized lyrics CSV (fallback to legacy if not found)
     fetch("/track-lyrics-normalized.csv")
       .then(async (r) => r.text())
@@ -288,7 +288,7 @@ export function KineticTypographyPage() {
         fetch("/track-prompts-lyrics.csv")
           .then(async (r) => r.text())
           .then(setCsvContent)
-          .catch(() => {});
+          .catch(() => { void 0; });
       });
   }, []);
 
@@ -414,7 +414,7 @@ export function KineticTypographyPage() {
       if (e.code === "Space") {
         e.preventDefault();
         if (audioRef.current) {
-          if (audioRef.current.paused) audioRef.current.play().catch(() => {});
+          if (audioRef.current.paused) audioRef.current.play().catch(() => { void 0; });
           else audioRef.current.pause();
         } else {
           setIsPlaying((p) => !p);
@@ -787,7 +787,7 @@ export function KineticTypographyPage() {
 
   const togglePlay = useCallback(() => {
     if (audioRef.current) {
-      if (audioRef.current.paused) audioRef.current.play().catch(() => {});
+      if (audioRef.current.paused) audioRef.current.play().catch(() => { void 0; });
       else audioRef.current.pause();
     } else {
       setIsPlaying((p) => !p);

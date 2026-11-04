@@ -113,7 +113,7 @@ export function SubAgentChat() {
             // Refresh task list
             listSubAgentTasks()
               .then(({ tasks: t }) => setTasks(t))
-              .catch(() => {});
+              .catch(() => { void 0; });
           } else if (event.type === "agent_error") {
             setIterations((prev) => [
               ...prev,
@@ -200,7 +200,7 @@ export function SubAgentChat() {
       // Refresh task list
       listSubAgentTasks()
         .then(({ tasks: t }) => setTasks(t))
-        .catch(() => {});
+        .catch(() => { void 0; });
     } catch (err) {
       setIterations((prev) => [
         ...prev,

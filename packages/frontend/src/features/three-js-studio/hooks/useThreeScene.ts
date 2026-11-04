@@ -133,8 +133,8 @@ export function useThreeScene({
   const exportClockRef = useRef({ active: false, t: 0, dt: 0 });
   const exportActiveRef = useRef(false);
   const frameRunnerRef = useRef<(() => void) | null>(null);
-  const renderAtTimeRef = useRef<(tSec: number, dtSec: number) => void>(() => {});
-  const resetDeterministicRef = useRef<() => void>(() => {});
+  const renderAtTimeRef = useRef<(tSec: number, dtSec: number) => void>(() => { void 0; });
+  const resetDeterministicRef = useRef<() => void>(() => { void 0; });
   // Particle layout at scene build, so an export can start from a
   // known state instead of wherever the live drift left them.
   const initialParticlePositionsRef = useRef<Float32Array | null>(null);

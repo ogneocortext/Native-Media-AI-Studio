@@ -9,7 +9,7 @@ export function getParticleTex(): THREE.Texture {
   const cv = document.createElement("canvas");
   cv.width = s;
   cv.height = s;
-  const ctx = cv.getContext("2d")!;
+  const ctx = cv.getContext("2d");
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
   g.addColorStop(0, "rgba(255,255,255,1)");
   g.addColorStop(0.4, "rgba(255,255,255,0.6)");
@@ -26,7 +26,7 @@ export function getNoiseTex(): THREE.Texture {
   const cv = document.createElement("canvas");
   cv.width = s;
   cv.height = s;
-  const ctx = cv.getContext("2d")!;
+  const ctx = cv.getContext("2d");
   const img = ctx.createImageData(s, s);
   for (let i = 0; i < img.data.length; i += 4) {
     const v = Math.random() * 255;

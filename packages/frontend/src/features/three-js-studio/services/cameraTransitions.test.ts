@@ -41,8 +41,8 @@ describe("camera transition blend", () => {
     const state = beginCameraTransition(FROM, 10);
     const pose = sampleCameraTransition(state, 10, TARGET);
     expect(pose).not.toBeNull();
-    expect(pose!.position).toEqual(FROM.position);
-    expect(pose!.target).toEqual(FROM.target);
+    expect(pose.position).toEqual(FROM.position);
+    expect(pose.target).toEqual(FROM.target);
   });
 
   it("returns null once the blend duration has elapsed", () => {
@@ -67,14 +67,14 @@ describe("camera transition blend", () => {
     const mid = 10 + CAMERA_TRANSITION_SEC / 2;
     const pose = sampleCameraTransition(state, mid, TARGET);
     const k = ease("travel-balanced", 0.5);
-    expect(pose!.position[0]).toBeCloseTo(0 + (8 - 0) * k, 10);
-    expect(pose!.position[2]).toBeCloseTo(8 + (0 - 8) * k, 10);
+    expect(pose.position[0]).toBeCloseTo(0 + (8 - 0) * k, 10);
+    expect(pose.position[2]).toBeCloseTo(8 + (0 - 8) * k, 10);
   });
 
   it("clamps a negative elapsed (clock reset) to the blend start", () => {
     const state = beginCameraTransition(FROM, 10);
     const pose = sampleCameraTransition(state, 5, TARGET);
-    expect(pose!.position).toEqual(FROM.position);
+    expect(pose.position).toEqual(FROM.position);
   });
 
   it("honours a custom duration", () => {
@@ -97,7 +97,7 @@ describe("camera transition blend", () => {
     const mid = 10 + CAMERA_TRANSITION_SEC / 2;
     const pose = sampleCameraTransition(state, mid, TARGET);
     const k = ease("travel-balanced", 0.5);
-    expect(pose!.position[0]).toBeCloseTo(8 * k, 10);
+    expect(pose.position[0]).toBeCloseTo(8 * k, 10);
   });
 
   it("samples the given anchor (F2's 0.9 s wipe uses settle-soft)", () => {
@@ -106,7 +106,7 @@ describe("camera transition blend", () => {
     const mid = 10 + 0.45;
     const pose = sampleCameraTransition(state, mid, TARGET);
     const k = ease("settle-soft", 0.5);
-    expect(pose!.position[0]).toBeCloseTo(8 * k, 10);
+    expect(pose.position[0]).toBeCloseTo(8 * k, 10);
     // The two anchors genuinely differ at the midpoint, so the
     // assertion above could not pass by accident.
     expect(k).not.toBeCloseTo(ease("travel-balanced", 0.5), 6);

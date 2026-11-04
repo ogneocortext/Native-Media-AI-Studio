@@ -119,14 +119,14 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
 
         await ensureAudioContext();
 
-        const ctx = audioCtxRef.current!;
+        const ctx = audioCtxRef.current;
         const source = ctx.createMediaElementSource(el);
         sourceRef.current = source;
         const eq = eqRef.current;
         if (eq) {
           source.connect(eq.input);
         } else {
-          source.connect(analyserRef.current!);
+          source.connect(analyserRef.current);
         }
       } catch (e) {
         throw e instanceof Error ? e : new Error("Web Audio setup failed");
@@ -160,7 +160,7 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
   // Close the shared context on unmount.
   useEffect(() => {
     return () => {
-      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
+      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => { void 0; });
     };
   }, []);
 

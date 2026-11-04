@@ -109,7 +109,7 @@ export function HealthPage() {
 
   // Fetch ComfyUI status on mount so the card renders when data is available
   useEffect(() => {
-    fetchComfyUI().catch(() => {});
+    fetchComfyUI().catch(() => { void 0; });
   }, [fetchComfyUI]);
 
   // Sync VRAM status from granular store

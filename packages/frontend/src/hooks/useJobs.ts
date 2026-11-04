@@ -49,11 +49,11 @@ export function useHealth() {
       useHealthStore
         .getState()
         .fetchHealth()
-        .catch(() => {}),
+        .catch(() => { void 0; }),
       useHealthStore
         .getState()
         .fetchSystemStatus()
-        .catch(() => {}),
+        .catch(() => { void 0; }),
     ]).finally(() => {
       if (!cancelled) setInitialLoading(false);
     });

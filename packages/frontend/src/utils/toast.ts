@@ -204,8 +204,8 @@ function render(state: ToastState, element: HTMLDivElement): void {
 }
 
 const NOOP_HANDLE: ToastHandle = {
-  dismiss: () => {},
-  update: () => {},
+  dismiss: () => { void 0; },
+  update: () => { void 0; },
   element: null as unknown as HTMLDivElement,
 };
 

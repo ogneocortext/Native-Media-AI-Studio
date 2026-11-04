@@ -105,7 +105,7 @@ export function buildWizardSlots(input: WizardInput): EditableSlot[] {
       const layers = input.stemsA.map((stem) => newEditableLayer(input.songA, stem));
       for (const stem of input.stemsB) {
         if (stem === "vocals") continue;
-        layers.push(newEditableLayer(input.songB!, stem));
+        layers.push(newEditableLayer(input.songB, stem));
       }
       slots.push({ bars, crossfade_bars: crossfade, layers });
       continue;

@@ -38,8 +38,8 @@ describe("reactivity genre presets", () => {
   });
 
   it("gives EDM fast attack and high beat response, ambient the opposite", () => {
-    const edm = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "edm")!;
-    const ambient = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "ambient")!;
+    const edm = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "edm");
+    const ambient = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "ambient");
     expect(edm.triad.attack).toBeGreaterThan(ambient.triad.attack);
     expect(edm.triad.beatResponse).toBeGreaterThan(
       ambient.triad.beatResponse,
@@ -48,7 +48,7 @@ describe("reactivity genre presets", () => {
   });
 
   it("gives vocal-led mid focus", () => {
-    const vocal = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "vocal")!;
+    const vocal = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "vocal");
     expect(vocal.focus).toBe("mid");
   });
 });

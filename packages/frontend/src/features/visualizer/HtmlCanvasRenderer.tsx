@@ -60,7 +60,7 @@ export function HtmlCanvasRenderer({
     if (!ready || !supported || !canvas || !elementRef.current) return;
 
     const draw = () => {
-      drawHtmlIntoCanvas(canvas, elementRef.current!, x, y, width, height);
+      drawHtmlIntoCanvas(canvas, elementRef.current, x, y, width, height);
       rafRef.current = requestAnimationFrame(draw);
     };
 

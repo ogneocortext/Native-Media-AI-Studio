@@ -249,7 +249,7 @@ export function MusicVideoWizard() {
           action: "create",
           generation_params: { steps: config.steps, cfg_scale: config.cfgScale, seed: config.seed },
           outcome: "generated",
-        }).catch(() => {});
+        }).catch(() => { void 0; });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setError(`Section ${section.type}: ${msg}`);
@@ -266,7 +266,7 @@ export function MusicVideoWizard() {
           failure_notes: msg,
           generation_params: { steps: config.steps, cfg_scale: config.cfgScale, seed: config.seed },
           outcome: "failed",
-        }).catch(() => {});
+        }).catch(() => { void 0; });
       }
       setGenerationProgress(((i + 1) / sections.length) * 100);
     }

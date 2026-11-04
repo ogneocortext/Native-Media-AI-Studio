@@ -254,7 +254,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           p.key_advisory ? { key: p.key_advisory, confident: Boolean(p.key_confident) } : null,
         );
       })
-      .catch(() => {});
+      .catch(() => { void 0; });
     setSlots([
       {
         bars: 8,
@@ -265,7 +265,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   }, [sourcesLoaded, tracks, currentTrack, stemsFor]);
 
   useEffect(() => {
-    listRemixes().then(setRemixes).catch(() => {});
+    listRemixes().then(setRemixes).catch(() => { void 0; });
   }, []);
 
   // A1: a Media Library handoff ("Mashup this track") carries the intent to
@@ -597,7 +597,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
       );
       setBuilt({ name: r.name, duration_sec: r.duration_sec, target_bpm: bpm, source_tracks: r.manifest.source_tracks as string[], stems: used.length ? used : Object.keys(r.stems), has_enhanced: false });
       setPreview((p) => (p ? { ...p, warnings: r.warnings } : p));
-      listRemixes().then(setRemixes).catch(() => {});
+      listRemixes().then(setRemixes).catch(() => { void 0; });
       void loadVersions(r.name);
     } catch (e) {
       if (e instanceof RemixCancelledError) {
@@ -629,7 +629,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     try {
       await enhanceRemix(built.name);
       setBuilt((b) => (b ? { ...b, has_enhanced: true } : b));
-      listRemixes().then(setRemixes).catch(() => {});
+      listRemixes().then(setRemixes).catch(() => { void 0; });
     } catch (e) {
       setError((e as Error).message);
     } finally {

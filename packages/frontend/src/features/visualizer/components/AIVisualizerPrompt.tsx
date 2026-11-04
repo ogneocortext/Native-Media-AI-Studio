@@ -77,7 +77,7 @@ export function AIVisualizerPrompt({
           else if (sorted[0]) setModel(sorted[0].name);
         }
       })
-      .catch(() => {});
+      .catch(() => { void 0; });
   }, []);
 
   const handleGenerate = useCallback(async () => {

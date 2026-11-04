@@ -76,7 +76,7 @@ describe("parseWordLevelLRC", () => {
   it("parses per-word timings", () => {
     const lines = parseWordLevelLRC(WORD_LRC);
     expect(lines).toHaveLength(1);
-    const words = lines[0].words!;
+    const words = lines[0].words;
     expect(words.map((w) => w.word)).toEqual(["Hello", "world", "again"]);
     expect(words[0].start).toBeCloseTo(12, 10);
     expect(words[1].start).toBeCloseTo(13, 10);
@@ -145,14 +145,14 @@ describe("getWordProgress", () => {
   });
 
   it("ramps linearly through the word", () => {
-    const word = line.words![0];
+    const word = line.words[0];
     const mid = (word.start + word.end) / 2;
     expect(getWordProgress(line, mid, 0)).toBeCloseTo(0.5, 10);
   });
 
   it("stays within 0..1", () => {
     for (const t of [0, 11.9, 12.1, 13.5, 100]) {
-      for (let i = 0; i < line.words!.length; i++) {
+      for (let i = 0; i < line.words.length; i++) {
         const p = getWordProgress(line, t, i);
         expect(p).toBeGreaterThanOrEqual(0);
         expect(p).toBeLessThanOrEqual(1);

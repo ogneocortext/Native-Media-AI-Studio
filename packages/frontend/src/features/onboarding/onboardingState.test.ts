@@ -158,8 +158,8 @@ describe("pickHighestEnergyWindow", () => {
     const w = pickHighestEnergyWindow(curve, undefined, 45);
     expect(w).not.toBeNull();
     // The window must sit inside the loud region.
-    expect(w!.start).toBeGreaterThanOrEqual(14);
-    expect(w!.end - w!.start).toBeCloseTo(CLIP_SECONDS, 1);
+    expect(w.start).toBeGreaterThanOrEqual(14);
+    expect(w.end - w.start).toBeCloseTo(CLIP_SECONDS, 1);
   });
 
   it("clips the window to the track duration", () => {
@@ -174,8 +174,8 @@ describe("pickHighestEnergyWindow", () => {
       { start: 20, end: 30, energy: 0.4 },
     ];
     const w = pickHighestEnergyWindow(undefined, sections, 30);
-    expect(w!.start).toBeGreaterThanOrEqual(10);
-    expect(w!.end - w!.start).toBeCloseTo(CLIP_SECONDS, 1);
+    expect(w.start).toBeGreaterThanOrEqual(10);
+    expect(w.end - w.start).toBeCloseTo(CLIP_SECONDS, 1);
   });
 
   it("is deterministic for a flat curve (earliest window wins)", () => {
@@ -183,7 +183,7 @@ describe("pickHighestEnergyWindow", () => {
     const a = pickHighestEnergyWindow(curve, undefined, 60);
     const b = pickHighestEnergyWindow(curve, undefined, 60);
     expect(a).toEqual(b);
-    expect(a!.start).toBe(0);
+    expect(a.start).toBe(0);
   });
 });
 
@@ -200,8 +200,8 @@ describe("describeSuggestion", () => {
       energy: 0.8,
     });
     expect(s).not.toBeNull();
-    expect(s!.text).toBe("High-energy track, 126 BPM");
-    expect(s!.visualization).toBe("pulse");
+    expect(s.text).toBe("High-energy track, 126 BPM");
+    expect(s.visualization).toBe("pulse");
   });
 
   it("describes a low-energy track", () => {
@@ -210,7 +210,7 @@ describe("describeSuggestion", () => {
       tempoBpm: 70,
       energy: 0.2,
     });
-    expect(s!.text).toBe("Low-energy track, 70 BPM");
+    expect(s.text).toBe("Low-energy track, 70 BPM");
   });
 
   it("never renders a percentage — the reason is the message", () => {
@@ -220,12 +220,12 @@ describe("describeSuggestion", () => {
       tempoBpm: 128,
       energy: 0.7,
     });
-    expect(s!.text).not.toContain("%");
-    expect(s!.text).not.toContain("93");
+    expect(s.text).not.toContain("%");
+    expect(s.text).not.toContain("93");
   });
 
   it("falls back to a generic reason when there is no energy or tempo", () => {
     const s = describeSuggestion({ visualization: "grid" });
-    expect(s!.text).toBe("Matched to your track");
+    expect(s.text).toBe("Matched to your track");
   });
 });

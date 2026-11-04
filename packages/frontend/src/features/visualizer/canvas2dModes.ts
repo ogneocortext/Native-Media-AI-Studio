@@ -106,8 +106,8 @@ function computeBarTarget(
 
   if (ctx.asymmetric) {
     const prev = state.smoothedBars?.[i] ?? 0;
-    state.smoothedBars![i] = asymmetricSmoothStep(prev, targetNorm);
-    smoothH = state.smoothedBars![i] * ctx.h * 0.78;
+    state.smoothedBars[i] = asymmetricSmoothStep(prev, targetNorm);
+    smoothH = state.smoothedBars[i] * ctx.h * 0.78;
   } else {
     const prev = state.barPeaks?.[i] ?? 0;
     const targetH = targetNorm * ctx.h * 0.78;
@@ -116,8 +116,8 @@ function computeBarTarget(
     // per-frame convergence weight at 60 Hz.
     const lambda = dampLambda(0.28 * 0.72);
     const next = damp(prev, targetH, lambda, dt);
-    state.barPeaks![i] = Math.max(0, next);
-    smoothH = state.barPeaks![i];
+    state.barPeaks[i] = Math.max(0, next);
+    smoothH = state.barPeaks[i];
     springRising = next > prev;
   }
   return { targetNorm, smoothH, springRising };
@@ -716,9 +716,9 @@ export function renderDotPeakMatrix(
     const targetRows = boosted * rows * modeCtx.energyMod;
     // Frame-rate-independent exponential smoothing toward targetRows.
     const lambda = dampLambda(0.22 * 0.75);
-    const prev = state.barVelocities![i] ?? 0;
+    const prev = state.barVelocities[i] ?? 0;
     const next = damp(prev, targetRows, lambda, dt);
-    state.barVelocities![i] = next;
+    state.barVelocities[i] = next;
     const activeRows = Math.max(0, Math.min(rows, Math.round(next)));
     const cIdx = Math.floor((i / cols) * modeCtx.colors.length);
     for (let r = 0; r < rows; r++) {
@@ -1150,7 +1150,7 @@ export function renderConstellation(
     const gy = Math.floor(p.y / gridStep);
     const key = `${gx},${gy}`;
     if (!grid.has(key)) grid.set(key, []);
-    grid.get(key)!.push(i);
+    grid.get(key).push(i);
   }
   for (let i = 0; i < maxPoints; i++) {
     const p = points[i];

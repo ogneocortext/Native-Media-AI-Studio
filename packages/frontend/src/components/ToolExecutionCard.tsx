@@ -27,7 +27,7 @@ export function ToolExecutionCard() {
     if (!toolStats.has(tool)) {
       toolStats.set(tool, { duration: 0, count: 0, errors: 0 });
     }
-    const entry = toolStats.get(tool)!;
+    const entry = toolStats.get(tool);
     if (metric === "duration") {
       entry.duration = stats.p95;
     } else if (metric === "count") {

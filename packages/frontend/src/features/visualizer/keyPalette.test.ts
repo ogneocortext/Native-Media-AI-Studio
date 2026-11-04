@@ -113,7 +113,7 @@ describe("keyPalette", () => {
       key_runner_up: "E minor",
       key_runner_up_r: 0.65,
     });
-    expect(p.hue).toBeCloseTo(pitchClassToHue("D")!, 10);
+    expect(p.hue).toBeCloseTo(pitchClassToHue("D"), 10);
     expect(p.saturation).toBe(SAT_MAJOR);
     expect(p.fallback).toBe(false);
   });
@@ -149,7 +149,7 @@ describe("keyPalette", () => {
 
   it("keeps the hue but desaturates when the runner-up is missing", () => {
     const p = keyPalette({ estimated_key: "E major", key_confidence_r: 0.45 });
-    expect(p.hue).toBeCloseTo(pitchClassToHue("E")!, 10);
+    expect(p.hue).toBeCloseTo(pitchClassToHue("E"), 10);
     expect(p.saturation).toBeCloseTo(SAT_MAJOR / 2, 10);
   });
 

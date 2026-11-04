@@ -263,7 +263,7 @@ export function Queue() {
   // (SSE is managed centrally by Layout.tsx).
   useEffect(() => {
     fetchJobs();
-    fetchQueueMetrics().then(setMetrics).catch(() => {});
+    fetchQueueMetrics().then(setMetrics).catch(() => { void 0; });
   }, [fetchJobs]);
 
   // Auto-refresh jobs every 5 seconds when enabled.
@@ -276,8 +276,8 @@ export function Queue() {
       return;
     }
     refreshIntervalRef.current = setInterval(() => {
-      fetchJobs().catch(() => {});
-      fetchQueueMetrics().then(setMetrics).catch(() => {});
+      fetchJobs().catch(() => { void 0; });
+      fetchQueueMetrics().then(setMetrics).catch(() => { void 0; });
     }, 5000);
     return () => {
       if (refreshIntervalRef.current) {
@@ -295,8 +295,8 @@ export function Queue() {
         !query ||
         job.id.toLowerCase().includes(query) ||
         job.job_type.toLowerCase().includes(query) ||
-        (job.message && job.message.toLowerCase().includes(query)) ||
-        (job.error && job.error.toLowerCase().includes(query));
+        (job.message?.toLowerCase().includes(query)) ||
+        (job.error?.toLowerCase().includes(query));
       const matchesStatus = !statusFilter || job.status === statusFilter;
       return matchesQuery && matchesStatus;
     });

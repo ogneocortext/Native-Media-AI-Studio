@@ -13,7 +13,7 @@ function installBrowserStubs(): void {
   const g = globalThis as unknown as Record<string, unknown>;
   g.window = globalThis;
   g.sessionStorage = {
-    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    getItem: (k: string) => (store.has(k) ? store.get(k) : null),
     setItem: (k: string, v: string) => void store.set(k, String(v)),
     removeItem: (k: string) => void store.delete(k),
     clear: () => store.clear(),

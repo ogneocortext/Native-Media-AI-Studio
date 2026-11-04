@@ -153,7 +153,7 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
         const wDiv = wFrac.length === 3 ? 1000 : wFrac.length === 1 ? 10 : 100;
         const wStart = wMins * 60 + wSecs + parseInt(wFrac, 10) / wDiv + offsetMs / 1000;
         // Text between this tag and next tag (or end) is the word
-        const tagEnd = (wt as any).index! + wt[0].length;
+        const tagEnd = (wt as any).index + wt[0].length;
         const nextTagIdx = text.indexOf("<", tagEnd);
         const wordText =
           (nextTagIdx >= 0 ? text.slice(tagEnd, nextTagIdx) : text.slice(tagEnd))

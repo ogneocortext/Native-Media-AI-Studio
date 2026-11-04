@@ -541,7 +541,7 @@ export function VideoGenerationPage() {
             onVerticalFirstChange={setVerticalFirst}
             scheduler={scheduler}
             onSchedulerChange={setScheduler}
-            onRandomSeed={() => {}}
+            onRandomSeed={() => { void 0; }}
             fps={fps}
             onFpsChange={setFps}
             resolution={resolution}

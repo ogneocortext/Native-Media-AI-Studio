@@ -506,7 +506,7 @@ export async function ollamaChatStream(
     timeout: 300000,
   });
   if (!res.ok) throw new Error("Failed to chat with Ollama");
-  return res.body!;
+  return res.body;
 }
 
 export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): AsyncGenerator<{
