@@ -142,7 +142,16 @@ EXACT_ALLOWED = {"tools/call", "tools/list"}
 # module docstring): ignore patterns, the historical record, and the
 # non-authoritative scratch sets.
 SKIP_SCAN_FILES = {".gitignore", "CHANGELOG.md"}
-SKIP_SCAN_PREFIXES = ("docs/notes/", "docs/scratch/")
+SKIP_SCAN_PREFIXES = (
+    "docs/notes/",
+    "docs/scratch/",
+    # Agent-skill reference docs (packages/frontend/{.claude,agent}/skills/).
+    # Their `scripts/...` path tokens resolve against the skill's own
+    # `scripts/` subdirectory (where real copies live), not the repo root,
+    # so repo-root resolution produces false-positive "moved file" findings.
+    "packages/frontend/.claude/skills/",
+    "packages/frontend/agent/skills/",
+)
 
 # Files never read: binary/media payloads, lock files (huge, full of
 # URL paths) and minified bundles.
