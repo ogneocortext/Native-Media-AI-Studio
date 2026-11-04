@@ -310,3 +310,118 @@ class TestRerankCrossEncoderDirect:
             rs._reranker_model = None
             rs._reranker_tokenizer = None
             rs._reranker_available = None
+
+
+# ---------------------------------------------------------------------------
+# Embedding model setup: warm-up, availability, fallback, concurrent batch
+# ---------------------------------------------------------------------------
+
+
+class TestEmbeddingSetup:
+    """Tests for /api/embed warm-up, model-availability checks, fallback, and
+    concurrent batch embedding. All Ollama calls are monkeypatched so no model
+    needs to be installed in the test environment.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_warm_state(self, monkeypatch):
+        """Reset module-level warm-up state between tests."""
+        import app.core.ollama_client as oc
+
+        oc._embed_warmed_up.clear()
+
+    @pytest_asyncio.fixture
+    async def _fake_embed(self, monkeypatch):
+        """Monkeypatch embed_text_raw so no real Ollama call is made.
+
+        Returns a dict mapping model name -> list of (text -> embedding) that
+        tests can populate.
+        """
+        import app.core.ollama_client as oc
+
+        embeddings: dict[str, dict[str, list[float]]] = {}
+
+        async def fake_raw(model, text, timeout=30):
+            model_map = embeddings.setdefault(model, {})
+            if text not in model_map:
+                model_map[text] = [0.1, 0.2, 0.3]
+            return model_map[text]
+
+        monkeypatch.setattr(oc, "embed_text_raw", fake_raw)
+        return embeddings
+
+    @pytest_asyncio.fixture
+    async def _fake_list_models(self, monkeypatch):
+        """Monkeypatch list_models to return a controllable model list."""
+        import app.core.ollama_client as oc
+
+        available: list[str] = []
+
+        async def fake_list(timeout=10):
+            return [{"name": m} for m in available]
+
+        monkeypatch.setattr(oc, "list_models", fake_list)
+        return available
+
+    async def test_embed_warmup_marks_model(self, _fake_embed, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        _fake_list_models.extend(["nomic-embed-text:v1.5"])
+        await oc._embed_warmup("nomic-embed-text:v1.5")
+        assert "nomic-embed-text:v1.5" in oc._embed_warmed_up
+        # Second call is a no-op (still just one entry).
+        await oc._embed_warmup("nomic-embed-text:v1.5")
+        assert "nomic-embed-text:v1.5" in oc._embed_warmed_up
+
+    async def test_embed_model_available_true(self, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        _fake_list_models.extend(["nomic-embed-text:v1.5"])
+        assert await oc._embed_model_available("nomic-embed-text:v1.5") is True
+
+    async def test_embed_model_available_false(self, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        _fake_list_models.extend(["other-model"])
+        assert await oc._embed_model_available("nomic-embed-text:v1.5") is False
+
+    async def test_embed_text_uses_primary_model(self, _fake_embed, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        _fake_list_models.extend(["nomic-embed-text:v1.5"])
+        emb = await oc.embed_text("hello world")
+        assert emb == [0.1, 0.2, 0.3]
+
+    async def test_embed_text_falls_back_to_secondary(self, _fake_embed, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        # Only the fallback model is "installed".
+        _fake_list_models.extend(["embeddinggemma-2:270m"])
+        emb = await oc.embed_text("hello world")
+        assert emb == [0.1, 0.2, 0.3]
+        # The fallback model should now be warmed up.
+        assert "embeddinggemma-2:270m" in oc._embed_warmed_up
+
+    async def test_embed_text_all_unavailable(self, _fake_embed, _fake_list_models, caplog):
+        import app.core.ollama_client as oc
+
+        # No models installed at all.
+        _fake_list_models.extend([])
+        with caplog.at_level("WARNING"):
+            emb = await oc.embed_text("hello world")
+        assert emb is None
+        assert "All embedding models failed" in caplog.text
+
+    async def test_embed_text_batch_concurrent(self, _fake_embed, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        _fake_list_models.extend(["nomic-embed-text:v1.5"])
+        texts = ["one", "two", "three"]
+        results = await oc.embed_text_batch_concurrent(texts)
+        assert results == [[0.1, 0.2, 0.3], [0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]
+
+    async def test_embed_text_batch_concurrent_empty(self, _fake_embed, _fake_list_models):
+        import app.core.ollama_client as oc
+
+        _fake_list_models.extend(["nomic-embed-text:v1.5"])
+        assert await oc.embed_text_batch_concurrent([]) == []

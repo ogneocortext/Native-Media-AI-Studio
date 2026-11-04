@@ -15,7 +15,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
-from ..core.ollama_client import embed_text, list_models
+from ..core.ollama_client import embed_text_batch_concurrent, list_models
 from ..services.retrieval_service import (
     EMBED_MODEL,
     _split_text_into_chunks,
@@ -46,6 +46,7 @@ class IndexStatus(BaseModel):
     avg_length: float
     embedding_model: str
     rerank_model: str
+    embedding_model_available: bool = True
     built_at: float | None = None
     models_available: list[str] = []
 
@@ -212,6 +213,20 @@ async def index_status() -> IndexStatus:
     models = await list_models() or []
     model_names = [m.get("name", "") for m in models]
 
+    # Cross-check that the configured embedding model is actually installed.
+    # If it's missing, vector search silently degrades to BM25-only, so we
+    # surface the gap explicitly rather than letting the user wonder why
+    # semantic results are poor.
+    embedding_model_available = EMBED_MODEL in model_names
+    if not embedding_model_available:
+        logger.warning(
+            "Configured embedding model %s is not installed in Ollama; "
+            "vector search will fall back to BM25-only until it is pulled "
+            "(`ollama pull %s`) or a fallback model is available.",
+            EMBED_MODEL,
+            EMBED_MODEL,
+        )
+
     return IndexStatus(
         built=bool(idx._chunks),
         chunk_count=len(idx._chunks),
@@ -221,6 +236,7 @@ async def index_status() -> IndexStatus:
         rerank_model="qllama/bge-reranker-v2-m3",
         built_at=idx._built_at,
         models_available=model_names,
+        embedding_model_available=embedding_model_available,
     )
 
 
@@ -271,11 +287,11 @@ async def search(req: SearchRequest) -> SearchResponse:
 # ---------------------------------------------------------------------------
 
 async def _embed_batch(texts: list[str], model: str) -> list[list[float] | None] | None:
-    """Embed multiple texts via Ollama, sequentially (fast local round-trips)."""
-    results: list[list[float]] = []
-    for text in texts:
-        emb = await embed_text(text, model=model)
-        if emb is None:
-            return None
-        results.append(emb)
-    return results
+    """Embed multiple texts via Ollama, concurrently (bounded round-trips).
+
+    Replaced the serial loop with :func:`embed_text_batch_concurrent` so
+    indexing a large corpus no longer waits on each /api/embed round trip
+    one at a time. Results are returned in input order; a failed embedding
+    yields ``None`` at that position.
+    """
+    return await embed_text_batch_concurrent(texts, model=model)

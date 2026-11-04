@@ -397,6 +397,10 @@ class RetrievalIndex:
         """Return [(chunk_id, cosine_similarity)] ranked by vector similarity."""
         q_emb = await embed_text(query, model=EMBED_MODEL)
         if not q_emb:
+            logger.warning(
+                "Vector search unavailable: embedding model %s returned no vector; "
+                "falling back to BM25-only results", EMBED_MODEL,
+            )
             return []
 
         # Cosine similarity against all indexed chunk embeddings

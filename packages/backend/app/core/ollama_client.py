@@ -42,6 +42,24 @@ logger = logging.getLogger(__name__)
 
 _SESSION_KEY = "ollama"
 
+#: Embedding model warm-up state. Ollama's /api/embed has no persistent
+#: server-side "loaded" flag for embedding models the way chat models do, so we
+#: track warm-up client-side: the first /api/embed call for a given model pays
+#: cold-start latency; subsequent calls are warm.
+_embed_warmed_up: set[str] = set()
+
+#: Ordered list of embedding models to try. Primary first, then fallbacks.
+#: All produce 768-dim vectors so they are interchangeable in the vector index.
+_EMBED_MODEL_FALLBACKS: tuple[str, ...] = (
+    "nomic-embed-text:v1.5",
+    "embeddinggemma-2:270m",
+)
+
+#: Concurrency cap for batched embedding during indexing. Ollama /api/embed is
+#: a lightweight local round trip; modest parallelism speeds up indexing without
+#: overwhelming the GPU.
+_EMBED_BATCH_CONCURRENCY = 4
+
 
 async def get_shared_session() -> aiohttp.ClientSession:
     """Module-level shared session for stateless Ollama API routes.
@@ -257,19 +275,56 @@ def is_tool_capable_model(model_name: str) -> bool:
     ])
 
 
-async def embed_text(
+async def _embed_warmup(model: str) -> None:
+    """Run a dummy /api/embed call to load `model` into Ollama memory.
+
+    Ollama loads embedding models on first use; this avoids cold-start latency
+    on the first real query. Safe to call repeatedly — second call is a no-op.
+    """
+    if model in _embed_warmed_up:
+        return
+    try:
+        await embed_text_raw(model, "warm-up")
+        _embed_warmed_up.add(model)
+        logger.debug("Embedding model warmed up: %s", model)
+    except Exception as exc:
+        logger.debug("Embedding warm-up failed for %s (non-fatal): %s", model, exc)
+
+
+async def _embed_model_available(model: str, timeout: float = 5) -> bool:
+    """Return True if `model` is listed in Ollama /api/tags.
+
+    Used to verify the embedding model is actually installed before we commit
+    to it, so failures surface as configuration errors rather than silent
+    vector-search degradation.
+    """
+    try:
+        models = await list_models(timeout=timeout)
+    except Exception:
+        return False
+    if not models:
+        return False
+    return any(m.get("name", "") == model for m in models)
+
+
+async def embed_text_raw(
+    model: str,
     text: str,
-    model: str | None = None,
     timeout: float = 30,
 ) -> list[float] | None:
-    """POST ``/api/embed`` for one text; returns the embedding or None."""
+    """POST ``/api/embed`` for one text using the exact `model` requested.
+
+    No warm-up, no fallback, no logging — the raw primitive. Used by
+    :func:`embed_text` (which adds warm-up/fallback) and by :func:`_embed_warmup`.
+    Returns the embedding vector or None on failure.
+    """
     if not (text or "").strip():
         return None
     try:
         session = await get_shared_session()
         async with session.post(
             ollama_url("/api/embed"),
-            json={"model": model or config.embedding_model, "input": text},
+            json={"model": model, "input": text},
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
@@ -278,8 +333,89 @@ async def embed_text(
             embs = data.get("embeddings") or [data.get("embedding")]
             return embs[0] if embs and embs[0] is not None else None
     except Exception as e:
-        logger.debug("Ollama /api/embed failed: %s", e)
+        logger.debug("Ollama /api/embed failed for %s: %s", model, e)
         return None
+
+
+async def embed_text(
+    text: str,
+    model: str | None = None,
+    timeout: float = 30,
+) -> list[float] | None:
+    """POST ``/api/embed`` for one text; returns the embedding or None.
+
+    Resolves the model with this priority:
+      1. explicit ``model`` argument
+      2. ``config.embedding_model``
+      3. first available fallback from ``_EMBED_MODEL_FALLBACKS``
+
+    Warms up the chosen model on first use and falls back to the next model in
+    the tuple if the primary is unavailable or the call fails.
+    """
+    if not (text or "").strip():
+        return None
+
+    candidates = [m for m in (model or config.embedding_model, *_EMBED_MODEL_FALLBACKS)
+                  if m]
+    # Dedup while preserving order.
+    seen: set[str] = set()
+    candidates = [m for m in candidates if not (m in seen or seen.add(m))]
+
+    last_error: str | None = None
+    for candidate in candidates:
+        # Verify the model is installed before we pay for a call.
+        if not await _embed_model_available(candidate):
+            last_error = f"{candidate} not installed in Ollama"
+            logger.warning("Embedding model %s not installed; trying next fallback", candidate)
+            continue
+
+        await _embed_warmup(candidate)
+        emb = await embed_text_raw(candidate, text, timeout=timeout)
+        if emb is not None:
+            return emb
+        last_error = f"{candidate} returned empty embedding"
+        logger.warning("Embedding call for %s returned empty; trying next fallback", candidate)
+
+    logger.warning("All embedding models failed (last error: %s); returning None", last_error)
+    return None
+
+
+async def embed_text_batch_concurrent(
+    texts: list[str],
+    model: str | None = None,
+    timeout: float = 30,
+) -> list[list[float] | None]:
+    """Embed multiple texts concurrently via /api/embed.
+
+    Unlike :func:`_embed_batch` (serial), this issues up to
+    ``_EMBED_BATCH_CONCURRENCY`` requests at once, cutting indexing time for
+    large corpora roughly in proportion to concurrency. Results are returned in
+    input order; a failed embedding yields ``None`` at that position (callers
+    decide how to handle it).
+    """
+    if not texts:
+        return []
+
+    # Resolve the model once for the whole batch.
+    resolved = None
+    for candidate in [model or config.embedding_model, *_EMBED_MODEL_FALLBACKS]:
+        if not candidate:
+            continue
+        if await _embed_model_available(candidate):
+            resolved = candidate
+            break
+    if resolved is None:
+        return [None] * len(texts)
+
+    await _embed_warmup(resolved)
+
+    semaphore = asyncio.Semaphore(_EMBED_BATCH_CONCURRENCY)
+
+    async def _one(text: str) -> list[float] | None:
+        async with semaphore:
+            return await embed_text_raw(resolved, text, timeout=timeout)
+
+    return await asyncio.gather(*(_one(t) for t in texts))
 
 
 async def chat_content(
