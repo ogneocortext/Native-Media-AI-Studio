@@ -13,7 +13,7 @@ External tools and system-level dependencies that are **not** installable via `p
 | FFmpeg | 9.0.2 | Latest stable (released Sep 18, 2026) |
 | Node.js | 26.13 LTS | Active LTS (Lithium), maintained until 2029-04-30 |
 | Python | 3.15.2 / 3.14.10 / 3.11.18 | 3.15 is latest bugfix, 3.14 is stable, 3.11 is security-only |
-| Ollama | 0.40.12 | Latest stable (released Oct 27, 2026) - adds LFM3 and d1 models |
+| Ollama | 0.40.14 | Latest stable (released Nov 3, 2026) - OpenAI-compatible endpoints no longer override model sampler defaults; /api/chat web search decoding fix |
 | ComfyUI | 0.43.0 | Latest stable (released Oct 27, 2026) |
 | Blender | 5.2.3 LTS | Current LTS, supported until July 2028 |
 | Unity | 6000.6.7f1 (Unity 6) | Unity 6.3 LTS, supported until December 2027 |

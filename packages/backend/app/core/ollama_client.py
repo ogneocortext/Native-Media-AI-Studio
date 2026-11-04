@@ -13,6 +13,16 @@ endpoint URLs previously duplicated across:
 All calls share one module-level session (same rationale as
 ``core/comfyui_client.get_shared_session`` -- see
 knowledge-library/backend-debugging-guide.md section Adapter Connection Reuse).
+
+Ollama 0.40.14 compatibility note (2026-11-03):
+   - OpenAI-compatible endpoints (/v1/chat/completions, /v1/completions,
+     /v1/responses) no longer override model-packaged temperature/top_p
+     when clients omit them — they now use the model's own defaults
+     instead of 1.0. This module calls Ollama's **native** /api/chat and
+     /api/generate endpoints, which were never affected by this change.
+   - All callers pass ``temperature`` explicitly in ``extra``/``options``
+     where it matters, so explicit values continue to override model
+     defaults under 0.40.14. No code change required for 0.40.14.
 """
 
 from __future__ import annotations

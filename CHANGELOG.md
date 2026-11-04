@@ -70,6 +70,33 @@ confirmation.
 - Empty states now include helpful descriptions.
 - "No preferences found" now includes an "Open Settings" action.
 
+### Changed - Ollama 0.40.14 (latest stable, shipped 2026-11-03)
+
+The local server and CLI moved 0.40.12 → 0.40.14. Verified via
+`GET /api/version` on the live server. No breaking changes to the
+endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,
+`/api/generate`, `/api/embed`) — this repo uses Ollama's **native**
+endpoints, not the OpenAI-compatible `/v1/` routes, and all callers
+explicitly pass `temperature`, so the 0.40.14 sampler-defaults change
+(OpenAI-compatible endpoints no longer force `temperature`/`top_p` to
+1.0 when omitted) does not affect behavior. What's new that matters
+to this Windows/ggml (GTX 1070 Ti) studio:
+
+- **0.40.14** — OpenAI-compatible endpoints (`/v1/chat/completions`,
+  `/v1/completions`, `/v1/responses`) now use model-packaged sampler
+  defaults instead of forcing 1.0 when clients omit `temperature`/`top_p`;
+  `/v1/responses` preserves readable input content including prior
+  assistant refusals; cloud web search responses on `/api/chat` decoded
+  correctly; `ollama launch claude` output cap raised to model limit;
+  `ollama launch codex` validates ChatGPT routing.
+
+No model re-pulls needed for current workloads; gemma4:e2b-it-qat
+remains the default/vision model. Docs:
+`docs/architecture/provider-notes.md`,
+`docs/knowledge-library/ollama-thinking-structured-outputs.md`,
+`docs/knowledge-library/ollama-utilization-2026.md`,
+`docs/SYSTEM_REQUIREMENTS.md` updated to 0.40.14.
+
 ### Changed - Ollama 0.40.10 (latest stable, shipped 2026-10-23)
 
 The local server and CLI moved 0.40.7 → 0.40.10. Verified via

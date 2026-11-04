@@ -13,9 +13,19 @@ type: concept
 
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-10-08
-> **Ollama Version:** 0.40.10 (server, verified via `GET /api/version`)
+> **Last Updated:** 2026-11-04
+> **Ollama Version:** 0.40.14 (server, verified via `GET /api/version`)
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
+
+## 2026-11-03: 0.40.14 — Sampler defaults fix, no API surface change
+
+Server moved 0.40.12 → 0.40.14 (shipped 2026-11-03). The changes that matter:
+
+- **OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/completions`, `/v1/responses`) no longer override model-packaged `temperature`/`top_p` when clients omit them** — they now use the model's own defaults instead of 1.0. This repo calls Ollama's **native** `/api/chat` and `/api/generate` endpoints (never `/v1/`), which were never affected by this change, and all callers explicitly pass `temperature`, so behavior is unchanged.
+- **Cloud web search responses on `/api/chat` decoded correctly** (server-side fix; this repo runs local-only).
+- **`/v1/responses` preserves readable input content** including prior assistant refusals (server-side fix; this repo uses `/api/chat` with structured output, not `/v1/responses`).
+
+No new introspection fields, no deprecations, no endpoint this repo calls changed — so every 0.40.0/0.40.10 measurement below stands, and the `think: false` guidance is unchanged.
 
 ## 2026-10-08: 0.40.1 — Windows serving fixes, no surface change
 

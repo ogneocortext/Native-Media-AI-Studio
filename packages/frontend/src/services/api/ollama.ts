@@ -1,6 +1,22 @@
 import { getApiBase } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
 
+/**
+ * Ollama client for the Native Media AI Studio frontend.
+ *
+ * Ollama 0.40.14 compatibility note (2026-11-03):
+ *   - OpenAI-compatible endpoints (/v1/chat/completions, /v1/completions,
+ *     /v1/responses) no longer override model-packaged temperature/top_p
+ *     when clients omit them — they now use the model's own defaults
+ *     instead of 1.0. This client calls Ollama's **native** /api/chat
+     and /api/generate endpoints (via the backend integration layer),
+     which were never affected by this change.
+ *   - All callers explicitly pass `temperature` where it matters
+ *     (ollamaChatStream conditionally; generateVisualizerPreset always
+ *     passes temperature=0.7), so explicit values continue to override
+ *     model defaults under 0.40.14. No code change required for 0.40.14.
+ */
+
 export interface UnifiedModel {
   source: "ollama" | "atomic-chat";
   id: string;

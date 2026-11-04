@@ -634,4 +634,4 @@ const response = await fetch(`${OLLAMA_URL}/api/chat`, {
 
 ---
 
-_Last updated: 2026-10-24 (Ollama 0.40.10 version bump — Flint on Windows, d3 decision models, Nemotron 3.5 Bolt E4B VLM; no API surface change since 0.40.0)_
+_Last updated: 2026-11-04 (Ollama 0.40.14 version bump — OpenAI-compatible sampler defaults now respect model-packaged values instead of 1.0; no API surface change for native /api/chat and /api/generate endpoints this repo calls)_

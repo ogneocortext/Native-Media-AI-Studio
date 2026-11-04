@@ -5,6 +5,17 @@ Implements BaseAdapter interface for storyboard prompt generation.
 
 Tool definitions/implementations live in ``ollama_tools.OllamaToolsMixin``.
 Model lifecycle operations live in ``ollama_models.OllamaModelMixin``.
+
+Ollama 0.40.14 compatibility note (2026-11-03):
+   - OpenAI-compatible endpoints (/v1/chat/completions, /v1/completions,
+     /v1/responses) no longer override model-packaged temperature/top_p
+     when clients omit them — they now use the model's own defaults
+     instead of 1.0. This adapter calls Ollama's **native** /api/chat
+     and /api/generate endpoints, which were never affected by this
+     change.
+   - All callers pass ``temperature`` explicitly in ``options`` where it
+     matters, so explicit values continue to override model defaults
+     under 0.40.14. No code change required for 0.40.14.
 """
 
 from __future__ import annotations

@@ -181,13 +181,21 @@ not a candidate.
   `gemma4:e2b-it-qat` (4.6B Q4_0); vision fallbacks
   `qwen3-vl:2b`/`minicpm-v:8b`; text `qwen3.5:9b`;
   embeddings `nomic-embed-text:v1.5`. Server upgraded
-  to **0.40.10** on 2026-10-23 (0.40.1 on 2026-10-08; verified via
+  to **0.40.14** on 2026-11-03 (verified via
   `GET /api/version`). No API surface change since 0.40.0 — the
   endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,
   `/api/generate`, `/api/embed`) are unchanged, so the `think: false`
   guidance and capability handling stand. Notable for this studio:
   Flint on Windows (0.40.9), d3 decision models (0.40.9), Nemotron
-  3.5 Bolt E4B VLM (0.40.10). See CHANGELOG.md for the full 0.40.7→0.40.10 delta.
+  3.5 Bolt E4B VLM (0.40.10). See CHANGELOG.md for the full delta.
+  **0.40.14 sampler change:** OpenAI-compatible endpoints
+  (`/v1/chat/completions`, `/v1/completions`, `/v1/responses`) no longer
+  override model-packaged `temperature`/`top_p` when clients omit them
+  (they now use the model's own defaults instead of 1.0). This repo calls
+  Ollama's **native** `/api/chat` and `/api/generate` endpoints — which
+  were never affected by this change — and all callers explicitly pass
+  `temperature`, so behavior is unchanged. Explicit values still override
+  model defaults under 0.40.14.
 - **First used:** 2026-09 (see
   `docs/knowledge-library/ollama-thinking-structured-outputs.md`).
 - **Strong at:** vision analysis within the 8 GB VRAM
