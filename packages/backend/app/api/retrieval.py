@@ -19,6 +19,7 @@ from ..core.ollama_client import embed_text_batch_concurrent, list_models
 from ..services.retrieval_service import (
     EMBED_DIM,
     EMBED_MODEL,
+    RERANK_MODEL,
     _split_text_into_chunks,
     get_index,
     persist_chunk_embeddings,
@@ -200,7 +201,7 @@ async def index_docs(req: IndexRequest) -> dict:
             "chunks": len(chunk_objects),
             "docs": len({c.doc_path for c in chunk_objects}),
             "embedding_model": EMBED_MODEL,
-            "rerank_model": "qllama/bge-reranker-v2-m3",
+            "rerank_model": RERANK_MODEL,
         }
     finally:
         _indexing = False
@@ -236,7 +237,7 @@ async def index_status() -> IndexStatus:
         doc_count=len({c.doc_path for c in idx._chunks.values()}),
         avg_length=idx._avg_len,
         embedding_model=EMBED_MODEL,
-        rerank_model="qllama/bge-reranker-v2-m3",
+        rerank_model=RERANK_MODEL,
         built_at=idx._built_at,
         models_available=model_names,
         embedding_model_available=embedding_model_available,
@@ -253,7 +254,7 @@ async def search(req: SearchRequest) -> SearchResponse:
     Hybrid search: BM25 + vector -> RRF -> rerank -> top-k.
 
     Uses local Ollama models (nomic-embed-text for vectors,
-    qllama/bge-reranker-v2-m3 for reranking) -- nothing leaves the machine.
+    BAAI/bge-reranker-v2-m3 for reranking) -- nothing leaves the machine.
     """
     idx = get_index()
     if not idx._chunks:
