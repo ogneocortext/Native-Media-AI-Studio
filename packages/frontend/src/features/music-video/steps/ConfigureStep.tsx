@@ -22,7 +22,17 @@ import {
   
 } from "lucide-react";
 import type { GenerationConfig } from "../types";
-import { SHOT_SIZES, CAMERA_ANGLES, PROMPT_SUGGESTIONS } from "./shared";
+const SHOT_SIZES = ["Extreme Wide", "Wide", "Medium", "Close-up", "Extreme Close-up"];
+const CAMERA_ANGLES = ["Eye Level", "Low Angle", "High Angle", "Bird's Eye", "Dutch Angle"];
+
+/** Prompt-palette suggestions, keyed by mood category. */
+const PROMPT_SUGGESTIONS: Record<string, string[]> = {
+  happy: ["upbeat", "bright", "colorful", "energetic", "joyful", "vibrant"],
+  calm: ["peaceful", "serene", "soft", "gentle", "relaxing", "ambient"],
+  dark: ["moody", "atmospheric", "cinematic", "dramatic", "intense", "mysterious"],
+  electronic: ["neon", "futuristic", "cyberpunk", "glitch", "synth", "digital"],
+  natural: ["organic", "earthy", "warm", "sunset", "nature", "flowing"],
+};
 
 export function ConfigureStep({
   config,

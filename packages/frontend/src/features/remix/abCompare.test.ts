@@ -6,7 +6,7 @@ import {
   abShowing,
   type AbVariant,
 } from "./abCompare";
-import type { EditableSlot } from "../../remix/remixRecipe";
+import type { EditableSlot } from "./remixRecipe";
 
 function variant(overrides: Partial<AbVariant> = {}): AbVariant {
   const slots: EditableSlot[] = [

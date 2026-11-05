@@ -20,7 +20,7 @@ Audio-reactive visualization for the Native Media AI Studio: Canvas2D bars/wavef
 
 | Directory | Purpose |
 |-----------|---------|
-| `components/` | Visualizer UI components: `PresetSelector.tsx`, `VisualizationFX.tsx`, `VisualizationStyles.tsx`, `LrcVizController.tsx`, `HtmlCanvasRenderer.tsx` |
+| `components/` | Visualizer UI components (Viz* chrome, panels, overlays) |
 | `services/` | Visualizer services: audio analysis worker, spectral timeline, MCP context sync |
 | `stems/` | Stem mixing presets: `stemMixPresets.ts`, fader mapping, dB/gain conversion |
 | `viz-styles/` | Visualization style definitions: motion curves, gamma drives |
@@ -40,7 +40,6 @@ Audio-reactive visualization for the Native Media AI Studio: Canvas2D bars/wavef
 | `aiPresetCatalog.ts` / `visualPresets.ts` | Visual preset definitions and import/export |
 | `shaderPresets.ts` | Shader preset definitions |
 | `visualizerModeRegistry.ts` | Visualizer mode registration |
-| `visualizerConfigSchema.ts` | Visualizer config validation schema |
 | `visualizerHelpers.ts` | Shared visualizer helpers: `cleanTrackName()` for names outside selectors |
 | `trackFeatures.ts` | Track feature extraction |
 | `trackVisualProfiles.ts` | Track-to-visual profile mapping |

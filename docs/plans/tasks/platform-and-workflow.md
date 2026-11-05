@@ -337,3 +337,30 @@ Rules: `docs/plans/tasks/README.md`
   agent-chat WIP errors project-wide), eslint 0 errors (warnings are
   the same `any`-typed three.js patterns, moved with the code),
   three-js-studio vitest 92/92 pass.
+
+### T-PLT-XX - Consolidate duplicates and delete dead modules
+- **Status:** done
+- **Goal:** Streamline the codebase after the decomposition pass - remove
+  duplicate shims, single-consumer shared files, duplicated helpers and
+  dead modules.
+- **What changed:**
+  - ``visualizer/components/abCompare.ts`` shim deleted - it only
+    re-exported ``features/remix/abCompare.ts``; its test moved to
+    ``features/remix/abCompare.test.ts`` beside the live module.
+  - ``music-video/steps/shared.ts`` deleted - each constant had exactly
+    one consumer, so SECTION_COLORS folded into AnalyzeStep and
+    SHOT_SIZES/CAMERA_ANGLES/PROMPT_SUGGESTIONS into ConfigureStep.
+  - ``KineticTransport.tsx`` dropped its local ``formatTime`` for the
+    shared ``utils/format.ts`` version (output-identical m:ss).
+  - Dead code deleted (zero importers repo-wide, verified by content
+    search incl. tests): ``media-library/{MediaDetailModal,
+    WaveformDisplay,MediaLibraryStats}.tsx``,
+    ``media-library/utils/{categoryConfig,fileHelpers}.ts`` (+ now-empty
+    ``utils/`` dir), ``visualizer/{VisualizationStyles,
+    visualizerConfigSchema}.ts``. ``visualizerModeTemplate.ts`` kept -
+    it is an intentional copy-not-import template.
+- **Files:** see What changed; ``visualizer/README.md`` module table
+  synced.
+- **Acceptance:** tsc -b + tsconfig.tests fully clean (0 errors
+  project-wide), eslint 0 errors on touched files, remix/visualizer
+  vitest 42/42 pass.

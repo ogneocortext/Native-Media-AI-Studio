@@ -22,7 +22,16 @@ import {
 } from "lucide-react";
 import type { AudioAnalysis } from "../types";
 import { VISUAL_TREATMENTS } from "../types";
-import { SECTION_COLORS } from "./shared";
+/* Section-type → colour class. Module scope: rebuilding this object inside the
+   per-section render allocated one map per section on every render. */
+const SECTION_COLORS: Record<string, string> = {
+  intro: "bg-sky-600",
+  verse: "bg-emerald-600",
+  chorus: "bg-violet-600",
+  bridge: "bg-amber-600",
+  outro: "bg-rose-600",
+  "pre-chorus": "bg-teal-600",
+};
 
 export function AnalyzeStep({
   analysis,

@@ -7,13 +7,7 @@
  */
 import type { MutableRefObject } from "react";
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
-
-function formatTime(s: number): string {
-  const safe = Math.max(0, s || 0);
-  return `${Math.floor(safe / 60)}:${Math.floor(safe % 60)
-    .toString()
-    .padStart(2, "0")}`;
-}
+import { formatTime } from "../../../utils/format";
 
 export interface KineticTransportProps {
   isPlaying: boolean;
