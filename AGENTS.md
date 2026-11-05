@@ -430,6 +430,7 @@ both channels (see its docstring for the rule).
 | MiniMax 3.1 Flash (local coding agent; credited as "Space Bunny Alpha" during its stealth preview) | `Co-authored-by: MiniMax 3.1 Flash` |
 | opencode (terminal coding agent; runs deepseek-v4.1-flash-free) | `Co-authored-by: opencode` |
 | GPT-6 (Codex desktop agent) | `Co-authored-by: GPT-6` |
+| Devin (Cognition desktop agent) | `Co-authored-by: Devin` |
 
 **Trailer emails:** GitHub credits a trailer's *email*, not its name. A
 trailer reading `Space Bunny Alpha <noreply@anthropic.com>` is displayed

@@ -579,8 +579,8 @@ function Get-ProcessDescendants {
     $frontier = @($ProcessId)
     while ($frontier.Count -gt 0) {
         $next = @()
-        foreach ($pid in $frontier) {
-            $kids = @($AllProcesses | Where-Object { $_.ParentProcessId -eq $pid })
+        foreach ($parentPid in $frontier) {
+            $kids = @($AllProcesses | Where-Object { $_.ParentProcessId -eq $parentPid })
             foreach ($k in $kids) {
                 $descendants += $k
                 $next += $k.ProcessId
@@ -680,13 +680,15 @@ function Register-StartedProcess {
         [string]$ServiceName
     )
     if (-not $script:ProcessRegistry) { $script:ProcessRegistry = @() }
+    $commandLine = $null
+    try { $commandLine = $Process.CommandLine } catch { }
     $entry = @{
         Name          = if ($ServiceName) { $ServiceName } else { $Process.ProcessName }
         ProcessId     = $Process.Id
         StartTime     = $Process.StartTime
         Service       = $Service
         ServiceName   = $ServiceName
-        CommandLine   = (try { $Process.CommandLine } catch { $null })
+        CommandLine   = $commandLine
     }
     $script:ProcessRegistry += $entry
 }
@@ -799,8 +801,15 @@ function Reap-StaleProcesses {
     #>
     param([switch]$DryRun)
     $allProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue
+    # A process that owns a listening TCP port is a live service, not an
+    # orphan — age alone must not reap it (backend/ComfyUI run for days).
+    $portOwners = @{}
+    foreach ($c in (Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue)) {
+        if ($c.OwningProcess) { $portOwners[[int]$c.OwningProcess] = $true }
+    }
     $stale = @()
     foreach ($p in $allProcs) {
+        if ($portOwners.ContainsKey([int]$p.ProcessId)) { continue }
         if (Test-StaleProcess -Process $p) {
             $stale += $p
         }

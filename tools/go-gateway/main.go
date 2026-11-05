@@ -32,9 +32,11 @@ var (
 		"ollama":  "http://127.0.0.1:11434",
 	}
 	// bridgeHealthPaths maps bridge name to its health check path.
-	// Ollama uses /api/tags instead of /api/health.
+	// Ollama uses /api/tags and ComfyUI /system_stats instead of /api/health,
+	// which neither service implements (ComfyUI 404s it -> permanent "degraded").
 	bridgeHealthPaths = map[string]string{
-		"ollama": "/api/tags",
+		"ollama":  "/api/tags",
+		"comfyui": "/system_stats",
 	}
 	requestTimeout = 15 * time.Second
 	healthTimeout  = 2 * time.Second

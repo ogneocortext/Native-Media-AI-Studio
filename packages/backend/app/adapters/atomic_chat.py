@@ -7,6 +7,7 @@ Implements BaseAdapter interface for chat and generate operations.
 import asyncio
 import json
 import logging
+import os
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -82,6 +83,10 @@ Generate 3-8 scenes based on the input theme or concept."""
         self._default_model: str = _def
         self._last_model: str = self._default_model
         self._last_health_log: str | None = None
+        # Atomic Chat enforces API-key auth on /v1/* when its "Remote access"
+        # option is on. The key is a secret: read it from the environment only,
+        # never from the tracked config files.
+        self._api_key: str | None = os.getenv("ATOMIC_CHAT_API_KEY", "").strip() or None
         self._active_tasks: dict[str, dict[str, Any]] = {}
         self._scene_state: dict[str, Any] = {
             "objects": [],
@@ -92,6 +97,10 @@ Generate 3-8 scenes based on the input theme or concept."""
             "duration": 30,
             "keyframes": [],
         }
+
+    def _auth_headers(self) -> dict[str, str]:
+        """Authorization header when an API key is configured, else empty."""
+        return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
 
     def set_activity(self, model: str, task: str = "generate", description: str = "", timeout: float = 180) -> None:
         """Register that a model is actively processing a task.
@@ -206,7 +215,14 @@ Generate 3-8 scenes based on the input theme or concept."""
         try:
             session = await self._get_session()
             target = f"{self.base_url.rstrip('/')}/v1/models"
-            async with session.get(target, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(target, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 401:
+                    reason = "HTTP 401 — set ATOMIC_CHAT_API_KEY to the key shown in Atomic Chat"
+                    if self._last_health_log != reason:
+                        self._last_health_log = reason
+                        logger.warning("Atomic Chat health check: %s", reason)
+                    self.set_status(AdapterStatus.ERROR)
+                    return False
                 if resp.status != 200:
                     if self._last_health_log != f"HTTP {resp.status}":
                         self._last_health_log = f"HTTP {resp.status}"
@@ -275,7 +291,7 @@ Generate 3-8 scenes based on the input theme or concept."""
         try:
             session = await self._get_session()
             target = f"{self.base_url.rstrip('/')}/v1/models"
-            async with session.get(target, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(target, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status != 200:
                     return None
                 data = await resp.json()
@@ -419,7 +435,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         session = await self._get_session()
         target = f"{self.base_url.rstrip('/')}/v1/chat/completions"
-        async with session.post(target, json=payload, timeout=aiohttp.ClientTimeout(total=300)) as resp:
+        async with session.post(target, json=payload, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=300)) as resp:
             if resp.status != 200:
                 error = await resp.text()
                 raise RuntimeError(f"Atomic Chat error: {error}")
@@ -481,7 +497,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         session = await self._get_session()
         target = f"{self.base_url.rstrip('/')}/v1/chat/completions"
-        async with session.post(target, json=payload, timeout=aiohttp.ClientTimeout(total=300)) as resp:
+        async with session.post(target, json=payload, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=300)) as resp:
             if resp.status != 200:
                 error = await resp.text()
                 raise RuntimeError(f"Atomic Chat stream error: {error}")

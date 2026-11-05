@@ -41,6 +41,9 @@ F = TypeVar("F", bound=Callable[..., Any])
 class AdapterStatus(StrEnum):
     """Adapter connection status."""
 
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    ONLINE = "online"
     AVAILABLE = "available"
     BUSY = "busy"
     CRITICAL = "critical"

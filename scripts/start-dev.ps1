@@ -8,6 +8,13 @@
     Skip the backend (frontend only).
 .PARAMETER NoFrontend
     Skip the frontend (backend only).
+.PARAMETER NoWait
+    Start services and return immediately instead of blocking on the
+    interactive 'q' loop (start-studio.ps1).
+.PARAMETER Browser
+    Open the frontend in the browser on startup (start-studio.ps1).
+.PARAMETER NoComfyUI
+    Skip ComfyUI even if it would otherwise start (start-studio.ps1).
 .PARAMETER Clean
     Remove build artifacts and caches before starting.
 .EXAMPLE
@@ -21,6 +28,9 @@
 param(
     [switch]$NoBackend,
     [switch]$NoFrontend,
+    [switch]$NoWait,
+    [switch]$Browser,
+    [switch]$NoComfyUI,
     [switch]$Clean
 )
 
@@ -35,6 +45,9 @@ if (-not (Test-Path -LiteralPath $Launcher)) {
 $forwardArgs = @()
 if ($NoBackend)  { $forwardArgs += '-NoBackend' }
 if ($NoFrontend) { $forwardArgs += '-NoFrontend' }
+if ($NoWait)     { $forwardArgs += '-NoWait' }
+if ($Browser)    { $forwardArgs += '-Browser' }
+if ($NoComfyUI)  { $forwardArgs += '-NoComfyUI' }
 if ($Clean)      { $forwardArgs += '-Clean' }
 
 Write-Host "Delegating to start-studio.ps1 $($forwardArgs -join ' ')..." -ForegroundColor Cyan

@@ -2,10 +2,15 @@
 .SYNOPSIS
     One-command launcher for Native Media AI Studio (backend + frontend).
 .DESCRIPTION
-    Starts the FastAPI backend and the Vite frontend as hidden background
-    processes, waits for both to become healthy, syncs the resolved port
-    config to the frontend, opens the browser, and stops BOTH services
-    when you press 'q' or close the window.
+    Starts the FastAPI backend and the Vite frontend (and optionally
+    ComfyUI / the Remotion video editor) by delegating service lifecycle
+    to manage-servers.ps1, waits for both to become healthy, syncs the
+    resolved port config to the frontend (the browser is no longer opened
+    automatically — pass -Browser to open it), then either blocks on an
+    interactive 'q' loop with auto-restart for crashed services, or
+    returns immediately (-NoWait) leaving services running in the
+    background. Pressing 'q' (or Ctrl+C / closing the window) stops all
+    services started by this session.
     Supports auto-restart for crashed services with exponential backoff.
 .PARAMETER NoBackend
     Skip the backend (frontend only).
@@ -13,8 +18,9 @@
     Skip the frontend (backend only).
 .PARAMETER VideoEditor
     Also start the Remotion video-editor studio.
-.PARAMETER NoBrowser
-    Do not auto-open the browser.
+.PARAMETER Browser
+    Open the frontend in the browser on startup. Off by default — the app
+    no longer opens a browser tab when started from scratch.
 .PARAMETER NoComfyUI
     Skip ComfyUI even if it would otherwise start.
 .PARAMETER Clean
@@ -22,12 +28,19 @@
 .PARAMETER AutoQuitSeconds
     Test hook: auto-stop all services after N seconds instead of waiting
     for 'q'.
+.PARAMETER NoWait
+    Start services and return immediately instead of blocking on the
+    interactive 'q' loop. Services keep running in the background after
+    the script exits. Automatically enabled when stdin is not a console
+    (e.g. launched by an AI agent with redirected input).
 .PARAMETER ComfyUIPath
     Path to the ComfyUI checkout directory.
 .EXAMPLE
     pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1
 .EXAMPLE
     pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1 -NoComfyUI -Clean
+.EXAMPLE
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-studio.ps1 -NoWait -Browser
 #>
 #Requires -Version 7.6
 [CmdletBinding(SupportsShouldProcess=$true)]
@@ -36,24 +49,45 @@ param(
     [switch]$NoBackend,
     [switch]$NoFrontend,
     [switch]$VideoEditor,
-    [switch]$NoBrowser,
+    [switch]$Browser,
     [switch]$NoComfyUI,
     [switch]$Clean,
     [int]$AutoQuitSeconds = 0,
+    [switch]$NoWait,
     [string]$ComfyUIPath = 'D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI'
 )
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
-# Load shared utilities (Resolve-*, Write-*, port/process helpers)
+# Load shared utilities, then manage-servers.ps1 for service lifecycle
+# (start / stop / health-check / process registry). manage-servers.ps1
+# dot-sources shared-utils itself, but we dot-source it first so its
+# helpers are available for our own calls below.
 . (Join-Path $PSScriptRoot 'shared-utils.ps1')
+. (Join-Path $PSScriptRoot 'manage-servers.ps1')
 
-$Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
-$BackendPort      = $Ports.backend_port
-$FrontendPort     = $Ports.frontend_port
-$ComfyUIPort      = $Ports.comfyui_port
-$VideoEditorPort  = $Ports.video_editor_port
+# manage-servers.ps1 only runs its action dispatcher when invoked directly
+# (-Action). When dot-sourced it sets up $ServiceConfig, $Ports, $LogDir,
+# $backendPython, $comfyPython, … using the cheap path-existence chain.
+# Re-resolve with the verified chain so service starts use a working
+# interpreter rather than merely an existing one.
+$backendPython = Resolve-BackendPython
+if (-not $backendPython) {
+    Write-Err 'No Python environment found for the backend.'
+    Write-Err 'Create one: py -V:3.11 -m venv D:\conda-envs\nma-studio-cuda'
+    exit 1
+}
+$comfyPython = Resolve-ComfyUIPython
+$ServiceConfig.backend.Python  = $backendPython
+$ServiceConfig.comfyui.Python  = $comfyPython
+
+Write-Ok "Using backend environment: $backendPython"
+
+$BackendPort   = $Ports.backend_port
+$FrontendPort  = $Ports.frontend_port
+$ComfyUIPort   = $Ports.comfyui_port
+$VideoEditorPort = $Ports.video_editor_port
 
 $BackendDir    = Join-Path $ProjectRoot 'packages\backend'
 $FrontendDir   = Join-Path $ProjectRoot 'packages\frontend'
@@ -62,305 +96,57 @@ $LogDir        = Join-Path $ProjectRoot 'output\logs'
 
 $envs = Get-PythonEnvs
 
-# ComfyUI interpreter: verified (torch import — what main.py
-# hard-imports) rather than path existence, so a broken
-# comfyui env is skipped with a warning instead of failing
-# seconds into launch. Falls back to the declared env so the
-# "not found" warning below names the real path.
-$ComfyPython = Resolve-ComfyUIPython
-if (-not $ComfyPython) { $ComfyPython = $envs.ComfyPython }
-
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 # ---------------------------------------------------------------------------
 # Local state
 # ---------------------------------------------------------------------------
 
-$script:started = @()   # @{ Name = 'Backend'; Process = <proc> }
 $restartCounts  = @{}
 $maxRestarts    = 3
+$script:NoWait  = $NoWait
+
+# When stdin is not a console (redirected input, as AI agents typically run),
+# do not block on the interactive 'q' loop — start services and return, leaving
+# them running in the background.
+try {
+    if ([Console]::IsInputRedirected) { $script:NoWait = $true }
+} catch {}
+
+# Build the service list from switches. manage-servers.ps1 also knows about
+# Go services and Atomic Chat, but start-studio.ps1 only manages the core
+# frontend/backend stack by default.
+$serviceList = @()
+if (-not $NoBackend)  { $serviceList += 'backend' }
+if (-not $NoFrontend) { $serviceList += 'frontend' }
+if (-not $NoComfyUI)  { $serviceList += 'comfyui' }
+if ($VideoEditor)     { $serviceList += 'video' }
 
 # ---------------------------------------------------------------------------
-# Preflight: Python environment
+# Service start / stop helpers (delegated to manage-servers.ps1)
 # ---------------------------------------------------------------------------
 
-# Verified chain: the first env that can actually import the backend
-# runtime (fastapi/uvicorn/watchfiles), not merely the first that
-# exists - a broken env would fail at launch with a traceback far
-# from the cause. Resolve-BackendPython warns about each broken env
-# and falls back to the first existing one so the failure is the
-# backend's own, not a misleading "no Python found".
-$python = Resolve-BackendPython
-if (-not $python) {
-    Write-Err 'No Python environment found.'
-    Write-Err 'Create one: py -V:3.11 -m venv D:\conda-envs\nma-studio-cuda'
-    exit 1
-}
-Write-Ok "Using backend environment: $python"
+function Restart-LaunchedService {
+    param([string]$Service)
+    if (-not $restartCounts.ContainsKey($Service)) { $restartCounts[$Service] = 0 }
+    $restartCounts[$Service]++
 
-$backendTarget = Get-BackendTarget -Python $python -Port $BackendPort
-
-# ---------------------------------------------------------------------------
-# Service startup helpers
-# ---------------------------------------------------------------------------
-
-function Start-Backend {
-    $status = Test-ServicePort -Port $BackendPort
-    if ($status.Running) {
-        Write-Ok "Backend already running on port $BackendPort"
-        return
-    }
-    if ($status.Note) {
-        Write-Warn "Port $BackendPort occupied but backend not responding"
+    if ($restartCounts[$Service] -gt $maxRestarts) {
+        Write-Warn "$Service has crashed $maxRestarts times - not restarting"
         return
     }
 
-    $backendLog    = Join-Path $LogDir 'backend.log'
-    $backendErrLog = Join-Path $LogDir 'backend.err.log'
-    $proc = Start-ProcessSafe `
-        -FilePath $python `
-        -ArgumentList @('-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget) `
-        -WorkingDirectory $BackendDir `
-        -LogFile $backendLog -ErrorLog $backendErrLog
+    $backoff = [Math]::Pow(2, $restartCounts[$Service] - 1)
+    Write-Warn "$Service exited unexpectedly. Restarting ($($restartCounts[$Service])/$maxRestarts) in ${backoff}s..."
 
-    if ($proc) {
-        $script:started += @{ Name = 'Backend'; Process = $proc }
-        Register-StartedProcess -Process $proc -Service 'backend' -ServiceName 'Backend'
-        Wait-ForPort -Port $BackendPort -Name 'Backend' | Out-Null
-    }
-}
-
-function Start-ComfyUI {
-    $status = Test-ServicePort -Port $ComfyUIPort -HealthPath '/'
-    if ($status.Running) {
-        Write-Ok "ComfyUI already running on port $ComfyUIPort"
-        return
-    }
-    if ($status.Note) {
-        Write-Warn "Port $ComfyUIPort occupied but ComfyUI not responding"
-        return
-    }
-    if (-not (Test-Path $ComfyPython)) {
-        Write-Warn "ComfyUI Python not found at $ComfyPython - skipping"
-        return
-    }
-    if (-not (Test-Path $ComfyUIPath)) {
-        Write-Warn "ComfyUI path not found at $ComfyUIPath - skipping"
-        return
-    }
-
-    $comfyuiLog    = Join-Path $LogDir 'comfyui.log'
-    $comfyuiErrLog = Join-Path $LogDir 'comfyui.err.log'
-    $proc = Start-ProcessSafe `
-        -FilePath $ComfyPython `
-        -ArgumentList @('main.py', '--port', "$ComfyUIPort", '--disable-pinned-memory') `
-        -WorkingDirectory $ComfyUIPath `
-        -LogFile $comfyuiLog -ErrorLog $comfyuiErrLog
-
-    if ($proc) {
-        $script:started += @{ Name = 'ComfyUI'; Process = $proc }
-        Register-StartedProcess -Process $proc -Service 'comfyui' -ServiceName 'ComfyUI'
-        Wait-ForPort -Port $ComfyUIPort -Name 'ComfyUI' | Out-Null
-    }
-}
-
-function Start-Frontend {
-    $status = Test-ServicePort -Port $FrontendPort -HealthPath '/'
-    if ($status.Running) {
-        Write-Ok "Frontend already running on port $FrontendPort"
-        return
-    }
-    if ($status.Note) {
-        Write-Warn "Port $FrontendPort occupied but frontend not responding"
-        return
-    }
-
-    $frontendLog    = Join-Path $LogDir 'frontend.log'
-    $frontendErrLog = Join-Path $LogDir 'frontend.err.log'
-    $viteJs         = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
-
-    $proc = $null
-    $pnpm = Resolve-Pnpm
-    if ($pnpm) {
-        $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-            -ArgumentList @('/c', "`"$pnpm`" run dev") `
-            -WorkingDirectory $FrontendDir `
-            -LogFile $frontendLog -ErrorLog $frontendErrLog
-    } else {
-        $npm = Resolve-Npm
-        if ($npm) {
-            $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-                -ArgumentList @('/c', "`"$npm`" run dev") `
-                -WorkingDirectory $FrontendDir `
-                -LogFile $frontendLog -ErrorLog $frontendErrLog
-        } else {
-            $node = Resolve-NodeExe
-            if ($node -and (Test-Path $viteJs)) {
-                $proc = Start-ProcessSafe -FilePath $node `
-                    -ArgumentList @("`"$viteJs`"", '--port', "$FrontendPort") `
-                    -WorkingDirectory $FrontendDir `
-                    -LogFile $frontendLog -ErrorLog $frontendErrLog
-            } else {
-                Write-Warn 'Cannot start frontend: no working npm/pnpm/node+vite found'
-            }
-        }
-    }
-
-    if ($proc) {
-        $script:started += @{ Name = 'Frontend'; Process = $proc }
-        Register-StartedProcess -Process $proc -Service 'frontend' -ServiceName 'Frontend'
-        Wait-ForPort -Port $FrontendPort -Name 'Frontend' | Out-Null
-    }
-}
-
-function Start-VideoEditor {
-    if (Test-PortInUse -Port $VideoEditorPort) {
-        if (Test-ServiceRunning -Port $VideoEditorPort -HealthPath '/') {
-            Write-Ok "Video Editor already running on port $VideoEditorPort"
-            return
-        }
-        Write-Warn "Port $VideoEditorPort occupied but Video Editor not responding"
-        return
-    }
-
-    $videoLog    = Join-Path $LogDir 'video.log'
-    $videoErrLog = Join-Path $LogDir 'video.err.log'
-    $remotionCmd = Join-Path $VideoDir 'node_modules\.bin\remotion.cmd'
-
-    $proc = $null
-    if ($remotionCmd -and (Test-Path $remotionCmd)) {
-        $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-            -ArgumentList @('/c', "`"$remotionCmd`" studio") `
-            -WorkingDirectory $VideoDir `
-            -LogFile $videoLog -ErrorLog $videoErrLog
-    } else {
-        $pnpm = Resolve-Pnpm
-        if ($pnpm) {
-            $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-                -ArgumentList @('/c', "`"$pnpm`" run dev") `
-                -WorkingDirectory $VideoDir `
-                -LogFile $videoLog -ErrorLog $videoErrLog
-        } else {
-            Write-Warn 'Cannot start Video Editor: no remotion CLI and no pnpm found'
-        }
-    }
-
-    if ($proc) {
-        $script:started += @{ Name = 'VideoEditor'; Process = $proc }
-        Register-StartedProcess -Process $proc -Service 'video' -ServiceName 'Video Editor'
-        Write-Ok "Video Editor starting (default http://localhost:$VideoEditorPort)"
-    }
-}
-
-function Restart-StartedService {
-    param([string]$Name)
-    if (-not $restartCounts.ContainsKey($Name)) { $restartCounts[$Name] = 0 }
-    $restartCounts[$Name]++
-
-    if ($restartCounts[$Name] -gt $maxRestarts) {
-        Write-Warn "$Name has crashed $maxRestarts times - not restarting"
-        $script:started = @($script:started | Where-Object Name -ne $Name)
-        return
-    }
-
-    $backoff = [Math]::Pow(2, $restartCounts[$Name] - 1)
-    Write-Warn "$Name exited unexpectedly. Restarting ($($restartCounts[$Name])/$maxRestarts) in ${backoff}s..."
-
-    $errLog = Join-Path $LogDir "$($Name.ToLower()).err.log"
+    $errLog = Join-Path $LogDir "$Service.err.log"
     Get-LogTail $errLog 10
 
     Start-Sleep -Seconds $backoff
 
-    $proc = $null
-    switch ($Name) {
-        'Backend' {
-            $backendLog    = Join-Path $LogDir 'backend.log'
-            $backendErrLog = Join-Path $LogDir 'backend.err.log'
-            $proc = Start-ProcessSafe -FilePath $python `
-                -ArgumentList @('-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget) `
-                -WorkingDirectory $BackendDir `
-                -LogFile $backendLog -ErrorLog $backendErrLog -AppendLog
-            if ($proc) { Wait-ForPort -Port $BackendPort -Name 'Backend' | Out-Null }
-        }
-        'Frontend' {
-            $frontendLog    = Join-Path $LogDir 'frontend.log'
-            $frontendErrLog = Join-Path $LogDir 'frontend.err.log'
-            $viteJs = Join-Path -Path $FrontendDir -ChildPath 'node_modules', 'vite', 'bin', 'vite.js'
-            $pnpm = Resolve-Pnpm
-            if ($pnpm) {
-                $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-                    -ArgumentList @('/c', "`"$pnpm`" run dev") `
-                    -WorkingDirectory $FrontendDir `
-                    -LogFile $frontendLog -ErrorLog $frontendErrLog -AppendLog
-            } else {
-                $npm = Resolve-Npm
-                if ($npm) {
-                    $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-                        -ArgumentList @('/c', "`"$npm`" run dev") `
-                        -WorkingDirectory $FrontendDir `
-                        -LogFile $frontendLog -ErrorLog $frontendErrLog -AppendLog
-                } elseif (Resolve-NodeExe -and (Test-Path $viteJs)) {
-                    $proc = Start-ProcessSafe -FilePath (Resolve-NodeExe) `
-                        -ArgumentList @("`"$viteJs`"", '--port', "$FrontendPort") `
-                        -WorkingDirectory $FrontendDir `
-                        -LogFile $frontendLog -ErrorLog $frontendErrLog -AppendLog
-                }
-            }
-            if ($proc) { Wait-ForPort -Port $FrontendPort -Name 'Frontend' | Out-Null }
-        }
-        'ComfyUI' {
-            $comfyuiLog    = Join-Path $LogDir 'comfyui.log'
-            $comfyuiErrLog = Join-Path $LogDir 'comfyui.err.log'
-            $proc = Start-ProcessSafe -FilePath $ComfyPython `
-                -ArgumentList @('main.py', '--port', "$ComfyUIPort", '--disable-pinned-memory') `
-                -WorkingDirectory $ComfyUIPath `
-                -LogFile $comfyuiLog -ErrorLog $comfyuiErrLog -AppendLog
-            if ($proc) { Wait-ForPort -Port $ComfyUIPort -Name 'ComfyUI' | Out-Null }
-        }
-        'VideoEditor' {
-            $videoLog    = Join-Path $LogDir 'video.log'
-            $videoErrLog = Join-Path $LogDir 'video.err.log'
-    $remotionCmd = Join-Path -Path $VideoDir -ChildPath 'node_modules', '.bin', 'remotion.cmd'
-            if ($remotionCmd -and (Test-Path $remotionCmd)) {
-                $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-                    -ArgumentList @('/c', "`"$remotionCmd`" studio") `
-                    -WorkingDirectory $VideoDir `
-                    -LogFile $videoLog -ErrorLog $videoErrLog -AppendLog
-            } else {
-                $pnpm = Resolve-Pnpm
-                if ($pnpm) {
-                    $proc = Start-ProcessSafe -FilePath 'cmd.exe' `
-                        -ArgumentList @('/c', "`"$pnpm`" run dev") `
-                        -WorkingDirectory $VideoDir `
-                        -LogFile $videoLog -ErrorLog $videoErrLog -AppendLog
-                }
-            }
-        }
-    }
-
-    if ($proc) {
-        $idx = -1
-        for ($i = 0; $i -lt $script:started.Length; $i++) {
-            if ($script:started[$i].Name -eq $Name) { $idx = $i; break }
-        }
-        if ($idx -ge 0) { $script:started[$idx].Process = $proc }
-        if ($proc) {
-            Write-Ok "$Name restarted successfully"
-        } else {
-            Write-Warn "$Name restart failed - check logs"
-        }
-    }
-}
-
-function Stop-StartedServices {
-    foreach ($s in $script:started) {
-        if ($s.Process -and -not $s.Process.HasExited) {
-            Stop-ProcessTree -ProcessId $s.Process.Id -Force
-            Write-Host "  Stopped $($s.Name) and its process tree" -ForegroundColor Gray
-        }
-    }
-    # Also stop any remaining tracked processes not in $script:started.
-    Stop-AllTrackedProcesses
+    # Start-StudioService (from manage-servers.ps1) handles port checks,
+    # process launch, health probing, and registration.
+    Start-StudioService $Service
 }
 
 # ---------------------------------------------------------------------------
@@ -393,88 +179,87 @@ try {
     Write-Step "Reaping stale processes from previous sessions"
     Reap-StaleProcesses
 
-    if (-not $NoBackend) {
-        Write-Step 'Starting backend (FastAPI)'
-        Stop-PortOwner -Port $BackendPort -Service 'backend'
-        Start-Sleep -Milliseconds 500
-        Start-Backend
-        Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
+    # Free ports from stale owners before starting.
+    foreach ($svc in $serviceList) {
+        $port = $ServiceConfig[$svc].Port
+        Stop-PortOwner -Port $port -Service $svc
+    }
+    Start-Sleep -Milliseconds 500
+
+    Write-Step 'Starting services'
+    foreach ($svc in $serviceList) {
+        Start-StudioService $svc
     }
 
-    if (-not $NoComfyUI) {
-        Write-Step 'Starting ComfyUI'
-        Stop-PortOwner -Port $ComfyUIPort -Service 'ComfyUI'
-        Start-ComfyUI
-    }
-
-    if (-not $NoFrontend) {
-        Write-Step 'Starting frontend (Vite)'
-        Stop-PortOwner -Port $FrontendPort -Service 'frontend'
-        Start-Frontend
-    }
-
-    if ($VideoEditor) {
-        Write-Step 'Starting video editor (Remotion)'
-        Start-VideoEditor
-    }
+    Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
 
     Write-Host ''
     Write-Host '==============================================' -ForegroundColor Green
     Write-Host '  Native Media AI Studio is running' -ForegroundColor Green
     Write-Host '==============================================' -ForegroundColor Green
-    if (-not $NoBackend)  { Write-Host "  Backend : http://localhost:$BackendPort  (docs: /docs)" -ForegroundColor White }
-    if (-not $NoFrontend) { Write-Host "  Frontend: http://localhost:$FrontendPort" -ForegroundColor White }
-    if (-not $NoComfyUI)  { Write-Host "  ComfyUI : http://localhost:$ComfyUIPort" -ForegroundColor White }
-    if ($VideoEditor)     { Write-Host "  Video   : http://localhost:$VideoEditorPort" -ForegroundColor White }
+    if ($serviceList -contains 'backend')  { Write-Host "  Backend : http://localhost:$BackendPort  (docs: /docs)" -ForegroundColor White }
+    if ($serviceList -contains 'frontend') { Write-Host "  Frontend: http://localhost:$FrontendPort" -ForegroundColor White }
+    if ($serviceList -contains 'comfyui')  { Write-Host "  ComfyUI : http://localhost:$ComfyUIPort" -ForegroundColor White }
+    if ($VideoEditor)                      { Write-Host "  Video   : http://localhost:$VideoEditorPort" -ForegroundColor White }
     Write-Host "  Logs    : $LogDir" -ForegroundColor Gray
     Write-Host ''
 
-    if (-not $NoFrontend -and -not $NoBrowser) {
+    if ($Browser -and ($serviceList -contains 'frontend')) {
         Start-Process "http://localhost:$FrontendPort"
     }
 
-    Write-Host "Press 'q' (or Ctrl+C / close window) to stop everything..." -ForegroundColor Gray
-    Write-Host "Auto-restart enabled for crashed services (max $maxRestarts restarts per service)" -ForegroundColor Gray
+    if ($script:NoWait) {
+        Write-Host ''
+        Write-Host 'Services started in the background (-NoWait). They keep running after this script exits.' -ForegroundColor Gray
+    } else {
+        Write-Host "Press 'q' (or Ctrl+C / close window) to stop everything..." -ForegroundColor Gray
+        Write-Host "Auto-restart enabled for crashed services (max $maxRestarts restarts per service)" -ForegroundColor Gray
 
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($true) {
-        if ($AutoQuitSeconds -gt 0 -and $sw.Elapsed.TotalSeconds -ge $AutoQuitSeconds) {
-            Write-Host "`nAuto-quit after ${AutoQuitSeconds}s (test mode)" -ForegroundColor Gray
-            break
-        }
-        try {
-            if ([Console]::KeyAvailable) {
-                if ([Console]::ReadKey($true).Key -eq 'Q') { break }
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($true) {
+            if ($AutoQuitSeconds -gt 0 -and $sw.Elapsed.TotalSeconds -ge $AutoQuitSeconds) {
+                Write-Host "`nAuto-quit after ${AutoQuitSeconds}s (test mode)" -ForegroundColor Gray
+                break
             }
-        } catch {
-            # [Console]::KeyAvailable throws when stdin is redirected
-            # (piped input, `pwsh -File x.ps1 < input`); no key to read.
-            Write-Verbose 'stdin is not a console; skipping key check'
-        }
-
-        foreach ($s in $script:started) {
-            if ($s.Process -and $s.Process.HasExited) {
-                Restart-StartedService -Name $s.Name
+            try {
+                if ([Console]::KeyAvailable) {
+                    if ([Console]::ReadKey($true).Key -eq 'Q') { break }
+                }
+            } catch {
+                Write-Verbose 'stdin is not a console; skipping key check'
             }
-        }
 
-        # TTL-based reaping: kill any tracked process that has been running
-        # longer than StaleProcessMaxAgeMinutes (default 30 min). Prevents
-        # services from running indefinitely after a crash or forgotten session.
-        $now = Get-Date
-        $staleTracked = Get-TrackedProcesses | Where-Object {
-            [int]((Get-Date) - $_.StartTime).TotalMinutes -gt $script:StaleProcessMaxAgeMinutes
-        }
-        foreach ($t in $staleTracked) {
-            Write-Warn "TTL reaping: $($t.Name) (PID $($t.ProcessId)) has run for $([int]((Get-Date) - $t.StartTime).TotalMinutes)m — stopping"
-            Stop-TrackedProcess -ProcessId $t.ProcessId
-        }
+            # Auto-restart any crashed service.
+            foreach ($svc in $serviceList) {
+                $status = Get-ServiceStatus $svc
+                if (-not $status.Running) {
+                    Restart-LaunchedService -Service $svc
+                }
+            }
 
-        Start-Sleep -Milliseconds 500
+            # TTL-based reaping: kill any tracked process that has been running
+            # longer than StaleProcessMaxAgeMinutes (default 30 min).
+            $staleTracked = Get-TrackedProcesses | Where-Object {
+                [int]((Get-Date) - $_.StartTime).TotalMinutes -gt $script:StaleProcessMaxAgeMinutes
+            }
+            foreach ($t in $staleTracked) {
+                Write-Warn "TTL reaping: $($t.Name) (PID $($t.ProcessId)) has run for $([int]((Get-Date) - $t.StartTime).TotalMinutes)m — stopping"
+                Stop-TrackedProcess -ProcessId $t.ProcessId
+            }
+
+            Start-Sleep -Milliseconds 500
+        }
     }
 } finally {
     Write-Host ''
-    Write-Host 'Stopping all services...' -ForegroundColor Yellow
-    Stop-StartedServices
-    Write-Host 'All services stopped.' -ForegroundColor Green
+    if ($script:NoWait) {
+        Write-Host 'Services left running in the background.' -ForegroundColor Gray
+    } else {
+        Write-Host 'Stopping all services...' -ForegroundColor Yellow
+        foreach ($svc in $serviceList) {
+            try { Stop-StudioService $svc } catch { Write-Warn "Failed to stop ${svc}: $_" }
+        }
+        Stop-AllTrackedProcesses
+        Write-Host 'All services stopped.' -ForegroundColor Green
+    }
 }

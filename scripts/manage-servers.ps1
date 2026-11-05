@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Unified server management for Native Media AI Studio.
 .DESCRIPTION
@@ -132,7 +132,8 @@ $ServiceConfig = @{
     'atomic-chat' = @{
         Name = 'Atomic Chat'
         Port = $Ports.atomic_chat_port
-        HealthPath = '/v1/models'
+        # /v1/models requires auth (401); /openapi.json is the unauthenticated liveness probe.
+        HealthPath = '/openapi.json'
         LogFile = 'atomic-chat.log'
         # Atomic Chat is a desktop app (Electron/Jan-based) that exposes an
         # OpenAI-compatible API on port 1337. It is a native binary, not
@@ -259,7 +260,7 @@ function Stop-StudioService {
         if ($reloaders) {
             Write-Warn "Stopping $($config.Name) reloader PIDs: $(($reloaders | Select-Object -ExpandProperty ProcessId) -join ', ')"
             foreach ($r in $reloaders) {
-                Stop-ProcessTree -ProcessId $r.ProcessId -Force
+                $null = Stop-ProcessTree -ProcessId $r.ProcessId -Force
             }
         }
     }
@@ -279,8 +280,8 @@ function Stop-StudioService {
                 Select-Object -ExpandProperty OwningProcess -Unique
         if (-not $pids) { break }
         Write-Warn "Stopping $($config.Name) port listeners (PIDs: $($pids -join ', '), attempt $attempt)"
-        foreach ($pid in $pids) {
-            Stop-ProcessTree -ProcessId $pid -Force
+        foreach ($listenerPid in $pids) {
+            $null = Stop-ProcessTree -ProcessId $listenerPid -Force
         }
         Start-Sleep -Seconds 1
     }
@@ -470,7 +471,12 @@ function Start-StudioService {
 $allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')
 $serviceList = if ($Services -contains 'all') { $allServices } else { $Services }
 
-switch ($Action) {
+# Only dispatch the action when invoked directly. When dot-sourced (e.g. by
+# start-studio.ps1) the caller invokes Start-StudioService / Stop-StudioService
+# directly, reusing this script's service configs and health-check logic
+# without duplicating them.
+if ($PSBoundParameters.ContainsKey('Action')) {
+    switch ($Action) {
     'status' {
         if ($Json) {
             # Machine-readable JSON output for agents
@@ -560,32 +566,30 @@ switch ($Action) {
         # Reap stale processes from previous sessions before starting anything,
         # so orphaned watchfiles/uvicorn/vite processes don't block new launches.
         Reap-StaleProcesses
-        # PS 7+ parallel start: each service launches independently so a slow
-        # service (ComfyUI, video editor) doesn't block the others. Throttle
-        # to 4 to avoid port contention and log file storms.
-        $serviceList | ForEach-Object -Parallel {
-            $cfg = $using:ServiceConfig
-            ${name} = $cfg[$_].Name
+        # Sequential start: ForEach-Object -Parallel runspaces cannot see this
+        # script's functions (Start-StudioService, Write-Warn, ...), so the
+        # previous -Parallel version failed every service silently.
+        foreach ($svc in $serviceList) {
+            $config = $ServiceConfig[$svc]
             try {
-                Start-StudioService ${name}
+                Start-StudioService $svc
             } catch {
-                Write-Warn "Failed to start ${name}: $_"
+                Write-Warn "Failed to start $($config.Name): $_"
             }
-        } -ThrottleLimit 4
+        }
         Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
         Write-Host "`nAll requested services started." -ForegroundColor Green
     }
     'stop' {
         Write-Host "`nStopping services..." -ForegroundColor Yellow
-        $serviceList | ForEach-Object -Parallel {
-            $cfg = $using:ServiceConfig
-            ${name} = $cfg[$_].Name
+        foreach ($svc in $serviceList) {
+            $config = $ServiceConfig[$svc]
             try {
-                Stop-StudioService ${name}
+                Stop-StudioService $svc
             } catch {
-                Write-Warn "Failed to stop ${name}: $_"
+                Write-Warn "Failed to stop $($config.Name): $_"
             }
-        } -ThrottleLimit 4
+        }
         # Stop any remaining tracked processes (e.g. started by start-studio.ps1
         # in a previous session, or processes that weren't tied to a service config).
         Stop-AllTrackedProcesses
@@ -593,26 +597,24 @@ switch ($Action) {
     }
     'restart' {
         Write-Host "`nRestarting services..." -ForegroundColor Cyan
-        # Stop all first (parallel), then start all (parallel).
-        $serviceList | ForEach-Object -Parallel {
-            $cfg = $using:ServiceConfig
-            ${name} = $cfg[$_].Name
+        # Sequential stop-then-start (see 'start' for why -Parallel is unsafe here).
+        foreach ($svc in $serviceList) {
+            $config = $ServiceConfig[$svc]
             try {
-                Stop-StudioService ${name}
+                Stop-StudioService $svc
             } catch {
-                Write-Warn "Failed to stop ${name}: $_"
+                Write-Warn "Failed to stop $($config.Name): $_"
             }
-        } -ThrottleLimit 4
+        }
         Start-Sleep -Seconds 1
-        $serviceList | ForEach-Object -Parallel {
-            $cfg = $using:ServiceConfig
-            ${name} = $cfg[$_].Name
+        foreach ($svc in $serviceList) {
+            $config = $ServiceConfig[$svc]
             try {
-                Start-StudioService ${name}
+                Start-StudioService $svc
             } catch {
-                Write-Warn "Failed to start ${name}: $_"
+                Write-Warn "Failed to start $($config.Name): $_"
             }
-        } -ThrottleLimit 4
+        }
         Sync-PortsConfigToFrontend -ProjectRoot $ProjectRoot -FrontendDir $FrontendDir
         Write-Host "`nAll requested services restarted." -ForegroundColor Green
     }
@@ -655,3 +657,5 @@ switch ($Action) {
         }
     }
 }
+}
+# End of action dispatcher (only runs when invoked directly).
