@@ -502,3 +502,36 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   agent-loop WIP in services/api — zero errors in touched files.)
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed handoff probe
   + z-index elementFromPoint verification + gemma4 vision audit.
+
+### T-VIZ-31 - Track-load preset cascade: single apply, sequenced transitions
+- **Status:** done
+- **Goal:** Owner: "presets triggered upon loading a track need to behave
+  better instead of so many things firing off at the same time."
+- **What changed (useTrackSelection.ts):**
+  - Lyrics fetch now runs CONCURRENTLY with ensureAnalysis() instead of
+    sequentially — the whole preset cascade used to wait on the slow path.
+  - Kinetic preset resolved ONCE: the visual preset bundle's own
+    kineticPreset wins; the genre heuristic + backend suggestion is now a
+    fallbackKineticId only used when no catalog preset applies. Previously
+    setKineticPreset() ran unconditionally early AND again inside the
+    preset block — two systems writing the same state in one batch, and
+    the early write leaked through even when the user had manually locked
+    a preset mid-load.
+  - Auto-apply pulses the mode-fade overlay (220ms) so the params/colors
+    identity swap reads as a transition instead of a one-frame flash.
+  - Auto viz-mode switch delayed ~400ms with stale/user-pick re-checks —
+    preset settle and mode crossfade are now two beats instead of one
+    stacked double-transition.
+- **Harness fix (useVisualizerLifecycle.ts):** __VIZ_TEST__.getState()
+  never refreshed vizMode — it was missing from both the change-detection
+  condition and the effect deps, so probes read a stale mode. Added.
+- **Files:** useTrackSelection.ts, useVisualizerLifecycle.ts,
+  Visualizer.tsx (setModeFade wiring), tools/probes/ (moved from
+  docs/scratch — scripts don't belong with documents)
+- **Acceptance:** headed probe at 120ms resolution shows the cascade as
+  discrete beats — preset id cleared at select, single batched apply at
+  ~2.5s (kinetic+preset together), fade pulse peaks 0.90, mode switch
+  2d→3d lands ~400ms later as its own transition; 900 vitest + 4/4
+  Playwright specs pass; eslint 0 errors on touched files.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed cascade probe
+  (tools/probes/viz-preset-cascade.mjs) + vitest + playwright specs.

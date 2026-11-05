@@ -96,6 +96,7 @@ export interface UseTrackSelectionOptions {
     | "setPendingTrack"
     | "setElapsed"
     | "setAnalysisData"
+    | "setModeFade"
   >;
   refs: {
     audioElRef: React.MutableRefObject<HTMLAudioElement | null>;
@@ -166,6 +167,7 @@ export function useTrackSelection({
     setPendingTrack,
     setElapsed,
     setAnalysisData,
+    setModeFade,
   } = setters;
   const {
     audioElRef,
@@ -329,6 +331,9 @@ export function useTrackSelection({
       userPickedVizModeRef.current = false;
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
+      // Lyrics fetch runs concurrently with analysis — presets used to wait
+      // on the slow sequential path (analysis → lyrics) before applying.
+      const lyricsPromise = parseLyricsForTrack(cleanName, trackFolder);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
       let realBpm = trackMetadata[fileRef]?.bpm;
       if (!analysis) {
@@ -360,28 +365,28 @@ export function useTrackSelection({
       if (isStale()) return;
 
       // Load lyrics for this track (LRC only — no LRC means a text-free canvas)
-      const trackLyrics = await parseLyricsForTrack(cleanName, trackFolder);
+      const trackLyrics = await lyricsPromise;
       if (isStale()) return;
       setLyrics(trackLyrics);
       setLyricsVisible(trackLyrics.length > 0);
 
-      // Auto-select kinetic preset based on track genre
       const energy = analysis.energy_curve.length
         ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
         : 0.5;
-      let kineticPresetId = selectPresetForTrack(cleanName, energy);
-      // Backend decision-model fallback: if the genre heuristic fell back to the
-      // generic "cinematic" default and the analysis carries a confident kinetic
-      // suggestion, prefer the data-driven pick.
+      // Kinetic preset resolution happens ONCE below: the visual preset
+      // bundle carries its own kineticPreset and used to overwrite an
+      // earlier standalone write — two systems fighting in one batch.
+      // This heuristic (genre match + confident backend suggestion) is the
+      // fallback for when no visual preset applies.
+      let fallbackKineticId = selectPresetForTrack(cleanName, energy);
       if (
-        kineticPresetId === "cinematic" &&
+        fallbackKineticId === "cinematic" &&
         analysis.suggested_kinetic_preset &&
         (analysis.suggested_kinetic_preset_confidence ?? 0) > 0.6
       ) {
-        kineticPresetId = analysis.suggested_kinetic_preset;
+        fallbackKineticId = analysis.suggested_kinetic_preset;
       }
       if (isStale()) return;
-      setKineticPreset(kineticPresetId);
 
       // Plan 2.3 — auto-select a genre reactivity preset from the
       // track name (the same signal the kinetic auto-select uses).
@@ -434,12 +439,19 @@ export function useTrackSelection({
         if (visualPresetLockRef.current !== presetLockAtStart || isStale()) {
           // Skip auto-apply: user manually picked a preset while we were awaiting analysis/lyrics.
         } else {
+          // One kinetic write: the preset bundle's own kineticPreset wins;
+          // the genre heuristic is only the fallback when no preset applies.
+          setKineticPreset(visualPreset.kineticPreset);
           setVizParams({ ...DEFAULT_VIZ_PARAMS, ...visualPreset.vizParams });
           setBgColor(visualPreset.bgColor);
           setMeshColor(visualPreset.meshColor);
           setVisualizationStyle(visualPreset.visualizationStyle);
-          setKineticPreset(visualPreset.kineticPreset);
           setActiveVisualPresetId(visualPresetId);
+          // Soft transition: params/colors snap in one frame, so pulse the
+          // mode-fade overlay to make the identity swap feel intentional
+          // rather than a flash of unrelated changes.
+          setModeFade(1);
+          window.setTimeout(() => setModeFade(0), 220);
           showToast(
             tunedTitle
               ? `Applied tuned visuals for "${tunedTitle}" (based on ${visualPreset.name})`
@@ -449,15 +461,27 @@ export function useTrackSelection({
             "info",
           );
         }
+      } else {
+        // No catalog preset resolved — still apply the kinetic fallback
+        // (previously written unconditionally before the preset block).
+        setKineticPreset(fallbackKineticId);
       }
 
       // Q4 — auto-select the viz mode from the track's characteristics,
       // falling back down VIZ_MODE_PRIORITY if the top choice isn't suitable.
       // A manual pick made while loading wins (guard ref). Only set when it
       // differs, to avoid a needless re-render / crossfade.
+      // Delayed ~400ms: the preset identity swap and the mode crossfade used
+      // to land in the same frame (double transition). Letting the preset
+      // fade finish first makes the mode swap its own clean beat.
       if (!userPickedVizModeRef.current && !isStale()) {
         const autoMode = selectVizMode(cleanName, undefined, energy, realBpm);
-        if (vizMode !== autoMode) setVizMode(autoMode);
+        if (vizMode !== autoMode) {
+          window.setTimeout(() => {
+            if (isStale() || userPickedVizModeRef.current) return;
+            setVizMode(autoMode);
+          }, 400);
+        }
       }
 
       // Store analysis for manual AI enrichment — user explicitly clicks "Enhance with AI"
@@ -502,6 +526,7 @@ export function useTrackSelection({
       buildTunedPreset,
       selectVizMode,
       vizMode,
+      setModeFade,
     ],
   );
 

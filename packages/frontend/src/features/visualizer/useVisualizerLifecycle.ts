@@ -320,6 +320,7 @@ export function useVisualizerLifecycle({
   // bundle because `import.meta.env` is statically replaced at build time.
   useEffect(() => {
     if (
+      prevTestState.current.vizMode !== vizMode ||
       prevTestState.current.currentFilename !== currentFilename ||
       prevTestState.current.isPlaying !== isPlaying ||
       prevTestState.current.liveAudioData !== liveAudioData ||
@@ -350,6 +351,7 @@ export function useVisualizerLifecycle({
       prevTestState.current = { ...testStateRef.current };
     }
   }, [
+    vizMode,
     currentFilename,
     isPlaying,
     liveAudioData,

@@ -513,6 +513,7 @@ export function Visualizer() {
       setPendingTrack,
       setElapsed,
       setAnalysisData,
+      setModeFade,
     },
     refs: {
       audioElRef,
