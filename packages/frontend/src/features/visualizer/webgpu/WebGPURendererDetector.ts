@@ -207,14 +207,22 @@ export async function createWebGPURenderer(
  * WebGPU capability check (safe to call outside React).
  * Cached: `requestAdapter()` is not free, and both the detector hook and the
  * renderer factory need the same answer.
+ *
+ * Adds a hard timeout so a hung `requestAdapter()` (no adapter, silent stall)
+ * can't leave the visualizer stuck on "Loading…" forever.
  */
-export async function detectWebGPUSupport(): Promise<boolean> {
+export async function detectWebGPUSupport(timeoutMs = 3000): Promise<boolean> {
   if (adapterProbe) return adapterProbe;
   adapterProbe = (async () => {
     try {
       const nav = navigator as Navigator & { gpu?: { requestAdapter: () => Promise<any> } };
       if (!nav.gpu) return false;
-      const adapter = await nav.gpu.requestAdapter();
+      const adapter = await Promise.race([
+        nav.gpu.requestAdapter(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("WebGPU requestAdapter timeout")), timeoutMs),
+        ),
+      ]);
       return !!adapter;
     } catch {
       return false;

@@ -80,7 +80,7 @@ export function VizTopbar({
             const name = optionLabelForFile(f);
             const meta = trackMetadata[ref];
             const badge = analysisData[ref] ? " ✓" : "";
-            const metaStr = meta.bpm ? ` (${meta.bpm} BPM)` : "";
+            const metaStr = meta?.bpm ? ` (${meta.bpm} BPM)` : "";
             return (
               <option key={ref} value={ref}>
                 {name}
