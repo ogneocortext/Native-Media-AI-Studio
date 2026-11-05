@@ -51,6 +51,7 @@ import {
   Loader2,
   Music,
   Play,
+  RefreshCcw,
   Zap,
   Volume2,
 } from "lucide-react";
@@ -106,7 +107,7 @@ interface MasteringPanelProps {
 }
 
 export function MasteringPanel({ onMastered }: MasteringPanelProps) {
-  const { entries: tracks, isLoading: libraryLoading } = useAudioLibrary();
+  const { entries: tracks, isLoading: libraryLoading, refresh } = useAudioLibrary();
 
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [target, setTarget] = useState<MasterTarget>("spotify");
@@ -241,7 +242,16 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
         </div>
         {libraryLoading ? (
           <Loader2 size={14} className="animate-spin text-muted" />
-        ) : null}
+        ) : (
+          <button
+            onClick={() => void refresh()}
+            className="text-xs text-muted hover:text-violet-400 transition-colors"
+            title="Reload the audio library track list"
+            aria-label="Refresh audio library"
+          >
+            <RefreshCcw size={13} />
+          </button>
+        )}
       </div>
       <p className={DS.textXs + " mb-3 text-gray-400"}>
         Normalize loudness to a delivery target, true-peak limit, then export
@@ -298,6 +308,23 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           </button>
         </div>
       </div>
+
+      {/* Empty state: library loaded but no audio files available to master. */}
+      {!libraryLoading && tracks.length === 0 && (
+        <div className={DS.card + " p-8 text-center text-muted"}>
+          <AlertCircle size={20} className="mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No audio files available to master</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Add tracks via the Audio Library, then refresh here.
+          </p>
+          <button
+            onClick={() => void refresh()}
+            className="mt-4 text-xs text-violet-400 underline underline-offset-4 hover:text-violet-300"
+          >
+            <RefreshCcw size={13} className="mr-1" /> Refresh library
+          </button>
+        </div>
+      )}
 
       {track && (
         <>
