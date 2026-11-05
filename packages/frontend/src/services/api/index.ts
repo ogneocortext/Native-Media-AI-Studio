@@ -415,6 +415,28 @@ export type {
   HyperFramesStatus,
 } from "./mcp-hyperframes";
 
+// MCP Skills (agent tool discovery and execution)
+export {
+  skillsList,
+  skillsGet,
+  skillsReadFile,
+  toolsList,
+  executeTool,
+  skillToToolDefinition,
+  type SkillInfo,
+  type SkillContent,
+  type ToolInfo,
+  type ExecuteToolRequest,
+  type ExecuteToolResponse,
+} from "./mcp-skills";
+export {
+  runAgentLoop,
+  runAgentTask,
+  type AgentLoopResult,
+  type AgentTurn,
+  type AgentLoopOptions,
+} from "./agent-loop";
+
 // Video render + export matrix
 export { getRenderEngines, renderClip, buildExportMatrix } from "./video-render";
 export type {

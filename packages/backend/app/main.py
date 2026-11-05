@@ -747,6 +747,7 @@ from .api import (  # noqa: E402
     logs,
     lyrics,
     mcp_validate,
+    mcp_skills,
     media,
     media_library,
     music_gen,
@@ -809,6 +810,7 @@ app.include_router(music_gen.router)
 app.include_router(music_prompts.router)
 app.include_router(notifications.router)
 app.include_router(mcp_validate.router)
+app.include_router(mcp_skills.router)
 app.include_router(image_processing_router)
 app.include_router(sub_agent_router)
 app.include_router(retrieval.router)
