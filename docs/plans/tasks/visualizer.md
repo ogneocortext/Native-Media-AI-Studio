@@ -535,3 +535,33 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   Playwright specs pass; eslint 0 errors on touched files.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed cascade probe
   (tools/probes/viz-preset-cascade.mjs) + vitest + playwright specs.
+
+### T-VIZ-32 - Lazy stems-analysis fetch (audit: what else fired on load)
+- **Status:** done
+- **Goal:** Owner: "what else is firing at the same time when it shouldn't."
+  Full effect audit of the track-load path found one remaining unconditional
+  heavy fetch: getStemsAnalysis(currentFilename) ran on EVERY track select.
+  For tracks with separated stems the backend runs per-stem librosa feature
+  extraction (4 stems via asyncio.to_thread) — real CPU work for a feature
+  (mixer stem layers / ProfessionalMixer) the user may never open.
+- **What changed (Visualizer.tsx):** the effect is now gated on actual
+  consumers — vizMode === "shader" (ShaderVisualizer stem-reactive layers)
+  or inspectorOpen && inspectorTab === "mixer" (ProfessionalMixer). A
+  per-track fetched-set ref preserves the fetch-once-per-session cache;
+  a failed fetch is evicted so the next activation retries.
+- **Audit findings left as-is (intentional or cheap):**
+  - useKeyPalette + useSpectralTimeline (ShaderVisualizer, FX mode only)
+    fetch analysis-derived data on FX entry — both are intrinsic to FX.
+  - LRC lookup tries up to 4 candidates (2 names x public+api) but
+    early-returns on first hit; worst case is 4 fast 404s.
+  - Section-boundary warp-preset cycling during playback is the
+    intentional T-VIZ-20 feature, not a defect.
+  - setupAudio/beat-detector/LRC-sync init on first play is guarded
+    (connectedElements WeakSet) and lightweight.
+- **Files:** Visualizer.tsx, tools/probes/viz-stems-lazy.mjs (new probe)
+- **Acceptance:** headed probe — 0 stems-analysis requests on track load
+  (was 1 per select), exactly 1 on inspector Mixer open, still 1 after
+  tab revisit and FX-mode switch (per-track dedup), 0 page errors;
+  eslint 0 errors; tsc clean for visualizer files.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed lazy-fetch
+  probe + effect-consumer audit.

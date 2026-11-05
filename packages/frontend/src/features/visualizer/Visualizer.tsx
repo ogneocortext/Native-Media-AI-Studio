@@ -693,11 +693,20 @@ export function Visualizer() {
       .catch(() => { void 0; });
   }, []);
 
-  // Fetch per-stem visualization data when the track changes (optional enrichment).
-  // Stem separation is slow, so we only fetch when a track is selected and cache
-  // the result so we never re-analyze the same file twice in one session.
+  // Fetch per-stem visualization data lazily — only when a consumer actually
+  // needs it: FX mode (stem-reactive shader layers via ShaderVisualizer) or
+  // the inspector Mixer tab (ProfessionalMixer). Previously this fired on
+  // EVERY track select; for tracks with separated stems the backend runs
+  // per-stem librosa feature extraction (4 stems) whether or not the user
+  // ever opened a stem UI. Fetched once per track per session; a failed
+  // fetch is retried on the next activation.
+  const stemsFetchedRef = useRef<Set<string>>(new Set());
+  const stemsNeeded =
+    vizMode === "shader" || (inspectorOpen && inspectorTab === "mixer");
   useEffect(() => {
-    if (!currentFilename) return;
+    if (!currentFilename || !stemsNeeded) return;
+    if (stemsFetchedRef.current.has(currentFilename)) return;
+    stemsFetchedRef.current.add(currentFilename);
     let cancelled = false;
     getStemsAnalysis(currentFilename)
       .then(
@@ -729,11 +738,12 @@ export function Visualizer() {
       )
       .catch(() => {
         /* stems are optional — never block playback on analysis */
+        stemsFetchedRef.current.delete(currentFilename);
       });
     return () => {
       cancelled = true;
     };
-  }, [currentFilename]);
+  }, [currentFilename, stemsNeeded]);
 
   // Auto-play when a track is selected, if the setting is enabled.
   // Uses a small delay so the <audio key={audioUrl}> remount completes
