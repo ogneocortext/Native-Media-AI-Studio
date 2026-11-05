@@ -74,22 +74,19 @@ def _post(payload: dict, timeout: float = 120.0) -> dict:
 def _is_remote(model: dict) -> bool:
     """True when a `/api/tags` entry proxies to ollama.com rather than being local.
 
-    Ollama marks these with `remote_host`/`remote_model`. The `:cloud` name suffix
-    is a convention, not a guarantee, so it is only a fallback. It matters here
+    Ollama marks these with `remote_host`/`remote_model`. It matters here
     because a remote entry reports `size: 326`, which would win the
     "smallest local model" sort and then fail with HTTP 402 — measuring the
     network rather than the adapter under test.
     """
-    if model.get("remote_host") or model.get("remote_model"):
-        return True
-    return str(model.get("name", "")).endswith(":cloud")
+    return bool(model.get("remote_host") or model.get("remote_model"))
 
 
 def _smallest_local_model() -> str | None:
     """Cheapest local text model, so the suite stays quick.
 
-    Local only: remote models are excluded by `remote_host`/`remote_model`, not
-    by name, so a cloud entry cannot be selected and turn the suite into a paid
+    Remote models are excluded by `remote_host`/`remote_model`, not by name,
+    so a remote entry cannot be selected and turn the suite into a paid
     network call.
     """
     try:
@@ -135,11 +132,11 @@ def test_health_check_true_against_live_server():
 
 
 def test_is_remote_detects_both_signals():
-    """`remote_host`/`remote_model` win even without the `:cloud` suffix."""
-    assert _is_remote({"name": "x:cloud"}) is True
+    """`remote_host`/`remote_model` are the only signals for a remote model."""
     assert _is_remote({"name": "x", "remote_host": "https://ollama.com"}) is True
     assert _is_remote({"name": "x", "remote_model": "y"}) is True
     assert _is_remote({"name": "llama3.2:3b", "size": 2019393189}) is False
+    assert _is_remote({"name": "x"}) is False
 
 
 def test_model_selection_never_returns_a_remote_model():
