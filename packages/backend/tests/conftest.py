@@ -26,7 +26,8 @@ if str(BACKEND_ROOT) not in __import__("sys").path:
 
 from typing import TYPE_CHECKING
 
-from app.adapters.registry import AdapterRegistry, BaseAdapter  # noqa: E402
+from app.adapters.base import BaseAdapter  # noqa: E402
+from app.adapters.registry import AdapterRegistry  # noqa: E402
 from app.core import database as database_module  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.job import Job, JobStatus, JobType  # noqa: E402

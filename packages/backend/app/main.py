@@ -31,9 +31,12 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .adapters.bridge_registry import bridge_registry
 from .adapters.registry import adapter_registry
 from .api.image_processing import router as image_processing_router
+from .api.integrations_config import router as integrations_config_router
+from .api.integrations_generation import router as integrations_generation_router
+from .api.integrations_misc import router as integrations_misc_router
+from .api.integrations_music_video import router as integrations_music_video_router
 from .api.sub_agent import router as sub_agent_router
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
@@ -109,7 +112,11 @@ def _get_atomic_chat_model() -> str | None:
     import urllib.request
 
     try:
-        req = urllib.request.Request(atomic_chat_url("/v1/models"))
+        headers = {}
+        api_key = os.getenv("ATOMIC_CHAT_API_KEY", "").strip()
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        req = urllib.request.Request(atomic_chat_url("/v1/models"), headers=headers)
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
         models = data.get("data", [])
@@ -443,19 +450,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         structured_logger.warning("ollama.client_close_failed", error=str(e))
 
-    # Close all adapter sessions
+    # Close all adapter sessions (HTTP + bridge — one registry now).
     try:
         await adapter_registry.close_all()
         logger.info("Adapter sessions closed")
     except Exception as e:
         structured_logger.warning("adapter.sessions_close_failed", error=str(e))
-
-    # Close all bridge adapters (Unity, Blender subprocesses + shared sessions)
-    try:
-        await bridge_registry.close_all()
-        logger.info("Bridge adapter sessions closed")
-    except Exception as e:
-        structured_logger.warning("bridge.adapters_close_failed", error=str(e))
 
     # Shutdown music generation services
     try:
@@ -742,7 +742,6 @@ from .api import (  # noqa: E402
     hardware,
     health,
     hyperframes,
-    integrations,
     jobs,
     log_analytics,
     logs,
@@ -767,7 +766,10 @@ app.include_router(jobs.router)
 app.include_router(health.router)
 app.include_router(hardware.router)
 app.include_router(gen3d.router)
-app.include_router(integrations.router)
+app.include_router(integrations_config_router, prefix="/api/integrations")
+app.include_router(integrations_music_video_router, prefix="/api/integrations")
+app.include_router(integrations_generation_router, prefix="/api/integrations")
+app.include_router(integrations_misc_router, prefix="/api/integrations")
 app.include_router(outputs.router)
 app.include_router(treblo_tags.router)
 app.include_router(audio.router)

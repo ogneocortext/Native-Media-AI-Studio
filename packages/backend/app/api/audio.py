@@ -51,6 +51,17 @@ from .audio_analysis import (  # noqa: E402
     _relative_audio_path,
 )
 
+# Shared audio path/extension constants (single source of truth; also used by
+# audio_stems.py and audio_edit.py under the same /api/audio prefix).
+from .audio_common import (  # noqa: E402
+    ALLOWED_EXTENSIONS,
+    AUDIO_DIR,
+    VIDEO_EXTRACTED_AUDIO_DIR,
+)
+
+# File size limit for uploads — audio.py-specific (not shared with stems/edit).
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+
 # Stem separation (source_separation, SEPARATION_DIR, source_separator,
 # urllib.parse, typing.Any) moved to app/api/audio_stems.py; main.py includes
 # that router alongside this one, so the /api/audio paths are unchanged.
@@ -59,12 +70,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/audio", tags=["Audio"])
 
-AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
-AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-# Audio extracted/converted from video lives in its own subfolder so it is not
-# mixed with native audio library files.
-VIDEO_EXTRACTED_AUDIO_DIR = AUDIO_DIR / "video-extracted"
-VIDEO_EXTRACTED_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+# Audio analysis directory is audio.py-specific (not shared with stems/edit).
 ANALYSIS_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
@@ -264,10 +270,6 @@ async def _analyze_all_job_set(job_id: str, **fields):
 async def _analyze_all_job_get(job_id: str) -> dict[str, Any] | None:
     async with _analyze_all_jobs_lock:
         return dict(_analyze_all_jobs.get(job_id, {}))
-
-
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
-MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
 class AudioUploadResponse(BaseModel):

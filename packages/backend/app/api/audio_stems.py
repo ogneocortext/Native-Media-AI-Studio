@@ -35,19 +35,18 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..core.config import PROJECT_ROOT
 from ..services import source_separation
 from ..services.source_separation import SEPARATION_DIR, find_stem_dir, source_separator
 
+# Shared audio path/extension constants (single source of truth; also used by
+# audio.py and audio_edit.py under the same /api/audio prefix).
+from .audio_common import (  # noqa: E402
+    ALLOWED_EXTENSIONS,
+    AUDIO_DIR,
+)
+
 logger = logging.getLogger(__name__)
 
-# Mirrors audio.py's own definitions rather than importing them (see module
-# docstring). These must stay identical to the parent or the two modules would
-# disagree about where audio lives.
-AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
-AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 # Same prefix and tag as the parent router: main.py includes both, so /api/audio

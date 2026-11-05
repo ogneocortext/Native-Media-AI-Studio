@@ -33,16 +33,15 @@ from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
 
-logger = logging.getLogger(__name__)
+# Shared audio path/extension constants (single source of truth; also used by
+# audio.py and audio_stems.py under the same /api/audio prefix).
+from .audio_common import (  # noqa: E402
+    ALLOWED_EXTENSIONS,
+    AUDIO_DIR,
+    VIDEO_EXTRACTED_AUDIO_DIR,
+)
 
-# Mirrors audio.py - same values, same derivation. Must not drift.
-AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
-AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-# Audio extracted from video lives in its own subfolder so it is not mixed
-# with native audio library files.
-VIDEO_EXTRACTED_AUDIO_DIR = AUDIO_DIR / "video-extracted"
-VIDEO_EXTRACTED_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/audio", tags=["Audio"])
 

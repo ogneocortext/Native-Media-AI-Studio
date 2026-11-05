@@ -19,6 +19,7 @@ from .bridge_registry import BridgeRegistry, bridge_registry
 from .comfyui import ComfyUIAdapter
 from .music_gen import MusicGenAdapter
 from .ollama import OllamaAdapter, OllamaModelMixin, OllamaToolsMixin
+from .registry import AdapterRegistry, adapter_registry
 from .unity_adapter import UnityAdapter
 
 __all__ = [
@@ -27,6 +28,8 @@ __all__ = [
     "BaseBridgeAdapter",
     "BridgeRegistry",
     "bridge_registry",
+    "AdapterRegistry",
+    "adapter_registry",
     "UnityAdapter",
     "BlenderAdapter",
     "AtomicChatAdapter",
