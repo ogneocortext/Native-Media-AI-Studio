@@ -17,6 +17,8 @@ interface InspectorTabProps {
   onAnimationPlayPause?: () => void;
   onAnimationSeek?: (time: number) => void;
   onAnimationSelect?: (clipName: string) => void;
+  onGenerateTexture?: (prompt: string, objectId?: string) => Promise<string>;
+  generatingTexture?: boolean;
 }
 
 export function InspectorTab({
@@ -27,9 +29,13 @@ export function InspectorTab({
   onAnimationPlayPause,
   onAnimationSeek,
   onAnimationSelect,
+  onGenerateTexture,
+  generatingTexture,
 }: InspectorTabProps) {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [texturePrompt, setTexturePrompt] = useState("");
+  const [textureGenError, setTextureGenError] = useState<string | null>(null);
 
   if (!object) {
     return (
@@ -189,6 +195,46 @@ export function InspectorTab({
             </div>
           )}
         </div>
+
+        {/* Generate Texture via AI */}
+        {onGenerateTexture && (
+          <div className="border-t border-gray-800 pt-2 space-y-2">
+            <div className="text-gray-400 font-medium">Generate Texture (AI)</div>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={texturePrompt}
+                onChange={(e) => setTexturePrompt(e.target.value)}
+                placeholder="e.g. rusted metal, marble, fabric, wood grain"
+                className="flex-1 bg-gray-800 rounded px-1.5 py-1 text-xs border border-gray-700 focus:border-purple-500"
+                disabled={generatingTexture}
+              />
+              <button
+                onClick={async () => {
+                  if (!texturePrompt.trim() || !object || !onGenerateTexture) return;
+                  setTextureGenError(null);
+                  try {
+                    const url = await onGenerateTexture(texturePrompt, object.id);
+                    setTexturePrompt("");
+                    // Auto-select the generated texture
+                    onUpdate(object.id, { textureUrl: url });
+                  } catch (err) {
+                    setTextureGenError(err instanceof Error ? err.message : "Generation failed");
+                  }
+                }}
+                disabled={!texturePrompt.trim() || generatingTexture || !object || !onGenerateTexture}
+                className="px-2 py-1 text-xs rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white"
+              >
+                {generatingTexture ? "Generating…" : "Generate"}
+              </button>
+            </div>
+            {textureGenError && (
+              <div className="text-[10px] text-red-400 bg-red-900/20 rounded px-1 py-1 border border-red-900/50">
+                {textureGenError}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Drag-and-drop image file picker */}
         <div

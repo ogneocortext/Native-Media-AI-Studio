@@ -39,6 +39,8 @@ interface BottomDrawerProps {
   onAnimationPlayPause: () => void;
   onAnimationSeek: (time: number) => void;
   onAnimationSelect: (clipName: string) => void;
+  onGenerateTexture: (prompt: string, objectId?: string) => Promise<string>;
+  generatingTexture: boolean;
   onClose: () => void;
 }
 
@@ -73,6 +75,8 @@ export function BottomDrawer({
   onAnimationPlayPause,
   onAnimationSeek,
   onAnimationSelect,
+  onGenerateTexture,
+  generatingTexture,
   onClose,
 }: BottomDrawerProps) {
   if (!open) return null;
@@ -132,6 +136,8 @@ export function BottomDrawer({
             onAnimationPlayPause={onAnimationPlayPause}
             onAnimationSeek={onAnimationSeek}
             onAnimationSelect={onAnimationSelect}
+            onGenerateTexture={onGenerateTexture}
+            generatingTexture={generatingTexture}
           />
         )}
         {drawerTab === "scene" && (

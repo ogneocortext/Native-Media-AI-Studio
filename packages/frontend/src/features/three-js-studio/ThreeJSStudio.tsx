@@ -22,6 +22,7 @@ import { useTrackManager } from "./hooks/useTrackManager";
 import { useSectionDriver } from "./hooks/useTrackMetadata";
 import { planExport } from "./services/videoExport";
 import { exportFramesDeterministic } from "../visualizer/services/frameAccurateExport";
+import { generateImage } from "../../services/api/generation";
 
 export function ThreeJSStudio() {
   const [searchParams] = useSearchParams();
@@ -44,7 +45,42 @@ export function ThreeJSStudio() {
   const [activeTemplateId, _setActiveTemplateId] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
   const [backgroundImageVisible, setBackgroundImageVisible] = useState(true);
-  const [libraryImages, _setLibraryImages] = useState<{ url: string; label: string }[]>([]);
+  const [libraryImages, setLibraryImages] = useState<{ url: string; label: string }[]>([]);
+  const [generatingTexture, setGeneratingTexture] = useState(false);
+
+  const generateTexture = useCallback(
+    async (prompt: string, objectId?: string) => {
+      setGeneratingTexture(true);
+      try {
+        const result = await generateImage(prompt, {
+          width: 512,
+          height: 512,
+          steps: 20,
+          cfgScale: 7.0,
+          sampler: "DPM++ 2M Karras",
+          seed: -1,
+        });
+        const filename = result.output_path.split(/[/\\]/).pop();
+        if (!filename) throw new Error("No output filename");
+        const url = `/output/images/${filename}`;
+        const label = `Generated: ${prompt.slice(0, 40)}${prompt.length > 40 ? "…" : ""}`;
+        setLibraryImages((prev) => [...prev, { url, label }]);
+        if (objectId) {
+          // Auto-apply to selected object
+          setObjects((prev) =>
+            prev.map((o) => (o.id === objectId ? { ...o, textureUrl: url } : o)),
+          );
+        }
+        return url;
+      } catch (err) {
+        console.error("Texture generation failed:", err);
+        throw err;
+      } finally {
+        setGeneratingTexture(false);
+      }
+    },
+    [setLibraryImages, setObjects],
+  );
   const [bpm, setBpm] = useState(150);
   const [beatSync, setBeatSync] = useState(false);
   const [fps, setFps] = useState(24);
@@ -544,6 +580,8 @@ export function ThreeJSStudio() {
         onAnimationPlayPause={handleAnimPlayPause}
         onAnimationSeek={handleAnimSeek}
         onAnimationSelect={handleAnimSelect}
+        onGenerateTexture={generateTexture}
+        generatingTexture={generatingTexture}
         onClose={() => setDrawerOpen(false)}
       />
 
