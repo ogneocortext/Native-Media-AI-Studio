@@ -46,6 +46,11 @@ export interface VisualizerModeRenderContext {
    * unsmoothed transient analyser. Isolated hits, not band energy.
    */
   onset?: number;
+  /**
+   * T-VIZ-19 — phase-locked beat envelope (0..1). Peaks exactly on each
+   * analysed-grid beat; falls back to the flux onset for unanalysed audio.
+   */
+  beatEnv?: number;
   rand: () => number;
   getGradients: (mode: string, cols: string[]) => CanvasGradient[];
 }

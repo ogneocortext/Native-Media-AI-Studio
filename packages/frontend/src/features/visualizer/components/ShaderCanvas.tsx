@@ -38,6 +38,34 @@ interface FBO {
   height: number;
 }
 
+/**
+ * Check for WebGL errors and log them with context. Call after critical GL
+ * operations during development/debug to catch silent failures.
+ */
+function glCheckError(gl: WebGLRenderingContext, where: string, debug = false): boolean {
+  let err: GLenum;
+  let hadError = false;
+  while ((err = gl.getError()) !== gl.NO_ERROR) {
+    hadError = true;
+    if (debug) {
+      console.error(`[WebGL2] GL error 0x${err.toString(16)} at ${where}`);
+    }
+  }
+  return !hadError;
+}
+
+/**
+ * Bind a WebGL program only if it differs from the currently bound one,
+ * avoiding redundant gl.useProgram() calls.
+ */
+function glUseProgram(gl: WebGLRenderingContext, program: WebGLProgram | null, currentRef: React.MutableRefObject<WebGLProgram | null>): boolean {
+  if (!program) return false;
+  if (currentRef.current === program) return true;
+  gl.useProgram(program);
+  currentRef.current = program;
+  return true;
+}
+
 function createFBO(gl: WebGLRenderingContext, width: number, height: number): FBO | null {
   const texture = gl.createTexture();
   if (!texture) return null;
@@ -47,6 +75,7 @@ function createFBO(gl: WebGLRenderingContext, width: number, height: number): FB
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  glCheckError(gl, "createFBO texImage2D");
 
   const framebuffer = gl.createFramebuffer();
   if (!framebuffer) return null;
@@ -61,6 +90,7 @@ function createFBO(gl: WebGLRenderingContext, width: number, height: number): FB
   }
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  glCheckError(gl, "createFBO");
   return { framebuffer, texture, width, height };
 }
 
@@ -92,15 +122,16 @@ export function ShaderCanvas({
   canvasRef: externalCanvasRef,
 }: ShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const glRef = useRef<WebGLRenderingContext | null>(null);
+  const glRef = useRef<WebGL2RenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
   const bufferRef = useRef<WebGLBuffer | null>(null);
   const vsRef = useRef<WebGLShader | null>(null);
   const fsRef = useRef<WebGLShader | null>(null);
   const uniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>({});
+  const compositeUniformLocsRef = useRef<Record<string, WebGLUniformLocation | null>>({});
   const [contextRestored, setContextRestored] = useState(0);
   const rafRef = useRef<number>(0);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef(performance.now());
   const debugRef = useRef(debug);
   const feedbackRef = useRef(feedback);
   const feedbackZoomRef = useRef(feedbackZoom);
@@ -109,6 +140,7 @@ export function ShaderCanvas({
   const fboRef = useRef<{ read: FBO | null; write: FBO | null }>({ read: null, write: null });
   const compositeProgramRef = useRef<WebGLProgram | null>(null);
   const compositeBufferRef = useRef<WebGLBuffer | null>(null);
+  const currentProgramRef = useRef<WebGLProgram | null>(null);
 
   useEffect(() => {
     debugRef.current = debug;
@@ -134,18 +166,64 @@ export function ShaderCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext("webgl", {
-      antialias: true,
-      alpha: false,
-      // Frame snapshots (More → Snapshot) read this canvas via
-      // toDataURL(); without a preserved buffer the readback is blank.
-      preserveDrawingBuffer: true,
-    });
+    const gl =
+      canvas.getContext("webgl2", {
+        antialias: true,
+        alpha: false,
+        // Frame snapshots (More → Snapshot) read this canvas via
+        // toDataURL(); without a preserved buffer the readback is blank.
+        preserveDrawingBuffer: true,
+      }) ??
+      canvas.getContext("webgl", {
+        antialias: true,
+        alpha: false,
+        preserveDrawingBuffer: true,
+      });
     if (!gl) {
       console.error("WebGL not supported");
       return;
     }
-    glRef.current = gl;
+    // If we got a WebGL1 context, we can't use WebGL2-only features.
+    // Cast to WebGL2RenderingContext — all the calls we make are WebGL1-compatible,
+    // so this is safe at runtime. WebGL2-specific paths (e.g. drawBuffers) check
+    // for the extension at runtime.
+    glRef.current = gl as unknown as WebGL2RenderingContext;
+
+    // Debug: report renderer info and capability limits
+    if (debugRef.current) {
+      const gl2 = gl as WebGL2RenderingContext;
+      const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+      if (debugInfo) {
+        console.log(
+          "[WebGL2] Renderer:",
+          gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL),
+          "| Vendor:",
+          gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+        );
+      }
+      console.log(
+        "[WebGL2] Max texture image units:",
+        gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+        "| Max vertex texture image units:",
+        gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS),
+        "| Max texture size:",
+        gl.getParameter(gl.MAX_TEXTURE_SIZE),
+        "| Max color attachments:",
+        gl2.getParameter(gl2.MAX_COLOR_ATTACHMENTS),
+      );
+      // Verify shader precision formats
+      for (const shaderType of [gl.FRAGMENT_SHADER, gl.VERTEX_SHADER]) {
+        for (const precision of [gl.LOW_FLOAT, gl.MEDIUM_FLOAT, gl.HIGH_FLOAT]) {
+          const fmt = gl.getShaderPrecisionFormat(shaderType, precision);
+          if (fmt) {
+            console.log(
+              `[WebGL2] Shader precision ${shaderType === gl.FRAGMENT_SHADER ? "frag" : "vert"}/${precision}: rangeMin=${fmt.rangeMin} rangeMax=${fmt.rangeMax} precision=${fmt.precision}`,
+            );
+          }
+        }
+      }
+    }
+    glCheckError(gl, "initGL setup", debugRef.current);
 
     if (programRef.current) {
       if (vsRef.current) {
@@ -177,6 +255,7 @@ export function ShaderCanvas({
     const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
+    glCheckError(gl, "compile vertex shader", debugRef.current);
     vsRef.current = vs;
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
       console.error("Vertex shader error:", gl.getShaderInfoLog(vs));
@@ -188,6 +267,7 @@ export function ShaderCanvas({
     const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
+    glCheckError(gl, "compile fragment shader", debugRef.current);
     fsRef.current = fs;
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
       console.error("Fragment shader error:", gl.getShaderInfoLog(fs));
@@ -198,19 +278,22 @@ export function ShaderCanvas({
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
     gl.linkProgram(program);
+    glCheckError(gl, "link program", debugRef.current);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       console.error("Program link error:", gl.getProgramInfoLog(program));
       return;
     }
 
     programRef.current = program;
-    gl.useProgram(program);
+    glUseProgram(gl, program, currentProgramRef);
+    glCheckError(gl, "use program", debugRef.current);
 
     const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
     const buffer = gl.createBuffer();
     bufferRef.current = buffer;
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+    glCheckError(gl, "bufferData vertices", debugRef.current);
 
     const posLoc = gl.getAttribLocation(program, "a_position");
     gl.enableVertexAttribArray(posLoc);
@@ -321,6 +404,7 @@ export function ShaderCanvas({
     const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
+    glCheckError(gl, "composite compile vertex shader", debugRef.current);
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
       console.error("Composite VS error:", gl.getShaderInfoLog(vs));
       return;
@@ -330,6 +414,7 @@ export function ShaderCanvas({
     const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
+    glCheckError(gl, "composite compile fragment shader", debugRef.current);
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
       console.error("Composite FS error:", gl.getShaderInfoLog(fs));
       return;
@@ -339,13 +424,32 @@ export function ShaderCanvas({
     gl.attachShader(program, vs);
     gl.attachShader(program, fs);
     gl.linkProgram(program);
+    glCheckError(gl, "composite link program", debugRef.current);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       console.error("Composite link error:", gl.getProgramInfoLog(program));
       return;
     }
 
     compositeProgramRef.current = program;
-    gl.useProgram(program);
+    glUseProgram(gl, program, currentProgramRef);
+    glCheckError(gl, "composite use program", debugRef.current);
+
+    // Cache composite shader uniform locations so the render loop
+    // doesn't call gl.getUniformLocation every frame.
+    const compUniformNames = [
+      "u_feedback_texture",
+      "u_feedback_decay",
+      "u_feedback_zoom",
+      "u_feedback_rotation",
+      "u_feedback_swirl",
+      "u_feedback_radial",
+      "u_resolution",
+    ];
+    const compLocs: Record<string, WebGLUniformLocation | null> = {};
+    for (const name of compUniformNames) {
+      compLocs[name] = gl.getUniformLocation(program, name);
+    }
+    compositeUniformLocsRef.current = compLocs;
 
     const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
     const buffer = gl.createBuffer();
@@ -436,6 +540,13 @@ export function ShaderCanvas({
       glRef.current = null;
     };
 
+    const handleContextCreationError = (e: Event) => {
+      console.error("WebGL context creation failed:", e);
+      if (debugRef.current) {
+        console.error("Try enabling WebGL2 in browser flags or updating graphics drivers.");
+      }
+    };
+
     const handleContextRestored = () => {
       console.log("WebGL context restored, reinitializing...");
       initGL();
@@ -444,6 +555,7 @@ export function ShaderCanvas({
 
     canvas.addEventListener("webglcontextlost", handleContextLost);
     canvas.addEventListener("webglcontextrestored", handleContextRestored);
+    canvas.addEventListener("webglcontextcreationerror", handleContextCreationError);
 
     let ro: ResizeObserver | null = null;
     const applySize = () => {
@@ -470,7 +582,7 @@ export function ShaderCanvas({
     const pixelView = new Uint8Array(4);
 
     const render = () => {
-      const time = ((Date.now() - startTimeRef.current) / 1000) * timeScale;
+      const time = ((performance.now() - startTimeRef.current) / 1000) * timeScale;
       const visible =
         (typeof document === "undefined" || !document.hidden) &&
         canvas.clientWidth > 0 &&
@@ -488,7 +600,7 @@ export function ShaderCanvas({
 
           gl.bindFramebuffer(gl.FRAMEBUFFER, write.framebuffer);
           gl.viewport(0, 0, write.width, write.height);
-          gl.useProgram(program);
+          glUseProgram(gl, program, currentProgramRef);
 
           gl.uniform1f(locs.u_time, time);
           gl.uniform1f(locs.u_bass, u.bass ?? 0);
@@ -522,17 +634,9 @@ export function ShaderCanvas({
           gl.bindFramebuffer(gl.FRAMEBUFFER, null);
           gl.viewport(0, 0, canvas.width, canvas.height);
           const compProgram = compositeProgramRef.current;
-          if (compProgram) {
-            gl.useProgram(compProgram);
-            const compLocs = {
-              u_feedback_texture: gl.getUniformLocation(compProgram, "u_feedback_texture"),
-              u_feedback_decay: gl.getUniformLocation(compProgram, "u_feedback_decay"),
-              u_feedback_zoom: gl.getUniformLocation(compProgram, "u_feedback_zoom"),
-              u_feedback_rotation: gl.getUniformLocation(compProgram, "u_feedback_rotation"),
-              u_feedback_swirl: gl.getUniformLocation(compProgram, "u_feedback_swirl"),
-              u_feedback_radial: gl.getUniformLocation(compProgram, "u_feedback_radial"),
-              u_resolution: gl.getUniformLocation(compProgram, "u_resolution"),
-            };
+          const compLocs = compositeUniformLocsRef.current;
+          if (compProgram && compLocs) {
+            glUseProgram(gl, compProgram, currentProgramRef);
             gl.uniform1f(compLocs.u_feedback_decay, feedbackDecayRef.current);
             gl.uniform1f(compLocs.u_feedback_zoom, feedbackZoomRef.current);
             gl.uniform1f(compLocs.u_feedback_rotation, feedbackRotationRef.current);
@@ -549,7 +653,7 @@ export function ShaderCanvas({
         } else {
           gl.bindFramebuffer(gl.FRAMEBUFFER, null);
           gl.viewport(0, 0, canvas.width, canvas.height);
-          gl.useProgram(program);
+          glUseProgram(gl, program, currentProgramRef);
 
           gl.uniform1f(locs.u_time, time);
           gl.uniform1f(locs.u_bass, u.bass ?? 0);
@@ -608,6 +712,7 @@ export function ShaderCanvas({
       ro?.disconnect();
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      canvas.removeEventListener("webglcontextcreationerror", handleContextCreationError);
     };
   }, [uniformsRef, fragmentShader, initGL, contextRestored, ensureFBOs]);
 

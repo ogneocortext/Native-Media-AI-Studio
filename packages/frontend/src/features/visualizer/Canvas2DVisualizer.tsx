@@ -23,6 +23,7 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
+  beatPhaseEnvelope,
   createEnvelopeStage,
   drawGlowSprite,
   easeOutQuad,
@@ -31,6 +32,7 @@ import {
   type EnvelopeStage,
   type PerceptualScale,
 } from "./canvas2dHelpers";
+import { getSectionMotionIntensity } from "./sectionStateMachine";
 import {
   allowsEffect,
   getModeBudget,
@@ -440,7 +442,11 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // analyzed energy only when the blended value is actually invalid (NaN /
         // Infinity), not when it is legitimately 0 during silence.
         const effectiveEnergy = Number.isFinite(d.energy) ? d.energy : d.analyzedEnergy ?? 0;
-        const energyMod = 1 + effectiveEnergy * 0.4;
+        // T-VIZ-19 — structure-first dynamics: section intensity (build vs
+        // drop) scales the motion vocabulary's amplitude without a mode
+        // switch. Unknown/absent sections get neutral 1.
+        const sectionGain = getSectionMotionIntensity(section);
+        const energyMod = (1 + effectiveEnergy * 0.4) * sectionGain;
         const analyzedPunch = d.analyzedEnergy ?? 0;
 
         // Reduce motion when the user or OS requests it — scales down phraseFlash,
@@ -771,6 +777,23 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           }
         }
 
+        // T-VIZ-19 — phase-driven beat envelope. When the analysed grid
+        // provides beatPhase, the envelope peaks exactly on each beat
+        // (phase wraps at the beat); the T-VIZ-16 flux onset is the
+        // fallback for unanalysed audio, and virtual/export frames keep
+        // their own beat flag since no onset detector runs there.
+        const phaseEnv = beatPhaseEnvelope(d.beatPhase);
+        const beatEnv =
+          phaseEnv ??
+          (isVirtual ? (d.beat ? 1 : 0) : (onset?.envelope ?? 0));
+        // Grid-lock the beat accent itself: with a phase grid, `beat`
+        // fires on the phase wrap instead of waiting for flux detection,
+        // so mode accents land on the beat, not one latency after it.
+        const dCtx: AudioData =
+          typeof d.beatPhase === "number"
+            ? { ...d, beat: d.beatPhase < 0.1 }
+            : d;
+
         // Render via registry (Chrome 157+ HTML-in-Canvas compatible). Looks up
         // the mode render function from the registry; falls back to legacy
         // renderMode for any mode not yet registered there.
@@ -807,7 +830,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           w,
           h,
           canvas: canvasRef.current,
-          d,
+          d: dCtx,
           syncLineProgress: sync?.lineProgress ?? 0,
           sectionProgress: sync?.sectionProgress ?? 0,
           colors,
@@ -817,6 +840,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           // T-VIZ-16: decaying spectral-flux onset envelope (0..1) from the
           // unsmoothed transient analyser — isolated hits, not band energy.
           onset: onset?.envelope ?? 0,
+          // T-VIZ-19 — phase-locked beat envelope (0..1); beats land on the
+          // analysed grid, flux onset is the unanalysed fallback.
+          beatEnv,
           wave,
           bg: bgColor,
           nowMs,

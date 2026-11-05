@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getSectionPreset,
   getAllSectionPresets,
+  getSectionMotionIntensity,
   type SectionType,
 } from "./sectionStateMachine";
 
@@ -96,5 +97,27 @@ describe("getAllSectionPresets", () => {
     expect(fresh.chorus.trailIntensity).toBe(0.5);
     // getSectionPreset returns the same live reference the map holds.
     expect(getSectionPreset("chorus")).toBe(original);
+  });
+});
+
+describe("getSectionMotionIntensity (T-VIZ-19)", () => {
+  it("ranks drops above choruses above verses above outros", () => {
+    expect(getSectionMotionIntensity("drop")).toBeGreaterThan(
+      getSectionMotionIntensity("chorus"),
+    );
+    expect(getSectionMotionIntensity("chorus")).toBeGreaterThan(
+      getSectionMotionIntensity("verse"),
+    );
+    expect(getSectionMotionIntensity("verse")).toBeGreaterThan(
+      getSectionMotionIntensity("outro"),
+    );
+  });
+
+  it("is case-insensitive and neutral for unknown/absent sections", () => {
+    expect(getSectionMotionIntensity("DROP")).toBe(getSectionMotionIntensity("drop"));
+    expect(getSectionMotionIntensity("pre-chorus")).toBeCloseTo(0.9);
+    expect(getSectionMotionIntensity("unknown-section")).toBe(1);
+    expect(getSectionMotionIntensity(null)).toBe(1);
+    expect(getSectionMotionIntensity(undefined)).toBe(1);
   });
 });

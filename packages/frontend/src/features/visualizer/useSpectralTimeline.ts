@@ -37,6 +37,41 @@ export interface SpectralTimelineState {
 const timelineCache = new Map<string, SpectralTimeline>();
 const inflight = new Map<string, Promise<SpectralTimeline>>();
 
+const LERP_FIELDS = [
+  "sub",
+  "mid",
+  "high",
+  "transient",
+  "centroid",
+  "rms",
+] as const;
+
+/**
+ * T-VIZ-19 — sample the timeline at an arbitrary time with linear
+ * interpolation between adjacent analysis frames, instead of snapping to
+ * the nearest frame boundary. Band energies glide continuously; `frame`,
+ * `time`, and `sub`-frame metadata come from the earlier frame.
+ */
+export function sampleSpectralFrame(
+  frames: SpectralFrame[],
+  fps: number,
+  time: number,
+): SpectralFrame | null {
+  if (frames.length === 0) return null;
+  const exact = time * fps;
+  const i0 = Math.max(0, Math.min(Math.floor(exact), frames.length - 1));
+  const i1 = Math.min(i0 + 1, frames.length - 1);
+  const a = frames[i0] as SpectralFrame | undefined;
+  const b = frames[i1] as SpectralFrame | undefined;
+  if (!a || !b || i0 === i1) return a ?? null;
+  const t = Math.max(0, Math.min(1, exact - i0));
+  const out: SpectralFrame = { ...a };
+  for (const f of LERP_FIELDS) {
+    out[f] = a[f] + (b[f] - a[f]) * t;
+  }
+  return out;
+}
+
 export function useSpectralTimeline(
   filename: string | null,
   fps = 24,
@@ -103,10 +138,7 @@ export function useSpectralTimeline(
   const sampleAtTime = useCallback((time: number): SpectralFrame | null => {
     const tl = timelineRef.current;
     if (!tl?.timeline || tl.timeline.length === 0) return null;
-
-    const frameIndex = Math.floor(time * tl.fps);
-    const clamped = Math.max(0, Math.min(frameIndex, tl.timeline.length - 1));
-    return tl.timeline[clamped] ?? null;
+    return sampleSpectralFrame(tl.timeline, tl.fps, time);
   }, []);
 
   return { timeline, loading, error, sampleAtTime };

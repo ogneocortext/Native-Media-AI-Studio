@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   barkFreqMap,
   barkToHz,
+  beatPhaseEnvelope,
   clamp,
   createEnvelopeStage,
   damp,
@@ -742,5 +743,25 @@ describe("perceptual scales", () => {
 
     expect(midSpread).toBeGreaterThan(lowSpread);
     expect(highSpread).toBeGreaterThan(midSpread);
+  });
+});
+
+describe("beatPhaseEnvelope (T-VIZ-19)", () => {
+  it("peaks at 1 exactly on the beat (phase 0) and decays through the interval", () => {
+    expect(beatPhaseEnvelope(0)).toBe(1);
+    expect(beatPhaseEnvelope(0.5)).toBeCloseTo(0.125, 5);
+    // Below the 0.01 floor the envelope reads as 0 (no accent).
+    expect(beatPhaseEnvelope(0.9)).toBe(0);
+  });
+
+  it("returns null for missing/non-finite phase so callers can fall back", () => {
+    expect(beatPhaseEnvelope(null)).toBeNull();
+    expect(beatPhaseEnvelope(undefined)).toBeNull();
+    expect(beatPhaseEnvelope(NaN)).toBeNull();
+  });
+
+  it("snaps to 0 near the end of the interval instead of wrapping negative", () => {
+    expect(beatPhaseEnvelope(0.9999)).toBe(0);
+    expect(beatPhaseEnvelope(1.5)).toBe(0);
   });
 });

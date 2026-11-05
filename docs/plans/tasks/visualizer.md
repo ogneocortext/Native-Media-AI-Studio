@@ -314,7 +314,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** under 4x CPU throttle the governor steps down and frame time returns inside budget without oscillation; renderer.info draw calls surfaced, budget ~150.
 
 ### T-VIZ-19 — Anticipation: phase-driven beats + interpolated spectral timeline
-- **Status:** todo
+- **Status:** done
+- **Last session:** landed with this commit — three pieces. (1) `beatPhaseEnvelope()` in `canvas2dHelpers.ts`: `pow(1−phase, 3)` peaks exactly on each analysed-grid beat (0 = just after beat → 1 as next nears); `Canvas2DVisualizer` exposes it as `ctxInfo.beatEnv`, grid-locks `ctxInfo.d.beat` to the phase wrap (`beatPhase < 0.1`) so every mode accent lands on the beat, and falls back to the T-VIZ-16 flux onset for unanalysed audio (`beatPhase === undefined`) and to the frame's own beat flag for virtual/export frames. (2) `sampleSpectralFrame()` in `useSpectralTimeline.ts`: `sampleAtTime` now lerps all band fields between adjacent analysis frames instead of snapping to `floor(t*fps)`. (3) `getSectionMotionIntensity()` in `sectionStateMachine.ts`: per-section amplitude scale (drop 1.2 → outro 0.5) multiplied into Canvas2D `energyMod` — structure-first dynamics without a mode switch. 9 new tests (envelope peak/decay/floor, interpolation midpoints/clamps, intensity ranking/case/fallback).
 - **Goal:** Drive visual beats from the precomputed beat phase (peaks land on beats) with live flux as fallback only; interpolate useSpectralTimeline lookups between analysis frames; scale motion intensity by section via sectionStateMachine.
 - **Files:** `packages/frontend/src/features/visualizer/useSpectralTimeline.ts`, `motion/useMotionDriver.ts`, `sectionStateMachine.ts`
 - **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-19.

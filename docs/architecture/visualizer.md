@@ -23,7 +23,7 @@ src/features/visualizer/
 ├── spectralFlux.ts               ~130 — spectral-flux onset detector → decaying envelope (T-VIZ-16)
 ├── qualityGovernor.ts            ~140 — adaptive quality governor: p95 frame-time window, DPR ladder, hysteresis (T-VIZ-18)
 ├── useVisualizerRecording.ts     156 — MP4/WebCodecs capture, WebM fallback
-├── useSpectralTimeline.ts        — per-frame spectral timeline lookup
+├── useSpectralTimeline.ts        — per-frame spectral timeline lookup, lerped between analysis frames (T-VIZ-19)
 ├── audioEQ.ts / audioReactivityProcessor.ts — EQ + reactivity maths
 ├── sectionStateMachine.ts        — section → shader preset mapping
 ├── canvas2dModeBudget.ts         — per-mode effect budget + cap (see below)

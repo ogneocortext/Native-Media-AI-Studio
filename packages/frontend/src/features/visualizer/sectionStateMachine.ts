@@ -94,3 +94,28 @@ export function getSectionPreset(sectionType: string): SectionPresetMapping {
 export function getAllSectionPresets(): Record<SectionType, SectionPresetMapping> {
   return { ...SECTION_PRESET_MAP };
 }
+
+/**
+ * T-VIZ-19 — per-section motion intensity (build vs drop). Scales the
+ * visual motion vocabulary's amplitude without a mode switch: a verse
+ * breathes, a drop hits. Multiplied into the Canvas2D `energyMod` and
+ * available to any mode that wants structure-first dynamics.
+ */
+const SECTION_MOTION_INTENSITY: Record<SectionType, number> = {
+  intro: 0.55,
+  verse: 0.75,
+  "pre-chorus": 0.9,
+  chorus: 1.0,
+  bridge: 0.7,
+  outro: 0.5,
+  drop: 1.2,
+  breakdown: 0.65,
+};
+
+export function getSectionMotionIntensity(sectionType: string | null | undefined): number {
+  if (!sectionType) return 1;
+  const key = sectionType.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(SECTION_MOTION_INTENSITY, key)
+    ? SECTION_MOTION_INTENSITY[key as SectionType]
+    : 1;
+}

@@ -545,7 +545,7 @@ export function OllamaChat() {
             {Object.entries(taskRoutes.routes).map(([task, route]) => (
               <button
                 key={task}
-                onClick={() => handleAutoSelectModel(task)}
+                onClick={() => handleAutoSelectModel(task as "coding" | "vision" | "chat" | "default")}
                 disabled={modelsLoading}
                 className="px-2 py-1 text-xs rounded bg-purple-900/20 border border-purple-900/50 hover:bg-purple-900/40 disabled:opacity-50 text-purple-300"
                 title={`Switch to ${route.model} for ${task} (${route.reason})`}

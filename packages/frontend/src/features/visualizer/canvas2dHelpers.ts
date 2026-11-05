@@ -447,6 +447,24 @@ export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
+/**
+ * T-VIZ-19 — beat-phase envelope. `beatPhase` runs 0→1 between beats
+ * (0 = just after a beat), so `pow(1 - phase, k)` peaks exactly on the
+ * beat and decays through the interval — visual peaks land *on* the
+ * grid instead of one onset-detection latency after it. Cubic gives a
+ * ~90 ms peak at 120 BPM, tight enough to read as an accent.
+ * Returns null when no phase is available (unanalysed audio → caller
+ * falls back to the flux onset envelope).
+ */
+export function beatPhaseEnvelope(beatPhase: number | null | undefined): number | null {
+  if (beatPhase === null || beatPhase === undefined || !Number.isFinite(beatPhase)) {
+    return null;
+  }
+  const p = clamp(beatPhase, 0, 0.9999);
+  const env = Math.pow(1 - p, 3);
+  return env < 0.01 ? 0 : env;
+}
+
 // ============================================================================
 // Perceptual frequency scales (2026 research additions)
 // ============================================================================
