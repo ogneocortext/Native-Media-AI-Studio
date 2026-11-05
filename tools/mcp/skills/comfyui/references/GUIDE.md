@@ -59,3 +59,9 @@ A ComfyUI prompt_id for the queued video generation job.
 - Requires ComfyUI running at http://127.0.0.1:8188
 - Video generation requires Wan2.1 model and ComfyUI-VideoHelperSuite custom node
 - Images use SDXL checkpoint by default
+
+## Cross-Skill References
+
+- **vision**: Analyze generated images — see `vision` skill
+- **blender**: Use generated images as 3D concept references — see `blender` skill
+- **context**: Store generation parameters for reproducibility — see `context` skill

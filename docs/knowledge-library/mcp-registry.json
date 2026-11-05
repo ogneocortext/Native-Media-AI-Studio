@@ -692,27 +692,27 @@
       "skills": {
         "vision": {
           "tools": ["analyze_image"],
-          "description": "Analyze images using Ollama vision models (gemma4:e2b-it-qat)"
+          "description": "Analyzes images using Ollama vision models. Use when an image needs description, object identification, color analysis, or mood assessment."
         },
         "audio": {
           "tools": ["analyze_audio", "list_audio_library", "create_music_video_plan"],
-          "description": "Analyze audio tracks and build music video production plans"
+          "description": "Analyzes audio tracks for BPM, beats, energy, and sections, and builds music video production plans."
         },
         "comfyui": {
           "tools": ["generate_image", "generate_video"],
-          "description": "Generate images and video clips via ComfyUI workflows (Wan2.1 for video)"
+          "description": "Generates images and video clips via ComfyUI workflows. Use when a still image or short video clip needs generation from a text prompt."
         },
         "blender": {
           "tools": ["plan_blender_script", "suggest_3d_prompt", "generate_3d_concept"],
-          "description": "Generate executable Blender Python (bpy) scripts and 3D concept prompts from natural-language descriptions"
+          "description": "Generates executable Blender Python (bpy) scripts and 3D concept prompts from natural-language descriptions."
         },
         "context": {
           "tools": ["update_mcp_context"],
-          "description": "Update the shared MCP context (character, scene, audio, visualization state)"
+          "description": "Updates the shared MCP context with character, scene, audio, and visualization state."
         },
         "remix": {
           "tools": ["remix_list_sources", "remix_probe", "remix_from_prompt", "remix_preview", "remix_build", "remix_job_status", "remix_enhance", "remix_list", "remix_get_file"],
-          "description": "Build mashups from stems of different songs — list sources, probe tempo, draft recipes, preview, build, enhance, retrieve stems"
+          "description": "Builds mashups from stems of different songs. Use when sources need listing, tempo probed, recipes drafted from prompts, previewed, built, enhanced, or rendered stems retrieved."
         }
       },
       "tools": {

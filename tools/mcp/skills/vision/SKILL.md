@@ -1,6 +1,6 @@
 ---
 name: vision
-description: Analyze images using Ollama vision models (gemma4:e2b-it-qat). Supports local files and remote URLs with automatic fallback to secondary vision models on an 8 GB VRAM card.
+description: Analyzes images using Ollama vision models. Use when an image needs description, object identification, color analysis, or mood assessment. Falls back to a secondary vision model if the primary is unavailable on 8 GB VRAM cards.
 version: "1.0.0"
 server: ollama-tools
 tools:
@@ -20,11 +20,42 @@ example_outputs:
 
 # Vision Skill
 
-Analyze images using Ollama vision models on the local machine.
+Analyzes images using Ollama vision models on the local machine.
+
+## When to Use This Skill
+
+- An image file or URL needs description, object identification, color analysis, or mood assessment
+- Rendered video frames need content analysis for scene understanding
+- Generated images need quality verification against their intended prompt
+
+## Critical Rules
+
+- Runs locally via Ollama; nothing leaves the machine
+- Falls back to a secondary vision model if the primary is unavailable
+- On 8 GB VRAM cards, the fallback model unloads after 2 minutes to free VRAM
+- Image must be accessible as a local file path or a public HTTP URL
+
+## Quick Start / Workflow
+
+1. Call `analyze_image` with `image_path` set to the local path or URL
+2. Optionally set `prompt` to ask a specific question (default: "Describe this image in detail.")
+3. Optionally set `model` to a specific Ollama vision model (default: gemma4:e2b-it-qat)
+4. Optionally set `think` to true for extended reasoning (Ollama 0.21.3+)
+
+## Reference Navigation
+
+- See [references/GUIDE.md](references/GUIDE.md) for detailed examples and parameter reference
+
+## Anti-patterns
+
+- Do not pass local filesystem paths that the Ollama server cannot access
+- Do not expect raw pixel data; the skill returns a text description only
+- Do not use for real-time video analysis; call per-frame instead
 
 ## Tools
 
 ### analyze_image
+
 Analyze an image using Ollama vision model. Returns description, objects, colors, mood.
 
 **Parameters:**
@@ -39,8 +70,3 @@ mcp__ollama-tools__analyze_image --image_path ./output/render/frame_001.png --pr
 ```
 
 **Returns:** A text description of the image content.
-
-## Notes
-- Runs locally via Ollama; nothing leaves the machine
-- Falls back to secondary vision model if the primary is unavailable
-- On 8 GB VRAM cards, fallback model is unloaded after 2 minutes to free VRAM

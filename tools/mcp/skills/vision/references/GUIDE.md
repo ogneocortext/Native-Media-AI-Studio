@@ -42,3 +42,9 @@ A text description of the image content, including objects, colors, mood, and co
 - Runs locally via Ollama; nothing leaves the machine
 - Falls back to secondary vision model if primary is unavailable
 - On 8 GB VRAM cards, fallback model is unloaded after 2 minutes to free VRAM
+
+## Cross-Skill References
+
+- **audio**: Analyze audio tracks for BPM/energy before video generation — see `audio` skill
+- **context**: Store scene/visualization state from image analysis — see `context` skill
+- **comfyui**: Generate images first, then analyze them — see `comfyui` skill

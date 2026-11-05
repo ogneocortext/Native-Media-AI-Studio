@@ -74,3 +74,8 @@ A generated concept image URL via ComfyUI.
 - Scripts use `bpy` only, metric units, and `Mesh.from_pydata` for geometry
 - generate_3d_concept requires ComfyUI running at http://127.0.0.1:8188
 - Nothing leaves the machine
+
+## Cross-Skill References
+
+- **comfyui**: Generate concept images via generate_3d_concept — see `comfyui` skill
+- **context**: Store 3D scene state and asset references — see `context` skill
