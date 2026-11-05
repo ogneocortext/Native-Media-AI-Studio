@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { Server } from "@modelcontextprotocol/server";
+import { skills } from "@modelcontextprotocol/server/ext/skills";
+import { loadSkills } from "@modelcontextprotocol/server/ext/skills/node";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +19,7 @@ import {
   fetchWithTimeout,
 } from "./_mcp_shared.mjs";
 
+import { z } from "zod";
 import { writeFileSync } from "node:fs";
 // Startup debug log used to write unconditionally to D:/mcp-debug.log on
 // every server start (outside the repo, appending forever). Now gated.
@@ -44,16 +47,12 @@ const MAX_IMAGE_BASE64_BYTES = 20 * 1024 * 1024; // 20 MB safety cap
 // validateMcpToolCall is imported from _mcp_shared.mjs
 
 async function readImageBase64(imagePath) {
-  // Keep the MCP size guard, delegate resizing to the shared encoder.
   const fs = await import("fs");
   const stat = fs.statSync(imagePath);
   const base64 = await encodeImage(imagePath);
-  if (stat.size > MAX_IMAGE_BASE64_BYTES) {
-    // encodeImage already compressed; if still too large, reject.
-    const compressedBytes = Buffer.byteLength(base64, "base64");
-    if (compressedBytes > MAX_IMAGE_BASE64_BYTES) {
-      throw new Error(`Image too large for Ollama: ${(compressedBytes / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
-    }
+  const compressedBytes = Buffer.byteLength(base64, "base64");
+  if (compressedBytes > MAX_IMAGE_BASE64_BYTES) {
+    throw new Error(`Image too large for Ollama: ${(compressedBytes / 1024 / 1024).toFixed(1)} MB (cap ${MAX_IMAGE_BASE64_BYTES / 1024 / 1024} MB)`);
   }
   return base64;
 }
@@ -73,6 +72,110 @@ const PROMPT_TEMPLATES = {
 };
 
 const DEFAULT_NEGATIVE_PROMPT = "text, watermark, low quality, blurry, jpeg artifacts, cartoon, illustration, deformed, mutated, extra limbs, disfigured";
+
+// ---------------------------------------------------------------------------
+// Zod schemas for client-side tool argument validation (defense-in-depth,
+// runs before the backend /api/mcp/validate-tool round trip).
+// ---------------------------------------------------------------------------
+
+const TOOL_SCHEMAS = {
+  analyze_image: z.object({
+    image_path: z.string().min(1, "image_path is required"),
+    prompt: z.string().optional(),
+    model: z.string().optional(),
+    think: z.boolean().optional(),
+  }),
+  analyze_audio: z.object({
+    filename: z.string().min(1, "filename is required"),
+  }),
+  generate_image: z.object({
+    prompt: z.string().min(1, "prompt is required"),
+    negative_prompt: z.string().optional(),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
+    workflow: z.string().optional(),
+  }),
+  generate_video: z.object({
+    prompt: z.string().min(1, "prompt is required"),
+    negative_prompt: z.string().optional(),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
+    duration: z.number().int().positive().optional(),
+    fps: z.number().int().positive().optional(),
+  }),
+  list_audio_library: z.object({}),
+  create_music_video_plan: z.object({
+    filename: z.string().min(1, "filename is required"),
+    style: z.string().optional(),
+  }),
+  suggest_3d_prompt: z.object({
+    idea: z.string().min(1, "idea is required"),
+    category: z.string().optional(),
+    style: z.string().optional(),
+  }),
+  generate_3d_concept: z.object({
+    description: z.string().min(1, "description is required"),
+    category: z.string().optional(),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
+  }),
+  plan_blender_script: z.object({
+    description: z.string().min(1, "description is required"),
+    target: z.string().optional(),
+    model: z.string().optional(),
+  }),
+  update_mcp_context: z.object({
+    context: z.record(z.any()).optional(),
+  }),
+  remix_list_sources: z.object({}),
+  remix_probe: z.object({
+    track: z.string().min(1, "track is required"),
+  }),
+  remix_from_prompt: z.object({
+    prompt: z.string().min(1, "prompt is required"),
+    base_recipe: z.record(z.any()).optional(),
+  }),
+  remix_preview: z.object({
+    recipe: z.record(z.any()).refine(
+      (r) => r && r.name && Array.isArray(r.slots),
+      { message: "recipe must have name and slots array" },
+    ),
+  }),
+  remix_build: z.object({
+    recipe: z.record(z.any()).refine(
+      (r) => r && r.name && Array.isArray(r.slots),
+      { message: "recipe must have name and slots array" },
+    ),
+    overwrite: z.boolean().optional(),
+  }),
+  remix_job_status: z.object({
+    job_id: z.string().min(1, "job_id is required"),
+  }),
+  remix_enhance: z.object({
+    name: z.string().min(1, "name is required"),
+    target_peak_dbfs: z.number().optional(),
+    master_ceiling_dbfs: z.number().optional(),
+    pre_highpass_hz: z.number().optional(),
+    vocal_balance_db: z.number().optional(),
+    output_format: z.enum(["wav", "mp3"]).optional(),
+  }),
+  remix_list: z.object({}),
+  remix_get_file: z.object({
+    name: z.string().min(1, "name is required"),
+    which: z.string().min(1, "which is required"),
+  }),
+};
+
+function validateToolArgs(toolName, args) {
+  const schema = TOOL_SCHEMAS[toolName];
+  if (!schema) return { ok: true, args: args || {} };
+  const result = schema.safeParse(args || {});
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+    return { ok: false, error: `Invalid args for ${toolName}: ${issues}` };
+  }
+  return { ok: true, args: result.data };
+}
 
 function readMCPContext() {
   try {
@@ -99,6 +202,12 @@ lifecycle.onCleanup(() => {
   contextCache.clear();
   console.error("[ollama-tools] cleanup complete");
 });
+
+// Skills over MCP (SEP-2640): publish a folder of skills that clients can
+// list, read, and verify before calling. Each SKILL.md maps to one or more
+// of the tools defined above.
+const skillCatalog = await loadSkills(path.join(__dirname, "skills"));
+skills.attach(server, skillCatalog);
 
 // ============================================================
 // TOOL DEFINITIONS
@@ -148,11 +257,14 @@ server.setRequestHandler('tools/list', async () => ({
     },
     {
       name: "generate_video",
-      description: "Generate a video clip via ComfyUI (LTX/Wan2.1 model).",
+      description: "Generate a video clip via ComfyUI (Wan2.1 model).",
       inputSchema: {
         type: "object",
         properties: {
           prompt: { type: "string", description: "Video prompt" },
+          negative_prompt: { type: "string", description: "Negative prompt", default: "" },
+          width: { type: "number", description: "Width in pixels", default: 1024 },
+          height: { type: "number", description: "Height in pixels", default: 768 },
           duration: { type: "number", description: "Duration in seconds", default: 4 },
           fps: { type: "number", description: "Frames per second", default: 24 },
         },
@@ -338,16 +450,24 @@ server.setRequestHandler('tools/call', async (request) => {
   const reqId = generateRequestId();
   logRequest(reqId, name, "start");
 
+  // Client-side zod validation (fast, no network round trip).
+  const argCheck = validateToolArgs(name, args);
+  if (!argCheck.ok) {
+    logRequest(reqId, name, `zod-error: ${argCheck.error}`);
+    return textResponse(argCheck.error, true);
+  }
+  const effectiveArgs = argCheck.args;
+
   // Validate arguments against the in-repo schema registry (non-fatal:
   // unknown tools and validation failures are logged and passed through).
-  // NOTE: `args` is const, so the validated dict goes in a new binding —
-  // reassigning it would throw TypeError at runtime.
-  let effectiveArgs = args || {};
+  // NOTE: `effectiveArgs` is const from zod, so the validated dict goes in a
+  // new binding — reassigning it would throw TypeError at runtime.
+  let finalArgs = effectiveArgs;
   try {
-    const validated = await validateMcpToolCall(name, args || {});
+    const validated = await validateMcpToolCall(name, effectiveArgs);
     if (validated !== null) {
       request.params = { ...request.params, arguments: validated };
-      effectiveArgs = validated;
+      finalArgs = validated;
     }
   } catch (err) {
     logRequest(reqId, name, `validation-error: ${err.message}`);
@@ -356,43 +476,43 @@ server.setRequestHandler('tools/call', async (request) => {
   try {
     switch (name) {
       case "analyze_image":
-        return await analyzeImage(reqId, effectiveArgs);
+        return await analyzeImage(reqId, finalArgs);
       case "analyze_audio":
-        return await analyzeAudio(reqId, effectiveArgs);
+        return await analyzeAudio(reqId, finalArgs);
       case "generate_image":
-        return await generateImage(reqId, effectiveArgs);
+        return await generateImage(reqId, finalArgs);
       case "generate_video":
-        return await generateVideo(reqId, effectiveArgs);
+        return await generateVideo(reqId, finalArgs);
       case "list_audio_library":
         return await listAudioLibrary(reqId);
       case "create_music_video_plan":
-        return await createMusicVideoPlan(reqId, effectiveArgs);
+        return await createMusicVideoPlan(reqId, finalArgs);
       case "suggest_3d_prompt":
-        return await suggest3DPrompt(reqId, effectiveArgs);
+        return await suggest3DPrompt(reqId, finalArgs);
       case "generate_3d_concept":
-        return await generate3DConcept(reqId, effectiveArgs);
+        return await generate3DConcept(reqId, finalArgs);
       case "plan_blender_script":
-        return await planBlenderScript(reqId, effectiveArgs);
+        return await planBlenderScript(reqId, finalArgs);
       case "update_mcp_context":
-        return await updateMCPContext(reqId, effectiveArgs);
+        return await updateMCPContext(reqId, finalArgs);
       case "remix_list_sources":
         return await remixListSources(reqId);
       case "remix_probe":
-        return await remixProbe(reqId, effectiveArgs);
+        return await remixProbe(reqId, finalArgs);
       case "remix_from_prompt":
-        return await remixFromPrompt(reqId, effectiveArgs);
+        return await remixFromPrompt(reqId, finalArgs);
       case "remix_preview":
-        return await remixPreview(reqId, effectiveArgs);
+        return await remixPreview(reqId, finalArgs);
       case "remix_build":
-        return await remixBuild(reqId, effectiveArgs);
+        return await remixBuild(reqId, finalArgs);
       case "remix_job_status":
-        return await remixJobStatus(reqId, effectiveArgs);
+        return await remixJobStatus(reqId, finalArgs);
       case "remix_enhance":
-        return await remixEnhance(reqId, effectiveArgs);
+        return await remixEnhance(reqId, finalArgs);
       case "remix_list":
         return await remixList(reqId);
       case "remix_get_file":
-        return await remixGetFile(reqId, effectiveArgs);
+        return await remixGetFile(reqId, finalArgs);
       default:
         logRequest(reqId, name, "unknown-tool");
         return textResponse(`Unknown tool: ${name}`, true);
@@ -404,11 +524,10 @@ server.setRequestHandler('tools/call', async (request) => {
 });
 
 async function analyzeImage(reqId, args) {
-  const fs = await import("fs");
-  const path = await import("path");
+  if (!args.image_path) {
+    return textResponse("Missing required arg: image_path", true);
+  }
 
-  console.error(`[DEBUG] analyzeImage called with model: "${args.model}"`);
-  
   let imageData;
   if (args.image_path.startsWith("http")) {
     logRequest(reqId, "analyze_image", "fetching-remote-image");
@@ -416,6 +535,7 @@ async function analyzeImage(reqId, args) {
     const buf = Buffer.from(await res.arrayBuffer());
     imageData = buf.toString("base64");
   } else {
+    const fs = await import("fs");
     const abs = path.resolve(args.image_path);
     if (!fs.existsSync(abs)) {
       return textResponse(`Image not found: ${abs}`, true);
@@ -424,15 +544,11 @@ async function analyzeImage(reqId, args) {
     imageData = await readImageBase64(abs);
   }
 
-  console.error(`[DEBUG] resolveVisionModel available: ${typeof resolveVisionModel}`);
-
   const { model: activeModel, why: modelWhy } = await resolveVisionModel(args.model);
-  console.error(`[DEBUG] activeModel = "${activeModel}", why = "${modelWhy}"`);
   logRequest(reqId, "analyze_image", `calling-ollama model=${activeModel} (${modelWhy})`);
 
   const prompt = args.prompt || "Describe this image in detail.";
   const fallbackModel = await pickFallbackModel(activeModel);
-  console.error(`[DEBUG] fallbackModel = "${fallbackModel}"`);
   const attempts = [
     { model: activeModel, label: "primary" },
     { model: fallbackModel, label: "fallback" },
@@ -442,15 +558,11 @@ async function analyzeImage(reqId, args) {
   for (const attempt of attempts) {
     if (attempt.model === activeModel && attempt.label !== "primary") continue;
     try {
-      console.error(`[DEBUG] Calling analyzeWithOllama with model: "${attempt.model}"`);
-      // Fallback attempt pins '2m' so its VRAM slot frees shortly after the
-      // result instead of joining the primary model in residency on an 8 GB card.
       const text = await analyzeWithOllama(imageData, prompt, attempt.model, 4096, !!args.think, attempt.label === "fallback" ? "2m" : undefined);
       logRequest(reqId, "analyze_image", `ollama-ok model=${attempt.model} (${attempt.label})`);
       return textResponse(text);
     } catch (err) {
       lastError = err.message;
-      console.error(`[DEBUG] Error: ${err.message}`);
       logRequest(reqId, "analyze_image", `ollama-fail model=${attempt.model} err=${err.message}`);
     }
   }
@@ -517,11 +629,11 @@ async function generateImage(reqId, args) {
       },
     };
 
-    const res = await fetch(`${COMFYUI_URL}/prompt`, {
+    const res = await fetchWithTimeout(`${COMFYUI_URL}/prompt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: workflow }),
-    });
+    }, 120000);
     const data = await res.json();
     if (data.prompt_id) {
       return textResponse(`✅ Image generation queued: ${data.prompt_id}\nPrompt: "${args.prompt}"\nSize: ${args.width || 1024}x${args.height || 1024}`);
@@ -537,15 +649,88 @@ async function generateImage(reqId, args) {
 async function generateVideo(reqId, args) {
   logRequest(reqId, "generate_video", `prompt=${args.prompt}`);
   try {
-    return textResponse(`🎬 Video generation for "${args.prompt}" (${args.duration || 4}s)\n\nTo generate videos locally, ensure ComfyUI has:\n- LTXVideo or Wan2.1 model installed\n- ComfyUI-VideoHelperSuite custom node\n\nAlternatively, use ComfyUI MCP server (comfyui) for direct workflow control.`);
+    const workflow = {
+      "1": {
+        inputs: {
+          seed: Math.floor(Math.random() * 1000000000),
+          steps: 20,
+          cfg: 7,
+          sampler_name: "euler",
+          scheduler: "normal",
+          denoise: 1,
+          model: ["4", 0],
+          positive: ["6", 0],
+          negative: ["7", 0],
+          latent_image: ["5", 0],
+        },
+        class_type: "KSampler",
+      },
+      "3": {
+        inputs: {
+          width: Math.floor((args.width || 1024) / 8),
+          height: Math.floor((args.height || 768) / 8),
+          batch_size: 1,
+        },
+        class_type: "EmptySD3LatentImage",
+      },
+      "4": {
+        inputs: { ckpt_name: "wan2.1_t2v_14B_fp16.safetensors" },
+        class_type: "CheckpointLoaderSimple",
+      },
+      "5": {
+        inputs: { text: args.prompt, clip: ["4", 1] },
+        class_type: "CLIPTextEncode",
+      },
+      "6": {
+        inputs: { text: args.negative_prompt || "text, watermark, low quality, blurry", clip: ["4", 1] },
+        class_type: "CLIPTextEncode",
+      },
+      "7": {
+        inputs: { samples: ["1", 0], vae: ["4", 2] },
+        class_type: "VAEEncode",
+      },
+      "8": {
+        inputs: { samples: ["7", 0], noise_mask: ["3", 0] },
+        class_type: "KSampler",
+      },
+      "9": {
+        inputs: { samples: ["8", 0] },
+        class_type: "VAEDecode",
+      },
+      "10": {
+        inputs: { images: ["9", 0], filename_prefix: "ollama_video_tool" },
+        class_type: "SaveImage",
+      },
+    };
+
+    const res = await fetchWithTimeout(`${COMFYUI_URL}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: workflow }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return textResponse(`❌ ComfyUI error (${res.status}): ${text.slice(0, 200)}`, true);
+    }
+    const data = await res.json();
+    if (data.prompt_id) {
+      return textResponse(`✅ Video generation queued: ${data.prompt_id}\nPrompt: "${args.prompt}"\nDuration: ${args.duration || 4}s\nFPS: ${args.fps || 24}`);
+    }
+    logRequest(reqId, "generate_video", `comfyui-warn prompt_id-missing`);
+    return textResponse(`⚠️ ComfyUI response: ${JSON.stringify(data)}`);
   } catch (err) {
-    return textResponse(`❌ Error: ${err.message}`, true);
+    logRequest(reqId, "generate_video", `comfyui-error: ${err.message}`);
+    return textResponse(`❌ ComfyUI not available: ${err.message}`, true);
   }
 }
 
 async function listAudioLibrary(reqId) {
   logRequest(reqId, "list_audio_library", "fetching-backend");
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/files`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   const files = (data.files || []).map((f) => f.filename).join("\n");
   return textResponse(`Available tracks:\n${files}`);
@@ -557,6 +742,10 @@ async function createMusicVideoPlan(reqId, args) {
   }
   logRequest(reqId, "create_music_video_plan", `filename=${args.filename}`);
   const analysisRes = await fetchWithTimeout(`${BACKEND_URL}/api/audio/analysis/${encodeURIComponent(args.filename)}`);
+  if (!analysisRes.ok) {
+    const text = await analysisRes.text().catch(() => "");
+    return textResponse(`Backend error (${analysisRes.status}): ${text.slice(0, 200)}`, true);
+  }
   const analysis = await analysisRes.json();
   
   const plan = {
@@ -698,6 +887,11 @@ Rules:
       }),
     }, 180000);
 
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return textResponse(`Ollama error (${res.status}): ${text.slice(0, 200)}`, true);
+    }
+
     const data = await res.json();
     const raw = data.message?.content || "";
     const thinking = data.message?.thinking || "";
@@ -780,6 +974,10 @@ async function pollRemixJob(jobId, timeoutMs = REMIX_POLL_TIMEOUT_MS) {
       {},
       15000,
     );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Remix job status error (${res.status}): ${text.slice(0, 200)}`);
+    }
     last = await res.json();
     if (last && (last.state === "done" || last.state === "failed")) return last;
     await new Promise((r) => setTimeout(r, 1500));
@@ -792,6 +990,10 @@ async function pollRemixJob(jobId, timeoutMs = REMIX_POLL_TIMEOUT_MS) {
 async function remixListSources(reqId) {
   logRequest(reqId, "remix_list_sources", "fetching-backend");
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/sources`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   return textResponse(JSON.stringify(data, null, 2));
 }
@@ -800,6 +1002,10 @@ async function remixProbe(reqId, args) {
   if (!args.track) return textResponse("Missing required arg: track", true);
   logRequest(reqId, "remix_probe", `track=${args.track}`);
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/probe/${encodeURIComponent(args.track)}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   return textResponse(JSON.stringify(data, null, 2));
 }
@@ -816,6 +1022,10 @@ async function remixFromPrompt(reqId, args) {
     },
     180000, // the local model drafts; the deterministic fallback is fast, the model is not
   );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   // The warnings carry the guards an agent must respect (excluded fixtures,
   // substituted tracks, missing stems). Surface them in the text, not only
@@ -838,6 +1048,10 @@ async function remixPreview(reqId, args) {
     },
     120000,
   );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   return textResponse(JSON.stringify(data, null, 2));
 }
@@ -869,6 +1083,10 @@ async function remixJobStatus(reqId, args) {
   if (!args.job_id) return textResponse("Missing required arg: job_id", true);
   logRequest(reqId, "remix_job_status", `job=${args.job_id}`);
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/jobs/${encodeURIComponent(args.job_id)}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   return textResponse(JSON.stringify(data, null, 2));
 }
@@ -899,6 +1117,10 @@ async function remixEnhance(reqId, args) {
 async function remixList(reqId) {
   logRequest(reqId, "remix_list", "fetching-backend");
   const res = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/list`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return textResponse(`Backend error (${res.status}): ${text.slice(0, 200)}`, true);
+  }
   const data = await res.json();
   return textResponse(JSON.stringify(data, null, 2));
 }

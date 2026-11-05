@@ -37,6 +37,7 @@
     "playwright": "catalog:",
     "postcss-modules-values": "^4.0.0",
     "sharp": "^0.35.5",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@modelcontextprotocol/server": "^2.4.0"
   }
 }

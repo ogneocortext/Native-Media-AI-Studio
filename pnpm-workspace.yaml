@@ -72,6 +72,7 @@ nodeVersion: "26.13.0"
 # Build policy — only allow building esbuild from source
 # ---------------------------------------------------------------------------
 allowBuilds:
+  cloudflared@0.7.3: true
   esbuild: true
 
 # ---------------------------------------------------------------------------
