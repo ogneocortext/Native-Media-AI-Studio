@@ -176,3 +176,10 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   knowledge doc; not started. GPT-6, 2026-11-01 — amended the plan
   to include the existing ESSL 1.00 compile gate if a future Three.js
   builder emits custom GLSL.
+
+### T-VID-06 — Decompose music-video steps.tsx into per-step modules
+- **Status:** done
+- **Goal:** Split the ~1050-line `features/music-video/steps.tsx` (five wizard step components) into focused modules so each step is independently readable.
+- **Files:** packages/frontend/src/features/music-video/steps.tsx (now a barrel), packages/frontend/src/features/music-video/steps/{UploadStep,AnalyzeStep,ConfigureStep,GenerateStep,ReviewStep}.tsx + shared.ts (new)
+- **Acceptance:** Each step component lives in its own file under `steps/`; shared constants (SECTION_COLORS, SHOT_SIZES, CAMERA_ANGLES, PROMPT_SUGGESTIONS) in `steps/shared.ts`; `steps.tsx` re-exports all five so `MusicVideoWizard`'"'"'s `./steps` import is unchanged; tsc -b clean on touched files (only pre-existing agent-chat WIP errors remain), eslint 0 errors on the new files.
+- **Last session:** Devin, 2026-11-30 — pure move, no behavior change. Verified: `npx tsc -b` reports zero errors under `features/music-video/` (only unrelated agent-chat WIP errors project-wide); `npx eslint` on steps.tsx + steps/ = 0 errors, 8 pre-existing warnings; no music-video unit tests exist (vitest filter returns none). Import specifiers were trimmed per-file from tsc TS6133/TS6192 output; relative import depth corrected for the new `steps/` subdirectory.
