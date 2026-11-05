@@ -42,7 +42,6 @@ import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTransport } from "../../components/audio";
 import { AudioFileBrowser } from "./components/AudioFileBrowser";
 import { AudioLatencyCard } from "../../components/AudioLatencyCard";
-import { FrameRateCard } from "../../components/FrameRateCard";
 import type {
   AudioData,
 } from "./types";
@@ -220,6 +219,11 @@ export function Visualizer() {
   // start while the user walks to the end point: one button cycles
   // set-A → set-B → clear (see handleLoopToggle).
   const loopRegionRef = useRef<{ start: number; end: number } | null>(null);
+  // The playback rAF loop reads the region through this ref (stable identity);
+  // without the sync the A-B loop painted its UI but never wrapped.
+  useEffect(() => {
+    loopRegionRef.current = loopRegion;
+  }, [loopRegion]);
   const prevModeRef = useRef(vizMode);
   // One definition of the mode list, in visualizerHelpers.ts. This used to be an
   // inline 12-member union that had already drifted from the picker's list (it
@@ -694,6 +698,22 @@ export function Visualizer() {
     return () => clearTimeout(timer);
   }, [audioUrl, autoPlay]);
 
+  // Resume across a track switch: the <audio key={audioUrl}> remount starts
+  // paused, but isPlaying stays true through the swap (no pause event fires
+  // on unmount), so restarting here keeps the music going — the behaviour a
+  // listener expects when skipping tracks. The autoPlay effect above already
+  // covers the paused-at-selection case, so skip when it is armed.
+  const lastAudioUrlRef = useRef(audioUrl);
+  useEffect(() => {
+    if (audioUrl === lastAudioUrlRef.current) return;
+    lastAudioUrlRef.current = audioUrl;
+    if (!audioUrl || !isPlaying || autoPlay) return;
+    const timer = setTimeout(() => {
+      audioElRef.current?.play().catch(() => undefined);
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [audioUrl, isPlaying, autoPlay]);
+
 
 
   // (was: always-on loop re-rendering ~12fps when idle).
@@ -811,6 +831,7 @@ export function Visualizer() {
           loadedPreset={loadedPreset}
           libraryLoading={libraryLoading}
           libraryError={libraryError}
+          onBrowseLibrary={() => setShowAudioBrowser(true)}
         />
         <VizToolbar
           onPresetLoaded={handlePresetLoaded}
@@ -1122,9 +1143,9 @@ export function Visualizer() {
                   </span>
                 </div>
               )}
-              {vizMode === "3d" && rendererReady && (
-                <div className="viz-backend-badge">{rendererBackend}</div>
-              )}
+              {/* Renderer backend + live stats render inside the latency
+                  panel column below (viz-stats-stack) — keeping them here
+                  would collide with the AudioLatencyCard at top-right. */}
               {vizMode === "3d" && rendererReady && openOverlay === null && (
                 <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
               )}
@@ -1132,7 +1153,6 @@ export function Visualizer() {
           )         : (
             <div className="viz-layer-hidden" style={{ background: bgColor }}>
               <span className="viz-layer-hidden-label">Visuals hidden</span>
-              {vizMode === "3d" && renderStats && <RenderStatsBadge stats={renderStats} />}
             </div>
           )}
           {/* Show AI preset as a custom button when loaded - visible in both modes */}
@@ -1206,21 +1226,16 @@ export function Visualizer() {
             />
           </div>
 
-          {/* Audio Latency & Frame Rate Metrics */}
+          {/* Audio Latency card — the R3F probe only runs in 3D mode, so FPS
+              telemetry lives in the canvas stats stack (RenderStatsBadge)
+              instead of a card with fabricated jank/drop metrics. */}
           <div className="absolute top-3 right-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
             <AudioLatencyCard audioCtxRef={audioCtxRef} />
-            {/* RenderStatsProbe only samples inside the R3F loop in 3D mode —
-                in 2D/shader modes the numbers would be stale or zero, so the
-                card is hidden rather than showing fake metrics. */}
-            {vizMode === "3d" && (
-              <FrameRateCard
-                fps={renderStats?.fps ?? 0}
-                frameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
-                jankCount={0}
-                droppedFrames={0}
-                p95FrameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
-                isMonitoring={visualsVisible}
-              />
+            {vizMode === "3d" && rendererReady && (
+              <div className="viz-stats-stack">
+                <div className="viz-backend-badge">{rendererBackend}</div>
+                {renderStats && <RenderStatsBadge stats={renderStats} />}
+              </div>
             )}
           </div>
         </div>

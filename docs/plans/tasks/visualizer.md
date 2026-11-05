@@ -384,3 +384,38 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   playwright canvas2d+lrc 4/4 pass; vision model audit confirms styled UI.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - CSS analysis via
   postcss extraction + live computed-style probes + gemma4 vision audit.
+
+### T-VIZ-28 - User-flow QA: A-B loop wrap, track-skip resume, stats-stack collision, topbar reachability
+- **Status:** done
+- **Goal:** Headed user-flow pass over /render/visualizer (track select,
+  play, mode switches, transport, menus, file browser, mixer, remix):
+  fix defects found and fold 3D telemetry into one corner without
+  overlap.
+- **Findings fixed:** (a) A-B loop state lived only in React state -
+  the playback rAF loop never saw it, so the region painted but playback
+  never wrapped; now mirrored into loopRegionRef synced by effect and
+  read inside the rAF loop. (b) Switching tracks while playing left the
+  keyed <audio> remounted paused (no pause event on unmount, isPlaying
+  stayed true) - music silently stopped on skip; a 60 ms delayed play()
+  on audioUrl change resumes it. (c) The 3D backend badge + new
+  RenderStatsBadge stack at top-right collided with AudioLatencyCard -
+  moved inside .viz-latency-panel as a vertical stack under the card,
+  badge absolute positioning neutralized. (d) The app-shell topbar
+  (connection dot + bell, z-20) overlapped the toolbar's rightmost
+  buttons making them unclickable - .viz-actions gets 5.5rem inline-end
+  padding. (e) Topbar gained a browse-library button (FolderOpen) opening
+  the searchable AudioFileBrowser even after a track is loaded; header
+  nesting fixed by rendering VizTopbar as .viz-topbar-row inside the
+  single .viz-topbar header.
+- **Files:** packages/frontend/src/features/visualizer/Visualizer.tsx,
+  components/VizTopbar.tsx, styles/visualizer.css,
+  useVisualizerPlayback.ts (loopRegionRef read),
+  useVisualizerLifecycle.ts (handleLoopToggle)
+- **Acceptance:** A-B loop wraps playback back to region start (verified
+  live: currentTime stayed inside region across 10 s); mode switch keeps
+  playing (t 5.1 -> 5.9, paused:false); 3D mode shows WebGL2 badge +
+  live "60 FPS" RenderStatsBadge stacked under latency card at
+  x1399 y325 (headed Chromium, real GPU); tsc -b clean; eslint 0 errors;
+  pageerrors none.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed Chromium
+  user-flow probes + computed-bbox checks; all fixes verified live.

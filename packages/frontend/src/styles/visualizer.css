@@ -548,3 +548,42 @@
   width: 100%;
   height: 40px;
 }
+
+/* ===== App-chrome clearance =====
+   .layout-topbar (connection dot + notification bell) is an absolutely-
+   positioned overlay at the viewport's top-right (layout.css, z-20). The
+   visualizer toolbar's rightmost controls occupy the same band, so keep
+   them clear of it - without this the More/shortcuts/snapshot buttons sit
+   under the bell and cannot be clicked. */
+.viz-actions {
+  padding-inline-end: 5.5rem;
+}
+
+/* --- Topbar row ---
+   VizTopbar renders a plain row inside the single .viz-topbar header (the
+   header element cannot legally nest inside another header). This restores
+   the flex layout the nested .viz-topbar rule used to give it. */
+.viz-topbar-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* --- Renderer stats stack (3D) ---
+   Lives inside .viz-latency-panel under the latency card: the backend
+   label and live RenderStatsBadge flow vertically there, so the badges'
+   own absolute positioning is neutralized. */
+.viz-latency-panel .viz-stats-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.viz-latency-panel .viz-backend-badge {
+  position: static;
+}

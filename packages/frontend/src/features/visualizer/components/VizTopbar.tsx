@@ -5,7 +5,7 @@
  * handlers, so this file is easy for an agent to restyle without touching
  * playback or analysis logic.
  */
-import { ListVideo, Music } from "lucide-react";
+import { FolderOpen, ListVideo, Music } from "lucide-react";
 import type { LibraryFile } from "../visualizerHelpers";
 import {
   audioRefForFile,
@@ -33,10 +33,11 @@ interface VizTopbarProps {
   /** Library fetch state — drives the empty-option label. */
   libraryLoading?: boolean;
   libraryError?: string | null;
+  /** Open the searchable audio-file browser (available after a track loads too). */
+  onBrowseLibrary?: () => void;
 }
 
 export function VizTopbar({
-  openOverlay,
   currentFilename,
   libraryFiles,
   onSelectTrack,
@@ -54,6 +55,7 @@ export function VizTopbar({
   loadedPreset,
   libraryLoading = false,
   libraryError = null,
+  onBrowseLibrary,
 }: VizTopbarProps) {
   const preset =
     activeVisualPresetId && visualPresets[activeVisualPresetId]
@@ -61,9 +63,7 @@ export function VizTopbar({
       : null;
 
   return (
-    <header
-      className={`viz-topbar${openOverlay ? " viz-topbar--overlay" : ""}`}
-    >
+    <div className="viz-topbar-row">
       <div className="viz-brand">
         <Music size={20} />
         <h1 className="viz-page-title">Visualizer</h1>
@@ -99,6 +99,16 @@ export function VizTopbar({
             );
           })}
         </select>
+        {onBrowseLibrary && (
+          <button
+            onClick={onBrowseLibrary}
+            className="viz-icon-btn"
+            aria-label="Browse audio library"
+            title="Browse audio library (search, preview, pick a track)"
+          >
+            <FolderOpen size={14} />
+          </button>
+        )}
         <button
           onClick={onToggleAutoPlay}
           className={`viz-icon-btn ${autoPlay ? "active" : ""}`}
@@ -150,6 +160,6 @@ export function VizTopbar({
           </button>
         )}
       </div>
-    </header>
+    </div>
   );
 }
