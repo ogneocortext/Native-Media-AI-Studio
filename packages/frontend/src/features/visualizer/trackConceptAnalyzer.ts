@@ -25,7 +25,8 @@ export type VisualizationStyle =
   | "ocean"
   | "three-particles"
   | "pppanik"
-  | "stem-scene";
+  | "stem-scene"
+  | "terrain";
 
 export interface VisualizationOption {
   id: VisualizationStyle;
@@ -148,6 +149,14 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
       "One visual agent per stem — drums strike, bass heaves, vocals breathe, other drifts",
     icon: "layers",
     bestFor: ["remix", "mashup", "stem-separated", "breakdown"],
+  },
+  {
+    id: "terrain",
+    name: "Spectral Terrain",
+    description:
+      "Endless ridged-terrain flyover — spectrum shapes the ridgeline, bass drives speed and heave",
+    icon: "mountain",
+    bestFor: ["cinematic", "flyover", "ambient", "experimental"],
   },
 ];
 

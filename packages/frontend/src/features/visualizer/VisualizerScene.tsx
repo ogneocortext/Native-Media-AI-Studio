@@ -19,6 +19,7 @@ import {
   SpectrumBars,
   StemScene,
   StormViz,
+  TerrainFlyover,
   ThreeParticlesDemo,
   VinylDisc,
 } from "./viz-styles";
@@ -219,6 +220,8 @@ export function VisualizerScene({
           return <PpanikBlobField {...props} />;
         case "stem-scene":
           return <StemScene {...props} />;
+        case "terrain":
+          return <TerrainFlyover {...props} />;
       }
     })();
 
