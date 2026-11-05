@@ -10,6 +10,12 @@ tags:
   - image
   - ollama
   - multimodal
+example_inputs:
+  - tool: analyze_image
+    args: { image_path: "./output/render/frame_001.png", prompt: "What is happening in this frame?" }
+example_outputs:
+  - tool: analyze_image
+    output: "The frame shows a neon-lit cyberpunk cityscape with flying vehicles. Dominant colors are purple and blue. Mood is futuristic and energetic."
 ---
 
 # Vision Skill

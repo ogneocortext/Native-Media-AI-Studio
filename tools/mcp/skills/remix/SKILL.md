@@ -19,6 +19,24 @@ tags:
   - audio
   - stems
   - dj
+example_inputs:
+  - tool: remix_list_sources
+    args: {}
+  - tool: remix_probe
+    args: { track: "song_name" }
+  - tool: remix_from_prompt
+    args: { prompt: "make a darker version with more bass" }
+  - tool: remix_build
+    args: { recipe: { name: "my_remix", slots: [...] }, overwrite: false }
+  - tool: remix_get_file
+    args: { name: "my_remix", which: "master" }
+example_outputs:
+  - tool: remix_list_sources
+    output: '{ "tracks": [{ "name": "song1", "stems": ["vocals","drums"] }] }'
+  - tool: remix_probe
+    output: '{ "tempo": 128, "key_confident": false }'
+  - tool: remix_get_file
+    output: "http://127.0.0.1:8000/api/audio/remix/my_remix/file/master"
 ---
 
 # Remix Skill

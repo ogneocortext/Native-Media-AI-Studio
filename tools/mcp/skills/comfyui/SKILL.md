@@ -11,6 +11,16 @@ tags:
   - image
   - video
   - generation
+example_inputs:
+  - tool: generate_image
+    args: { prompt: "A cinematic portrait of a musician", width: 1024, height: 1024 }
+  - tool: generate_video
+    args: { prompt: "A cinematic music video frame with neon lights", duration: 4, fps: 24 }
+example_outputs:
+  - tool: generate_image
+    output: "prompt_id: abc123def456"
+  - tool: generate_video
+    output: "prompt_id: xyz789uvw012"
 ---
 
 # ComfyUI Skill

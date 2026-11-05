@@ -703,8 +703,8 @@
           "description": "Generate images and video clips via ComfyUI workflows (Wan2.1 for video)"
         },
         "blender": {
-          "tools": ["plan_blender_script"],
-          "description": "Generate executable Blender Python (bpy) scripts from natural-language descriptions"
+          "tools": ["plan_blender_script", "suggest_3d_prompt", "generate_3d_concept"],
+          "description": "Generate executable Blender Python (bpy) scripts and 3D concept prompts from natural-language descriptions"
         },
         "context": {
           "tools": ["update_mcp_context"],

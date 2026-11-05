@@ -9,6 +9,12 @@ tags:
   - context
   - state
   - shared
+example_inputs:
+  - tool: update_mcp_context
+    args: { context: { audio: { energy: 0.8, bpm: 128 } } }
+example_outputs:
+  - tool: update_mcp_context
+    output: '{ "audio": { "energy": 0.8, "bpm": 128 }, "updatedAt": "2026-11-05T19:00:00Z" }'
 ---
 
 # Context Skill

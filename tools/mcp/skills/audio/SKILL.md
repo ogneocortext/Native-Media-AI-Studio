@@ -12,6 +12,20 @@ tags:
   - music
   - analysis
   - bpm
+example_inputs:
+  - tool: analyze_audio
+    args: { filename: "track.mp3" }
+  - tool: list_audio_library
+    args: {}
+  - tool: create_music_video_plan
+    args: { filename: "track.mp3", style: "cyberpunk" }
+example_outputs:
+  - tool: analyze_audio
+    output: '{ "bpm": 128, "beats": [...], "energy": 0.75, "sections": [...] }'
+  - tool: list_audio_library
+    output: 'track1.mp3\ntrack2.m4a\ntrack3.wav'
+  - tool: create_music_video_plan
+    output: '{ "track": "track.mp3", "bpm": 128, "duration": 180, "energy_curve": [...], "recommended_style": "cyberpunk", "scenes": [...] }'
 ---
 
 # Audio Skill
