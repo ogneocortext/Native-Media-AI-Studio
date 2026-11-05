@@ -127,6 +127,7 @@ export function BottomDrawer({
           <InspectorTab
             object={selectedObj}
             onUpdate={onUpdateObject}
+            libraryImages={libraryImages}
             animationState={selectedObj?.type === "character" ? characterAnimState : undefined}
             onAnimationPlayPause={onAnimationPlayPause}
             onAnimationSeek={onAnimationSeek}

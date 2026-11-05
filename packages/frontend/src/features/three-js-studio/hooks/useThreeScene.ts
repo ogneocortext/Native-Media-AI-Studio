@@ -53,6 +53,7 @@ export function useThreeScene({
   const vignettePassRef = useRef<ShaderPass | null>(null);
   const shakeRef = useRef(0);
   const bgImageTextureRef = useRef<THREE.Texture | null>(null);
+  const objectTextureRefs = useRef<Map<string, THREE.Texture>>(new Map());
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -430,6 +431,72 @@ export function useThreeScene({
       ? bgImageTextureRef.current
       : new THREE.Color(sceneConfigRef.current.backgroundColor);
   }, [backgroundImageVisible, sceneConfig.backgroundColor]);
+
+  // Object textures: load images for objects that have textureUrl and apply
+  // them as material.map so custom images can be used as diffuse textures.
+  useEffect(() => {
+    if (!sceneRef.current) return;
+
+    const cancelled = new Set<string>();
+
+    const loadTextureForObject = (obj: (typeof objects)[number]) => {
+      if (!obj.textureUrl) return;
+      const existing = objectTextureRefs.current.get(obj.id);
+      if (existing) {
+        applyTextureToObject(obj, existing);
+        return;
+      }
+      cancelled.add(obj.id);
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        cancelled.delete(obj.id);
+        const tex = new THREE.Texture(img);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = true;
+        tex.needsUpdate = true;
+        objectTextureRefs.current.set(obj.id, tex);
+        applyTextureToObject(obj, tex);
+      };
+      img.onerror = (err) => {
+        cancelled.delete(obj.id);
+        console.error("Object texture failed:", obj.textureUrl, err);
+      };
+      img.src = obj.textureUrl;
+    };
+
+    const applyTextureToObject = (obj: (typeof objects)[number], tex: THREE.Texture) => {
+      const mesh = objectsMapRef.current.get(obj.id);
+      if (!mesh) return;
+      const setMap = (m: any) => {
+        if (m.material) {
+          if (m.material.map) m.material.map.dispose();
+          m.material.map = tex;
+          m.material.needsUpdate = true;
+        }
+      };
+      if (mesh instanceof THREE.Group) mesh.traverse(setMap);
+      else setMap(mesh);
+    };
+
+    objects.forEach(loadTextureForObject);
+
+    // Cleanup textures for removed objects
+    const activeIds = new Set(objects.map((o) => o.id));
+    objectTextureRefs.current.forEach((tex, id) => {
+      if (!activeIds.has(id)) {
+        tex.dispose();
+        objectTextureRefs.current.delete(id);
+      }
+    });
+
+    return () => {
+      objectTextureRefs.current.forEach((tex) => tex.dispose());
+      objectTextureRefs.current.clear();
+    };
+  }, [objects]);
 
   return {
     sceneRef,

@@ -37,6 +37,8 @@ export interface AnimObject {
   animationLoop?: boolean;
   /** Character-specific: character bible description for prompt regeneration. */
   characterBible?: string;
+  /** Optional image URL to use as a material map (diffuse texture) on this object. */
+  textureUrl?: string;
 }
 
 export interface ParticleConfig {

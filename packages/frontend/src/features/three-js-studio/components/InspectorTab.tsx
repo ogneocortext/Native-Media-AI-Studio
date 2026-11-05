@@ -12,6 +12,7 @@ export interface CharacterAnimationState {
 interface InspectorTabProps {
   object: AnimObject | undefined;
   onUpdate: (id: string, updates: Partial<AnimObject>) => void;
+  libraryImages?: { url: string; label: string }[];
   animationState?: CharacterAnimationState;
   onAnimationPlayPause?: () => void;
   onAnimationSeek?: (time: number) => void;
@@ -21,6 +22,7 @@ interface InspectorTabProps {
 export function InspectorTab({
   object,
   onUpdate,
+  libraryImages,
   animationState,
   onAnimationPlayPause,
   onAnimationSeek,
@@ -130,6 +132,103 @@ export function InspectorTab({
           value={object.emissiveIntensity}
           onChange={(v) => onUpdate(object.id, { emissiveIntensity: v })}
         />
+      </div>
+
+      {/* Texture / material map */}
+      <div className="border-t border-gray-800 pt-2 space-y-2">
+        <div className="text-gray-400 font-medium">Texture Map</div>
+
+        {/* Texture URL input + library images */}
+        <div>
+          <label className="text-gray-400 block mb-1">Texture URL</label>
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={object.textureUrl ?? ""}
+              onChange={(e) => onUpdate(object.id, { textureUrl: e.target.value })}
+              placeholder="/output/image/foo.png or https://..."
+              className="bg-gray-800 rounded px-1.5 py-1 text-xs font-mono border border-gray-700 flex-1 min-w-0"
+            />
+            {object.textureUrl && (
+              <button
+                onClick={() => onUpdate(object.id, { textureUrl: "" })}
+                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-400 hover:text-white"
+                title="Clear texture"
+              >
+                X
+              </button>
+            )}
+          </div>
+          {libraryImages && libraryImages.length > 0 && (
+            <div className="mt-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+                From library
+              </div>
+              <div className="grid grid-cols-6 gap-1 max-h-24 overflow-y-auto">
+                {libraryImages.map((img) => (
+                  <button
+                    key={img.url}
+                    onClick={() => onUpdate(object.id, { textureUrl: img.url })}
+                    title={img.label}
+                    className={`aspect-square bg-gray-800 rounded overflow-hidden border border-gray-700 hover:border-purple-500 transition-colors p-0 ${
+                      object.textureUrl === img.url ? "border-purple-500 bg-purple-900/30" : ""
+                    }`}
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.label}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget).style.display = "none";
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Drag-and-drop image file picker */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            const file = e.dataTransfer.files[0];
+            if (file && (file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|webp|gif)$/i))) {
+              const url = URL.createObjectURL(file);
+              onUpdate(object.id, { textureUrl: url });
+            }
+          }}
+          className={`border-2 border-dashed rounded p-3 text-center transition-colors cursor-pointer ${
+            dragOver
+              ? "border-amber-400 bg-amber-900/20"
+              : "border-gray-600 hover:border-gray-500 bg-gray-800/50"
+          }`}
+        >
+          <div className="text-gray-400 text-[11px]">
+            {dragOver ? "Drop image here" : "Drag image file here or click to browse"}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const url = URL.createObjectURL(file);
+                onUpdate(object.id, { textureUrl: url });
+              }
+            }}
+          />
+        </div>
       </div>
 
       {/* Model/Animation controls — any object with modelUrl (blend->glb pipeline) or character */}
