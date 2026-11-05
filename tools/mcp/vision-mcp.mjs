@@ -32,7 +32,16 @@ const ANALYZE_PY = path.join(
   "vision_analyze.py",
 );
 
-import { BACKEND_URL, validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
+import {
+  BACKEND_URL,
+  validateMcpToolCall,
+  logRequest,
+  generateRequestId,
+  textResponse,
+  MCPLifecycle,
+  setupGracefulShutdown,
+  BoundedCache,
+} from "./_mcp_shared.mjs";
 import {
   OLLAMA_URL,
   readImageForModel,
@@ -56,14 +65,7 @@ const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|bmp|gif)$/i;
 function vramLog(message) {
   logRequest(generateRequestId(), "vram", message);
 }
-
-function generateRequestId() {
-  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function textResponse(text, isError = false) {
-  return { content: [{ type: "text", text }], isError };
-}
+// generateRequestId and textResponse are imported from _mcp_shared.mjs
 
 function runNode(script, args, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
@@ -360,6 +362,14 @@ async function describeImage(imagePath, prompt, mode) {
   const finalMode = mode || "ui";
   const reqId = generateRequestId();
 
+  // Check cache first
+  const cacheKey = `${abs}_${finalPrompt}_${finalMode}`;
+  const cached = imageCache.get(cacheKey);
+  if (cached) {
+    logRequest(reqId, "vision_describe", `cache-hit image=${abs}`);
+    return cached;
+  }
+
   logRequest(reqId, "vision_describe", `mode=${finalMode} image=${abs}`);
 
   // Fail fast when Ollama is down, and make sure the vision model is warm:
@@ -377,6 +387,7 @@ async function describeImage(imagePath, prompt, mode) {
   try {
     const args = [abs, finalPrompt, "--mode", finalMode];
     const result = await runNode(ANALYZE_MJS, args);
+    imageCache.set(cacheKey, result);
     logRequest(reqId, "vision_describe", "primary-ok");
     return result;
   } catch (e) {
@@ -385,6 +396,7 @@ async function describeImage(imagePath, prompt, mode) {
     // Fallback: python analyzer
     try {
       const result = await runAnalyzePy(abs, finalPrompt);
+      imageCache.set(cacheKey, result);
       logRequest(reqId, "vision_describe", "fallback-py-ok");
       return result;
     } catch (e2) {
@@ -797,10 +809,22 @@ const TOOL_IMPLEMENTATIONS = {
 
 // ─── MCP server setup ──────────────────────────────────────────────────────────
 
+const lifecycle = new MCPLifecycle();
+const imageCache = new BoundedCache(100, 300000); // 100 images, 5min TTL
+
 const server = new Server(
   { name: "native-media-vision", version: "2.0.0" },
   { capabilities: { tools: {} } },
 );
+
+// Set up graceful shutdown
+setupGracefulShutdown(server, lifecycle);
+
+// Cleanup on termination
+lifecycle.onCleanup(() => {
+  imageCache.clear();
+  console.error("[vision-mcp] cleanup complete");
+});
 
 // Tools declared explicitly below carry richer MCP inputSchema descriptions.
 // TOOL_DEFS also contains vision_ocr / vision_batch_analyze (they back the
@@ -1031,6 +1055,7 @@ Viewport: ${effectiveArgs?.viewport || "unknown"} Label: ${effectiveArgs?.label 
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  lifecycle.markReady();
   console.error(
     "native-media-vision MCP ready v2.0.0 (project root: " + PROJECT_ROOT + ")",
   );
@@ -1043,6 +1068,7 @@ async function main() {
   console.error(
     "  Default model: " + PRIMARY_VISION_MODEL + " | Ollama: " + OLLAMA_URL,
   );
+  console.error("  Lifecycle: " + lifecycle.state);
 }
 main().catch((err) => {
   console.error(err);

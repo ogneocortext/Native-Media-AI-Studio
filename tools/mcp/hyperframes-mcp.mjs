@@ -13,7 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
-import { BACKEND_URL, validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
+import { BACKEND_URL, validateMcpToolCall, logRequest, generateRequestId, textResponse, MCPLifecycle, setupGracefulShutdown, BoundedCache } from "./_mcp_shared.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
@@ -54,13 +54,9 @@ const NPX = resolveNpxInvocation();
 const HYPERFRAMES_BIN = NPX.command;
 const HYPERFRAMES_ARGS = [...NPX.prefix, "hyperframes"];
 
-function generateRequestId() {
-  return `hf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function textResponse(text, isError = false) {
-  return { content: [{ type: "text", text }], isError };
-}
+// Use shared request ID and text response from _mcp_shared.mjs
+const hfGenerateRequestId = generateRequestId;
+const hfTextResponse = textResponse;
 
 function ensureTestProject() {
   if (!existsSync(TEST_PROJECT)) {
@@ -284,7 +280,7 @@ const TOOL_DEFS = [
 ];
 
 async function executeHyperframesTool(name, args) {
-  const reqId = generateRequestId();
+  const reqId = hfGenerateRequestId();
 
   if (name === "hyperframes_init") {
     const { name: projName, example } = args || {};
@@ -299,12 +295,12 @@ async function executeHyperframesTool(name, args) {
       if (example) toolArgs.push("--example", example);
       const result = await runHyperframes(toolArgs, 120000);
       logRequest(reqId, "hyperframes_init", "ok");
-      return textResponse(
+      return hfTextResponse(
         `Initialized HyperFrames project at: ${targetDir}\n\n${result.stdout}\n\n${result.stderr}`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_init", `error=${e.message}`);
-      return textResponse(`Failed to init HyperFrames project: ${e.message}`, true);
+      return hfTextResponse(`Failed to init HyperFrames project: ${e.message}`, true);
     }
   }
 
@@ -325,12 +321,12 @@ async function executeHyperframesTool(name, args) {
       child.unref();
       const url = `http://127.0.0.1:${port || 3000}`;
       logRequest(reqId, "hyperframes_preview", `started pid=${child.pid}`);
-      return textResponse(
+      return hfTextResponse(
         `Preview server starting (PID ${child.pid}).\nOpen: ${url}\nNote: Preview runs in the background. Use hyperframes_render to produce a video file.`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_preview", `error=${e.message}`);
-      return textResponse(`Failed to start preview: ${e.message}`, true);
+      return hfTextResponse(`Failed to start preview: ${e.message}`, true);
     }
   }
 
@@ -349,12 +345,12 @@ async function executeHyperframesTool(name, args) {
       if (composition) toolArgs.push("--composition", composition);
       const result = await runHyperframes(toolArgs, 600000);
       logRequest(reqId, "hyperframes_render", "ok");
-      return textResponse(
+      return hfTextResponse(
         `Render complete.\n\n${result.stdout}\n\n${result.stderr}`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_render", `error=${e.message}`);
-      return textResponse(`Render failed: ${e.message}`, true);
+      return hfTextResponse(`Render failed: ${e.message}`, true);
     }
   }
 
@@ -367,12 +363,12 @@ async function executeHyperframesTool(name, args) {
       if (composition) toolArgs.push("--composition", composition);
       const result = await runHyperframes(toolArgs, 60000);
       logRequest(reqId, "hyperframes_lint", "ok");
-      return textResponse(
+      return hfTextResponse(
         `Lint result:\n\n${result.stdout}\n\n${result.stderr}`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_lint", `error=${e.message}`);
-      return textResponse(`Lint failed: ${e.message}`, true);
+      return hfTextResponse(`Lint failed: ${e.message}`, true);
     }
   }
 
@@ -384,12 +380,12 @@ async function executeHyperframesTool(name, args) {
       // `catalog` is the supported registry listing and runs headlessly.
       const result = await runHyperframes(["catalog"], 60000);
       logRequest(reqId, "hyperframes_list_examples", "ok");
-      return textResponse(
+      return hfTextResponse(
         `Available components (hyperframes catalog):\n\n${result.stdout}\n\n${result.stderr}`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_list_examples", `error=${e.message}`);
-      return textResponse(`Failed to list examples: ${e.message}`, true);
+      return hfTextResponse(`Failed to list examples: ${e.message}`, true);
     }
   }
 
@@ -400,17 +396,17 @@ async function executeHyperframesTool(name, args) {
       ensureTestProject();
       const abs = resolveCompositionPath(relPath || "index.html");
       if (!existsSync(abs)) {
-        return textResponse(`Composition not found: ${abs}`, true);
+        return hfTextResponse(`Composition not found: ${abs}`, true);
       }
       const content = readFileSync(abs, "utf-8");
       const lines = content.split("\n");
       const preview = lines.slice(0, 400).join("\n");
-      return textResponse(
+      return hfTextResponse(
         `File: ${abs}\nLines: ${lines.length}\n\n${preview}${lines.length > 400 ? "\n... (truncated)" : ""}`,
       );
     } catch (e) {
       logRequest(reqId, "hyperframes_read_composition", `error=${e.message}`);
-      return textResponse(`Failed to read composition: ${e.message}`, true);
+      return hfTextResponse(`Failed to read composition: ${e.message}`, true);
     }
   }
 
@@ -425,10 +421,10 @@ async function executeHyperframesTool(name, args) {
         mkdirSync(dir, { recursive: true });
       }
       writeFileSync(abs, content, "utf-8");
-      return textResponse(`Wrote composition to: ${abs}`);
+      return hfTextResponse(`Wrote composition to: ${abs}`);
     } catch (e) {
       logRequest(reqId, "hyperframes_write_composition", `error=${e.message}`);
-      return textResponse(`Failed to write composition: ${e.message}`, true);
+      return hfTextResponse(`Failed to write composition: ${e.message}`, true);
     }
   }
 
@@ -462,10 +458,10 @@ async function executeHyperframesTool(name, args) {
       }
       scan(scanRoot);
       logRequest(reqId, "hyperframes_read_assets", `found=${results.length}`);
-      return textResponse(JSON.stringify({ assets: results }, null, 2));
+      return hfTextResponse(JSON.stringify({ assets: results }, null, 2));
     } catch (e) {
       logRequest(reqId, "hyperframes_read_assets", `error=${e.message}`);
-      return textResponse(`Failed to list assets: ${e.message}`, true);
+      return hfTextResponse(`Failed to list assets: ${e.message}`, true);
     }
   }
 
@@ -479,7 +475,7 @@ async function executeHyperframesTool(name, args) {
             cwd: PROJECT_ROOT,
           }).trim()
         : "unknown";
-      return textResponse(
+      return hfTextResponse(
         JSON.stringify(
           {
             test_project: TEST_PROJECT,
@@ -492,7 +488,7 @@ async function executeHyperframesTool(name, args) {
         ),
       );
     } catch (e) {
-      return textResponse(
+      return hfTextResponse(
         JSON.stringify(
           {
             test_project: TEST_PROJECT,
@@ -508,13 +504,18 @@ async function executeHyperframesTool(name, args) {
   }
 
   logRequest(reqId, "tools/call", `unknown-tool ${name}`);
-  return textResponse(`Unknown tool ${name}. Available tools: ${TOOL_DEFS.map(t => t.function.name).join(", ")}`, true);
+  return hfTextResponse(`Unknown tool ${name}. Available tools: ${TOOL_DEFS.map(t => t.function.name).join(", ")}`, true);
 }
 
 const server = new Server(
   { name: "hyperframes-bridge", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
+
+// Lifecycle management
+const lifecycle = new MCPLifecycle();
+setupGracefulShutdown(server, lifecycle);
+lifecycle.markReady();
 
 server.setRequestHandler("tools/list", async () => ({
   tools: TOOL_DEFS.map(t => ({
@@ -533,7 +534,7 @@ server.setRequestHandler("tools/call", async (request) => {
     return result;
   } catch (e) {
     console.error(`[hyperframes-mcp] tool error: ${e.message}`);
-    return textResponse(`HyperFrames error: ${e.message}`, true);
+    return hfTextResponse(`HyperFrames error: ${e.message}`, true);
   }
 });
 
@@ -543,3 +544,4 @@ console.error("HyperFrames MCP Bridge ready v1.0.0");
 console.error(`  Test project: ${TEST_PROJECT}`);
 console.error(`  CLI: ${HYPERFRAMES_BIN} ${HYPERFRAMES_ARGS.join(" ")}`);
 console.error("  Tools: hyperframes_init, hyperframes_preview, hyperframes_render, hyperframes_lint, hyperframes_list_examples, hyperframes_read_composition, hyperframes_write_composition, hyperframes_read_assets, hyperframes_status");
+console.error("  Lifecycle: " + lifecycle.state);

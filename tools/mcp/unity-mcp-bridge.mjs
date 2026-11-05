@@ -9,7 +9,14 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { z } from "zod";
-import { BACKEND_URL, validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
+import {
+  BACKEND_URL,
+  validateMcpToolCall,
+  logRequest,
+  MCPLifecycle,
+  setupGracefulShutdown,
+  BoundedCache,
+} from "./_mcp_shared.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Use environment variable or derive from repo root (tools/mcp -> ../../)
@@ -751,4 +758,10 @@ Return JSON only:
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+// Lifecycle management
+const lifecycle = new MCPLifecycle();
+setupGracefulShutdown(server, lifecycle);
+lifecycle.markReady();
 console.error("Unity MCP Bridge running");
+console.error("  Lifecycle: " + lifecycle.state);

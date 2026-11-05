@@ -24,7 +24,7 @@ import { Server } from "@modelcontextprotocol/server";
 import { createConnection } from "net";
 import path from "path";
 import { fileURLToPath } from "url";
-import { validateMcpToolCall, logRequest } from "./_mcp_shared.mjs";
+import { validateMcpToolCall, logRequest, generateRequestId, textResponse, MCPLifecycle, setupGracefulShutdown, BoundedCache } from "./_mcp_shared.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_HOST = "localhost";
@@ -57,8 +57,7 @@ function blenderRequest(type, params, timeoutMs = 30000) {
 async function isBlenderReachable() {
   try { const res = await blenderRequest("ping", {}, 5000); return res && res.status === "success"; } catch { return false; }
 }
-function generateRequestId() { return "bl_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8); }
-function textResponse(text, isError = false) { return { content: [{ type: "text", text }], isError }; }
+// generateRequestId and textResponse are imported from _mcp_shared.mjs
 function bpyString(value) { return JSON.stringify(String(value)); }
 function bpyNumber(value) { return Number.isFinite(Number(value)) ? Number(value) : 0; }
 function buildExecuteCode(command, parameters) {
@@ -385,6 +384,11 @@ const server = new Server(
   { capabilities: { tools: {} } }
 );
 
+// Lifecycle management
+const lifecycle = new MCPLifecycle();
+setupGracefulShutdown(server, lifecycle);
+lifecycle.markReady();
+
 server.setRequestHandler("tools/list", async function () {
   return {
     tools: TOOL_DEFS.map(function (t) {
@@ -417,3 +421,4 @@ await server.connect(transport);
 console.error("Blender MCP Bridge ready v1.0.0");
 console.error("  Blender addon endpoint: " + BLENDER_HOST + ":" + BLENDER_PORT);
 console.error("  Tools: " + TOOL_DEFS.map(function (t) { return t.name; }).join(", "));
+console.error("  Lifecycle: " + lifecycle.state);

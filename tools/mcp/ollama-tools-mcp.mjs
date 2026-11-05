@@ -5,7 +5,17 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodeImage, residentVisionModels, resolveVisionModel, analyzeWithOllama, pickFallbackModel } from "../vision/vision-common.mjs";
-import { fetchWithTimeout, logRequest, generateRequestId, textResponse } from "./_mcp_shared.mjs";
+import {
+  BACKEND_URL,
+  validateMcpToolCall,
+  logRequest,
+  generateRequestId,
+  textResponse,
+  MCPLifecycle,
+  setupGracefulShutdown,
+  BoundedCache,
+  fetchWithTimeout,
+} from "./_mcp_shared.mjs";
 
 import { writeFileSync } from "node:fs";
 // Startup debug log used to write unconditionally to D:/mcp-debug.log on
@@ -29,31 +39,9 @@ try {
 
 const BASE_URL = process.env.OLLAMA_URL || ports.ollama_url || "http://127.0.0.1:11434";
 const COMFYUI_URL = process.env.COMFYUI_URL || ports.comfyui_url || "http://127.0.0.1:8188";
-const BACKEND_URL = process.env.BACKEND_URL || ports.backend_url || "http://127.0.0.1:8000";
+// BACKEND_URL is imported from _mcp_shared.mjs
 const MAX_IMAGE_BASE64_BYTES = 20 * 1024 * 1024; // 20 MB safety cap
-
-async function validateMcpToolCall(toolName, args) {
-  try {
-    const res = await fetchWithTimeout(
-      `${BACKEND_URL}/api/mcp/validate-tool`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool_name: toolName, arguments: args }),
-      },
-      5000,
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.valid) {
-      throw new Error(`Invalid tool args for ${toolName}: ${data.error}`);
-    }
-    return data.arguments;
-  } catch (err) {
-    logRequest("", toolName, `validation-skip: ${err.message}`);
-    return null;
-  }
-}
+// validateMcpToolCall is imported from _mcp_shared.mjs
 
 async function readImageBase64(imagePath) {
   // Keep the MCP size guard, delegate resizing to the shared encoder.
@@ -100,6 +88,17 @@ const server = new Server(
   { name: "ollama-tools", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
+
+// Lifecycle management
+const lifecycle = new MCPLifecycle();
+const contextCache = new BoundedCache(50, 300000); // 50 contexts, 5min TTL
+
+setupGracefulShutdown(server, lifecycle);
+
+lifecycle.onCleanup(() => {
+  contextCache.clear();
+  console.error("[ollama-tools] cleanup complete");
+});
 
 // ============================================================
 // TOOL DEFINITIONS
@@ -941,4 +940,6 @@ async function updateMCPContext(reqId, args) {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+lifecycle.markReady();
 console.error("Ollama Tools MCP server running on stdio");
+console.error("  Lifecycle: " + lifecycle.state);
