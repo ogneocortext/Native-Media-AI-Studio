@@ -29,6 +29,18 @@ export interface VisualizerModeRenderContext {
   };
   syncLineProgress: number;
   sectionProgress: number;
+  /** T-VIZ-21 — current lyric line for kinetic-type (null = instrumental). */
+  lyric?: {
+    text: string;
+    start: number;
+    end: number;
+    section?: string;
+    words?: { word: string; start: number; end: number }[];
+  } | null;
+  /** 0..1 progress through the current lyric line. */
+  lyricProgress?: number;
+  /** Current musical section label (VERSE/CHORUS/DROP…) for section-aware modes. */
+  sectionName?: string;
   colors: string[];
   perceptualScale: "bark" | "erb" | "mel" | "linear" | undefined;
   freq: Uint8Array | null;

@@ -111,6 +111,7 @@ export const CANVAS_2D_MODES = [
   "constellation",
   "particles",
   "aurora",
+  "kinetic-type",
 ] as const;
 export type Canvas2DMode = (typeof CANVAS_2D_MODES)[number];
 
@@ -129,6 +130,7 @@ export const CANVAS_2D_MODE_LABELS: Record<Canvas2DMode, string> = {
   constellation: "Constellation",
   particles: "Particles",
   aurora: "Aurora",
+  "kinetic-type": "Kinetic Type",
 };
 
 /**
@@ -157,6 +159,7 @@ export const CANVAS_2D_MODE_SHORT_LABELS: Record<Canvas2DMode, string> = {
   constellation: "Constellation",
   particles: "Particles",
   aurora: "Aurora",
+  "kinetic-type": "Kinetic",
 };
 
 /** Short label for a mode, falling back to the full label. */

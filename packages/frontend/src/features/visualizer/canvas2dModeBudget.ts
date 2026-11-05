@@ -257,6 +257,15 @@ export const MODE_BUDGETS: Record<Canvas2DMode, ModeBudget> = {
       "Already draws its own beat-flash and vignette; the global stack doubled both.",
     ...NO_TRAILS,
   },
+  "kinetic-type": {
+    // T-VIZ-21 — the lyric text is the focal point; trails would smear it and
+    // shockwaves fight the typography. Phrase flash stays because lyrics are
+    // literally the point of this mode (the budget's own criterion).
+    effects: ["phraseFlash", "beatVignette"],
+    rationale:
+      "Lyrics are the scene; phrase flash is the lyric cue. No trails — text must stay crisp.",
+    ...NO_TRAILS,
+  },
 };
 
 /**

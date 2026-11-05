@@ -42,6 +42,18 @@ export interface BarModeContext {
   };
   syncLineProgress: number;
   sectionProgress: number;
+  /** T-VIZ-21 — current lyric line for kinetic-type (null = instrumental). */
+  lyric?: {
+    text: string;
+    start: number;
+    end: number;
+    section?: string;
+    words?: { word: string; start: number; end: number }[];
+  } | null;
+  /** 0..1 progress through the current lyric line. */
+  lyricProgress?: number;
+  /** Current musical section label for section-aware modes. */
+  sectionName?: string;
   colors: string[];
   perceptualScale: PerceptualScale | undefined;
   freq: Uint8Array | null;
@@ -54,6 +66,10 @@ export interface BarModeContext {
   energyMod: number;
   analyzedPunch: number;
   isDownbeat: boolean;
+  /** T-VIZ-16 — decaying spectral-flux onset envelope (0..1). */
+  onset?: number;
+  /** T-VIZ-19 — phase-locked beat envelope (0..1). */
+  beatEnv?: number;
   rand: () => number;
   /** Cached gradient builder — keyed by mode + palette + height. */
   getGradients: (mode: string, cols: string[]) => CanvasGradient[];
@@ -1251,6 +1267,161 @@ export function renderParticles(
  * Dispatch to the correct mode render function.
  * Unknown modes are a no-op (consistent with Canvas2DVisualizer's `else if` chain).
  */
+/**
+ * Kinetic Typography (T-VIZ-21) — the lyric line IS the scene.
+ *
+ * Deadpan register per the mode-research spec: restrained palette, no bouncy
+ * easing, minimal reactive ground (a thin mirrored spectrum baseline). The
+ * current line enters on its LRC start (scale+fade over the first ~12% of the
+ * line), exits by decay over the last ~10%, and hook sections (CHORUS/DROP)
+ * get a slightly larger cut with a beat-phase pulse. Word-level LRC reveals
+ * the current word; instrumental passages fall back to a section card so the
+ * mode never sits empty. `motionScale` (reduced-motion) collapses all
+ * choreography to fades.
+ */
+export function renderKineticType(
+  dpr: number,
+  w: number,
+  h: number,
+  modeCtx: BarModeContext,
+  state: BarModeState,
+): void {
+  void state;
+  const {
+    ctx,
+    bg,
+    colors,
+    freq,
+    lyric,
+    lyricProgress = 0,
+    sectionName,
+    motionScale,
+    beatEnv,
+    energyMod,
+  } = modeCtx;
+  const d = modeCtx.d;
+  const vocalEnergy = ((d.mid ?? 0) + d.treble) / 2;
+
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Minimal reactive ground: thin mirrored spectrum baseline ──────────
+  const groundY = h * 0.8;
+  const bars = 48;
+  const barW = w / bars;
+  ctx.fillStyle = colors[1] + "33";
+  if (freq) {
+    const step = Math.max(1, Math.floor(freq.length / bars));
+    for (let i = 0; i < bars; i++) {
+      let v = 0;
+      for (let j = 0; j < step; j++) v += freq[i * step + j] ?? 0;
+      v = (v / step / 255) * h * 0.06 * (0.5 + vocalEnergy);
+      if (v > 0.5) ctx.fillRect(i * barW + 1, groundY - v, barW - 2, v);
+    }
+  }
+  ctx.fillStyle = colors[1] + "55";
+  ctx.fillRect(0, groundY, w, Math.max(1, dpr));
+
+  const isHook =
+    sectionName === "CHORUS" || sectionName === "DROP" || sectionName === "PRE-CHORUS";
+  const beatPulse = (beatEnv ?? 0) * 0.02 * motionScale;
+
+  // ── Instrumental fallback: section card, never an empty frame ─────────
+  if (!lyric) {
+    const label = (sectionName ?? "").toLowerCase();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = colors[0] + "aa";
+    ctx.font = `600 ${Math.round(h * 0.045 * dpr)}px system-ui, sans-serif`;
+    const card = label ? label.toUpperCase() : "INSTRUMENTAL";
+    ctx.fillText(card, w / 2, h * 0.42);
+    ctx.fillStyle = colors[1] + "66";
+    ctx.font = `500 ${Math.round(h * 0.02 * dpr)}px system-ui, sans-serif`;
+    ctx.fillText("— instrumental —", w / 2, h * 0.42 + h * 0.07 * dpr);
+    return;
+  }
+
+  // ── Entry / exit envelopes (fractions of the line's own duration) ──────
+  const entryT = Math.min(1, lyricProgress / 0.12);
+  const exitT = lyricProgress > 0.9 ? (lyricProgress - 0.9) / 0.1 : 0;
+  const ease = 1 - Math.pow(1 - entryT, 3);
+  const entryScale = 0.94 + 0.06 * ease * motionScale + beatPulse;
+  const alpha =
+    (0.35 + 0.65 * ease) * (1 - exitT * 0.6 * motionScale) *
+    Math.min(1, 0.4 + energyMod * 0.6);
+
+  // ── Word-level timing: approximate audio position inside the line ──────
+  const lineDur = Math.max(0.001, lyric.end - lyric.start);
+  const approxTime = lyric.start + lyricProgress * lineDur;
+  const words = lyric.words ?? [];
+  const useWords = words.length > 0;
+
+  // ── Layout: wrap to lines, then draw centred ───────────────────────────
+  const maxW = w * 0.86;
+  const baseSize = Math.round(
+    clamp(Math.min(w / 15, h / 6.5), 26, 92) * dpr * (isHook ? 1.08 : 1),
+  );
+  ctx.font = `${isHook ? 700 : 600} ${baseSize}px system-ui, sans-serif`;
+
+  // Word-wrap preserving per-word identity for highlight.
+  const units = useWords
+    ? words.map((wd) => ({ text: wd.word, start: wd.start, end: wd.end }))
+    : lyric.text.split(/\s+/).filter(Boolean).map((t) => ({ text: t }));
+  const lines: { text: string; words: { text: string; start?: number; end?: number }[] }[] = [];
+  let cur: typeof units = [];
+  let curW = 0;
+  for (const u of units) {
+    const uw = ctx.measureText(u.text + " ").width;
+    if (curW + uw > maxW && cur.length > 0) {
+      lines.push({ text: "", words: cur });
+      cur = [];
+      curW = 0;
+    }
+    cur.push(u);
+    curW += uw;
+  }
+  if (cur.length) lines.push({ text: "", words: cur });
+  const lineH = baseSize * 1.22;
+  const blockH = lines.length * lineH;
+  const top = h * 0.5 - blockH / 2 + lineH * 0.5;
+
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.translate(w / 2, top);
+  ctx.scale(entryScale * (1 + vocalEnergy * 0.02 * motionScale), entryScale);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const spaceW = ctx.measureText(" ").width;
+  lines.forEach((ln, li) => {
+    const y = li * lineH - blockH / 2 + lineH / 2;
+    // Measure word widths (without trailing space) for centering + advance.
+    const widths = ln.words.map((wd) => ctx.measureText(wd.text).width);
+    const fullW =
+      widths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, ln.words.length - 1);
+    let x = -fullW / 2;
+    ln.words.forEach((wd, wi) => {
+      const ww = widths[wi];
+      let fill = colors[0];
+      let wordAlpha = 1;
+      if (useWords && wd.start !== undefined && wd.end !== undefined) {
+        if (approxTime < wd.start) {
+          wordAlpha = 0.45; // sung — recede (deadpan: no bounce, just dim)
+        } else if (approxTime < wd.end) {
+          fill = colors[1]; // current word lifts
+        } else {
+          wordAlpha = 0.8;
+        }
+      }
+      ctx.globalAlpha = clamp(alpha * wordAlpha, 0, 1);
+      ctx.fillStyle = fill;
+      ctx.fillText(wd.text, x + ww / 2, y);
+      x += ww + spaceW;
+    });
+  });
+  ctx.restore();
+}
+
 export function renderMode(
   mode: string,
   dpr: number,
@@ -1298,6 +1469,9 @@ export function renderMode(
       break;
     case "aurora":
       renderAurora(dpr, w, h, modeCtx, state);
+      break;
+    case "kinetic-type":
+      renderKineticType(dpr, w, h, modeCtx, state);
       break;
   }
 }

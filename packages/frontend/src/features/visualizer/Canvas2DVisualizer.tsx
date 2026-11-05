@@ -88,12 +88,7 @@ interface Props {
   transientRef?: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
   mode?: Canvas2DMode;
-  lrcSync?: {
-    currentSection: string;
-    sectionProgress: number;
-    isPhraseStart: boolean;
-    lineProgress: number;
-  } | null;
+  lrcSync?: import("./useLrcSync").LrcSyncData | null;
   /**
    * Per-frame live sync written by the parent's elapsed loop (see audioTiming.ts).
    * Preferred over `lrcSync` in the draw loop. Also keeps this effect from
@@ -833,6 +828,12 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           d: dCtx,
           syncLineProgress: sync?.lineProgress ?? 0,
           sectionProgress: sync?.sectionProgress ?? 0,
+          // T-VIZ-21 — lyric line + section for kinetic-type and future
+          // lyric-driven modes. `sync` is the full LrcSyncData (live ref,
+          // prop snapshot, or deterministic lrcSyncAt for virtual frames).
+          lyric: sync?.currentLine ?? null,
+          lyricProgress: sync?.lineProgress ?? 0,
+          sectionName: section,
           colors,
           perceptualScale: perceptualScale as "bark" | "erb" | "mel" | "linear",
           // T-VIZ-15: modes receive the enveloped bands, never raw freq.
