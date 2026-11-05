@@ -379,6 +379,7 @@
 @import "./layout.css" layer(components);
 @import "./components.css" layer(components);
 @import "./visualizer.css" layer(components);
+@import "./visualizer-chrome.css" layer(components);
 @import "./theatre.css" layer(components);
 
 /* Utility/effect styles */

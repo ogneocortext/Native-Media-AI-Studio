@@ -948,7 +948,11 @@ export function Visualizer() {
               aria-valuenow={Math.min(elapsed, audioDuration)}
               aria-valuetext={`${formatTime(elapsed)} of ${formatTime(audioDuration)}`}
             >
-              <div className="viz-playhead-track" aria-hidden="true" />
+              <div
+                className="viz-playhead-track"
+                aria-hidden="true"
+                style={{ transform: `scaleX(${Math.min(1, Math.max(0, elapsed / audioDuration))})` }}
+              />
               {audioDuration > 0 && loopRegion && (
                 <div
                   className="viz-loop-region"

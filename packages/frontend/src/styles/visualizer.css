@@ -25,15 +25,6 @@
   background: #050507;
 }
 
-.viz-canvas-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  background: #050507;
-}
-
 /* --- Loading spinner --- */
 .viz-loading-spinner {
   width: 40px;
@@ -47,12 +38,6 @@
 
 @keyframes viz-spin {
   to { transform: rotate(360deg); }
-}
-
-.viz-loading-label {
-  font-size: 0.875rem;
-  color: #94a3b8;
-  font-feature-settings: "liga" 0;
 }
 
 /* --- Loading overlay (3D mode, track loading) --- */
@@ -278,15 +263,16 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, #8b5cf6 0%, #d946ef 100%);
-  transform: scalex(0);
+  transform: scaleX(0);
   transform-origin: left;
   height: 100%;
+  transition: transform 0.1s linear;
 }
 
 .viz-playhead-marker {
   position: absolute;
   top: 50%;
-  transform: translatey(-50%);
+  transform: translateY(-50%);
   width: 10px;
   height: 10px;
   background: #8b5cf6;
@@ -298,7 +284,7 @@
 .viz-playhead-readout {
   position: absolute;
   top: -20px;
-  transform: translatex(-50%);
+  transform: translateX(-50%);
   font-size: 0.7rem;
   color: #94a3b8;
   white-space: nowrap;
@@ -364,7 +350,7 @@
   position: fixed;
   top: 1rem;
   left: 50%;
-  transform: translatex(-50%);
+  transform: translateX(-50%);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -465,16 +451,6 @@
   backdrop-filter: blur(2px);
 }
 
-/* --- Audio player --- */
-.viz-audio-player {
-  margin-top: 1rem;
-}
-
-.viz-audio {
-  width: 100%;
-  height: 40px;
-}
-
 /* --- Audio latency panel --- */
 .viz-latency-panel {
   pointer-events: none;
@@ -566,4 +542,9 @@
 /* --- Audio transport --- */
 .viz-audio-player {
   margin-top: 0.75rem;
+}
+
+.viz-audio {
+  width: 100%;
+  height: 40px;
 }

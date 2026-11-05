@@ -358,3 +358,29 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   tsc + eslint (0 errors) + vitest 112 + playwright canvas2d/lrc 4/4 pass.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - live QA via
   playwright-mcp + local gemma4 vision model; all fixes verified in-browser.
+
+### T-VIZ-27 - Restore visualizer chrome CSS lost in the ee2714e slim rewrite
+- **Status:** done
+- **Goal:** The ee2714e "slim" rewrite of visualizer.css dropped every
+  component-chrome rule (topbar children, icon buttons, menus, tuning groups,
+  status badges, file browser, AI panel, bottombar, focus-visible states) -
+  169 viz-* classes used in tsx had no matching selector, leaving toolbar
+  buttons at 14x14px transparent and panels unstyled. Extract the missing
+  rules from the pre-rewrite stylesheet (postcss AST walk, deduped, @media
+  preserved, :scope rewritten to .viz-page) into visualizer-chrome.css,
+  imported after visualizer.css in globals.css. Also fix the playhead
+  gradient track (scaleX(0) with no driver - now bound to elapsed/duration),
+  the duplicated .viz-audio-player rule, dead .viz-canvas-loading/
+  .viz-loading-label rules, and lowercase transform function names.
+- **Files:** packages/frontend/src/styles/visualizer.css,
+  packages/frontend/src/styles/visualizer-chrome.css (new),
+  packages/frontend/src/styles/globals.css,
+  packages/frontend/src/features/visualizer/Visualizer.tsx
+- **Acceptance:** computed style probe shows .viz-icon-btn at 32x32 with
+  background/border/radius (was 14x14 transparent); topbar, tuning groups,
+  bottombar and HUD z-ladder render; playhead track scaleX tracks elapsed
+  (verified 0.01114 at 0:02/3:51); no horizontal overflow at 820px;
+  postcss parses both stylesheets; tsc -b clean; vitest 900 pass;
+  playwright canvas2d+lrc 4/4 pass; vision model audit confirms styled UI.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - CSS analysis via
+  postcss extraction + live computed-style probes + gemma4 vision audit.
