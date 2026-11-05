@@ -125,6 +125,9 @@ async def _scan_docs_for_indexing() -> list[dict[str, Any]]:
                                 else:
                                     tags = [v.strip().strip('"').strip("'")]
                                 break
+
+                # Detect superseded documents by checking for superseded banner
+                is_superseded = "superseded" in text.lower() or "superseded" in body.lower()
             except Exception:
                 continue
 
@@ -138,6 +141,7 @@ async def _scan_docs_for_indexing() -> list[dict[str, Any]]:
                     "text": chunk_text,
                     "in_vault": in_vault,
                     "tags": tags,
+                    "is_superseded": is_superseded,
                 })
         except Exception:
             continue
@@ -174,6 +178,7 @@ async def index_docs(req: IndexRequest) -> dict:
                 entry["doc_title"],
                 entry["chunk_index"],
                 entry["text"],
+                is_superseded=entry.get("is_superseded", False),
             )
         idx.finalize()
 

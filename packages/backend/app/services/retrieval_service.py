@@ -317,6 +317,8 @@ class IndexedChunk:
     head_terms: Counter = field(default_factory=Counter)
     all_terms: Counter = field(default_factory=Counter)
     length: int = 0
+    #: Whether this chunk comes from a superseded document (downweighted in search)
+    is_superseded: bool = False
 
 
 class RetrievalIndex:
@@ -343,6 +345,7 @@ class RetrievalIndex:
         title_weight: int = 4,
         tag_weight: int = 3,
         path_weight: int = 2,
+        is_superseded: bool = False,
     ) -> None:
         """Add one chunk to the in-memory index."""
         text_terms = bm25_tokenize(text)
@@ -366,6 +369,7 @@ class RetrievalIndex:
             head_terms=head,
             all_terms=all_terms,
             length=len(text_terms) + sum(head.values()),
+            is_superseded=is_superseded,
         )
         self._chunks[chunk_id] = chunk
         for term, count in chunk.all_terms.items():
@@ -555,8 +559,14 @@ class RetrievalIndex:
         if not ranked or top_k <= 0 or MMR_LAMBDA >= 1.0:
             return ranked[:top_k]
 
-        # Get embeddings for all candidate texts
-        candidate_texts = [text for _, text in ranked]
+        # Get embeddings for all candidate texts (look up from chunk IDs)
+        candidate_texts = []
+        for cid, _ in ranked:
+            if cid in self._chunks:
+                candidate_texts.append(self._chunks[cid].text)
+            else:
+                candidate_texts.append("")
+
         embeddings = await embed_text_batch_concurrent(
             candidate_texts, model=EMBED_MODEL
         )
@@ -631,6 +641,12 @@ class RetrievalIndex:
             fused[cid] += 1.0 / (RRF_K + rank + 1)
         for rank, (cid, _score) in enumerate(vector_results):
             fused[cid] += 1.0 / (RRF_K + rank + 1)
+
+        # Apply superseded penalty: downweight chunks from superseded docs by 80%
+        # (more aggressive than 50% because reranker tends to re-boost them)
+        for cid in list(fused.keys()):
+            if cid in self._chunks and self._chunks[cid].is_superseded:
+                fused[cid] *= 0.2
 
         # Sort by fused score, take top candidates for rerank
         ranked_cids = sorted(fused, key=fused.get, reverse=True)[:TOP_K_CANDIDATES]
