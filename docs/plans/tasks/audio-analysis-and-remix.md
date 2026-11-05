@@ -237,3 +237,30 @@ Rules: `docs/plans/tasks/README.md`
   vitest pass; eslint 0 errors on touched files.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - live cache-hit
   timing verification + pytest + vitest.
+
+### T-AUD-11 - Decompose RemixPanel.tsx + remove dead visualizer/remix shim tree
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - RemixPanel.tsx (~1400 lines)
+  was the biggest remaining feature file.
+- **What changed:**
+  - Extracted the 4-step mashup wizard (~215 lines of JSX plus its five
+    wiz* states, wizardInput and openWizard seeding) into
+    `features/remix/RemixWizardFlow.tsx`. The component owns all
+    wizard-local state and reseeds via useState initializers on each
+    mount; the panel keeps only a `wizardOpen` flag and `applyWizard`
+    now takes the `WizardInput` the wizard built.
+  - `MIN_SOURCE_SECONDS` moved into `remixWizard.ts` so the panel
+    presets and the wizard share one fixture threshold.
+  - Found and removed the dead `features/visualizer/remix/` shim tree
+    (RemixPanel/remixRecipe/remixWizard re-export shims left over from
+    the /create/remix move). Moved the only remix unit tests
+    (remixRecipe.test.ts, remixWizard.test.ts) onto the live modules -
+    all 35 pass unchanged - and repointed `abCompare.test.ts` at the
+    live `remix/remixRecipe` path.
+- **Files:** features/remix/RemixPanel.tsx, RemixWizardFlow.tsx (new),
+  remixWizard.ts, remix/{remixRecipe,remixWizard}.test.ts (moved),
+  visualizer/components/abCompare.test.ts, deleted
+  features/visualizer/remix/*
+- **Acceptance:** tsc clean for touched files (only pre-existing
+  agent-chat WIP errors remain); eslint 0 errors; 42 remix/abCompare
+  vitest pass; wizard behavior preserved (same seeds, same apply path).

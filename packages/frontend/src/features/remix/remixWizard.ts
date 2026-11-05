@@ -21,6 +21,9 @@
  */
 import { newEditableLayer, type EditableLayer, type EditableSlot } from "./remixRecipe";
 
+/** A source shorter than this is a fixture, not a song, so it is not used as a mash partner. */
+export const MIN_SOURCE_SECONDS = 30;
+
 /** The three structures the wizard builds, in the panel's own vocabulary. */
 export type WizardGoal = "swap" | "blend" | "intro";
 

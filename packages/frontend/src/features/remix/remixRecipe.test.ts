@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource, nextFreeName, timelineSegments } from "./remixRecipe";
-import type { RemixRecipeSpec } from "../../../services/api/remix";
+import type { RemixRecipeSpec } from "../../services/api/remix";
 
 /**
  * The reopen path converts a wire recipe into panel state. Two things it must not
