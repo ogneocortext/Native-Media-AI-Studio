@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import {
   Brain,
   Send,
@@ -85,6 +85,7 @@ export function AIToolsPage() {
         ...m,
         supportsTools: m.capabilities?.includes("tools") ?? false,
         supportsVision: m.capabilities?.includes("vision") ?? false,
+        supportsThinking: m.capabilities?.includes("thinking") ?? false,
       }));
 
       // Scene quality and hardware latency are different signals: the scene
@@ -252,7 +253,7 @@ export function AIToolsPage() {
         }
       } else if (event.type === "error") {
           const data = event.data as { message?: string };
-          throw new Error(data.message || "Ollama returned no response or tool call");
+          throw new Error(data.message || "Ollama returned no response");
         }
       }
 
@@ -341,7 +342,6 @@ export function AIToolsPage() {
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className={DS.select + " flex-1"}
-                    onClick={async () => loadModels(!showAllModels)}
                     aria-label="Model"
                   >
                     {models.map((m) => {
@@ -366,8 +366,8 @@ export function AIToolsPage() {
                       const isBest =
                         models[0]?.name === m.name && s !== null && s >= 60;
                       return (
-                        <option key={m.name} value={m.name}>
-                          {m.name} ({formatSize(m.size)})
+                          <option key={m.name} value={m.name}>
+                            {m.name} ({m.size > 0 ? formatSize(m.size) : "unknown size"})
                           {m.verified
                             ? ""
                             : ` · ${m.broken_reason === "not_tested" ? "not tested" : m.broken_reason || "unverified"}`}
@@ -584,7 +584,9 @@ export function AIToolsPage() {
                 <span className={DS.textBold}>Visualization</span>
                 <span className={DS.textXs}>({vizConfig.style})</span>
               </div>
-              <VisualizationCanvas config={vizConfig} width={400} height={300} />
+              <Suspense fallback={<div className="viz-canvas-placeholder" style={{ width: 400, height: 300 }}><p>Rendering visualization…</p></div>}>
+                <VisualizationCanvas config={vizConfig} width={400} height={300} />
+              </Suspense>
             </div>
           )}
 

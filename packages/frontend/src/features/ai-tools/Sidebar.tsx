@@ -197,7 +197,7 @@ const timeAgo = (d: Date) => {
                   {m.supportsTools && <Wrench size={10} className={DS.accentGreen} />}
                   {m.supportsVision && <span className={DS.accentSky}>👁</span>}
                 </div>
-                <div className={DS.textXs}>{formatSize(m.size)}</div>
+                <div className={DS.textXs}>{m.size > 0 ? formatSize(m.size) : "unknown size"}</div>
               </button>
             ))}
           </div>
@@ -220,7 +220,10 @@ const timeAgo = (d: Date) => {
                 onClick={() => {
                   setPrompt(h.prompt);
                   setResponse(h.response);
-                  setSelectedModel(h.model);
+                  // Only switch model if it's still available; otherwise keep current
+                  if (models.some((m) => m.name === h.model)) {
+                    setSelectedModel(h.model);
+                  }
                 }}
                 className="w-full text-left px-2 py-1.5 bg-gray-700/50 rounded text-xs text-muted hover:bg-gray-700"
                 title={`${h.model} · ${timeAgo(h.timestamp)}`}
