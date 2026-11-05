@@ -104,7 +104,7 @@ export async function runAgentLoop(
   options: AgentLoopOptions = {},
 ): Promise<AgentLoopResult> {
   const {
-    model = "qwen3.5:4b",
+    model = "llama3.2:3b",
     maxIterations = 10,
     onTurn,
     systemPrompt,

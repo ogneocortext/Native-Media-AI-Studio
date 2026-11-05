@@ -81,7 +81,6 @@ export function AgentChat() {
 
     try {
       const result: AgentLoopResult = await runAgentLoop(userText, {
-        model: "qwen3.5:4b",
         maxIterations: 10,
         onTurn: (turn: AgentTurn) => {
           switch (turn.type) {
@@ -244,7 +243,8 @@ export function AgentChat() {
             </button>
           </form>
           <p className="text-xs text-muted mt-1">
-            The agent uses Ollama (qwen3.5:4b) with tool-calling to discover skills, execute tools, and iterate until your task is complete.
+            The agent uses Ollama with tool-calling to discover skills,
+            execute tools, and iterate until your task is complete.
           </p>
         </div>
       </div>
