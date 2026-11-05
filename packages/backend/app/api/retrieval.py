@@ -175,12 +175,14 @@ async def index_docs(req: IndexRequest) -> dict:
             )
         idx.finalize()
 
-        # Generate embeddings for all chunks (one Ollama call per chunk)
+        # Generate embeddings for all chunks (concurrent Ollama calls)
         chunk_objects = list(idx._chunks.values())
         texts = [c.text for c in chunk_objects]
         embs = await _embed_batch(texts, EMBED_MODEL)
-        if embs is None:
-            logger.warning("Embedding failed for some chunks; continuing with partial embeddings")
+        # embs is a list (possibly with None slots for failed embeddings);
+        # never None itself since embed_text_batch_concurrent always returns a list.
+        if embs is None or all(e is None for e in embs):
+            logger.warning("Embedding failed for all chunks; continuing with BM25-only index")
 
         # Assign embeddings back to chunks
         for i, chunk in enumerate(chunk_objects):

@@ -160,7 +160,42 @@ Native-Media-AI-Studio/
     a rendered remix is silent. `RemixPanel.tsx` (Visualizer, under Stem Mixer)
     is the UI.
 
-## MCP Servers
+## Retrieval / embedding subsystem (`/api/retrieval`)
+
+Hybrid BM25 + vector search with local cross-encoder reranking. Nothing leaves
+the machine — all models run in the local Ollama instance.
+
+Endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/retrieval/status` | Index status + model availability (`embedding_model_available` flag) |
+| `POST` | `/api/retrieval/index` | (Re)index docs corpus: chunk → embed → store in SQLite + memory |
+| `POST` | `/api/retrieval/search` | Hybrid search: BM25 + vector → RRF → rerank → top-k |
+
+Python API (`packages/backend/app/core/ollama_client.py`):
+
+| Function | Purpose |
+|----------|---------|
+| `embed_text(text, model=None, timeout=30)` | Embed one text via `/api/embed`; auto-warms, falls back to `embeddinggemma-2:270m` if primary fails |
+| `embed_text_batch_concurrent(texts, model=None, timeout=30)` | Embed multiple texts concurrently (bounded concurrency = 4); results in input order, `None` per failed slot |
+| `_embed_model_available(model, timeout=5)` | Check `/api/tags` to confirm a model is installed before calling |
+
+Models (configured in `config/settings.json`, `config/ports.json`):
+
+- Primary: `nomic-embed-text:v1.5` (768-dim, ~0.27 GB, always resident)
+- Fallback: `embeddinggemma-2:270m` (768-dim MRL-truncatable, ~0.29 GB)
+- Reranker: `qllama/bge-reranker-v2-m3` (568 MB cross-encoder, loaded via transformers on first use)
+
+Key behaviors:
+
+- `embed_text()` resolves model priority: explicit arg → `config.embedding_model` → fallbacks. Warms up on first use (dummy call to load weights into GPU memory). Falls back through the model tuple if a call fails.
+- `embed_text_batch_concurrent()` resolves the model once, warms it, then issues up to `_EMBED_BATCH_CONCURRENCY` (4) `/api/embed` requests at once.
+- `vector_search()` in `services/retrieval_service.py` logs a warning if embedding returns no vector — search falls back to BM25-only, results are not silently degraded.
+- `/api/retrieval/status` cross-checks that `EMBED_MODEL` is installed in Ollama via `/api/tags`; if missing, logs a warning and sets `embedding_model_available: false`.
+
+Route registration: all three routers are registered in `main.py`. Register a new one there or its routes vanish silently. To check whether a route is registered, read `app.openapi()["paths"]`.
+
 
 Bridges in `tools/mcp/` (stdio/REST). Tool counts as-of 2026-10-10 and go stale; authoritative list is each server's `tools/list` (or `server.registerTool`/`TOOL_DEFS` in source). `unity-mcp-bridge` ships disabled (needs Unity running). `context-store.mjs` is a library, not a server. See `docs/knowledge-library/` for full setup.
 
@@ -190,6 +225,10 @@ outlives a crash. Start Unity with the project open, or
 `context-store.mjs` is deliberately absent from every config: it exports four
 functions and has no transport, so it is a library rather than an MCP server and
 could not be called by any client.
+
+## MCP Servers
+
+Bridges in `tools/mcp/` (stdio/REST). Tool counts as-of 2026-10-10 and go stale; authoritative list is each server's `tools/list` (or `server.registerTool`/`TOOL_DEFS` in source). `unity-mcp-bridge` ships disabled (needs Unity running). `context-store.mjs` is a library, not a server. See `docs/knowledge-library/` for full setup.
 
 ## Filesystem MCP: `search_files` needs exclusions on this repo
 
