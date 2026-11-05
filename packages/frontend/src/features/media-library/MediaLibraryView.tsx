@@ -538,6 +538,18 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
         </div>
       ) : null}
 
+      {view === "trash" && (
+        <TrashPanel
+          isOpen
+          onClose={() => setView("library")}
+          trash={trash}
+          restoreTrashItem={restoreTrashItem}
+          purgeTrashItem={purgeTrashItem}
+          emptyTrash={emptyTrash}
+          refetchOrg={refetchOrg}
+        />
+      )}
+
       {trashOpen && (
         <TrashPanel
           isOpen={trashOpen}
@@ -549,7 +561,6 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           refetchOrg={refetchOrg}
         />
       )}
-
       {playingFile && (
         <PlaybackModal
           isOpen={!!playingFile}
