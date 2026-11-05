@@ -40,9 +40,11 @@ def gate_relevant(gate: Gate, changed: set[str]) -> bool:
     A gate is skipped only when ``changed`` is non-empty and no changed
     file matches anything the gate touches. All checks are read-only scans,
     so a gate cannot surface a new violation in a file it does not touch.
+
+    Returns a tuple of (is_relevant, reason) for better AI agent reporting.
     """
     if not changed:
-        return True
+        return True, "no changed files specified - running all gates"
 
     py_changed = any(f.endswith(".py") for f in changed)
     ts_changed = any(f.lower().endswith((".ts", ".tsx")) for f in changed)
@@ -73,34 +75,56 @@ def gate_relevant(gate: Gate, changed: set[str]) -> bool:
         # check-all.py scopes its own checks internally via --changed; the
         # docs gate itself is relevant when any text/code/config/docs file
         # changed.
-        return text_any or docs_any or config_any
+        is_relevant = text_any or docs_any or config_any
+        reason = "relevant to text/docs/config changes" if is_relevant else "no text/docs/config files changed"
+        return is_relevant, reason
     if name == "ruff":
         # Python lint: relevant whenever a Python file changed (backend or
         # tools; frontend has no .py).
-        return py_changed
+        is_relevant = py_changed
+        reason = "relevant to Python file changes" if is_relevant else "no Python files changed"
+        return is_relevant, reason
     if name == "arch":
-        return backend_app
+        is_relevant = backend_app
+        reason = "relevant to backend app changes" if is_relevant else "no backend app changes"
+        return is_relevant, reason
     if name == "routes":
-        return any(f.startswith("packages/backend/app/api/") and f.endswith(".py")
-                   for f in changed)
+        is_relevant = any(f.startswith("packages/backend/app/api/") and f.endswith(".py")
+                          for f in changed)
+        reason = "relevant to backend API changes" if is_relevant else "no backend API changes"
+        return is_relevant, reason
     if name == "glsl":
         # GLSL compile-check: relevant when frontend shader source changes
         # (new/modified embedded GLSL) or the checker itself changes.
-        return (ts_changed and frontend_src) or \
+        is_relevant = (ts_changed and frontend_src) or \
             any(f == "tools/check-glsl-compile.py" for f in changed)
+        reason = "relevant to frontend shader changes" if is_relevant else "no frontend shader changes"
+        return is_relevant, reason
     if name == "pytest":
-        return backend_any
+        is_relevant = backend_any
+        reason = "relevant to backend changes" if is_relevant else "no backend changes"
+        return is_relevant, reason
     if name == "tools-pytest":
-        return tools_tests or tools_py
+        is_relevant = tools_tests or tools_py
+        reason = "relevant to tools changes" if is_relevant else "no tools changes"
+        return is_relevant, reason
     if name in ("type", "lint"):
-        return ts_changed and frontend_src
+        is_relevant = ts_changed and frontend_src
+        reason = "relevant to frontend TypeScript changes" if is_relevant else "no frontend TypeScript changes"
+        return is_relevant, reason
     if name == "unit":
-        return ts_changed and (frontend_src or frontend_test or frontend_root)
+        is_relevant = ts_changed and (frontend_src or frontend_test or frontend_root)
+        reason = "relevant to frontend test changes" if is_relevant else "no frontend test changes"
+        return is_relevant, reason
     if name == "build":
-        return frontend_src or frontend_root
+        is_relevant = frontend_src or frontend_root
+        reason = "relevant to frontend source changes" if is_relevant else "no frontend source changes"
+        return is_relevant, reason
     if name == "e2e":
-        return frontend_src
-    return True
+        is_relevant = frontend_src
+        reason = "relevant to frontend source changes" if is_relevant else "no frontend source changes"
+        return is_relevant, reason
+    return True, "gate not specifically scoped"
 
 
 def select_gates(all_gates: list[Gate], only: list[str] | None,

@@ -188,9 +188,11 @@ def main(argv=None) -> int:
     skipped = []
     changed_temp_files: list[str] = []
     for g in selected:
-        if changed is not None and not gate_relevant(g, changed):
-            skipped.append(g)
-            continue
+        if changed is not None:
+            is_relevant, reason = gate_relevant(g, changed)
+            if not is_relevant:
+                skipped.append({"gate": g, "reason": reason})
+                continue
         run_selected.append(g)
         if g.name in ("docs", "glsl") and changed:
             # check-all.py / check-glsl-compile.py scope via --changed.
@@ -211,7 +213,7 @@ def main(argv=None) -> int:
         available = ", ".join(g.name for g in all_gates)
         print(f"no gate matched {args.only}; available: {available}")
         print("  (all selected gates skipped by --changed: "
-              + ", ".join(g.name for g in skipped) + ")")
+              + ", ".join(s["gate"].name for s in skipped) + ")")
         for tmp_path in changed_temp_files:
             try:
                 os.unlink(tmp_path)
@@ -228,10 +230,27 @@ def main(argv=None) -> int:
     node_gates = [g for g in run_selected if g.lane == "node"]
     lane_count = (1 if py_gates else 0) + (1 if node_gates else 0)
 
+    # Build a structured summary for AI agents
+    summary = {
+        "total_gates": len(selected),
+        "ran_gates": len(run_selected),
+        "skipped_gates": len(skipped),
+        "lanes": lane_count,
+        "changed_files": sorted(changed) if changed else None,
+        "environment": {
+            "python_version": None,  # filled after resolution
+            "pnpm_version": None,
+        },
+    }
+
     print(f"Running {len(run_selected):d} gate(s) on {lane_count} lane(s): "
           + ", ".join(g.name for g in run_selected))
     if skipped:
-        print("  skipped by --changed: " + ", ".join(g.name for g in skipped))
+        print("  skipped by --changed: " + ", ".join(s["gate"].name for s in skipped))
+        summary["skipped_details"] = [
+            {"gate": s["gate"].name, "reason": s["reason"]}
+            for s in skipped
+        ]
     print("=" * 68)
     sys.stdout.flush()
 
@@ -249,11 +268,33 @@ def main(argv=None) -> int:
         from .interpreter import _describe as _describe_py
         print(f"[setup] interpreter: {_describe_py(python)} "
               f"({_time.time() - t0:.1f} s)")
+        # Extract Python version for summary
+        try:
+            import subprocess
+            result = subprocess.run(
+                [python, "-c", "import sys;print('.'.join(map(str,sys.version_info[:3])))"],
+                capture_output=True, text=True, encoding="utf-8", timeout=5
+            )
+            if result.returncode == 0:
+                summary["environment"]["python_version"] = result.stdout.strip()
+        except Exception:
+            pass
     else:
         print("[setup] no python gate selected - interpreter verification "
               "skipped")
     if node_gates:
         pnpm = resolve_pnpm()
+        # Get pnpm version for summary
+        try:
+            import subprocess
+            result = subprocess.run(
+                [pnpm, "--version"],
+                capture_output=True, text=True, encoding="utf-8", timeout=5
+            )
+            if result.returncode == 0:
+                summary["environment"]["pnpm_version"] = result.stdout.strip()
+        except Exception:
+            pass
     setup_seconds = _time.time() - setup_start
     sys.stdout.flush()
 
@@ -296,16 +337,57 @@ def main(argv=None) -> int:
     failed = [r["name"] for r in results
               if r["status"] not in ("PASS", "SKIP")]
 
+    # Build final summary for AI agents
+    final_summary = {
+        "gates_run": [r["name"] for r in results if r["status"] == "PASS"],
+        "gates_failed": failed,
+        "gates_skipped": [s["gate"].name for s in skipped],
+        "total_time_seconds": round(sum(r["elapsed"] for r in results), 1),
+        "setup_time_seconds": round(setup_seconds, 1),
+        "environment": summary["environment"],
+        "changed_files_count": len(changed) if changed else 0,
+    }
+
     if args.json or args.save_json:
+        # Enhanced JSON report for AI agents
         report = {
             "results": results,
             "failed": failed,
             "setup_seconds": round(setup_seconds, 1),
             "total_seconds": round(sum(r["elapsed"] for r in results), 1),
             "all_passed": len(failed) == 0,
+            "summary": summary,
+            "final_summary": final_summary,
+            "recommendations": [],
         }
         if shared["failed_output"]:
             report["failed_output"] = shared["failed_output"]
+
+        # Add recommendations for common failure patterns
+        if failed:
+            recommendations = []
+            for name in failed:
+                gate = next((g for g in selected if g.name == name), None)
+                if gate:
+                    # Provide gate-specific recommendations
+                    if name == "docs":
+                        recommendations.append(f"{name}: Run 'python tools/check-all.py -v' for detailed docs check output")
+                    elif name == "ruff":
+                        recommendations.append(f"{name}: Run 'python -m ruff check . --fix' to auto-fix lint issues")
+                    elif name == "type":
+                        recommendations.append(f"{name}: Run 'pnpm --filter=native-media-ai-studio-frontend type-check' for detailed TypeScript errors")
+                    elif name == "lint":
+                        recommendations.append(f"{name}: Run 'pnpm --filter=native-media-ai-studio-frontend lint' for detailed ESLint errors")
+                    elif name == "unit":
+                        recommendations.append(f"{name}: Run 'pnpm --filter=native-media-ai-studio-frontend test' for detailed test failures")
+                    elif name == "pytest":
+                        recommendations.append(f"{name}: Run 'cd packages/backend && python -m pytest -v' for detailed test output")
+                    elif name == "build":
+                        recommendations.append(f"{name}: Run 'pnpm --filter=native-media-ai-studio-frontend build' for detailed build errors")
+                    else:
+                        recommendations.append(f"{name}: Check the gate output above for specific error messages")
+            report["recommendations"] = recommendations
+
         if args.save_json:
             try:
                 Path(args.save_json).write_text(
@@ -316,14 +398,52 @@ def main(argv=None) -> int:
             print(json.dumps(report, indent=2))
     else:
         print("=" * 68)
-        summary = "  ".join(f"{r['name']} {r['status']}" for r in results)
-        print(summary)
+        summary_line = "  ".join(f"{r['name']} {r['status']}" for r in results)
+        print(summary_line)
         total = sum(r["elapsed"] for r in results)
         print(f"{total:.1f} s gates + {setup_seconds:.1f} s setup")
         if failed:
             print("FAILED: {}".format(", ".join(failed)))
+            print("\n--- Recommendations ---")
+            for name in failed:
+                gate = next((g for g in selected if g.name == name), None)
+                if gate:
+                    if name == "docs":
+                        print(f"  {name}: Run 'python tools/check-all.py -v' for detailed docs check output")
+                    elif name == "ruff":
+                        print(f"  {name}: Run 'python -m ruff check . --fix' to auto-fix lint issues")
+                    elif name == "type":
+                        print(f"  {name}: Run 'pnpm --filter=native-media-ai-studio-frontend type-check' for detailed TypeScript errors")
+                    elif name == "lint":
+                        print(f"  {name}: Run 'pnpm --filter=native-media-ai-studio-frontend lint' for detailed ESLint errors")
+                    elif name == "unit":
+                        print(f"  {name}: Run 'pnpm --filter=native-media-ai-studio-frontend test' for detailed test failures")
+                    elif name == "pytest":
+                        print(f"  {name}: Run 'cd packages/backend && python -m pytest -v' for detailed test output")
+                    elif name == "build":
+                        print(f"  {name}: Run 'pnpm --filter=native-media-ai-studio-frontend build' for detailed build errors")
+                    else:
+                        print(f"  {name}: Check the gate output above for specific error messages")
         else:
             print("all gates passed")
+
+        # Add final summary for AI agents
+        print("\n--- Summary for AI Agents ---")
+        print(f"Gates passed: {len(final_summary['gates_run'])}")
+        print(f"Gates failed: {len(final_summary['gates_failed'])}")
+        if final_summary["gates_failed"]:
+            print(f"Failed gates: {', '.join(final_summary['gates_failed'])}")
+        print(f"Gates skipped: {len(final_summary['gates_skipped'])}")
+        if final_summary["gates_skipped"]:
+            print(f"Skipped gates: {', '.join(final_summary['gates_skipped'])}")
+        print(f"Total time: {final_summary['total_time_seconds']}s")
+        print(f"Setup time: {final_summary['setup_time_seconds']}s")
+        if final_summary["environment"].get("python_version"):
+            print(f"Python: {final_summary['environment']['python_version']}")
+        if final_summary["environment"].get("pnpm_version"):
+            print(f"pnpm: {final_summary['environment']['pnpm_version']}")
+        if final_summary["changed_files_count"] > 0:
+            print(f"Changed files: {final_summary['changed_files_count']}")
 
     # Clean up temp files used for --changed-from-file.
     for tmp_path in changed_temp_files:
