@@ -15,7 +15,7 @@ the whole surface.
 
 ```
 src/features/visualizer/
-├── Visualizer.tsx              ~1,950 — top-level stage orchestration + JSX
+├── Visualizer.tsx              ~1,290 — top-level stage orchestration + JSX
 ├── Canvas2DVisualizer.tsx      ~1,450 — 2D draw loop + JSX
 ├── visualizerHelpers.ts          179 — pure: file refs, payload narrowing
 ├── canvas2dHelpers.ts            187 — pure: colour lerp, easing, noise/FBM, Bark/Mel/ERB scales
@@ -28,8 +28,23 @@ src/features/visualizer/
 ├── motion/                        — motion vocabulary (see below)
 ├── stemSpatial.ts                — per-stem spatial assignment
 ├── components/RenderStats.tsx     54 — renderer telemetry overlay
+├── components/VizTopbar.tsx               — slim top bar (track picker, mode switch, inspector toggle)
+├── components/VizToolbar.tsx              — stage toolbar (presets, snapshot/focus, pin)
+├── components/VizInspector.tsx            — docked tabbed inspector (Scene/Tuning/Mixer/EQ/AI)
+├── components/VizAudioBar.tsx             — transport strip + hidden <audio>
+├── components/VizPlayhead.tsx             — click-to-seek overlay (fill, loop markers, readout)
+├── components/VizMixerTab.tsx             — inspector Mixer tab (pro/simple toggle + Remix link)
+├── components/VizMoreMenu.tsx / VizFooter.tsx / VizEmptyState.tsx
+├── components/useStemMixer.ts             — WebAudio stem graph (gain/EQ/spatial/meters)
+├── ShaderHud.tsx                           — FX-mode preset picker + slider HUD
 ├── professionalMixer/           — full console mixer (own graph, own hook)
 └── viz-styles/                  — per-style renderer definitions
+
+Chrome styles live in `src/styles/visualizer-chrome.css` (component chrome
+recovered from the pre-slim-rewrite stylesheet) layered over `visualizer.css`.
+The Remix/Mashup builder is NOT here — it lives at `/create/remix`
+(`features/remix/`); the visualizer hands off via `pendingTrack` +
+`pendingRemixOpen`.
 ```
 
 ## The Canvas2D effect budget (2026-10-02)
@@ -145,9 +160,9 @@ the part to re-tune per viz style; the moves themselves follow the spec.
 4. **Hooks own their teardown.** `useVisualizerRecording` disposes its recorder
    and timer; `useAudioGraph` closes the context. The component's unmount effect
    only handles what the component itself created (the audio object URL).
-5. **`handleSelectLibraryTrack` is intentionally inline** (~152 lines, 17 state
-   setters). It is the track-loading coordinator; splitting it trades real
-   behavioural risk for line count alone.
+5. **Track loading is hook-owned.** `handleSelectLibraryTrack` lives in
+   `useTrackSelection`; the component only wires JSX. Lazy stems fetch,
+   autoplay and resume-on-switch live in `useVisualizerTrackEffects`.
 
 ## T-VIZ-10 through T-VIZ-13: Track Selection, Playback Clock, Presets, Lifecycle (2026-10-30)
 
@@ -175,6 +190,42 @@ component as pure orchestration + JSX:
 - `vitest`: 891/891 pass
 - Playwright E2E: Canvas2D and LyricOverlay specs pass against Vite dev server
 
+## 2026-11-30 decomposition pass (T-VIZ-33 through T-VIZ-36, T-AUD-11..13)
+
+Second decomposition wave, driven by the "too much going on at once"
+redesign. All moves were pure — no behavior change:
+
+- `Visualizer.tsx` 1,469 → ~1,290: lazy stems fetch + autoplay +
+  resume-on-switch → `useVisualizerTrackEffects.ts`; transport strip +
+  `<audio>` → `components/VizAudioBar.tsx`; inspector Mixer tab →
+  `components/VizMixerTab.tsx`; seek overlay → `components/VizPlayhead.tsx`.
+- `components/StemMixer.tsx` 989 → 464: the whole WebAudio stem graph
+  (decode, per-stem gain/EQ/spatial, analysers, dB faders, presets,
+  lazy separation, quality metrics) → `components/useStemMixer.ts`.
+- `ShaderVisualizer.tsx` 946 → ~789: preset picker + FX sliders →
+  `ShaderHud.tsx`; duplicated `FxValues`/`DEFAULT_FX` unified into
+  exported `ShaderFxValues`/`DEFAULT_SHADER_FX`.
+- Layout: `.viz-page` is a `100vh` flex column (canvas `flex:1`),
+  docked `VizInspector` (Scene/Tuning/Mixer/EQ/AI — Remix removed,
+  it lives at `/create/remix`), slim `VizTopbar`, stage chrome
+  auto-hides ~2.6 s into playback, `visualizer-chrome.css` restores
+  the component chrome lost in the `ee2714e` slim rewrite.
+- Track-load preset cascade fixed: lyrics fetch runs parallel to
+  analysis, kinetic preset resolves once (visual preset wins,
+  heuristic is fallback), preset apply pulses the mode-fade, mode
+  auto-switch delayed ~400 ms. Stems analysis is lazy (only when FX
+  stem layers or the Mixer tab need it).
+
+## Caching work same period (T-AUD-10)
+
+- `/api/audio/spectral-timeline`: disk cache under
+  `output/cache/spectral_timeline/` (mtime+size fingerprint) + decode/STFT
+  moved to `asyncio.to_thread` — was ~10 s inline per request.
+- `analyze_stems_for_visualization`: per-stem disk cache under
+  `<stem_dir>/.viz-feature-cache/` + four stems analyzed concurrently.
+- `_cache_set` is true LRU (position refresh on rewrite).
+- Frontend: `useSpectralTimeline` module cache + inflight dedup;
+  `useKeyPalette` caches only analysis-determined palettes.
 
 ```
 MediaElementSource → EQ → analyser → mainGain → destination

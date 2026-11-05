@@ -157,8 +157,9 @@ Native-Media-AI-Studio/
   - To hear a remix: `GET /api/audio/remix/{name}/file/{which}` where `which` is
     a stem name or `master`. Nothing else serves `output/remixes/`, and
     `/api/audio/file/...` resolves under `output/audio/`, so without this route
-    a rendered remix is silent. `RemixPanel.tsx` (Visualizer, under Stem Mixer)
-    is the UI.
+    a rendered remix is silent. `RemixPanel.tsx` (`features/remix/`, the
+    `/create/remix` page) is the UI — it moved out of the visualizer; the
+    visualizer reaches it via the `pendingTrack`/`pendingRemixOpen` handoff.
 
 ## Retrieval / embedding subsystem (`/api/retrieval`)
 
