@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { Server } from "@modelcontextprotocol/server";
-import { skills } from "@modelcontextprotocol/server/ext/skills";
+import { SkillsExtension } from "@modelcontextprotocol/server/ext/skills";
 import { loadSkills } from "@modelcontextprotocol/server/ext/skills/node";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -207,7 +207,7 @@ lifecycle.onCleanup(() => {
 // list, read, and verify before calling. Each SKILL.md maps to one or more
 // of the tools defined above.
 const skillCatalog = await loadSkills(path.join(__dirname, "skills"));
-skills.attach(server, skillCatalog);
+SkillsExtension.attach(server, skillCatalog);
 
 // ============================================================
 // TOOL DEFINITIONS
