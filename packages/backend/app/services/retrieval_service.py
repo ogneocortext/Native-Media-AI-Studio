@@ -418,11 +418,11 @@ class RetrievalIndex:
 
     async def vector_search(self, query: str, limit: int = TOP_K_CANDIDATES) -> list[tuple[str, float]]:
         """Return [(chunk_id, cosine_similarity)] ranked by vector similarity."""
-        q_emb = await embed_text(query, model=EMBED_MODEL)
+        q_emb = await embed_text(query, model=EMBED_MODEL, expected_dim=EMBED_DIM)
         if not q_emb:
             logger.warning(
-                "Vector search unavailable: embedding model %s returned no vector; "
-                "falling back to BM25-only results", EMBED_MODEL,
+                "Vector search unavailable: embedding model %s returned no vector "
+                "(or wrong dimension); falling back to BM25-only results", EMBED_MODEL,
             )
             return []
 
@@ -431,6 +431,12 @@ class RetrievalIndex:
         scored: list[tuple[str, float]] = []
         for cid, emb in self._embeddings.items():
             if not emb:
+                continue
+            if len(emb) != EMBED_DIM:
+                logger.warning(
+                    "Stored embedding for %s has %d dims, expected %d; skipping",
+                    cid, len(emb), EMBED_DIM,
+                )
                 continue
             d_norm = math.sqrt(sum(x * x for x in emb)) or 1.0
             dot = sum(a * b for a, b in zip(q_emb, emb, strict=True))

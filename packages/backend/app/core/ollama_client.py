@@ -341,6 +341,7 @@ async def embed_text(
     text: str,
     model: str | None = None,
     timeout: float = 30,
+    expected_dim: int | None = None,
 ) -> list[float] | None:
     """POST ``/api/embed`` for one text; returns the embedding or None.
 
@@ -351,6 +352,14 @@ async def embed_text(
 
     Warms up the chosen model on first use and falls back to the next model in
     the tuple if the primary is unavailable or the call fails.
+
+    Args:
+        text: Text to embed.
+        model: Explicit model name to use.
+        timeout: Request timeout in seconds.
+        expected_dim: If set, reject embeddings whose dimension doesn't match.
+            This prevents silently storing wrong-dimension vectors (e.g. a
+            512-dim fallback model's output into a 768-dim index).
     """
     if not (text or "").strip():
         return None
@@ -372,6 +381,13 @@ async def embed_text(
         await _embed_warmup(candidate)
         emb = await embed_text_raw(candidate, text, timeout=timeout)
         if emb is not None:
+            if expected_dim is not None and len(emb) != expected_dim:
+                last_error = f"{candidate} returned {len(emb)}-dim vector, expected {expected_dim}"
+                logger.warning(
+                    "Embedding dimension mismatch for %s: got %d, expected %d; trying next fallback",
+                    candidate, len(emb), expected_dim,
+                )
+                continue
             return emb
         last_error = f"{candidate} returned empty embedding"
         logger.warning("Embedding call for %s returned empty; trying next fallback", candidate)
@@ -384,6 +400,7 @@ async def embed_text_batch_concurrent(
     texts: list[str],
     model: str | None = None,
     timeout: float = 30,
+    expected_dim: int | None = None,
 ) -> list[list[float] | None]:
     """Embed multiple texts concurrently via /api/embed.
 
@@ -392,6 +409,13 @@ async def embed_text_batch_concurrent(
     large corpora roughly in proportion to concurrency. Results are returned in
     input order; a failed embedding yields ``None`` at that position (callers
     decide how to handle it).
+
+    Args:
+        texts: Texts to embed.
+        model: Explicit model name to use.
+        timeout: Request timeout in seconds.
+        expected_dim: If set, reject embeddings whose dimension doesn't match.
+            Prevents silently storing wrong-dimension vectors.
     """
     if not texts:
         return []
@@ -413,7 +437,14 @@ async def embed_text_batch_concurrent(
 
     async def _one(text: str) -> list[float] | None:
         async with semaphore:
-            return await embed_text_raw(resolved, text, timeout=timeout)
+            emb = await embed_text_raw(resolved, text, timeout=timeout)
+            if emb is not None and expected_dim is not None and len(emb) != expected_dim:
+                logger.warning(
+                    "Embedding dimension mismatch for %s: got %d, expected %d",
+                    resolved, len(emb), expected_dim,
+                )
+                return None
+            return emb
 
     return await asyncio.gather(*(_one(t) for t in texts))
 

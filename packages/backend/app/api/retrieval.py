@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from ..core.config import PROJECT_ROOT
 from ..core.ollama_client import embed_text_batch_concurrent, list_models
 from ..services.retrieval_service import (
+    EMBED_DIM,
     EMBED_MODEL,
     _split_text_into_chunks,
     get_index,
@@ -296,4 +297,4 @@ async def _embed_batch(texts: list[str], model: str) -> list[list[float] | None]
     one at a time. Results are returned in input order; a failed embedding
     yields ``None`` at that position.
     """
-    return await embed_text_batch_concurrent(texts, model=model)
+    return await embed_text_batch_concurrent(texts, model=model, expected_dim=EMBED_DIM)
