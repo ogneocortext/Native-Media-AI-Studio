@@ -312,3 +312,28 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** features/docs/DocsPage.tsx, components/DocViews.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors
   (pre-existing warnings only).
+
+### T-PLT-XX - Extract mountThreeScene from useThreeScene.ts (1133 -> 477 + 828)
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - useThreeScene.ts was one
+  ~640-line mount/render-loop effect inside a 1133-line hook, making the
+  file hard to navigate.
+- **What changed:**
+  - ``features/three-js-studio/hooks/mountThreeScene.ts`` (new) - the
+    scene init + animation loop moved verbatim into
+    ``mountThreeScene(ctx)``, a module-level function taking a typed
+    ``MountContext`` (60 ref/value fields destructured to identical
+    names, so the body needed zero rewrites). ``VIGNETTE_SHADER`` moved
+    with it (its only consumer).
+  - ``useThreeScene.ts`` keeps all refs, the prop-mirror sync effects,
+    dispose helpers, object/config/particle/bg-image sync effects and
+    the return object; the effect is now a thin ``mountThreeScene({...})``
+    call with the same ``[createMeshForObject]`` deps - identical
+    semantics (refs stay live; plain values are captured at effect-fire
+    time, same as the old closure).
+- **Files:** features/three-js-studio/hooks/useThreeScene.ts,
+  features/three-js-studio/hooks/mountThreeScene.ts (new)
+- **Acceptance:** tsc clean for touched files (only pre-existing
+  agent-chat WIP errors project-wide), eslint 0 errors (warnings are
+  the same `any`-typed three.js patterns, moved with the code),
+  three-js-studio vitest 92/92 pass.

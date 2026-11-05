@@ -1,0 +1,828 @@
+/**
+ * mountThreeScene.ts — the Three.js scene mount + render loop, extracted
+ * verbatim from useThreeScene.ts. Everything the loop touches arrives via
+ * MountContext (refs stay live; plain values are the props captured when the
+ * effect last fired — same semantics as the original closure).
+ */
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
+import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
+import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
+import {
+  beginCameraTransition,
+  computeModePose,
+  sampleCameraTransition,
+  type CameraTransitionState,
+} from "../services/cameraTransitions";
+import { beatPhraseScale } from "../services/beatPhrasing";
+import { SECTION_WIPE_SEC, type SectionMotionProfile } from "../services/sectionDriver";
+import { createSeededRandom } from "../services/videoExport";
+import type { SectionDriverHandle } from "./useTrackMetadata";
+import type React from "react";
+
+// Vignette that darkens towards black. three's stock VignetteShader mixes
+// towards `vec3(1 - darkness)`, so a strength below 1.0 washes dark pixels
+// (sky, floor) out to mid-grey instead of shading the frame — which is what
+// read as a washed-out gradient once the orbit moved those areas to the edges.
+const VIGNETTE_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null },
+    offset: { value: 1.0 },
+    darkness: { value: 1.0 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform float offset;
+    uniform float darkness;
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+      float shade = clamp(dot(uv, uv) * darkness * 4.0, 0.0, 1.0);
+      gl_FragColor = vec4(mix(texel.rgb, vec3(0.0), shade), texel.a);
+    }`,
+};
+
+export interface MountContext {
+  activeAudioDrivenRef: React.MutableRefObject<string | undefined>;
+  analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  animationRef: React.MutableRefObject<number>;
+  animationTimeRef: React.MutableRefObject<number>;
+  audioFreqArrayRef: React.MutableRefObject<Uint8Array | null>;
+  beatActiveRef: React.MutableRefObject<boolean>;
+  beatPhraseRef: React.MutableRefObject<boolean>;
+  beatSyncRef: React.MutableRefObject<boolean>;
+  bloomComposerRef: React.MutableRefObject<EffectComposer | null>;
+  bloomPassRef: React.MutableRefObject<UnrealBloomPass | null>;
+  bpmRef: React.MutableRefObject<number>;
+  caPassRef: React.MutableRefObject<ShaderPass | null>;
+  cameraModeRef: React.MutableRefObject<CameraMode>;
+  cameraRef: React.MutableRefObject<THREE.PerspectiveCamera | null>;
+  cameraTransitionRef: React.MutableRefObject<CameraTransitionState | null>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  characterMixersRef: React.MutableRefObject<Map<string, any>>;
+  clockRef: React.MutableRefObject<THREE.Timer | null>;
+  composerRef: React.MutableRefObject<EffectComposer | null>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  controlsRef: React.MutableRefObject<any>;
+  exportActiveRef: React.MutableRefObject<boolean>;
+  exportClockRef: React.MutableRefObject<{ active: boolean; t: number; dt: number }>;
+  finalComposerRef: React.MutableRefObject<EffectComposer | null>;
+  frameCountRef: React.MutableRefObject<number>;
+  frameRunnerRef: React.MutableRefObject<(() => void) | null>;
+  generatedSceneUpdateRef: React.RefObject<((time: number, delta: number) => void) | null>;
+  getCurrentBeatRef: React.MutableRefObject<(elapsed: number) => any>;
+  getPlayheadSecRef: React.MutableRefObject<(() => number | null) | undefined>;
+  grainPassRef: React.MutableRefObject<ShaderPass | null>;
+  initialParticlePositionsRef: React.MutableRefObject<Float32Array | null>;
+  isAudioPlayingRef: React.MutableRefObject<boolean>;
+  isPlayingRef: React.MutableRefObject<boolean>;
+  keyframeTracksRef: React.MutableRefObject<any[]>;
+  lastCameraModeRef: React.MutableRefObject<CameraMode>;
+  lastUiUpdateRef: React.MutableRefObject<number>;
+  objectsMapRef: React.MutableRefObject<Map<string, THREE.Object3D>>;
+  objectsRef: React.MutableRefObject<AnimObject[]>;
+  onSelectObjectRef: React.MutableRefObject<((id: string | null) => void) | undefined>;
+  particleConfigRef: React.MutableRefObject<ParticleConfig>;
+  particlesRef: React.MutableRefObject<THREE.Points | null>;
+  pointerHandlersRef: React.MutableRefObject<{ down: (event: PointerEvent) => void; up: (event: PointerEvent) => void } | null>;
+  renderAtTimeRef: React.MutableRefObject<(tSec: number, dtSec: number) => void>;
+  renderPlayingRef: React.MutableRefObject<boolean>;
+  rendererRef: React.MutableRefObject<THREE.WebGLRenderer | null>;
+  resetDeterministicRef: React.MutableRefObject<() => void>;
+  sceneConfigRef: React.MutableRefObject<SceneConfig>;
+  sceneRef: React.MutableRefObject<THREE.Scene | null>;
+  sectionCameraModeRef: React.MutableRefObject<CameraMode | null>;
+  sectionDriverRef: React.MutableRefObject<SectionDriverHandle | null>;
+  sectionLightsRef: React.MutableRefObject<{ light: THREE.Light; baseColor: THREE.Color }[] | null>;
+  shakeRef: React.MutableRefObject<number>;
+  threeRef: React.MutableRefObject<any>;
+  vignettePassRef: React.MutableRefObject<ShaderPass | null>;
+  createMeshForObject: (obj: AnimObject, THREE: any) => Promise<THREE.Object3D>;
+  disposeEntry: (id: string, root: THREE.Object3D) => void;
+  setSceneLoading: (v: boolean) => void;
+  setBeatActive: (v: boolean) => void;
+  onAnimationTimeChange: (time: number) => void;
+  animationDuration: number;
+
+}
+
+export function mountThreeScene(ctx: MountContext) {
+  const {
+    activeAudioDrivenRef,
+    analyserRef,
+    animationRef,
+    animationTimeRef,
+    audioFreqArrayRef,
+    beatActiveRef,
+    beatPhraseRef,
+    beatSyncRef,
+    bloomComposerRef,
+    bloomPassRef,
+    bpmRef,
+    caPassRef,
+    cameraModeRef,
+    cameraRef,
+    cameraTransitionRef,
+    canvasRef,
+    characterMixersRef,
+    clockRef,
+    composerRef,
+    containerRef,
+    controlsRef,
+    exportActiveRef,
+    exportClockRef,
+    finalComposerRef,
+    frameCountRef,
+    frameRunnerRef,
+    generatedSceneUpdateRef,
+    getCurrentBeatRef,
+    getPlayheadSecRef,
+    grainPassRef,
+    initialParticlePositionsRef,
+    isAudioPlayingRef,
+    isPlayingRef,
+    keyframeTracksRef,
+    lastCameraModeRef,
+    lastUiUpdateRef,
+    objectsMapRef,
+    objectsRef,
+    onSelectObjectRef,
+    particleConfigRef,
+    particlesRef,
+    pointerHandlersRef,
+    renderAtTimeRef,
+    renderPlayingRef,
+    rendererRef,
+    resetDeterministicRef,
+    sceneConfigRef,
+    sceneRef,
+    sectionCameraModeRef,
+    sectionDriverRef,
+    sectionLightsRef,
+    shakeRef,
+    threeRef,
+    vignettePassRef,
+    createMeshForObject,
+    disposeEntry,
+    setSceneLoading,
+    setBeatActive,
+    onAnimationTimeChange,
+    animationDuration,
+
+  } = ctx;
+
+      if (!canvasRef.current || !containerRef.current) return;
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      const onResize = () => {
+        if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
+        const w = containerRef.current.clientWidth,
+          h = containerRef.current.clientHeight;
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(w, h);
+        if (composerRef.current) composerRef.current.setSize(w, h);
+        if (bloomComposerRef.current) bloomComposerRef.current.setSize(w, h);
+        if (finalComposerRef.current) finalComposerRef.current.setSize(w, h);
+      };
+      const initScene = async () => {
+        threeRef.current = THREE;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(sceneConfigRef.current.backgroundColor);
+        scene.fog = new THREE.FogExp2(
+          sceneConfigRef.current.fogColor,
+          sceneConfigRef.current.fogDensity,
+        );
+        sceneRef.current = scene;
+        const camera = new THREE.PerspectiveCamera(
+          50,
+          container.clientWidth / container.clientHeight,
+          0.1,
+          1000,
+        );
+        camera.position.set(0, 3, 8);
+        camera.lookAt(0, 0.5, 0);
+        cameraRef.current = camera;
+        (window as any).__camera = camera;
+        const renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias: true,
+          alpha: true,
+          preserveDrawingBuffer: false,
+          powerPreference: "high-performance",
+          stencil: false,
+          depth: true,
+        });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        (renderer as unknown as { shadowMap: { autoUpdate: boolean } }).shadowMap.autoUpdate = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        rendererRef.current = renderer;
+        (window as any).__renderer = renderer;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.minDistance = 2;
+        controls.maxDistance = 20;
+        controls.enablePan = false;
+        controlsRef.current = controls;
+        // F1: user drag/orbit input cancels an in-flight
+        // camera blend immediately — the blend is a
+        // convenience, never a fight with the user.
+        controls.addEventListener("start", () => {
+          cameraTransitionRef.current = null;
+        });
+
+        // Click-to-select: raycast against scene objects on a stationary click
+        // (a drag is an orbit, so anything past the movement threshold is ignored).
+        const raycaster = new THREE.Raycaster();
+        const ndc = new THREE.Vector2();
+        let downX = 0;
+        let downY = 0;
+        const handlePointerDown = (event: PointerEvent) => {
+          downX = event.clientX;
+          downY = event.clientY;
+        };
+        const handlePointerUp = (event: PointerEvent) => {
+          if (Math.hypot(event.clientX - downX, event.clientY - downY) > 5) return;
+          const rect = canvas.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+          ndc.set(
+            ((event.clientX - rect.left) / rect.width) * 2 - 1,
+            -((event.clientY - rect.top) / rect.height) * 2 + 1,
+          );
+          raycaster.setFromCamera(ndc, camera);
+          const targets = Array.from(objectsMapRef.current.values()).filter((o) => o.visible);
+          const hits = raycaster.intersectObjects(targets, true);
+          if (!hits.length) {
+            onSelectObjectRef.current?.(null);
+            return;
+          }
+          let node: THREE.Object3D | null = hits[0].object;
+          while (node) {
+            for (const [id, root] of objectsMapRef.current) {
+              if (root === node) {
+                onSelectObjectRef.current?.(id);
+                return;
+              }
+            }
+            node = node.parent;
+          }
+        };
+        canvas.addEventListener("pointerdown", handlePointerDown);
+        canvas.addEventListener("pointerup", handlePointerUp);
+        pointerHandlersRef.current = {
+          down: handlePointerDown,
+          up: handlePointerUp,
+        };
+
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(
+          new THREE.Vector2(container.clientWidth, container.clientHeight),
+          sceneConfigRef.current.bloomStrength,
+          0.35,
+          0.9,
+        );
+        bloomPassRef.current = bloomPass;
+        const finalComposer = new EffectComposer(renderer);
+        finalComposer.addPass(renderScene);
+        if (sceneConfigRef.current.selectiveBloom) finalComposer.addPass(bloomPass);
+        const caPass = new ShaderPass(RGBShiftShader);
+        caPass.uniforms.amount.value = sceneConfigRef.current.chromaticAberration;
+        if (caPass.uniforms.amount.value > 0.0005) finalComposer.addPass(caPass);
+        caPassRef.current = caPass;
+        const grainPass = new ShaderPass(FilmShader);
+        grainPass.uniforms.intensity.value = sceneConfigRef.current.filmGrain;
+        grainPass.uniforms.grayscale.value = false;
+        if (grainPass.uniforms.intensity.value > 0.01) finalComposer.addPass(grainPass);
+        grainPassRef.current = grainPass;
+        const vignettePass = new ShaderPass(VIGNETTE_SHADER);
+        vignettePass.uniforms.offset.value = sceneConfigRef.current.vignetteRadius;
+        vignettePass.uniforms.darkness.value = sceneConfigRef.current.vignetteStrength;
+        if (vignettePass.uniforms.darkness.value > 0.05) finalComposer.addPass(vignettePass);
+        vignettePassRef.current = vignettePass;
+        finalComposer.addPass(new OutputPass());
+        bloomComposerRef.current = null;
+        composerRef.current = finalComposer;
+        finalComposerRef.current = finalComposer;
+
+        scene.add(new THREE.AmbientLight(0x404060, 0.55));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(5, 8, 5);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.set(1024, 1024);
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 25;
+        (dirLight.shadow as unknown as { bias: number }).bias = -0.0005;
+        scene.add(dirLight);
+        const spotLight = new THREE.SpotLight(0x8b5cf6, 18);
+        spotLight.position.set(0, 10, 0);
+        spotLight.angle = 0.42;
+        spotLight.penumbra = 0.6;
+        spotLight.castShadow = true;
+        spotLight.shadow.mapSize.set(512, 512);
+        scene.add(spotLight);
+        const p1 = new THREE.PointLight(0xff6b9d, 8, 10);
+        p1.position.set(-4, 3, 3);
+        scene.add(p1);
+        const p2 = new THREE.PointLight(0x6b9dff, 8, 10);
+        p2.position.set(4, 2, -3);
+        scene.add(p2);
+        // F2: capture the lights' authored colors so a section's palette
+        // shift hue-rotates against the base instead of accumulating.
+        sectionLightsRef.current = scene.children
+          .filter((c): c is THREE.Light => (c as THREE.Light).isLight === true)
+          .map((light) => ({ light, baseColor: light.color.clone() }));
+        const floor = new THREE.Mesh(
+          new THREE.PlaneGeometry(50, 50),
+          new THREE.MeshStandardMaterial({
+            color: 0x080808,
+            metalness: 0.9,
+            roughness: 0.1,
+          }),
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.5;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        const grid = new THREE.GridHelper(20, 20, 0x333344, 0x181822);
+        grid.position.y = -0.49;
+        scene.add(grid);
+        const pGeo = new THREE.BufferGeometry();
+        const pArr = new Float32Array(particleConfigRef.current.count * 3);
+        for (let i = 0; i < particleConfigRef.current.count * 3; i += 3) {
+          pArr[i] = (Math.random() - 0.5) * particleConfigRef.current.spread * 2;
+          pArr[i + 1] = Math.random() * particleConfigRef.current.spread;
+          pArr[i + 2] = (Math.random() - 0.5) * particleConfigRef.current.spread * 2;
+        }
+        pGeo.setAttribute("position", new THREE.BufferAttribute(pArr, 3));
+        const particles = new THREE.Points(
+          pGeo,
+          new THREE.PointsMaterial({
+            color: particleConfigRef.current.color,
+            size: particleConfigRef.current.size,
+            transparent: true,
+            opacity: particleConfigRef.current.opacity,
+            blending: THREE.AdditiveBlending,
+          }),
+        );
+        scene.add(particles);
+        particlesRef.current = particles;
+        // F5: snapshot the authored layout so a deterministic export can
+        // start from a known state rather than wherever live drift left
+        // the particles.
+        initialParticlePositionsRef.current = new Float32Array(pArr);
+        for (const obj of objectsRef.current) {
+          const mesh = await createMeshForObject(obj, THREE);
+          scene.add(mesh);
+          objectsMapRef.current.set(obj.id, mesh);
+        }
+        clockRef.current = new THREE.Timer();
+        clockRef.current.connect(document);
+
+        // F5: seeded PRNG for export frames. The handheld walk and the
+        // beat shake draw randomness per frame, so two exports of the
+        // same scene would differ frame-for-frame without this. Live
+        // frames keep Math.random; export frames advance a fixed seed
+        // (reset by `resetDeterministicRef`).
+        let exportRandom = createSeededRandom();
+        const nextRandom = () =>
+          exportActiveRef.current ? exportRandom() : Math.random();
+        // The frame body, shared by the live rAF driver and the export
+        // path's `renderAtTime`. When the export clock is active the
+        // body takes delta/elapsed from the driver, so a frame's
+        // content is a pure function of its index — never the wall
+        // clock.
+        const runFrame = () => {
+          const clock = clockRef.current;
+          if (!clock) return;
+          const ec = exportClockRef.current;
+          let delta: number;
+          let elapsed: number;
+          if (ec.active) {
+            delta = ec.dt;
+            elapsed = ec.t;
+          } else {
+            clock.update();
+            delta = clock.getDelta();
+            elapsed = clock.getElapsed();
+          }
+          controls.update();
+          // Live frames skip motion while the tab is hidden; an export
+          // frame must always render (and the export loop never waits
+          // on rAF, so backgrounding drops nothing).
+          if (document.hidden && !ec.active) {
+            controls.update();
+            (finalComposerRef.current ?? composerRef.current)?.render();
+            return;
+          }
+          let audioBass = 0,
+            audioTreble = 0,
+            audioMid = 0;
+          if (analyserRef.current && isAudioPlayingRef.current) {
+            if (
+              audioFreqArrayRef.current?.length !== analyserRef.current.frequencyBinCount
+            )
+              audioFreqArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
+            analyserRef.current.getByteFrequencyData(
+              audioFreqArrayRef.current as Uint8Array<ArrayBuffer>,
+            );
+            const arr = audioFreqArrayRef.current;
+            const bassBins = Math.floor(arr.length * 0.08);
+            let sum = 0;
+            for (let i = 0; i < bassBins; i++) sum += arr[i];
+            audioBass = sum / (bassBins * 255 || 1);
+            const midBins = Math.floor(arr.length * 0.2);
+            sum = 0;
+            for (let i = bassBins; i < midBins; i++) sum += arr[i];
+            audioMid = sum / ((midBins - bassBins) * 255 || 1);
+            const trebleBins = Math.floor(arr.length * 0.4);
+            sum = 0;
+            for (let i = trebleBins; i < arr.length; i++) sum += arr[i];
+            audioTreble = sum / ((arr.length - trebleBins) * 255 || 1);
+          }
+          const beatState = getCurrentBeatRef.current(elapsed);
+          // F2: advance the section-aware motion driver on the audio
+          // playhead. A boundary cuts (snare/downbeat, no blend) or wipes
+          // (0.9 s settle-soft) per the transitions guideline; the
+          // profile scales beatPunch, particles and light palette while
+          // the section lasts.
+          let sectionProfile: SectionMotionProfile | null = null;
+          const sectionDriver = sectionDriverRef.current;
+          const playhead = getPlayheadSecRef.current?.() ?? null;
+          if (sectionDriver && playhead !== null && Number.isFinite(playhead)) {
+            const sec = sectionDriver.step(playhead);
+            sectionProfile = sec.profile;
+            if (sec.boundary) {
+              sectionCameraModeRef.current = sec.profile.cameraMode;
+              // Claim the mode change so F1's 600 ms blend does not
+              // double-fire over the section's own transition.
+              lastCameraModeRef.current = sec.profile.cameraMode;
+              if (sec.boundary === "cut") {
+                cameraTransitionRef.current = null;
+              } else {
+                cameraTransitionRef.current = beginCameraTransition(
+                  {
+                    position: [camera.position.x, camera.position.y, camera.position.z],
+                    target: [0, 0.5, 0],
+                  },
+                  elapsed,
+                  SECTION_WIPE_SEC,
+                  "settle-soft",
+                );
+              }
+              const lights = sectionLightsRef.current;
+              if (lights && sec.profile.paletteShift !== 0) {
+                const hueDelta = sec.profile.paletteShift / 360;
+                for (const { light, baseColor } of lights) {
+                  light.color.copy(baseColor).offsetHSL(hueDelta, 0, 0);
+                }
+              }
+            } else if (sec.index < 0) {
+              sectionCameraModeRef.current = null;
+            } else if (sectionCameraModeRef.current !== sec.profile.cameraMode) {
+              // Track switch or late-arriving metadata: the section now
+              // under the playhead asks for a different mode than the
+              // one applied. Keep the override in sync; F1's blend covers
+              // the change — a mode switch, not a musical boundary, so
+              // the cut/wipe rules do not apply.
+              sectionCameraModeRef.current = sec.profile.cameraMode;
+            }
+          } else if (sectionCameraModeRef.current !== null) {
+            sectionCameraModeRef.current = null;
+          }
+          const beatPunchAmp =
+            sceneConfigRef.current.beatPunch *
+            (sectionProfile ? sectionProfile.beatPunchScale : 1);
+          let beatSpike = 0;
+          let newBeatActive = false;
+          if (renderPlayingRef.current && beatState.ready && beatState.isOnBeat) {
+            beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
+            if (beatState.timeSinceLastBeat < 0.016) {
+              shakeRef.current = Math.min(shakeRef.current + beatPunchAmp * 0.3, 0.15);
+              newBeatActive = true;
+            }
+          }
+          if (newBeatActive !== beatActiveRef.current) {
+            beatActiveRef.current = newBeatActive;
+            setBeatActive(newBeatActive);
+          }
+          shakeRef.current *= 0.75;
+          const isPlay = isPlayingRef.current;
+          const audioDrivenMode = activeAudioDrivenRef.current;
+          objectsRef.current.forEach((obj: any) => {
+            const mesh = objectsMapRef.current.get(obj.id);
+            if (mesh && obj.visible) {
+              if (isPlay) {
+                mesh.rotation.y += delta * (obj.rotateSpeed + audioTreble * 2);
+                mesh.position.y = obj.position[1] + Math.sin(elapsed * obj.bobSpeed) * obj.bobAmount;
+              }
+              let pulse = 1;
+              if (isPlay && beatState.ready && beatPhraseRef.current) {
+                // F4: anticipation → pop → hold on the beat
+                // grid, replacing the decaying punch spike
+                // when the active template opts in.
+                pulse = beatPhraseScale({
+                  timeSinceLastBeat: beatState.timeSinceLastBeat,
+                  beatWindowSec: beatState.beatWindowSec,
+                  amplitude: beatPunchAmp,
+                }).scale;
+              } else if (isPlay && beatState.ready && beatSpike > 0)
+                pulse = 1 + beatSpike;
+              else if (isPlay && beatSyncRef.current) {
+                const bi = 60 / bpmRef.current;
+                pulse =
+                  (1 + Math.sin(((elapsed % bi) / bi) * Math.PI * 2) * 0.08) * (1 + audioBass * 0.35);
+              } else if (isPlay && audioBass > 0) pulse = 1 + audioBass * 0.3;
+              if (isPlay && audioDrivenMode === "bars" && obj.type === "bars") {
+                const barIdx = parseInt(obj.id.replace("bar-", "")) || 0;
+                const freqSlice = Math.floor((barIdx / 32) * 256);
+                const freqVal = audioFreqArrayRef.current
+                  ? (audioFreqArrayRef.current[freqSlice] || 0) / 255
+                  : audioMid;
+                const barPulse = 1 + freqVal * 3;
+                const s = obj.scale;
+                mesh.scale.set(s[0] * barPulse, s[1], s[2]);
+              } else if (isPlay && audioDrivenMode === "pillars" && obj.type === "box") {
+                const pillarPulse = 1 + audioBass * 1.5;
+                const s = obj.scale;
+                mesh.scale.set(s[0], s[1] * pillarPulse, s[2]);
+              } else {
+                const s = obj.scale;
+                mesh.scale.set(s[0] * pulse, s[1] * pulse, s[2] * pulse);
+              }
+            }
+          });
+          if (isPlay) {
+            characterMixersRef.current.forEach((mixer: any) => {
+              mixer.update(delta);
+            });
+          }
+          frameCountRef.current++;
+          if (
+            particlesRef.current &&
+            particleConfigRef.current.enabled &&
+            isPlay &&
+            frameCountRef.current % 2 === 0
+          ) {
+            const pos = particlesRef.current.geometry.attributes.position.array as Float32Array;
+            // F2: the active section scales particle intensity (the §3
+            // map's energy column); 1 when no section drives.
+            const spd =
+              particleConfigRef.current.speed *
+              (sectionProfile ? sectionProfile.particleScale : 1) *
+              (1 + audioBass * 1.5);
+            for (let i = 1; i < pos.length; i += 3) {
+              pos[i] += delta * spd * 0.8;
+              if (pos[i] > particleConfigRef.current.spread) pos[i] = nextRandom() * 0.5;
+            }
+            (particlesRef.current.geometry.attributes.position as THREE.BufferAttribute).needsUpdate =
+              true;
+            particlesRef.current.rotation.y += delta * 0.03;
+          } else if (particlesRef.current && isPlay) {
+            particlesRef.current.rotation.y += delta * 0.02;
+          }
+          // F2: a section's camera mode overrides the template's while
+          // that section is active.
+          const cm = sectionCameraModeRef.current ?? cameraModeRef.current;
+          const ir = renderPlayingRef.current;
+          const sx = (nextRandom() - 0.5) * shakeRef.current;
+          const sy = (nextRandom() - 0.5) * shakeRef.current;
+          if (ir && cm !== "static") {
+            // F1: a mode switch begins an eased blend from
+            // the live pose onto the new mode's trajectory
+            // (~600 ms, travel-balanced) instead of a hard
+            // cut. The from-pose is captured before this
+            // frame's walk/shake so the blend starts where
+            // the camera actually is.
+            if (cm !== lastCameraModeRef.current) {
+              cameraTransitionRef.current = beginCameraTransition(
+                {
+                  position: [
+                    camera.position.x,
+                    camera.position.y,
+                    camera.position.z,
+                  ],
+                  target: [0, 0.5, 0],
+                },
+                elapsed,
+              );
+              lastCameraModeRef.current = cm;
+            }
+            // Handheld is a free walk: it accumulates on
+            // the live position before the pose is sampled,
+            // so the walk persists across blends.
+            if (cm === "handheld") {
+              camera.position.x += (nextRandom() - 0.5) * 0.02;
+              camera.position.y += (nextRandom() - 0.5) * 0.02;
+            }
+            const targetPose = computeModePose({
+              mode: cm,
+              elapsedSec: elapsed,
+              currentPosition: [
+                camera.position.x,
+                camera.position.y,
+                camera.position.z,
+              ],
+              shakeX: sx,
+              shakeY: sy,
+            });
+            const pending = cameraTransitionRef.current;
+            const blended = pending
+              ? sampleCameraTransition(pending, elapsed, targetPose)
+              : null;
+            if (blended) {
+              camera.position.set(
+                blended.position[0],
+                blended.position[1],
+                blended.position[2],
+              );
+              camera.lookAt(
+                blended.target[0],
+                blended.target[1],
+                blended.target[2],
+              );
+            } else {
+              if (pending) cameraTransitionRef.current = null;
+              camera.position.set(
+                targetPose.position[0],
+                targetPose.position[1],
+                targetPose.position[2],
+              );
+              camera.lookAt(
+                targetPose.target[0],
+                targetPose.target[1],
+                targetPose.target[2],
+              );
+            }
+          }
+          if (finalComposerRef.current) {
+            finalComposerRef.current.render();
+          } else if (composerRef.current) {
+            composerRef.current.render();
+          }
+
+          if (renderPlayingRef.current) {
+            const nextTime = animationTimeRef.current + delta;
+            animationTimeRef.current = nextTime >= animationDuration ? 0 : nextTime;
+            const now = performance.now();
+            if (now - lastUiUpdateRef.current > 100) {
+              lastUiUpdateRef.current = now;
+              onAnimationTimeChange(animationTimeRef.current);
+            }
+          }
+
+          if (generatedSceneUpdateRef.current) {
+            if (renderPlayingRef.current) {
+              generatedSceneUpdateRef.current(animationTimeRef.current, delta);
+            }
+          }
+
+          if (keyframeTracksRef.current.length > 0 && renderPlayingRef.current) {
+            keyframeTracksRef.current.forEach((track: any) => {
+              const mesh = objectsMapRef.current.get(track.target);
+              if (!mesh) return;
+              const time = animationTimeRef.current;
+              const kfs = track.keyframes ?? [];
+              if (kfs.length < 2) return;
+              let prevKf = kfs[0];
+              let nextKf = kfs[kfs.length - 1];
+              for (let i = 0; i < kfs.length - 1; i++) {
+                if (time >= kfs[i].time && time <= kfs[i + 1].time) {
+                  prevKf = kfs[i];
+                  nextKf = kfs[i + 1];
+                  break;
+                }
+              }
+              if (prevKf !== nextKf) {
+                const duration = nextKf.time - prevKf.time;
+                const t = duration > 0 ? (time - prevKf.time) / duration : 0;
+                if (prevKf.position && nextKf.position) {
+                  mesh.position.set(
+                    prevKf.position[0] + (nextKf.position[0] - prevKf.position[0]) * t,
+                    prevKf.position[1] + (nextKf.position[1] - prevKf.position[1]) * t,
+                    prevKf.position[2] + (nextKf.position[2] - prevKf.position[2]) * t,
+                  );
+                }
+                if (prevKf.rotation && nextKf.rotation) {
+                  mesh.rotation.set(
+                    prevKf.rotation[0] + (nextKf.rotation[0] - prevKf.rotation[0]) * t,
+                    prevKf.rotation[1] + (nextKf.rotation[1] - prevKf.rotation[1]) * t,
+                    prevKf.rotation[2] + (nextKf.rotation[2] - prevKf.rotation[2]) * t,
+                  );
+                }
+                if (prevKf.scale && nextKf.scale) {
+                  mesh.scale.set(
+                    prevKf.scale[0] + (nextKf.scale[0] - prevKf.scale[0]) * t,
+                    prevKf.scale[1] + (nextKf.scale[1] - prevKf.scale[1]) * t,
+                    prevKf.scale[2] + (nextKf.scale[2] - prevKf.scale[2]) * t,
+                  );
+                }
+              }
+            });
+          }
+        };
+
+        // F5: expose the frame body to the export driver, the reset that
+        // makes an export a pure function of its frame indices, and the
+        // live rAF driver that quiesces for the whole export.
+        frameRunnerRef.current = runFrame;
+        renderAtTimeRef.current = (tSec: number, dtSec: number) => {
+          const ec = exportClockRef.current;
+          ec.active = true;
+          ec.t = tSec;
+          ec.dt = dtSec;
+          try {
+            runFrame();
+          } finally {
+            ec.active = false;
+          }
+        };
+        resetDeterministicRef.current = () => {
+          exportRandom = createSeededRandom();
+          // The particle update runs on every other frame; resetting the
+          // counter pins that parity so the same frames animate in every
+          // run regardless of how long the scene ran live beforehand.
+          frameCountRef.current = 0;
+          shakeRef.current = 0;
+          cameraTransitionRef.current = null;
+          sectionCameraModeRef.current = null;
+          if (sectionLightsRef.current) {
+            for (const { light, baseColor } of sectionLightsRef.current) {
+              light.color.copy(baseColor);
+            }
+          }
+          characterMixersRef.current.forEach((mixer: any) => {
+            try {
+              mixer.setTime?.(0);
+            } catch {
+              /* a mixer without a loaded clip is fine to leave alone */
+            }
+          });
+          const particles = particlesRef.current;
+          const pos = particles?.geometry.attributes.position.array as
+            | Float32Array
+            | undefined;
+          const init = initialParticlePositionsRef.current;
+          if (particles && pos && pos.length === init?.length) {
+            pos.set(init);
+            (particles.geometry.attributes.position as THREE.BufferAttribute).needsUpdate =
+              true;
+          }
+        };
+
+        const animate = () => {
+          animationRef.current = requestAnimationFrame(animate);
+          // F5: while an export is running, live frames must not run at
+          // all — the frame counter, shake and camera drift all advance
+          // with them, so an interleaved live frame changes what the next
+          // captured frame contains.
+          if (exportActiveRef.current) return;
+          runFrame();
+        };
+        animate();
+        window.addEventListener("resize", onResize);
+        setSceneLoading(false);
+      };
+      void initScene();
+      return () => {
+        cancelAnimationFrame(animationRef.current);
+        window.removeEventListener("resize", onResize);
+        const pointerHandlers = pointerHandlersRef.current;
+        if (pointerHandlers) {
+          canvas.removeEventListener("pointerdown", pointerHandlers.down);
+          canvas.removeEventListener("pointerup", pointerHandlers.up);
+          pointerHandlersRef.current = null;
+        }
+        controlsRef.current?.dispose?.();
+        objectsMapRef.current.forEach((mesh, id) => disposeEntry(id, mesh));
+        objectsMapRef.current.clear();
+        characterMixersRef.current.clear();
+        finalComposerRef.current?.dispose();
+        composerRef.current?.dispose();
+        bloomComposerRef.current?.dispose();
+        clockRef.current?.dispose();
+        rendererRef.current?.dispose();
+        sceneRef.current = null;
+        delete (window as any).__camera;
+        delete (window as any).__renderer;
+      };
+}
