@@ -328,3 +328,33 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Files:** `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx`, `warpPresets.ts`
 - **Plan:** Add a preset picker (the six ids from warpPresets.ts) plus an "Auto (cycle on sections)" option, defaulting to Auto so current behaviour is unchanged. Pinning sets warpPresetIdRef and suspends the section-boundary cycling while pinned. Follow the existing feedback-control state pattern in the same file (feedbackEnabled/Zoom/Rotation/Decay).
 - **Acceptance:** with a preset pinned, section boundaries no longer change the active preset (verify across two boundaries); switching back to Auto resumes cycling at the next boundary; control state survives a shader-preset change in the same session.
+
+### T-VIZ-26 - Live QA pass: canvas2d render crash, audio-ctx lifecycle, dead controls
+- **Status:** done
+- **Goal:** Fix confirmed live-page defects on /render/visualizer found during
+  browser QA: every canvas2d mode threw `modeCtx.nowMs is not a function`
+  per frame (registry is empty, fallback passed the raw 2D ctx where a
+  BarModeContext was expected and a per-frame state literal), the shared
+  AudioContext was closed on unmount but never recreated on remount
+  (dead graph + "context is closed" warnings), RemixPanel fired ~76 stem
+  probes on mount while collapsed, ReactivityHUD controls looked live in
+  non-shader modes but only the shader consumes them, the Frame Rate card
+  showed stale/fake metrics outside 3D and had dead Reset/Monitoring buttons,
+  and AudioLatencyCard read a non-reactive ref so it stuck on "not
+  initialized" whenever the parent stopped re-rendering.
+- **Files:** packages/frontend/src/features/visualizer/Canvas2DVisualizer.tsx,
+  useAudioGraph.ts, components/ReactivityHUD.tsx, Visualizer.tsx,
+  features/remix/RemixPanel.tsx, services/api/remix.ts (POST probe),
+  state/audioLibraryStore.ts (+test), useMCPContextSync.ts,
+  components/AudioLatencyCard.tsx, components/FrameRateCard.tsx,
+  tools/mcp/vision-mcp.mjs (send think:false - gemma4 burned num_predict on
+  reasoning and returned empty content)
+- **Acceptance:** all 6 canvas2d modes render with zero console errors during
+  playback (Playwright verified, bars confirmed via pixel probe + local
+  vision model); audio plays end-to-end with latency card showing real
+  metrics in every mode; probe requests only fire when the Remix panel is
+  open; shader-only HUD controls render disabled outside shader mode;
+  Frame Rate card only appears in 3D where the probe actually runs;
+  tsc + eslint (0 errors) + vitest 112 + playwright canvas2d/lrc 4/4 pass.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - live QA via
+  playwright-mcp + local gemma4 vision model; all fixes verified in-browser.

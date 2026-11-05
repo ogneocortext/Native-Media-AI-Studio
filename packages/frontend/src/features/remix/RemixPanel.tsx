@@ -223,27 +223,36 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   }, []);
 
   useEffect(() => {
-    if (!sourcesLoaded || tracks.length === 0) return;
+    // The panel renders collapsed by default — don't fire ~76 stem probes
+    // (each may run ffprobe/audio analysis server-side) until it is opened.
+    // Batches keep the burst bounded when it does open.
+    if (!open || !sourcesLoaded || tracks.length === 0) return;
     let live = true;
-    void Promise.all(
-      tracks.map(async (t) =>
-        probeRemixTrack(t)
-          .then((p) => [t, p.duration_sec, p.first_audible_sec, p.bpm] as const)
-          .catch(() => [t, 0, 0, 0] as const),
-      ),
-    ).then((rows) => {
+    const rows: (readonly [string, number, number, number])[] = [];
+    void (async () => {
+      for (let i = 0; i < tracks.length; i += 6) {
+        if (!live) return;
+        const batch = await Promise.all(
+          tracks.slice(i, i + 6).map(async (t) =>
+            probeRemixTrack(t)
+              .then((p) => [t, p.duration_sec, p.first_audible_sec, p.bpm] as const)
+              .catch(() => [t, 0, 0, 0] as const),
+          ),
+        );
+        rows.push(...batch);
+      }
       if (!live) return;
       setDurations(Object.fromEntries(rows.map(([t, d]) => [t, d])));
       setFirstAudible(Object.fromEntries(rows.map(([t, , f]) => [t, f])));
       setProbeBpm(Object.fromEntries(rows.map(([t, , , b]) => [t, b])));
-    });
+    })();
     return () => {
       live = false;
     };
-  }, [sourcesLoaded, tracks]);
+  }, [open, sourcesLoaded, tracks]);
 
   useEffect(() => {
-    if (!sourcesLoaded || seededRef.current || sources.length === 0) return;
+    if (!open || !sourcesLoaded || seededRef.current || sources.length === 0) return;
     seededRef.current = true;
     const wanted = matchSource(currentTrack, tracks) ?? tracks[0];
     setPrimaryTrack(wanted);
@@ -262,7 +271,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
         layers: STEM_NAMES.filter((n) => stemsFor(wanted).includes(n)).map((n) => newLayer(wanted, n)),
       },
     ]);
-  }, [sourcesLoaded, tracks, currentTrack, stemsFor]);
+  }, [open, sourcesLoaded, tracks, currentTrack, stemsFor]);
 
   useEffect(() => {
     listRemixes().then(setRemixes).catch(() => { void 0; });

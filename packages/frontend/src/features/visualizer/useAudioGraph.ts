@@ -56,27 +56,9 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
   const audioClockRef = useRef(createAudioClock());
 
   const ensureAudioContext = useCallback(async () => {
-    if (!audioCtxRef.current) {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
-        renderSizeHint: "hardware",
-      } as any);
-      audioCtxRef.current = ctx;
-      latencyRef.current = estimateOutputLatency(ctx);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      // Light analyser smoothing (was 0.8, which trailed onsets ~100 ms+);
-      // punch/decay shaping lives in our own attack/release stage instead.
-      analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
-      analyserRef.current = analyser;
-      const mainGain = ctx.createGain();
-      mainGainRef.current = mainGain;
-      const eq = createEQ(ctx, []);
-      eqRef.current = eq;
-      // Graph: source → eq → analyser → mainGain → destination
-      eq.output.connect(analyser);
-      analyser.connect(mainGain);
-      mainGain.connect(ctx.destination);
-    } else {
+    // A closed context is dead weight: nodes can't be built on it and resume()
+    // rejects. Recreate the whole graph rather than reuse the corpse.
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
       latencyRef.current = estimateOutputLatency(audioCtxRef.current);
       if (audioCtxRef.current.state === "suspended") {
         try {
@@ -85,7 +67,37 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
           /* ignore */
         }
       }
+      return;
     }
+    if (audioCtxRef.current) {
+      // Previous context was closed (unmount cleanup, HMR, StrictMode). Its
+      // nodes are unusable — drop every reference before rebuilding.
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+      mainGainRef.current = null;
+      eqRef.current = null;
+      sourceRef.current = null;
+      connectedElements.current = new WeakSet();
+    }
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
+      renderSizeHint: "hardware",
+    } as any);
+    audioCtxRef.current = ctx;
+    latencyRef.current = estimateOutputLatency(ctx);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    // Light analyser smoothing (was 0.8, which trailed onsets ~100 ms+);
+    // punch/decay shaping lives in our own attack/release stage instead.
+    analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
+    analyserRef.current = analyser;
+    const mainGain = ctx.createGain();
+    mainGainRef.current = mainGain;
+    const eq = createEQ(ctx, []);
+    eqRef.current = eq;
+    // Graph: source → eq → analyser → mainGain → destination
+    eq.output.connect(analyser);
+    analyser.connect(mainGain);
+    mainGain.connect(ctx.destination);
   }, []);
 
   const setupAudio = useCallback(
@@ -161,10 +173,18 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
     }
   }, []);
 
-  // Close the shared context on unmount.
+  // Close the shared context on unmount. Null every ref too — otherwise a
+  // remount (StrictMode, HMR, route revisit) would find a closed context in
+  // audioCtxRef and try to build nodes on it.
   useEffect(() => {
     return () => {
-      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => { void 0; });
+      const ctx = audioCtxRef.current;
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+      mainGainRef.current = null;
+      eqRef.current = null;
+      sourceRef.current = null;
+      if (ctx) ctx.close().catch(() => { void 0; });
     };
   }, []);
 

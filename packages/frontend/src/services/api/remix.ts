@@ -195,9 +195,10 @@ export async function getRemixSources(): Promise<RemixSource[]> {
 }
 
 export async function probeRemixTrack(track: string): Promise<RemixProbe> {
+  // Backend route is POST /api/audio/remix/probe?track=… — a GET returns 405.
   const res = await fetchWithTimeout(
     `${getApiBase()}/api/audio/remix/probe?track=${encodeURIComponent(track)}`,
-    { timeout: 120000 },
+    { method: "POST", timeout: 120000 },
   );
   return unwrap<RemixProbe>(res, `Failed to probe ${track}`);
 }

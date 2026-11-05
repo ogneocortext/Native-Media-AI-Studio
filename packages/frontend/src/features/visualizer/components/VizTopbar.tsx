@@ -30,6 +30,9 @@ interface VizTopbarProps {
   onEnhanceWithAI: () => void;
   aiEnhancing: boolean;
   loadedPreset: { name?: string } | null;
+  /** Library fetch state — drives the empty-option label. */
+  libraryLoading?: boolean;
+  libraryError?: string | null;
 }
 
 export function VizTopbar({
@@ -49,6 +52,8 @@ export function VizTopbar({
   onEnhanceWithAI,
   aiEnhancing,
   loadedPreset,
+  libraryLoading = false,
+  libraryError = null,
 }: VizTopbarProps) {
   const preset =
     activeVisualPresetId && visualPresets[activeVisualPresetId]
@@ -73,7 +78,11 @@ export function VizTopbar({
           className="viz-track-select"
         >
           <option value="" disabled>
-            Select a track…
+            {libraryLoading
+              ? "Loading tracks…"
+              : libraryError
+                ? "Track library unavailable"
+                : "Select a track…"}
           </option>
           {libraryFiles.map((f) => {
             const ref = audioRefForFile(f);

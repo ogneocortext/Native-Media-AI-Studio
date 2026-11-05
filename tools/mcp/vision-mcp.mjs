@@ -166,7 +166,10 @@ async function callOllamaChat(
         tools: tools.length > 0 ? tools : undefined,
         stream: false,
         keep_alive: "5m",
-        ...(think ? { think: true } : {}),
+        // Always send think explicitly: thinking-capable models (gemma4) burn
+        // the entire num_predict budget on reasoning and return empty content
+        // when the field is omitted.
+        think,
         options: {
           // minicpm-v (the only model that wanted 32k ctx / temp 0) was pruned
           // 2026-10-10; the remaining vision models (gemma4:e2b-it-qat,

@@ -365,7 +365,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 // ============================================================================
 let vramPollInterval: ReturnType<typeof setInterval> | null = null;
 
-export function startVRAMPolling(intervalMs = 5000) {
+export function startVRAMPolling(intervalMs = 15000) {
   if (vramPollInterval) clearInterval(vramPollInterval);
   vramPollInterval = setInterval(() => {
     useHealthStore.getState().fetchVRAMStatus().catch(() => { void 0; });

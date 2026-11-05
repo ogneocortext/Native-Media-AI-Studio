@@ -49,6 +49,7 @@ function TriadSlider({
   max,
   step,
   title,
+  disabled,
   onChange,
 }: {
   label: string;
@@ -57,6 +58,7 @@ function TriadSlider({
   max: number;
   step: number;
   title: string;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   return (
@@ -71,8 +73,9 @@ function TriadSlider({
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-violet-500"
+        className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
         title={title}
         aria-label={label}
       />
@@ -95,6 +98,9 @@ export const ReactivityHUD = memo(function ReactivityHUD({
   className = "",
 }: ReactivityHUDProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // Focus/boost/triad/genre controls are consumed only by the shader
+  // renderer. In other modes they must look disabled, not silently dead.
+  const shaderOnly = vizMode !== undefined && vizMode !== "shader";
 
   const bassPercent = Math.min(100, Math.round((audioData.bass ?? 0) * 100));
   const midPercent = Math.min(100, Math.round((audioData.mid ?? 0) * 100));
@@ -162,7 +168,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
           </div>
 
           {/* Quick Frequency Focus */}
-          <div className="viz-tuning-group">
+          <div className={`viz-tuning-group ${shaderOnly ? "opacity-50" : ""}`}>
             <div className="viz-tuning-group-label">
               <span className="viz-group-icon">🎯</span>Focus Emphasis
             </div>
@@ -178,6 +184,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
                 <button
                   key={f.id}
                   onClick={() => onFrequencyFocusChange(f.id)}
+                  disabled={shaderOnly}
                   className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
                     frequencyFocus === f.id
                       ? "viz-focus-btn--active bg-violet-600 text-white font-semibold shadow-sm"
@@ -193,7 +200,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
           </div>
 
           {/* Live Gain / Reactivity Boost Slider */}
-          <div className="viz-tuning-group">
+          <div className={`viz-tuning-group ${shaderOnly ? "opacity-50" : ""}`}>
             <div className="viz-tuning-group-label">
               <span className="viz-group-icon">🎚️</span>Reactivity Boost
             </div>
@@ -211,9 +218,11 @@ export const ReactivityHUD = memo(function ReactivityHUD({
                 max="2.5"
                 step="0.1"
                 value={gain}
+                disabled={shaderOnly}
                 onChange={(e) => onGainChange(parseFloat(e.target.value))}
-                className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-violet-500 disabled:cursor-not-allowed"
                 title="Scale reactivity intensity"
+                aria-label="Reactivity boost"
               />
             </div>
           </div>
@@ -222,7 +231,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               reactivity panel (not Master EQ): one click applies the
               preset's triad + focus + gain via the parent. */}
           {onGenrePresetSelect && (
-            <div className="viz-tuning-group">
+            <div className={`viz-tuning-group ${shaderOnly ? "opacity-50" : ""}`}>
               <div className="viz-tuning-group-label">
                 <span className="viz-group-icon">🎵</span>Genre Presets
               </div>
@@ -233,6 +242,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
                     <button
                       key={p.id}
                       onClick={() => onGenrePresetSelect(p)}
+                      disabled={shaderOnly}
                       className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors border ${
                         isActive
                           ? "viz-genre-chip--active bg-violet-600 text-white border-violet-400 shadow-sm"
@@ -253,7 +263,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               release + beat response. These move the
               AudioReactivityProcessor's config, so they change
               the visuals, not just the meters. */}
-          <div className="viz-tuning-group">
+          <div className={`viz-tuning-group ${shaderOnly ? "opacity-50" : ""}`}>
             <div className="viz-tuning-group-label">
               <span className="viz-group-icon">🔧</span>Reactivity Triad
             </div>
@@ -263,6 +273,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               min={0.2}
               max={2.5}
               step={0.05}
+              disabled={shaderOnly}
               title="Overall reactivity gain — how hard the visualization reacts"
               onChange={(v) => onTriadChange({ ...triad, sensitivity: v })}
             />
@@ -272,6 +283,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               min={0.05}
               max={0.95}
               step={0.01}
+              disabled={shaderOnly}
               title="How fast the visuals snap onto onsets (higher = snappier)"
               onChange={(v) => onTriadChange({ ...triad, attack: v })}
             />
@@ -281,6 +293,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               min={0.01}
               max={0.5}
               step={0.01}
+              disabled={shaderOnly}
               title="How long energy rings out after an onset (lower = longer tail)"
               onChange={(v) => onTriadChange({ ...triad, release: v })}
             />
@@ -290,6 +303,7 @@ export const ReactivityHUD = memo(function ReactivityHUD({
               min={0}
               max={2.5}
               step={0.05}
+              disabled={shaderOnly}
               title="Transient (beat) response multiplier"
               onChange={(v) => onTriadChange({ ...triad, beatResponse: v })}
             />

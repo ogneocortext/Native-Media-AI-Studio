@@ -132,6 +132,11 @@ export const useAudioLibraryStore = create<AudioLibraryState>()((set) => {
           isLoading: false,
           error: error instanceof Error ? error.message : "Failed to load audio library",
         });
+        // A failed load must not count as "settled": otherwise every remount
+        // within CACHE_TTL_MS reuses this rejected result and the library
+        // stays empty until the TTL expires or someone calls refresh().
+        settled = null;
+        settledAt = null;
       } finally {
         inFlight = null;
       }

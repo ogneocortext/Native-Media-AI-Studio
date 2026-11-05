@@ -2,15 +2,31 @@
  * Component to display audio latency metrics.
  */
 
+import { useEffect, useState } from "react";
 import { Clock, RotateCcw } from "lucide-react";
 import { Card } from "./common";
 import { useAudioLatencyMetrics } from "../hooks/useAudioLatencyMetrics";
 
 interface AudioLatencyCardProps {
-  audioCtx: AudioContext | null;
+  /**
+   * The shared AudioContext lives in a ref, so `ref.current` is not reactive —
+   * reading it during render goes stale whenever the parent stops re-rendering
+   * (e.g. shader mode idles the scene's onAudioData). The card polls the ref
+   * once per second instead.
+   */
+  audioCtxRef: React.RefObject<AudioContext | null>;
 }
 
-export function AudioLatencyCard({ audioCtx }: AudioLatencyCardProps) {
+export function AudioLatencyCard({ audioCtxRef }: AudioLatencyCardProps) {
+  const [audioCtx, setAudioCtx] = useState<AudioContext | null>(audioCtxRef.current);
+
+  useEffect(() => {
+    const sync = () => setAudioCtx(audioCtxRef.current);
+    sync();
+    const id = setInterval(sync, 1000);
+    return () => clearInterval(id);
+  }, [audioCtxRef]);
+
   const metrics = useAudioLatencyMetrics(audioCtx);
 
   const getLatencyColor = (latency: number) => {

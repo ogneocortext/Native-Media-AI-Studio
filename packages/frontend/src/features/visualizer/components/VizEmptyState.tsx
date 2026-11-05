@@ -3,7 +3,7 @@
  *
  * Presentational only: receives library + handlers from Visualizer.
  */
-import { Music } from "lucide-react";
+import { AlertTriangle, Loader2, Music } from "lucide-react";
 import type { LibraryFile } from "../visualizerHelpers";
 
 interface VizEmptyStateProps {
@@ -11,9 +11,21 @@ interface VizEmptyStateProps {
   libraryFiles: LibraryFile[];
   /** Open the file browser. */
   onBrowse: () => void;
+  /** True while the audio library request is in flight. */
+  libraryLoading?: boolean;
+  /** Library load failure, when present. */
+  libraryError?: string | null;
+  /** Retry the library load. */
+  onRetryLibrary?: () => void;
 }
 
-export function VizEmptyState({ libraryFiles, onBrowse }: VizEmptyStateProps) {
+export function VizEmptyState({
+  libraryFiles,
+  onBrowse,
+  libraryLoading = false,
+  libraryError = null,
+  onRetryLibrary,
+}: VizEmptyStateProps) {
   return (
     <div
       className="viz-empty-hero"
@@ -29,13 +41,35 @@ export function VizEmptyState({ libraryFiles, onBrowse }: VizEmptyStateProps) {
           Three steps — no setup. Pick a track, pick a vibe, hit play.
           Beat-synced shader + 3D + lyrics.
         </p>
+        {libraryError ? (
+          <div className="viz-empty-error" role="alert">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>
+              Couldn&apos;t load the track library
+              {libraryError ? `: ${libraryError}` : ""}.
+            </span>
+            {onRetryLibrary && (
+              <button className="viz-empty-retry" onClick={onRetryLibrary}>
+                Retry
+              </button>
+            )}
+          </div>
+        ) : libraryLoading && libraryFiles.length === 0 ? (
+          <p className="viz-empty-loading">
+            <Loader2 size={14} className="viz-empty-spin" aria-hidden="true" />
+            Loading tracks…
+          </p>
+        ) : null}
         <ol className="viz-empty-steps">
           <li>
             <span className="viz-empty-n">1</span> <b>Pick a track</b> →
-            choose from the library above
-            {libraryFiles.length > 0
-              ? ` (${libraryFiles.length} tracks ready)`
-              : ", or upload an MP3/WAV"}
+            {libraryLoading && libraryFiles.length === 0
+              ? " loading the library…"
+              : libraryFiles.length > 0
+                ? ` choose from the library above (${libraryFiles.length} tracks ready)`
+                : libraryError
+                  ? " or upload an MP3/WAV below"
+                  : ", or upload an MP3/WAV"}
           </li>
           <li>
             <span className="viz-empty-n">2</span> <b>Pick a vibe</b> →

@@ -100,6 +100,20 @@ describe("audioLibraryStore", () => {
     expect(state.isLoading).toBe(false);
   });
 
+  it("retries on next ensureLoaded after a failure instead of caching it", async () => {
+    mockListAudioFiles.mockRejectedValueOnce(new Error("Network error"));
+    await useAudioLibraryStore.getState().ensureLoaded();
+    expect(useAudioLibraryStore.getState().error).toBe("Network error");
+
+    mockListAudioFiles.mockResolvedValue([makeFile({ filename: "song.mp3" })]);
+    await useAudioLibraryStore.getState().ensureLoaded();
+
+    expect(mockListAudioFiles).toHaveBeenCalledTimes(2);
+    const state = useAudioLibraryStore.getState();
+    expect(state.entries.length).toBe(1);
+    expect(state.error).toBeNull();
+  });
+
   it("clearError clears the error", async () => {
     mockListAudioFiles.mockRejectedValue(new Error("Network error"));
     await useAudioLibraryStore.getState().ensureLoaded();

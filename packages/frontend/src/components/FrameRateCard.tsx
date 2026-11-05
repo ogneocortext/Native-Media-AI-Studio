@@ -43,22 +43,31 @@ export function FrameRateCard({
       title="Frame Rate"
       icon={<Activity size={16} className="text-violet-400" />}
       headerActions={
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onReset}
-            className="p-1.5 rounded-lg bg-gray-700 text-gray-400 hover:bg-gray-600"
-            title="Reset"
-          >
-            <Gauge size={12} />
-          </button>
-          <button
-            onClick={onToggle}
-            className={`p-1.5 rounded-lg ${isMonitoring ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700 text-gray-400"}`}
-            title={isMonitoring ? "Monitoring ON" : "Monitoring OFF"}
-          >
-            <Activity size={12} className={isMonitoring ? "animate-pulse" : ""} />
-          </button>
-        </div>
+        onReset || onToggle ? (
+          <div className="flex items-center gap-2">
+            {onReset && (
+              <button
+                onClick={onReset}
+                className="p-1.5 rounded-lg bg-gray-700 text-gray-400 hover:bg-gray-600"
+                title="Reset"
+                aria-label="Reset frame stats"
+              >
+                <Gauge size={12} />
+              </button>
+            )}
+            {onToggle && (
+              <button
+                onClick={onToggle}
+                className={`p-1.5 rounded-lg ${isMonitoring ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700 text-gray-400"}`}
+                title={isMonitoring ? "Monitoring ON" : "Monitoring OFF"}
+                aria-label={isMonitoring ? "Monitoring on" : "Monitoring off"}
+                aria-pressed={isMonitoring}
+              >
+                <Activity size={12} className={isMonitoring ? "animate-pulse" : ""} />
+              </button>
+            )}
+          </div>
+        ) : undefined
       }
     >
       <div className="space-y-3">

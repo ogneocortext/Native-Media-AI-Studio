@@ -49,7 +49,7 @@ import {
 } from "./idleParticles";
 import { type Particle } from "./particles";
 import { getVisualizerMode, type VisualizerModeRenderContext, type VisualizerModeState } from "./visualizerModeRegistry";
-import { renderMode } from "./canvas2dModes";
+import { renderMode, type BarModeContext, type BarModeState } from "./canvas2dModes";
 import { FrameAccurateCanvas2D } from "./services/frameAccurateCanvas2d";
 import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
 import { useSpectralTimeline } from "./useSpectralTimeline";
@@ -287,12 +287,36 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       // Simple 2D particle system for particles mode
       const particles: Particle[] = [];
 
+      // Persistent state for the legacy canvas2dModes renderers. Must survive
+      // across frames — bar peaks, smoothing buffers, wave envelopes, and the
+      // lastMs clock all live here (the registry is currently empty, so every
+      // canvas2d mode renders through this fallback).
+      const barModeState: BarModeState = {
+        barVelocities: null,
+        barPeaks: null,
+        smoothedBars: null,
+        smoothedStack: null,
+        waveEnvelope: null,
+        waveVelocities: null,
+        smoothed: null,
+        particles,
+        lastMs: null,
+      };
+
       // Plan 2.9 — callbacks that reset shared state so frame 0 starts clean.
       // Called by FrameAccurateCanvas2D.beginDeterministicRun before the first
       // virtual frame renders.
       const resetState = () => {
         barVelocities = null;
         smoothedBars = null;
+        barModeState.barVelocities = null;
+        barModeState.barPeaks = null;
+        barModeState.smoothedBars = null;
+        barModeState.smoothedStack = null;
+        barModeState.waveEnvelope = null;
+        barModeState.waveVelocities = null;
+        barModeState.smoothed = null;
+        barModeState.lastMs = null;
 
         phraseFlash = 0;
         beatVignette = 0;
@@ -636,8 +660,30 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         const modeDef = getVisualizerMode(mode);
         const modeRenderFn = modeDef
           ? modeDef.render
-          : ((ctx2: CanvasRenderingContext2D, ctxInfo2: VisualizerModeRenderContext, state2: VisualizerModeState) =>
-              renderMode(mode, ctxInfo2.dpr, ctxInfo2.w, ctxInfo2.h, ctx2 as any, state2 as any));
+          : ((_ctx2: CanvasRenderingContext2D, ctxInfo2: VisualizerModeRenderContext) => {
+              // Legacy renderMode expects a BarModeContext/BarModeState pair.
+              // ctxInfo2 already carries every BarModeContext field; the state
+              // object must be the persistent barModeState, not a per-frame
+              // literal, or peaks/smoothing/lastMs reset every frame.
+              barModeState.barVelocities = barVelocities;
+              barModeState.smoothedBars = smoothedBars;
+              barModeState.smoothed = smoothed;
+              barModeState.particles = particles;
+              renderMode(
+                mode,
+                ctxInfo2.dpr,
+                ctxInfo2.w,
+                ctxInfo2.h,
+                ctxInfo2 as unknown as BarModeContext,
+                barModeState,
+              );
+              barVelocities = barModeState.barVelocities;
+              smoothedBars = barModeState.smoothedBars;
+              if (barModeState.particles !== particles) {
+                particles.length = 0;
+                particles.push(...barModeState.particles);
+              }
+            });
         modeRenderFn(drawCtx, {
           ctx: drawCtx,
           dpr,

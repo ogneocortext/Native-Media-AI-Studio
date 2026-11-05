@@ -195,7 +195,12 @@ export function Visualizer() {
   const demoBpm = 120;
   // Shared media-library source. `LibraryFile` consumers still work because the
   // store entries are a superset (they add `displayName`, `optionLabel`, `ref`).
-  const { entries: sharedLibraryEntries } = useAudioLibrary();
+  const {
+    entries: sharedLibraryEntries,
+    isLoading: libraryLoading,
+    error: libraryError,
+    refresh: refreshLibrary,
+  } = useAudioLibrary();
   const libraryFiles = useMemo<LibraryFile[]>(
     () => sharedLibraryEntries.map((f) => ({ ...f })),
     [sharedLibraryEntries],
@@ -726,7 +731,7 @@ export function Visualizer() {
                   return (
                     <option key={ref} value={ref}>
                       {optionLabelForFile(f)}
-                      {trackMetadata[ref].bpm ? ` (${trackMetadata[ref].bpm} BPM)` : ""}
+                      {trackMetadata[ref]?.bpm ? ` (${trackMetadata[ref].bpm} BPM)` : ""}
                       {analysisData[ref] ? " ✓" : ""}
                     </option>
                   );
@@ -804,6 +809,8 @@ export function Visualizer() {
           onEnhanceWithAI={handleEnhanceWithAI}
           aiEnhancing={aiEnhancing}
           loadedPreset={loadedPreset}
+          libraryLoading={libraryLoading}
+          libraryError={libraryError}
         />
         <VizToolbar
           onPresetLoaded={handlePresetLoaded}
@@ -918,7 +925,13 @@ export function Visualizer() {
         <div className="viz-mode-fade" style={{ opacity: modeFade }} />
         <div className="viz-canvas-wrap" ref={containerRef}>
           {!audioUrl && !currentFilename && (
-            <VizEmptyState libraryFiles={libraryFiles} onBrowse={() => setShowAudioBrowser(true)} />
+            <VizEmptyState
+              libraryFiles={libraryFiles}
+              onBrowse={() => setShowAudioBrowser(true)}
+              libraryLoading={libraryLoading}
+              libraryError={libraryError}
+              onRetryLibrary={() => void refreshLibrary()}
+            />
           )}
           {/* Playhead + click-to-seek over the stage. Position comes from the
               reactive `elapsed` state (driven by the playback rAF loop), not the
@@ -1191,15 +1204,20 @@ export function Visualizer() {
 
           {/* Audio Latency & Frame Rate Metrics */}
           <div className="absolute top-3 right-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
-            <AudioLatencyCard audioCtx={audioCtxRef.current} />
-            <FrameRateCard
-              fps={renderStats?.fps ?? 0}
-              frameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
-              jankCount={0}
-              droppedFrames={0}
-              p95FrameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
-              isMonitoring={visualsVisible}
-            />
+            <AudioLatencyCard audioCtxRef={audioCtxRef} />
+            {/* RenderStatsProbe only samples inside the R3F loop in 3D mode —
+                in 2D/shader modes the numbers would be stale or zero, so the
+                card is hidden rather than showing fake metrics. */}
+            {vizMode === "3d" && (
+              <FrameRateCard
+                fps={renderStats?.fps ?? 0}
+                frameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
+                jankCount={0}
+                droppedFrames={0}
+                p95FrameTime={renderStats?.fps ? 1000 / renderStats.fps : 0}
+                isMonitoring={visualsVisible}
+              />
+            )}
           </div>
         </div>
         {showSettings && (
