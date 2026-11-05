@@ -31,7 +31,7 @@ export interface AgentTurn {
   content: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
-  toolResult?: unknown;
+  toolResult?: ExecuteToolResponse;
 }
 
 export interface AgentLoopOptions {

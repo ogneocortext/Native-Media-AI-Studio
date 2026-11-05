@@ -20,6 +20,7 @@ import {
   type AgentLoopResult,
   skillsList,
   type SkillInfo,
+  type ExecuteToolResponse,
 } from "../../services/api";
 
 interface AgentMessage {
@@ -28,7 +29,7 @@ interface AgentMessage {
   content: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
-  toolResult?: unknown;
+  toolResult?: ExecuteToolResponse;
   timestamp: Date;
 }
 
@@ -204,7 +205,7 @@ export function AgentChat() {
                     </div>
                   )}
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  {msg.type === "tool_result" && msg.toolResult?.result && msg.toolResult.success && (
+                  {msg.type === "tool_result" && msg.toolResult != null && Boolean(msg.toolResult.result) && msg.toolResult.success && (
                     <div className="mt-2 p-2 bg-background/50 rounded text-xs text-muted overflow-x-auto whitespace-pre-wrap">
                       {JSON.stringify(msg.toolResult.result, null, 2).slice(0, 500)}
                     </div>
