@@ -30,6 +30,8 @@ import {
   uploadAudioFile,
   getBenchmarkResults,
   getAtomicChatStatus,
+  runBenchmark,
+  runCodingBenchmark,
   type ChatMessage,
   type ToolDefinition,
   type OllamaBenchmarkResult,
@@ -37,6 +39,7 @@ import {
 } from "../../services/api";
 import { getOutputUrl } from "../../utils/url";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { selectModel } from "../../services/api/agent-loop";
 
 /** Source badge configs keyed by engine source. */
 const SOURCE_BADGES: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -55,6 +58,8 @@ export function OllamaChat() {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [toolsEnabled, setToolsEnabled] = useState(true);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
+  const [benchmarkRunning, setBenchmarkRunning] = useState(false);
+  const [codingBenchmarkRunning, setCodingBenchmarkRunning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [engineStatus, setEngineStatus] = useState<"online" | "offline" | "checking">("checking");
@@ -124,6 +129,44 @@ export function OllamaChat() {
   const logStreamEvent = (event: string, detail: string) => {
     const time = new Date().toLocaleTimeString();
     setStreamEvents((prev) => [...prev, { time, event, detail }]);
+  };
+
+  const handleRunBenchmarks = async () => {
+    setBenchmarkRunning(true);
+    try {
+      await runBenchmark();
+      const res = await getBenchmarkResults();
+      setBenchmarks(res.results);
+      logStreamEvent("benchmark", "Ollama benchmarks completed and refreshed");
+    } catch (e) {
+      logStreamEvent("benchmark-error", e instanceof Error ? e.message : String(e));
+    } finally {
+      setBenchmarkRunning(false);
+    }
+  };
+
+  const handleRunCodingBenchmarks = async () => {
+    setCodingBenchmarkRunning(true);
+    try {
+      await runCodingBenchmark();
+      const res = await getBenchmarkResults();
+      setBenchmarks(res.results);
+      logStreamEvent("benchmark", "Coding benchmarks completed and refreshed");
+    } catch (e) {
+      logStreamEvent("benchmark-error", e instanceof Error ? e.message : String(e));
+    } finally {
+      setCodingBenchmarkRunning(false);
+    }
+  };
+
+  const handleAutoSelectModel = async (taskType: "coding" | "vision" | "chat" | "default") => {
+    try {
+      const model = await selectModel(taskType);
+      setSelectedModel(model);
+      logStreamEvent("auto-select", `Selected ${model} for task "${taskType}"`);
+    } catch (e) {
+      logStreamEvent("auto-select-error", e instanceof Error ? e.message : String(e));
+    }
   };
 
   useEffect(() => {
@@ -474,6 +517,71 @@ export function OllamaChat() {
               })()}
             </div>
           </div>
+        </div>
+
+        {/* Benchmark actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRunBenchmarks}
+            disabled={benchmarkRunning || modelsLoading}
+            className="px-2 py-1 text-xs rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
+            title={benchmarkRunning ? "Running benchmarks…" : "Run Ollama benchmarks"}
+          >
+            {benchmarkRunning ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+          </button>
+          <button
+            onClick={handleRunCodingBenchmarks}
+            disabled={codingBenchmarkRunning || modelsLoading}
+            className="px-2 py-1 text-xs rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
+            title={codingBenchmarkRunning ? "Running coding benchmarks…" : "Run coding benchmarks"}
+          >
+            {codingBenchmarkRunning ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+          </button>
+        </div>
+
+        {/* Task-specific model quick-switch */}
+        {taskRoutes && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {Object.entries(taskRoutes.routes).map(([task, route]) => (
+              <button
+                key={task}
+                onClick={() => handleAutoSelectModel(task)}
+                disabled={modelsLoading}
+                className="px-2 py-1 text-xs rounded bg-purple-900/20 border border-purple-900/50 hover:bg-purple-900/40 disabled:opacity-50 text-purple-300"
+                title={`Switch to ${route.model} for ${task} (${route.reason})`}
+              >
+                {task}: {route.model.split(":")[0]}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Auto-select for coding/vision/chat */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            onClick={() => handleAutoSelectModel("coding")}
+            disabled={modelsLoading}
+            className="px-2 py-1 text-xs rounded bg-blue-900/20 border border-blue-900/50 hover:bg-blue-900/40 disabled:opacity-50 text-blue-300"
+            title="Auto-select best coding model"
+          >
+            Code
+          </button>
+          <button
+            onClick={() => handleAutoSelectModel("vision")}
+            disabled={modelsLoading}
+            className="px-2 py-1 text-xs rounded bg-emerald-900/20 border border-emerald-900/50 hover:bg-emerald-900/40 disabled:opacity-50 text-emerald-300"
+            title="Auto-select best vision model"
+          >
+            Vision
+          </button>
+          <button
+            onClick={() => handleAutoSelectModel("chat")}
+            disabled={modelsLoading}
+            className="px-2 py-1 text-xs rounded bg-amber-900/20 border border-amber-900/50 hover:bg-amber-900/40 disabled:opacity-50 text-amber-300"
+            title="Auto-select best chat model"
+          >
+            Chat
+          </button>
         </div>
       </div>
 
