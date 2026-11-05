@@ -42,11 +42,11 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   const { files: allFiles, loading: filesLoading, error, refetch: refetchFiles } =
     useMediaFiles();
   const {
-    handleDelete,
     handleBulkDelete,
     handleRename,
     handleProbe,
     isOperating,
+    setOperationError,
   } = useFileOperations();
   const {
     favorites,
@@ -175,9 +175,11 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   };
 
   const handleDeleteFile = async (file: MediaFile) => {
-    const ok = await handleDelete(file.filename, file.relative_path);
-    if (ok) {
+    try {
       await moveToTrash(file.relative_path);
+    } catch (e) {
+      setOperationError(e instanceof Error ? e.message : "Failed to move to trash");
+    } finally {
       clearSelection();
       void refetchFiles();
       void refetchOrg();

@@ -95,5 +95,6 @@ export function useFileOperations() {
     handleBulkDelete,
     handleRename,
     handleProbe,
+    setOperationError,
   };
 }
