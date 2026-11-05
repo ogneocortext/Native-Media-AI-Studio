@@ -24,7 +24,8 @@ export type VisualizationStyle =
   | "inferno"
   | "ocean"
   | "three-particles"
-  | "pppanik";
+  | "pppanik"
+  | "stem-scene";
 
 export interface VisualizationOption {
   id: VisualizationStyle;
@@ -139,6 +140,14 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
     description: "Instanced blob field (30k tetrahedra on Fibonacci shell, bass-driven displacement + transient spore ejection)",
     icon: "box",
     bestFor: ["experimental", "instanced", "blob", "spore"],
+  },
+  {
+    id: "stem-scene",
+    name: "Stem Scene",
+    description:
+      "One visual agent per stem — drums strike, bass heaves, vocals breathe, other drifts",
+    icon: "layers",
+    bestFor: ["remix", "mashup", "stem-separated", "breakdown"],
   },
 ];
 

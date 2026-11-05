@@ -11,5 +11,6 @@ export { InfernoViz } from "./inferno";
 export { ThreeParticlesDemo } from "./three-particles";
 export { PpanikBlobField } from "./pppanik";
 export { InstancedParticles } from "./instancedParticles";
+export { StemScene } from "./stemScene";
 export { getSectionColor, getSectionIntensity } from "./helpers";
 export { getParticleTex, getNoiseTex } from "./textures";

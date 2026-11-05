@@ -17,6 +17,7 @@ import {
   PpanikBlobField,
   PulseRings,
   SpectrumBars,
+  StemScene,
   StormViz,
   ThreeParticlesDemo,
   VinylDisc,
@@ -216,6 +217,8 @@ export function VisualizerScene({
           return <ThreeParticlesDemo {...props} />;
         case "pppanik":
           return <PpanikBlobField {...props} />;
+        case "stem-scene":
+          return <StemScene {...props} />;
       }
     })();
 
