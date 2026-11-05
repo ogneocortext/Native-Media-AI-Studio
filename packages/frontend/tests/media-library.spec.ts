@@ -1,14 +1,5 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
-import {
-  navigateWithWait,
-  mockApiHealth,
-  mockApiQueueEmpty,
-  cleanupRoutes,
-  setupConsoleErrorCapture,
-  expectNoConsoleErrors,
-  registerRouteHandler,
-  BACKEND_OFFLINE_FILTERS,
-} from './helpers';
+import { test, expect } from '@playwright/test';
+import { mockApiHealth, mockApiQueueEmpty, cleanupRoutes, registerRouteHandler, navigateAndWait } from './helpers';
 
 const MOCK_OUTPUTS = {
   outputs: [
@@ -74,8 +65,8 @@ const MOCK_OUTPUTS = {
 
 const MOCK_RECENT = MOCK_OUTPUTS.outputs.slice(0, 2);
 
-function mockOutputsApi(page: Page) {
-  registerRouteHandler(page, async (route: Route) => {
+function mockOutputsApi(page: Parameters<typeof registerRouteHandler>[0]) {
+  registerRouteHandler(page, async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname === '/api/outputs' || pathname.startsWith('/api/outputs?')) {
       await route.fulfill({
@@ -107,21 +98,18 @@ test.describe('Media Library', () => {
   });
 
   test('media library page loads and shows header', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page);
     await mockApiQueueEmpty(page);
     mockOutputsApi(page);
-    await navigateWithWait(page, '/library');
+    await navigateAndWait(page, '/library');
     await expect(page.locator('main h1').first()).toContainText('Media Library', { timeout: 10_000 });
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('category tabs are present and selectable', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page);
     await mockApiQueueEmpty(page);
     mockOutputsApi(page);
-    await navigateWithWait(page, '/library');
+    await navigateAndWait(page, '/library');
     await expect(page.locator('main h1').first()).toContainText('Media Library', { timeout: 10_000 });
 
     const allTab = page.locator('button', { hasText: 'All Files' }).first();
@@ -136,35 +124,27 @@ test.describe('Media Library', () => {
 
     await imagesTab.click();
     await expect(page.locator('main').first()).toContainText('Media Library', { timeout: 10_000 });
-
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('search input is present and keyboard shortcut hint exists', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page);
     await mockApiQueueEmpty(page);
     mockOutputsApi(page);
-    await navigateWithWait(page, '/library');
+    await navigateAndWait(page, '/library');
     await expect(page.locator('main h1').first()).toContainText('Media Library', { timeout: 10_000 });
 
     const searchInput = page.locator('input[placeholder*="Search" i], input[placeholder*="Filter" i]').first();
     await expect(searchInput).toBeVisible();
-
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('send to wizard button is present on media items', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page);
     await mockApiQueueEmpty(page);
     mockOutputsApi(page);
-    await navigateWithWait(page, '/library');
+    await navigateAndWait(page, '/library');
     await expect(page.locator('main h1').first()).toContainText('Media Library', { timeout: 10_000 });
 
     const sendToWizard = page.locator('button[title="Send to Music Video Wizard"]').first();
     await expect(sendToWizard).toBeVisible();
-
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 });

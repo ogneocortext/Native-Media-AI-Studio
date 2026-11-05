@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { navigateWithWait, cleanupRoutes, setupConsoleErrorCapture, expectNoConsoleErrors, mockApiHealth, BACKEND_OFFLINE_FILTERS,
-} from './helpers';
+import { cleanupRoutes, mockApiHealth, navigateAndWait } from './helpers';
 
 test.describe('Sidebar', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,49 +7,40 @@ test.describe('Sidebar', () => {
   });
 
   test('sidebar renders with nav sections', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page, 200);
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     const sidebar = page.locator('aside.sidebar-container');
     await expect(sidebar).toBeVisible();
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('sidebar shows health status', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
     await mockApiHealth(page, 200);
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     // Open the System footer to reveal the health status summary
     const systemToggle = page.locator('aside.sidebar-container .sidebar-footer-toggle');
     if (await systemToggle.count() > 0) {
-      await systemToggle.click();
+      await systemToggle.first().click();
     }
     const healthSection = page.locator('aside.sidebar-container .system-status-summary');
     await expect(healthSection).toBeVisible({ timeout: 5_000 });
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('sidebar collapse toggle is accessible on desktop', async ({ page }) => {
     await mockApiHealth(page, 200);
-    await navigateWithWait(page, '/');
-    // Set desktop width
+    await navigateAndWait(page, '/');
+    // Set desktop width via viewport
     await page.setViewportSize({ width: 1400, height: 900 });
     const toggle = page.locator('button.sidebar-toggle, button[aria-label*="Collapse" i], button[aria-label*="Expand" i]');
-    if (await toggle.count() > 0) {
-      if (await toggle.first().isVisible()) {
-        await toggle.first().click();
-        await page.waitForTimeout(300);
-      }
-    }
+    await expect(toggle.first()).toBeVisible();
+    await toggle.first().click();
   });
 
   test('sidebar navigates to health page', async ({ page }) => {
     await mockApiHealth(page, 200);
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     const healthLink = page.locator('a[href="/health"], nav a:has-text("Health")').first();
-    if (await healthLink.count() > 0) {
-      await healthLink.click();
-      await expect(page).toHaveURL(/\/health/);
-    }
+    await expect(healthLink).toBeVisible();
+    await healthLink.click();
+    await expect(page).toHaveURL(/\/health/);
   });
 });

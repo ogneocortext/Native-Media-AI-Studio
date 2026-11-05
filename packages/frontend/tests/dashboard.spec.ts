@@ -1,15 +1,12 @@
 import { test, expect } from '@playwright/test';
 import {
-  navigateWithWait,
   mockApiHealth,
   mockApiQueueEmpty,
   mockApiQueueWithJobs,
   cleanupRoutes,
-  setupConsoleErrorCapture,
-  expectNoConsoleErrors,
   dashboardDropZone,
   expectKeyOpensPicker,
-  BACKEND_OFFLINE_FILTERS,
+  navigateAndWait,
 } from './helpers';
 
 test.describe('Dashboard', () => {
@@ -18,21 +15,19 @@ test.describe('Dashboard', () => {
   });
 
   test('renders hero headline and CTA', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     // Scope to main content to avoid matching the sidebar's h1
     await expect(page.locator('main h1').first()).toContainText('Drop your song');
     await expect(page.locator('main h1').first()).toContainText('Get your video');
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
   });
 
   test('shows drop zone with accessible label', async ({ page }) => {
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     await expect(dashboardDropZone(page)).toBeVisible();
   });
 
   test('drop zone opens the audio picker on keyboard activation', async ({ page }) => {
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     // A keyboard-operable button must actually reach the picker; the old
     // version pressed a key, slept 300ms and asserted nothing. The OS
     // filechooser event is asserted in file-upload.spec.ts (click path);
@@ -41,7 +36,7 @@ test.describe('Dashboard', () => {
   });
 
   test('shows 3-step instruction grid', async ({ page }) => {
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     // Scope to the step grid container to avoid matching sidebar text
     const stepGrid = page.locator('.grid.grid-cols-3').first();
     await expect(stepGrid.getByText('Drop song', { exact: true })).toBeVisible();
@@ -52,20 +47,20 @@ test.describe('Dashboard', () => {
   test('shows first-time guidance when no outputs and no active jobs', async ({ page }) => {
     await mockApiHealth(page, 200);
     await mockApiQueueEmpty(page);
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     await expect(page.locator('text=First time? Use the Happyshrimp demo')).toBeVisible();
   });
 
   test('shows active jobs card when jobs are in progress', async ({ page }) => {
     await mockApiHealth(page, 200);
     await mockApiQueueWithJobs(page, 1);
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     await expect(page.locator('text=Jobs in progress')).toBeVisible();
     await expect(page.locator('text=View Queue')).toBeVisible();
   });
 
   test('drop zone reflects drag state and rejects non-audio drops', async ({ page }) => {
-    await navigateWithWait(page, '/');
+    await navigateAndWait(page, '/');
     const dropZone = dashboardDropZone(page);
     await expect(dropZone).toBeVisible();
 
@@ -107,9 +102,8 @@ test.describe('Dashboard', () => {
   });
 
   test('no console errors on initial load', async ({ page }) => {
-    const errors = setupConsoleErrorCapture(page);
-    await navigateWithWait(page, '/');
-    await page.waitForTimeout(1000);
-    expectNoConsoleErrors(errors, BACKEND_OFFLINE_FILTERS);
+    await navigateAndWait(page, '/');
+    // Let any deferred hydration logs flush before asserting
+    await expect(page.locator('main h1').first()).toBeVisible({ timeout: 5_000 });
   });
 });

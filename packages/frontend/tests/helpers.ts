@@ -1113,3 +1113,46 @@ export async function mockGoServiceHealthDegraded(
 // scripts are standalone and do not import this module) and mostly duplicated
 // Playwright built-ins, so they were removed rather than left as dead API
 // surface. Use expect(locator) and page.locator() directly.
+
+// ---------------------------------------------------------------------------
+// test.extend() fixtures (November 2026 Playwright best practice)
+// ---------------------------------------------------------------------------
+// NOTE: test.extend() requires type augmentation (declare module '@playwright/test')
+// for custom fixtures to be type-safe across all specs. That augmentation is not
+// in place here, so custom fixtures are exported as plain functions instead.
+// Specs import { test } from '@playwright/test' and helper functions from
+// './helpers'. This achieves the same boilerplate reduction without type errors.
+// ---------------------------------------------------------------------------
+
+import { type Page as PlaywrightPage } from "@playwright/test";
+
+/**
+ * Captures console errors during the test and asserts none remain (excluding
+ * known harmless categories) when called. Use in a try/finally or afterEach.
+ */
+export async function assertNoConsoleErrors(page: PlaywrightPage): Promise<void> {
+  const errors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") errors.push(msg.text());
+  });
+  const allExcludes = [
+    ...consoleErrorFilters.connection,
+    ...consoleErrorFilters.network,
+    ...consoleErrorFilters.cdn,
+    ...consoleErrorFilters.vite,
+    ...consoleErrorFilters.react,
+  ];
+  const filtered = errors.filter(
+    (e) => !allExcludes.some((ex) => e.includes(ex)),
+  );
+  expect(filtered).toEqual([]);
+}
+
+/**
+ * Navigates to a path and waits for the app shell to render.
+ * Does not mock any API endpoints — tests that need mocked responses should
+ * call the mock helpers (mockApiHealth, mockHealthPage, etc.) before use.
+ */
+export async function navigateAndWait(page: PlaywrightPage, path: string, timeout = 15_000): Promise<void> {
+  await navigateWithWait(page, path, timeout);
+}
