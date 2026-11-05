@@ -10,7 +10,6 @@
  * lissajous, constellation, aurora.
  */
 import {
-  asymmetricSmoothStep,
   clamp,
   damp,
   dampLambda,
@@ -57,14 +56,12 @@ export interface BarModeContext {
   rand: () => number;
   /** Cached gradient builder — keyed by mode + palette + height. */
   getGradients: (mode: string, cols: string[]) => CanvasGradient[];
-  asymmetric: boolean;
 }
 
 export interface BarModeState {
   barVelocities: number[] | null;
   barPeaks: number[] | null;
   smoothedBars: number[] | null;
-  smoothedStack: number[] | null;
   waveEnvelope: number[] | null;
   waveVelocities: number[] | null;
   smoothed: Uint8Array | null;
@@ -96,33 +93,18 @@ function computeBarTarget(
   freqMap: (barIndex: number) => number,
   ctx: BarModeContext,
   state: BarModeState,
-  dt: number,
 ): { targetNorm: number; smoothH: number; springRising: boolean } {
   const rawV = sampleMappedBand(ctx.freq, freqMap, i) / 255;
   const boosted = boostedValue(rawV, ctx);
   const targetNorm = boosted * ctx.energyMod;
-  let smoothH: number;
-  let springRising = false;
-
-  if (ctx.asymmetric) {
-    if (!state.smoothedBars) return { targetNorm, smoothH: 0, springRising: false };
-    const prev = state.smoothedBars[i] ?? 0;
-    state.smoothedBars[i] = asymmetricSmoothStep(prev, targetNorm);
-    smoothH = state.smoothedBars[i] * ctx.h * 0.78;
-  } else {
-    if (!state.barPeaks) return { targetNorm, smoothH: 0, springRising: false };
-    const prev = state.barPeaks?.[i] ?? 0;
-    const targetH = targetNorm * ctx.h * 0.78;
-    // Frame-rate-independent exponential smoothing toward targetH.
-    // lambda = -60 * ln(1 - k) where k = springK * damping is the effective
-    // per-frame convergence weight at 60 Hz.
-    const lambda = dampLambda(0.28 * 0.72);
-    const next = damp(prev, targetH, lambda, dt);
-    state.barPeaks[i] = Math.max(0, next);
-    smoothH = state.barPeaks[i];
-    springRising = next > prev;
-  }
-  return { targetNorm, smoothH, springRising };
+  // T-VIZ-15: `ctx.freq` arrives pre-enveloped by the shared stage, so the
+  // freq component is already smooth — no per-mode spring. `smoothedBars`
+  // now only remembers last frame's target for rise detection (the
+  // easeOutBack overshoot in renderBars).
+  const prevTarget = state.smoothedBars?.[i] ?? targetNorm;
+  if (state.smoothedBars) state.smoothedBars[i] = targetNorm;
+  const smoothH = targetNorm * ctx.h * 0.78;
+  return { targetNorm, smoothH, springRising: targetNorm > prevTarget };
 }
 
 /** Draw a single rounded bar with gradient, warm/cool mix, and reflection. */
@@ -236,10 +218,6 @@ export function renderBars(
   if (state.smoothedBars?.length !== barCount) {
     state.smoothedBars = new Array(barCount).fill(0);
   }
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
 
   if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
@@ -257,11 +235,9 @@ export function renderBars(
   const baseY = Math.round(h * 0.88);
 
   for (let i = 0; i < barCount; i++) {
-    const { smoothH, springRising } = computeBarTarget(i, freqMap, modeCtx, state, dt);
+    const { smoothH, springRising } = computeBarTarget(i, freqMap, modeCtx, state);
     const easeT = clamp(smoothH / Math.max(1, h * 0.78 * modeCtx.energyMod), 0, 1);
-    const easedH = modeCtx.asymmetric
-      ? smoothH
-      : smoothH * (1 + 0.08 * easeOutBack(easeT) * (springRising ? 1 : 0));
+    const easedH = smoothH * (1 + 0.08 * easeOutBack(easeT) * (springRising ? 1 : 0));
     state.barPeaks[i] = easedH;
     const bh = easedH;
     const x = Math.round(i * barW);
@@ -321,10 +297,6 @@ export function renderMirroredBars(
   if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
 
   const barGradients = modeCtx.getGradients("mirrored-bars", modeCtx.colors);
   const centerY = Math.round(h * 0.5);
@@ -341,11 +313,8 @@ export function renderMirroredBars(
     const rawV = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(rawV, modeCtx);
     const targetH = boosted * maxBarH * modeCtx.energyMod;
-    // Frame-rate-independent exponential smoothing toward targetH.
-    const lambda = dampLambda(0.26 * 0.73);
-    const prev = state.barPeaks[i] ?? 0;
-    const next = damp(prev, targetH, lambda, dt);
-    const bh = Math.max(0, next);
+    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+    const bh = Math.max(0, targetH);
     state.barPeaks[i] = bh;
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
@@ -418,11 +387,6 @@ export function renderSegmentedLedBars(
   const baseY = Math.round(h * 0.92);
   const barGradients = modeCtx.getGradients("segmented-led-bars", modeCtx.colors);
 
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
-
   if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
   }
@@ -439,14 +403,11 @@ export function renderSegmentedLedBars(
     const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(v, modeCtx);
     const targetSegs = boosted * segmentsPerBar * modeCtx.energyMod;
-    // Frame-rate-independent exponential smoothing toward targetSegs.
-    const lambda = dampLambda(0.24 * 0.74);
-    const prev = state.barVelocities[i] ?? 0;
-    const next = damp(prev, targetSegs, lambda, dt);
-    state.barVelocities[i] = next;
+    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+    state.barVelocities[i] = targetSegs;
     const activeSegments = Math.max(
       0,
-      Math.min(segmentsPerBar, Math.round(next)),
+      Math.min(segmentsPerBar, Math.round(targetSegs)),
     );
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
@@ -494,11 +455,6 @@ export function renderStereoSplitBars(
   ];
   const baseY = Math.round(h * 0.88);
 
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
-
   if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
@@ -518,11 +474,8 @@ export function renderStereoSplitBars(
       const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
       const boosted = boostedValue(v, modeCtx);
       const targetH = boosted * h * 0.65 * modeCtx.energyMod;
-      // Frame-rate-independent exponential smoothing toward targetH.
-      const lambda = dampLambda(0.26 * 0.73);
-      const prev = state.barPeaks[i] ?? 0;
-      const next = damp(prev, targetH, lambda, dt);
-      const bh = Math.max(0, next);
+      // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+      const bh = Math.max(0, targetH);
       state.barPeaks[i] = bh;
       const x = Math.round(i * barW);
       const y = Math.round(baseY - bh);
@@ -574,29 +527,11 @@ export function renderStackedFrequencyBands(
     },
   ];
 
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
-
   if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
   if (state.barVelocities?.length !== barCount) {
     state.barVelocities = new Array(barCount).fill(0);
-  }
-  if (state.smoothedStack?.length !== barCount * layers.length) {
-    state.smoothedStack = new Array(barCount * layers.length).fill(0);
-  }
-
-  if (state.barPeaks?.length !== barCount) {
-    state.barPeaks = new Array(barCount).fill(0);
-  }
-  if (state.barVelocities?.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
-  }
-  if (state.smoothedStack?.length !== barCount * layers.length) {
-    state.smoothedStack = new Array(barCount * layers.length).fill(0);
   }
 
   const freqLen = modeCtx.freq?.length ?? 1024;
@@ -620,15 +555,8 @@ export function renderStackedFrequencyBands(
       const logIdx = Math.min(freqLen - 1, Math.floor(freqMap(idx)));
       const v = (modeCtx.freq?.[logIdx] ?? 0) / 255;
       const boosted = boostedValue(v, modeCtx);
-      let lh = boosted * h * 0.22 * modeCtx.energyMod;
-      if (modeCtx.asymmetric) {
-        const si = i * layers.length + li;
-        state.smoothedStack[si] = asymmetricSmoothStep(
-          state.smoothedStack[si],
-          boosted * modeCtx.energyMod,
-        );
-        lh = state.smoothedStack[si] * h * 0.22;
-      }
+      // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+      const lh = boosted * h * 0.22 * modeCtx.energyMod;
       const ly = Math.round(layerY - lh);
       modeCtx.ctx.fillStyle = layer.color;
       modeCtx.ctx.beginPath();
@@ -640,17 +568,9 @@ export function renderStackedFrequencyBands(
       layerY = ly;
       stackH += lh;
     }
-    // Envelope for the white peak-indicator dash.
-    let smoothStackH: number;
-    if (modeCtx.asymmetric) {
-      smoothStackH = stackH;
-    } else {
-      // Frame-rate-independent exponential smoothing toward stackH.
-      const lambda = dampLambda(0.24 * 0.74);
-      const prev = state.barVelocities[i] ?? stackH;
-      smoothStackH = Math.max(0, damp(prev, stackH, lambda, dt));
-      state.barVelocities[i] = smoothStackH;
-    }
+    // Peak-indicator envelope — the freq component is already smoothed by
+    // the shared stage, so stackH is used directly.
+    const smoothStackH = stackH;
     if (smoothStackH > state.barPeaks[i]) state.barPeaks[i] = smoothStackH;
     else state.barPeaks[i] = Math.max(smoothStackH, state.barPeaks[i] * PEAK_DECAY);
     const peakY = Math.round(baseY - state.barPeaks[i]);
@@ -687,11 +607,6 @@ export function renderDotPeakMatrix(
   const dotR = Math.min(cellW, cellH) * 0.35;
   const barGradients = modeCtx.getGradients("dot-peak-matrix", modeCtx.colors);
 
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
-
   const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
@@ -704,12 +619,9 @@ export function renderDotPeakMatrix(
     const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(v, modeCtx);
     const targetRows = boosted * rows * modeCtx.energyMod;
-    // Frame-rate-independent exponential smoothing toward targetRows.
-    const lambda = dampLambda(0.22 * 0.75);
-    const prev = state.barVelocities?.[i] ?? 0;
-    const next = damp(prev, targetRows, lambda, dt);
-    if (state.barVelocities) state.barVelocities[i] = next;
-    const activeRows = Math.max(0, Math.min(rows, Math.round(next)));
+    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+    if (state.barVelocities) state.barVelocities[i] = targetRows;
+    const activeRows = Math.max(0, Math.min(rows, Math.round(targetRows)));
     const cIdx = Math.floor((i / cols) * modeCtx.colors.length);
     for (let r = 0; r < rows; r++) {
       const cx = Math.round(i * cellW + cellW / 2);
@@ -891,11 +803,6 @@ export function renderRadial(
   const baseR = Math.min(w, h) * 0.18;
   const sectionRot = sectionProgress * Math.PI * 0.5;
 
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
-
   if (state.barVelocities?.length !== 64) {
     state.barVelocities = new Array(64).fill(0);
   }
@@ -914,12 +821,9 @@ export function renderRadial(
     const targetR1 =
       baseR +
       v * baseR * 1.2 * (1 + phraseFlash * 0.6 + energyMod * 0.4 + beatPhaseAnt);
-    // Frame-rate-independent exponential smoothing toward targetR1.
-    const lambda = dampLambda(0.24 * 0.74);
-    const prev = state.barVelocities[i] ?? targetR1;
-    const next = damp(prev, targetR1, lambda, dt);
-    state.barVelocities[i] = next;
-    const r1 = Math.max(r0, next);
+    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+    const r1 = Math.max(r0, targetR1);
+    state.barVelocities[i] = r1;
     const x0 = cx + Math.cos(angle) * r0;
     const y0 = cy + Math.sin(angle) * r0;
     const x1 = cx + Math.cos(angle) * r1;
@@ -1166,25 +1070,16 @@ export function renderConstellation(
   }
   ctx.globalAlpha = 1;
 
-  // Draw nodes with frame-rate-independent exponential smoothing of radius.
-  const constellationLambda = dampLambda(0.22 * 0.75);
-  state.lastMs ??= modeCtx.nowMs();
-  const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
-  state.lastMs = now;
-
-  const pointRadii = new Array(maxPoints).fill(0);
+  // Draw nodes — radius follows the (already-enveloped) band value plus
+  // beat/punch boosts; no per-mode spring (T-VIZ-15).
   const d = modeCtx.d;
   for (let i = 0; i < maxPoints; i++) {
     const p = points[i];
-    const targetR =
+    const r =
       2 * dpr +
       p.v * 5 * dpr +
       (d.beat && p.v > 0.7 ? 3 * dpr : 0) +
       analyzedPunch * 3 * dpr;
-    const prev = pointRadii[i];
-    pointRadii[i] = Math.max(0, damp(prev, targetR, constellationLambda, dt));
-    const r = pointRadii[i];
     ctx.fillStyle =
       colors[Math.floor(p.v * colors.length) % colors.length];
     ctx.shadowColor = colors[0];

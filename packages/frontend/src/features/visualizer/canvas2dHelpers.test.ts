@@ -1,12 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
-  ASYMMETRIC_SMOOTHING_MODES,
-  asymmetricSmoothBands,
-  asymmetricSmoothStep,
   barkFreqMap,
   barkToHz,
   clamp,
-  DEFAULT_ASYMMETRIC_SMOOTHING,
+  createEnvelopeStage,
   damp,
   easeOutBack,
   easeOutQuad,
@@ -22,7 +19,6 @@ import {
   melFreqMap,
   normalizeHex,
   sampleMappedBand,
-  usesAsymmetricSmoothing,
   valueNoise,
   type PerceptualScale,
 } from "./canvas2dHelpers";
@@ -31,9 +27,9 @@ import { CANVAS_2D_MODES } from "./visualizerHelpers";
 /**
  * Covers the three helpers added for
  * docs/knowledge/canvas2d-visualizer-diagnosis-2026-10-02/README.md (the
- * six-times-copied perceptual-scale selector) and
- * docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md §1 (asymmetric
- * band smoothing, "the #1 visual-fatigue fix").
+ * six-times-copied perceptual-scale selector), the T-VIZ-15 shared
+ * attack/release envelope stage, and the frame-rate-invariant damp()
+ * primitive from the visualizer-smoothness plan.
  */
 
 describe("makeFreqMapper", () => {
@@ -141,93 +137,80 @@ describe("sampleMappedBand", () => {
   });
 });
 
-describe("asymmetricSmoothStep", () => {
-  it("uses the AE doc's coefficients", () => {
-    // docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md §1.
-    expect(DEFAULT_ASYMMETRIC_SMOOTHING.attack).toBe(0.8);
-    expect(DEFAULT_ASYMMETRIC_SMOOTHING.release).toBe(0.12);
+describe("createEnvelopeStage (T-VIZ-15)", () => {
+  const FREQ_LEN = 1024;
+  const SR = 44100;
+  // binHz ≈ 21.5 → bin 5 ≈ 118 Hz (bass), bin 500 ≈ 10.8 kHz→clamped treble.
+  const BASS_BIN = 5;
+  const TREBLE_BIN = 500;
+
+  function impulseStage() {
+    const stage = createEnvelopeStage(FREQ_LEN, SR);
+    const raw = new Uint8Array(FREQ_LEN);
+    raw[BASS_BIN] = 255;
+    raw[TREBLE_BIN] = 255;
+    return { stage, raw };
+  }
+
+  it("attacks within a frame or two — a kick peaks immediately", () => {
+    const { stage, raw } = impulseStage();
+    stage.step(raw, 1 / 60);
+    // attack k=0.5 → state ≈ 0.5 → byte ≈ 128 after ONE frame.
+    expect(stage.bands[BASS_BIN]).toBeGreaterThan(100);
+    stage.step(raw, 1 / 60);
+    expect(stage.bands[BASS_BIN]).toBeGreaterThan(180);
   });
 
-  it("rises much faster than it falls", () => {
-    // The asymmetry IS the point: a 6.7x ratio is what damps flicker without
-    // adding lag to a kick.
-    expect(DEFAULT_ASYMMETRIC_SMOOTHING.attack).toBeGreaterThan(
-      DEFAULT_ASYMMETRIC_SMOOTHING.release * 4,
-    );
+  it("releases slowly — the tail decays over ~0.5 s, not one frame", () => {
+    const { stage, raw } = impulseStage();
+    for (let i = 0; i < 30; i++) stage.step(raw, 1 / 60);
+    const silent = new Uint8Array(FREQ_LEN);
+    stage.step(silent, 1 / 60);
+    // One silent frame must NOT snap the band to zero.
+    expect(stage.bands[BASS_BIN]).toBeGreaterThan(100);
   });
 
-  it("attacks faster than it releases from the same starting state", () => {
-    const up = asymmetricSmoothStep(0.5, 1);
-    const down = asymmetricSmoothStep(0.5, 0);
-    expect(up).toBeCloseTo(0.9, 6);
-    expect(down).toBeCloseTo(0.44, 6);
-    // Stated separately so collapsing the two weights into one cannot pass: a
-    // symmetric smoother would leave the rise and fall the same distance apart.
-    expect(up - 0.5).toBeGreaterThan(2 * (0.5 - down));
+  it("bass releases slower than treble (per-band time constants)", () => {
+    const { stage, raw } = impulseStage();
+    for (let i = 0; i < 30; i++) stage.step(raw, 1 / 60);
+    const silent = new Uint8Array(FREQ_LEN);
+    for (let i = 0; i < 20; i++) stage.step(silent, 1 / 60);
+    // bass release k=0.06 vs treble k=0.10 → bass retains more energy.
+    expect(stage.bands[BASS_BIN]).toBeGreaterThan(stage.bands[TREBLE_BIN]);
   });
 
-  it("converges to a steady target", () => {
-    let v = 0;
-    for (let i = 0; i < 200; i++) v = asymmetricSmoothStep(v, 0.8);
-    expect(v).toBeCloseTo(0.8, 4);
+  it("outputs the same 0–255 scale and length as the analyser", () => {
+    const { stage, raw } = impulseStage();
+    stage.step(raw, 1 / 60);
+    expect(stage.bands).toHaveLength(FREQ_LEN);
+    expect(stage.bands[BASS_BIN]).toBeLessThanOrEqual(255);
+    expect(stage.bands[BASS_BIN]).toBeGreaterThanOrEqual(0);
   });
 
-  it("is a no-op when the state already matches", () => {
-    expect(asymmetricSmoothStep(0.5, 0.5)).toBe(0.5);
+  it("reset() snaps all state to zero (track-switch silence guard)", () => {
+    const { stage, raw } = impulseStage();
+    for (let i = 0; i < 30; i++) stage.step(raw, 1 / 60);
+    stage.reset();
+    expect(stage.bands[BASS_BIN]).toBe(0);
+    expect(stage.centroid).toBe(0);
   });
 
-  it("stays within [0,1] for an out-of-range target", () => {
-    // An unnormalised FFT sample must not be able to push a bar off-canvas.
-    expect(asymmetricSmoothStep(0.5, 5)).toBe(1);
-    expect(asymmetricSmoothStep(0.5, -5)).toBe(0);
+  it("computes an enveloped spectral centroid in 0..1", () => {
+    const stage = createEnvelopeStage(FREQ_LEN, SR);
+    const raw = new Uint8Array(FREQ_LEN);
+    raw[FREQ_LEN - 1] = 255; // energy at the top bin → centroid ≈ 1
+    for (let i = 0; i < 200; i++) stage.step(raw, 1 / 60);
+    expect(stage.centroid).toBeGreaterThan(0.9);
+    expect(stage.centroid).toBeLessThanOrEqual(1);
   });
 
-  it("treats a NaN target as silence rather than poisoning the band", () => {
-    const out = asymmetricSmoothStep(0.7, Number.NaN);
-    expect(Number.isNaN(out)).toBe(false);
-    expect(out).toBeLessThan(0.7);
-  });
-
-  it("honours custom coefficients", () => {
-    expect(asymmetricSmoothStep(0, 1, { attack: 0.5, release: 0.5 })).toBeCloseTo(0.5, 6);
-  });
-});
-
-describe("asymmetricSmoothBands", () => {
-  it("smooths every band", () => {
-    const values = [1, 1, 1, 1];
-    const smoothed = [0, 0, 0, 0];
-    asymmetricSmoothBands(values, smoothed);
-    for (const v of smoothed) expect(v).toBeCloseTo(0.8, 6);
-  });
-
-  it("mutates in place rather than returning a copy", () => {
-    // Runs 64+ times per frame; allocating here is the point of the signature.
-    const smoothed = [0, 0];
-    expect(asymmetricSmoothBands([1, 1], smoothed)).toBeUndefined();
-    expect(smoothed[0]).toBeGreaterThan(0);
-  });
-
-  it("resizes a mismatched buffer instead of writing past its end", () => {
-    const smoothed = [0, 0, 0];
-    asymmetricSmoothBands([1, 1, 1, 1, 1], smoothed);
-    expect(smoothed).toHaveLength(5);
-    for (const v of smoothed) expect(v).toBeCloseTo(0.8, 6);
-  });
-
-  it("preserves state across frames when the buffer matches", () => {
-    const smoothed = [0, 0];
-    asymmetricSmoothBands([1, 1], smoothed);
-    const afterFirst = smoothed[0];
-    asymmetricSmoothBands([1, 1], smoothed);
-    // A same-size buffer must NOT reset, or every frame would look like the first.
-    expect(smoothed[0]).toBeGreaterThan(afterFirst);
-  });
-
-  it("reaches the target over repeated frames", () => {
-    const smoothed = [0];
-    for (let i = 0; i < 100; i++) asymmetricSmoothBands([0.5], smoothed);
-    expect(smoothed[0]).toBeCloseTo(0.5, 4);
+  it("handles a shorter raw buffer without reading past it", () => {
+    const stage = createEnvelopeStage(FREQ_LEN, SR);
+    const short = new Uint8Array(64).fill(200);
+    expect(() => stage.step(short, 1 / 60)).not.toThrow();
+    // Tail bins decay toward zero rather than sticking at stale values.
+    for (let i = 0; i < 60; i++) stage.step(short, 1 / 60);
+    expect(stage.bands[FREQ_LEN - 1]).toBeLessThan(50);
   });
 });
 
@@ -571,17 +554,15 @@ describe("perceptual scales", () => {
   });
 
   /**
-   * The asymmetric smoother must actually reach `bars`.
-   *
-   * This is the half-wired regression: `ASYMMETRIC_SMOOTHING_MODES` once omitted
-   * "bars" while this file imported the symbol, so the suite could pass while
-   * the feature did nothing. Asserting the *set contents* (rather than only the
-   * predicate) is what makes the wiring itself visible.
+   * T-VIZ-15: the shared envelope stage replaced the per-mode springs and
+   * the two-mode asymmetric wiring. Pin its existence here so a future
+   * "optimization" cannot silently delete the only smoothing stage.
    */
-  it("ASYMMETRIC_SMOOTHING_MODES includes every bar-style mode that should smooth", () => {
-    expect(ASYMMETRIC_SMOOTHING_MODES.has("bars")).toBe(true);
-    expect(usesAsymmetricSmoothing("bars")).toBe(true);
-    expect(usesAsymmetricSmoothing("stacked-frequency-bands")).toBe(true);
+  it("createEnvelopeStage is exported and produces a working stage", () => {
+    const stage = createEnvelopeStage(1024, 44100);
+    expect(stage.bands).toHaveLength(1024);
+    expect(typeof stage.step).toBe("function");
+    expect(typeof stage.reset).toBe("function");
   });
 
   /** Every mode the picker offers must resolve to a real budget, no orphans. */

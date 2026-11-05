@@ -202,86 +202,100 @@ export function sampleMappedBand(
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-/** Asymmetric band smoothing coefficients (AE doc §1, "the #1 fatigue fix"). */
-export interface AsymmetricSmoothing {
-  /** Weight given to the incoming sample when rising. */
+// ============================================================================
+// T-VIZ-15 — single attack/release envelope stage
+// ============================================================================
+// One smoothing stage between raw analyser band data and every Canvas2D
+// mode. Per-band-group time constants (transients snap, colour drifts)
+// from the veffects reference, converted to continuous lambdas via the
+// T-VIZ-14 helper. Replaces the per-mode springs and the earlier
+// two-mode asymmetricSmoothStep wiring.
+
+/** Per-frame convergence weights at 60 Hz, by frequency group. */
+interface EnvelopeBandK {
   attack: number;
-  /** Weight given to the incoming sample when falling. */
   release: number;
 }
 
-/**
- * Defaults from `docs/knowledge/gemini-ae-to-canvas2d-2026-10-02/README.md` §1:
- * rise 0.8 / fall 0.12. The 6.7x ratio is what damps high-frequency flicker
- * without adding lag to a kick.
- */
-export const DEFAULT_ASYMMETRIC_SMOOTHING: AsymmetricSmoothing = {
-  attack: 0.8,
-  release: 0.12,
-};
+const ENVELOPE_BANDS: { maxHz: number; k: EnvelopeBandK }[] = [
+  { maxHz: 250, k: { attack: 0.5, release: 0.06 } }, // bass
+  { maxHz: 4000, k: { attack: 0.5, release: 0.07 } }, // mid
+  { maxHz: Infinity, k: { attack: 0.5, release: 0.1 } }, // treble
+];
 
-/**
- * One step of asymmetric (fast-attack, slow-release) smoothing.
- *
- * Equal-weight smoothing is the "triangular hit curve" the motion-design doc
- * calls amateur tell #3: everything ramps and falls at the same rate, so a hit
- * never snaps and a tail never clears. Rising fast and falling slowly is what
- * makes a transient read as a transient.
- *
- * Mutates and returns `state` so a caller can run a whole band array without
- * allocating per frame.
- */
-export function asymmetricSmoothStep(
-  state: number,
-  target: number,
-  smoothing: AsymmetricSmoothing = DEFAULT_ASYMMETRIC_SMOOTHING,
-): number {
-  const t = Number.isFinite(target) ? target : 0;
-  const rising = t > state;
-  const weight = rising ? smoothing.attack : smoothing.release;
-  // A weight of exactly 1 is legitimate (pass-through) but must not be able to
-  // produce a value outside [0,1] when the caller passes an unnormalised target.
-  const next = state + weight * (t - state);
-  return clamp(next, 0, 1);
+/** Spectral centroid smoothing — symmetric, slow (veffects reference). */
+const CENTROID_K = 0.05;
+
+export interface EnvelopeStage {
+  /** Enveloped bands in the same 0–255 byte scale/length as analyser output. */
+  readonly bands: Uint8Array;
+  /** Length of `bands` (matches the analyser's frequencyBinCount). */
+  readonly length: number;
+  /** Enveloped spectral centroid, 0..1 of Nyquist. */
+  centroid: number;
+  /** Advance the envelope by `dt` seconds against raw byte band data. */
+  step(raw: Uint8Array, dt: number): void;
+  /** Snap all state to zero — call on track switch / silence. */
+  reset(): void;
 }
 
 /**
- * Smooth a whole band array in place.
- *
- * `values` is read at each index; `smoothed` holds the previous frame's state and
- * is updated in place. Both arrays are mutated rather than copied — this runs
- * 64+ times per frame.
+ * Create the shared band-envelope stage. `freqLength` is the analyser's
+ * `frequencyBinCount` (fftSize / 2); `sampleRate` maps bins to Hz so each
+ * bin gets its group's attack/release lambdas.
  */
-export function asymmetricSmoothBands(
-  values: ArrayLike<number>,
-  smoothed: number[],
-  smoothing: AsymmetricSmoothing = DEFAULT_ASYMMETRIC_SMOOTHING,
-): void {
-  if (smoothed.length !== values.length) {
-    smoothed.length = values.length;
-    for (let i = 0; i < smoothed.length; i++) smoothed[i] = 0;
+export function createEnvelopeStage(
+  freqLength: number,
+  sampleRate = 44100,
+): EnvelopeStage {
+  const length = Math.max(1, freqLength);
+  const binHz = sampleRate / (2 * length);
+  const attackLambda = new Float64Array(length);
+  const releaseLambda = new Float64Array(length);
+  for (let i = 0; i < length; i++) {
+    const hz = (i + 0.5) * binHz;
+    const group = ENVELOPE_BANDS.find((b) => hz < b.maxHz) ?? ENVELOPE_BANDS[2];
+    attackLambda[i] = dampLambda(group.k.attack);
+    releaseLambda[i] = dampLambda(group.k.release);
   }
-  for (let i = 0; i < values.length; i++) {
-    smoothed[i] = asymmetricSmoothStep(smoothed[i], values[i], smoothing);
-  }
-}
-
-/**
- * Modes wired to asymmetric smoothing (plan 2.1).
- *
- * The wiring decision lives here as data, not buried in the render loop, so a
- * unit test can pin it: these modes call `asymmetricSmoothStep` per frame;
- * every other mode keeps its existing spring code as fallback. Adding a mode
- * to this set is the entire wiring change for that mode.
- */
-export const ASYMMETRIC_SMOOTHING_MODES: ReadonlySet<string> = new Set([
-  "bars",
-  "stacked-frequency-bands",
-]);
-
-/** Whether `mode` renders through the asymmetric smoother (plan 2.1). */
-export function usesAsymmetricSmoothing(mode: string): boolean {
-  return ASYMMETRIC_SMOOTHING_MODES.has(mode);
+  const centroidLambda = dampLambda(CENTROID_K);
+  const state = new Float64Array(length);
+  const bands = new Uint8Array(length);
+  const stage: EnvelopeStage = {
+    bands,
+    length,
+    centroid: 0,
+    step(raw: Uint8Array, dt: number) {
+      const n = Math.min(length, raw.length);
+      let sum = 0;
+      let weighted = 0;
+      for (let i = 0; i < n; i++) {
+        const target = raw[i] / 255;
+        sum += raw[i];
+        weighted += i * raw[i];
+        const rising = target > state[i];
+        state[i] = damp(
+          state[i],
+          target,
+          rising ? attackLambda[i] : releaseLambda[i],
+          dt,
+        );
+        bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
+      }
+      for (let i = n; i < length; i++) {
+        state[i] = damp(state[i], 0, releaseLambda[i], dt);
+        bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
+      }
+      const centroidTarget = sum > 0 ? weighted / sum / length : 0;
+      stage.centroid = damp(stage.centroid, centroidTarget, centroidLambda, dt);
+    },
+    reset() {
+      state.fill(0);
+      bands.fill(0);
+      stage.centroid = 0;
+    },
+  };
+  return stage;
 }
 
 /** Simple value noise for aurora/fluid effects (no external deps). */

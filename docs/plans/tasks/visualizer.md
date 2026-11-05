@@ -250,11 +250,43 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Kilo, 2026-11-03 — landed in `0ce7f5e`: damp()/dampLambda() in canvas2dHelpers.ts (lambda = -60*ln(1-k)), all Canvas2D mode renderers + particles drag migrated, 7 new tests incl. 60-vs-120 and 60-vs-30 step invariance and 60 Hz lerp equivalence. Kilo reports 608 visualizer tests pass, tsc/eslint clean. Orion static review 2026-11-03: math and tests verified against the Plan; BuilderFigure's springK is a separate component already using the equivalent dt form — not a miss. Ledger entry written by Orion at the owner's request (Kilo's commit did not update the task file).
 
 ### T-VIZ-15 — Single attack/release envelope stage, wired into all modes
-- **Status:** todo
+- **Status:** done
 - **Goal:** Wire the long-dormant asymmetricSmoothBands into a single time-constant envelope stage between band data and every mode; delete per-mode springs it replaces.
 - **Files:** `packages/frontend/src/features/visualizer/canvas2dHelpers.ts`, `Canvas2DVisualizer.tsx`, `canvas2dModes.ts`
 - **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-15 (per-band time constants from the veffects reference).
 - **Acceptance:** no mode reads raw band arrays (grep); kick hit peaks within one frame, decays over ~0.5 s.
+- **What changed:**
+  - `canvas2dHelpers.ts`: new `createEnvelopeStage(freqLength,
+    sampleRate)` — per-bin attack/release lambdas by Hz group (bass
+    <250 Hz k=0.5/0.06, mid <4 kHz k=0.5/0.07, treble k=0.5/0.10, all
+    converted via `dampLambda`+`damp` with real `dt`), plus an enveloped
+    spectral centroid (k=0.05). Outputs `bands` in the same 0–255 byte
+    scale/length as analyser data, so every mode consumer is unchanged.
+    The dormant `asymmetricSmoothStep`/`asymmetricSmoothBands`/
+    `ASYMMETRIC_SMOOTHING_MODES`/`usesAsymmetricSmoothing` machinery is
+    deleted — the stage supersedes it.
+  - `Canvas2DVisualizer.tsx`: the stage is created lazily per freq-buffer
+    length, stepped once per frame on the raw `getByteFrequencyData`
+    output (virtual/export frames included — `nowMs()` keeps it
+    deterministic), and `ctxInfo.freq` now carries `envelope.bands`.
+    The silence guard resets `envelope` + legacy peak state on track
+    switch; `resetState` (deterministic export) resets it too.
+  - `canvas2dModes.ts`: all nine freq-driven `dampLambda` springs
+    deleted — computeBarTarget (bars), mirrored-bars, segmented-led,
+    stereo-split, stacked-frequency-bands (incl. the redundant
+    asymmetricSmoothStep branch and `smoothedStack`), dot-peak-matrix,
+    radial, constellation node radii. Modes now use the enveloped target
+    directly; `barPeaks`/`barVelocities` remain only as peak-hold/display
+    state. Waveform's wave-domain smoothing and particles' motion
+    integration are untouched (not band data).
+  - `visualizerModeRegistry.ts` + `BarModeContext`: the `asymmetric`
+    flag removed from both render-context contracts.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 — implemented per
+  plan. Verified: `tsc -b` clean project-wide, eslint 0 errors on touched
+  files, 560 visualizer vitest pass incl. 7 new envelope-stage tests
+  (one-frame attack, ~0.5 s release tail, bass-vs-treble release
+  ordering, byte scale, reset, centroid, short-buffer safety). Live
+  kick-transient check pending a headed playback session.
 
 ### T-VIZ-16 — Float frequency data + split transient/onset path
 - **Status:** todo

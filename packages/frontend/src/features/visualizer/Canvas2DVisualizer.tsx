@@ -23,10 +23,11 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
+  createEnvelopeStage,
   easeOutQuad,
   lerpColor,
   normalizeHex,
-  usesAsymmetricSmoothing,
+  type EnvelopeStage,
   type PerceptualScale,
 } from "./canvas2dHelpers";
 import {
@@ -261,8 +262,11 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
 
       // 2026 animation state: spring-physics bar smoothing, beat vignette, radial rotation
       let barVelocities: number[] | null = null;
-      // Plan 2.1: asymmetric (0.8 attack / 0.12 release) envelope state for the
-      // modes listed in ASYMMETRIC_SMOOTHING_MODES; null everywhere else.
+      // T-VIZ-15: the single attack/release envelope stage between raw band
+      // data and every mode. Modes receive `envelope.bands`, never raw freq.
+      let envelope: EnvelopeStage | null = null;
+      let lastEnvMs: number | null = null;
+      // Per-bar previous-target store for the bars-mode rise detector.
       let smoothedBars: number[] | null = null;
       // Consecutive all-silent frequency frames; used to detect a track switch
       // (see the reset in the draw loop). Not per-mode state.
@@ -295,7 +299,6 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         barVelocities: null,
         barPeaks: null,
         smoothedBars: null,
-        smoothedStack: null,
         waveEnvelope: null,
         waveVelocities: null,
         smoothed: null,
@@ -312,7 +315,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         barModeState.barVelocities = null;
         barModeState.barPeaks = null;
         barModeState.smoothedBars = null;
-        barModeState.smoothedStack = null;
+        envelope?.reset();
+        lastEnvMs = null;
         barModeState.waveEnvelope = null;
         barModeState.waveVelocities = null;
         barModeState.smoothed = null;
@@ -621,8 +625,20 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           analyser.getByteTimeDomainData(wave as Uint8Array<ArrayBuffer>);
         }
 
-        // Plan 2.1: per-mode smoothing decision as data (canvas2dHelpers).
-        const asymmetric = usesAsymmetricSmoothing(mode);
+        // T-VIZ-15: advance the shared envelope on this frame's raw bands.
+        // Recreated if the analyser (or virtual buffer) changes length.
+        if (envelope?.length !== freq.length) {
+          envelope = createEnvelopeStage(
+            freq.length,
+            analyserRef.current?.context.sampleRate ?? 44100,
+          );
+          lastEnvMs = null;
+        }
+        const envNow = nowMs();
+        const envDt =
+          lastEnvMs === null ? 0 : Math.min(0.1, Math.max(0, (envNow - lastEnvMs) / 1000));
+        lastEnvMs = envNow;
+        envelope.step(freq, envDt);
 
         // Reset the envelope when the new track opens in silence.
         //
@@ -636,7 +652,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // Silence is the reliable signal: a track that has just started, or is
         // between selections, reads all-zero frequency data. Two consecutive
         // silent frames avoids resetting on a single dropped buffer between beats.
-        if (asymmetric && smoothedBars) {
+        {
           let isSilent = true;
           for (let i = 0; i < freq.length; i += 16) {
             if (freq[i] !== 0) {
@@ -646,6 +662,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           }
           if (isSilent) {
             if (++silentFrames >= 2) {
+              envelope.reset();
               smoothedBars = null;
               barVelocities = null;
             }
@@ -695,7 +712,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           sectionProgress: sync?.sectionProgress ?? 0,
           colors,
           perceptualScale: perceptualScale as "bark" | "erb" | "mel" | "linear",
-          freq,
+          // T-VIZ-15: modes receive the enveloped bands, never raw freq.
+          freq: envelope.bands,
           wave,
           bg: bgColor,
           nowMs,
@@ -707,7 +725,6 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           isDownbeat: audioData.current.isDownbeat ?? false,
           rand,
           getGradients,
-          asymmetric,
         }, {
           smoothed,
           particles: particles as unknown as VisualizerModeState["particles"],

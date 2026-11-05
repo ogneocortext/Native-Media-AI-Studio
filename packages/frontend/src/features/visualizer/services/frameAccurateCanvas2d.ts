@@ -13,9 +13,9 @@
  * so two exports of the same scene are bit-identical.
  *
  * Mode state shared with the live loop, reset via `resetState` callback:
- *   barVelocities, barPeaks, smoothedBars, smoothedStack,
+ *   barVelocities, barPeaks, smoothedBars,
  *   waveEnvelope, waveVelocities, smoothed,
- *   phraseFlash, beatVignette, silentFrames
+ *   phraseFlash, beatVignette, silentFrames, envelope
  *
  * Cleared via `clearPools` callback (const arrays, not nulled):
  *   particles, idleParticles, shockwaves

@@ -43,7 +43,6 @@ export interface VisualizerModeRenderContext {
   isDownbeat: boolean;
   rand: () => number;
   getGradients: (mode: string, cols: string[]) => CanvasGradient[];
-  asymmetric: boolean;
 }
 
 /**
