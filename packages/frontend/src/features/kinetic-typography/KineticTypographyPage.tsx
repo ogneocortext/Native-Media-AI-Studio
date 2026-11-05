@@ -23,10 +23,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Play,
   Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
   Type,
   RotateCcw,
   Mic,
@@ -65,6 +61,7 @@ import {
   type TrackLyricsIndexEntry,
 } from "../../data/trackLyrics";
 import { LyricsEditorModal } from "./components/LyricsEditorModal";
+import { KineticTransport } from "./components/KineticTransport";
 import { PresetSelector, type VisualPreset } from "../visualizer/PresetSelector";
 import { consumePendingTrack } from "../../utils/pendingTrack";
 import { generateKineticVideo, type KineticVideoResponse } from "../../services/api";
@@ -152,13 +149,6 @@ function findBeatIndex(beatTimes: number[], time: number): number {
 }
 
 // Helper: m:ss time display
-function formatTime(s: number): string {
-  const safe = Math.max(0, s || 0);
-  return `${Math.floor(safe / 60)}:${Math.floor(safe % 60)
-    .toString()
-    .padStart(2, "0")}`;
-}
-
 // Normalize a track name for matching against the track-lyrics library
 function normalizeTrackName(s: string): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -906,86 +896,21 @@ export function KineticTypographyPage() {
             </div>
           </div>
 
-          {/* Transport */}
-          <div className="kt-transport" role="group" aria-label="Playback controls">
-            <button
-              className="kt-transport-btn"
-              onClick={() => seekTo(0)}
-              aria-label="Restart"
-              title="Restart (R)"
-            >
-              <SkipBack size={14} />
-            </button>
-            <button
-              className="kt-transport-btn kt-transport-play"
-              onClick={togglePlay}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              title="Play/Pause (Space)"
-            >
-              {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-            </button>
-            <button
-              className="kt-transport-btn"
-              onClick={() => seekTo(elapsedRef.current + 5)}
-              aria-label="Forward 5 seconds"
-              title="Forward 5s (→)"
-            >
-              <SkipForward size={14} />
-            </button>
-            <div className="kt-scrubber">
-              <input
-                type="range"
-                min="0"
-                max={playbackDuration}
-                step="0.1"
-                value={Math.min(elapsed, playbackDuration)}
-                onChange={(e) => seekTo(parseFloat(e.target.value))}
-                className="kt-scrubber-input"
-                aria-label="Seek"
-              />
-            </div>
-            <span className="kt-time">
-              {formatTime(elapsed)} / {formatTime(playbackDuration)}
-            </span>
-            <button
-              className="kt-transport-btn"
-              onClick={() => setIsMuted((m) => !m)}
-              aria-label={isMuted ? "Unmute" : "Mute"}
-              title="Mute (M)"
-            >
-              {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={isMuted ? 0 : volume}
-              onChange={(e) => {
-                setVolume(parseFloat(e.target.value));
-                setIsMuted(false);
-              }}
-              className="kt-volume-slider"
-              aria-label="Volume"
-            />
-          </div>
-
-          {/* Keyboard hints */}
-          <div className="kt-keyboard-hints">
-            <span className="kt-keyboard-hint">
-              <kbd>Space</kbd> Play/Pause
-            </span>
-            <span className="kt-keyboard-hint">
-              <kbd>←</kbd>
-              <kbd>→</kbd> Scrub
-            </span>
-            <span className="kt-keyboard-hint">
-              <kbd>R</kbd> Restart
-            </span>
-            <span className="kt-keyboard-hint">
-              <kbd>M</kbd> Mute
-            </span>
-          </div>
+          <KineticTransport
+            isPlaying={isPlaying}
+            elapsed={elapsed}
+            elapsedRef={elapsedRef}
+            playbackDuration={playbackDuration}
+            isMuted={isMuted}
+            volume={volume}
+            onTogglePlay={togglePlay}
+            onSeek={seekTo}
+            onToggleMute={() => setIsMuted((m) => !m)}
+            onVolumeChange={(v) => {
+              setVolume(v);
+              setIsMuted(false);
+            }}
+          />
         </div>
 
         {/* Controls Panel */}

@@ -632,3 +632,19 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Files:** ShaderVisualizer.tsx, ShaderHud.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors, 573
   visualizer vitest pass - pure move.
+
+### T-VIZ-36 - Extract KineticTransport from KineticTypographyPage.tsx
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - the kinetic-typography
+  page (~1350 lines) mixed track loading/presets/render orchestration
+  with its playback strip.
+- **What changed:**
+  - ``components/KineticTransport.tsx`` (new) - the transport row
+    (restart/play-pause/+5s, scrubber, time readout, mute, volume) and
+    the keyboard-hint footer moved verbatim; ``formatTime`` moved with
+    them (transport was its only caller). ``elapsedRef`` is passed as a
+    prop so the +5s button keeps its no-stale-closure read.
+- **Files:** KineticTypographyPage.tsx,
+  components/KineticTransport.tsx (new)
+- **Acceptance:** tsc clean for touched files, eslint 0 errors (the
+  feature has no vitest coverage - pre-existing warnings only).
