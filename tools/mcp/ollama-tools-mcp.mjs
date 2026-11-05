@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
-import { Server } from "@modelcontextprotocol/server";
+import { McpServer as Server } from "@modelcontextprotocol/server";
 import { SkillsExtension } from "@modelcontextprotocol/server/ext/skills";
-import { loadSkills } from "@modelcontextprotocol/server/ext/skills/node";
+import { nodeSkillFiles } from "@modelcontextprotocol/server/ext/skills/node";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -206,14 +206,14 @@ lifecycle.onCleanup(() => {
 // Skills over MCP (SEP-2640): publish a folder of skills that clients can
 // list, read, and verify before calling. Each SKILL.md maps to one or more
 // of the tools defined above.
-const skillCatalog = await loadSkills(path.join(__dirname, "skills"));
-SkillsExtension.attach(server, skillCatalog);
+const catalog = await SkillsExtension.load(nodeSkillFiles(path.join(__dirname, "skills")));
+catalog.attach(server);
 
 // ============================================================
 // TOOL DEFINITIONS
 // ============================================================
 
-server.setRequestHandler('tools/list', async () => ({
+server.server.setRequestHandler('tools/list', async () => ({
   tools: [
     {
       name: "analyze_image",
@@ -445,7 +445,7 @@ server.setRequestHandler('tools/list', async () => ({
 // TOOL HANDLERS
 // ============================================================
 
-server.setRequestHandler('tools/call', async (request) => {
+server.server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params;
   const reqId = generateRequestId();
   logRequest(reqId, name, "start");
