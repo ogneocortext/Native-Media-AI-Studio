@@ -18,6 +18,8 @@ import {
   ollamaChat,
   ollamaEngineStatus,
   getOllamaModels,
+  getBestCodingModel,
+  getBestBenchmarkModel,
   type ChatMessage,
   type ToolDefinition,
 } from "./ollama";
@@ -65,18 +67,6 @@ function stripMarkdownFences(content: string): string {
   return code;
 }
 
-/**
- * Task-aware model preference map. When nothing is resident, these models
- * are preferred for different task types based on benchmark results and
- * model capabilities.
- */
-const TASK_MODEL_PREFERENCES: Record<string, string[]> = {
-  coding: ["llama3.1:8b", "qwen3.5:4b", "llama3.2:3b"],
-  vision: ["gemma4:e2b-it-qat", "qwen3.5:4b", "llama3.1:8b"],
-  chat: ["llama3.2:3b", "qwen3.5:4b", "llama3.1:8b"],
-  default: ["llama3.1:8b", "qwen3.5:4b", "llama3.2:3b"],
-};
-
 // Cache for model selection results (TTL: 30 seconds) to avoid re-checking
 // endpoints on every call.
 let modelSelectionCache: { model: string; expiresAt: number } | null = null;
@@ -87,12 +77,12 @@ const MODEL_SELECTION_TTL_MS = 30_000;
  * loaded in memory (resident) to avoid wasteful unload/load cycles.
  *
  * Selection order:
- *  1. If Ollama is online and has a resident model, reuse it.
- *  2. If Atomic Chat is online and reports a model, reuse it.
+ *  1. If Ollama is online and has a resident model, reuse it (dynamic).
+ *  2. If Atomic Chat is online and reports a model, reuse it (dynamic).
  *  3. If Ollama is online but nothing is loaded, pick the best installed
- *     model for the task type (size-aware, prefers verified models).
- *  4. If Atomic Chat is online but nothing is loaded, use qwen3.5:4b.
- *  5. Fall back to the task's default preferred model.
+ *     model for the task type based on live benchmark scores (dynamic).
+ *  4. If Atomic Chat is online but nothing is loaded, use its best model.
+ *  5. Fall back to a sensible default.
  *
  * Results are cached for 30 seconds to avoid repeated endpoint checks.
  *
@@ -118,7 +108,10 @@ export async function selectModel(
       getOllamaModels(false),
     ]);
 
-  // 1. Reuse a resident Ollama model if one is loaded
+  const installed: OllamaModel[] =
+    installedModels.status === "fulfilled" ? installedModels.value : [];
+
+  // 1. Reuse a resident Ollama model if one is loaded (dynamic)
   if (
     ollamaStatus.status === "fulfilled" &&
     ollamaStatus.value.online &&
@@ -131,7 +124,7 @@ export async function selectModel(
     return model;
   }
 
-  // 2. Reuse a resident Atomic Chat model if one is loaded
+  // 2. Reuse a resident Atomic Chat model if one is loaded (dynamic)
   if (
     atomicStatus.status === "fulfilled" &&
     atomicStatus.value.reachable &&
@@ -142,48 +135,140 @@ export async function selectModel(
     return model;
   }
 
-  // 3. Ollama online but nothing loaded — pick best installed model for task
+  // Helper: check if a model is installed and available
+  const isInstalled = (name: string): boolean =>
+    installed.some((m) => m.name === name && m.is_available !== false);
+
+  // 3. Ollama online but nothing loaded — pick best model for task (dynamic)
   if (ollamaStatus.status === "fulfilled" && ollamaStatus.value.online) {
-    const installed =
-      installedModels.status === "fulfilled" ? installedModels.value : [];
-
-    const preferences = preferred
-      ? [preferred]
-      : TASK_MODEL_PREFERENCES[taskType] ?? TASK_MODEL_PREFERENCES.default;
-
-    // Find the first preferred model that is installed and available
-    for (const candidate of preferences) {
-      const found = installed.find(
-        (m: OllamaModel) => m.name === candidate && m.is_available,
-      );
-      if (found) {
-        modelSelectionCache = {
-          model: found.name,
-          expiresAt: now + MODEL_SELECTION_TTL_MS,
-        };
-        return found.name;
-      }
+    if (preferred && isInstalled(preferred)) {
+      modelSelectionCache = {
+        model: preferred,
+        expiresAt: now + MODEL_SELECTION_TTL_MS,
+      };
+      return preferred;
     }
 
-    // Preferred model not installed — fall back to task default preferences
-    const taskPrefs = TASK_MODEL_PREFERENCES[taskType] ?? TASK_MODEL_PREFERENCES.default;
-    const fallback = taskPrefs[0];
-    modelSelectionCache = {
-      model: fallback,
-      expiresAt: now + MODEL_SELECTION_TTL_MS,
-    };
-    return fallback;
+    try {
+      switch (taskType) {
+        case "coding": {
+          // Use the best coding model from live benchmark results
+          const best = await getBestCodingModel();
+          if (best.best && isInstalled(best.best)) {
+            modelSelectionCache = {
+              model: best.best,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return best.best;
+          }
+          // Fall back to any installed coding-capable model
+          const codingCandidates = installed.filter(
+            (m) => m.supports_tools && m.is_available !== false,
+          );
+          if (codingCandidates.length > 0) {
+            const model = codingCandidates[0].name;
+            modelSelectionCache = {
+              model,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return model;
+          }
+          break;
+        }
+        case "vision": {
+          // Prefer verified vision-capable installed models
+          const visionCandidates = installed.filter(
+            (m) =>
+              m.supports_vision && m.is_available !== false && m.verified,
+          );
+          if (visionCandidates.length > 0) {
+            const model = visionCandidates[0].name;
+            modelSelectionCache = {
+              model,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return model;
+          }
+          // Fall back to any vision-capable installed model
+          const anyVision = installed.find(
+            (m) => m.supports_vision && m.is_available !== false,
+          );
+          if (anyVision) {
+            modelSelectionCache = {
+              model: anyVision.name,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return anyVision.name;
+          }
+          break;
+        }
+        case "chat": {
+          // Use the best benchmark model from live results
+          const best = await getBestBenchmarkModel();
+          if (best.best && isInstalled(best.best)) {
+            modelSelectionCache = {
+              model: best.best,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return best.best;
+          }
+          // Fall back to smallest tool-capable model for lightweight chat
+          const chatCandidates = installed.filter(
+            (m) => m.supports_tools && m.is_available !== false,
+          );
+          if (chatCandidates.length > 0) {
+            const model = chatCandidates[0].name;
+            modelSelectionCache = {
+              model,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return model;
+          }
+          break;
+        }
+        default: {
+          // Try coding benchmark best, then any installed tool-capable model
+          const best = await getBestCodingModel();
+          if (best.best && isInstalled(best.best)) {
+            modelSelectionCache = {
+              model: best.best,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return best.best;
+          }
+          const anyTool = installed.find(
+            (m) => m.supports_tools && m.is_available !== false,
+          );
+          if (anyTool) {
+            modelSelectionCache = {
+              model: anyTool.name,
+              expiresAt: now + MODEL_SELECTION_TTL_MS,
+            };
+            return anyTool.name;
+          }
+          break;
+        }
+      }
+    } catch {
+      // Benchmark endpoints may not be available — fall through to installed-model check
+    }
+
+    // Final fallback: first installed tool-capable model, or first installed model
+    const fallback = installed.find((m) => m.is_available !== false);
+    const model = fallback?.name ?? "llama3.1:8b";
+    modelSelectionCache = { model, expiresAt: now + MODEL_SELECTION_TTL_MS };
+    return model;
   }
 
   // 4. Atomic Chat online but nothing loaded — use its preferred model
   if (atomicStatus.status === "fulfilled" && atomicStatus.value.reachable) {
-    const model = "qwen3.5:4b";
+    const model = atomicStatus.value.model ?? "qwen3.5:4b";
     modelSelectionCache = { model, expiresAt: now + MODEL_SELECTION_TTL_MS };
     return model;
   }
 
   // 5. Fall back
-  const fallback = preferred ?? TASK_MODEL_PREFERENCES.default[0];
+  const fallback = preferred ?? "llama3.1:8b";
   modelSelectionCache = { model: fallback, expiresAt: now + MODEL_SELECTION_TTL_MS };
   return fallback;
 }
@@ -203,6 +288,7 @@ interface OllamaModel {
   capabilities?: string[];
   supports_tools?: boolean;
   supports_vision?: boolean;
+  verified?: boolean;
 }
 
 export interface AgentLoopResult {
