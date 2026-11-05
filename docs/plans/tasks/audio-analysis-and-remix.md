@@ -198,3 +198,42 @@ Rules: `docs/plans/tasks/README.md`
   `_background_tasks` set + `_spawn()` done-callback pattern.
 - **Acceptance:** ruff clean, pytest green (19 remix tests), tsc clean,
   import cycles 0.
+
+### T-AUD-10 - Caching audit: spectral-timeline + stem-feature disk caches, LRU fix
+- **Status:** done
+- **Goal:** Owner: "check where there are issues with caching that needs to
+  be fixed." Audit of analysis/stem/spectral caching surfaces.
+- **What changed:**
+  - `GET /api/audio/spectral-timeline` had ZERO caching — every request
+    decoded the whole file and ran a full-track STFT, and it ran inline in
+    the event loop (freezing all requests for seconds). Now: disk cache at
+    `output/cache/spectral_timeline/<sha1(path+params)>.json` fingerprinted
+    by file mtime_ns+size (auto-invalidates on in-place replacement), and
+    decode/STFT/resample moved to `asyncio.to_thread`.
+  - `analyze_stems_for_visualization` recomputed librosa features for all
+    4 stems on EVERY call. Now per-stem disk cache at
+    `<stem_dir>/.viz-feature-cache/<name>.json` (same mtime+size
+    fingerprint; error results never cached), and the 4 stems analyze
+    concurrently via `asyncio.gather(return_exceptions=True)` instead of
+    four sequential passes.
+  - `_cache_set` was FIFO-by-insertion, not LRU — re-caching a hot key
+    kept its old slot so hot entries could evict early. Now refreshes
+    position on rewrite.
+  - Frontend: `useSpectralTimeline` gained a module-level cache +
+    inflight dedup (multi-hundred-KB timeline was refetched on every FX
+    remount / A-B-A track switch); `useKeyPalette` caches only
+    analysis-determined palettes — 404s and low-confidence fallbacks stay
+    live so a later analysis is picked up.
+- **Known limitation (not fixed):** `_analysis_is_stale` checks only
+  `schema_version` — an in-place file replacement under the same path
+  would serve stale analysis. Mitigated by content-addressed upload names
+  (`{content_id}_{name}`); flagged for a future file-fingerprint check.
+- **Files:** app/api/audio.py, app/services/stem_analysis.py,
+  features/visualizer/useSpectralTimeline.ts, useKeyPalette.ts
+- **Acceptance:** live verification — spectral-timeline first call 10.8s
+  (was blocking-loop STFT), second 0.89s from disk cache (813KB payload);
+  stems-analysis on a separated track: per-stem cache files written,
+  second call 0.086s vs 0.52s; ruff clean; 220 backend tests pass; 900
+  vitest pass; eslint 0 errors on touched files.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - live cache-hit
+  timing verification + pytest + vitest.

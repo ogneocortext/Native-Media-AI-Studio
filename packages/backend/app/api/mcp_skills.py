@@ -13,6 +13,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -20,7 +21,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
@@ -29,30 +30,26 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["MCP Skills"])
 
-_SKILLS_DIR = PROJECT_ROOT / "tools" / "mcp" / "skills"
+# Resolve skills directory - check multiple possible locations since the
+# backend may run from different working directories.
+_CANDIDATE_SKILLS_DIRS = [
+    PROJECT_ROOT / "tools" / "mcp" / "skills",
+    Path(__file__).resolve().parents[5] / "tools" / "mcp" / "skills",
+    Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio") / "tools" / "mcp" / "skills",
+]
 
-# Map of tool names to human-readable descriptions for the agent.
-_TOOL_DESCRIPTIONS: dict[str, str] = {
-    "analyze_image": "Analyze an image using Ollama vision model (gemma4:e2b-it-qat).",
-    "analyze_audio": "Analyze an audio track to extract BPM, beats, energy, and sections.",
-    "generate_image": "Generate an image via ComfyUI (SDXL workflow).",
-    "generate_video": "Generate a video clip via ComfyUI (Wan2.1 model).",
-    "list_audio_library": "List all available audio tracks in the library.",
-    "create_music_video_plan": "Create a music video production plan from audio analysis.",
-    "suggest_3d_prompt": "Enhance a raw 3D idea into a detailed prompt with material/texture guidance.",
-    "generate_3d_concept": "Generate a concept image optimized for 3D conversion (Hunyuan3D-friendly).",
-    "plan_blender_script": "Generate an executable Blender Python (bpy) script from a natural-language description.",
-    "update_mcp_context": "Update the shared MCP context (character, scene, audio, visualization state).",
-    "remix_list_sources": "List tracks with separated stems and per-stem availability.",
-    "remix_probe": "Get tempo and advisory key for one source track.",
-    "remix_from_prompt": "Draft a mashup recipe from a natural-language sentence.",
-    "remix_preview": "Resolve a recipe without rendering: timeline, stretch ratios, measured levels, warnings.",
-    "remix_build": "Render a recipe to output/remixes/<name>/ with stems and master.",
-    "remix_job_status": "Check the status of a remix build or enhance job.",
-    "remix_enhance": "Master an already-rendered remix with the Suno chain.",
-    "remix_list": "List rendered remixes with their manifests.",
-    "remix_get_file": "Get the playable URL for one stem or the mastered master of a rendered remix.",
-}
+_SKILLS_DIR = None
+for _cand in _CANDIDATE_SKILLS_DIRS:
+    if _cand.exists():
+        _SKILLS_DIR = _cand
+        break
+
+if _SKILLS_DIR is None:
+    _SKILLS_DIR = _CANDIDATE_SKILLS_DIRS[0]
+
+logger.info("MCP Skills directory: %s (exists: %s)", _SKILLS_DIR, _SKILLS_DIR.exists())
+
+BACKEND_BASE = "http://127.0.0.1:8000"
 
 
 class SkillInfo(BaseModel):
@@ -98,13 +95,31 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     fm_text = content[4:end]
     body = content[end + 5 :]
     frontmatter: dict[str, Any] = {}
+    current_key: str | None = None
     for line in fm_text.split("\n"):
-        if ":" in line:
-            key, _, value = line.partition(":")
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Multi-line list item
+        if stripped.startswith("- ") and current_key is not None:
+            val = stripped[2:].strip().strip('"').strip("'")
+            existing = frontmatter.get(current_key)
+            if isinstance(existing, list):
+                existing.append(val)
+            elif existing is not None:
+                frontmatter[current_key] = [existing, val]
+            else:
+                frontmatter[current_key] = [val]
+            continue
+        if ":" in stripped:
+            key, _, value = stripped.partition(":")
             key = key.strip()
             value = value.strip()
-            # Parse list values
-            if value.startswith("[") and value.endswith("]"):
+            current_key = key
+            if value == "":
+                # Multi-line list follows
+                frontmatter[key] = []
+            elif value.startswith("[") and value.endswith("]"):
                 inner = value[1:-1].strip()
                 if inner:
                     frontmatter[key] = [v.strip().strip('"').strip("'") for v in inner.split(",")]
@@ -119,6 +134,7 @@ def _discover_skills() -> list[SkillInfo]:
     """Scan the skills folder and return SkillInfo for each skill."""
     skills: list[SkillInfo] = []
     if not _SKILLS_DIR.exists():
+        logger.warning("Skills directory does not exist: %s", _SKILLS_DIR)
         return skills
     for skill_dir in sorted(_SKILLS_DIR.iterdir()):
         if not skill_dir.is_dir():
@@ -129,7 +145,6 @@ def _discover_skills() -> list[SkillInfo]:
         try:
             content = skill_md.read_text(encoding="utf-8")
             frontmatter, _body = _parse_frontmatter(content)
-            # Build resource list (SKILL.md + references/*.md)
             resources: list[dict[str, Any]] = []
             skill_md_stat = skill_md.stat()
             resources.append(
@@ -230,6 +245,24 @@ async def skills_file(skill_name: str, path: str) -> PlainTextResponse:
         raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}") from exc
 
 
+async def _http_post(path: str, payload: dict[str, Any], timeout: int = 30) -> Any:
+    """Make a POST request to the backend using async httpx."""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(BACKEND_BASE + path, json=payload)
+        if resp.status_code >= 400:
+            return {"error": f"HTTP {resp.status_code}: {resp.text}"}
+        return resp.json()
+
+
+async def _http_get(path: str, timeout: int = 30) -> Any:
+    """Make a GET request to the backend using async httpx."""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.get(BACKEND_BASE + path)
+        if resp.status_code >= 400:
+            return {"error": f"HTTP {resp.status_code}: {resp.text}"}
+        return resp.json()
+
+
 @router.post("/api/mcp/execute-tool", response_model=ExecuteToolResponse)
 async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
     """Execute any of the 19 ollama-tools by dispatching to the appropriate backend API.
@@ -240,152 +273,140 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
     tool_name = request.tool_name
     args = request.arguments
 
-    # Map tool names to backend API calls. Each entry is a tuple of
-    # (method, path, body_key_or_None).
-    # This keeps the frontend agent simple: one endpoint for all tools.
     try:
-        base = "http://127.0.0.1:8000"
-
         if tool_name == "list_audio_library":
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.get(f"{base}/api/audio/files")
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                data = res.json()
-                files = [o.get("filename", o.get("relative_path", "")) for o in data.get("outputs", [])]
-                return ExecuteToolResponse(success=True, result={"files": files, "count": len(files)})
+            result = await _http_get("/api/audio/files")
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            files = [o.get("filename", o.get("relative_path", "")) for o in result.get("outputs", [])]
+            return ExecuteToolResponse(success=True, result={"files": files, "count": len(files)})
 
         elif tool_name == "analyze_audio":
             filename = args.get("filename")
             if not filename:
                 return ExecuteToolResponse(success=False, error="filename is required")
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.get(f"{base}/api/audio/analysis/{filename}")
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_get(f"/api/audio/analysis/{filename}", timeout=60)
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "generate_image":
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                res = await client.post(
-                    f"{base}/api/generate-image",
-                    json={
-                        "description": args.get("prompt", ""),
-                        "width": args.get("width", 1024),
-                        "height": args.get("height", 1024),
-                    },
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/generate-image",
+                {
+                    "description": args.get("prompt", ""),
+                    "width": args.get("width", 1024),
+                    "height": args.get("height", 1024),
+                },
+                timeout=120,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "generate_video":
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                res = await client.post(
-                    f"{base}/api/music-video/generate",
-                    json={
-                        "prompt": args.get("prompt", ""),
-                        "duration": args.get("duration", 4),
-                        "fps": args.get("fps", 24),
-                        "width": args.get("width", 1024),
-                        "height": args.get("height", 768),
-                        "negative_prompt": args.get("negative_prompt", ""),
-                    },
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/music-video/generate",
+                {
+                    "prompt": args.get("prompt", ""),
+                    "duration": args.get("duration", 4),
+                    "fps": args.get("fps", 24),
+                    "width": args.get("width", 1024),
+                    "height": args.get("height", 768),
+                    "negative_prompt": args.get("negative_prompt", ""),
+                },
+                timeout=120,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_list_sources":
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.get(f"{base}/api/audio/remix/sources")
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_get("/api/audio/remix/sources")
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_probe":
             track = args.get("track")
             if not track:
                 return ExecuteToolResponse(success=False, error="track is required")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.post(f"{base}/api/audio/remix/probe?track={track}")
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(f"/api/audio/remix/probe?track={track}", {}, timeout=30)
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_from_prompt":
             prompt = args.get("prompt")
             if not prompt:
                 return ExecuteToolResponse(success=False, error="prompt is required")
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(
-                    f"{base}/api/audio/remix/from-prompt",
-                    json={"prompt": prompt, "base_recipe": args.get("base_recipe")},
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/audio/remix/from-prompt",
+                {"prompt": prompt, "base_recipe": args.get("base_recipe")},
+                timeout=60,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_preview":
             recipe = args.get("recipe")
             if not recipe:
                 return ExecuteToolResponse(success=False, error="recipe is required")
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(
-                    f"{base}/api/audio/remix/preview",
-                    json={"recipe": recipe},
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/audio/remix/preview",
+                {"recipe": recipe},
+                timeout=60,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_build":
             recipe = args.get("recipe")
             if not recipe:
                 return ExecuteToolResponse(success=False, error="recipe is required")
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                res = await client.post(
-                    f"{base}/api/audio/remix/build",
-                    json={"recipe": recipe, "overwrite": args.get("overwrite", False)},
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/audio/remix/build",
+                {"recipe": recipe, "overwrite": args.get("overwrite", False)},
+                timeout=120,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_job_status":
             job_id = args.get("job_id")
             if not job_id:
                 return ExecuteToolResponse(success=False, error="job_id is required")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.get(f"{base}/api/audio/remix/jobs/{job_id}")
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_get(f"/api/audio/remix/jobs/{job_id}")
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_enhance":
             name = args.get("name")
             if not name:
                 return ExecuteToolResponse(success=False, error="name is required")
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                res = await client.post(
-                    f"{base}/api/audio/remix/{name}/enhance",
-                    json={
-                        "target_peak_dbfs": args.get("target_peak_dbfs", -1.0),
-                        "master_ceiling_dbfs": args.get("master_ceiling_dbfs", -1.0),
-                        "vocal_balance_db": args.get("vocal_balance_db", 0.0),
-                        "output_format": args.get("output_format", "wav"),
-                    },
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                f"/api/audio/remix/{name}/enhance",
+                {
+                    "target_peak_dbfs": args.get("target_peak_dbfs", -1.0),
+                    "master_ceiling_dbfs": args.get("master_ceiling_dbfs", -1.0),
+                    "vocal_balance_db": args.get("vocal_balance_db", 0.0),
+                    "output_format": args.get("output_format", "wav"),
+                },
+                timeout=120,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_list":
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.get(f"{base}/api/audio/remix/list")
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_get("/api/audio/remix/list")
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "remix_get_file":
             name = args.get("name")
@@ -394,75 +415,74 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 return ExecuteToolResponse(success=False, error="name and which are required")
             return ExecuteToolResponse(
                 success=True,
-                result={"url": f"{base}/api/audio/remix/{name}/file/{which}"},
+                result={"url": f"{BACKEND_BASE}/api/audio/remix/{name}/file/{which}"},
             )
 
         elif tool_name == "update_mcp_context":
             context = args.get("context")
             if not context:
                 return ExecuteToolResponse(success=False, error="context is required")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.post(f"{base}/api/mcp_context", json=context)
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post("/api/mcp_context", context, timeout=30)
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "analyze_image":
             image_path = args.get("image_path")
             if not image_path:
                 return ExecuteToolResponse(success=False, error="image_path is required")
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(
-                    f"{base}/api/analyze-visualizer",
-                    json={"image_path": image_path, "prompt": args.get("prompt", "Describe this image in detail.")},
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/analyze-visualizer",
+                {"image_path": image_path, "prompt": args.get("prompt", "Describe this image in detail.")},
+                timeout=60,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "suggest_3d_prompt":
             idea = args.get("idea")
             if not idea:
                 return ExecuteToolResponse(success=False, error="idea is required")
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(
-                    f"{base}/api/music-video/generate-preview",
-                    json={"prompt": idea, "category": args.get("category", "character"), "style": args.get("style", "")},
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/music-video/generate-preview",
+                {"prompt": idea, "category": args.get("category", "character"), "style": args.get("style", "")},
+                timeout=60,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "generate_3d_concept":
             description = args.get("description")
             if not description:
                 return ExecuteToolResponse(success=False, error="description is required")
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                res = await client.post(
-                    f"{base}/api/generate-image",
-                    json={
-                        "description": description,
-                        "category": args.get("category", "3d-character"),
-                        "width": args.get("width", 1024),
-                        "height": args.get("height", 1024),
-                    },
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/generate-image",
+                {
+                    "description": description,
+                    "category": args.get("category", "3d-character"),
+                    "width": args.get("width", 1024),
+                    "height": args.get("height", 1024),
+                },
+                timeout=120,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         elif tool_name == "plan_blender_script":
             description = args.get("description")
             if not description:
                 return ExecuteToolResponse(success=False, error="description is required")
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(
-                    f"{base}/api/music-video/generate-preview",
-                    json={"prompt": description, "category": args.get("target", "mesh"), "style": args.get("model", "qwen3.5:4b")},
-                )
-                if not res.ok:
-                    return ExecuteToolResponse(success=False, error=f"HTTP {res.status}")
-                return ExecuteToolResponse(success=True, result=res.json())
+            result = await _http_post(
+                "/api/music-video/generate-preview",
+                {"prompt": description, "category": args.get("target", "mesh"), "style": args.get("model", "qwen3.5:4b")},
+                timeout=60,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return ExecuteToolResponse(success=False, error=result["error"])
+            return ExecuteToolResponse(success=True, result=result)
 
         else:
             return ExecuteToolResponse(success=False, error=f"Unknown tool: {tool_name}")
@@ -475,13 +495,26 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
 
 @router.get("/api/mcp/tools", response_model=list[dict[str, Any]])
 async def tools_list() -> list[dict[str, Any]]:
-    """List all available tools with their descriptions and parameter schemas."""
-    tools = []
-    for name, desc in _TOOL_DESCRIPTIONS.items():
-        tools.append(
-            {
-                "name": name,
-                "description": desc,
-            }
-        )
+    """List all available tools with their descriptions."""
+    tools = [
+        {"name": "analyze_image", "description": "Analyze an image using Ollama vision model (gemma4:e2b-it-qat)."},
+        {"name": "analyze_audio", "description": "Analyze an audio track to extract BPM, beats, energy, and sections."},
+        {"name": "generate_image", "description": "Generate an image via ComfyUI (SDXL workflow)."},
+        {"name": "generate_video", "description": "Generate a video clip via ComfyUI (Wan2.1 model)."},
+        {"name": "list_audio_library", "description": "List all available audio tracks in the library."},
+        {"name": "create_music_video_plan", "description": "Create a music video production plan from audio analysis."},
+        {"name": "suggest_3d_prompt", "description": "Enhance a raw 3D idea into a detailed prompt with material/texture guidance."},
+        {"name": "generate_3d_concept", "description": "Generate a concept image optimized for 3D conversion (Hunyuan3D-friendly)."},
+        {"name": "plan_blender_script", "description": "Generate an executable Blender Python (bpy) script from a natural-language description."},
+        {"name": "update_mcp_context", "description": "Update the shared MCP context (character, scene, audio, visualization state)."},
+        {"name": "remix_list_sources", "description": "List tracks with separated stems and per-stem availability."},
+        {"name": "remix_probe", "description": "Get tempo and advisory key for one source track."},
+        {"name": "remix_from_prompt", "description": "Draft a mashup recipe from a natural-language sentence."},
+        {"name": "remix_preview", "description": "Resolve a recipe without rendering: timeline, stretch ratios, measured levels, warnings."},
+        {"name": "remix_build", "description": "Render a recipe to output/remixes/<name>/ with stems and master."},
+        {"name": "remix_job_status", "description": "Check the status of a remix build or enhance job."},
+        {"name": "remix_enhance", "description": "Master an already-rendered remix with the Suno chain."},
+        {"name": "remix_list", "description": "List rendered remixes with their manifests."},
+        {"name": "remix_get_file", "description": "Get the playable URL for one stem or the mastered master of a rendered remix."},
+    ]
     return tools

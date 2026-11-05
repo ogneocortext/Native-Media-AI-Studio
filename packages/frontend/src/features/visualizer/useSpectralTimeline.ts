@@ -30,6 +30,13 @@ export interface SpectralTimelineState {
   sampleAtTime: (time: number) => SpectralFrame | null;
 }
 
+// Module-level cache: the timeline is deterministic per (filename, fps) and
+// the payload is thousands of frames — refetching on every FX-mode remount or
+// A→B→A track switch was pure waste. Backend disk-caches the compute; this
+// avoids even the multi-hundred-KB JSON round-trip within the session.
+const timelineCache = new Map<string, SpectralTimeline>();
+const inflight = new Map<string, Promise<SpectralTimeline>>();
+
 export function useSpectralTimeline(
   filename: string | null,
   fps = 24,
@@ -46,17 +53,37 @@ export function useSpectralTimeline(
       return;
     }
 
+    const cacheKey = `${filename}|${fps}`;
+    const cached = timelineCache.get(cacheKey);
+    if (cached) {
+      setTimeline(cached);
+      timelineRef.current = cached;
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
 
     const encoded = encodeURIComponent(filename);
-    fetch(`/api/audio/spectral-timeline/${encoded}?fps=${fps}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to fetch spectral timeline: ${res.status}`);
-        return res.json();
-      })
-      .then((data: SpectralTimeline) => {
+    let promise = inflight.get(cacheKey);
+    if (!promise) {
+      promise = fetch(`/api/audio/spectral-timeline/${encoded}?fps=${fps}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`Failed to fetch spectral timeline: ${res.status}`);
+          return res.json() as Promise<SpectralTimeline>;
+        })
+        .then((data: SpectralTimeline) => {
+          timelineCache.set(cacheKey, data);
+          return data;
+        })
+        .finally(() => inflight.delete(cacheKey));
+      inflight.set(cacheKey, promise);
+    }
+    promise
+      .then((data) => {
         if (cancelled) return;
         setTimeline(data);
         timelineRef.current = data;

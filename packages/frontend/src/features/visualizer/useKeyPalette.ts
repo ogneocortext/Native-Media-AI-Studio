@@ -50,6 +50,12 @@ export interface KeyPaletteState {
  * deterministic-fallback contract (Q2/Q5) says a track with no usable key still
  * has to render.
  */
+// Module-level cache for successful lookups only. A 404 ("not analyzed") is
+// deliberately NOT cached — the user can analyze the track and come back, and
+// a stale "unavailable" would hide the new key. Errors aren't cached either.
+const paletteCache = new Map<string, { palette: KeyPalette; unavailable: boolean }>();
+const inflight = new Map<string, Promise<KeyAnalysisLike | null>>();
+
 export function useKeyPalette(filename: string | null): KeyPaletteState {
   const [palette, setPalette] = useState<KeyPalette>({ hue: 0, saturation: 0.08, confidence: 0, fallback: true });
   const [loading, setLoading] = useState(false);
@@ -68,21 +74,37 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
       return;
     }
 
+    const hit = paletteCache.get(filename);
+    if (hit) {
+      lastHueRef.current = hit.palette.hue;
+      setPalette(hit.palette);
+      setUnavailable(hit.unavailable);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
 
     const encoded = encodeURIComponent(filename);
-    fetch(`/api/audio/analysis/by-filename/${encoded}`)
-      .then(async (res) => {
-        // A 404 is the expected answer for an unanalyzed track, not a failure.
-        const outcome = classifyAnalysisResponse(res.status);
-        if (outcome.kind === "error") {
-          throw new Error(`Failed to fetch analysis: ${outcome.status}`);
-        }
-        if (outcome.kind === "not-analyzed") return null;
-        return res.json();
-      })
+    let promise = inflight.get(filename);
+    if (!promise) {
+      promise = fetch(`/api/audio/analysis/by-filename/${encoded}`)
+        .then(async (res) => {
+          // A 404 is the expected answer for an unanalyzed track, not a failure.
+          const outcome = classifyAnalysisResponse(res.status);
+          if (outcome.kind === "error") {
+            throw new Error(`Failed to fetch analysis: ${outcome.status}`);
+          }
+          if (outcome.kind === "not-analyzed") return null;
+          return res.json() as Promise<KeyAnalysisLike>;
+        })
+        .finally(() => inflight.delete(filename));
+      inflight.set(filename, promise);
+    }
+    promise
       .then((data: KeyAnalysisLike | null) => {
         if (cancelled) return;
         // Either way we resolve a usable palette: the analyzed one, or the
@@ -91,6 +113,12 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
         lastHueRef.current = next.hue;
         setPalette(next);
         setUnavailable(data === null);
+        // Only cache palettes fully determined by the analysis. A found-but-
+        // low-confidence result still blends lastHueRef (session state), and
+        // 404s must stay live so a later analysis is picked up.
+        if (data !== null && !next.fallback) {
+          paletteCache.set(filename, { palette: next, unavailable: false });
+        }
         setError(null);
         setLoading(false);
       })

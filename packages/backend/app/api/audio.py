@@ -74,6 +74,11 @@ router = APIRouter(prefix="/api/audio", tags=["Audio"])
 ANALYSIS_DIR = PROJECT_ROOT / "output" / "audio_analysis"
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
+# Disk cache for /spectral-timeline: the endpoint decodes the whole file and
+# runs a full-track STFT per request, and the result is deterministic per
+# (file content, fps, sr, hop_length, n_fft) — a perfect cache candidate.
+SPECTRAL_CACHE_DIR = PROJECT_ROOT / "output" / "cache" / "spectral_timeline"
+SPECTRAL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _find_by_content_id(audio_dir: Path, content_id: str) -> Path | None:
@@ -209,9 +214,16 @@ _cache_max_size = 200  # Max files to cache in memory
 
 
 def _cache_set(filename: str, value: dict, backend: str = "") -> None:
-    """Store value in cache, evicting oldest entry if over limit."""
+    """Store value in cache, evicting oldest entry if over limit.
+
+    Re-setting an existing key refreshes its position (true LRU) — plain
+    dict assignment kept the original insertion slot, so hot entries could
+    be evicted while colder ones survived.
+    """
     key = f"{filename}:{backend}"
-    if len(_analysis_cache) >= _cache_max_size:
+    if key in _analysis_cache:
+        _analysis_cache.pop(key)
+    elif len(_analysis_cache) >= _cache_max_size:
         _analysis_cache.pop(next(iter(_analysis_cache)), None)
     _analysis_cache[key] = value
 
@@ -942,18 +954,40 @@ async def get_spectral_timeline(
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
 
+    # Disk cache keyed by (path, params); the stored fingerprint (mtime+size)
+    # invalidates automatically if the file is replaced in place.
+    cache_key = hashlib.sha1(
+        f"{normalized}|{fps}|{sr}|{hop_length}|{n_fft}".encode()
+    ).hexdigest()
+    cache_path = SPECTRAL_CACHE_DIR / f"{cache_key}.json"
+    try:
+        st = audio_path.stat()
+        fingerprint = {"mtime_ns": st.st_mtime_ns, "size": st.st_size}
+        if cache_path.exists():
+            cached_doc = json.loads(cache_path.read_text(encoding="utf-8"))
+            if cached_doc.get("fingerprint") == fingerprint:
+                return cached_doc["payload"]
+    except (OSError, ValueError, KeyError):
+        pass
+
     from tools.lib.audio import load_audio
 
     from ..services.spectral_bands import analyze_audio_bands
 
-    y, sr_loaded = load_audio(str(audio_path), sr=sr)
-    raw_frames = analyze_audio_bands(y, sr=sr_loaded, hop_length=hop_length, n_fft=n_fft)
+    # Decode + full-track STFT are CPU-bound and used to run inline in the
+    # event loop, freezing every other request for seconds.
+    y, sr_loaded = await asyncio.to_thread(load_audio, str(audio_path), sr)
+    raw_frames = await asyncio.to_thread(
+        analyze_audio_bands, y, sr_loaded, hop_length, n_fft
+    )
 
     from tools.export_spectral_timeline import resample_timeline_to_fps
 
-    timeline = resample_timeline_to_fps(raw_frames, sr_loaded, hop_length, fps)
+    timeline = await asyncio.to_thread(
+        resample_timeline_to_fps, raw_frames, sr_loaded, hop_length, fps
+    )
 
-    return {
+    payload = {
         "audio_file": str(audio_path.resolve()),
         "duration_seconds": round(len(y) / sr_loaded, 3),
         "sample_rate": sr_loaded,
@@ -964,6 +998,14 @@ async def get_spectral_timeline(
         "bands": {"sub": [20, 120], "mid": [500, 2000], "high": [4000, 16000]},
         "timeline": timeline,
     }
+    try:
+        cache_path.write_text(
+            json.dumps({"fingerprint": fingerprint, "payload": payload}),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # cache is best-effort
+    return payload
 
 
 @router.get("/analysis/by-filename/{filename:path}")
