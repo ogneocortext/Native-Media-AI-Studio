@@ -82,7 +82,7 @@
     @property --color-border {
       syntax: "<color>";
       inherits: false;
-      initial-value: light-dark(oklch(88% 0 0), oklch(30% 0 0 260));
+      initial-value: light-dark(oklch(88% 0 0), oklch(30% 0 260));
     }
     @property --color-border-subtle {
       syntax: "<color>";
@@ -370,8 +370,8 @@
   --color-link: light-dark(oklch(55% 0.22 260), oklch(78% 0.18 260));
   --color-error-text: light-dark(oklch(55% 0.22 25), oklch(72% 0.2 25));
   --color-success-text: light-dark(oklch(47% 0.15 145), oklch(78% 0.16 145));
-  --color-border: light-dark(oklch(88% 0 0), oklch(30% 0 0 260));
-  --color-border-subtle: light-dark(oklch(95% 0 0), oklch(25% 0 0 260));
+  --color-border: light-dark(oklch(88% 0 0), oklch(30% 0 260));
+  --color-border-subtle: light-dark(oklch(95% 0 0), oklch(25% 0 260));
 }
 
 /* Component styles */
