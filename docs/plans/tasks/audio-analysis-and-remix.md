@@ -284,3 +284,20 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** features/remix/RemixPanel.tsx, RemixSlotsEditor.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors, 35
   remix vitest pass - pure move.
+
+### T-AUD-13 - Extract RemixActions render deck from RemixPanel.tsx (947 -> 846 + 197)
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - the render controls and
+  everything they produce were the last big JSX cluster in RemixPanel.
+- **What changed:**
+  - ``features/remix/RemixActions.tsx`` (new) - Preview / Audition /
+    Build / Cancel / Master buttons plus the listen excerpt player,
+    stretch stats, warnings, error line, built-mix playback with the
+    version picker, and the earlier-remixes list, moved verbatim.
+    ``RemixListenState`` exported for the panel's listen state shape.
+  - Audition's disabled condition became a ``hasPlayableSlots`` prop;
+    ``slots.every(...)`` no longer needs the raw slots in the view.
+- **Files:** features/remix/RemixPanel.tsx, RemixActions.tsx (new)
+- **Acceptance:** tsc clean for touched files, eslint 0 errors (the
+  misused-promises warnings moved with the handlers, unchanged),
+  35 remix vitest pass - pure move.
