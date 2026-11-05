@@ -49,12 +49,9 @@ export function VizEmptyState({ libraryFiles, onBrowse }: VizEmptyStateProps) {
         <div className="viz-empty-actions">
           <button
             className="viz-empty-cta"
-            onClick={() => document.getElementById("viz-track-select")?.focus()}
+            onClick={onBrowse}
           >
-            Choose a track…
-          </button>
-          <button className="viz-empty-secondary" onClick={onBrowse}>
-            Browse files…
+            Browse library…
           </button>
           <a href="/audio-analysis" className="viz-empty-link">
             Open Audio Analysis →
@@ -62,6 +59,7 @@ export function VizEmptyState({ libraryFiles, onBrowse }: VizEmptyStateProps) {
         </div>
         <p className="viz-empty-tip">
           Tip: first 3s are the hook — start on the chorus for Shorts.
+          Drag & drop audio files anywhere to load them.
         </p>
       </div>
     </div>

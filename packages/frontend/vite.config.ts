@@ -164,8 +164,9 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: true,
       },
-      // Auto-open browser in dev mode for better DX.
-      open: mode === "development",
+      // Never auto-open the browser on dev startup. Set NMA_OPEN_BROWSER=true
+      // to restore the old behavior.
+      open: process.env.NMA_OPEN_BROWSER === 'true',
       // Forward browser runtime errors and warnings to the dev server terminal
       // so coding agents can see client-side exceptions without opening the
       // browser console. Vite 8 enables this automatically when an agent is
