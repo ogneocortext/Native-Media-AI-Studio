@@ -82,7 +82,6 @@ export function AgentChat() {
 
     try {
       const result: AgentLoopResult = await runAgentLoop(userText, {
-        model: "llama3.1:8b",
         maxIterations: 10,
         onTurn: (turn: AgentTurn) => {
           switch (turn.type) {

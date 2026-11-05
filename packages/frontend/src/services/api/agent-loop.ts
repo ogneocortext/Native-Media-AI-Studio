@@ -16,6 +16,7 @@
 
 import {
   ollamaChat,
+  ollamaEngineStatus,
   type ChatMessage,
   type ToolDefinition,
 } from "./ollama";
@@ -25,6 +26,8 @@ import {
   type ExecuteToolResponse,
   type SkillInfo,
 } from "./mcp-skills";
+import { getAtomicChatStatus } from "./integrations";
+import { getLoadedModels } from "./diagnostics";
 
 export interface AgentTurn {
   type: "thought" | "tool_call" | "tool_result" | "final" | "error";
@@ -58,6 +61,61 @@ function stripMarkdownFences(content: string): string {
     return code.replace(/^~~~(?:\w+)?\s*/i, "").replace(/\s*~~~$/, "").trim();
   }
   return code;
+}
+
+/**
+ * Automatically select the best model to use, preferring a model already
+ * loaded in memory (resident) to avoid wasteful unload/load cycles.
+ *
+ * Selection order:
+ *  1. If Ollama is online and has a resident model, reuse it.
+ *  2. If Atomic Chat is online and reports a model, reuse it.
+ *  3. If Ollama is online but nothing is loaded, use the preferred Ollama model.
+ *  4. If Atomic Chat is online but nothing is loaded, use its preferred model.
+ *  5. Fall back to llama3.1:8b.
+ *
+ * @param preferred - Optional preferred model to use when nothing is resident.
+ * @returns The model name to use.
+ */
+export async function selectModel(preferred = "llama3.1:8b"): Promise<string> {
+  const [ollamaStatus, atomicStatus, loadedModels] = await Promise.allSettled([
+    ollamaEngineStatus(),
+    getAtomicChatStatus(),
+    getLoadedModels(),
+  ]);
+
+  // 1. Reuse a resident Ollama model if one is loaded
+  if (
+    ollamaStatus.status === "fulfilled" &&
+    ollamaStatus.value.online &&
+    loadedModels.status === "fulfilled" &&
+    loadedModels.value.loaded &&
+    loadedModels.value.models.length > 0
+  ) {
+    return loadedModels.value.models[0].name;
+  }
+
+  // 2. Reuse a resident Atomic Chat model if one is loaded
+  if (
+    atomicStatus.status === "fulfilled" &&
+    atomicStatus.value.reachable &&
+    atomicStatus.value.model
+  ) {
+    return atomicStatus.value.model;
+  }
+
+  // 3. Ollama online but nothing loaded — use preferred
+  if (ollamaStatus.status === "fulfilled" && ollamaStatus.value.online) {
+    return preferred;
+  }
+
+  // 4. Atomic Chat online but nothing loaded — use its preferred model
+  if (atomicStatus.status === "fulfilled" && atomicStatus.value.reachable) {
+    return "qwen3.5:4b";
+  }
+
+  // 5. Fall back
+  return preferred;
 }
 
 export interface AgentLoopResult {
@@ -123,11 +181,12 @@ export async function runAgentLoop(
   options: AgentLoopOptions = {},
 ): Promise<AgentLoopResult> {
   const {
-    model = "llama3.1:8b",
     maxIterations = 10,
     onTurn,
     systemPrompt,
   } = options;
+
+  const model = options.model ?? (await selectModel());
 
   const turns: AgentTurn[] = [];
 

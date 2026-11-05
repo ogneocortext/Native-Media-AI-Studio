@@ -432,6 +432,7 @@ export {
 export {
   runAgentLoop,
   runAgentTask,
+  selectModel,
   type AgentLoopResult,
   type AgentTurn,
   type AgentLoopOptions,
