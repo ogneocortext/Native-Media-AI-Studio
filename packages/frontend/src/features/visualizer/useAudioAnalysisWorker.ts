@@ -22,6 +22,7 @@ export interface UseAudioAnalysisWorkerResult {
   send: (
     freq: Uint8Array,
     sampleRate: number,
+    fftSize: number,
     elapsed: number,
     duration: number,
     beatTimes?: number[],
@@ -47,6 +48,7 @@ const emptyAudioData: AudioData = {
   nextBeatIn: 0,
   analyzedEnergy: 0,
   isDownbeat: false,
+  chroma: new Array(12).fill(0),
 };
 
 export function useAudioAnalysisWorker({
@@ -104,6 +106,7 @@ export function useAudioAnalysisWorker({
           analyzedEnergy: d.analyzedEnergy,
           perceptualBands: d.perceptualBands,
           perceptualScale: d.perceptualScale,
+          chroma: d.chroma,
         };
         pendingRef.current = false;
         clearWatchdog();
@@ -138,6 +141,7 @@ export function useAudioAnalysisWorker({
     (
       freq: Uint8Array,
       sampleRate: number,
+      fftSize: number,
       elapsed: number,
       duration: number,
       beatTimes?: number[],
@@ -152,6 +156,7 @@ export function useAudioAnalysisWorker({
         payload: {
           freq,
           sampleRate,
+          fftSize,
           elapsed,
           duration,
           beatTimes,

@@ -43,6 +43,8 @@ export interface WorkerAudioData {
   analyzedEnergy: number;
   perceptualBands: number[];
   perceptualScale: PerceptualScale;
+  /** Chroma vector — 12 pitch classes (C, C♯, D … B), each in [0, 1]. */
+  chroma: number[];
 }
 
 export interface AnalyzeMessage {
@@ -50,6 +52,7 @@ export interface AnalyzeMessage {
   payload: {
     freq: Uint8Array;
     sampleRate: number;
+    fftSize: number;
     elapsed: number;
     duration: number;
     beatTimes?: number[];
@@ -67,6 +70,31 @@ export interface ResetMessage {
 export interface ResultMessage {
   type: "result";
   data: WorkerAudioData;
+}
+
+/** Compute a 12-bin chroma vector from FFT frequency data.
+ *  Each bin's energy is mapped to the nearest pitch class (C=0 … B=11)
+ *  using the MIDI note formula, then accumulated and normalized.
+ *  Based on the chroma-folding approach described in Deus "How music
+ *  visualizers work" (Oct 2026). */
+function computeChroma(freq: Uint8Array, sampleRate: number, fftSize: number): number[] {
+  const chroma: number[] = Array.from({ length: 12 }, () => 0);
+  const binSize = sampleRate / fftSize;
+  let total = 0;
+  for (let i = 1; i < freq.length; i++) {
+    const f = i * binSize;
+    if (f < 20 || f > 5000) continue; // ignore sub-bass and ultrasonic
+    // MIDI note number: 69 + 12 * log2(f / 440)
+    const midi = 69 + 12 * Math.log2(f / 440);
+    const pitchClass = ((Math.round(midi) % 12) + 12) % 12;
+    const energy = freq[i] / 255;
+    chroma[pitchClass] += energy;
+    total += energy;
+  }
+  if (total > 0) {
+    for (let i = 0; i < 12; i++) chroma[i] /= total;
+  }
+  return chroma;
 }
 
 export type WorkerMessage = AnalyzeMessage | ResetMessage | ResultMessage;
@@ -119,6 +147,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const {
     freq,
     sampleRate,
+    fftSize,
     elapsed,
     duration,
     beatTimes,
@@ -222,6 +251,8 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
 
   const bands = mapToPerceptualBands(freq, sampleRate, perceptualScale, numPerceptualBands);
 
+  const chroma = computeChroma(freq, sampleRate, fftSize);
+
   // Blend live energy with analyzed energy curve, matching the main-thread
   // path in audioHooks.ts (60% live keeps transients; 40% anchors to track
   // structure). Without this, worker and inline paths produce different
@@ -244,6 +275,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
     analyzedEnergy,
     perceptualBands: bands,
     perceptualScale,
+    chroma,
   };
 }
 

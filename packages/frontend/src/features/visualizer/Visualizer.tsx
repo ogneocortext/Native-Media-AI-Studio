@@ -367,6 +367,13 @@ export function Visualizer() {
   const handleCanvasCreated = useCallback(({ gl }: { gl: any }) => {
     gl.toneMappingExposure = 0.8;
     if ((gl)?.isWebGPURenderer) {
+      // WebGPU renderer (Three.js r185) handles tone mapping via TSL node materials;
+      // ACESFilmicToneMapping is supported on both backends.
+      try {
+        gl.toneMapping = ACESFilmicToneMapping;
+      } catch {
+        /* WebGPU tone mapping handled by TSL pipeline */
+      }
       setRendererBackend("WebGPU");
     } else {
       gl.toneMapping = ACESFilmicToneMapping;
@@ -707,6 +714,7 @@ export function Visualizer() {
             <label>
               Track
               <select
+                aria-label="Select track"
                 onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
                 value={currentFilename ?? ""}
               >
@@ -725,35 +733,37 @@ export function Visualizer() {
                 })}
               </select>
             </label>
-            <label>
-              Mode
-              <select
-                value={vizMode}
-                onChange={(e) => {
-                  userPickedVizModeRef.current = true;
-                  setVizMode(e.target.value as any);
-                }}
-              >
-                <option value="shader">FX</option>
-                <option value="2d">2D</option>
-                <option value="3d">3D</option>
-              </select>
-            </label>
-            {vizMode === "2d" && (
               <label>
-                2D Mode
+                Mode
                 <select
-                  value={canvas2DMode}
-                  onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
+                  aria-label="Visualization mode"
+                  value={vizMode}
+                  onChange={(e) => {
+                    userPickedVizModeRef.current = true;
+                    setVizMode(e.target.value as any);
+                  }}
                 >
-                  {CANVAS_2D_MODES.map((m) => (
-                    <option key={m} value={m}>
-                      {CANVAS_2D_MODE_LABELS[m]}
-                    </option>
-                  ))}
+                  <option value="shader">FX</option>
+                  <option value="2d">2D</option>
+                  <option value="3d">3D</option>
                 </select>
               </label>
-            )}
+              {vizMode === "2d" && (
+                <label>
+                  2D Mode
+                  <select
+                    aria-label="2D canvas mode"
+                    value={canvas2DMode}
+                    onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
+                  >
+                    {CANVAS_2D_MODES.map((m) => (
+                      <option key={m} value={m}>
+                        {CANVAS_2D_MODE_LABELS[m]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             <button onClick={() => setShowTestPanel(false)}>Close</button>
           </div>
           <pre className="viz-test-state">

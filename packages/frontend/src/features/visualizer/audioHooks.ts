@@ -57,6 +57,7 @@ export function useDemoAudio(
       beatPhase: beatPhase,
       perceptualBands,
       perceptualScale,
+      chroma: new Array(12).fill(0),
     };
   });
   return data;
@@ -84,6 +85,7 @@ export function useRealAudio(
     drumType: null,
     nextBeatIn: 0,
     analyzedEnergy: 0,
+    chroma: new Array(12).fill(0),
   });
   const freqArray = useRef<Uint8Array | null>(null);
   const lastBass = useRef(0);
@@ -146,6 +148,7 @@ export function useRealAudio(
       drumType: null,
       nextBeatIn: 0,
       analyzedEnergy: 0,
+      chroma: new Array(12).fill(0),
     };
   }, [analysisData, worker]);
 
@@ -165,6 +168,7 @@ export function useRealAudio(
           drumType: null,
           nextBeatIn: 0,
           analyzedEnergy: 0,
+          chroma: new Array(12).fill(0),
         };
         smoothedBass.current = 0;
         smoothedMid.current = 0;
@@ -200,7 +204,7 @@ export function useRealAudio(
       const beatTimes = analysisData?.beat_times;
       const downbeatTimes = analysisData?.downbeat_times;
       const energyCurve = analysisData?.energy_curve;
-      worker.send(arr, ctx.sampleRate, elapsed, duration, beatTimes, downbeatTimes, energyCurve);
+      worker.send(arr, ctx.sampleRate, analyser.fftSize, elapsed, duration, beatTimes, downbeatTimes, energyCurve);
       data.current = worker.data.current;
       return;
     }
@@ -361,6 +365,24 @@ export function useRealAudio(
       }
     }
 
+    // Chroma vector — 12 pitch classes folded from the spectrum (note-reactive
+    // visuals, per Deus Oct 2026 research).
+    const chroma = new Array(12).fill(0);
+    const binSize = ctx.sampleRate / analyser.fftSize;
+    let chromaTotal = 0;
+    for (let i = 1; i < arr.length; i++) {
+      const f = i * binSize;
+      if (f < 20 || f > 5000) continue;
+      const midi = 69 + 12 * Math.log2(f / 440);
+      const pc = ((Math.round(midi) % 12) + 12) % 12;
+      const energy = arr[i] / 255;
+      chroma[pc] += energy;
+      chromaTotal += energy;
+    }
+    if (chromaTotal > 0) {
+      for (let c = 0; c < 12; c++) chroma[c] /= chromaTotal;
+    }
+
     data.current = {
       bass,
       mid,
@@ -376,6 +398,7 @@ export function useRealAudio(
       analyzedEnergy,
       perceptualBands,
       perceptualScale,
+      chroma,
     };
   });
   return data;

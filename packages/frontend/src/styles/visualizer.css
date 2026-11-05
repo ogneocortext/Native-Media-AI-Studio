@@ -431,8 +431,8 @@
     }
   }
   .viz-track-select option {
-    background: #1e1e1e;
-    color: #e0e0e0;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
     padding: 0.5rem;
     max-width: 100%;
     overflow: hidden;
@@ -442,71 +442,11 @@
   .viz-track-select option:hover,
   .viz-track-select option:focus,
   .viz-track-select option:checked {
-    background: #6366f1;
+    background: var(--color-primary);
     color: #ffffff;
   }
 
-  .viz-analyze-btn {
-    padding: 0.4rem 0.75rem;
-    border-radius: 6px;
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    background: rgba(99, 102, 241, 0.1);
-    color: #818cf8;
-    font-size: 0.75rem;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.15s;
-  }
-  .viz-analyze-btn:hover {
-    background: rgba(99, 102, 241, 0.2);
-  }
 
-  .viz-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-  }
-
-  /* Button group separators */
-  .viz-actions .viz-btn-group {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0 0.25rem;
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-  }
-  .viz-actions .viz-btn-group:last-child {
-    border-right: none;
-  }
-
-  .viz-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.03);
-    color: #a0a0a0;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .viz-icon-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #e0e0e0;
-  }
-  .viz-icon-btn.active {
-    background: rgba(99, 102, 241, 0.15);
-    border-color: #6366f1;
-    color: #818cf8;
-  }
-  .viz-icon-btn.rec {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: #ef4444;
-    color: #f87171;
-  }
   /* ============================================================
      Visual grouping containers — Reactivity Tuning Panel sections
      Each logical group gets a subtle container so related
@@ -1420,7 +1360,7 @@
   .viz-settings-section h4 {
     font-size: 0.7rem;
     font-weight: 600;
-    color: #666;
+    color: var(--text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin: 0 0 0.75rem;
@@ -1434,7 +1374,7 @@
   }
   .viz-slider-row label {
     font-size: 0.7rem;
-    color: #a0a0a0;
+    color: var(--text-secondary);
     width: 55px;
     flex-shrink: 0;
   }
@@ -1444,7 +1384,7 @@
   }
   .viz-slider-row span {
     font-size: 0.65rem;
-    color: #666;
+    color: var(--text-tertiary);
     width: 28px;
     text-align: right;
     font-family: monospace;
@@ -1526,7 +1466,7 @@
   }
   .spec-label {
     font-size: 0.65rem;
-    color: #666;
+    color: var(--text-tertiary);
     width: 32px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -1534,7 +1474,7 @@
   .spec-track {
     flex: 1;
     height: 3px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--border-subtle);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -1545,7 +1485,7 @@
   }
   .spec-value {
     font-size: 0.65rem;
-    color: #555;
+    color: var(--text-tertiary);
     width: 22px;
     text-align: right;
     font-family: monospace;
@@ -1559,12 +1499,12 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #333;
+    background: var(--border-subtle);
     transition: all 0.1s;
   }
   .viz-beat-dot.active {
-    background: #007aff;
-    box-shadow: 0 0 8px #007aff;
+    background: var(--color-primary);
+    box-shadow: 0 0 8px var(--color-primary);
   }
 
   /* Audio player */
@@ -1764,10 +1704,10 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    background: color-mix(in oklch, var(--color-danger) 12%, transparent);
+    border: 1px solid color-mix(in oklch, var(--color-danger) 25%, transparent);
     border-radius: 6px;
-    color: #f87171;
+    color: var(--color-danger);
     font-size: 0.75rem;
     z-index: 100;
   }
@@ -2211,19 +2151,7 @@
   }
 
   /* Visual preset badge in track selector */
-  .viz-preset-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid rgba(99, 102, 241, 0.3);
-    color: #818cf8;
-    font-size: 0.65rem;
-    font-weight: 600;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
 
-  .viz-preset-search {
     width: 100%;
     padding: 6px 8px;
     border-radius: 6px;

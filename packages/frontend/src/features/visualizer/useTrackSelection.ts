@@ -330,7 +330,7 @@ export function useTrackSelection({
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
-      let realBpm = trackMetadata[fileRef].bpm;
+      let realBpm = trackMetadata[fileRef]?.bpm;
       if (!analysis) {
         // Surface progress: a fresh analysis can take a while, during which the
         // visualizer runs on the fallback (threshold) beat detector — visibly
@@ -462,9 +462,6 @@ export function useTrackSelection({
 
       // Store analysis for manual AI enrichment — user explicitly clicks "Enhance with AI"
       // (previous fire-and-forget auto-generation removed: it overwrote the visible preset silently)
-      (window as any).__pendingAIAnalysis = analysis;
-      (window as any).__pendingAICleanName = cleanName;
-      (window as any).__pendingAIRealBpm = realBpm;
     },
     [
       analysisData,

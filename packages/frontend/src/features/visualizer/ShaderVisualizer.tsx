@@ -802,6 +802,7 @@ export function ShaderVisualizer({
         <div className="flex gap-2 justify-end">
           <button
             onClick={() => setShowSelector(!showSelector)}
+            aria-label={`Select shader preset: ${SHADER_PRESET_INFO[preset].name}`}
             className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
             title="Change shader preset"
           >

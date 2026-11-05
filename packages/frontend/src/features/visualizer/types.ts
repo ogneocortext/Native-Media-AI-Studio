@@ -44,6 +44,13 @@ export interface AudioData {
    * The perceptual scale used for the current band mapping
    */
   perceptualScale?: PerceptualScale;
+  /**
+   * Chroma vector — 12 pitch classes (C, C♯, D … B) folded from the spectrum,
+   * each in [0, 1]. Lets visualizations react to harmony/key rather than just
+   * rhythm (see Deus "How music visualizers work", Oct 2026). Null when no
+   * chroma analysis is available.
+   */
+  chroma?: number[] | null;
 }
 
 export interface StemAnalysisData {

@@ -220,10 +220,11 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       }
     };
 
-    // Keyboard shortcut for analyze (Ctrl+Shift+A)
+    // Keyboard shortcut for analyze (Ctrl+Shift+V — Ctrl+Shift+A is owned by
+    // the track-analysis shortcut in useVisualizerLifecycle).
     useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "a") {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "v") {
           e.preventDefault();
           void handleAnalyze();
         }
@@ -325,6 +326,22 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       }
       applySize();
 
+      // Offscreen canvas for tear-free rendering. All drawing happens on the
+      // Offscreen canvas for tear-free rendering. All drawing happens on the
+      // offscreen buffer, then we blit to the visible canvas at the end of each
+      // frame — eliminating screen tearing when the visible canvas is resized
+      // or scrolled mid-frame (2026 best practice from music-visualizer research).
+      const offCanvas = document.createElement("canvas");
+      offCanvas.style.display = "none";
+      offCanvas.width = canvas.width;
+      offCanvas.height = canvas.height;
+      const offCtx: CanvasRenderingContext2D | null =
+        offCanvas.getContext("2d", { alpha: false });
+
+      // Draw to the offscreen buffer, then blit to the visible canvas at the
+      // end of each frame (tear-free rendering).
+      const drawCtx: CanvasRenderingContext2D = offCtx ?? ctx;
+
       const draw = () => {
         // Plan 2.9 — while a deterministic export drives frames manually, the
         // rAF loop stays alive but renders nothing. A live frame would advance
@@ -421,7 +438,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const cached = barGradientsCacheRef.current;
           if (cached?.key === key) return cached.gradients;
           const gradients = cols.map((c) => {
-            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            const grad = drawCtx.createLinearGradient(0, 0, 0, h);
             grad.addColorStop(0, c);
             grad.addColorStop(1, cols[0] + "60");
             return grad;
@@ -501,25 +518,25 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (isPlaying || isVirtual) {
           const trailAlpha = prefersReducedMotion ? budget.trailAlphaReduced : budget.trailAlpha;
           if (active.has("trails") && trailAlpha !== null) {
-            ctx.fillStyle = bg + trailAlpha.toString(16).padStart(2, "0").toUpperCase();
-            ctx.fillRect(0, 0, w, h);
+            drawCtx.fillStyle = bg + trailAlpha.toString(16).padStart(2, "0").toUpperCase();
+            drawCtx.fillRect(0, 0, w, h);
           } else {
-            ctx.fillStyle = bg;
-            ctx.fillRect(0, 0, w, h);
+            drawCtx.fillStyle = bg;
+            drawCtx.fillRect(0, 0, w, h);
           }
         } else {
-          ctx.fillStyle = bg;
-          ctx.fillRect(0, 0, w, h);
+          drawCtx.fillStyle = bg;
+          drawCtx.fillRect(0, 0, w, h);
         }
 
         if (active.has("phraseFlash") && phraseFlash > 0.05) {
-          ctx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.08})`;
-          ctx.fillRect(0, 0, w, h);
+          drawCtx.fillStyle = `rgba(255,255,255,${phraseFlash * 0.08})`;
+          drawCtx.fillRect(0, 0, w, h);
         }
         // Beat vignette — radial edge darkening, alpha ceiling halved per the
         // diagnosis doc ("halve the alpha ceiling globally, then re-evaluate").
         if (active.has("beatVignette") && beatVignette > 0.01) {
-          const vigGrd = ctx.createRadialGradient(
+          const vigGrd = drawCtx.createRadialGradient(
             w / 2,
             h / 2,
             Math.min(w, h) * 0.35,
@@ -529,13 +546,13 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           );
           vigGrd.addColorStop(0, "rgba(0,0,0,0)");
           vigGrd.addColorStop(1, `rgba(0,0,0,${beatVignette * VIGNETTE_ALPHA_CEILING})`);
-          ctx.fillStyle = vigGrd;
-          ctx.fillRect(0, 0, w, h);
+          drawCtx.fillStyle = vigGrd;
+          drawCtx.fillRect(0, 0, w, h);
         }
         // Drum shockwaves — expanding rings, only on modes whose budget allows
         // them *this frame* (they are spawned further up, before this block).
         if (active.has("shockwaves")) {
-          drawShockwaves(ctx, shockwaves, dpr);
+          drawShockwaves(drawCtx, shockwaves, dpr);
         }
 
         // The idle branch fires when there is nothing to react to. A virtual
@@ -546,26 +563,28 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
           // Ambient particle layer — soft floating motes that keep the canvas feeling alive
           updateIdleParticles(idleParticles, w, h, motionScale, rand);
-          drawIdleParticles(ctx, idleParticles, dpr);
+          drawIdleParticles(drawCtx, idleParticles, dpr);
           const idlePulse =
             phraseFlash * 0.3 +
             Math.sin(nowMs() * 0.002 * motionScale) * 0.08 * motionScale;
           const t = nowMs() * 0.001;
           const breathe = 0.55 + Math.sin(t * 0.8) * 0.15;
-          ctx.textAlign = "center";
+          drawCtx.textAlign = "center";
           // Soft glow behind the text so it reads over the particle field.
-          ctx.shadowColor = colors[0] + "80";
-          ctx.shadowBlur = 18 * dpr;
-          ctx.fillStyle = colors[0];
-          ctx.globalAlpha = breathe;
-          ctx.font = `600 ${22 * dpr}px system-ui, sans-serif`;
-          ctx.fillText("Drop a track to see it move", w / 2, h / 2 - 4 * dpr);
-          ctx.shadowBlur = 0;
-          ctx.globalAlpha = 0.45 + idlePulse * 0.5;
-          ctx.fillStyle = colors[1] || "#a5b4fc";
-          ctx.font = `${12 * dpr}px system-ui, sans-serif`;
-          ctx.fillText("pick a track above — visuals react to the beat", w / 2, h / 2 + 20 * dpr);
-          ctx.globalAlpha = 1;
+          drawCtx.shadowColor = colors[0] + "80";
+          drawCtx.shadowBlur = 18 * dpr;
+          drawCtx.fillStyle = colors[0];
+          drawCtx.globalAlpha = breathe;
+          drawCtx.font = `600 ${22 * dpr}px system-ui, sans-serif`;
+          drawCtx.fillText("Drop a track to see it move", w / 2, h / 2 - 4 * dpr);
+          drawCtx.shadowBlur = 0;
+          drawCtx.globalAlpha = 0.45 + idlePulse * 0.5;
+          drawCtx.fillStyle = colors[1] || "#a5b4fc";
+          drawCtx.font = `${12 * dpr}px system-ui, sans-serif`;
+          drawCtx.fillText("pick a track above — visuals react to the beat", w / 2, h / 2 + 20 * dpr);
+          drawCtx.globalAlpha = 1;
+          // Blit offscreen buffer to visible canvas for idle frame too.
+          ctx.drawImage(offCanvas, 0, 0);
           raf = requestAnimationFrame(draw);
           return;
         }
@@ -619,8 +638,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           ? modeDef.render
           : ((ctx2: CanvasRenderingContext2D, ctxInfo2: VisualizerModeRenderContext, state2: VisualizerModeState) =>
               renderMode(mode, ctxInfo2.dpr, ctxInfo2.w, ctxInfo2.h, ctx2 as any, state2 as any));
-        modeRenderFn(ctx, {
-          ctx,
+        modeRenderFn(drawCtx, {
+          ctx: drawCtx,
           dpr,
           w,
           h,
@@ -647,6 +666,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           smoothed,
           particles: particles as unknown as VisualizerModeState["particles"],
         });
+
+        // Blit offscreen buffer to visible canvas (tear-free rendering).
+        ctx.drawImage(offCanvas, 0, 0);
 
         raf = requestAnimationFrame(draw);
       };
@@ -700,7 +722,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             onClick={handleAnalyze}
             disabled={analysisLoading}
             className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors disabled:opacity-50"
-            title="Analyze this visualizer frame with Ollama"
+            title="Analyze this visualizer frame with Ollama (Ctrl+Shift+V)"
           >
             {analysisLoading ? "Analyzing..." : "Analyze"}
           </button>

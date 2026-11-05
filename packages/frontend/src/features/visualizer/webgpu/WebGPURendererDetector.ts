@@ -167,6 +167,25 @@ export async function createWebGPURenderer(
   const mod = await import("three/webgpu");
   const WebGPURenderer = mod.WebGPURenderer as new (params: any) => any;
 
+  // HDR canvas target for bloom (cymatic/greggman 2026): request rgba16float
+  // so bright audio-hot regions actually bloom instead of clamping.
+  try {
+    const nav = navigator as Navigator & { gpu?: { getPreferredCanvasFormat: () => string } };
+    const context = canvas.getContext("webgpu") as any;
+    if (context && nav.gpu) {
+      const preferredFormat = nav.gpu.getPreferredCanvasFormat();
+      if (preferredFormat === "rgba16float") {
+        context.configure({
+          device: undefined,
+          format: "rgba16float",
+          usage: 1, // GPUTextureUsage.RENDER_ATTACHMENT
+        });
+      }
+    }
+  } catch {
+    // Canvas context configuration is non-fatal; renderer handles its own.
+  }
+
   const renderer = new WebGPURenderer({
     canvas,
     antialias: options.antialias ?? true,
