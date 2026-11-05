@@ -298,3 +298,17 @@ Rules: `docs/plans/tasks/README.md`
   output for skipped shaders. Full-corpus gate passed: 451 files scanned,
   20 shaders extracted across 5 files, 19 checked, 1 skipped for unresolved
   template substitution, 0 failed.
+
+### T-PLT-XX - Extract DocViews from DocsPage.tsx (1102 -> 767 + ~360)
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - DocsPage.tsx mixed the
+  hand-rolled markdown/JSON renderers with the docs-browser page logic.
+- **What changed:**
+  - ``features/docs/components/DocViews.tsx`` (new) - ``JsonView``,
+    ``MarkdownView`` (the line-based markdown parser/renderer) and its
+    ``inlineFmt`` helper moved verbatim; ``React.ReactNode`` became a
+    ``ReactNode`` type import. Only ``MarkdownView`` is exported - it
+    was the page's sole external use.
+- **Files:** features/docs/DocsPage.tsx, components/DocViews.tsx (new)
+- **Acceptance:** tsc clean for touched files, eslint 0 errors
+  (pre-existing warnings only).
