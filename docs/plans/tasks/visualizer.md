@@ -592,3 +592,23 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   change, pure move.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - extraction +
   typecheck/lint/vitest/playwright verification.
+
+### T-VIZ-34 - Decompose StemMixer.tsx (989 -> 464 + 546-line hook)
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - StemMixer.tsx mixed the
+  WebAudio stem graph with the panel view in one file.
+- **What changed:**
+  - ``components/useStemMixer.ts`` (new) - the ``useStemMixer`` hook plus
+    its pure helpers moved verbatim: ``StemMixerProps``, ``LoadedStem``,
+    ``StemLevels``, ``StemQuality``, ``pickStemUrls``,
+    ``gainMapToLinear``, ``computeStemQuality`` and the expected-band /
+    FFT-bin energy math. ``React.MutableRefObject`` became a typed
+    ``MutableRefObject`` import.
+  - ``components/StemMixer.tsx`` keeps the panel view
+    (``StemMixerPanel`` + ``EnhanceButton``), the ``STEM_NAMES`` /
+    ``StemName`` / ``STEM_VISUAL_ROLE`` re-exports existing importers
+    rely on, and re-exports the hook + its types for compatibility.
+- **Files:** components/StemMixer.tsx, components/useStemMixer.ts (new)
+- **Acceptance:** tsc clean for touched files (only pre-existing
+  agent-chat WIP errors remain), eslint 0 errors, 573 visualizer vitest
+  pass - pure move, no behavior change.
