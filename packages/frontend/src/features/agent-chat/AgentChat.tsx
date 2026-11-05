@@ -11,7 +11,7 @@
  * Route: /analyze/agent-chat
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Send, Loader2, Bot, Wrench, Activity } from "lucide-react";
 import { Card } from "../../components/common";
 import {
@@ -42,9 +42,9 @@ export function AgentChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load skills on mount
-  useState(() => {
+  useEffect(() => {
     void loadSkills();
-  });
+  }, []);
 
   async function loadSkills() {
     try {
