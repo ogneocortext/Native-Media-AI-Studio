@@ -98,19 +98,20 @@ export function LineagePanel({ filename }: Props) {
       if (!entry.recipe) return;
       setPendingRemixRecipe(entry.recipe, filename);
       setPendingTrack(filename);
-      void navigate("/visualizer");
+      // The mashup builder lives on /create/remix now — the recipe and
+      // track handoffs are consumed by RemixPanel wherever it is mounted.
+      void navigate("/create/remix");
     },
     [filename, navigate],
   );
 
   // A1: the *start* path, not just the reopen path. The Remix Panel is
-  // collapsed by default and sits two levels under the transport, so
-  // loading the track alone left the user hunting for it; the pending-open
-  // intent expands it on arrival.
+  // collapsed by default, so loading the track alone left the user hunting
+  // for it; the pending-open intent expands it on arrival.
   const startMashup = useCallback(() => {
     setPendingTrack(filename);
     setPendingRemixOpen();
-    void navigate("/visualizer");
+    void navigate("/create/remix");
   }, [filename, navigate]);
 
   return (

@@ -761,6 +761,43 @@
   gap: 0.75rem;
 }
 
+/* Cross-page handoff card (e.g. Mixer tab → Remix Studio). Reads as a
+   navigational shortcut, not a panel control. */
+.viz-inspector-linkcard {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 9px;
+  border: 1px dashed rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.07);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.viz-inspector-linkcard:hover {
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.6);
+}
+
+.viz-inspector-linkcard span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.viz-inspector-linkcard small {
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 @media (max-width: 900px) {
   .viz-inspector {
     position: absolute;

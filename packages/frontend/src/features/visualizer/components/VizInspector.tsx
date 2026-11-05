@@ -17,7 +17,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   AudioWaveform,
-  Wand2,
 } from "lucide-react";
 
 export type VizInspectorTab =
@@ -25,7 +24,6 @@ export type VizInspectorTab =
   | "tuning"
   | "mixer"
   | "eq"
-  | "remix"
   | "ai";
 
 const TABS: {
@@ -39,7 +37,6 @@ const TABS: {
   { id: "tuning", label: "Tuning", icon: SlidersHorizontal },
   { id: "mixer", label: "Mixer", icon: AudioLines, needsTrack: true },
   { id: "eq", label: "EQ", icon: AudioWaveform, needsTrack: true },
-  { id: "remix", label: "Remix", icon: Wand2, needsTrack: true },
   { id: "ai", label: "AI", icon: Sparkles },
 ];
 

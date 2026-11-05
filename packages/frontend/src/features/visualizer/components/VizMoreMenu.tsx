@@ -19,6 +19,7 @@ import {
   Play,
   Repeat,
   Settings,
+  Shuffle,
   Snowflake,
   Sparkles,
   Square,
@@ -58,6 +59,8 @@ interface VizMoreMenuProps {
   onCloseOverlay: () => void;
   prefersReducedMotion: boolean;
   onToggleReducedMotion: () => void;
+  /** Opens the dedicated Remix Studio page with the current track carried over. */
+  onOpenRemixStudio: () => void;
 }
 
 export function VizMoreMenu({
@@ -92,6 +95,7 @@ export function VizMoreMenu({
   onCloseOverlay,
   prefersReducedMotion,
   onToggleReducedMotion,
+  onOpenRemixStudio,
 }: VizMoreMenuProps) {
   const loopActive = !!loopRegion;
   const loopPending = loopAnchor !== null && !loopRegion;
@@ -167,6 +171,15 @@ export function VizMoreMenu({
       >
         <Film size={14} />
         <span className="viz-more-label">Export MP4</span>
+      </button>
+      <button
+        onClick={onOpenRemixStudio}
+        className="viz-icon-btn viz-more-item"
+        aria-label="Open Remix Studio"
+        title="Build a mashup from stems of different songs — opens Remix Studio with this track"
+      >
+        <Shuffle size={14} />
+        <span className="viz-more-label">Remix Studio</span>
       </button>
       <button
         onClick={onToggleLoop}

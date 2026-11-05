@@ -53,6 +53,8 @@ interface VizToolbarProps {
   onToggleInspector: () => void;
   chromePinned: boolean;
   onToggleChromePin: () => void;
+  /** Opens the dedicated Remix Studio page with this track carried over. */
+  onOpenRemixStudio: () => void;
 
   // --- shortcuts overlay ---
   showShortcuts: boolean;
@@ -117,6 +119,7 @@ export function VizToolbar({
   onToggleInspector,
   chromePinned,
   onToggleChromePin,
+  onOpenRemixStudio,
   showShortcuts,
   onToggleShortcuts,
   showMoreMenu,
@@ -315,6 +318,7 @@ export function VizToolbar({
             onCloseOverlay={onCloseOverlay}
             prefersReducedMotion={prefersReducedMotion}
             onToggleReducedMotion={onToggleReducedMotion}
+            onOpenRemixStudio={onOpenRemixStudio}
           />
         )}
       </div>

@@ -30,6 +30,11 @@
  * as stale.
  */
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  setPendingTrack as handoffPendingTrack,
+  setPendingRemixOpen,
+} from "../../utils/pendingTrack";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import {
@@ -61,7 +66,6 @@ import {
   isWebGPUOptIn,
 } from "./webgpu/WebGPURendererDetector";
 import { StemMixerPanel, type StemName } from "./components/StemMixer";
-import { RemixPanel } from "./remix/RemixPanel";
 import { EqualizerPanel } from "./components/EqualizerPanel";
 import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
 import { StylePicker } from "./components/StylePicker";
@@ -266,6 +270,17 @@ export function Visualizer() {
       );
     }
   }, [isPlaying, chromePinned]);
+
+  const navigate = useNavigate();
+  // Mashup building lives on /create/remix — the visualizer only previews.
+  // The pending-track + pending-open handoffs carry this track over so the
+  // studio opens on the same song with the panel expanded (same mechanism
+  // Media Library's LineagePanel uses in reverse).
+  const openRemixStudio = useCallback(() => {
+    if (currentFilename) handoffPendingTrack(currentFilename);
+    setPendingRemixOpen();
+    navigate("/create/remix");
+  }, [currentFilename, navigate]);
   // One definition of the mode list, in visualizerHelpers.ts. This used to be an
   // inline 12-member union that had already drifted from the picker's list (it
   // was missing `aurora`), which is how an implemented, budgeted mode ended up
@@ -894,6 +909,7 @@ export function Visualizer() {
           onToggleInspector={() => setInspectorOpen((v) => !v)}
           chromePinned={chromePinned}
           onToggleChromePin={() => setChromePinned((v) => !v)}
+          onOpenRemixStudio={openRemixStudio}
           showShortcuts={showShortcuts}
           onToggleShortcuts={() => toggleOverlay("shortcuts")}
           showMoreMenu={showMoreMenu}
@@ -1365,12 +1381,22 @@ export function Visualizer() {
                     mainGainRef={mainGainRef}
                   />
                 )}
+                <button
+                  className="viz-inspector-linkcard"
+                  onClick={openRemixStudio}
+                  title="Build a mashup from stems of different songs"
+                >
+                  <Wand2 size={13} />
+                  <span>
+                    Build a mashup
+                    <small>Remix Studio — stems from different songs</small>
+                  </span>
+                </button>
               </div>
             ),
             eq: currentFilename ? (
               <EqualizerPanel title="Master EQ" eqRef={eqRef} />
             ) : null,
-            remix: <RemixPanel currentTrack={currentFilename} />,
             ai: (
               <div className="viz-inspector-ai">
                 <PresetFileUpload

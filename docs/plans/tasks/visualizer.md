@@ -463,3 +463,42 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   audit: clean layout, tabs correct, no overlap.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed Chromium
   probes + computed bboxes + gemma4 vision audit of inspector screenshots.
+
+### T-VIZ-30 - Feature separation: Remix builder out to /create/remix + z-index regression fix
+- **Status:** done
+- **Goal:** Owner: "separate features that don't belong on the same page
+  but keep cohesion between pages." Audit showed the visualizer's Remix
+  inspector tab embedded the same RemixPanel that already has a dedicated
+  page at /create/remix — a production tool inside a preview surface.
+- **What changed:**
+  - Inspector tabs are now Scene / Tuning / Mixer / EQ / AI (Remix tab
+    removed). The mixer tab gains a "Build a mashup" link card and the
+    More menu gains a "Remix Studio" item; both call openRemixStudio(),
+    which hands off via setPendingTrack(currentFilename) +
+    setPendingRemixOpen() then navigates to /create/remix — the same
+    pending-track mechanism Media Library already uses.
+  - LineagePanel's startMashup/reopen now navigate to /create/remix
+    instead of /visualizer (recipe + track handoffs are consumed by
+    RemixPanel wherever mounted).
+  - RemixPage reads peekPendingTrack() and passes it as currentTrack so
+    recipe reopens match their source track (the panel's sourceTrack
+    guard requires it), and shows an "Open in Visualizer →" link that
+    re-hands-off the same track for preview — cohesion in both directions.
+  - Regression found by the handoff test: .viz-page becoming display:flex
+    made .viz-topbar a flex item, so its z-index:100 + backdrop-filter
+    stacking context trapped the More/shortcuts menus (z-200) *below* the
+    overlay scrim (z-150) — every menu item unclickable. Fixed:
+    .viz-topbar is position:relative; z-index:160.
+- **Files:** components/VizInspector.tsx, VizToolbar.tsx, VizMoreMenu.tsx,
+  Visualizer.tsx, styles/visualizer.css, styles/visualizer-chrome.css,
+  features/remix/RemixPage.tsx, features/media-library/LineagePanel.tsx
+- **Acceptance:** headed probe — inspector shows 5 tabs (no Remix); More
+  menu lists "Remix Studio"; clicking it lands on /create/remix with
+  pendingTrack="mastered/Clever Mistakes...", panel auto-expanded
+  (pendingRemixOpen consumed), "Open in Visualizer" link rendered;
+  elementFromPoint confirms menu clicks reach buttons (scrim no longer
+  intercepts); gemma4 vision audit confirms expanded panel + return link;
+  vitest 900 pass; eslint 0 errors. (Full tsc blocked by unrelated
+  agent-loop WIP in services/api — zero errors in touched files.)
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed handoff probe
+  + z-index elementFromPoint verification + gemma4 vision audit.

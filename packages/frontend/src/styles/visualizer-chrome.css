@@ -15,7 +15,13 @@
     background: color-mix(in oklch, var(--bg-primary) 95%, transparent);
     border-block-end: 1px solid var(--border-subtle);
     backdrop-filter: blur(12px);
-    z-index: 100;
+    /* The topbar hosts the More/shortcuts dropdowns. As a flex item of
+       .viz-page its z-index now applies, and backdrop-filter makes it a
+       stacking context — without an explicit layer above the overlay
+       scrim (z-150) the whole toolbar, menus included, renders *under*
+       the scrim and every menu item is unclickable. */
+    position: relative;
+    z-index: 160;
     flex-shrink: 0;
     gap: 1rem;
     flex-wrap: wrap;
