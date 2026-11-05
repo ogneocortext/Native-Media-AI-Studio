@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 
 from ..core.config import config
 from ..core.connection import DB_PATH
-from ..core.ollama_client import embed_text
+from ..core.ollama_client import embed_text, embed_text_batch_concurrent
 from .doc_search_index import tokenize as bm25_tokenize
 
 logger = logging.getLogger(__name__)
@@ -51,15 +51,40 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 EMBED_MODEL = config.embedding_model          # nomic-embed-text:v1.5
-RERANK_MODEL = "qllama/bge-reranker-v2-m3"     # cross-encoder reranker
+RERANK_MODEL = "BAAI/bge-reranker-v2-m3"      # cross-encoder reranker (HuggingFace ID)
 VECTOR_MODEL_ALT = "embeddinggemma-2:270m"    # alternative embedder
 
 CHUNK_SIZE = 512          # tokens per chunk (respects embedding context)
 CHUNK_OVERLAP = 64        # token overlap between chunks
-RRF_K = 60                # RRF constant
-TOP_K_CANDIDATES = 50     # per-retriever depth before fusion/rerank
-TOP_K_FINAL = 5           # final results after rerank
+RRF_K = 60                # RRF constant (standard; within 4 MRR points of optimal)
+TOP_K_CANDIDATES = 50     # per-retriever depth before fusion/rerank (sweet spot: 50-100)
+TOP_K_FINAL = 5           # final results after rerank (research: 3-5 is optimal for LLM context)
 EMBED_DIM = 768           # nomic-embed-text / bge-reranker output dim
+
+# -- Cross-encoder tuning ----------------------------------------------------
+
+#: Max sequence length for the reranker. bge-reranker-v2-m3 supports 8192
+#: architecturally but is fine-tuned at 1024; longer inputs waste compute
+#: without quality gain (per BAAI model card).
+RERANK_MAX_LENGTH = 1024
+
+#: Batch size for cross-encoder forward passes. 16 on CPU, 32 on CUDA.
+#: Larger batches amortize the fixed ~2s overhead per call.
+RERANK_BATCH_SIZE_CPU = 16
+RERANK_BATCH_SIZE_CUDA = 32
+
+#: Relative score threshold. Keep results where score >= top1_score * RERANK_SCORE_ALPHA.
+#: Research: α ≈ 0.2-0.3 self-adjusts to per-query baselines and trims the long tail.
+#: Set to 0.0 to disable (return all candidates up to limit).
+RERANK_SCORE_ALPHA = 0.25
+
+#: Result cache TTL in seconds. Repeated identical queries are common in chat;
+#: caching skips both embedding and reranking entirely.
+RERANK_CACHE_TTL_SEC = 300
+
+#: MMR diversity lambda. 0.0 = pure relevance (rerank order), 1.0 = pure diversity.
+#: Applied after cross-encoder rerank (per ADR 0016/0017: rerank first, then MMR).
+MMR_LAMBDA = 0.7
 
 # ---------------------------------------------------------------------------
 # Cross-encoder reranker (lazy, in-process via transformers)
@@ -92,23 +117,19 @@ _reranker_device = None
 _reranker_available: bool | None = None
 _reranker_warmed_up = False
 
+#: Result cache: key -> (results, expiry_timestamp). Key is a hash of the
+#: normalized query plus a hash of the candidate document contents.
+_rerank_cache: dict[str, tuple[list[tuple[str, float]], float]] = {}
 
-def _reranker_batch_size(max_length: int, hidden_size: int) -> int:
-    """Dynamic batch size scaled by model width and sequence length.
 
-    Formula adapted from the CQS reranker batch-size heuristic:
-        batch = 32 * (384/hidden_size)^0.25 * (512/max_length)^0.25
+def _reranker_batch_size() -> int:
+    """Batch size for cross-encoder forward passes.
 
-    Both factors floor at 0.25 so neither dimension alone collapses the
-    batch to 1 on extreme models. Rounded to nearest integer, clamped
-    to [1, 256]. Keeps per-tensor activation memory roughly constant
-    across rerankers of different sizes and context lengths.
+    16 on CPU, 32 on CUDA. Larger batches amortize the fixed ~2s overhead
+    per call without significantly increasing latency for small candidate
+    sets.
     """
-    baseline = 32.0
-    seq_factor = math.pow(512.0 / max(max_length, 1), 0.25) if max_length > 0 else 0.25
-    hidden_factor = math.pow(384.0 / max(hidden_size, 1), 0.25) if hidden_size > 0 else 0.25
-    scaled = baseline * max(seq_factor, 0.25) * max(hidden_factor, 0.25)
-    return min(256, max(1, int(round(scaled))))
+    return RERANK_BATCH_SIZE_CUDA if _reranker_device == "cuda" else RERANK_BATCH_SIZE_CPU
 
 
 def _get_reranker() -> tuple[object, object] | None:
@@ -153,8 +174,12 @@ def _get_reranker() -> tuple[object, object] | None:
             logger.info("Reranker device: cpu")
 
         _reranker_tokenizer = AutoTokenizer.from_pretrained(RERANK_MODEL)
+        model_kwargs: dict = {}
+        if _reranker_device == "cuda":
+            model_kwargs["torch_dtype"] = torch.float16
         _reranker_model = AutoModelForSequenceClassification.from_pretrained(
-            RERANK_MODEL
+            RERANK_MODEL,
+            **model_kwargs,
         )
         _reranker_model.to(_reranker_device)
         _reranker_model.eval()
@@ -192,7 +217,7 @@ def _reranker_warmup(model, tokenizer, device: str) -> None:
         [p[1] for p in dummy_pairs],
         padding=True,
         truncation=True,
-        max_length=512,
+        max_length=RERANK_MAX_LENGTH,
         return_tensors="pt",
     ).to(device)
     with torch.no_grad():
@@ -232,20 +257,18 @@ def _rerank_cross_encoder(
 
     passages = [text for _, text in candidates]
 
-    # Determine batch size from model config if available.
-    max_length = 512
-    hidden_size = 384
+    # bge-reranker-v2-m3 fine-tuned at max_length=1024 (per BAAI model card).
+    # Architectural max is 8192 but longer inputs waste compute without
+    # quality gain. Use RERANK_MAX_LENGTH (1024) as the target.
+    max_length = RERANK_MAX_LENGTH
     try:
         model_cfg = model.config
-        max_length = int(getattr(model_cfg, "max_position_embeddings", max_length))
-        hidden_size = int(getattr(model_cfg, "hidden_size", hidden_size))
-        # Cap at model's supported max; bge-reranker-v2-m3 supports 8192
-        # but 512 is the efficiency sweet spot for most passages.
-        max_length = min(max_length, 8192)
+        configured = int(getattr(model_cfg, "max_position_embeddings", max_length))
+        max_length = min(configured, RERANK_MAX_LENGTH)
     except Exception:
         pass
 
-    batch_size = _reranker_batch_size(max_length, hidden_size)
+    batch_size = _reranker_batch_size()
 
     scores: list[float] = []
     import torch  # noqa: PLC0415
@@ -419,7 +442,14 @@ class RetrievalIndex:
 
     # -- rerank -------------------------------------------------------------
 
-    async def rerank(self, query: str, candidates: list[tuple[str, str]]) -> list[tuple[str, float]]:
+    async def rerank(
+        self,
+        query: str,
+        candidates: list[tuple[str, str]],
+        *,
+        score_threshold: float | None = None,
+        use_cache: bool = True,
+    ) -> list[tuple[str, float]]:
         """
         Rerank candidates using a local cross-encoder (transformers).
 
@@ -429,14 +459,36 @@ class RetrievalIndex:
         independently and cannot reorder the pool meaningfully.
 
         candidates: [(chunk_id, chunk_text)]
+        score_threshold: relative threshold as fraction of top-1 score.
+            Keep results where score >= top1_score * score_threshold.
+            Defaults to RERANK_SCORE_ALPHA (0.25). Set to 0.0 to disable.
+        use_cache: cache results by (query, candidate hash) for repeat queries.
+
         Returns: [(chunk_id, relevance_score)] sorted descending.
-        Scores are normalized to [0, 1] via sigmoid for consistency with
-        other relevance signals in the pipeline.
-        Falls back to the input order (unsorted) if the reranker is
-        unavailable, with a warning logged so the degradation is visible.
+        Scores are normalized to [0, 1] via sigmoid.
+        Falls back to input order (0.0 scores) if the reranker is
+        unavailable, with a warning logged.
         """
         if not candidates:
             return []
+
+        # Check cache first
+        if use_cache:
+            import hashlib
+
+            norm_query = " ".join(query.lower().split())
+            doc_hash = hashlib.sha1(
+                "||".join(f"{cid}|{text}" for cid, text in candidates).encode()
+            ).hexdigest()[:16]
+            cache_key = f"{hashlib.sha1(norm_query.encode()).hexdigest()[:16]}:{doc_hash}"
+            import time
+
+            entry = _rerank_cache.get(cache_key)
+            if entry is not None:
+                cached_results, expiry = entry
+                if time.monotonic() <= expiry:
+                    return cached_results
+                del _rerank_cache[cache_key]
 
         try:
             scored = _rerank_cross_encoder(query, candidates)
@@ -444,14 +496,107 @@ class RetrievalIndex:
             # Ranking is invariant to sigmoid (monotonic), but normalized
             # scores are easier to interpret and combine with BM25/vector
             # signals in the hybrid pipeline.
-            return [(cid, _sigmoid(s)) for cid, s in scored] or [
-                (cid, 0.0) for cid, _ in candidates
-            ]
+            scored = [(cid, _sigmoid(s)) for cid, s in scored]
+
+            # Apply relative score threshold: keep results where
+            # score >= top1_score * RERANK_SCORE_ALPHA.
+            # Research: α ≈ 0.2-0.3 self-adjusts to per-query baselines
+            # and trims the long tail without absolute thresholds (which
+            # don't compare across queries).
+            threshold = RERANK_SCORE_ALPHA if score_threshold is None else score_threshold
+            if threshold > 0.0 and scored:
+                top1 = scored[0][1]
+                cutoff = top1 * threshold
+                scored = [(cid, s) for cid, s in scored if s >= cutoff]
+
+            # Cache the results
+            if use_cache:
+                import hashlib
+                import time
+
+                norm_query = " ".join(query.lower().split())
+                doc_hash = hashlib.sha1(
+                    "||".join(f"{cid}|{text}" for cid, text in candidates).encode()
+                ).hexdigest()[:16]
+                cache_key = f"{hashlib.sha1(norm_query.encode()).hexdigest()[:16]}:{doc_hash}"
+                _rerank_cache[cache_key] = (
+                    scored,
+                    time.monotonic() + RERANK_CACHE_TTL_SEC,
+                )
+
+            return scored or [(cid, 0.0) for cid, _ in candidates]
         except Exception as exc:
             logger.warning(
                 "Reranker failed for query %r: %s; returning input order", query, exc
             )
             return [(cid, 0.0) for cid, _ in candidates]
+
+    async def _mmr_rerank(
+        self,
+        query: str,
+        ranked: list[tuple[str, float]],
+        top_k: int = TOP_K_FINAL,
+    ) -> list[tuple[str, float]]:
+        """
+        Maximal Marginal Relevance after cross-encoder rerank.
+
+        Per ADR 0016/0017: rerank first (relevance), then MMR (diversity).
+        MMR score = lambda * relevance - (1-lambda) * max_similarity_to_selected.
+        Uses embedding cosine similarity for the diversity term.
+
+        Returns the reranked list with diversity applied, truncated to top_k.
+        """
+        if not ranked or top_k <= 0 or MMR_LAMBDA >= 1.0:
+            return ranked[:top_k]
+
+        # Get embeddings for all candidate texts
+        candidate_texts = [text for _, text in ranked]
+        embeddings = await embed_text_batch_concurrent(
+            candidate_texts, model=EMBED_MODEL
+        )
+        emb_map: dict[str, list[float] | None] = dict(
+            zip(candidate_texts, embeddings, strict=True)
+        )
+
+        def _cosine_sim(a: list[float] | None, b: list[float] | None) -> float:
+            if not a or not b:
+                return 0.0
+            dot = sum(x * y for x, y in zip(a, b, strict=True))
+            na = math.sqrt(sum(x * x for x in a)) or 1.0
+            nb = math.sqrt(sum(x * x for x in b)) or 1.0
+            return dot / (na * nb)
+
+        selected: list[tuple[str, float]] = []
+        remaining = list(ranked)
+
+        # Always pick the top-ranked result first
+        if remaining:
+            selected.append(remaining.pop(0))
+
+        while remaining and len(selected) < top_k:
+            best_idx = -1
+            best_score = -float("inf")
+
+            for i, (cid, rel_score) in enumerate(remaining):
+                cand_text = self._chunks[cid].text if cid in self._chunks else ""
+                cand_emb = emb_map.get(cand_text)
+
+                # Diversity: max similarity to already-selected items
+                max_sim = 0.0
+                for sel_cid, _ in selected:
+                    sel_text = self._chunks[sel_cid].text if sel_cid in self._chunks else ""
+                    sel_emb = emb_map.get(sel_text)
+                    max_sim = max(max_sim, _cosine_sim(cand_emb, sel_emb))
+
+                mmr_score = MMR_LAMBDA * rel_score - (1 - MMR_LAMBDA) * max_sim
+                if mmr_score > best_score:
+                    best_score = mmr_score
+                    best_idx = i
+
+            if best_idx >= 0:
+                selected.append(remaining.pop(best_idx))
+
+        return selected
 
     # -- hybrid search ------------------------------------------------------
 
@@ -488,7 +633,13 @@ class RetrievalIndex:
         candidate_texts = [(cid, self._chunks[cid].text) for cid in ranked_cids if cid in self._chunks]
         reranked = await self.rerank(query, candidate_texts)
 
-        # 4. Build final results
+        # 4. MMR diversification after rerank (per ADR 0016/0017: rerank first,
+        #    then MMR -- MMR diversifies the rerank-ordered pool rather than
+        #    the importance-boosted RRF pool)
+        if MMR_LAMBDA < 1.0 and len(reranked) > 1:
+            reranked = await self._mmr_rerank(query, reranked, top_k=TOP_K_CANDIDATES)
+
+        # 5. Build final results
         results: list[dict] = []
         seen_docs: set[str] = set()
         for cid, rerank_score in reranked[:limit]:

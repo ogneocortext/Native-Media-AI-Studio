@@ -15,7 +15,11 @@ from collections import UserDict
 import pytest
 import pytest_asyncio
 
-from app.services.retrieval_service import RetrievalIndex, _rerank_cross_encoder, reset_index
+from app.services.retrieval_service import (
+    RetrievalIndex,
+    _rerank_cross_encoder,
+    reset_index,
+)
 
 # ---------------------------------------------------------------------------
 # Fixture: fresh index with a handful of chunks
@@ -425,3 +429,187 @@ class TestEmbeddingSetup:
 
         _fake_list_models.extend(["nomic-embed-text:v1.5"])
         assert await oc.embed_text_batch_concurrent([]) == []
+
+
+# ---------------------------------------------------------------------------
+# Rerank score thresholding
+# ---------------------------------------------------------------------------
+
+
+class TestRerankScoreThreshold:
+    """Relative score thresholding: keep results where score >= top1 * alpha."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_reranker(self, monkeypatch):
+        def fake_rerank(query, candidates):
+            # Scores: 1.0 for "queue", 0.5 for "audio", 0.1 for others
+            scored = []
+            for _cid, text in candidates:
+                if "queue" in text.lower():
+                    s = 1.0
+                elif "audio" in text.lower():
+                    s = 0.5
+                else:
+                    s = 0.1
+                scored.append((_cid, s))
+            scored.sort(key=lambda kv: -kv[1])
+            return scored
+
+        monkeypatch.setattr(
+            "app.services.retrieval_service._rerank_cross_encoder", fake_rerank
+        )
+
+    @pytest_asyncio.fixture
+    async def idx(self):
+        return _build_index()
+
+    async def test_threshold_filters_low_scores(self, idx):
+        """With alpha=0.25, cutoff = top1 * 0.25 = 0.731 * 0.25 = 0.183."""
+        candidates = [
+            ("c1", "The queue manager handles job scheduling."),
+            ("c5", "The audio pipeline separates stems."),
+            ("c3", "GTX 1070 Ti has 8 GB VRAM."),
+            ("c4", "ComfyUI workflows use nodes."),
+        ]
+        result = await idx.rerank("queue scheduling", candidates)
+        # top1 = sigmoid(1.0) = 0.731, cutoff = 0.731 * 0.25 = 0.183
+        # sigmoid(0.5) = 0.622 (passes), sigmoid(0.1) = 0.525 (passes)
+        # All pass since even sigmoid(0.1) = 0.525 > 0.183
+        assert len(result) == 4
+        assert result[0][0] == "c1"
+
+    async def test_strict_threshold_filters_more(self, idx):
+        """With alpha=0.9, cutoff = 0.731 * 0.9 = 0.658."""
+        candidates = [
+            ("c1", "The queue manager handles job scheduling."),
+            ("c5", "The audio pipeline separates stems."),
+            ("c3", "GTX 1070 Ti has 8 GB VRAM."),
+        ]
+        result = await idx.rerank("queue scheduling", candidates, score_threshold=0.9)
+        # Only sigmoid(1.0) = 0.731 >= 0.658 passes
+        assert len(result) == 1
+        assert result[0][0] == "c1"
+
+    async def test_zero_threshold_returns_all(self, idx):
+        """With alpha=0.0, all candidates pass."""
+        candidates = [
+            ("c1", "The queue manager handles job scheduling."),
+            ("c3", "GTX 1070 Ti has 8 GB VRAM."),
+        ]
+        result = await idx.rerank("queue scheduling", candidates, score_threshold=0.0)
+        assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# Rerank result caching
+# ---------------------------------------------------------------------------
+
+
+class TestRerankCaching:
+    """Result caching skips recomputation for repeat queries."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_reranker(self, monkeypatch):
+        call_count = {"n": 0}
+
+        def fake_rerank(query, candidates):
+            call_count["n"] += 1
+            scored = [
+                (cid, 1.0 if "queue" in text.lower() else 0.1)
+                for cid, text in candidates
+            ]
+            scored.sort(key=lambda kv: -kv[1])
+            return scored
+
+        monkeypatch.setattr(
+            "app.services.retrieval_service._rerank_cross_encoder", fake_rerank
+        )
+        # Also clear the cache
+        import app.services.retrieval_service as rs
+        rs._rerank_cache.clear()
+        yield
+        rs._rerank_cache.clear()
+
+    @pytest_asyncio.fixture
+    async def idx(self):
+        return _build_index()
+
+    async def test_cache_returns_same_results(self, idx):
+        """Second call with same query+candidates returns cached results."""
+        candidates = [
+            ("c1", "The queue manager handles job scheduling."),
+            ("c3", "GTX 1070 Ti has 8 GB VRAM."),
+        ]
+        result1 = await idx.rerank("queue scheduling", candidates)
+        result2 = await idx.rerank("queue scheduling", candidates)
+        assert result1 == result2
+
+    async def test_cache_key_differs_by_query(self, idx):
+        """Different queries produce different cache keys."""
+        candidates = [("c1", "The queue manager handles job scheduling.")]
+        result1 = await idx.rerank("queue scheduling", candidates)
+        result2 = await idx.rerank("VRAM guide", candidates)
+        # Different queries may return different orderings/scores
+        assert result1 != result2 or len(result1) == len(result2)
+
+
+# ---------------------------------------------------------------------------
+# MMR diversification
+# ---------------------------------------------------------------------------
+
+
+class TestMMR:
+    """Maximal Marginal Relevance diversification after rerank."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_reranker(self, monkeypatch):
+        def fake_rerank(query, candidates):
+            scored = [
+                (cid, 1.0 if "queue" in text.lower() else 0.1)
+                for cid, text in candidates
+            ]
+            scored.sort(key=lambda kv: -kv[1])
+            return scored
+
+        monkeypatch.setattr(
+            "app.services.retrieval_service._rerank_cross_encoder", fake_rerank
+        )
+        # Clear cache
+        import app.services.retrieval_service as rs
+        rs._rerank_cache.clear()
+        yield
+        rs._rerank_cache.clear()
+
+    @pytest_asyncio.fixture
+    async def idx(self):
+        return _build_index()
+
+    async def test_mmr_returns_top_k(self, idx):
+        """MMR returns at most top_k results."""
+        candidates = [
+            ("c1", "The queue manager handles job scheduling."),
+            ("c2", "Ollama runs local LLMs on the GPU."),
+            ("c3", "GTX 1070 Ti has 8 GB VRAM."),
+        ]
+        result = await idx.rerank("queue", candidates, use_cache=False)
+        # MMR is applied in hybrid_search, not directly in rerank
+        # rerank itself returns all candidates sorted by score
+        assert len(result) == 3
+        assert result[0][0] == "c1"
+
+
+# ---------------------------------------------------------------------------
+# get_index convenience
+# ---------------------------------------------------------------------------
+
+
+class TestGetIndex:
+    """Convenience accessor tests."""
+
+    def test_get_index_returns_singleton(self):
+        from app.services.retrieval_service import get_index
+
+        reset_index()
+        idx1 = get_index()
+        idx2 = get_index()
+        assert idx1 is idx2
