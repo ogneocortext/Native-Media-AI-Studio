@@ -1,11 +1,16 @@
 # Music Video Studio Guide
 
-> **Last Updated:** 2026-09-05 • **UI:** Dashboard `Drop your song` → Wizard `5 steps` (live) — Three.js Studio 6 templates, real-beat timeline
-> **For Classic tabbed UI see `Docs → Guides & API → MUSIC_VIDEO_GUIDE (Classic)` in vault `music-video-production.md`**
+> [!warning] Several wizard features described below are not yet implemented (corrected 2026-11-05)
+> - **Reference Images:** the Style step has no reference-image upload/drop UI (though `styleReferences` exists in types).
+> - **Cost estimate:** the backend endpoint exists but the wizard has no "Estimate Render Cost" control.
+> - **Export buttons:** the ReviewStep export modal has three "Export" buttons with no handlers — export is informational only.
+> - **Classic vs Wizard:** Classic tab count shows 4 but lists 5 names; canonical route is `/create/music-video` for the wizard (old `/music-video-wizard` redirects).
 
-## Overview (3 steps, not 6)
+> **Last Updated:** 2026-11-05 — corrected steps count (5, not 3) and noted unimplemented features. Original 2026-09-05 snapshot.
 
-The primary flow is **Dashboard → Wizard**. Classic `Music Video (tabs)` at `/music-video` still exists but is secondary.
+## Overview (5 steps)
+
+The primary flow is **Dashboard → Wizard** (5 steps). Classic `Music Video (tabs)` at `/create/music-video` still exists but is secondary.
 
 ```
 Dashboard hero "Drop audio file here" → Wizard: Upload → Analyze → Style → Generate → Export
@@ -36,16 +41,18 @@ No separate `Beat Timeline` tab in wizard — beats are shown in Analyze and cut
 - **Style suggestions:** 5 pills `happy/calm/dark/electronic/natural` → `+ upbeat` appends to prompt.
 - **Prompt:** one flowing paragraph `<75 words`, present tense. See `FILE_MANAGEMENT.md` for rename/cover.
 - **Vertical-first:** checkbox `Vertical-first master (9:16)` → `1080×1920` safe `1620px` (top 100 / bottom 200), derive `16:9` by framed center.
-- **Reference Images:** drop 3-5 style refs for lock (character/scene) — shown as 3-col thumbs.
+- ~~**Reference Images:** drop 3-5 style refs for lock (character/scene) — shown as 3-col thumbs.~~ **(Not implemented)**
 
 ### 4. Generate (per-section, serial)
 - Lists each detected section with `energy%` and `Visual Treatment` (`intro: wide`, `chorus: peak close-ups`). Optional per-section prompt override.
-- **Cost estimate:** before generating, click **Estimate Render Cost** to see local render time, VRAM, total frames, and optional cloud cost (`POST /api/video/estimate-cost`).
+- ~~**Cost estimate:** before generating, click **Estimate Render Cost** to see local render time, VRAM, total frames, and optional cloud cost (`POST /api/video/estimate-cost`).~~ **(Button not implemented; endpoint exists)**
 - `Generate Video — N sections` → sequential `POST /api/video/generate-section` with `audio_path: stored_path` from Analyze, then `poll GET /api/jobs/{id}` every `1.2s` until `completed` (not fake `400ms`). Queue is serial to avoid `GTX 1070 Ti 8GB` OOM.
 
 ### 5. Export
 - Matrix: `YouTube 16:9 1920×1080 16Mbps`, `Shorts 9:16 1080×1920 safe 1620`, `Canvas 3-8s loop` + `Thumbnails ×3 A/B` — same as `youtube-optimization.md`.
 - Opens `Media Library` — covers extracted via `FILE_MANAGEMENT.md`.
+- **Export modal buttons are informational-only** — no handlers attached (2026-11-05).
+- **Export modal buttons are informational-only** — no handlers attached (2026-11-05).
 
 ## Classic vs Wizard
 

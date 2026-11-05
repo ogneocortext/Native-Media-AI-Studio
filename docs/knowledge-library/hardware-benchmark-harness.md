@@ -98,8 +98,9 @@ GET /api/hardware/benchmarks/{run_id}
 DELETE /api/hardware/benchmarks?older_than_days=30
 ```
 
-History is stored in the `hardware_benchmarks` table. The database migration
-advances the schema from version 15 to version 16.
+History is stored in the `hardware_benchmarks` table. The migration that added
+it advanced the schema 15 → 16; the schema is now at version 21
+(`SCHEMA_VERSION` in `app/core/connection.py`, corrected 2026-11-05).
 
 ## CLI
 

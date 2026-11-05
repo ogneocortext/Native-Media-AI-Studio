@@ -51,6 +51,13 @@ Context: Native Media AI Studio — lyric/karaoke preview and future video gener
 
 ## Decision for This Project
 
+> **Superseded (verified 2026-11-05):** the shipped implementation uses
+> **anime.js v4 + @theatre/core/@theatre/studio** (see
+> `features/visualizer/components/KineticPresets.ts` and
+> `TheatreStudioPanel.tsx`). No `@motionone`/Motion dependency exists in
+> `packages/frontend/package.json`. The research below remains valid as
+> a comparison record.
+
 Primary: use Motion (core) for React-friendly line transitions and stagger effects.
 Secondary: use Anime.js for timeline-heavy karaoke sequences if Motion+ splitText is unavailable.
 Keep custom CSS for lightweight effects to avoid bundle bloat.

@@ -17,6 +17,15 @@ type: synthesis
 
 # 🎯 Feature Utilization & Gap Analysis 2026
 
+> [!warning] Partially superseded (corrected 2026-11-05)
+> Several "orphaned capability" findings below were fixed after this audit:
+> the music video wizard now wires `MusicPromptGenerator` into the Style step
+> (`MusicVideoWizard.tsx` imports it and renders the modal; `steps.tsx` has the
+> "Generate Music Prompt" button) and `GenerateStep` iterates `sections` with
+> per-section `sectionOverrides` via `POST /api/video/generate-section`.
+> Treat §2.1 and the section-iteration claims as historical; verify current
+> wiring in source before acting on any finding here.
+
 > [!info] Purpose
 > This document maps every significant feature in Native Media AI Studio to its
 > actual utilization state. Unlike a conventional "wiring checklist," it focuses

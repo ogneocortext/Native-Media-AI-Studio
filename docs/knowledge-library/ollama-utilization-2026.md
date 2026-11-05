@@ -146,14 +146,14 @@ capabilities the resident lacks.
 
 | Task                                             | Primary Model           | Fallback            | Why                                         |
 | ------------------------------------------------ | ----------------------- | ------------------- | ------------------------------------------- |
-| **Vision analysis (UI, responsive, regression)** | `gemma4:e2b-it-qat`     | `minicpm-v:8b`    | Best detailed audits; MiniCPM trustworthy OCR |
-| **OCR / table / chart**                          | `gemma4:e2b-it-qat`     | `minicpm-v:8b`      | Gemma detailed; MiniCPM RLAIF-V trustworthy |
-| **Compare / multicomp images**                   | `gemma4:e2b-it-qat`     | `minicpm-v:8b`    | Handles multi-image sets at num_ctx 8192     |
-| **Storyboard generation**                        | `qwen3.5:9b`            | `qwen3.5:4b`        | Best JSON adherence; 4b if VRAM tight       |
-| **Three.js scene planning**                      | `qwen3.5:9b`            | `qwen3.5:4b`        | Strong tool calling + reasoning             |
-| **Blender script planning**                      | `qwen3.5:9b`            | `qwen3.5:4b`        | Same as above                               |
+| **Vision analysis (UI, responsive, regression)** | `gemma4:e2b-it-qat`     | —                   | Only surviving local vision model (`minicpm-v:8b`/`qwen3-vl:*` pruned 2026-10-22) |
+| **OCR / table / chart**                          | `gemma4:e2b-it-qat`     | —                   | Gemma detailed; no second local vision model remains |
+| **Compare / multicomp images**                   | `gemma4:e2b-it-qat`     | —                   | Handles multi-image sets at num_ctx 8192     |
+| **Storyboard generation**                        | `qwen3.5:4b`            | `llama3.2:3b`       | `qwen3.5:9b` pruned 2026-10-22; 4b is the JSON workhorse |
+| **Three.js scene planning**                      | `qwen3.5:4b`            | `llama3.2:3b`       | Strong tool calling + reasoning             |
+| **Blender script planning**                      | `qwen3.5:4b`            | `llama3.2:3b`        | Same as above                               |
 | **Code generation / backend tasks**              | `qwen3.5:4b`            | `llama3.2:3b`       | 4b best balance; 3b for quick edits         |
-| **Reasoning / complex analysis**                 | `qwen3.5:9b`            | `qwen3.5:4b`        | deepseek-r1:7b pruned 2026-10-10            |
+| **Reasoning / complex analysis**                 | `qwen3.5:4b`            | `qwen3.5:4b`        | `qwen3.5:9b` + deepseek-r1:7b both pruned   |
 | **Music prompt generation**                      | `qwen3.5:4b`            | `gemma4:e2b-it-qat` | Fast multi-platform prompt generation       |
 | **Embedding / semantic search**                  | `nomic-embed-text:v1.5` | —                   | Always resident; lightweight                |
 | **Audio analysis (text tasks)**                  | `gemma4:e2b-it-qat`     | `qwen3.5:4b`        | Default; 4b if VRAM needed elsewhere        |
@@ -267,7 +267,8 @@ The `OllamaAdapter` is the **single entry point** for all backend Ollama calls:
 
 ### 4.2 MCP Bridge (`tools/mcp/ollama-tools-mcp.mjs`)
 
-Exposes 10 MCP tools to agents:
+Exposes 19 MCP tools to agents (10 core + 9 `remix_*`; count corrected
+2026-11-05):
 
 | MCP Tool                  | Ollama Usage                  | Backend Call                     |
 | ------------------------- | ----------------------------- | -------------------------------- |
@@ -279,11 +280,13 @@ Exposes 10 MCP tools to agents:
 | `create_music_video_plan` | —                             | `GET /api/audio/analysis/:file`  |
 | `suggest_3d_prompt`       | —                             | Template expansion (no LLM)      |
 | `generate_3d_concept`     | —                             | Calls `generate_image`           |
-| `plan_blender_script`     | `qwen3.5:9b` via `/api/chat`  | Direct Ollama call               |
+| `plan_blender_script`     | `qwen3.5:4b` via `/api/chat`  | Direct Ollama call               |
 | `update_mcp_context`      | —                             | Writes `output/mcp-context.json` |
+| `remix_*` (9 tools)       | —                             | Remix build/preview/enhance jobs |
 
-**Gap:** `analyze_image` uses a hardcoded `qwen3-vl:4b` default instead of
-the routing table from `tools/vision/analyze.mjs`.
+**Resolved gap (2026-11-05):** `analyze_image` no longer hardcodes
+`qwen3-vl:4b` — it resolves via `resolveVisionModel()` (gemma4 default),
+and `plan_blender_script` defaults to `qwen3.5:4b` (`qwen3.5:9b` pruned).
 
 ### 4.3 Vision Script (`tools/vision/analyze.mjs`)
 
@@ -423,8 +426,9 @@ gains mode awareness.
 ### 6.2 Gap: Backend Has No MCP Tool Registry Consumer
 
 **Current:** `mcp_validator.py` defines 38 JSON Schema validators but is never
-imported. `packages/backend/app/adapters/ollama.py` has 14 built-in tools, but
-no schema validation is enforced at runtime.
+imported. The backend adapter exposes **22** built-in tool definitions in
+`adapters/ollama_tools.py` (a mixin `ollama.py` imports — count corrected
+2026-11-05), but no schema validation is enforced at runtime.
 
 **Fix:** Wire `mcp_validator.py` into:
 
@@ -523,7 +527,7 @@ the same prompt against N models and returns a ranked comparison.
 
 | Action                                                  | Why                                                                             | Effort |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------- | ------ |
-| Convert `qwen3.5:9b` to GGUF Q4_K_M | 9B model currently fp16 (~6.6 GB); GGUF Q4_K_M would halve VRAM to ~3.5–4.5 GB | 2–4h   |
+| ~~Convert `qwen3.5:9b` to GGUF Q4_K_M~~ | **Obsolete** — `qwen3.5:9b` was pruned 2026-10-22 (D46); `qwen3.5:4b` is already the workhorse | — |
 | Wire `mcp_validator.py` into MCP bridges                | Agents still invent invalid commands                                            | 2–4h   |
 | Add prompt-generation step to wizard                    | Music prompt generator is an island                                             | 2h     |
 
@@ -542,8 +546,8 @@ the same prompt against N models and returns a ranked comparison.
 | ------------------------------------------------------- | ------------------------------------------------ | ------ |
 | Add `ollama-model` selector to frontend settings        | Currently hardcoded in `config/settings.json`    | 4h     |
 | Build benchmark dashboard                               | Benchmark data stored but never aggregated in UI | 4–8h   |
-| Evaluate `minicpm-v:8b` for tool calling | 8B vision model, already resident; smallest surviving vision model | 2h     |
-| Test `qwen3.5:9b` GGUF Q4_K_M conversion            | Would make 9B quality 8GB-safe                   | 4h     |
+| ~~Evaluate `minicpm-v:8b` for tool calling~~ | **Obsolete** — `minicpm-v:8b` pruned 2026-10-22; gemma4 is the only local vision model | — |
+| ~~Test `qwen3.5:9b` GGUF Q4_K_M conversion~~ | **Obsolete** — model pruned 2026-10-22 | — |
 
 ---
 

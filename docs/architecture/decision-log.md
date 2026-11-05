@@ -9,7 +9,8 @@
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
 > **Recommendation** where one exists.
 >
-> Current scope: D1–D52 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D69 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
 
 ## Decided
 
@@ -1621,7 +1622,7 @@
   local workstation tool rather than a deployed product, so "which browsers do
   we support?" had no written answer while the code already behaved as if it
   had one. The measured state (2026-10-18): `tsconfig.json` targets `ES2022`
-  with `DOM`/`DOM.Iterable` libs, `vite.config.ts:180` builds `target: "es2022"`
+  with `DOM`/`DOM.Iterable` libs, `vite.config.ts` builds `target: "es2022"`
   ("Target modern browsers for smaller bundles"), `index.html` loads a single
   `<script type="module">`, `playwright.config.ts:45` declares one project
   (`chromium`, `devices["Desktop Chrome"]`), and there is no `.browserslistrc`,
@@ -1787,7 +1788,7 @@
 - **Files:** opencode.json, packages/video-editor/opencode.json, scripts/start-tunnel.ps1, packages/backend/app/api/hyperframes.py, docs/knowledge-library/npx-best-practices-2026.md (new), docs/knowledge-library/mcp-registry.json, docs/architecture/decision-log.md (this entry).
 - **Consequences:** No runtime network fetching from the npm registry via npx. All package executions are version-pinned and lockfile-verified. MCP servers can no longer silently auto-update to malicious versions. Users must pre-install packages (`pnpm add -D <pkg>@<version>`) before running `npx --no --offline`. Known limitation: documentation examples across the repo still show unpinned `npx` patterns (e.g. `npx playwright test`, `npx remotion render`) — these should be migrated to `pnpm exec` or pinned `--no --offline` form as they are touched.
 
-### D55 — Handler/subprocess/service timeouts reduced to match local workstation (2026-11-01)
+### D69 — Handler/subprocess/service timeouts reduced to match local workstation (2026-11-01; renumbered from D55 2026-11-05 — duplicate ID)
 
 - **Status:** Decided
 - **Context:** Multiple handler and subprocess timeouts were set to 300–600 seconds, copied from cloud/distributed execution patterns where jobs queue behind other work. On this single-machine workstation (Ryzen 5 5500 6C/12T, GTX 1070 Ti 8GB VRAM, SATA SSD), a 600 s timeout means a hung job blocks the serial queue for 10 minutes before aborting. Measured: `queue/processor.py` `HANDLER_TIMEOUT_SECONDS = 3600` (1 hour), `ollama_models.py` model pull = 600 s, `musetalk_adapter.py` lip-sync inference = 3600 s (1 hour), `audio_edit.py` ffmpeg extract/trim = 600 s, `beat_assembler.py` ffmpeg assemble = 600/620 s, `main.py` WebSocket receive = 30 s / SSE queue.get = 15 s, `comfyui.py` image fetch = 120 s, `source_separation.py` subprocess = 600 s.

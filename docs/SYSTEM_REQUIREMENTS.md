@@ -63,7 +63,7 @@ External tools and system-level dependencies that are **not** installable via `p
 
 | Service | Default URL | Notes |
 |---------|-------------|-------|
-| **Ollama** | `http://127.0.0.1:11434` | Vision / text models (`gemma4:e2b-it-qat`, `qwen3-vl:4b`) |
+| **Ollama** | `http://127.0.0.1:11434` | Vision / text / embedding models — current catalog: `gemma4:e2b-it-qat` (vision), `qwen3.5:4b`, `llama3.2:3b`, `ibm/granite4.2:3b` (text), `nomic-embed-text:v1.5` + `embeddinggemma-2:270m` (embeddings). The `qwen3-vl:*`, `minicpm-v:*`, and `qwen3.5:9b` models were pruned 2026-10-22 (decision-log D37/D46/D47) |
 | **ComfyUI** | `http://127.0.0.1:8188` | Must start with `--enable-manager` for Manager queue API |
 | **Unity Editor** | `http://127.0.0.1:7800` | Unity 6000.x, MCP bridge via `tools/mcp/unity-mcp-bridge.mjs` |
 | **Blender MCP** | `localhost:9876` (TCP) | Blender addon sidebar → "Start MCP Server" |
@@ -81,9 +81,9 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import torch; print('torch'
 D:\conda-envs\comfyui-cuda\Scripts\python.exe -c "import torch; print('comfyui torch', torch.__version__)"
 D:\conda-envs\studio-tools\Scripts\python.exe -c "import sys; print('studio-tools', sys.version)"
 
-# Services
-curl http://127.0.0.1:8001/api/health
-curl http://127.0.0.1:5174
+# Services (canonical ports from config/ports.json)
+curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:5173
 curl http://127.0.0.1:8188/system_stats
 ```
 

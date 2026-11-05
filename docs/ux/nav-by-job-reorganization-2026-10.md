@@ -9,6 +9,10 @@ their workflow.
 
 ## Current Nav Destinations
 
+> **Note (2026-11-05):** This section reflects the pre-migration route inventory.
+> The proposed reorganization was implemented — current `App.tsx` has the grouped
+> routes and redirects old names. Keep this as historical inventory.
+
 28 routes across `App.tsx` (plus 4 redirect routes for removed/merged):
 
 | Route | Title | Engine/Workflow |

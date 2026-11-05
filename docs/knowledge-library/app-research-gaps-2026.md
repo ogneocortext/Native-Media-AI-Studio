@@ -392,9 +392,9 @@ type: synthesis
 
 ### Current State
 
-- 57 docs in `docs/knowledge-library/`
-- 8 docs in `docs/knowledge/` (older, some pre-2026)
-- Decision log D1-D8, Q1-Q4
+- 115 docs in `docs/knowledge-library/` (count corrected 2026-11-05; this section was a 2026-09 snapshot)
+- ~21 docs in `docs/knowledge/` (older, some pre-2026)
+- Decision log now spans D1–D69, Q1–Q6 (was D1–D8, Q1–Q4 at snapshot time)
 - `ENHANCEMENT_RECOMMENDATIONS.md` exists but is not linked from index
 
 ### Research Gaps

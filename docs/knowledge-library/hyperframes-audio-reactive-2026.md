@@ -161,7 +161,8 @@ python tools/analyze_and_sync.py input.mp3 -o beat_data.json
 Then merge:
 
 ```python
-# tools/scripts/build_hyperframes_audio_payload.py
+# packages/backend/app/services/storyboard_hyperframes.py
+# (build_hyperframes_audio_payload, exposed via GET /api/audio/hyperframes-payload/{filename})
 import json, sys
 
 with open("audio-data.json") as f:
@@ -708,9 +709,9 @@ To make HyperFrames audio-reactive renders a first-class output of the studio:
 
 ### 8.1 Backend Changes
 
-- [ ] Add `GET /api/audio/hyperframes-payload/{filename}` endpoint
-- [ ] Merge `audio_analyzer` output + `analyze_and_sync` beat grid + optional
-      lyrics into `hyperframes-audio.json` format
+- [x] Add `GET /api/audio/hyperframes-payload/{filename}` endpoint — implemented in `packages/backend/app/api/audio.py` via `services/storyboard_hyperframes.py`
+- [x] Merge `audio_analyzer` output + `analyze_and_sync` beat grid + optional
+      lyrics into `hyperframes-audio.json` format — implemented in `build_hyperframes_audio_payload()`
 - [ ] Add `--hyperframes` flag to `tools/analyze_and_sync.py` that outputs the
       merged payload directly
 - [ ] Cache payloads in `output/audio/` so repeated renders are instant

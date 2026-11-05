@@ -22,12 +22,12 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 94 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`)
-**Migrated:** 91 (100%)
+**Documents in library:** 113 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`; count corrected 2026-11-05)
+**Migrated:** all tagged (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux/audit-report.md`, which is tagged but lives
-outside the library, so it appears in a section but is not one of the 77.
+outside the library, so it appears in a section but is not one of the 113.
 
 Every document carries exactly one primary category as its **first** tag. The
 per-section counts below are derived from the documents' actual frontmatter, not
@@ -158,7 +158,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `ai-video-trends-2026.md`  → `#research`, `#ai`
 - ✅ `youtube-algorithm-2026-updates.md`  → `#research`, `#platform-youtube`
 - ✅ `music-viz-trends-2026.md`  → `#research`, `#visualization`
-- ✅ `tempo-estimation-octave-errors-2026.md` → `⌘research`, `⌘audio`, `⌘beat-tracking`, `⌘octave-errors`, `⌘tempo-estimation`
+- ✅ `tempo-estimation-octave-errors-2026.md` → `#research`, `#audio`, `#beat-tracking`, `#octave-errors`, `#tempo-estimation`
 - ✅ `ai-music-video-platforms-2026.md`  → `#research`, `#platform-youtube`, `#ai`
 - ✅ `app-research-gaps-2026.md`  → `#research`
 - ✅ `creative-onboarding-patterns-2026.md`  → `#research`, `#design`

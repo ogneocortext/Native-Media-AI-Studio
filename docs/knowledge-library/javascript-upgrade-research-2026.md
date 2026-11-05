@@ -14,7 +14,7 @@ type: source
 # JavaScript / TypeScript Upgrade Research — Native Media AI Studio (2026)
 
 > **Scope:** Concrete upgrade paths for the frontend JS/TS stack, ranked by impact and effort.
-> **Current baseline:** Node v26.13 (LTS Lithium), pnpm 12, React 19, Vite 8.3.4, TypeScript 5.9, Tailwind v4, ESLint 10 flat config.
+> **Current baseline:** Node v26.13 (LTS Lithium), pnpm 12.17.0, React ^19.3.0, Vite 8.3.5, TypeScript ^5.9.3, Tailwind v4, ESLint 10 flat config, Remotion 4.0.539, Playwright ^1.64 (baseline refreshed 2026-11-05 from `package.json`/`pnpm-workspace.yaml`).
 > **Prerequisite:** Read [[technical-reference]] for the service map and [[go-integration-2026]] for the sidecar context.
 > **Last updated:** 2026-09-24
 
@@ -317,24 +317,18 @@ build: {
 
 ### 7.1 Prettier for frontend
 
-**Finding:** Prettier is configured only in `packages/video-editor` (`.prettierrc`). The main frontend has **no Prettier config**.
-
-**Action:** Add `.prettierrc` + `prettier` devDependency to the frontend package. Run `pnpm prettier --write .` to normalize formatting.
+**Finding (updated 2026-11-05):** The main frontend **now has** Prettier —
+`packages/frontend/.prettierrc.json` exists and `package.json` carries
+`prettier`, `format`, `lint-staged`, `husky`, and `prepare: husky` scripts.
+This section is resolved; kept for history.
 
 ### 7.2 Husky + lint-staged
 
-**Finding:** Frontend formatting is not gated on commit. A pre-commit hook now
-exists (`scripts/git-hooks/pre-commit`, installed by
-`scripts/install-git-hooks.sh`), but it only validates the knowledge-library
-taxonomy - it does not run ESLint or Prettier. Husky itself is still not
-installed.
-
-**Action:** If frontend lint/format gating is wanted, either extend the
-existing shell hook (no new dependency) or add `@husky/husky` + `lint-staged` to
-run `eslint --fix` and `prettier --write` on staged files. Prefer extending the
-existing hook: Husky adds a Node dependency and a second install path, and this
-repo has no CI to run it from (D10), so a local hook is the only thing that
-would actually execute.
+**Finding (updated 2026-11-05):** Husky **is** installed in the frontend —
+`prepare: husky` runs on install and `.husky/pre-commit` invokes
+`lint-staged` (ESLint + Prettier on staged files). The repo-level
+`scripts/git-hooks/pre-commit` (installed via `install-git-hooks.sh`) still
+handles the knowledge-library taxonomy check alongside it.
 
 ### 7.3 Bundle size monitoring
 

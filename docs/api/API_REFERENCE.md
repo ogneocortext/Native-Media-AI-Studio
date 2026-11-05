@@ -2,6 +2,13 @@
 
 > **Base URL:** `http://127.0.0.1:8000` (see `config/ports.json` for current port)
 > **Last Updated:** 2026-09-26 (worker lifecycle, Vite 8.3.1, TypeScript check command)
+> **Freshness note (2026-11-05):** this reference predates several API
+> surfaces added since — remix jobs (`/api/audio/remix/*`), Remotion
+> render, lipsync-batch, retrieval (`/api/retrieval/*`), sub-agent
+> (`/api/sub-agent/*`), audio mastering, media-library, notifications,
+> and mcp-validate are not fully documented here. For the authoritative
+> live surface, read `app.openapi()["paths"]` on the running backend or
+> fetch `/openapi.json`.
 
 ## Ollama / AI Integration Endpoints
 
@@ -27,7 +34,7 @@ The configured local default is `gemma4:e2b-it-qat`. Vision/tool requests should
 POST /api/vision/ocr
 ```
 
-The default vision model is `gemma4:e2b-it-qat`, with `qwen3-vl:2b` as the lightweight fallback. The backend caps context at 8192 for the 8 GB workstation.
+The default vision model is `gemma4:e2b-it-qat` — the only local vision model (`qwen3-vl:*`/`minicpm-v:*` were pruned 2026-10-22; `FALLBACK_MODEL = None` in `vision.py`). The backend caps context at 8192 for the 8 GB workstation.
 
 
 ### List all jobs
@@ -36,7 +43,7 @@ The default vision model is `gemma4:e2b-it-qat`, with `qwen3-vl:2b` as the light
 GET /api/jobs?status={status}
 ```
 
-Optional `status` filter: `pending`, `queued`, `running`, `completed`, `failed`, `cancelled`.
+Optional `status` filter: `pending`, `queued`, `running`, `retrying`, `completed`, `failed`, `dead`, `cancelled`.
 
 ### Create a job
 
@@ -229,7 +236,7 @@ GET /api/outputs?file_type={type}&search={query}&limit={n}&offset={n}
 ### Get recent outputs
 
 ```
-GET /api/outputs/recent?limit={n}
+GET /api/outputs?limit={n}&offset={n}   (the list endpoint above; there is no /recent route — `recent` would be swallowed by `/{file_type}`)
 ```
 
 ### Get outputs by type
@@ -240,14 +247,12 @@ GET /api/outputs/{file_type}
 
 Where `file_type` is `images`, `video`, or `audio`.
 
-### Outputs — covers, rename, duplicates (new)
+### Outputs — covers, rename, bulk delete
 
 Audio files with embedded art (ID3 `attached pic`, FLAC `PICTURE`) are extracted via FFmpeg on scan to `audio/{stem}.jpg` and returned as `cover_image: "audio/...jpg"` (skip-list prevents `*.jpg` sidecars from appearing as standalone images).
 
-```
-GET /api/outputs/duplicates/groups?quick=true&limit=50
-→ [{"hash":"a1b2c3d4e5f6...", "count":3, "size_bytes": 5638824, "wasted_bytes": 11277648, "files": [{"filename":"f3a608e2_...mp3","relative_path":"audio/f3a...","size_bytes":..., "created_at":"..."}, ...]}, ...]
-```
+> **Removed (2026-11-05):** `GET /api/outputs/duplicates/groups` does not
+> exist — there is no duplicates-groups endpoint in the backend.
 
 ```
 POST /api/outputs/{file_path}/rename
@@ -276,7 +281,7 @@ Removes file + `file.json`/`file.mp3.json` + cover `file.jpg` sidecars if inside
 ### Ping
 
 ```
-GET /api/ping
+GET /api/health/ping
 ```
 
 ### Health check
@@ -449,17 +454,20 @@ If backend SSE is unavailable, the frontend falls back to `http://127.0.0.1:3847
 
 ## Transcription & Lyrics
 
-### Transcribe audio → LRC (Whisper/WhisperX)
+### Transcribe audio → LRC (faster-whisper)
 
 ```
-POST /api/transcription/transcribe
-Content-Type: multipart/form-data
-file: <audio>  (+ optional model/language params)
+POST /api/audio/transcribe                (JSON: {filename, language?, model_size?})
 
-GET /api/transcription/transcript/lrc/{filename:path}         → LRC text
-GET /api/transcription/transcript/lrc-word/{filename:path}    → word-level JSON
-GET /api/transcription/transcript/{filename:path}             → raw transcript JSON
+GET  /api/audio/transcript/{filename:path}          → raw transcript JSON
+GET  /api/audio/transcript/lrc/{filename:path}      → LRC text
+GET  /api/audio/transcript/lrc-word/{filename:path} → word-level JSON
+GET  /api/audio/transcript/lyrics/{filename:path}   → lyrics payload
 ```
+
+The router mounts at `/api/audio` (`api/transcription.py`), not
+`/api/transcription`. Engine is **faster-whisper** (`services/transcription.py`),
+not WhisperX.
 
 ### Lyrics CRUD
 
@@ -478,13 +486,20 @@ LRC sync surfaced via `useLrcSync` + `Canvas2DVisualizer`/`VisualizerScene`/`Kin
 ## ComfyUI Process Management
 
 ```
-GET  /api/comfyui/status           → managed ComfyUI status
-POST /api/comfyui/start?port=8188
-POST /api/comfyui/stop
-POST /api/comfyui/restart
-POST /api/comfyui/update           → git pull + requirements reinstall (when local)
-GET  /api/comfyui/version
+GET  /api/services/comfyui/status           → managed ComfyUI status
+POST /api/services/comfyui/start?port=8188
+POST /api/services/comfyui/stop
+POST /api/services/comfyui/restart
+POST /api/services/comfyui/update           → git pull + requirements reinstall (when local)
+GET  /api/services/comfyui/version
+POST /api/services/comfyui/interrupt
 ```
+
+Plus the bridge surface under the same prefix: `/bridge/status`,
+`/bridge/link`, `/bridge/unlink`, `/bridge/nodes`, `/bridge/workflows`,
+`/bridge/integrity`, `/bridge/models`, `/input`, `/output`. (Prefix
+corrected 2026-11-05 — the router mounts at `/api/services/comfyui`,
+`api/comfyui.py:17`.)
 
 Native ComfyUI HTTP API is also directly reachable at `http://127.0.0.1:8188` (`/prompt`, `/queue`, `/history`, `/view`, `/system_stats`).
 
@@ -566,7 +581,7 @@ GET  /api/health/context               → agent context snapshot
 POST /api/health/context
 GET  /api/health/ollama/models         → loaded Ollama models + VRAM
 POST /api/health/ollama/clear-activity
-GET  /api/ping
+GET  /api/health/ping
 ```
 
 ### `/api/health/diagnostics/services` response shape

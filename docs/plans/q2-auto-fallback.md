@@ -1,6 +1,7 @@
 # Q2 — Automatic AI → deterministic fallback in the music video pipeline
 
-- **Status:** Approved
+- **Status:** Done — implemented 2026-10-06 (`services/visual_fallback.py`;
+  review fixes landed same day)
 - **Decides:** Q2 (`docs/architecture/decision-log.md`)
 - **Owner:** repo owner
 - **Approved:** 2026-09-22 — agents may implement.

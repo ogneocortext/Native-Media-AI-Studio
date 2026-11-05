@@ -33,11 +33,16 @@ Nodes: `ImageOnlyCheckpointLoader`, `Hunyuan3Dv2ConditioningMultiView`, `SaveGLB
 
 ### `triposr-fast.json`
 
+> [!warning] Unavailable (corrected 2026-11-05)
+> `ComfyUI-3D-Pack` / `ComfyUI-TripoSR` custom nodes were not found in the current
+> external ComfyUI installation, and `TripoSRGenerate`/`Save3DModel` nodes were not
+> found in source. This workflow cannot run until those nodes are installed.
+
 Ultra-fast single-image 3D using TripoSR (~0.5s per image). Requires
 `ComfyUI-3D-Pack` or `ComfyUI-TripoSR` via ComfyUI Manager. Good quality,
 ~4–5 GB VRAM.
 
-Nodes: `LoadImage`, `TripoSRGenerate`, `SaveMesh` (or similar)
+Nodes: `LoadImage`, `TripoSRGenerate`, `Save3DModel` (actual JSON uses `Save3DModel`, not `SaveMesh`)
 
 ### `text-to-3d-sdxl-reference.json`
 
@@ -45,8 +50,7 @@ Text-to-3D via SDXL reference image workflow. VRAM and speed vary by model.
 
 ## How to use
 
-1. Start ComfyUI (see `scripts\start-unity-headless.ps1` or launch ComfyUI
-   separately).
+1. Start ComfyUI via `pnpm dev:comfyui` or `scripts/manage-servers.ps1 -Services comfyui` (the referenced `start-unity-headless.ps1` does not exist).
 2. Load any `.json` workflow in the ComfyUI UI, or execute it via the MCP
    bridge (`tools/mcp/`).
 3. Outputs go to `output/generated_3d/` (see `GET /api/3d/*`).

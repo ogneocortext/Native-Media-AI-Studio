@@ -110,11 +110,12 @@ backward** — the thing a changelog cannot show.
 - **State:** mature; tempo probed from drums; remixes are ordinary stem
   sets downstream by design.
 - **Pain:** source key is (correctly) never auto-trusted — keep it that
-  way; probe caches must stay out of the stem folders. **Bug: POST
-  /api/audio/remix/probe returns "'coroutine' object has no attribute
-  'get'" (audio_remix.py:59).**
-- **Next moves:** mastering follow-through from the Oct roadmap; fix
-  remix probe bug; implement /api/audio/remix/{name}/enhance route.
+  way; probe caches must stay out of the stem folders. (The probe
+  coroutine bug and the missing `/enhance` route were fixed under
+  T-AUD-03 / earlier work — probe now takes `?track=`, enhance is
+  registered at `audio_remix.py`.)
+- **Next moves:** mastering follow-through from the Oct roadmap
+  (M1 shipped via T-AUD-01/08; M2–M3 remain).
 - **Behavior ledger:**
   - [x] Analysis of a known track returns tempo, beats, sections —
     verified: POST /api/audio/analyze with file upload returns
@@ -123,14 +124,13 @@ backward** — the thing a changelog cannot show.
   - [x] Remix preview warns on layers below −50 dBFS (silent-layer
     trap) — verified: stem_remixer.py:1536 checks
     `window_rms < -50.0` and emits a near-silent warning.
-  - [ ] Enhance runs via `/api/audio/remix/{name}/enhance` (not
-    enhance-stems) — route documented in audio_remix.py:14 and client
-    calls it (api_client.py:225) but no handler registered; only
-    /enhance-stems exists at audio_stems.py:547.
+  - [x] Enhance runs via `/api/audio/remix/{name}/enhance` (not
+    enhance-stems) — `@router.post("/{name}/enhance")` registered at
+    audio_remix.py:671, job-tracked; MasteringPanel calls it.
   - [ ] A built remix serves stems and master through the remix file
     route and works in the visualizer unmodified — route
-    /api/audio/remix/file/{which} exists (returns proper 404 error
-    when no remix built); no remix has been built end-to-end to
+    `GET /api/audio/remix/{name}/file/{which}` registered at
+    audio_remix.py:795; no remix has been built end-to-end to
     verify serving.
 
 ### 3.4 Visualizer

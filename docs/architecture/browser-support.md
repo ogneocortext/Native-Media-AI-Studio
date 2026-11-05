@@ -24,7 +24,7 @@ So the target is stated, not implied: **modern Chromium, current stable**.
 | --- | --- | --- |
 | TypeScript target | `ES2022` | `packages/frontend/tsconfig.json` (`"target": "ES2022"`) |
 | TS lib | `ES2022`, `DOM`, `DOM.Iterable` | `packages/frontend/tsconfig.json` |
-| Build target | `es2022` | `packages/frontend/vite.config.ts:180` ("Target modern browsers for smaller bundles") |
+| Build target | `es2022` | `packages/frontend/vite.config.ts:216` ("Target modern browsers for smaller bundles") |
 | Entry script | `<script type="module">` (ESM only) | `packages/frontend/index.html` |
 | E2E browser | `chromium` / `devices["Desktop Chrome"]` — single project | `packages/frontend/playwright.config.ts:45` |
 | Legacy/downlevel plugin | **absent** | no `@vitejs/plugin-legacy`, no `core-js` in `packages/frontend/package.json` |

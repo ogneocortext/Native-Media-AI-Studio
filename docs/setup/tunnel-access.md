@@ -36,6 +36,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1
 Only the **Vite dev server** is published. Vite proxies `/api`, `/output` and
 `/ws` to `127.0.0.1:8000`, so one public URL reaches both the UI and the API:
 
+> **Note:** `/api/events` is the canonical SSE realtime path (`config/ports.json` `events_url`);
+> `/ws` remains as a legacy WebSocket compatibility endpoint.
+
 ```
   Frontend    : https://a1b2c3d4.ngrok-free.app
   API         : https://a1b2c3d4.ngrok-free.app/api/...   (proxied by Vite)

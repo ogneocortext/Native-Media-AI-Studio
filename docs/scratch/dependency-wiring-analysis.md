@@ -1,5 +1,11 @@
 # Native Media AI Studio — Dependency & Wiring Analysis
 
+> **Status: superseded (verified 2026-11-05).** Every "vestigial" dependency this
+> analysis recommended removing is already gone from `requirements*.txt` /
+> `package.json`, and the three "dead" service files moved to `tools/`. The
+> version pins quoted below are stale (e.g. it cites fastapi 0.141; current is
+> 0.162). Kept for historical context only — do not act on its recommendations.
+
 > **Scope:** Read-only evidence sweep of `packages/backend`, `packages/frontend`, `packages/video-editor`, `tools`, `scripts`, and `shared`.
 > **Methodology:** 
 > - Python: ripgrep `^import X` / `^from X import Y` across active code; conditional imports inside `try/except` treated as **functional (optional)**.

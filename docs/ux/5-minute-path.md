@@ -20,6 +20,11 @@ async state is designed), 6 (keyboard on the stage), 7 (less, but better).
 
 **Recommended shape: Option A — a dedicated `/onboarding` route.**
 
+> **Note (2026-11-05):** Canonical route is now `/system/onboarding` with `/onboarding` redirecting
+> (`App.tsx`). First-run gate exists (`FirstRunGate` wraps `/system` and mounts `OnboardingPage`).
+> The recommendations below are design rationale; treat route references as historical if
+> they differ from current routing.
+
 - **First run, empty library** → the app opens on `/onboarding`
   (the path *is* the empty state, O1 pattern 4 / R4).
 - **First run, library not empty** (existing installs) → no hijack: a

@@ -32,9 +32,9 @@ packages/frontend/
   tsconfig.json               # src/ only            (type gate)
   tsconfig.tests.json         # tests/ + config       (type gate, separate)
   tests/
-    helpers.ts                # 29 exported helpers — the shared vocabulary
+    helpers.ts                # 27 exported helpers — the shared vocabulary
     <name>.spec.ts            # 20 real specs, auto-discovered
-    test-10s.wav              # 10 s sine fixture (882 KB)
+    test-10s.wav              # 10 s sine fixture (882 KB; gitignored — regenerate with the ffmpeg command in §fixtures if absent)
     browser/                  # standalone .mjs debug scripts — NOT discovered
       out/                    # scratch output, gitignored
     visual/                   # visual-regression scratch

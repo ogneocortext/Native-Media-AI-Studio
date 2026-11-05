@@ -134,7 +134,7 @@ Option C (All parallel):
 ## Verification checklist (for the agent)
 
 Before starting implementation:
-- [ ] Read `docs/architecture/decision-log.md` (D1–D44, Q1–Q6)
+- [ ] Read `docs/architecture/decision-log.md` (D1–D68, Q1–Q6)
 - [ ] Read all three detailed plans in full
 - [ ] Confirm owner approval of this sequencing
 - [ ] Run `python tools/run-gates.py` to establish baseline

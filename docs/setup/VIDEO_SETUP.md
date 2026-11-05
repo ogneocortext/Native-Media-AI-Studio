@@ -1,5 +1,13 @@
 # Video Generation Setup Guide
 
+> [!warning] Partially superseded (corrected 2026-11-05)
+> `scripts\setup-video-models.bat` does not exist, `stable-diffusion/` and
+> `third_party/ComfyUI` paths are gone (ComfyUI is external; motion modules
+> live under its `models/animatediff_models/`), and backend startup is
+> `pnpm dev:backend` / `scripts/manage-servers.ps1`, not `cd backend`. The
+> "Video Helper Suite" requirement is unverified against the current external
+> ComfyUI install. Treat layout specifics below as historical.
+
 ## Overview
 
 This guide covers setting up video generation capabilities using ComfyUI with AnimateDiff.

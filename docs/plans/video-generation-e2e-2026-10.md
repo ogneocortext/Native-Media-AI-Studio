@@ -1,6 +1,8 @@
 # Video Generation & E2E Testing Plan — Oct 2026
 
-**Status:** Implemented 2026-10-21 — V1 complete, V2/V3 pending
+**Status:** Implemented — V1 complete, V3 landed
+(`packages/backend/tests/test_vram_leak.py` + `services/vram_test_utils.py`);
+V2 (music-video-generation.spec.ts E2E) pending
 **Decides:** none (addresses research gaps §1, §6 from `app-research-gaps-2026.md`)
 **Owner:** repo owner (implementation: local coding agent)
 **Source research:** [[app-research-gaps-2026]] §1, §6, [[video-generation-vram-2026]]
@@ -159,7 +161,7 @@ V2 and V3 can run in parallel after V1 lands.
 - Mochi/CogVideoX integration (deferred per gaps register §1)
 - Video quality metrics (FVD/SSIM) — out of scope for this plan
 - Docker/CI setup (deployment research, separate track)
-- Changing decided architecture (D1–D44, Q1–Q6 are settled)
+- Changing decided architecture (D1–D68, Q1–Q6 are settled)
 
 ---
 

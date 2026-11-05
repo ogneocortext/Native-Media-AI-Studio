@@ -37,10 +37,12 @@ packages/video-editor/
 │   ├── Root.tsx                    # Entry point with Composition registry
 │   ├── Composition.tsx             # Main composition (Signal Breaking Through Noise)
 │   ├── index.ts                    # Remotion CLI entry
-│   ├── compositions/               # Individual video compositions
-│   │   ├── StillIRise.tsx
-│   │   ├── TakeTheCrown.tsx
-│   │   └── SiliconDreamsPreview.tsx
+│   ├── StillIRise.tsx               # compositions live at src/ root (corrected 2026-11-05)
+│   ├── StillIRiseV7.tsx
+│   ├── TakeTheCrown.tsx
+│   ├── SiliconDreamsPreview.tsx
+│   ├── Composition.tsx
+│   └── Root.tsx                     # Composition registry
 │   └── components/
 │       └── StudioBackButton.tsx    # Shared UI component
 ```
@@ -269,8 +271,10 @@ await renderMedia({
 The backend provides pre-computed audio analysis that can drive animations:
 
 ```tsx
-// Fetch from backend
-const analysis = await fetch(`/api/audio/analysis/${filename}`).then((r) =>
+// Fetch cached analysis by job id — the route param is {job_id}, not filename
+// (GET /api/audio/analysis/{job_id}); use the by-filename lookup or
+// ensure-analysis flow to resolve a filename to its analysis first.
+const analysis = await fetch(`/api/audio/analysis/${jobId}`).then((r) =>
   r.json(),
 );
 

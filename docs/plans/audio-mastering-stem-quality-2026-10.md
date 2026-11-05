@@ -1,6 +1,7 @@
 # Audio Mastering & Stem Quality Plan — Oct 2026
 
-**Status:** Proposed 2026-10-19 — awaiting owner review
+**Status:** In progress — M1 landed (T-AUD-01 shipped 2026-10-27;
+corrective finishing chain T-AUD-08 done 2026-11-03); M2–M3 remain
 **Decides:** none (extends `studio-quality-2026-10.md` Phase 3)
 **Owner:** repo owner (implementation: local coding agent)
 **Source research:** [[ai-music-mastering-stems-2026]], [[stem-system-evaluation-2026]]
@@ -131,7 +132,7 @@ Rationale:
 - Dynamic de-harsh / M/S side cleanup (v2 of tone fixes, out of scope)
 - Stem re-synthesis or surgical editing (stems are for balance/mixing, not reconstruction)
 - Cloud mastering services (keep local-first)
-- Changing decided architecture (D1–D44, Q1–Q6 are settled)
+- Changing decided architecture (D1–D68, Q1–Q6 are settled)
 
 ---
 

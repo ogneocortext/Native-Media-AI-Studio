@@ -14,7 +14,7 @@ type: entity
 
 **Version**: Ollama 0.40.10  
 **Date**: 2026-10-24  
-**Status**: Active - implemented across codebase
+**Status**: Partially implemented — `validate_ollama_json_response()` and the prompt templates exist; the `maybe_validate_and_retry()` / `run_with_ollama_structured_output()` wrappers described below were **never added** (verified 2026-11-05). Compose the pattern manually as shown.
 
 ## Critical Finding
 
@@ -34,12 +34,12 @@ type: entity
 ### 1. Use `think: false` for deterministic output and speed
 
 ```python
-# Default: think=false for GGUF models on Windows
-response, success = maybe_validate_and_retry(
-    ollama_client.chat_content,
+# chat_content is async and lives in app.core.ollama_client;
+# think=False is a real parameter (measured ~65x faster on
+# thinking-capable models).
+content = await ollama_client.chat_content(
     model=model_name,
     messages=messages,
-    schema=response_schema,
     think=False,  # Request no thinking for deterministic output
 )
 ```
@@ -48,17 +48,15 @@ response, success = maybe_validate_and_retry(
 
 The `validate_ollama_json_response()` function checks that the response
 matches the expected JSON schema, since many models silently ignore
-`format: json_schema`.
+`format: json_schema`. (It is the only export of
+`ollama_response_validator.py` — there is no retry wrapper; loop it
+yourself.)
 
 ```python
-from packages.backend.app.core.ollama_response_validator import (
-    validate_ollama_json_response,
-    maybe_validate_and_retry,
-)
+from app.core.ollama_response_validator import validate_ollama_json_response
 
-# Validate the response
 is_valid, parsed = validate_ollama_json_response(
-    response_content,
+    content,
     schema=response_schema,
     model_name=model_name,
 )
@@ -66,18 +64,16 @@ is_valid, parsed = validate_ollama_json_response(
 
 ### 3. Retry with `think: true` if validation fails
 
-If the first attempt with `think=false` fails validation, retry with
-`think=true` to see if the model's thinking content helps enforce the schema:
+If the first attempt with `think=False` fails validation, retry with
+`think=True` to see if the model's thinking content helps enforce the schema:
 
 ```python
-# Retry with think=true if first attempt failed
-response, success = maybe_validate_and_retry(
-    ollama_client.chat_content,
+content = await ollama_client.chat_content(
     model=model_name,
     messages=messages,
-    schema=response_schema,
     think=True,  # Enable thinking for more reliable schema enforcement
 )
+is_valid, parsed = validate_ollama_json_response(content, response_schema, model_name)
 ```
 
 ### 4. Prompt template requirements
@@ -98,15 +94,14 @@ prompt = normalize_prompt_template(
 
 **Template includes**: "Return ONLY valid JSON with these exact fields (no prose, no explanation)"
 
-## Code Changes Summary
+## Code Changes Summary (corrected 2026-11-05)
 
-| File | Change |
+| File | Actual state |
 |------|--------|
-| `packages/backend/app/core/ollama_response_validator.py` | Added `validate_ollama_json_response()` and `maybe_validate_and_retry()` |
-| `packages/backend/app/core/ollama_prompt_templates.py` | Added prompt templates with "Return ONLY JSON" instructions |
-| `packages/backend/app/api/integrations_generation.py` | Added `run_with_ollama_structured_output()` wrapper |
-| `packages/backend/app/api/integrations_misc.py` | Added `run_with_ollama_structured_output()` wrapper |
-| `packages/backend/app/api/audio_analysis.py` | Added `run_with_ollama_structured_output()` wrapper |
+| `packages/backend/app/core/ollama_response_validator.py` | Exports `validate_ollama_json_response()` only — `maybe_validate_and_retry()` does not exist |
+| `packages/backend/app/core/ollama_prompt_templates.py` | `PROMPT_TEMPLATES` + `normalize_prompt_template()` + `validate_and_extract_json()` exist (`music_analysis` etc. carry "Return ONLY JSON" instructions) |
+| `packages/backend/app/core/ollama_client.py` | `chat_content(..., think=...)` is the real call site for the think toggle |
+| `run_with_ollama_structured_output()` | **Not implemented** — proposed in `integrations_generation.py`, `integrations_misc.py`, `audio_analysis.py`; no such function exists anywhere in the tree |
 
 ## Model-Specific Notes
 

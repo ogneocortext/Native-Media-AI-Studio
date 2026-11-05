@@ -83,15 +83,17 @@ type: concept
 {
   "scripts": {
     "build": "tsc -b && vite build",
-    "type-check": "tsc -b",
+    "type-check": "tsc -b && tsc -p tsconfig.tests.json --noEmit",
     "build:analyze": "tsc -b && vite build --mode analyze"
   }
 }
 ```
 
 - `build` now uses `tsc -b`.
-- `type-check` is the fast path for CI / pre-commit.
+- `type-check` covers both tsconfigs (src + tests) — corrected 2026-11-05; it
+  is the fast path for CI / pre-commit.
 - `build:analyze` runs the visualizer.
+- `vite preview` serves on `frontend_port + 1` (see `vite.config.ts`).
 - Root `pnpm type-check` delegates to the frontend's project-scoped `tsc -b`; do not run bare `npx tsc` at the repository root because there is intentionally no root `tsconfig.json` (and `npx` may resolve TypeScript 7).
 
 ### 3.3 `vite.config.ts`

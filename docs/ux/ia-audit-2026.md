@@ -1,5 +1,10 @@
 # Information Architecture Audit — 2026 (O4)
 
+> **Note (2026-11-05):** The proposed IA below was subsequently implemented — current
+> `App.tsx` has the grouped routes (`/system/*`, `/create/*`, `/library/*`, `/analyze/*`,
+> `/render/*`) and redirects old names. The inventory/status wording below reflects the
+> pre-migration state and is preserved as historical context.
+
 **Status:** Complete 2026-10-21 — recommendations **for owner review**;
 nothing here has been implemented.
 **Plan:** `docs/plans/creative-onboarding-ux-2026-10.md` (Priority 3, O4);

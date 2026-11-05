@@ -92,8 +92,8 @@ One prompt skeleton serves all models; per-model differences live in
 
 | Task                | Model             | Why (measured)                                  |
 | ------------------- | ----------------- | ----------------------------------------------- |
-| ocr / table / chart | minicpm-v:8b      | RLAIF-V trustworthy; 10s warm OCR vs 14s gemma4 |
-| compare / multicomp | qwen3-vl:2b       | 262K ctx swallows image sets; fastest decode    |
+| ocr / table / chart | gemma4:e2b-it-qat | Only surviving local vision model — `minicpm-v:8b`/`qwen3-vl:*` pruned 2026-10-22 (corrected 2026-11-05) |
+| compare / multicomp | gemma4:e2b-it-qat | Routed via Atomic Chat `unsloth/Qwen3_5-4B-…` in current `MODE_MODEL` |
 | everything else     | gemma4:e2b-it-qat | best detailed audits                            |
 
 Resolution rule: `min(computed, profile.maxDim)` — bigger is NOT better

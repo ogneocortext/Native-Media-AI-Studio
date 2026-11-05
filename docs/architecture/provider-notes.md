@@ -178,9 +178,13 @@ not a candidate.
 
 - **Model / route:** local Ollama server on Windows 11 /
   GTX 1070 Ti (8 GB). Default and vision model
-  `gemma4:e2b-it-qat` (4.6B Q4_0); vision fallbacks
-  `qwen3-vl:2b`/`minicpm-v:8b`; text `qwen3.5:9b`;
-  embeddings `nomic-embed-text:v1.5`. Server upgraded
+  `gemma4:e2b-it-qat` (4.6B Q4_0) — the **only** local vision model.
+  Text models: `qwen3.5:4b`, `llama3.2:3b`, `ibm/granite4.2:3b`;
+  embeddings `nomic-embed-text:v1.5` (+ `embeddinggemma-2:270m`
+  fallback). **Correction (2026-11-05):** the previously listed
+  `qwen3-vl:2b`/`minicpm-v:8b` vision fallbacks and `qwen3.5:9b` text
+  model were pruned 2026-10-22 (decision-log D37/D46/D47;
+  `vision.py` `FALLBACK_MODEL = None`). Server upgraded
   to **0.40.14** on 2026-11-03 (verified via
   `GET /api/version`). No API surface change since 0.40.0 — the
   endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,

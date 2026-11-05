@@ -23,14 +23,16 @@ When adding a document, follow `tagging-guide.md`: give it a primary category as
 the **first** tag, then 2-4 cross-cutting tags from the tables there. Run
 `python tools/validate-knowledge-tags.py` before committing - a pre-commit hook
 does this for you once `bash scripts/install-git-hooks.sh` has been run (see D10
-in the decision log; there is no CI for this repo).
+in the decision log; there is no CI for this repo). Note: the hook installer is
+a `sh` script — the one sanctioned exception to the pwsh-only shell rule, since
+Git for Windows runs hooks through its bundled `sh` regardless.
 
 ## Vault Structure
 
 ```
 knowledge-library/
 ├── .obsidian/              ← Obsidian configuration (gitignored)
-├── index.md                ← Start here (84 docs indexed, reorganized 2026-09-29)
+├── index.md                ← Start here (115 docs indexed, counts reconciled 2026-11-05)
 ├── tagging-guide.md        ← Hierarchical tagging system (2026-09-29)
 ├── knowledge-tracker.md   ← Tag migration record (2026-09-29)
 ├── README.md               ← This file
@@ -63,13 +65,13 @@ knowledge-library/
 
 The library is now organized into 7 logical categories (see `index.md`):
 
-1. **🎬 Production Pipeline** — Workflow & creative guides (12 docs)
-2. **🛠️ Technical Implementation** — Code & systems (13 docs)
-3. **🎮 MCP & Platform Integrations** — Platform-specific tools (11 docs)
-4. **🎨 Creative & Visual** — Design & effects (19 docs)
+1. **🎬 Production Pipeline** — Workflow & creative guides (16 docs)
+2. **🛠️ Technical Implementation** — Code & systems (19 docs)
+3. **🎮 MCP & Platform Integrations** — Platform-specific tools (12 docs)
+4. **🎨 Creative & Visual** — Design & effects (22 docs)
 5. **⚙️ Performance & Hardware** — Optimization (7 docs)
-6. **🤖 AI & ML** — Models & training (11 docs)
-7. **📊 Research & Reference** — Industry analysis (9 docs)
+6. **🤖 AI & ML** — Models & training (18 docs)
+7. **📊 Research & Reference** — Industry analysis (17 docs)
 
 See tagging-guide.md for the new hierarchical tagging system.
 

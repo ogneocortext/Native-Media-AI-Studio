@@ -30,7 +30,7 @@
 │  ┌───────────────────────────┴───────────────────────────────┐  │
 │  │                    Job Queue Manager                        │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │              Job Processor (Threaded)                 │  │  │
+│  │  │           Job Processor (Asyncio)              │  │  │
 │  │  │  ┌─────────────┐ ┌──────────────┐ ┌──────────────┐ │  │  │
 │  │  │  │AudioAnalysis│ │ MusicVideo   │ │ ImageGen     │ │  │  │
 │  │  │  │  Handler    │ │  Handler     │ │  Handler     │ │  │  │
@@ -117,9 +117,12 @@ CREATED → QUEUED → RUNNING → COMPLETED
 This ensures the frontend always reflects what's actually in the library, eliminates duplicate sources of truth, and removes stale hardcoded values.
 
 ### Aligned Components
-- `features/three-js-studio/ThreeJSStudio.tsx` — Uses `listAudioFiles()` for track dropdown; BPM from analysis API
-- `features/visualizer/Visualizer.tsx` — Uses `listAudioFiles()` for track selection
-- `features/audio-analysis/AudioAnalysisPage.tsx` — Uses `listAudioFiles()` for track listing
+- `features/three-js-studio/ThreeJSStudio.tsx` — Track dropdown reads `useAudioLibrary()` (the single store per D16); BPM from analysis API
+- `features/visualizer/Visualizer.tsx` — Track selection via `useAudioLibrary()`
+- `features/audio-analysis/AudioAnalysisPage.tsx` — Track listing via `useAudioLibrary()`
+
+`listAudioFiles()` has exactly one caller — `state/audioLibraryStore.ts`.
+Components must not call it directly (D16).
 
 ### Misaligned Components (Needs Refactor)
 _(None — all components now source media data from the library API)_
@@ -150,7 +153,7 @@ _(None — all components now source media data from the library API)_
 ### Three.js Studio
 - **Paste Code Panel** — Insert AI-generated JavaScript or JSON directly into the 3D scene. Supports `function applyScene(scene, camera, renderer) { ... }` or JSON scene descriptions.
 - **Focus Mode** — Hides all UI (sidebar, header, panels, drawer, playback controls) for unobstructed canvas view. Toggle via header button or `Escape` key. Canvas auto-resizes to fill viewport.
-- **Media Data** — Track list sourced from `listAudioFiles()` API; BPM/duration from analysis API. No hardcoded track data.
+- **Media Data** — Track list sourced from `useAudioLibrary()` (D16 single store); BPM/duration from analysis API. No hardcoded track data.
 
 ### Visualizer
 - **Focus Mode** — Hides all UI with floating controls overlay (record, save, exit). Toggle via header button or `Escape` key.
@@ -161,16 +164,18 @@ _(None — all components now source media data from the library API)_
 ### Backend API
 - `/api/audio/files` — Deduplicated file listing (by display name, strips hash prefix)
 - `/api/audio/analysis/by-filename/{filename}` — Cached analysis lookup by filename
-- `/api/audio/` — Database-backed listing with optional `distinct` parameter
+- `/api/data/audio/` — Database-backed listing with optional `distinct` parameter
 - `save_audio_file` — Prevents duplicate entries by checking existing filenames
 - `cleanup_old_system_resources` — Purges system snapshots older than 7 days
 
-The `/api/audio` prefix is served by four modules registered in `main.py`:
-`audio.py` (upload, analysis endpoints, cache, JSON index), `audio_stems.py`
-(separation), `audio_edit.py` (extract/rename/trim/file serving) and
-`audio_analysis.py` (result builder, suggestions, section labelling — no routes).
-See D15 in the decision log; `tools/snapshot-audio-routes.py --check` guards the
-route surface.
+The `/api/audio` prefix is served by seven modules registered in `main.py`
+(updated 2026-11-05): `audio.py` (upload, analysis endpoints, cache, JSON
+index), `audio_stems.py` (separation), `audio_edit.py`
+(extract/rename/trim/file serving), `audio_analysis.py` (result builder,
+suggestions, section labelling — no routes), `audio_remix.py`
+(`/api/audio/remix/*`), `audio_mastering.py` (mastering chain), and
+`transcription.py` (faster-whisper). See D15 in the decision log;
+`tools/snapshot-audio-routes.py --check` guards the route surface.
 
 ### Backend Services
 - `AudioAnalyzer` — Librosa-based feature extraction

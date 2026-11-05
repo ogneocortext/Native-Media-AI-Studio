@@ -322,11 +322,15 @@ ComfyUI → GLB/FBX → Unity Import → Material (Standard/URP) → Render → 
 
 ### Starting Unity for Headless Rendering
 
+> **Corrected 2026-11-05:** `scripts\start-unity-headless.ps1` does not
+> exist. Start Unity Editor with `unity-project-mcp/` open (the Pipeline
+> server writes its port to `Library/Pipeline/.unity-pipeline-port`), or
+> launch the Editor manually — there is no dedicated headless script.
+
 ```powershell
-# From scripts/ or tools/
-scripts\start-unity-headless.ps1
-# Unity opens in -batchmode with GPU rendering
-# Pipeline server writes port to Library/Pipeline/.unity-pipeline-port
+# Launch Unity Editor with the MCP project open
+& "C:\Program Files\Unity\Hub\Editor\<version>\Editor\Unity.exe" `
+  -projectPath "<repo>\unity-project-mcp"
 ```
 
 ### MCP Bridge Connection
@@ -339,10 +343,12 @@ node tools/mcp/unity-mcp-bridge.mjs
 
 ### Verification
 
-```powershell
-# List all available Unity commands
-node -e "const bridge = require('./tools/mcp/unity-mcp-bridge.mjs'); bridge.list_pipeline_commands()"
-```
+`tools/mcp/unity-mcp-bridge.mjs` is an ESM stdio MCP server with **no
+exports** — `require()`/`list_pipeline_commands()` cannot work. With the
+bridge running, list tools via MCP `tools/list` or call the
+`list_pipeline_commands` tool through `tools/call` from any MCP client.
+The bridge ships **disabled** in client configs until Unity is running
+(see AGENTS.md "MCP clients").
 
 ---
 

@@ -1,5 +1,16 @@
 # Model Setup Guide for Native Media AI Studio
 
+> [!warning] Partially superseded (corrected 2026-11-05)
+> Several referenced scripts do not exist (`scripts\setup-comfyui.bat`,
+> `scripts\start-comfyui.bat`). ComfyUI is an **external install** (not
+> `third_party/ComfyUI`), started via `pnpm dev:comfyui` or
+> `scripts/manage-servers.ps1 -Services comfyui`. The `stable-diffusion/`
+> directory is absent, SD WebUI was removed, and the "Not yet installed"
+> statuses for SDXL/AnythingV5 are stale — verify the live model inventory
+> under the external ComfyUI `models/` directory. Treat specifics below as
+> historical; current model notes live in `docs/architecture/provider-notes.md`
+> and `docs/setup/python-environments.md`.
+
 ## Overview
 
 This guide explains how to set up real image generation using ComfyUI and Stable Diffusion models.

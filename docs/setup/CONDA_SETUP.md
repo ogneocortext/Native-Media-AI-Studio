@@ -1,5 +1,15 @@
 # Conda Setup Guide for Native Media AI Studio
 
+> [!warning] Superseded (corrected 2026-11-05)
+> This guide describes a Conda workflow that is **no longer the canonical
+> setup**. `environment.yml` states there is no conda installation; the project
+> uses standalone venvs (`nma-studio-cuda`, `comfyui-cuda`, `studio-tools`).
+> Referenced scripts (`setup-conda-env.ps1`, `add_conda_path.ps1`), paths
+> (`backend/`, `third_party/ComfyUI`), and version pins (PyTorch 2.4/CUDA 12.1)
+> are all stale — current is PyTorch 2.14.0+cu126 / CUDA 12.6 and
+> `packages/backend`. **Use `docs/setup/python-environments.md` instead.**
+> Kept for historical reference only.
+
 > **Why Conda?** Your project uses PyTorch, CUDA, audio/video processing libraries, and ComfyUI — all with complex binary dependencies. Conda isolates these into a single reproducible environment, eliminating "works on my machine" issues and simplifying CUDA management.
 
 ---

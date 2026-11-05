@@ -1,5 +1,10 @@
 # Repository Reorganization Plan
 
+> **Status: completed** — the `packages/` workspace, `pnpm-workspace.yaml`,
+> `turbo.json`, and `shared/` all exist; `signal-breaking-video` was renamed
+> to `packages/video-editor`. This plan is kept as a historical record
+> (verified 2026-11-05).
+
 ## Issues Identified
 
 1. **Root `src/` is misleading** - Only contains Python egg-info, not actual source code

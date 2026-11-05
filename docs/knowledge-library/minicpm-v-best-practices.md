@@ -92,6 +92,14 @@ await ollama.chat({
 
 ## 3) Mapping to this project (what we built 2026-09-06)
 
+> **Status banner (2026-11-05):** `minicpm-v:8b` and `qwen3-vl:*` were
+> **deleted from the local Ollama instance 2026-10-22** (decision-log
+> D46/D47). `gemma4:e2b-it-qat` is now the only local vision model and
+> `vision.py` has `FALLBACK_MODEL = None`. The implementation notes
+> below are historical — the endpoints exist but resolve to gemma4.
+> Also: the file is `tools/vision/vision-common.mjs` (exports
+> `ensureVisionModel`), there is no `vision.mjs`.
+
 ### Implemented
 
 | #     | Feature                  | File                                                                                                                                                                                                | How it uses the research                                                                             |

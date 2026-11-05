@@ -7,7 +7,7 @@ analysis is unavailable.
 
 ## Inputs (existing — no analyzer changes needed for Tier 1)
 
-`analysis.json` from `~/workspace/audio-analysis/analyze.py`:
+`analysis.json` from `tools/audio-analysis/analyze.py`:
 
 | Field | Format | Notes |
 |---|---|---|

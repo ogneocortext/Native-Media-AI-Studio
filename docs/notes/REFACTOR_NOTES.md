@@ -1,5 +1,10 @@
 # Project Refactoring Notes — April 2026
 
+> **Path note (2026-11-05):** paths below (`frontend/`, `backend/`,
+> `cd frontend`, `backend/requirements.txt`) are from the pre-`packages/`
+> layout — everything now lives under `packages/frontend` and
+> `packages/backend`. Commands would fail as written.
+
 > **Commit:** `d956783` — `refactor: consolidate project structure, upgrade dependencies, modernize patterns`  
 > **Date:** April 23, 2026  
 > **Previous commit (for rollback):** `62b47b7`

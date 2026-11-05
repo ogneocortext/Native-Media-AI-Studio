@@ -393,8 +393,8 @@ Execute any Unity Editor command. Prefer specific tools when available.
     },
     "model": {
       "type": "string",
-      "description": "Ollama vision model (qwen3-vl:2b=fast, gemma4=e2b-it-qat=detailed)",
-      "default": "qwen3-vl:4b"
+      "description": "Ollama vision model (resolved via resolveVisionModel; gemma4:e2b-it-qat is the only local vision model — qwen3-vl/minicpm-v pruned 2026-10-22)",
+      "default": ""
     },
     "think": {
       "type": "boolean",
@@ -548,7 +548,7 @@ Execute any Unity Editor command. Prefer specific tools when available.
     "enum": ["mesh", "material", "rig", "scene", "lighting", "cleanup", "uv"],
     "default": "mesh"
   },
-  "model": { "type": "string", "default": "qwen3.5:9b" }
+  "model": { "type": "string", "default": "qwen3.5:4b" }
 }
 
 // output

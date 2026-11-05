@@ -88,6 +88,12 @@ Deletes are soft where the UI supports it: a removed file goes to trash first an
 
 ## Duplicates
 
+> [!warning] Endpoint removed (corrected 2026-11-05)
+> The `GET /api/outputs/duplicates/groups` endpoint documented below no longer
+> exists (see `docs/api/API_REFERENCE.md`). Frontend duplicate UI remains but
+> cannot call the backend. Treat this section as historical/pending a decision
+> to re-implement or remove.
+
 HappyShrimp re-uploads create exact duplicates with different prefixes (`f3a608e2_Still I Rise.mp3`, `64ab7938_Still I Rise.mp3`, `54360357_Still I Rise.mp3` — same SHA, 5.4 MB each).
 
 *Backend* `outputs.py:250` `GET /api/outputs/duplicates/groups?quick=true`:
@@ -119,11 +125,13 @@ Use these instead of re-running a search when you repeatedly need the same slice
 
 ## Keyboard shortcuts & selection
 
-- `Shift + click` — selects a range from the last item clicked
-- `Ctrl / Cmd + A` — selects everything in the current view
-- Checkbox on a card, or click-drag over empty grid space — starts or extends a selection without opening anything
+> [!info] Selection behavior (corrected 2026-11-05)
+> Current implementation is **checkbox-only** — `Shift+click` range selection,
+> `Ctrl/Cmd+A` select-all, and click-drag rubber-band selection are **not
+> implemented**. Only direct checkbox clicks toggle selection.
+
 - `Escape` — closes playback modal, detail modal, or duplicates panel
-- Click-drag needs to move more than ~5 px to count as a rubber-band selection, so a steady click still opens the item
+- Historical docs below described unimplemented shortcuts — do not rely on them.
 
 ## Playback
 

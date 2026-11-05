@@ -50,7 +50,7 @@ Rules: `docs/plans/tasks/README.md`
   burst issues emerge.
 
 ### T-MOD-04 — Bring the local-model calling path up to the measured Bolt-era rules
-- **Status:** todo
+- **Status:** doing (step 6 live validation blocked pending service availability)
 - **Goal:** The backend's Atomic/Ollama calling path handles
   reasoning-era local models correctly and says which route
   served: reasoning content is captured rather than dropped,
@@ -116,4 +116,3 @@ Rules: `docs/plans/tasks/README.md`
   11434 is responding (ports show bound but return dashboard HTML / service
   disabled / connection refused). Unit tests cover the normalization/policy
   mapping acceptance criteria; live call pending service availability.
-- **Status:** todo (step 6 blocked pending service availability)

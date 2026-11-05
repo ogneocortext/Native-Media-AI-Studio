@@ -8,7 +8,7 @@ tags:
 # Real-Time 3D Audio-Reactive Architecture — Gemini Pass (2026-10-02)
 
 Two Blender tutorials translated to real-time browser architecture.
-Pairs with `docs/knowledge/gemini-threejs-pipeline-2026-10-02/`
+Pairs with `docs/knowledge/gemini-threejs-audio-pipeline-2026-10-02/`
 (Three.js scene pipeline) and
 `docs/knowledge/gemini-raymarching-audio-reactive-2026-10-02/`
 (shader techniques).

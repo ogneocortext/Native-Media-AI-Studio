@@ -1,6 +1,9 @@
 # Creative Tool Onboarding & First-Run UX Plan — Oct 2026
 
-**Status:** Proposed 2026-10-19 — awaiting owner review
+**Status:** In progress — O1–O4 outputs landed (`features/onboarding/`,
+`docs/ux/5-minute-path.md`, `docs/ux/ia-audit-2026.md`,
+`docs/knowledge-library/creative-onboarding-patterns-2026.md`);
+see per-item statuses for what remains
 **Decides:** none (addresses research gaps §17–18 from `app-research-gaps-2026.md`)
 **Owner:** repo owner (implementation: local coding agent)
 **Source research:** [[app-research-gaps-2026]] §17–18, [[design-philosophy-2026]], UX audit report

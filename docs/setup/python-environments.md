@@ -90,9 +90,6 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m pip install -r packages/back
 ComfyUI keeps its own runtime env (`comfyui-cuda`):
 
 ```powershell
-D:\conda-envs\comfyui-cuda\Scripts\python.exe main.py --port 8188 --disable-pinned-memory `
-  --workingDirectory "D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI"
-# or:
 pnpm dev:comfyui  # → scripts/manage-servers.ps1 -Action start -Services comfyui
 ```
 

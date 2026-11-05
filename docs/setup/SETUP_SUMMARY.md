@@ -1,6 +1,6 @@
 # Setup Summary — Native Media AI Studio
 
-> **Last Updated:** 2026-09-30 — ComfyUI v0.26.0, Manager enabled with `--enable-manager`, backend on 8001, frontend on 5174. Supersedes Aug 2026 setup snapshot.
+> **Last Updated:** 2026-11-05 — ports corrected to canonical `config/ports.json` values (backend 8000, frontend 5173); earlier snapshot claimed 8001/5174. ComfyUI started via `manage-servers.ps1` (`--disable-pinned-memory`, no `--enable-manager`).
 
 ## ✅ Current System Status
 
@@ -8,10 +8,10 @@
 
 | Service | Port | Health Check | Notes |
 |---------|------|--------------|-------|
-| Backend (FastAPI) | 8001 | `GET http://127.0.0.1:8001/api/health` | SSE `GET /api/events`, queue, audio analysis (librosa); dynamic via `port_manager.py` |
-| Frontend (Vite) | 5174 | `http://127.0.0.1:5174` | 19 routes + legacy redirects; dynamic via `port_manager.py` |
+| Backend (FastAPI) | 8000 | `GET http://127.0.0.1:8000/api/health` | SSE `GET /api/events`, queue, audio analysis (librosa); dynamic via `port_manager.py` |
+| Frontend (Vite) | 5173 | `http://127.0.0.1:5173` | canonical grouped routes (`/create`, `/library`, `/analyze`, `/render`, `/system`) + legacy redirects; dynamic via `port_manager.py` |
 | Video Editor (Remotion) | 8080 | `http://127.0.0.1:8080` | `config/ports.json` dynamic |
-| ComfyUI | 8188 | `GET http://127.0.0.1:8188/system_stats` | Hunyuan3D-2mini, Wan 2.2 5B, AnimateDiff; started with `--enable-manager` |
+| ComfyUI | 8188 | `GET http://127.0.0.1:8188/system_stats` | Hunyuan3D-2mini, Wan 2.2 5B, AnimateDiff; started via `manage-servers.ps1` with `--disable-pinned-memory` |
 | Unity MCP Bridge | 7800 (REST) | `POST http://127.0.0.1:7800/api/exec {command:"editor_status"}` | `tools/mcp/unity-mcp-bridge.mjs` |
 | Blender MCP | 9876 (TCP) | Blender addon sidebar “Start MCP Server” | `uvx blender-mcp`, executable `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` |
 | Ollama | 11434 | `GET http://127.0.0.1:11434/api/tags` | `gemma4:e2b-it-qat`, `qwen3-vl:4b` |
@@ -81,7 +81,7 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 ## 📁 Key Files Reference (Current)
 
 ### Configuration
-- `config/ports.json` — Dynamic port map (backend 8001, frontend 5174, video 8080, comfyui 8188, SSE `events_url`/`sse_url`, legacy `ws_url`, go sidecars 3847–3851)
+- `config/ports.json` — Dynamic port map (backend 8000, frontend 5173, video 8080, comfyui 8188, SSE `events_url`/`sse_url`, legacy `ws_url`, go sidecars 3847–3851)
 - `config/settings.json` — AppConfig
 - `opencode.json` — MCP servers (6: ollama-tools, vision, remotion, comfyui --force-remote, blender 9876, unity 7800)
 - `kilo.jsonc` — Kilo Code instructions (`AGENTS.md`, `Guidelines.md`)
@@ -103,10 +103,10 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 
 ## 🔧 Troubleshooting
 
-### Backend won't start (Port 8001 in use)
+### Backend won't start (Port 8000 in use)
 ```powershell
 # Port manager auto-increments; check:
-Get-NetTCPConnection -LocalPort 8001 -State Listen
+Get-NetTCPConnection -LocalPort 8000 -State Listen
 # or kill orphan python from previous crash:
 taskkill /F /IM python.exe
 # prefer managed restart:
@@ -121,8 +121,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action
 ```
 
 ### Media Library not loading
-1. `curl http://127.0.0.1:8001/api/health`
-2. Check `packages/frontend` Vite proxy (`vite.config.ts` → `/api` → 8001)
+1. `curl http://127.0.0.1:8000/api/health`
+2. Check `packages/frontend` Vite proxy (`vite.config.ts` → `/api` → 8000)
 3. Refresh page; check `GET /api/outputs` response
 
 ---

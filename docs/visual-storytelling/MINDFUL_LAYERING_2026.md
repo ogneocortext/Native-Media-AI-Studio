@@ -49,7 +49,7 @@
 
 **Storyboard 10 seq:** Each seq lists 7-9 elements (scenery + character + props + crystal + bento 2 cards + waveform + HUD 2 pills + grain + light leak + vignette + wipe). That's **11 layers simultaneously** — violates mindful "max 3 focal" and motion budget 800ms. Bento appears in 8/10 seq identically, waveform in all 10, character in all 10 — no hierarchy, no reduction test pass.
 
-**Composition `StillIRise.tsx:99` current:**
+**Composition `packages/video-editor/src/StillIRise.tsx` (line ref from 2026-08 audit; file moved from `signal-breaking-video/`):**
 - Background plate scale+translate every frame (1), haze (2), light leaks screen 0.09-0.16 (3), grain 0.045 + paper fiber 0.035 + burlap 0.025 (4-6), beat flash soft-light (7), dust 18 motes (8), color grade soft-light (9), character + shadow + reflection (10-12), props (13), ThreeCanvas crystal + 2 rings + reflective plane (14-17), waveform SVG (18), bento 2 cards (19-20), wipe (21), HUD 2 pills (22-23), center lyric hero vs editorial (24), bottom credit (25), vignette + letterbox (26-27). **27 layers, ~12 animating per frame** — budget blown, FPS tax, visual noise. Character occluded 30-60% by lyric glass + waveform line crossing waist.
 
 **Specific clutter vs 2026:**
@@ -95,5 +95,5 @@
 - QA: Still frames at 150/900/2100/4500 + 6 bass samples (10s 0.23 →45s 17.16) validate grade before 7024f render.
 
 **Future Mapping:**
-- For new track, run `analyze_audio.py` → map BPM/key/LUFS → choose 4-color cap → lock style frame → define 2 transitions + 3 easing tokens → assign each lyric line to 1 primary +1 secondary layer → motion budget audit (<800ms) → still QA → render `concurrency 6`.
+- For new track, run the audio analysis (`analyze_audio.py` was a scratch helper; current analysis lives under `tools/audio-analysis/`) → map BPM/key/LUFS → choose 4-color cap → lock style frame → define 2 transitions + 3 easing tokens → assign each lyric line to 1 primary +1 secondary layer → motion budget audit (<800ms) → still QA → render `concurrency 6`.
 

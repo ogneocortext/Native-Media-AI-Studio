@@ -81,9 +81,13 @@ async function diff(a, b) {
 - Confirm with `maxDiff`: sample the highest-diff pixel pair between two frames; >50% intensity shift proves the shader is updating.
 
 ### Built-in debug toggle (ShaderCanvas)
-Append `#shader-debug` to the visualizer URL to enable lightweight motion logging:
+Append `#shader-debug` to the visualizer URL to enable lightweight motion logging.
+> **Note (2026-11-05):** The documented log format `[ShaderCanvas debug] frame=60 time=1.0s avgPixelDiff=12.3`
+> was not found in current `ShaderCanvas.tsx`; the debug toggle exists but the console output
+> format may differ. Verify actual runtime output before relying on exact format.
+
 - Logs a 3×3 pixel-grid diff every ~1s
-- Output: `[ShaderCanvas debug] frame=60 time=1.0s avgPixelDiff=12.3`
+- Output: `[ShaderCanvas debug] frame=60 time=1.0s avgPixelDiff=12.3` (documented; verify)
 - Remove the hash to disable; no code changes needed
 
 ### Quick verification script

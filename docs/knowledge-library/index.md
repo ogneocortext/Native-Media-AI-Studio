@@ -148,6 +148,7 @@ date: 2026-09-30
 - [[../ux/audit-report|🔍 UX Audit Report]] — User experience findings and recommendations
 - [[social-platform-video-research-2026|🔍 Social-Platform Video Research 2026]] — LinkedIn/Substack/Medium findings: reference-video breakdown, transparent overlays, music-first directing methodology
 - [[x-platform-video-research-2026|🔍 X-Platform Video Research 2026]] — HyperFrames Studio eval (Oct 5 launch), style-learning loop, scripted pipeline template, QC-as-code
+- [[tempo-estimation-octave-errors-2026|⏱️ Tempo Estimation Octave Errors 2026]] — Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 
 ---
 
@@ -163,7 +164,6 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 18 documents |
-- [[tempo-estimation-octave-errors-2026|é Tempo Estimation Octave Errors 2026]] “ Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 || `#research/*` | Industry trends & analysis | 17 documents |
 
 ### Cross-Cutting Tags
@@ -262,12 +262,12 @@ graph LR
 
 || Metric | Count |
 || --------------- | ----------------------------------------------------------------------------- |
-|| Total Documents | 108 (markdown) + 11 (JSON data files) = 119 total |
+|| Total Documents | 115 (markdown) + 16 (JSON data files, incl. 4 under `benchmarks/`) = 131 total |
 || Total Tags | 70 |
 || Total Links | 115+ |
-|| Last Updated | 2026-10-28 (documentation statistics updated) |
+|| Last Updated | 2026-11-05 (counts reconciled against the tree) |
 || Latest Add | 2026-11-01 (Nemotron 3.5 Bolt E4B 4GB model reference) |
 
 ---
 
-_Last updated: 2026-10-28 (documentation statistics updated)_
+_Last updated: 2026-11-05 (documentation statistics updated)_

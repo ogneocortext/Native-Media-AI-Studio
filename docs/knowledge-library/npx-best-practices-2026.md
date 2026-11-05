@@ -137,9 +137,9 @@ keeps `-y` only because it runs unattended **and** the version is pinned
 |------|--------|-------|
 | `packages/backend/app/api/hyperframes.py` | `npx hyperframes` (unpinned, network fetch) | `pnpm exec hyperframes` + `npx --no --offline` fallback, version pinned to `0.8.73` |
 | `scripts/start-tunnel.ps1` | `npx localtunnel --port $Port` (unpinned, interactive) | `npx -y localtunnel@2.0.2 --port $Port` (pinned, unattended-safe) |
-| `opencode.json` (root) | `npx -y @remotion/mcp@latest`, `npx -y comfyui-mcp` | `npx --no --offline @remotion/mcp@1.0.0`, `npx --no --offline comfyui-mcp@1.0.0` |
-| `packages/video-editor/opencode.json` | `npx -y @remotion/mcp@latest` | `npx --no --offline @remotion/mcp@1.0.0` |
-| `docs/knowledge-library/mcp-registry.json` | `npx comfyui-mcp ...`, `npx -y @remotion/mcp@latest` | `npx --no --offline comfyui-mcp@1.0.0 ...`, `npx --no --offline @remotion/mcp@1.0.0` |
+| `opencode.json` (root) | `npx -y @remotion/mcp@latest`, `npx -y comfyui-mcp` | `npx --no --offline @remotion/mcp@4.0.539` (deprecated server, kept pinned), `npx --no --offline comfyui-mcp@0.52.206` — **`comfyui-mcp@1.0.0` does not exist** (corrected 2026-11-05; earlier revision of this table claimed 1.0.0 pins that were never real) |
+| `packages/video-editor/opencode.json` | `npx -y @remotion/mcp@latest` | `npx --no --offline @remotion/mcp@4.0.539` |
+| `docs/knowledge-library/mcp-registry.json` | `npx comfyui-mcp ...`, `npx -y @remotion/mcp@latest` | `npx --no --offline comfyui-mcp@1.0.0 ...`, `npx --no --offline @remotion/mcp@1.0.0` — **stale as of 2026-11-05:** the live configs pin `0.52.206`/`4.0.539`; the registry JSON still advertises the nonexistent `1.0.0` pins |
 
 ## Remotion Agent Skills
 
@@ -179,8 +179,8 @@ Before running any `npx --no --offline` command, the package must be
 pre-installed:
 
 ```bash
-# In the repo root:
-pnpm add -D @remotion/mcp@1.0.0 comfyui-mcp@1.0.0 localtunnel@2.0.2 hyperframes@0.8.73
+# In the repo root (versions match the live opencode.json pins):
+pnpm add -D @remotion/mcp@4.0.539 comfyui-mcp@0.52.206 localtunnel@2.0.2 hyperframes@0.8.73
 
 # Verify the binaries are available:
 pnpm exec @remotion/mcp --version

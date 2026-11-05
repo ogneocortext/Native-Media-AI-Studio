@@ -79,7 +79,7 @@ node packages/frontend/tests/browser/audit/polish-audit-viz-audio.mjs        # v
 **How it works:**
 - Parses Python AST to find functions with conditional branches (`if/elif/else`, `for`, `while`, `try/except`)
 - Builds a structured prompt describing the module, existing tests, and branch points
-- Sends the prompt to Ollama (`qwen2.5:7b` by default, configurable via `--model` or `OLLAMA_TEST_MODEL`)
+- Sends the prompt to Ollama (`gemma4:e2b-it-qat` by default — `DEFAULT_MODEL` in the script, configurable via `--model` or `OLLAMA_TEST_MODEL`)
 - Extracts Python code from the response and writes it to `tests/test_ai_generated_<module>.py`
 - Optionally runs `pytest` on the generated file to verify it passes (`--verify`)
 
@@ -132,7 +132,7 @@ python packages/frontend/tests/visual/run_visual_tests.py --update-baselines
 python packages/frontend/tests/visual/run_visual_tests.py
 
 # Use a different vision model
-python packages/frontend/tests/visual/run_visual_tests.py --model qwen3-vl:4b
+python packages/frontend/tests/visual/run_visual_tests.py --model gemma4:e2b-it-qat
 ```
 
 **Output:**
@@ -251,9 +251,9 @@ python ../../scripts/ai-test-analyzer.py --last-failure
 
 - **Python:** 3.11+ (project standard: 3.11.9 nma-studio-cuda, 3.14 studio-tools)
 - **Ollama:** Running locally with models pulled:
-  - `gemma4:e2b-it-qat` (vision/test generation — project default)
-  - `qwen3-vl:4b` (fast fallback vision)
-  - `qwen2.5:7b` (legacy test generation — replace with `gemma4` if available)
+  - `gemma4:e2b-it-qat` (vision/test generation — project default; the only
+    local vision model since the `qwen3-vl:*`/`minicpm-v:*` prune of
+    2026-10-22, decision-log D37/D46/D47)
 - **Playwright:** `pip install playwright && playwright install chromium`
 - **Backend:** Running or testable via ASGI transport (no external services needed for most tests)
 

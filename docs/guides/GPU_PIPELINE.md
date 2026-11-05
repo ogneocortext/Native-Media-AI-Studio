@@ -31,7 +31,7 @@ result = analyzer.analyze_file("output/audio/85a406ef_Take the Crown.mp3", job_i
 
 **No `from app.services.cuda import cuda_audio` import** — that module exists as `app/services/cuda/processor.py` for visualization FFT only; audio analysis is `librosa`-based.
 
-### 2. 3D Model Generation (`app/services/gen3d/service.py` + `GET /api/3d/*`)
+### 2. 3D Model Generation (`packages/backend/app/services/gen3d/gen3d_service.py` + `GET /api/3d/*`)
 
 Via `POST /api/3d/generate`:
 
@@ -45,17 +45,17 @@ curl -X POST http://localhost:8000/api/3d/generate \
 Direct Python:
 
 ```python
-from app.services.gen3d.service import gen3d_service
+from app.services.gen3d.gen3d_service import gen3d_service
 
 # Text-to-3D (shape only, 8GB-safe)
-res = await gen3d_service.generate(prompt="a neon microphone, cyberpunk style", steps=15)
-# or legacy sync wrapper:
-# result = gen3d_service.generate_from_text("a futuristic robot", steps=15)
+res = await gen3d_service.generate_from_text(prompt="a neon microphone, cyberpunk style", steps=15)
+# or image-to-3D:
+# res = await gen3d_service.generate_from_image(image_path="...", prompt="...")
 ```
 
-Model: `ComfyUI/models/diffusion_models/hunyuan3d-2mini` (~2.5GB). For `Wan 2.2 5B` video at `480p` fits 8GB (see `comfyui-workflows.md`).
+Model: `ComfyUI/models/diffusion_models/hunyuan3d-2mini` (~2.5GB). For `Wan 2.2 5B` video at `480p` fits 8GB (see `comfyui-workflows.md`). Note: ComfyUI is external at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`.
 
-### 3. Blender Scene Builder (`app/services/blender/builder.py`)
+### 3. Blender Scene Builder (`tools/blender/builder.py`)
 
 Generates **bpy scripts**, not direct Blender calls — scripts are executed via MCP `blender_execute_blender_code`.
 
@@ -94,11 +94,11 @@ uvx blender-mcp install-addon
 
 Server: `localhost:9876` (MCP) — *not* ComfyUI `8188`.
 
-**Tools (via `unity_command` style `blender_*`):**
+**Tools (via `unity_command` style `blender_*`; tool names verified 2026-11-05):**
 
-- `blender_execute_blender_code(code: "import bpy; ...")`
-- `blender_get_scene_info()` / `blender_get_object_info(object_name="Cube")`
-- `blender_get_viewport_screenshot()`
+- `execute_code(code: "import bpy; ...")` (bridge name; note: `blender_status`, `blender_command` also exist)
+- `get_scene_info()` / `get_object_info(object_name="Cube")`
+- `get_viewport_screenshot()`
 
 *PolyHaven/Sketchfab downloads via same MCP when needed.*
 
@@ -175,7 +175,7 @@ torch==2.14.0+cu126
 | Audio analyze `Still I Rise 234s` | 4.9s | ~200 MB |
 | 3D `15 steps` (shape only) | ~60s | ~5-6 GB |
 | Video `5s 1080p abstract geq` | ~6s | ~1 GB (FFmpeg, no VRAM) |
-| `GET /duplicates/groups` 50 files | <100ms | — |
+
 
 *FFmpeg `gep` filter: `5s 1080p abstract` → `3,093,738 bytes` `h264 30fps + aac`.*
 

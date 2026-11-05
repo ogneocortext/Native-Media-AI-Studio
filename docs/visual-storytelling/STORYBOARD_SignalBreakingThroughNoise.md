@@ -2,6 +2,7 @@
 *Lyric-mapped, librosa-verified, ready for shot planning*
 *Duration 242.32s (7269f @30fps) • 136 BPM • 528 beats • 2026-08-31 librosa 0.11 analysis: 8 sections energy-mapped*
 *Files: `src/Composition.tsx` `public/signal.mp3` `public/blender-*.png` `output/test-...-analysis.json`*
+*Paths: relative to `packages/video-editor/` (project moved from `signal-breaking-video/`); `public/` assets are local-only, not committed.*
 *Prompt: `A melancholic yet euphoric 136 BPM Progressive Trance about surviving grief and silence and finding your own frequency — infinite dawn landscape, electric blue horizon. Smooth breathy female lead, whispered male in breakdown, four-on-the-floor kick, supersaw chords, minor-key arpeggiator.`*
 
 > **Why previous looked same:** Single AbsoluteFill with orb+figure center-locked, sine pulse 9.2, linear grid, one palette, no act camera. **2026 fix:** 8 distinct sequences with own camera/palette/prop/typography — like StillIRise v5 (10 sequences). Act-specific treatment, not opacity tweaks.

@@ -6,89 +6,142 @@ tags:
 
 # Kinetic Typography — Route Documentation
 
-> Compiled: 2026-09-15
-> Context: Native Media AI Studio — `/kinetic-typography` route reference
+> Compiled: 2026-09-15 · **Rewritten 2026-11-05** against the current tree
+> Context: Native Media AI Studio — `/create/typography` route reference
 
 ## Overview
 
-`/kinetic-typography` is the **lyric-animation and text-effect studio**. It lives at `packages/frontend/src/features/kinetic-typography/KineticTypographyPage.tsx` and provides:
-- 8 genre-specific animation presets via `anime.js`
-- Word-level karaoke highlight synced to LRC timestamps
-- LRC multi-stamp parser with configurable `offset`
-- WhisperX transcription integration for timestamped lyrics
-- Theatre.js Studio panel for customizing kinetic typography animations with real-time preview
+`/create/typography` (legacy `/kinetic-typography` redirects here) is the
+**lyric-animation / kinetic-typography video builder**. It lives at
+`packages/frontend/src/features/kinetic-typography/KineticTypographyPage.tsx`
+and provides:
+
+- Track picker backed by the shared audio library (`useAudioLibrary()` —
+  the single store per D16; never call `listAudioFiles()` from a
+  component)
+- Loads the track's separated stems and analysis (beats/sections) plus
+  lyrics from the track-lyrics index, with a CSV fallback
+  (`parseLyricsFromCsv`) and `.lrc` import (`parseLrc`)
+- Kinetic preset selection shared with the visualizer
+  (`features/visualizer/components/KineticPresets` +
+  `PresetSelector`)
+- Word-level karaoke highlight synced to lyric timestamps
+- Lyric editing via `components/LyricsEditorModal.tsx`
+- Render through `POST /api/video/generate-section` with
+  `visualization.style: "kinetic"`
 
 ## Architecture
 
 ### Core Components
-- **KineticTypographyPage.tsx** — top-level page; manages preset, LRC state, playback sync
-- **KaraokeRenderer.tsx** — word-by-word highlight with progress fill
-- **LyricsEditor.tsx** — inline LRC editor with real-time preview
-- **PresetPanel.tsx** — 8 genre preset cards (Phonk Drift, Synthwave, Ambient Flow, West Coast G-Funk, UK Grime, Dubstep Impact, Lo-Fi Warmth, Cinematic)
-- **TheatrePanel.tsx** — Theatre.js animation editor for custom kinetic type sequences
 
-### Animation Library Decision
-Per `docs/knowledge/kinetic-typography-options.md`:
-- **Primary**: Motion (`@motionone/react`) for layout and enter/exit choreography
-- **Secondary**: Anime.js v4 for text-level transforms, stagger, and timeline control
-- Both coexist; Motion handles container transitions, Anime.js handles per-word/character effects
+- **KineticTypographyPage.tsx** — page orchestrator; owns audio
+  playback state, lyric lines, preset, and render request
+- **components/LyricsEditorModal.tsx** — lyric line editor modal
+- **WordHighlight** (inline in the page) — per-word karaoke renderer:
+  each `LyricLine.words[]` entry carries `start`/`end`; words render
+  dimmed until current, then glow via `textShadow` scaled by
+  `glowIntensity`
 
-### LRC Sync Flow
-1. Load `.lrc` file → parse with multi-stamp parser
-2. Extract `offset` (ms) → apply to all timestamps
-3. `isPhraseStart` flag marks phrase boundaries for section-aware effects
-4. `sectionProgress` (0→1) drives beat-synced pulse and color transitions
-5. Current word index computed from `audio.currentTime`; highlight advances on word boundary
+### Shared Visualizer Modules (not local copies)
 
-### WhisperX Integration
-- Transcription endpoint: `POST /api/audio/transcribe` (uses WhisperX in `nma-studio-cuda` env)
-- Outputs timestamped word segments with confidence scores
-- Auto-generates LRC file in `output/audio/<uuid>.lrc`
-- Sparse words filtered out (confidence < 0.6) before LRC export
+The page deliberately reuses the visualizer's lyric/preset machinery
+rather than duplicating it:
+
+- `features/visualizer/components/KineticPresets.ts` —
+  `kineticPresets`, `kineticPresetList`, `selectPresetForTrack`,
+  `LyricLine` type
+- `features/visualizer/PresetSelector.tsx` — `PresetSelector` +
+  `VisualPreset`
+- `features/visualizer/lyricsParser.ts` — `parseLyricsFromCsv`, `parseLrc`
+- `features/visualizer/lyricsData.ts` — `createDefaultLyricsData`,
+  `lyricsDataToLegacy`, `legacyToLyricsData`
+- `data/trackLyrics.ts` — `fetchTrackLyricsIndex`, `fetchTrackLyrics`,
+  `toLyricLines`
+
+### Animation Stack
+
+The genre presets and Theatre.js panel referenced by earlier revisions
+of this doc live in the **visualizer**, not on this page:
+
+- `animejs` (v4) drives preset timelines inside `KineticPresets`
+- `@theatre/core` + `@theatre/studio` power
+  `visualizer/components/TheatreStudioPanel.tsx`
+- There is no `@motionone`/Motion dependency in
+  `packages/frontend/package.json` — the "Motion primary" decision in
+  `kinetic-typography-options.md` was superseded by the anime.js +
+  Theatre.js implementation
+
+### Transcription
+
+- `POST /api/audio/transcribe` — faster-whisper
+  (`services/transcription.py`), **not** WhisperX; returns word/segment
+  timestamps as `LyricLine[]`
+- `GET /api/audio/transcript/{filename}` — cached transcription
+- `GET /api/audio/transcript/lrc/{filename}` — LRC export
+  (`result_to_lrc`, `result_to_word_level_lrc`)
+
+### Render Path
+
+`generateKineticVideo()` (`services/api/audio.ts`) POSTs to
+`/api/video/generate-section` with `method: "visualization"`,
+`visualization.style: "kinetic"`, `preset_id`, `lyrics`, and the audio
+filename — i.e. the deterministic visualization renderer, not ComfyUI
+generation.
 
 ## Key Patterns
 
-### Preset Structure
+### Track Selection (D16)
+
 ```tsx
-interface KineticPreset {
-  id: string;
-  name: string;
-  genre: string;
-  enter: anime.Easing;      // word entrance
-  exit: anime.Easing;        // word exit
-  highlight: { scale: number; color: string; blur: number };
-  stagger: number;           // ms between words
-  pulseOnBeat: boolean;
+const { tracks } = useAudioLibrary();          // the only allowed source
+// group with groupAudioEntries / parseVariantName / variantLabel
+// from state/audioNaming — render optionLabel, never a local regex
+```
+
+### Lyric Line Shape
+
+```ts
+interface LyricLine {
+  start: number;   // seconds
+  end: number;
+  text: string;
+  section?: string;
+  words?: { word: string; start: number; end: number }[];
 }
 ```
 
-### Word-Level Animation
-```tsx
-anime({
-  targets: `.word[data-index="${i}"]`,
-  translateY: [20, 0],
-  opacity: [0, 1],
-  easing: preset.enter,
-  duration: 400,
-  delay: i * preset.stagger,
-});
-```
+Word-level data comes from transcription or enhanced LRC; lines without
+`words` render as plain text.
 
-### Theatre.js Integration
-- Theatre.js project mounted inside `<StudioPanel>` via `@theatre/core` + `@theatre/studio`
-- Keyframes exported as JSON; re-importable as presets
-- Sequence sheet: `LyricSheet` — one track per text property (opacity, translateY, scale, color)
+### Preset Selection
+
+`selectPresetForTrack` picks a preset from track analysis (tempo,
+energy, sections); the backend also suggests one —
+`suggested_kinetic_preset` + confidence are returned by the audio
+analysis endpoint (`audio_analysis.py::_suggest_kinetic_preset`).
 
 ## Known Limitations
-- Anime.js v4 ESM tree-shaking is imperfect; bundle includes unused easings (~12KB)
-- Theatre.js studio panel conflicts with R3F `<Canvas>` pointer events — z-index layering required
-- LRC parser does not support enhanced LRC extensions (word-level timestamps inside `[]`)
-- WhisperX transcription is single-language (English) unless `--language` override passed
+
+- Word-level karaoke only works when lyrics carry word timestamps
+  (transcription or word-level LRC); plain `.lrc` lines fall back to
+  line-level display
+- The page renders via the visualization path — output is the
+  deterministic kinetic style, not a generative video model
+- Lyrics editing is modal-based; there is no inline per-word timing
+  editor on this page
 
 ## Related Files
+
 - `packages/frontend/src/features/kinetic-typography/KineticTypographyPage.tsx`
-- `packages/frontend/src/features/kinetic-typography/KaraokeRenderer.tsx`
-- `packages/frontend/src/features/kinetic-typography/LyricsEditor.tsx`
-- `packages/frontend/src/features/kinetic-typography/presets/*.ts`
-- `docs/knowledge/kinetic-typography-techniques-2026.md` — stroke-dash reveal, beat-synced pulse, 3D text
-- `docs/knowledge/kinetic-typography-options.md` — Motion vs Anime.js decision record
+- `packages/frontend/src/features/kinetic-typography/components/LyricsEditorModal.tsx`
+- `packages/frontend/src/features/visualizer/components/KineticPresets.ts`
+- `packages/frontend/src/features/visualizer/PresetSelector.tsx`
+- `packages/frontend/src/features/visualizer/lyricsParser.ts`
+- `packages/frontend/src/data/trackLyrics.ts`
+- `packages/frontend/src/services/api/audio.ts` — `transcribeAudio`,
+  `generateKineticVideo`
+- `packages/backend/app/services/transcription.py` — faster-whisper
+- `docs/knowledge/kinetic-typography-techniques-2026.md` — technique
+  research (stroke-dash reveal, beat-synced pulse, 3D text)
+- `docs/knowledge/kinetic-typography-options.md` — library decision
+  record (partially superseded — see note in that file)

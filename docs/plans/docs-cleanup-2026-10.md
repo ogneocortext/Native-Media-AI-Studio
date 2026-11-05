@@ -1,8 +1,9 @@
 # Docs Cleanup Plan — 2026-10
 
-**Status:** Proposed 2026-10-21 — for owner review. **Nothing in this
-plan has been executed**; every item is a proposal with its evidence,
-required reference updates, and verification step attached.
+**Status:** Partially executed — C2, C3, C4 done (2026-10-22+);
+C1 and C5 remain open. **Update 2026-11-05:** `docs/ux-audit/` no
+longer exists; its two files live in `docs/ux/` alongside the O2/O4
+outputs, so C2 is complete.
 **Origin:** a 2026-10-21 survey of the `docs/` tree against the
 directory map in `docs/README.md`, with every claim grep-verified
 against the codebase before it was written down.
@@ -37,6 +38,9 @@ item explicitly says so (C3).
 
 ## C2 — Fold `docs/ux-audit/` into `docs/ux/`
 
+- **Status: ✅ Done** — verified 2026-11-05: `docs/ux-audit/` does not
+  exist; `audit-report.md` and `three-js-visualizer-review-2026-09-29.md`
+  are in `docs/ux/` with the O2/O4 outputs.
 - **Evidence:** two UX directories now exist. `docs/ux-audit/` holds
   `audit-report.md` and `three-js-visualizer-review-2026-09-29.md`;
   `docs/ux/` (created by the Priority 3 pass) holds the 5-minute

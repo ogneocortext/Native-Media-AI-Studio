@@ -157,20 +157,21 @@ The benchmark automatically adjusts `num_ctx` based on available VRAM:
 ### Via Backend API
 
 ```bash
-# Run all available models (max 8)
-POST /api/benchmarks/run
+# Run all available models (max 8) — paths corrected 2026-11-05:
+# the router mounts under /api/integrations (integrations_generation.py)
+POST /api/integrations/ollama/benchmark/run
 
 # Run specific models
-POST /api/benchmarks/run
+POST /api/integrations/ollama/benchmark/run
 {
   "models": ["llama3:8b", "qwen2.5:7b", "gemma2:9b"]
 }
 
 # Get all results
-GET /api/benchmarks/results
+GET /api/integrations/ollama/benchmark/results
 
 # Get best model
-GET /api/benchmarks/best
+GET /api/integrations/ollama/benchmark/best
 ```
 
 ### Via Python

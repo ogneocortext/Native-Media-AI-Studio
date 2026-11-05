@@ -132,8 +132,8 @@ type: synthesis
 ### Why This Library
 - **Trail/Ribbon renderer** — directly addresses the motion-blur/trail feedback for particle modes
 - **WebGPU compute support** — future-proofs the 3D visualizer for 50K–350K particle counts
-- **React Three Fiber compatible** — works seamlessly with the existing R3F v9.7.0 scene
-- **Three.js r182+ compatible** — project uses r185.1 ✅
+- **React Three Fiber compatible** — works seamlessly with the existing R3F v9.8 scene
+- **Three.js r182+ compatible** — project uses r186 ✅
 
 ### What Was Added
 | File | Change |
@@ -168,7 +168,7 @@ type: synthesis
 ## Implementation Roadmap: WebGPU + TSL + Social-Media Export
 
 > [!info] Current State
-> Visualizer is fully functional on WebGL (Three.js r185 + R3F v9.7 + Drei v10.7).
+> Visualizer is fully functional on WebGL (Three.js r186 + R3F v9.8 + Drei v10.7).
 > PostFX pipeline: EffectComposer → UnrealBloomPass → custom grade shader → OutputPass.
 > Canvas2D modes: bars, waveform, radial, spectrogram, lissajous, constellation, particles.
 > 3D modes: 12 visualization styles including integrated `@newkrok/three-particles` v3.0.0.
@@ -190,7 +190,7 @@ Replace GLSL post-FX with Three Shading Language (TSL) nodes.
 **Why now:**
 - Chrome 144+, Edge 144+, Firefox 141+, Safari 26+ support WebGPU
 - TSL enables compute-shader particles, selective bloom, and GPU audio compute
-- Three.js r185 has stable `WebGPURenderer` and TSL node ecosystem
+- Three.js r186 has stable `WebGPURenderer` and TSL node ecosystem
 
 ### Phase 2: GPU Compute Particles + Beat-Locked Interaction
 
@@ -240,7 +240,7 @@ No server required — export happens client-side.
 
 | Decision | Rationale |
 |----------|-----------|
-| **Three.js r185 + R3F v9.7** | Stable WebGPU path; TSL nodes production-ready |
+| **Three.js r186 + R3F v9.8** | Stable WebGPU path; TSL nodes production-ready |
 | **WebGL fallback** | Safari 26 WebGPU still rolling out; must not break existing users |
 | **Keep @react-three/drei** | Lightformers, OrbitControls, Environment still work on WebGL fallback |
 | **PostFX: TSL over EffectComposer** | Single unified graph; easier to add compute-based effects later |

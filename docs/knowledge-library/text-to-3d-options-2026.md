@@ -51,7 +51,7 @@ python gradio_app.py \
 - Use `--profile 4` if you need <6 GB VRAM.
 - Texture generation requires ~10 GB extra; on 8 GB stick to geometry-only or use image-to-3D + external texturing.
 
-**ComfyUI:** Drag workflow `docs/comfyui-workflows/hunyuan3d-2mini-text-to-3d.json` onto canvas.
+**ComfyUI:** Drag workflow `docs/comfyui-workflows/hunyuan3d-2mini-native.json` onto canvas. *(Corrected 2026-11-05: the `hunyuan3d-2mini-text-to-3d.json` named here does not exist — `hunyuan3d-2mini-native.json` is the shipped workflow; a dedicated text-to-3D variant is still a next step below.)*
 
 ---
 

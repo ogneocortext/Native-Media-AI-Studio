@@ -1,5 +1,11 @@
 # Language Server Issues Report
 
+> **Status: resolved / historical.** This describes the pre-`packages/`
+> layout (`/frontend/` + `/apps/frontend/` duplicates, no root
+> `package.json`/`pyproject.toml`). All of it was fixed by the April 2026
+> refactor — see `REFACTOR_NOTES.md`. Kept for context only
+> (verified 2026-11-05).
+
 > Generated for: Native Media AI Studio  
 > This document identifies configuration problems that affect IDE language servers (TypeScript, ESLint, Python LSP, Tailwind CSS IntelliSense, etc.)
 
