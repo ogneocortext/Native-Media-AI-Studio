@@ -161,7 +161,10 @@ export type NameableAudioFile = { filename: string } | string;
 export function isUnnamedFile(file: NameableAudioFile): boolean {
   const raw = typeof file === "string" ? file : file.filename;
   const base = (raw.split("/").pop() ?? raw).replace(new RegExp(EXTENSION_GROUP, "i"), "");
-  return /^[0-9a-f]{8}$/i.test(base) || /^[0-9a-f]{32}$/i.test(base);
+  // Pure-hex basenames of any length (8-hex upload prefix, 16-hex truncations,
+  // 32-hex MD5/uuid) carry no track title, so they are "unnamed". The minimum
+  // of 8 keeps a short real title like "ace.wav" from being mislabelled.
+  return /^[0-9a-f]{8,}$/i.test(base);
 }
 
 /** Short, stable identifier for an unnamed file so two such rows stay distinct. */
@@ -391,5 +394,14 @@ export function countGroupedEntries<T extends GroupableAudioFile>(
  */
 export function audioEntryLabel(file: NameableAudioFile): string {
   if (isUnnamedFile(file)) return unnamedFileLabel(file);
-  return typeof file === "string" ? audioDisplayName(file) : audioDisplayName(file as AudioLibraryFile);
+  const displayed =
+    typeof file === "string" ? audioDisplayName(file) : audioDisplayName(file as AudioLibraryFile);
+  // A stacked hash prefix (e.g. `e75f3538_36a7f033...wav`) can strip down to a
+  // bare content hash. The raw basename isn't pure hash, so isUnnamedFile misses
+  // it, but rendering the stripped result would be a wall of hex with no track
+  // title. Treat it as unnamed too.
+  if (/^[0-9a-f]{8,}$/i.test(displayed)) {
+    return `Unnamed track ${displayed.slice(0, 6)}`;
+  }
+  return displayed;
 }

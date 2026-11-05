@@ -9,7 +9,7 @@
  * - tags + assign/remove tags per item
  * - trash items + restore/purge/empty
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addItemToCollection,
   addItemTag,
@@ -79,6 +79,10 @@ export function useMediaLibrary(): MediaLibraryOrg {
   const [itemTags, setItemTags] = useState<Map<string, Tag[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Holds the latest favorites set so toggleFavorite never reads a stale
+  // closure when toggled rapidly (the Set is recreated on every change).
+  const favoritesRef = useRef(favorites);
+  favoritesRef.current = favorites;
 
   const collectionsById = new Map(collections.map((c) => [c.id, c]));
   const tagsById = new Map(tags.map((t) => [t.id, t]));
@@ -112,7 +116,7 @@ export function useMediaLibrary(): MediaLibraryOrg {
 
   const toggleFavorite = useCallback(
     async (relativePath: string) => {
-      const wasFav = favorites.has(relativePath);
+      const wasFav = favoritesRef.current.has(relativePath);
       // Optimistic update
       setFavorites((prev) => {
         const next = new Set(prev);
@@ -142,7 +146,7 @@ export function useMediaLibrary(): MediaLibraryOrg {
         throw e;
       }
     },
-    [favorites]
+    []
   );
 
   const isFavorite = useCallback(

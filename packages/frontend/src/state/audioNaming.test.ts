@@ -211,6 +211,15 @@ describe("unnamedFileLabel / audioEntryLabel", () => {
   it("leaves a real track's entry label as its display name", () => {
     expect(audioEntryLabel(file("11111111_Alpha.mp3"))).toBe("Alpha");
   });
+
+  it("labels a stacked-prefix file that strips to a bare hash as unnamed", () => {
+    // `e75f3538_36a7f033...wav` strips its 8-hex upload prefix, leaving a bare
+    // 32-hex content hash with no title. The raw basename isn't pure hash, so
+    // isUnnamedFile misses it, but the rendered label must not be a wall of hex.
+    expect(
+      audioEntryLabel(file("e75f3538_36a7f033b69348398f1d43ace69be207.wav")),
+    ).toBe("Unnamed track 36a7f0");
+  });
 });
 
 describe("dedupeAudioFiles", () => {

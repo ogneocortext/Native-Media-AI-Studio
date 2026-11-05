@@ -8,7 +8,7 @@ import {
 import { getOutputUrl } from "../../../utils/url";
 import { Heart, Pause, Play, Image, RefreshCw } from "lucide-react";
 import { getMediaWaveform } from "../../../services/api/media";
-import { audioDisplayName } from "../../../state/audioNaming";
+import { audioEntryLabel } from "../../../state/audioNaming";
 
 const FILE_TYPE_COLORS: Record<string, string> = {
   audio: "bg-violet-500/20 text-violet-300 border-violet-500/30",
@@ -57,6 +57,10 @@ export interface FileCardProps {
   onSendToWizard?: (file: MediaFile) => void;
   onToggleFavorite?: (file: MediaFile) => void;
   onGenerateThumbnail?: (file: MediaFile) => void;
+  /** Display names that collide elsewhere in the library; when set, the
+   *  parent folder is shown so same-named files in different folders stay
+   *  distinguishable (files are never deduped away in a file manager). */
+  collisionNames?: Set<string>;
   className?: string;
 }
 
@@ -274,6 +278,7 @@ export function FileCard({
   onSendToWizard,
   onToggleFavorite,
   onGenerateThumbnail,
+  collisionNames,
   className,
 }: FileCardProps) {
   const isAudio = file.file_type === "audio";
@@ -290,11 +295,14 @@ export function FileCard({
       : formatFileSize(file.size ?? 0);
   const typeColor = FILE_TYPE_COLORS[file.file_type] || "bg-gray-500/20";
   const typeIcon = FILE_TYPE_ICONS[file.file_type] || "📁";
-  // Audio files carry stacked content-hash prefixes (e.g. `5eab45eb_3a288113_`
-  // `music_video.m4a`) that must be stripped for display — the raw filename is
-  // kept on the `title` attribute and used for rename so the real file is
-  // untouched. Non-audio types keep their filename unchanged.
-  const displayName = isAudio ? audioDisplayName(file.filename) : file.filename;
+  // audioEntryLabel handles unnamed files (bare hash/uuid names) by rendering
+  // "Unnamed track <n>" instead of raw hex. The raw filename stays on `title`
+  // and is used for rename so the real file is untouched.
+  const displayName = isAudio ? audioEntryLabel(file.filename) : file.filename;
+  // Parent folder, used to disambiguate same-named files in different folders.
+  const folder = file.relative_path
+    ? file.relative_path.split("/").slice(0, -1).join("/")
+    : "";
   const durationLabel = file.duration != null ? file.duration.toFixed(0) + "s" : "";
 
   const handleCardClick = () => {
@@ -572,6 +580,17 @@ export function FileCard({
               {formatDateTime(file.modified_at || file.modified_time || "")}
             </time>
           </div>
+          {isAudio &&
+            folder &&
+            collisionNames?.has(displayName) && (
+              <div
+                className="flex items-center gap-1 text-[10px] text-muted truncate"
+                title={folder}
+              >
+                <span className="mr-0.5 opacity-50">in</span>
+                {folder}
+              </div>
+            )}
 
           {/* Tag chips */}
           {tags.length > 0 && (

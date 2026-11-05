@@ -25,6 +25,7 @@ import { TrashPanel } from "./components/TrashPanel";
 import { fetchWithTimeout } from "../../services/fetchWithTimeout";
 import { extractThumbnailAtTime } from "../../services/api/media";
 import { formatFileSize, formatDateTime } from "../../utils/format";
+import { audioEntryLabel } from "../../state/audioNaming";
 import { DS } from "../../styles/designSystem";
 
 const PAGE_SIZE = 50;
@@ -112,6 +113,22 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
   const filteredFiles = useFileFilters(allFiles, filter, itemTags);
 
+  // Display names that collide elsewhere in the library. Files are never
+  // deduped away in a file manager — each is a distinct file you may want to
+  // rename or delete individually — so colliding names are disambiguated by
+  // showing the parent folder on the card instead (e.g. "bass" in 13 remix
+  // folders shows 13 rows, each labelled with its folder).
+  const displayNameCounts = new Map<string, number>();
+  for (const f of allFiles) {
+    const d = audioEntryLabel(f.filename);
+    displayNameCounts.set(d, (displayNameCounts.get(d) ?? 0) + 1);
+  }
+  const collisionNames = new Set(
+    [...displayNameCounts.entries()]
+      .filter(([, c]) => c > 1)
+      .map(([n]) => n),
+  );
+
   const filesForView =
     view === "favorites"
       ? filteredFiles.filter((f) => favorites.has(f.relative_path || f.filename))
@@ -154,10 +171,15 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   const handleFindDuplicates = async () => {
     setDuplicatesLoading(true);
     try {
-      await fetchWithTimeout(
+      const res = await fetchWithTimeout(
         "/api/outputs/duplicates/groups?quick=true",
         { timeout: 30000 },
       );
+      if (!res.ok) {
+        throw new Error(`Duplicate scan failed (${res.status})`);
+      }
+    } catch (e) {
+      setOperationError(e instanceof Error ? e.message : "Duplicate scan failed");
     } finally {
       setDuplicatesLoading(false);
     }
@@ -170,6 +192,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
     if (result.deleted > 0) {
       clearSelection();
       void refetchFiles();
+      void refetchOrg();
       setCurrentPage(1);
     }
   };
@@ -191,6 +214,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
     if (ok) {
       clearSelection();
       void refetchFiles();
+      void refetchOrg();
     }
   };
 
@@ -476,6 +500,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             itemTags={itemTags}
             onToggleFavorite={handleToggleFavorite}
             onGenerateThumbnail={handleGenerateThumbnail}
+            collisionNames={collisionNames}
           />
           <Pagination
             currentPage={currentPage}

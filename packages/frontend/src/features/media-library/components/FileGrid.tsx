@@ -16,6 +16,8 @@ interface FileGridProps {
   itemCollections?: Map<string, Collection[]>;
   itemTags?: Map<string, Tag[]>;
   onToggleFavorite?: (file: MediaFile) => void | Promise<void>;
+  /** Display names that collide elsewhere in the library, for folder disambiguation. */
+  collisionNames?: Set<string>;
 }
 
 export function FileGrid({
@@ -31,6 +33,7 @@ export function FileGrid({
   favoritedPaths = new Set(),
   itemCollections = new Map(),
   itemTags = new Map(),
+  collisionNames = new Set(),
   onToggleFavorite,
 }: FileGridProps) {
   if (files.length === 0) {
@@ -59,6 +62,7 @@ export function FileGrid({
         onSendToWizard={onSendToWizard}
         onToggleFavorite={onToggleFavorite}
         onGenerateThumbnail={onGenerateThumbnail}
+        collisionNames={collisionNames}
         className={
           viewMode === "list"
             ? "flex items-center gap-3 p-2 hover:bg-black/40 rounded"
