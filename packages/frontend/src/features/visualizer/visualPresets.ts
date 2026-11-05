@@ -91,7 +91,7 @@ export const visualPresets: Record<string, VisualPreset> = {
       showGround: true,
       showFloatingShapes: true,
       showLightRays: true,
-      postfx: { bloom: 0.9, vignette: 0.4, glitch: 0.1 },
+      postfx: { bloom: 0.9, vignette: 0.4, glitch: 0.1, kaleido: { fold: 8, intensity: 0.45 } },
     },
     bgColor: "#0a001a",
     meshColor: "#ff00ff",

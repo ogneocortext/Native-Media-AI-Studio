@@ -353,7 +353,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** forward motion is continuous with no visible tile repetition over 60 s; a bass drop measurably increases speed/heave within one beat; frame time inside budget at DPR cap.
 
 ### T-VIZ-24 — Kaleidoscope post pass (VisualizationFX)
-- **Status:** todo
+- **Status:** done
+- **Last session:** landed with this commit — `KaleidoscopeShader` ShaderPass inserted between `UnrealBloomPass` and the grade pass in the GLSL `PostFX` composer. Polar fold (`mod`-based angle folding, `uFold` 6/8/12 selectable via `postfx.kaleido.fold`, default 8) with radius scaled ×0.7 so folded samples stay inside [0,1]² — no edge-clamp streaks at fold boundaries. `uIntensity` defaults to 0 and the fragment shader early-outs at ≤0.001, so the pass is a no-op until a preset raises `postfx.kaleido.intensity`; per-frame it is driven by `intensity × (0.5 + 0.5·sectionGain) × (0.6 + 0.4·onset)` and damped at 0.08/frame. Synthwave preset carries `{fold:8, intensity:0.45}` as the reference enable. `postfx.kaleido` typed through `types.ts`, `PostFXSelector`, and `WebGPUPostFX` props (WebGPU/TSL pipeline ignores it — GLSL path only, noted below).
 - **Goal:** 6/8/12-fold mirror symmetry as a toggleable ShaderPass in the VisualizationFX composer chain, intensity driven by section state and the onset envelope — a multiplier over every existing mode, not a new mode.
 - **Files:** `packages/frontend/src/features/visualizer/VisualizationFX.tsx`
 - **Plan:** Research: mode-research doc §5. Insert the pass after UnrealBloomPass and before the grade pass; fold count selectable; intensity defaults to 0 (off) and presets/sections may raise it.

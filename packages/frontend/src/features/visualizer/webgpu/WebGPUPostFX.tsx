@@ -99,7 +99,12 @@ interface WebGPUPostFXProps {
    * so the 150 ms phrase pulse is not missed — same contract as the WebGL PostFX.
    */
   lrcSyncRef?: { current: { isPhraseStart: boolean } | null };
-  postfx?: { bloom?: number; vignette?: number; glitch?: number } | null;
+  postfx?: {
+    bloom?: number;
+    vignette?: number;
+    glitch?: number;
+    kaleido?: { fold?: number; intensity?: number };
+  } | null;
 }
 
 export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef, postfx }: WebGPUPostFXProps) {

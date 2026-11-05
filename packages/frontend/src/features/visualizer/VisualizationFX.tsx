@@ -40,6 +40,7 @@ import {
   attribute,
 } from "three/tsl";
 import type { AudioData } from "./types";
+import { getSectionMotionIntensity } from "./sectionStateMachine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared GLSL: Ashima simplex noise (used by terrain vertex shader)
@@ -136,6 +137,45 @@ const FinalGradeShader = {
   `,
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Kaleidoscope pass — N-fold mirror symmetry (T-VIZ-24)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Folds the frame into a wedge around centre and mirrors it `uFold` times.
+// `uIntensity` 0 = passthrough (the default — presets/sections raise it);
+// the radius is scaled by 0.7 so folded samples always land inside [0,1]²
+// and no edge clamp streaks appear at fold boundaries.
+const KaleidoscopeShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    uIntensity: { value: 0 },
+    uFold: { value: 8 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uIntensity, uFold;
+    varying vec2 vUv;
+    void main(){
+      vec3 orig = texture2D(tDiffuse, vUv).rgb;
+      if (uIntensity <= 0.001) { gl_FragColor = vec4(orig, 1.0); return; }
+      vec2 p = vUv - 0.5;
+      float r = length(p);
+      // Normalise angle to [-PI, PI); GLSL mod is floor-mod, always >= 0.
+      float a = mod(atan(p.y, p.x) + 3.14159265, 6.2831853) - 3.14159265;
+      float seg = 6.2831853 / uFold;
+      float folded = mod(a + seg * 0.5, seg) - seg * 0.5;
+      vec2 q = vec2(cos(folded), sin(folded)) * r * 0.7;
+      vec2 uv2 = clamp(q + 0.5, 0.001, 0.999);
+      vec3 kaleido = texture2D(tDiffuse, uv2).rgb;
+      gl_FragColor = vec4(mix(orig, kaleido, clamp(uIntensity, 0.0, 1.0)), 1.0);
+    }
+  `,
+};
+
 export function PostFX({
   audioData,
   lrcSync,
@@ -147,7 +187,12 @@ export function PostFX({
   lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
   lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
   safeMode?: boolean;
-  postfx?: { bloom?: number; vignette?: number; glitch?: number } | null;
+  postfx?: {
+    bloom?: number;
+    vignette?: number;
+    glitch?: number;
+    kaleido?: { fold?: number; intensity?: number };
+  } | null;
 }) {
   const { gl, scene, camera, size } = useThree();
   const beatPulse = useRef(0);
@@ -157,10 +202,16 @@ export function PostFX({
     c.addPass(new RenderPass(scene, camera));
     const b = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.7, 0.55, 0.72);
     c.addPass(b);
+    // T-VIZ-24 — kaleidoscope mirror pass between bloom and grade.
+    // uIntensity defaults to 0 (inert passthrough) until a preset/section
+    // raises it; the fragment shader early-outs at <= 0.001 so the idle
+    // cost is one uniform check + one texture fetch.
+    const k = new ShaderPass(KaleidoscopeShader);
+    c.addPass(k);
     const g = new ShaderPass(FinalGradeShader);
     c.addPass(g);
     c.addPass(new OutputPass());
-    return { gl, composer: c, bloom: b, grade: g, lastW: 0, lastH: 0 };
+    return { gl, composer: c, bloom: b, kaleido: k, grade: g, lastW: 0, lastH: 0 };
     // `size` is deliberately excluded: the composer is rebuilt only when the
     // renderer/scene/camera change. Resizing is handled by the dedicated effect
     // below via `lastW`/`lastH`, so including `size` here would recreate the
@@ -220,6 +271,20 @@ export function PostFX({
     const vignettePulse = safeMode ? phrasePulse.current * 0.08 : phrasePulse.current * 0.2;
     fx.grade.uniforms.uVignette.value =
       phrasePulse.current > 0.1 ? baseVignette + vignettePulse : baseVignette;
+    // T-VIZ-24 — kaleidoscope intensity: preset base (postfx.kaleido) modulated
+    // by section energy (build vs drop) and the T-VIZ-16 onset envelope, then
+    // damped so symmetry blooms in rather than snapping. Fold count is static
+    // per preset; only uniforms are touched per frame.
+    const kaleido = postfx?.kaleido;
+    const kaleidoBase = kaleido?.intensity ?? 0;
+    const section = (lrcSyncRef?.current ?? lrcSync)?.currentSection;
+    const sectionGain = getSectionMotionIntensity(section);
+    const onsetEnv = audioData.current.onset ?? 0;
+    const kaleidoTarget =
+      kaleidoBase * (0.5 + 0.5 * sectionGain) * (0.6 + 0.4 * onsetEnv);
+    const uK = fx.kaleido.uniforms;
+    uK.uIntensity.value += (kaleidoTarget - uK.uIntensity.value) * 0.08;
+    uK.uFold.value = kaleido?.fold ?? 8;
     fx.composer.render();
   }, 1);
 

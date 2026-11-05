@@ -162,6 +162,8 @@ export interface VizParams {
     bloom: number;
     vignette: number;
     glitch: number;
+    /** T-VIZ-24 — kaleidoscope mirror pass: fold count + base intensity (0 = off) */
+    kaleido?: { fold?: number; intensity?: number };
   };
   /** Mesh color for LRC-driven section changes */
   meshColor?: string;

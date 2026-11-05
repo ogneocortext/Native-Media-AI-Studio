@@ -46,7 +46,12 @@ function PostFXSelector({
   lrcSync?: { isPhraseStart: boolean; currentSection: string } | null;
   lrcSyncRef?: { current: { isPhraseStart: boolean; currentSection: string } | null };
   prefersReducedMotion?: boolean;
-  postfx?: { bloom?: number; vignette?: number; glitch?: number } | null;
+  postfx?: {
+    bloom?: number;
+    vignette?: number;
+    glitch?: number;
+    kaleido?: { fold?: number; intensity?: number };
+  } | null;
 }) {
   const { gl } = useThree();
   const isWebGPU = (gl as any)?.isWebGPURenderer === true;
