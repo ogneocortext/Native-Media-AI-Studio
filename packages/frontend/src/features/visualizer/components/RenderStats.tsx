@@ -7,6 +7,7 @@
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Activity, Layers, Triangle } from "lucide-react";
+import { QualityGovernor } from "../qualityGovernor";
 
 export interface RenderStats {
   fps: number;
@@ -47,6 +48,42 @@ export function RenderStatsProbe({
       });
       frames.current = 0;
       last.current = now;
+    }
+  });
+  return null;
+}
+
+/**
+ * T-VIZ-18 — adaptive quality governor probe for the R3F stage.
+ *
+ * Samples real frame delta inside the render loop and steps a DPR ladder
+ * (1.5 → 1.25 → 1) with hysteresis. At the bottom rung it also reports
+ * `postfx: false` so the scene can drop the EffectComposer chain — the
+ * single most expensive pass on weak iGPUs. Replaces the binary
+ * PerformanceMonitor decline/incline toggle with the shared governor.
+ */
+export function QualityGovernorProbe({
+  onLevel,
+}: {
+  onLevel: (dpr: number, postfxEnabled: boolean) => void;
+}) {
+  const governor = useRef(
+    new QualityGovernor({
+      budgetMs: 20,
+      windowSize: 120,
+      breachMs: 2000,
+      recoverMs: 10000,
+      levels: [1.5, 1.25, 1],
+    }),
+  );
+  const lastIndex = useRef<number | null>(null);
+  useFrame((_, delta) => {
+    const changed = governor.current.sample(delta * 1000, performance.now());
+    const idx = governor.current.levelIndexValue;
+    if (changed !== null || lastIndex.current === null) {
+      // Bottom rung (index 2, DPR 1) drops the EffectComposer chain.
+      onLevel(governor.current.level, idx < 2);
+      lastIndex.current = idx;
     }
   });
   return null;

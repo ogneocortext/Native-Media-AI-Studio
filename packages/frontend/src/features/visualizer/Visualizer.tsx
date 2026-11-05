@@ -36,7 +36,6 @@ import {
   setPendingRemixOpen,
 } from "../../utils/pendingTrack";
 import { Canvas } from "@react-three/fiber";
-import { PerformanceMonitor } from "@react-three/drei";
 import {
   AlertCircle,
   Wand2,
@@ -101,7 +100,7 @@ import { useTrackSelection } from "./useTrackSelection";
 import { useVisualizerPlayback } from "./useVisualizerPlayback";
 import { useVisualPresets } from "./useVisualPresets";
 import { useVisualizerLifecycle } from "./useVisualizerLifecycle";
-import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
+import { RenderStatsProbe, RenderStatsBadge, QualityGovernorProbe } from "./components/RenderStats";
 import {
   CANVAS_2D_MODES,
   CANVAS_2D_MODE_LABELS,
@@ -244,6 +243,8 @@ export function Visualizer() {
   // bottom-bar mixer/EQ/remix stack: one docked drawer, one tab at a time.
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<VizInspectorTab>("scene");
+  // T-VIZ-18 — governor-driven quality: DPR ladder + postfx gate.
+  const [postfxEnabled, setPostfxEnabled] = useState(true);
 
   // Stage-chrome auto-hide: arm the idle timer whenever playback state or
   // the pin changes; pointer movement over the canvas re-arms it via
@@ -994,10 +995,11 @@ export function Visualizer() {
             gl={createVisualizerRenderer as any}
             onCreated={handleCanvasCreated}
           >
-            <PerformanceMonitor
-              onDecline={() => setAdaptiveDpr([1, 1])}
-              onIncline={() => setAdaptiveDpr([1, 1.5])}
-              onFallback={() => setAdaptiveDpr([1, 1])}
+            <QualityGovernorProbe
+              onLevel={(dpr, postfx) => {
+                setAdaptiveDpr([1, dpr]);
+                setPostfxEnabled(postfx);
+              }}
             />
             <RenderStatsProbe
               enabled={visualsVisible && vizMode === "3d"}
@@ -1040,6 +1042,7 @@ export function Visualizer() {
               lrcSync={lrcSync}
               storyboard={storyboard}
               prefersReducedMotion={prefersReducedMotion}
+              postfxEnabled={postfxEnabled}
               perceptualScale={perceptualScale}
               active={visualsVisible && vizMode === "3d"}
               sampleAudio={sampleAudio}

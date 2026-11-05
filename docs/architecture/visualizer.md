@@ -21,6 +21,7 @@ src/features/visualizer/
 ├── canvas2dHelpers.ts            187 — pure: colour lerp, easing, noise/FBM, Bark/Mel/ERB scales
 ├── useAudioGraph.ts              178 — shared AudioContext graph (+ transient analyser, T-VIZ-16)
 ├── spectralFlux.ts               ~130 — spectral-flux onset detector → decaying envelope (T-VIZ-16)
+├── qualityGovernor.ts            ~140 — adaptive quality governor: p95 frame-time window, DPR ladder, hysteresis (T-VIZ-18)
 ├── useVisualizerRecording.ts     156 — MP4/WebCodecs capture, WebM fallback
 ├── useSpectralTimeline.ts        — per-frame spectral timeline lookup
 ├── audioEQ.ts / audioReactivityProcessor.ts — EQ + reactivity maths

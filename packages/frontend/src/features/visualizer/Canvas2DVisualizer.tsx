@@ -52,6 +52,7 @@ import {
 import { type Particle } from "./particles";
 import { getVisualizerMode, type VisualizerModeRenderContext, type VisualizerModeState } from "./visualizerModeRegistry";
 import { createSpectralFluxOnset, type SpectralFluxOnset } from "./spectralFlux";
+import { QualityGovernor } from "./qualityGovernor";
 import { renderMode, type BarModeContext, type BarModeState } from "./canvas2dModes";
 import { FrameAccurateCanvas2D } from "./services/frameAccurateCanvas2d";
 import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
@@ -354,8 +355,14 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       // clientHeight inside the 60 Hz draw loop forced a synchronous layout every
       // frame (layout thrash). `dpr` is captured here and kept in sync.
       let dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // T-VIZ-18 — adaptive quality governor. `dprCap` is the governor's
+      // current rung; applySize multiplies it into the backing-store size.
+      // Virtual/export frames bypass sampling so renders stay deterministic.
+      let dprCap = 2;
+      const governor = new QualityGovernor();
+      let lastFrameTs: number | null = null;
       const applySize = () => {
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        dpr = Math.min(window.devicePixelRatio || 1, dprCap);
         // Min 1×1 so a hidden/collapsed canvas never gets a zero-sized backing
         // store (and the idle text below can still be drawn on reveal).
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
@@ -399,6 +406,22 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         }
         const vTime = api?.virtualTimeSec;
         const isVirtual = vTime !== null;
+        // T-VIZ-18 — feed live frame times to the governor; a level change
+        // re-caps DPR and resizes the backing store. Virtual frames are
+        // skipped: exports must be deterministic regardless of machine load.
+        if (!isVirtual) {
+          const now = performance.now();
+          if (lastFrameTs !== null) {
+            const lvl = governor.sample(now - lastFrameTs, now);
+            if (lvl !== null && lvl !== dprCap) {
+              dprCap = lvl;
+              applySize();
+            }
+          }
+          lastFrameTs = now;
+        } else {
+          lastFrameTs = null;
+        }
         const analyser = analyserRef.current;
         const d = api?.virtualAudioData ?? audioData.current;
         // Live per-frame sync preferred; React-state snapshot as fallback.

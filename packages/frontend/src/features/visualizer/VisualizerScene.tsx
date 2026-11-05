@@ -80,6 +80,8 @@ interface Props extends VisualizerSceneProps {
   storyboard?: Storyboard | null;
   /** When false, the scene is hidden but kept mounted to preserve graph stability */
   active?: boolean;
+  /** T-VIZ-18 — governor bottom rung drops the post-processing chain */
+  postfxEnabled?: boolean;
 }
 
 export function VisualizerScene({
@@ -103,6 +105,7 @@ export function VisualizerScene({
   prefersReducedMotion = false,
   perceptualScale = "mel",
   active = true,
+  postfxEnabled = true,
   sampleAudio,
   stems,
 }: Props) {
@@ -298,6 +301,7 @@ export function VisualizerScene({
         )}
 
         {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
+        {postfxEnabled && (
         <PostFXSelector
           audioData={audioData}
           lrcSync={lrcSync}
@@ -305,6 +309,7 @@ export function VisualizerScene({
           prefersReducedMotion={prefersReducedMotion}
           postfx={vizParams.postfx}
         />
+        )}
 
         <OrbitControls
           enablePan={false}
