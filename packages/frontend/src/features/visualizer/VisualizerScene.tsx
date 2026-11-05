@@ -84,6 +84,7 @@ interface Props extends VisualizerSceneProps {
 
 export function VisualizerScene({
   analyserRef,
+  transientRef,
   isPlaying,
   isPaused,
   demoEnabled,
@@ -121,6 +122,7 @@ export function VisualizerScene({
     perceptualScale,
     undefined,
     audioWorker,
+    transientRef,
   );
   const demoData = useDemoAudio(demoEnabled && !isPlaying && !isPaused, demoBpm, perceptualScale);
   const audioData = isPlaying ? realData : demoData;

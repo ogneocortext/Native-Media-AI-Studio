@@ -289,11 +289,12 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   kick-transient check pending a headed playback session.
 
 ### T-VIZ-16 — Float frequency data + split transient/onset path
-- **Status:** todo
+- **Status:** done
 - **Goal:** Main visual path reads getFloatFrequencyData (dB floats) instead of 256-level byte data; onset detection runs on an unsmoothed path via spectral flux and is exposed as a decaying envelope.
 - **Files:** `packages/frontend/src/features/visualizer/audioHooks.ts`, `useAudioGraph.ts`, `audioReactivityProcessor.ts`
 - **Plan:** `docs/knowledge/visualizer-smoothness-plan-2026-11-03/README.md` §T-VIZ-16 (two-path analysis; lower smoothingTimeConstant once T-VIZ-15 owns smoothing).
 - **Acceptance:** onset envelope fires on isolated hits in a fixture; beat-to-visual latency vs the precomputed timeline measurably reduced on a click track.
+- **Last session:** Devin, 2026-11-06 — landed: `useAudioGraph` gains `transientRef`, an unsmoothed (`smoothingTimeConstant = 0`) AnalyserNode twin tapped off `eq.output`; new `spectralFlux.ts` detector (positive-only spectral flux, adaptive mean+1.5σ threshold over ~1 s window, ~0.5 s release envelope); `EnvelopeStage.stepNorm` accepts normalized 0–1 floats so the live path reads `getFloatFrequencyData` → dB-normalized through analyser min/maxDecibels (byte quantization removed; `bands` output stays 0–255 so mode math is unchanged); `Canvas2DVisualizer` feeds `stepNorm` live and normalized virtual buffers on export, exposes `ctxInfo.onset`; `useRealAudio` exposes `AudioData.onset` on both worker and non-worker paths. `ANALYSER_SMOOTHING` left at 0.25 — already below the plan's ~0.5 target and the transient path covers onset latency. Verified: tsc clean, ESLint 0 errors, 569 visualizer vitest pass incl. 9 new spectralFlux + 2 stepNorm tests. Caveat: click-track latency measurement vs precomputed timeline not run (needs headed playback session).
 
 ### T-VIZ-17 — Remove shadowBlur; pre-rendered glow sprites + cached gradients
 - **Status:** todo

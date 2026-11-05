@@ -368,6 +368,7 @@ export function Visualizer() {
   const {
     audioCtxRef,
     analyserRef,
+    transientRef,
     mainGainRef,
     eqRef,
     ensureAudioContext,
@@ -1010,6 +1011,7 @@ export function Visualizer() {
             <color attach="background" args={[bgColor]} />
             <VisualizerScene
               analyserRef={analyserRef}
+              transientRef={transientRef}
               isPlaying={isPlaying}
               isPaused={isPaused}
               demoEnabled={demoEnabled}
@@ -1078,6 +1080,7 @@ export function Visualizer() {
                 <Canvas2DVisualizer
                   audioData={liveAudioDataRef}
                   analyserRef={analyserRef}
+                  transientRef={transientRef}
                   isPlaying={isPlaying}
                   mode={canvas2DMode}
                   lrcSync={lrcSync}

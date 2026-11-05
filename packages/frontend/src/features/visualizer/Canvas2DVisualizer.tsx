@@ -50,6 +50,7 @@ import {
 } from "./idleParticles";
 import { type Particle } from "./particles";
 import { getVisualizerMode, type VisualizerModeRenderContext, type VisualizerModeState } from "./visualizerModeRegistry";
+import { createSpectralFluxOnset, type SpectralFluxOnset } from "./spectralFlux";
 import { renderMode, type BarModeContext, type BarModeState } from "./canvas2dModes";
 import { FrameAccurateCanvas2D } from "./services/frameAccurateCanvas2d";
 import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
@@ -79,6 +80,8 @@ export interface Canvas2DFrameAccurateApi extends FrameAccurateRenderApi {
 interface Props {
   audioData: React.MutableRefObject<AudioData>;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  /** T-VIZ-16 — unsmoothed analyser twin for the spectral-flux onset path. */
+  transientRef?: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
   mode?: Canvas2DMode;
   lrcSync?: {
@@ -146,6 +149,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
     {
       audioData,
       analyserRef,
+      transientRef,
       isPlaying,
       mode = "bars",
       lrcSync,
@@ -245,6 +249,18 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       let freq: Uint8Array | null = null;
       let wave: Uint8Array | null = null;
       let smoothed: Uint8Array | null = null;
+      // T-VIZ-16: float data path. `freqF` holds raw dB floats from
+      // getFloatFrequencyData; `freqN` is the same spectrum normalized to
+      // 0..1 through the analyser's min/maxDecibels (no byte quantization).
+      let freqF: Float32Array<ArrayBuffer> | null = null;
+      let freqN: Float32Array | null = null;
+      // T-VIZ-16: spectral-flux onset detector on the unsmoothed transient
+      // analyser — decaying envelope exposed to modes as `ctxInfo.onset`.
+      let onset: SpectralFluxOnset | null = null;
+      let onsetBins = 0;
+      // Normalized transient spectrum — separate from freqN, which the
+      // envelope path owns for the frame.
+      let onsetNorm: Float32Array<ArrayBuffer> | null = null;
       // Falling peak indicators for bars mode
 
       // Plan 2.9 — deterministic export state, owned by FrameAccurateCanvas2D.
@@ -316,6 +332,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         barModeState.barPeaks = null;
         barModeState.smoothedBars = null;
         envelope?.reset();
+        onset?.reset();
         lastEnvMs = null;
         barModeState.waveEnvelope = null;
         barModeState.waveVelocities = null;
@@ -416,9 +433,25 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (wave?.length !== (analyser?.fftSize ?? 2048)) {
           wave = new Uint8Array(analyser?.fftSize ?? 2048);
         }
+        // T-VIZ-16 float buffers — sized to the analyser's bin count.
+        const binCount = analyser?.frequencyBinCount ?? freq?.length ?? 1024;
+        if (freqF?.length !== binCount || freqN?.length !== binCount) {
+          freqF = new Float32Array(binCount);
+          freqN = new Float32Array(binCount);
+          onsetNorm = null;
+        }
+        if (onsetBins !== binCount) {
+          onset = createSpectralFluxOnset(binCount);
+          onsetBins = binCount;
+        }
         if (isVirtual && api?.virtualFreqBuffer && api.virtualWaveBuffer) {
           freq = api.virtualFreqBuffer;
           wave = api.virtualWaveBuffer;
+          // Virtual frames are already deterministic byte data — normalize
+          // into freqN so the same stepNorm/onset path serves live and export.
+          if (freqN) {
+            for (let i = 0; i < freqN.length; i++) freqN[i] = freq[i] / 255;
+          }
         }
         if (smoothed?.length !== wave.length) {
           smoothed = new Uint8Array(wave.length);
@@ -620,13 +653,22 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (isVirtual) {
           // The synthesized buffers are already in `freq`/`wave` — do not
           // overwrite them from the analyser (which is frozen or null).
-        } else if (analyser) {
-          analyser.getByteFrequencyData(freq as Uint8Array<ArrayBuffer>);
+          // `freqN` was filled from `freq` above.
+        } else if (analyser && freqF && freqN) {
+          // T-VIZ-16: float path — dB values normalized through the
+          // analyser's own min/maxDecibels, no byte quantization.
+          analyser.getFloatFrequencyData(freqF);
+          const minDb = analyser.minDecibels;
+          const dbRange = analyser.maxDecibels - minDb || 1;
+          for (let i = 0; i < freqN.length; i++) {
+            freqN[i] = Math.min(1, Math.max(0, (freqF[i] - minDb) / dbRange));
+          }
           analyser.getByteTimeDomainData(wave as Uint8Array<ArrayBuffer>);
         }
 
         // T-VIZ-15: advance the shared envelope on this frame's raw bands.
-        // Recreated if the analyser (or virtual buffer) changes length.
+        // T-VIZ-16: live frames feed normalized floats (stepNorm); virtual
+        // frames reuse the same normalized buffer filled above.
         if (envelope?.length !== freq.length) {
           envelope = createEnvelopeStage(
             freq.length,
@@ -638,7 +680,37 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         const envDt =
           lastEnvMs === null ? 0 : Math.min(0.1, Math.max(0, (envNow - lastEnvMs) / 1000));
         lastEnvMs = envNow;
-        envelope.step(freq, envDt);
+        if (freqN) {
+          envelope.stepNorm(freqN, envDt);
+        } else {
+          envelope.step(freq, envDt);
+        }
+
+        // T-VIZ-16: onset path on the unsmoothed transient analyser.
+        // Virtual frames feed the same normalized spectrum (deterministic);
+        // live frames read the transient twin's float data.
+        if (onset && freqN) {
+          if (!isVirtual) {
+            const transient = transientRef?.current;
+            if (transient && transient.frequencyBinCount === freqN.length) {
+              transient.getFloatFrequencyData(freqF as Float32Array<ArrayBuffer>);
+              const tMin = transient.minDecibels;
+              const tRange = transient.maxDecibels - tMin || 1;
+              // Reuse freqN? No — freqN still feeds the silence check below.
+              // Normalize into a dedicated scratch via onset's own buffer:
+              // simplest correct approach is a second normalized array.
+              if (!onsetNorm) onsetNorm = new Float32Array(freqN.length);
+              for (let i = 0; i < onsetNorm.length; i++) {
+                onsetNorm[i] = Math.min(1, Math.max(0, (freqF[i] - tMin) / tRange));
+              }
+              onset.step(onsetNorm, envDt);
+            } else {
+              onset.step(freqN, envDt);
+            }
+          } else {
+            onset.step(freqN, envDt);
+          }
+        }
 
         // Reset the envelope when the new track opens in silence.
         //
@@ -653,9 +725,14 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // between selections, reads all-zero frequency data. Two consecutive
         // silent frames avoids resetting on a single dropped buffer between beats.
         {
+          // T-VIZ-16: silence is read off the normalized float buffer —
+          // `freq` (bytes) is no longer filled on the live path.
           let isSilent = true;
-          for (let i = 0; i < freq.length; i += 16) {
-            if (freq[i] !== 0) {
+          const silenceSrc = freqN ?? freq;
+          for (let i = 0; i < silenceSrc.length; i += 16) {
+            const v = silenceSrc[i];
+            const norm = freqN ? v : v / 255;
+            if (norm > 0.004) {
               isSilent = false;
               break;
             }
@@ -714,6 +791,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           perceptualScale: perceptualScale as "bark" | "erb" | "mel" | "linear",
           // T-VIZ-15: modes receive the enveloped bands, never raw freq.
           freq: envelope.bands,
+          // T-VIZ-16: decaying spectral-flux onset envelope (0..1) from the
+          // unsmoothed transient analyser — isolated hits, not band energy.
+          onset: onset?.envelope ?? 0,
           wave,
           bg: bgColor,
           nowMs,

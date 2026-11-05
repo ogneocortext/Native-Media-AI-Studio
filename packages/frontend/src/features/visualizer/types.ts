@@ -51,6 +51,12 @@ export interface AudioData {
    * chroma analysis is available.
    */
   chroma?: number[] | null;
+  /**
+   * T-VIZ-16 — decaying spectral-flux onset envelope (0..1) measured on the
+   * unsmoothed transient analyser. 1 on a fresh hit, ~0.5 s release.
+   * Optional — producers without a transient analyser leave it unset.
+   */
+  onset?: number;
 }
 
 export interface StemAnalysisData {
@@ -187,6 +193,8 @@ export const DEFAULT_VIZ_PARAMS: VizParams = {
 
 export interface VisualizerSceneProps {
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  /** T-VIZ-16 — unsmoothed analyser twin for the onset/transient path. */
+  transientRef?: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
   isPaused: boolean;
   demoEnabled: boolean;

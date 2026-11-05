@@ -28,6 +28,13 @@ export interface AudioGraph {
   /** Shared context, or null until first use. Pass to child mixers. */
   audioCtxRef: React.RefObject<AudioContext | null>;
   analyserRef: React.RefObject<AnalyserNode | null>;
+  /**
+   * T-VIZ-16 — unsmoothed twin of `analyserRef` for the transient/onset
+   * path. Same fftSize, tapped off the same EQ output, but
+   * `smoothingTimeConstant = 0` so spectral-flux onset detection sees hits
+   * one frame after they happen instead of trailing the node's smoothing.
+   */
+  transientRef: React.RefObject<AnalyserNode | null>;
   mainGainRef: React.RefObject<GainNode | null>;
   eqRef: React.RefObject<EQHandle | null>;
   /** Create the context/graph if absent; resume it if suspended. */
@@ -48,6 +55,7 @@ export interface AudioGraph {
 export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | null>): AudioGraph {
   const mainGainRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const transientRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqRef = useRef<EQHandle | null>(null);
@@ -74,6 +82,7 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
       // nodes are unusable — drop every reference before rebuilding.
       audioCtxRef.current = null;
       analyserRef.current = null;
+      transientRef.current = null;
       mainGainRef.current = null;
       eqRef.current = null;
       sourceRef.current = null;
@@ -90,12 +99,22 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
     // punch/decay shaping lives in our own attack/release stage instead.
     analyser.smoothingTimeConstant = ANALYSER_SMOOTHING;
     analyserRef.current = analyser;
+    // T-VIZ-16: unsmoothed parallel analyser for onset/transient detection.
+    // Frequency resolution and transient response are opposed — one
+    // smoothingTimeConstant can't serve both, so transients get their own
+    // node at 0 while the shaped path keeps its light smoothing.
+    const transient = ctx.createAnalyser();
+    transient.fftSize = analyser.fftSize;
+    transient.smoothingTimeConstant = 0;
+    transientRef.current = transient;
     const mainGain = ctx.createGain();
     mainGainRef.current = mainGain;
     const eq = createEQ(ctx, []);
     eqRef.current = eq;
     // Graph: source → eq → analyser → mainGain → destination
+    //        source → eq → transient (analysis tap, output unconnected)
     eq.output.connect(analyser);
+    eq.output.connect(transient);
     analyser.connect(mainGain);
     mainGain.connect(ctx.destination);
   }, []);
@@ -181,6 +200,7 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
       const ctx = audioCtxRef.current;
       audioCtxRef.current = null;
       analyserRef.current = null;
+      transientRef.current = null;
       mainGainRef.current = null;
       eqRef.current = null;
       sourceRef.current = null;
@@ -191,6 +211,7 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
   return {
     audioCtxRef,
     analyserRef,
+    transientRef,
     mainGainRef,
     eqRef,
     ensureAudioContext,

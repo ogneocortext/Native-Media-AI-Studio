@@ -212,6 +212,27 @@ describe("createEnvelopeStage (T-VIZ-15)", () => {
     for (let i = 0; i < 60; i++) stage.step(short, 1 / 60);
     expect(stage.bands[FREQ_LEN - 1]).toBeLessThan(50);
   });
+
+  it("stepNorm accepts normalized 0..1 floats (T-VIZ-16 float path)", () => {
+    const stage = createEnvelopeStage(FREQ_LEN, SR);
+    const norm = new Float32Array(FREQ_LEN);
+    norm[BASS_BIN] = 1.0;
+    stage.stepNorm(norm, 1 / 60);
+    // Same attack math as the byte path — full-scale input peaks fast.
+    expect(stage.bands[BASS_BIN]).toBeGreaterThan(100);
+    stage.stepNorm(norm, 1 / 60);
+    expect(stage.bands[BASS_BIN]).toBeGreaterThan(180);
+  });
+
+  it("stepNorm clamps out-of-range and non-finite input", () => {
+    const stage = createEnvelopeStage(FREQ_LEN, SR);
+    const norm = new Float32Array(FREQ_LEN);
+    norm[BASS_BIN] = 1.7; // above 1 — must clamp, not wrap
+    norm[TREBLE_BIN] = NaN;
+    expect(() => stage.stepNorm(norm, 1 / 60)).not.toThrow();
+    expect(stage.bands[BASS_BIN]).toBeLessThanOrEqual(255);
+    expect(stage.bands[TREBLE_BIN]).toBe(0);
+  });
 });
 
 /**

@@ -41,6 +41,11 @@ export interface VisualizerModeRenderContext {
   energyMod: number;
   analyzedPunch: number;
   isDownbeat: boolean;
+  /**
+   * T-VIZ-16 — decaying spectral-flux onset envelope (0..1) from the
+   * unsmoothed transient analyser. Isolated hits, not band energy.
+   */
+  onset?: number;
   rand: () => number;
   getGradients: (mode: string, cols: string[]) => CanvasGradient[];
 }

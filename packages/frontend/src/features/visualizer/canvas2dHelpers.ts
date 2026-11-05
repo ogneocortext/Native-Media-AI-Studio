@@ -235,6 +235,13 @@ export interface EnvelopeStage {
   centroid: number;
   /** Advance the envelope by `dt` seconds against raw byte band data. */
   step(raw: Uint8Array, dt: number): void;
+  /**
+   * T-VIZ-16 — same as `step` but the input is already normalized to
+   * 0..1 (e.g. dB floats mapped through the analyser's min/maxDecibels).
+   * Avoids the byte quantization step on slow fades; output `bands`
+   * stays byte-scaled so mode math is unchanged.
+   */
+  stepNorm(raw: ArrayLike<number>, dt: number): void;
   /** Snap all state to zero — call on track switch / silence. */
   reset(): void;
 }
@@ -261,33 +268,47 @@ export function createEnvelopeStage(
   const centroidLambda = dampLambda(CENTROID_K);
   const state = new Float64Array(length);
   const bands = new Uint8Array(length);
+  const advance = (
+    readTarget: (i: number) => number,
+    rawLen: number,
+    dt: number,
+  ) => {
+    const n = Math.min(length, rawLen);
+    let sum = 0;
+    let weighted = 0;
+    for (let i = 0; i < n; i++) {
+      const target = readTarget(i);
+      sum += target * 255;
+      weighted += i * target * 255;
+      const rising = target > state[i];
+      state[i] = damp(
+        state[i],
+        target,
+        rising ? attackLambda[i] : releaseLambda[i],
+        dt,
+      );
+      bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
+    }
+    for (let i = n; i < length; i++) {
+      state[i] = damp(state[i], 0, releaseLambda[i], dt);
+      bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
+    }
+    const centroidTarget = sum > 0 ? weighted / sum / length : 0;
+    stage.centroid = damp(stage.centroid, centroidTarget, centroidLambda, dt);
+  };
+
   const stage: EnvelopeStage = {
     bands,
     length,
     centroid: 0,
     step(raw: Uint8Array, dt: number) {
-      const n = Math.min(length, raw.length);
-      let sum = 0;
-      let weighted = 0;
-      for (let i = 0; i < n; i++) {
-        const target = raw[i] / 255;
-        sum += raw[i];
-        weighted += i * raw[i];
-        const rising = target > state[i];
-        state[i] = damp(
-          state[i],
-          target,
-          rising ? attackLambda[i] : releaseLambda[i],
-          dt,
-        );
-        bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
-      }
-      for (let i = n; i < length; i++) {
-        state[i] = damp(state[i], 0, releaseLambda[i], dt);
-        bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
-      }
-      const centroidTarget = sum > 0 ? weighted / sum / length : 0;
-      stage.centroid = damp(stage.centroid, centroidTarget, centroidLambda, dt);
+      advance((i) => raw[i] / 255, raw.length, dt);
+    },
+    stepNorm(raw: ArrayLike<number>, dt: number) {
+      advance((i) => {
+        const v = raw[i];
+        return Number.isFinite(v) ? clamp(v, 0, 1) : 0;
+      }, raw.length, dt);
     },
     reset() {
       state.fill(0);

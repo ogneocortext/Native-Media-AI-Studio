@@ -8,6 +8,7 @@ import {
   getNextBeatInFromArray,
 } from "../../shared/timing";
 import { ATTACK, RELEASE, smoothBeatPhase } from "./audioTiming";
+import { createSpectralFluxOnset, type SpectralFluxOnset } from "./spectralFlux";
 import type { AudioAnalysisData, AudioData, PerceptualScale } from "./types";
 import { generatePerceptualBands, mapToPerceptualBands } from "./perceptualScales";
 import { classifyDrumType } from "./drumClassifier";
@@ -73,6 +74,7 @@ export function useRealAudio(
   perceptualScale: PerceptualScale = "mel",
   numPerceptualBands = 40,
   worker?: UseAudioAnalysisWorkerResult | null,
+  transientRef?: React.MutableRefObject<AnalyserNode | null>,
 ) {
   const data = useRef<AudioData>({
     bass: 0,
@@ -112,6 +114,12 @@ export function useRealAudio(
     sampleRate: number;
     boundaries: number[];
   } | null>(null);
+  // T-VIZ-16: spectral-flux onset detector on the unsmoothed transient
+  // analyser — decaying envelope exposed as AudioData.onset.
+  const onsetRef = useRef<SpectralFluxOnset | null>(null);
+  const onsetBinsRef = useRef(0);
+  const onsetNormRef = useRef<Float32Array | null>(null);
+  const onsetFloatRef = useRef<Float32Array | null>(null);
 
   // Track change (or a fresh analysis for the current track): clear every
   // per-track analysis state ref so the previous track's smoothing,
@@ -125,6 +133,7 @@ export function useRealAudio(
     if (prevAnalysisRef.current === analysisData) return;
     prevAnalysisRef.current = analysisData;
     worker?.reset();
+    onsetRef.current?.reset();
     lastBass.current = 0;
     beatCooldown.current = 0;
     recentBeatIntervals.current.length = 0;
@@ -152,7 +161,7 @@ export function useRealAudio(
     };
   }, [analysisData, worker]);
 
-  useFrame(() => {
+  useFrame((_, frameDt) => {
     const analyser = analyserRef.current;
     if (!analyser) return;
     if (isPaused || !isPlaying) {
@@ -198,6 +207,36 @@ export function useRealAudio(
     analyser.getByteFrequencyData(freqArray.current as Uint8Array<ArrayBuffer>);
     const arr = freqArray.current;
 
+    // T-VIZ-16: onset envelope from the unsmoothed transient analyser.
+    // Runs before the worker branch so both paths expose AudioData.onset.
+    let onsetValue = 0;
+    const transient = transientRef?.current;
+    if (transient && transient.frequencyBinCount > 0) {
+      const bins = transient.frequencyBinCount;
+      if (onsetBinsRef.current !== bins) {
+        onsetRef.current = createSpectralFluxOnset(bins);
+        onsetBinsRef.current = bins;
+        onsetNormRef.current = new Float32Array(bins);
+        onsetFloatRef.current = new Float32Array(bins);
+      }
+      const norm = onsetNormRef.current;
+      const det = onsetRef.current;
+      const fbuf = onsetFloatRef.current;
+      if (norm && det && fbuf) {
+        transient.getFloatFrequencyData(fbuf as Float32Array<ArrayBuffer>);
+        const tMin = transient.minDecibels;
+        const tRange = transient.maxDecibels - tMin || 1;
+        for (let i = 0; i < bins; i++) {
+          norm[i] = Math.min(1, Math.max(0, (fbuf[i] - tMin) / tRange));
+        }
+        det.step(norm, Math.min(0.1, Math.max(0, frameDt)));
+        onsetValue = det.envelope;
+      }
+    } else {
+      onsetRef.current?.reset();
+      onsetBinsRef.current = 0;
+    }
+
     if (worker) {
       const elapsed = audioElapsedRef?.current ?? 0;
       const duration = analysisData?.duration_seconds ?? 0;
@@ -206,6 +245,7 @@ export function useRealAudio(
       const energyCurve = analysisData?.energy_curve;
       worker.send(arr, ctx.sampleRate, analyser.fftSize, elapsed, duration, beatTimes, downbeatTimes, energyCurve);
       data.current = worker.data.current;
+      data.current.onset = onsetValue;
       return;
     }
 
@@ -399,6 +439,7 @@ export function useRealAudio(
       perceptualBands,
       perceptualScale,
       chroma,
+      onset: onsetValue,
     };
   });
   return data;
