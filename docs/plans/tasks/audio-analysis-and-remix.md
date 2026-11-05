@@ -264,3 +264,23 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** tsc clean for touched files (only pre-existing
   agent-chat WIP errors remain); eslint 0 errors; 42 remix/abCompare
   vitest pass; wizard behavior preserved (same seeds, same apply path).
+
+### T-AUD-12 - Extract RemixSlotsEditor from RemixPanel.tsx (1162 -> 947 + 286)
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - the arrangement editor
+  (bar timeline + per-slot layer cards) was the biggest remaining JSX
+  block in RemixPanel.
+- **What changed:**
+  - ``features/remix/RemixSlotsEditor.tsx`` (new) - the A6 timeline
+    (click-to-audition, drag/arrow-key reorder) and the slot cards
+    (track/stem pickers, gain/key/start sliders, layer/slot add-remove)
+    moved verbatim. Timeline-local ``dragFrom``/``dropAt`` state moved
+    inside with it; ``newLayer`` calls now use ``newEditableLayer``
+    directly. Mutations still flow through the panel's
+    ``setSlots``/``updateLayer``/``moveSlot`` so the form stays the
+    single source of truth.
+  - ``RemixBusy`` union type exported from the new file; the panel's
+    inline ``useState`` union now aliases it.
+- **Files:** features/remix/RemixPanel.tsx, RemixSlotsEditor.tsx (new)
+- **Acceptance:** tsc clean for touched files, eslint 0 errors, 35
+  remix vitest pass - pure move.
