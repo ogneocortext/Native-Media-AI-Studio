@@ -101,6 +101,156 @@ function deleteFBO(gl: WebGLRenderingContext, fbo: FBO | null) {
 }
 
 /**
+ * Load an image into a WebGL2 texture using the placeholder+async pattern:
+ * upload a 1x1 opaque pixel immediately so the texture is usable right away,
+ * then replace it with the image data when it loads.
+ *
+ * Based on MDN/WebGL2Fundamentals best practices:
+ *   - Cross-origin images need img.crossOrigin = "anonymous"
+ *   - generateMipmap() after upload enables trilinear filtering
+ *   - CLAMP_TO_EDGE wrapping for feedback/non-tiling textures
+ *
+ * @param gl - WebGL2 rendering context
+ * @param url - Image URL to load
+ * @param generateMipmaps - Whether to generate mipmap chain (33% memory overhead)
+ * @param wrapS - Texture wrap mode for S axis
+ * @param wrapT - Texture wrap mode for T axis
+ * @param minFilter - Minification filter
+ * @param magFilter - Magnification filter
+ * @returns Promise resolving to { texture, width, height } or null on failure
+ */
+export async function loadTextureFromImage(
+  gl: WebGLRenderingContext,
+  url: string,
+  {
+    generateMipmaps = false,
+    wrapS = gl.CLAMP_TO_EDGE,
+    wrapT = gl.CLAMP_TO_EDGE,
+    minFilter = generateMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR,
+    magFilter = gl.LINEAR,
+    anisotropic = false,
+  }: {
+    generateMipmaps?: boolean;
+    wrapS?: GLenum;
+    wrapT?: GLenum;
+    minFilter?: GLenum;
+    magFilter?: GLenum;
+    anisotropic?: boolean;
+  } = {},
+): Promise<{ texture: WebGLTexture; width: number; height: number } | null> {
+  const texture = gl.createTexture();
+  if (!texture) return null;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Placeholder 1x1 opaque pixel — texture is immediately usable
+  const pixel = new Uint8Array([0, 0, 255, 255]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapS);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
+  glCheckError(gl, "loadTexture placeholder");
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+
+  return new Promise((resolve) => {
+    img.onload = () => {
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      if (generateMipmaps) {
+        gl.generateMipmap(gl.TEXTURE_2D);
+      }
+      // Apply anisotropic filtering if requested and extension available
+      if (anisotropic) {
+        const ext = gl.getExtension("EXT_texture_filter_anisotropic") as
+          | EXT_texture_filter_anisotropic
+          | null;
+        if (ext) {
+          const maxAniso = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+          gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
+        }
+      }
+      glCheckError(gl, "loadTexture image upload");
+
+      resolve({ texture, width: img.width, height: img.height });
+    };
+    img.onerror = () => {
+      console.error("[WebGL2] Failed to load texture:", url);
+      gl.deleteTexture(texture);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Dispose of a WebGL texture and its associated resources.
+ * Safe to call on null textures.
+ */
+export function disposeTexture(gl: WebGLRenderingContext, texture: WebGLTexture | null) {
+  if (texture) {
+    gl.deleteTexture(texture);
+  }
+}
+
+/**
+ * Optional anisotropic filtering extension for better texture quality at
+ * oblique viewing angles. Falls back gracefully if unsupported.
+ */
+export function getAnisotropicExt(gl: WebGLRenderingContext): EXT_texture_filter_anisotropic | null {
+  return gl.getExtension("EXT_texture_filter_anisotropic") as EXT_texture_filter_anisotropic | null;
+}
+
+/**
+ * Apply anisotropic filtering to the currently bound texture.
+ * Returns the anisotropy level applied (0 if unsupported or not applied).
+ */
+export function setAnisotropicFiltering(
+  gl: WebGLRenderingContext,
+  ext: EXT_texture_filter_anisotropic | null,
+  maxAniso: number = 16,
+): number {
+  if (!ext) return 0;
+  const supported = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+  const level = Math.min(maxAniso, supported);
+  gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, level);
+  glCheckError(gl, "setAnisotropicFiltering");
+  return level;
+}
+
+/**
+ * Texture unit tracker — records which texture is bound to which unit
+ * to avoid redundant activeTexture/bindTexture calls during render.
+ */
+function createTextureUnitTracker(gl: WebGLRenderingContext, maxUnits: number): {
+  bind: (unit: number, texture: WebGLTexture | null) => void;
+  active: (unit: number) => void;
+  getBound: (unit: number) => WebGLTexture | null;
+} {
+  const bindings: (WebGLTexture | null)[] = new Array(maxUnits).fill(null);
+  let activeUnit = 0;
+
+  const doActive = (unit: number) => {
+    if (activeUnit === unit) return;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    activeUnit = unit;
+  };
+
+  return {
+    bind: (unit: number, texture: WebGLTexture | null) => {
+      if (bindings[unit] === texture) return;
+      doActive(unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      bindings[unit] = texture;
+    },
+    active: doActive,
+    getBound: (unit: number) => bindings[unit],
+  };
+}
+
+/**
  * Generic WebGL shader canvas — compiles a fragment shader and renders it
  * with audio-reactive uniforms. Uses a fullscreen quad approach.
  *
@@ -141,6 +291,8 @@ export function ShaderCanvas({
   const compositeProgramRef = useRef<WebGLProgram | null>(null);
   const compositeBufferRef = useRef<WebGLBuffer | null>(null);
   const currentProgramRef = useRef<WebGLProgram | null>(null);
+  const textureUnitTrackerRef = useRef<ReturnType<typeof createTextureUnitTracker> | null>(null);
+  const anisotropicExtRef = useRef<EXT_texture_filter_anisotropic | null>(null);
 
   useEffect(() => {
     debugRef.current = debug;
@@ -224,6 +376,20 @@ export function ShaderCanvas({
       }
     }
     glCheckError(gl, "initGL setup", debugRef.current);
+
+    // Initialize texture unit tracker for efficient multi-texture binding
+    const maxUnits = Math.min(
+      gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+      32, // WebGL2 guarantees at least 16 fragment units; cap tracker at 32
+    );
+    textureUnitTrackerRef.current = createTextureUnitTracker(gl, maxUnits);
+
+    // Pre-load anisotropic filtering extension if available
+    anisotropicExtRef.current = getAnisotropicExt(gl);
+    if (anisotropicExtRef.current && debugRef.current) {
+      const maxAniso = gl.getParameter(anisotropicExtRef.current.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+      console.log(`[WebGL2] Anisotropic filtering max: ${maxAniso}x`);
+    }
 
     if (programRef.current) {
       if (vsRef.current) {
