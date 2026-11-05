@@ -70,3 +70,9 @@ mcp__ollama-tools__analyze_image --image_path ./output/render/frame_001.png --pr
 ```
 
 **Returns:** A text description of the image content.
+
+## Cross-Skill References
+
+- **audio**: Analyze audio tracks for BPM/energy before video generation — see `audio` skill
+- **context**: Store scene/visualization state from image analysis — see `context` skill
+- **comfyui**: Generate images first, then analyze them — see `comfyui` skill

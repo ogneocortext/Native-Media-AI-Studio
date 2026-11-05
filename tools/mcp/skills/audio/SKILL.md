@@ -92,3 +92,9 @@ mcp__ollama-tools__create_music_video_plan --filename "track.mp3"
 ## Notes
 - Backs onto the local FastAPI backend at http://127.0.0.1:8000
 - Nothing leaves the machine
+
+## Cross-Skill References
+
+- **remix**: Use audio tracks as remix sources — see `remix` skill
+- **context**: Store audio state (energy, BPM) for other tools — see `context` skill
+- **vision**: Analyze video frames generated from audio plans — see `vision` skill

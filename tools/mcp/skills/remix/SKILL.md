@@ -148,3 +148,8 @@ Get the playable URL for one stem or the mastered "master" of a rendered remix.
 - Tempo is detected from drums when present; key is explicit per layer
 - Probe caches live in `output/remixes/.probes/`
 - Nothing leaves the machine
+
+## Cross-Skill References
+
+- **audio**: Use library tracks as remix sources — see `audio` skill
+- **context**: Store remix state and job references — see `context` skill

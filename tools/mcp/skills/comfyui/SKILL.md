@@ -92,3 +92,9 @@ mcp__ollama-tools__generate_video --prompt "A cinematic music video frame with n
 ```
 
 **Returns:** A ComfyUI prompt_id for the queued job.
+
+## Cross-Skill References
+
+- **vision**: Analyze generated images — see `vision` skill
+- **blender**: Use generated images as 3D concept references — see `blender` skill
+- **context**: Store generation parameters for reproducibility — see `context` skill

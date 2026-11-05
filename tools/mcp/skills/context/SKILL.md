@@ -75,3 +75,11 @@ mcp__ollama-tools__update_mcp_context --context '{"audio":{"energy":0.8,"bpm":12
 ## Notes
 - Persisted to `output/mcp-context.json`
 - Other skills and servers can read this context
+
+## Cross-Skill References
+
+- **vision**: Store scene/visualization state from image analysis — see `vision` skill
+- **audio**: Store audio state (energy, BPM) for other tools — see `audio` skill
+- **comfyui**: Store generation parameters for reproducibility — see `comfyui` skill
+- **blender**: Store 3D scene state and asset references — see `blender` skill
+- **remix**: Store remix state and job references — see `remix` skill

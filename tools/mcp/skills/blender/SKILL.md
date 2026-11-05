@@ -1,6 +1,6 @@
 ---
 name: blender
-description: Generate executable Blender Python (bpy) scripts and 3D concept prompts from natural-language descriptions.
+description: Generates executable Blender Python (bpy) scripts and 3D concept prompts from natural-language descriptions. Use when a 3D object, character, or scene needs a Blender script, or when a raw 3D idea needs refinement into a detailed prompt.
 version: "1.0.0"
 server: ollama-tools
 tools:
@@ -31,11 +31,47 @@ example_outputs:
 
 # Blender Skill
 
-Generate executable Blender Python (bpy) scripts from natural-language descriptions.
+Generates executable Blender Python (bpy) scripts and 3D concept prompts from natural-language descriptions.
+
+## When to Use This Skill
+
+- A 3D object, character, or scene needs a Blender Python script from a description
+- A raw 3D idea needs refinement into a detailed prompt with material/texture guidance
+- A concept image optimized for 3D conversion (Hunyuan3D-friendly) needs generation
+
+## Critical Rules
+
+- Uses Ollama text model (qwen3.5:4b) with constrained JSON output
+- Scripts use `bpy` only, metric units, and `Mesh.from_pydata` for geometry
+- generate_3d_concept requires ComfyUI running at http://127.0.0.1:8188
+- Nothing leaves the machine
+
+## Quick Start / Workflow
+
+1. Call `suggest_3d_prompt` to refine a raw idea into a detailed 3D-ready prompt
+2. Call `plan_blender_script` to generate an executable Blender Python script from the prompt
+3. Call `generate_3d_concept` to create a concept image for 3D conversion reference
+4. Execute the script in Blender's Text Editor or via `blender_execute_blender_code`
+
+## Reference Navigation
+
+- See [references/GUIDE.md](references/GUIDE.md) for detailed examples and parameter reference
+
+## Anti-patterns
+
+- Do not expect scripts to use external Blender addons; `bpy` only
+- Do not use imperial units; scripts must use metric units
+- Do not call generate_3d_concept without ComfyUI running
+
+## Cross-Skill References
+
+- **comfyui**: Generate concept images via generate_3d_concept — see `comfyui` skill
+- **context**: Store 3D scene state and asset references — see `context` skill
 
 ## Tools
 
 ### plan_blender_script
+
 Generate an executable Blender Python script from a natural-language description.
 
 **Parameters:**
@@ -50,12 +86,8 @@ mcp__ollama-tools__plan_blender_script --description "low-poly knight with metal
 
 **Returns:** A JSON object with `script`, `instructions`, and `required_assets`. Execute the script with `blender_execute_blender_code` or in Blender's Text Editor.
 
-## Notes
-- Uses Ollama text model (qwen3.5:4b) with constrained JSON output
-- Scripts use `bpy` only, metric units, and `Mesh.from_pydata` for geometry
-- Nothing leaves the machine
-
 ### suggest_3d_prompt
+
 Enhance a raw 3D idea into a detailed prompt with skin/texture/clothing/material guidance.
 
 **Parameters:**
@@ -65,12 +97,13 @@ Enhance a raw 3D idea into a detailed prompt with skin/texture/clothing/material
 
 **Example:**
 ```
-mcp__ollama-tools__suggest_3d_prompt --idea "low-poly knight" --category character --style cyberpunk
+mcp__ollama-tools__suggest_3d_prompt --idea "futuristic armor" --category clothing --style cyberpunk
 ```
 
 **Returns:** An optimized 3D-ready prompt plus negative prompt.
 
 ### generate_3d_concept
+
 Generate a concept image optimized for 3D conversion (Hunyuan3D-friendly). Uses prompt templates for characters, clothing, skin, or environments.
 
 **Parameters:**
@@ -85,3 +118,8 @@ mcp__ollama-tools__generate_3d_concept --description "cyberpunk knight with glow
 ```
 
 **Returns:** A generated concept image URL via ComfyUI.
+
+## Notes
+- Uses Ollama text model (qwen3.5:4b) with constrained JSON output
+- Scripts use `bpy` only, metric units, and `Mesh.from_pydata` for geometry
+- Nothing leaves the machine
