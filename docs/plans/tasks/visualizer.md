@@ -419,3 +419,47 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   pageerrors none.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed Chromium
   user-flow probes + computed-bbox checks; all fixes verified live.
+
+### T-VIZ-29 - Chrome redesign: slim bar, auto-hiding stage overlays, tabbed inspector
+- **Status:** done
+- **Goal:** Owner feedback: "when a track is loaded there is too much going
+  on at once" — rebuild the chrome to be less cluttered. Approved scope:
+  full redesign, stage overlays auto-hide during playback, secondary
+  controls in a tabbed inspector.
+- **What changed:**
+  - Layout was genuinely broken, not just busy: `.viz-canvas-wrap` was
+    `height:100vh`, pushing the transport bar and spectrum footer below
+    the fold (probe: wrap y51 h900, bottombar y951). `.viz-page` is now a
+    `100vh` flex column; `.viz-content` is a flex row; the canvas takes
+    `flex:1; min-height:0` — transport + meters are always on screen.
+  - New `VizInspector.tsx`: docked right drawer (in-flow flex sibling, so
+    it squeezes the canvas instead of overlaying it) with tabs Scene /
+    Tuning / Mixer / EQ / Remix / AI. Track-dependent tabs disable until a
+    track loads. All panels stay mounted while the drawer is open (mixer
+    audio-graph state survives tab switches); the drawer unmounts when
+    closed, which also re-gates RemixPanel's probes.
+  - Mixer (simple/pro toggle + StemMixerPanel/ProfessionalMixer), Master
+    EQ, RemixPanel, SettingsPanel, ReactivityHUD, PresetFileUpload and
+    AIVisualizerPrompt all moved out of the topbar/bottom-bar overlays
+    into inspector tabs; `.viz-audio-player` is now transport-only and
+    sits above the spectrum footer (transport is bottom-most).
+  - `VizToolbar` slimmed: cycle-mode chip replaced by a direct FX/2D/3D
+    segmented switch, added inspector toggle + chrome pin; PresetFileUpload
+    moved to the AI tab. QuickPresetBar gained `showModeSwitch` (off — the
+    topbar owns mode switching now).
+  - Stage chrome auto-hide: while playing and unpinned, preset bar /
+    latency+stats / style picker / AI preset chip / spectrum footer fade
+    after 2.6 s idle; pointer movement over the canvas reveals them.
+    Playhead stays (it is the seek surface). Pin button in toolbar.
+- **Files:** components/VizInspector.tsx (new), VizToolbar.tsx,
+  QuickPresetBar.tsx, Visualizer.tsx, styles/visualizer.css,
+  docs/plans/tasks/visualizer.md
+- **Acceptance:** live headed probe — canvas-wrap h=723 ending y774,
+  transport y774-835, footer y835-900, no page scroll; inspector opens
+  with 6 tabs, mixer tab renders both mixer variants; chrome hides ~2.6 s
+  after last pointer activity during playback and re-reveals on move;
+  tsc -b clean; eslint 0 errors; vitest 900 pass; playwright
+  canvas2d+lrc 4/4 (one library-load flake passed on retry); gemma4 vision
+  audit: clean layout, tabs correct, no overlap.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed Chromium
+  probes + computed bboxes + gemma4 vision audit of inspector screenshots.

@@ -29,7 +29,7 @@
  * backend app/api/audio_analysis.py); treat results below the current schema
  * as stale.
  */
-import { useRef, useEffect, useCallback, useMemo } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import {
@@ -71,6 +71,8 @@ import { VizFooter } from "./components/VizFooter";
 import { VizEmptyState } from "./components/VizEmptyState";
 import { VizTopbar } from "./components/VizTopbar";
 import { VizToolbar } from "./components/VizToolbar";
+import { VizInspector, type VizInspectorTab } from "./components/VizInspector";
+import { PresetFileUpload } from "./components/PresetFileUpload";
 import {
   matchReactivityGenrePreset,
 } from "./reactivityGenrePresets";
@@ -162,11 +164,9 @@ export function Visualizer() {
     characterVisible, setCharacterVisible,
     // Dev panels/modals
     showTestPanel, setShowTestPanel,
-    showSettings, setShowSettings,
     showAnimDemo, setShowAnimDemo,
     showTheatreStudio, setShowTheatreStudio,
     showExportModal, setShowExportModal,
-    showAIPanel, setShowAIPanel,
     showAudioBrowser, setShowAudioBrowser,
     // Pending track / loop
     pendingTrack, setPendingTrack,
@@ -224,7 +224,48 @@ export function Visualizer() {
   useEffect(() => {
     loopRegionRef.current = loopRegion;
   }, [loopRegion]);
+
   const prevModeRef = useRef(vizMode);
+  // --- Stage chrome auto-hide ---
+  // During playback the stage overlays (preset bar, latency card, style
+  // picker, spectrum footer) fade out after a short idle so the visuals get
+  // the full frame. Any pointer movement over the canvas reveals them again;
+  // the pin button in the toolbar keeps them visible permanently.
+  const [chromePinned, setChromePinned] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const chromeIdleTimer = useRef<number | undefined>(undefined);
+  // --- Tabbed inspector drawer ---
+  // Replaces the old always-on settings aside, AI prompt panel and the
+  // bottom-bar mixer/EQ/remix stack: one docked drawer, one tab at a time.
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<VizInspectorTab>("scene");
+
+  // Stage-chrome auto-hide: arm the idle timer whenever playback state or
+  // the pin changes; pointer movement over the canvas re-arms it via
+  // revealStageChrome below.
+  useEffect(() => {
+    window.clearTimeout(chromeIdleTimer.current);
+    if (!isPlaying || chromePinned) {
+      setChromeVisible(true);
+      return;
+    }
+    chromeIdleTimer.current = window.setTimeout(
+      () => setChromeVisible(false),
+      2600,
+    );
+    return () => window.clearTimeout(chromeIdleTimer.current);
+  }, [isPlaying, chromePinned]);
+
+  const revealStageChrome = useCallback(() => {
+    setChromeVisible(true);
+    window.clearTimeout(chromeIdleTimer.current);
+    if (isPlaying && !chromePinned) {
+      chromeIdleTimer.current = window.setTimeout(
+        () => setChromeVisible(false),
+        2600,
+      );
+    }
+  }, [isPlaying, chromePinned]);
   // One definition of the mode list, in visualizerHelpers.ts. This used to be an
   // inline 12-member union that had already drifted from the picker's list (it
   // was missing `aurora`), which is how an implemented, budgeted mode ended up
@@ -727,7 +768,7 @@ export function Visualizer() {
 
   return (
     <div
-      className={`viz-page ${focusMode ? "viz-focus-mode" : ""}`}
+      className={`viz-page ${focusMode ? "viz-focus-mode" : ""} ${chromeVisible ? "" : "viz-chrome-hidden"}`}
       data-viz-overlay={openOverlay ?? ""}
     >
       {/* Plan 1.3 — dims the stage while a floating overlay is open; the
@@ -834,13 +875,10 @@ export function Visualizer() {
           onBrowseLibrary={() => setShowAudioBrowser(true)}
         />
         <VizToolbar
-          onPresetLoaded={handlePresetLoaded}
-          loadedPresetName={loadedPreset?.name ?? null}
-          onClearPreset={handleClearPreset}
           vizMode={vizMode}
-          onCycleMode={() => {
+          onSelectMode={(m) => {
             userPickedVizModeRef.current = true;
-            setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d");
+            setVizMode(m);
           }}
           visualsVisible={visualsVisible}
           onToggleVisuals={() => setVisualsVisible((v) => !v)}
@@ -852,6 +890,10 @@ export function Visualizer() {
           onCaptureFrame={captureFrame}
           focusMode={focusMode}
           onToggleFocus={toggleFocusMode}
+          inspectorOpen={inspectorOpen}
+          onToggleInspector={() => setInspectorOpen((v) => !v)}
+          chromePinned={chromePinned}
+          onToggleChromePin={() => setChromePinned((v) => !v)}
           showShortcuts={showShortcuts}
           onToggleShortcuts={() => toggleOverlay("shortcuts")}
           showMoreMenu={showMoreMenu}
@@ -875,16 +917,20 @@ export function Visualizer() {
           onToggleSceneFrozen={() => setSceneFrozen(!sceneFrozen)}
           onToggleFocusFromMenu={toggleFocusMode}
           onToggleSettings={() => {
-            setShowSettings(!showSettings);
+            setInspectorTab("scene");
+            setInspectorOpen(true);
             setOpenOverlay(null);
           }}
-          showSettings={showSettings}
+          showSettings={inspectorOpen && inspectorTab === "scene"}
           onToggleAnimDemo={() => setShowAnimDemo(!showAnimDemo)}
           showAnimDemo={showAnimDemo}
           onToggleTheatre={() => setShowTheatreStudio(!showTheatreStudio)}
           showTheatreStudio={showTheatreStudio}
-          onToggleAIPanel={() => setShowAIPanel(!showAIPanel)}
-          showAIPanel={showAIPanel}
+          onToggleAIPanel={() => {
+            setInspectorTab("ai");
+            setInspectorOpen(true);
+          }}
+          showAIPanel={inspectorOpen && inspectorTab === "ai"}
           onCloseOverlay={() => setOpenOverlay(null)}
           prefersReducedMotion={prefersReducedMotion}
           onToggleReducedMotion={() => setPrefersReducedMotion((p) => !p)}
@@ -944,7 +990,11 @@ export function Visualizer() {
       <div className="viz-content">
         {/* Mode crossfade overlay */}
         <div className="viz-mode-fade" style={{ opacity: modeFade }} />
-        <div className="viz-canvas-wrap" ref={containerRef}>
+        <div
+          className="viz-canvas-wrap"
+          ref={containerRef}
+          onPointerMove={revealStageChrome}
+        >
           {!audioUrl && !currentFilename && (
             <VizEmptyState
               libraryFiles={libraryFiles}
@@ -1206,6 +1256,7 @@ export function Visualizer() {
               onSelect2DMode={(m) => setCanvas2DMode(m)}
               activeShaderPreset={activeShaderPreset}
               onSelectShaderPreset={(sp) => setActiveShaderPreset(sp)}
+              showModeSwitch={false}
             />
           </div>
 
@@ -1239,38 +1290,104 @@ export function Visualizer() {
             )}
           </div>
         </div>
-        {showSettings && (
-          <SettingsPanel
-            params={vizParams}
-            onChange={setVizParams}
-            bgColor={bgColor}
-            meshColor={meshColor}
-            onBgChange={setBgColor}
-            onMeshChange={setMeshColor}
-            demoEnabled={demoEnabled}
-            onDemoToggle={setDemoEnabled}
-            kineticPreset={kineticPreset}
-            onKineticPresetChange={setKineticPreset}
-            visualizationStyle={visualizationStyle}
-            onVisualizationStyleChange={setVisualizationStyle}
-            vizMode={vizMode}
-            onVizModeChange={setVizMode}
-            activeVisualPresetId={activeVisualPresetId}
-            onVisualPresetSelect={handleVisualPresetSelect}
-            perceptualScale={perceptualScale}
-            onPerceptualScaleChange={setPerceptualScale}
-          />
-        )}
-        {showAIPanel && (
-          <AIVisualizerPrompt
-            onApplyPreset={handlePresetLoaded}
-            trackMeta={deriveTrackMeta(currentAnalysisData)}
-            trackName={currentFilename ?? undefined}
-          />
-        )}
+        {/* Tabbed inspector — one docked drawer hosts scene settings,
+            reactivity tuning, stem mixer, master EQ, remix and the AI
+            preset tools. Panels stay mounted while the drawer is open so
+            mixer/audio-graph state survives tab switches; the drawer
+            unmounts when closed, which also gates RemixPanel's probes. */}
+        <VizInspector
+          open={inspectorOpen}
+          tab={inspectorTab}
+          onTabChange={setInspectorTab}
+          trackLoaded={!!currentFilename}
+          panels={{
+            scene: (
+              <SettingsPanel
+                params={vizParams}
+                onChange={setVizParams}
+                bgColor={bgColor}
+                meshColor={meshColor}
+                onBgChange={setBgColor}
+                onMeshChange={setMeshColor}
+                demoEnabled={demoEnabled}
+                onDemoToggle={setDemoEnabled}
+                kineticPreset={kineticPreset}
+                onKineticPresetChange={setKineticPreset}
+                visualizationStyle={visualizationStyle}
+                onVisualizationStyleChange={setVisualizationStyle}
+                vizMode={vizMode}
+                onVizModeChange={setVizMode}
+                activeVisualPresetId={activeVisualPresetId}
+                onVisualPresetSelect={handleVisualPresetSelect}
+                perceptualScale={perceptualScale}
+                onPerceptualScaleChange={setPerceptualScale}
+              />
+            ),
+            tuning: (
+              <ReactivityHUD
+                audioData={liveAudioData}
+                isPlaying={isPlaying}
+                gain={reactivityGain}
+                onGainChange={setReactivityGain}
+                frequencyFocus={frequencyFocus}
+                onFrequencyFocusChange={setFrequencyFocus}
+                triad={reactivityTriad}
+                onTriadChange={setReactivityTriad}
+                activeGenrePresetId={activeGenrePresetId}
+                onGenrePresetSelect={handleGenrePresetSelect}
+                vizMode={vizMode}
+              />
+            ),
+            mixer: (
+              <div className="viz-inspector-mixer">
+                <button
+                  onClick={() => setUseProMixer((v) => !v)}
+                  className={`viz-inspector-mixer-toggle ${useProMixer ? "active" : ""}`}
+                  aria-pressed={useProMixer}
+                >
+                  {useProMixer ? "Professional Mixer" : "Simple Mixer"}
+                </button>
+                {useProMixer && proMixerStems ? (
+                  <ProfessionalMixer
+                    audioFilename={currentFilename}
+                    sharedAudioContext={audioCtxRef.current}
+                    stems={proMixerStems}
+                    compact
+                    collapsedBuses
+                  />
+                ) : (
+                  <StemMixerPanel
+                    audioFilename={currentFilename}
+                    compact
+                    onStateChange={setStemsMixerState}
+                    sharedAudioContext={audioCtxRef.current}
+                    mainAudioRef={audioElRef}
+                    mainGainRef={mainGainRef}
+                  />
+                )}
+              </div>
+            ),
+            eq: currentFilename ? (
+              <EqualizerPanel title="Master EQ" eqRef={eqRef} />
+            ) : null,
+            remix: <RemixPanel currentTrack={currentFilename} />,
+            ai: (
+              <div className="viz-inspector-ai">
+                <PresetFileUpload
+                  onPresetLoaded={handlePresetLoaded}
+                  loadedPresetName={loadedPreset?.name ?? null}
+                  onClearPreset={handleClearPreset}
+                />
+                <AIVisualizerPrompt
+                  onApplyPreset={handlePresetLoaded}
+                  trackMeta={deriveTrackMeta(currentAnalysisData)}
+                  trackName={currentFilename ?? undefined}
+                />
+              </div>
+            ),
+          }}
+        />
       </div>
-
-      <VizFooter audioData={liveAudioData} />
 
       {audioUrl && (
         <div className="viz-audio-player">
@@ -1317,48 +1434,14 @@ export function Visualizer() {
               setError(null);
             }}
           />
-          {/* Per-stem mixing (Trend 2: drums→pulse, bass→camera shake, vocals→lyric, other→palette) */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setUseProMixer((v) => !v)}
-              className={`text-[10px] px-2 py-1 rounded-md border transition-colors ${
-                useProMixer
-                  ? "bg-violet-600/30 border-violet-500/50 text-violet-200"
-                  : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
-              }`}
-            >
-              {useProMixer ? "Professional Mixer" : "Simple Mixer"}
-            </button>
-          </div>
-          {useProMixer && proMixerStems ? (
-            <ProfessionalMixer
-              audioFilename={currentFilename}
-              sharedAudioContext={audioCtxRef.current}
-              stems={proMixerStems}
-              compact
-              collapsedBuses
-            />
-          ) : (
-            <StemMixerPanel
-              audioFilename={currentFilename}
-              compact
-              onStateChange={setStemsMixerState}
-              sharedAudioContext={audioCtxRef.current}
-              mainAudioRef={audioElRef}
-              mainGainRef={mainGainRef}
-            />
-          )}
-          {currentFilename && (
-            <EqualizerPanel
-              title="Master EQ"
-              eqRef={
-                eqRef
-              }
-            />
-          )}
-          <RemixPanel currentTrack={currentFilename} />
+          {/* Mixer / EQ / Remix live in the inspector drawer now — the
+              bottom bar stays a slim transport strip. */}
         </div>
       )}
+
+      {/* Spectrum meters sit above the transport so play/pause stays the
+          bottom-most, thumb-reachable control. */}
+      <VizFooter audioData={liveAudioData} />
 
       {error && (
         <div className="viz-error-bar" role="alert">

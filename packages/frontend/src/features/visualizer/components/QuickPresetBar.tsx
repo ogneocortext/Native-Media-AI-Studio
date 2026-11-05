@@ -17,6 +17,12 @@ interface QuickPresetBarProps {
   // Shader preset
   activeShaderPreset?: ShaderPresetName;
   onSelectShaderPreset?: (preset: ShaderPresetName) => void;
+  /**
+   * Render the FX/2D/3D mode pills. The slim topbar owns the persistent
+   * mode switch, so the stage bar passes false to avoid showing the same
+   * control twice.
+   */
+  showModeSwitch?: boolean;
   className?: string;
 }
 
@@ -49,6 +55,7 @@ export const QuickPresetBar = memo(function QuickPresetBar({
   onSelect2DMode,
   activeShaderPreset,
   onSelectShaderPreset,
+  showModeSwitch = true,
   className = "",
 }: QuickPresetBarProps) {
   return (
@@ -57,7 +64,9 @@ export const QuickPresetBar = memo(function QuickPresetBar({
       role="toolbar"
       aria-label="Visualization quick vibes"
     >
-      {/* Mode pills */}
+      {/* Mode pills — optional; the topbar segmented control is the
+          persistent switch, this bar focuses on per-mode presets. */}
+      {showModeSwitch && (
       <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
         <button
           onClick={() => onVizModeChange("shader")}
@@ -96,8 +105,9 @@ export const QuickPresetBar = memo(function QuickPresetBar({
           <span>2D</span>
         </button>
       </div>
+      )}
 
-      <div className="h-4 w-px bg-white/15 mx-0.5" />
+      {showModeSwitch && <div className="h-4 w-px bg-white/15 mx-0.5" />}
 
       {/* Mode specific quick switchers */}
       <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5 max-w-full">

@@ -1,6 +1,12 @@
 /**
- * VizToolbar — the visualizer's right-hand action toolbar (mode, layers,
- * capture, focus, shortcuts + more menus).
+ * VizToolbar — the visualizer's slim right-hand action toolbar.
+ *
+ * Layout, left → right:
+ *   1. Mode segmented control (FX / 2D / 3D — direct pick, not a cycle)
+ *   2. Layer toggles (visuals / lyrics / character)
+ *   3. Stage tools (snapshot, focus mode)
+ *   4. Inspector drawer toggle + chrome pin
+ *   5. Shortcuts (?) and More (…) menus
  *
  * Presentational + orchestration: it owns no persistent state; every value
  * and handler is passed in by Visualizer. Keeping the control surface in one
@@ -15,26 +21,18 @@ import {
   MessageSquare,
   Minimize2,
   MoreHorizontal,
+  PanelRight,
+  Pin,
+  PinOff,
   User,
 } from "lucide-react";
 import type { Canvas2DMode } from "../visualizerHelpers";
-import type { VisualPreset } from "../aiPresetCatalog";
-import {
-  CANVAS_2D_MODES,
-  CANVAS_2D_MODE_LABELS,
-} from "../visualizerHelpers";
-import { PresetFileUpload } from "./PresetFileUpload";
 import { VizMoreMenu } from "./VizMoreMenu";
 
 interface VizToolbarProps {
-  // --- preset file upload ---
-  onPresetLoaded: (preset: VisualPreset) => void;
-  loadedPresetName: string | null;
-  onClearPreset: () => void;
-
-  // --- mode cycle ---
+  // --- mode (direct segmented switch; cycle stays on arrow keys) ---
   vizMode: "3d" | "shader" | "2d";
-  onCycleMode: () => void;
+  onSelectMode: (mode: "3d" | "shader" | "2d") => void;
 
   // --- layers (visuals / lyrics / character) ---
   visualsVisible: boolean;
@@ -49,6 +47,12 @@ interface VizToolbarProps {
   onCaptureFrame: () => void;
   focusMode: boolean;
   onToggleFocus: () => void;
+
+  // --- inspector drawer + stage-chrome pin ---
+  inspectorOpen: boolean;
+  onToggleInspector: () => void;
+  chromePinned: boolean;
+  onToggleChromePin: () => void;
 
   // --- shortcuts overlay ---
   showShortcuts: boolean;
@@ -90,12 +94,15 @@ interface VizToolbarProps {
   onToggleReducedMotion: () => void;
 }
 
+const MODE_ORDER: { id: "3d" | "shader" | "2d"; label: string }[] = [
+  { id: "shader", label: "FX" },
+  { id: "2d", label: "2D" },
+  { id: "3d", label: "3D" },
+];
+
 export function VizToolbar({
-  onPresetLoaded,
-  loadedPresetName,
-  onClearPreset,
   vizMode,
-  onCycleMode,
+  onSelectMode,
   visualsVisible,
   onToggleVisuals,
   lyricsVisible,
@@ -106,6 +113,10 @@ export function VizToolbar({
   onCaptureFrame,
   focusMode,
   onToggleFocus,
+  inspectorOpen,
+  onToggleInspector,
+  chromePinned,
+  onToggleChromePin,
   showShortcuts,
   onToggleShortcuts,
   showMoreMenu,
@@ -142,30 +153,22 @@ export function VizToolbar({
 }: VizToolbarProps) {
   return (
     <div className="viz-actions" role="toolbar" aria-label="Visualizer controls">
-      <PresetFileUpload
-        onPresetLoaded={onPresetLoaded}
-        loadedPresetName={loadedPresetName ?? null}
-        onClearPreset={onClearPreset}
-      />
-
-      <div className="viz-btn-group">
-        <button
-          onClick={onCycleMode}
-          className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`}
-          title={`Visualization mode: ${vizMode} — cycles FX → 2D → 3D`}
-          aria-label={`Visualization mode: ${vizMode}. Activate to cycle FX → 2D → 3D.`}
-          aria-controls="viz-canvas-wrap"
-        >
-          <span className="viz-mode-label">
-            {vizMode === "3d" ? (
-              <span className="viz-mode-chip">3D</span>
-            ) : vizMode === "shader" ? (
-              <span className="viz-mode-chip">FX</span>
-            ) : (
-              <span className="viz-mode-chip">2D</span>
-            )}
-          </span>
-        </button>
+      <div
+        className="viz-btn-group viz-mode-switch"
+        role="group"
+        aria-label="Visualization mode"
+      >
+        {MODE_ORDER.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => onSelectMode(id)}
+            className={`viz-icon-btn viz-mode-btn ${vizMode === id ? "active" : ""}`}
+            aria-pressed={vizMode === id}
+            title={`Switch to ${label} mode`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="viz-btn-group viz-layers-group" title="Layers">
@@ -217,6 +220,37 @@ export function VizToolbar({
           title={focusMode ? "Exit Stage Mode (F)" : "Stage / Focus Mode (F)"}
         >
           {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
+      </div>
+
+      <div className="viz-btn-group">
+        <button
+          onClick={onToggleChromePin}
+          className={`viz-icon-btn ${chromePinned ? "active" : ""}`}
+          aria-label={
+            chromePinned
+              ? "Unpin controls — auto-hide during playback"
+              : "Pin controls — keep visible during playback"
+          }
+          aria-pressed={chromePinned}
+          title={
+            chromePinned
+              ? "Controls pinned visible"
+              : "Controls auto-hide while playing — click to pin"
+          }
+        >
+          {chromePinned ? <Pin size={14} /> : <PinOff size={14} />}
+        </button>
+        <button
+          onClick={onToggleInspector}
+          className={`viz-icon-btn ${inspectorOpen ? "active" : ""}`}
+          data-testid="viz-inspector-toggle"
+          aria-label="Toggle inspector panel"
+          aria-expanded={inspectorOpen}
+          aria-pressed={inspectorOpen}
+          title="Inspector — scene, tuning, mixer, EQ, remix, AI"
+        >
+          <PanelRight size={14} />
         </button>
       </div>
 
@@ -304,12 +338,10 @@ function VizShortcutsMenu() {
           <kbd>→</kbd>
         </span>
       </div>
-      {CANVAS_2D_MODES.slice(0, 9).map((m, i) => (
-        <div className="viz-shortcut-row" key={m}>
-          <span>2D · {CANVAS_2D_MODE_LABELS[m]}</span>
-          <kbd>{i + 1}</kbd>
-        </div>
-      ))}
+      <div className="viz-shortcut-row">
+        <span>2D modes 1–9</span>
+        <kbd>1–9</kbd>
+      </div>
       <div className="viz-shortcut-row">
         <span>Focus mode</span>
         <kbd>F</kbd>

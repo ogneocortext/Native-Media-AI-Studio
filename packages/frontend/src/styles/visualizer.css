@@ -2,25 +2,34 @@
    VISUALIZER STYLES
    ============================================================ */
 
-/* --- Page layout --- */
+/* --- Page layout ---
+   Flex column pinned to the viewport: topbar / stage(+inspector) / transport /
+   spectrum all stay on screen — previously the 100vh canvas pushed the
+   transport and meters below the fold. */
 .viz-page {
   position: relative;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
   background: #050507;
   color: #eaeaea;
 }
 
 .viz-content {
   position: relative;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  display: flex;
   padding: 0;
 }
 
 /* --- Canvas wrapper --- */
 .viz-canvas-wrap {
   position: relative;
-  width: 100%;
-  height: 100vh;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: #050507;
 }
@@ -586,4 +595,213 @@
 
 .viz-latency-panel .viz-backend-badge {
   position: static;
+}
+
+/* ===== Stage chrome auto-hide =====
+   While playing (and not pinned), the decorative stage overlays fade out
+   so the visuals own the frame. Pointer movement over .viz-canvas-wrap
+   reveals them again; the playhead stays — it is the seek surface. */
+.viz-latency-panel,
+.viz-style-picker,
+.viz-ai-preset-row,
+.viz-bottombar {
+  transition: opacity 0.3s ease;
+}
+
+/* The preset bar's positioned wrapper keeps pointer-events:auto, so an
+   opacity-0 bar would still swallow canvas clicks — remove it outright. */
+.viz-chrome-hidden .viz-quick-preset-bar {
+  display: none;
+}
+
+.viz-chrome-hidden .viz-latency-panel,
+.viz-chrome-hidden .viz-style-picker,
+.viz-chrome-hidden .viz-ai-preset-row,
+.viz-chrome-hidden .viz-bottombar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ===== Inspector drawer =====
+   Docked right-hand panel inside .viz-content's flex row — it squeezes the
+   canvas rather than overlaying it, so nothing on stage is covered. */
+.viz-inspector {
+  width: 320px;
+  flex-shrink: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(16, 16, 22, 0.92);
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(10px);
+}
+
+.viz-inspector-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.viz-inspector-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.viz-inspector-tab {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.viz-inspector-tab:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.viz-inspector-tab.active {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+}
+
+.viz-inspector-tab.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.viz-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.viz-inspector-panel[hidden] {
+  display: none;
+}
+
+.viz-inspector-panel > * {
+  min-width: 0;
+}
+
+.viz-inspector-empty {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+/* Panels that were designed as full-bleed overlays/asides go static inside
+   the drawer body. */
+.viz-inspector .viz-settings {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border-left: none;
+  overflow: visible;
+}
+
+.viz-inspector .viz-ai-panel {
+  position: static;
+  width: 100%;
+  height: auto;
+  background: transparent;
+  border-left: none;
+  backdrop-filter: none;
+  z-index: auto;
+  overflow: visible;
+}
+
+.viz-inspector-mixer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.viz-inspector-mixer-toggle {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.viz-inspector-mixer-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.viz-inspector-mixer-toggle.active {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #ddd6fe;
+}
+
+.viz-inspector-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .viz-inspector {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ===== Slim topbar mode switch ===== */
+.viz-mode-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.viz-mode-btn {
+  min-width: 38px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.viz-mode-btn.active {
+  background: rgba(139, 92, 246, 0.85);
+  color: #fff;
+}
+
+/* ===== Bottom transport bar ===== */
+.viz-audio-player {
+  margin-top: 0;
+  padding: 0.4rem 0.75rem 0.6rem;
+  background: rgba(14, 14, 18, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
 }
