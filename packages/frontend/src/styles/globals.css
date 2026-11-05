@@ -87,7 +87,7 @@
     @property --color-border-subtle {
       syntax: "<color>";
       inherits: false;
-      initial-value: light-dark(oklch(95% 0 0), oklch(25% 0 0 260));
+      initial-value: light-dark(oklch(95% 0 0), oklch(25% 0 260));
     }
     @property --color-link {
       syntax: "<color>";
