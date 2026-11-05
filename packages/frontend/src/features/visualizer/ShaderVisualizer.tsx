@@ -49,25 +49,10 @@ import {
   type MotionHistory,
 } from "./motion/useMotionDriver";
 import type { AudioAnalysisData } from "./types";
+import { ShaderHud, DEFAULT_SHADER_FX, type ShaderFxValues } from "./ShaderHud";
 
 const FX_STORAGE_PREFIX = "visualizerFx:";
 const FX_PREF_KEY = "visualizer_fx_defaults";
-
-interface FxValues {
-  speed: number;
-  brightness: number;
-  contrast: number;
-  hue: number;
-  saturation: number;
-}
-
-const DEFAULT_FX: FxValues = {
-  speed: 1,
-  brightness: 1,
-  contrast: 1,
-  hue: 0,
-  saturation: 1,
-};
 
 function readFxNumber(key: string, fallback: number): number {
   try {
@@ -90,21 +75,21 @@ function writeFxNumber(key: string, value: number) {
   }
 }
 
-async function readFxFromApi(): Promise<FxValues | null> {
+async function readFxFromApi(): Promise<ShaderFxValues | null> {
   return getPreferences("visualizer")
     .then((prefs) => {
       const raw = prefs[FX_PREF_KEY];
       if (raw && typeof raw === "object") {
-        const candidate = raw as Partial<FxValues>;
-        const next: FxValues = {
-          speed: typeof candidate.speed === "number" ? candidate.speed : DEFAULT_FX.speed,
+        const candidate = raw as Partial<ShaderFxValues>;
+        const next: ShaderFxValues = {
+          speed: typeof candidate.speed === "number" ? candidate.speed : DEFAULT_SHADER_FX.speed,
           brightness:
-            typeof candidate.brightness === "number" ? candidate.brightness : DEFAULT_FX.brightness,
+            typeof candidate.brightness === "number" ? candidate.brightness : DEFAULT_SHADER_FX.brightness,
           contrast:
-            typeof candidate.contrast === "number" ? candidate.contrast : DEFAULT_FX.contrast,
-          hue: typeof candidate.hue === "number" ? candidate.hue : DEFAULT_FX.hue,
+            typeof candidate.contrast === "number" ? candidate.contrast : DEFAULT_SHADER_FX.contrast,
+          hue: typeof candidate.hue === "number" ? candidate.hue : DEFAULT_SHADER_FX.hue,
           saturation:
-            typeof candidate.saturation === "number" ? candidate.saturation : DEFAULT_FX.saturation,
+            typeof candidate.saturation === "number" ? candidate.saturation : DEFAULT_SHADER_FX.saturation,
         };
         return next;
       }
@@ -126,7 +111,7 @@ function sampleStemEnergy(
   return Math.min(1, Math.max(0, stem.energy_curve[index] ?? 0));
 }
 
-async function writeFxToApi(values: FxValues): Promise<void> {
+async function writeFxToApi(values: ShaderFxValues): Promise<void> {
   return setPreference(FX_PREF_KEY, values, "visualizer").catch(() => {
     // no-op
   });
@@ -291,18 +276,17 @@ export function ShaderVisualizer({
       applyFxDefaults(activePreset);
     }
   }, [activePreset]);
-  const [showSelector, setShowSelector] = useState(false);
   const showFx = fxOpen;
-  const [fxSpeed, setFxSpeed] = useState(() => readFxNumber("fxSpeed", DEFAULT_FX.speed));
+  const [fxSpeed, setFxSpeed] = useState(() => readFxNumber("fxSpeed", DEFAULT_SHADER_FX.speed));
   const [fxBrightness, setFxBrightness] = useState(() =>
-    readFxNumber("fxBrightness", DEFAULT_FX.brightness),
+    readFxNumber("fxBrightness", DEFAULT_SHADER_FX.brightness),
   );
   const [fxContrast, setFxContrast] = useState(() =>
-    readFxNumber("fxContrast", DEFAULT_FX.contrast),
+    readFxNumber("fxContrast", DEFAULT_SHADER_FX.contrast),
   );
-  const [fxHue, setFxHue] = useState(() => readFxNumber("fxHue", DEFAULT_FX.hue));
+  const [fxHue, setFxHue] = useState(() => readFxNumber("fxHue", DEFAULT_SHADER_FX.hue));
   const [fxSaturation, setFxSaturation] = useState(() =>
-    readFxNumber("fxSaturation", DEFAULT_FX.saturation),
+    readFxNumber("fxSaturation", DEFAULT_SHADER_FX.saturation),
   );
   const [loadedFromApi, setLoadedFromApi] = useState(false);
   const uniformsRef = useRef({
@@ -730,7 +714,6 @@ export function ShaderVisualizer({
       userSelectedPreset.current = true;
       setPreset(newPreset);
       onPresetChange?.(newPreset);
-      setShowSelector(false);
       applyFxDefaults(newPreset);
     },
     [onPresetChange],
@@ -746,9 +729,19 @@ export function ShaderVisualizer({
     if (defaults.saturation !== undefined) setFxSaturation(defaults.saturation);
   }, []);
 
+  const handleFxChange = useCallback((key: keyof ShaderFxValues, value: number) => {
+    switch (key) {
+      case "speed": setFxSpeed(value); break;
+      case "brightness": setFxBrightness(value); break;
+      case "contrast": setFxContrast(value); break;
+      case "hue": setFxHue(value); break;
+      case "saturation": setFxSaturation(value); break;
+    }
+  }, []);
+
   // Persist FX values to localStorage and backend whenever they change
   useEffect(() => {
-    const values: FxValues = {
+    const values: ShaderFxValues = {
       speed: fxSpeed,
       brightness: fxBrightness,
       contrast: fxContrast,
@@ -794,167 +787,14 @@ export function ShaderVisualizer({
         />
       </div>
 
-      {/* Preset selector overlay + FX controls (plan 1.3 — `viz-shader-hud` is
-          the allowlist token the parent's outside-click listener passes; its
-          z-index comes only from visualizer.css, because that file lives in
-          layer(components) and a Tailwind `z-10` utility would beat it). */}
-      <div className="absolute top-2 right-2 flex flex-col gap-2 viz-shader-hud">
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={() => setShowSelector(!showSelector)}
-            aria-label={`Select shader preset: ${SHADER_PRESET_INFO[preset].name}`}
-            className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
-            title="Change shader preset"
-          >
-            {SHADER_PRESET_INFO[preset].name}
-          </button>
-          {!showFx && (
-            <button
-              onClick={() => onFxOpenChange(true)}
-              data-viz-overlay-toggle="fx"
-              aria-label="Open FX controls"
-              aria-expanded={showFx}
-              className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
-              title="FX controls"
-            >
-              FX
-            </button>
-          )}
-        </div>
-
-        {showSelector && (
-          <div className="absolute top-8 right-0 w-64 bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden">
-            <div className="p-2 border-b border-white/10">
-              <span className="text-xs text-white/60 font-medium">Shader Presets</span>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {(Object.keys(SHADER_PRESET_INFO) as ShaderPresetName[]).map((key) => (
-                <button
-                  key={key}
-                  onClick={() => handlePresetChange(key)}
-                  className={`w-full text-left px-3 py-2 hover:bg-white/10 transition-colors ${
-                    preset === key ? "bg-indigo-500/20 text-indigo-300" : "text-white/80"
-                  }`}
-                >
-                  <div className="text-sm font-medium">{SHADER_PRESET_INFO[key].name}</div>
-                  <div className="text-xs text-white/50">{SHADER_PRESET_INFO[key].description}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* FX Controls — hidden (not unmounted) while another overlay owns
-            the stage; the FX button above reopens it. */}
-        <div
-          className={`bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden${showFx ? "" : " hidden"}`}
-        >
-          <div className="flex items-center justify-between p-2">
-            <span className="text-xs text-white/60 font-medium">FX</span>
-            <button
-              onClick={() => {
-                onFxOpenChange(false);
-              }}
-              className="text-xs text-white/60 hover:text-white/90 transition-colors"
-              title="Hide FX controls"
-            >
-              Hide
-            </button>
-          </div>
-          {showFx && (
-            <div className="p-2 pt-0 space-y-2">
-              <div className="space-y-1">
-                <label className="flex items-center justify-between text-xs text-white/70">
-                  <span>Speed</span>
-                  <span>{fxSpeed.toFixed(1)}x</span>
-                </label>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="3"
-                  step="0.1"
-                  value={fxSpeed}
-                  onChange={(e) => setFxSpeed(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="flex items-center justify-between text-xs text-white/70">
-                  <span>Brightness</span>
-                  <span>{fxBrightness.toFixed(1)}</span>
-                </label>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="2"
-                  step="0.1"
-                  value={fxBrightness}
-                  onChange={(e) => setFxBrightness(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="flex items-center justify-between text-xs text-white/70">
-                  <span>Contrast</span>
-                  <span>{fxContrast.toFixed(1)}</span>
-                </label>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="2"
-                  step="0.1"
-                  value={fxContrast}
-                  onChange={(e) => setFxContrast(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="flex items-center justify-between text-xs text-white/70">
-                  <span>Hue</span>
-                  <span>{fxHue}°</span>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="360"
-                  step="1"
-                  value={fxHue}
-                  onChange={(e) => setFxHue(parseInt(e.target.value))}
-                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="flex items-center justify-between text-xs text-white/70">
-                  <span>Saturation</span>
-                  <span>{fxSaturation.toFixed(1)}</span>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={fxSaturation}
-                  onChange={(e) => setFxSaturation(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  setFxSpeed(1);
-                  setFxBrightness(1);
-                  setFxContrast(1);
-                  setFxHue(0);
-                  setFxSaturation(1);
-                }}
-                className="w-full text-xs bg-white/10 hover:bg-white/20 text-white/80 py-1 rounded transition-colors"
-                title="Reset FX to defaults"
-              >
-                Reset
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      <ShaderHud
+        preset={preset}
+        onPresetChange={handlePresetChange}
+        showFx={showFx}
+        onFxOpenChange={onFxOpenChange}
+        fx={{ speed: fxSpeed, brightness: fxBrightness, contrast: fxContrast, hue: fxHue, saturation: fxSaturation }}
+        onFxChange={handleFxChange}
+      />
 
       {/* Track info */}
       <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5">

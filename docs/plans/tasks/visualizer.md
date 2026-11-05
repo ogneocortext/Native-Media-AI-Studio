@@ -612,3 +612,23 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** tsc clean for touched files (only pre-existing
   agent-chat WIP errors remain), eslint 0 errors, 573 visualizer vitest
   pass - pure move, no behavior change.
+
+### T-VIZ-35 - Extract ShaderHud from ShaderVisualizer.tsx (946 -> 789 + 160)
+- **Status:** done
+- **Goal:** Continue the large-file breakdown - ShaderVisualizer.tsx was
+  one ~680-line component mixing the render loop with overlay chrome.
+- **What changed:**
+  - ``ShaderHud.tsx`` (new) - preset picker dropdown, FX slider panel
+    and reset control extracted verbatim; the five repetitive slider
+    blocks are now a config-driven map with identical DOM/classes, and
+    ``showSelector`` state moved inside (it was HUD-local all along).
+  - ``FxValues``/``DEFAULT_FX`` unified into exported
+    ``ShaderFxValues``/``DEFAULT_SHADER_FX`` in ShaderHud - the parent's
+    read/write-FX helpers and initializers now import the same types
+    instead of duplicating the shape.
+  - Parent keeps all render-loop state; FX values reach the HUD as one
+    grouped ``fx`` object + ``onFxChange`` dispatch, so the persistence
+    effect is untouched.
+- **Files:** ShaderVisualizer.tsx, ShaderHud.tsx (new)
+- **Acceptance:** tsc clean for touched files, eslint 0 errors, 573
+  visualizer vitest pass - pure move.
