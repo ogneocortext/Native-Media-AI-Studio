@@ -565,3 +565,30 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   eslint 0 errors; tsc clean for visualizer files.
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed lazy-fetch
   probe + effect-consumer audit.
+
+### T-VIZ-33 - Decompose Visualizer.tsx (1469 → ~1290 lines)
+- **Status:** done
+- **Goal:** Owner: "break down any large files that are currently hard to
+  process." Visualizer.tsx was the largest visualizer file and still
+  carried three effect clusters + three JSX islands after the earlier
+  hook extractions.
+- **What changed:**
+  - ``useVisualizerTrackEffects.ts`` (new hook) — the lazy stems fetch,
+    auto-play-on-select and resume-across-track-switch effects moved out
+    verbatim; ``stemsFetchedRef`` now lives inside the hook.
+  - ``components/VizAudioBar.tsx`` — the ``.viz-audio-player`` strip:
+    AudioTransport + the visually-hidden ``<audio>`` element with all
+    playback event handlers.
+  - ``components/VizMixerTab.tsx`` — inspector Mixer tab: pro/simple
+    toggle, ProfessionalMixer/StemMixerPanel, Remix Studio link card.
+  - ``components/VizPlayhead.tsx`` — the click-to-seek playhead overlay
+    (fill, loop region/anchor, marker, readout); self-guards on
+    ``audioDuration > 0``.
+- **Files:** Visualizer.tsx, useVisualizerTrackEffects.ts (new),
+  components/VizAudioBar.tsx (new), components/VizMixerTab.tsx (new),
+  components/VizPlayhead.tsx (new)
+- **Acceptance:** tsc clean for visualizer files, eslint 0 errors,
+  608 visualizer vitest pass, canvas2d Playwright spec 3/3 — no behavior
+  change, pure move.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 - extraction +
+  typecheck/lint/vitest/playwright verification.

@@ -41,10 +41,8 @@ import {
   AlertCircle,
   Wand2,
 } from "lucide-react";
-import { formatTime } from "../../utils/format";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
-import { AudioTransport } from "../../components/audio";
 import { AudioFileBrowser } from "./components/AudioFileBrowser";
 import { AudioLatencyCard } from "../../components/AudioLatencyCard";
 import type {
@@ -65,9 +63,8 @@ import {
   createVisualizerRenderer,
   isWebGPUOptIn,
 } from "./webgpu/WebGPURendererDetector";
-import { StemMixerPanel, type StemName } from "./components/StemMixer";
+import type { StemName } from "./components/StemMixer";
 import { EqualizerPanel } from "./components/EqualizerPanel";
-import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
 import { StylePicker } from "./components/StylePicker";
 import { QuickPresetBar } from "./components/QuickPresetBar";
 import { ReactivityHUD } from "./components/ReactivityHUD";
@@ -76,6 +73,10 @@ import { VizEmptyState } from "./components/VizEmptyState";
 import { VizTopbar } from "./components/VizTopbar";
 import { VizToolbar } from "./components/VizToolbar";
 import { VizInspector, type VizInspectorTab } from "./components/VizInspector";
+import { useVisualizerTrackEffects } from "./useVisualizerTrackEffects";
+import { VizAudioBar } from "./components/VizAudioBar";
+import { VizMixerTab } from "./components/VizMixerTab";
+import { VizPlayhead } from "./components/VizPlayhead";
 import { PresetFileUpload } from "./components/PresetFileUpload";
 import {
   matchReactivityGenrePreset,
@@ -693,93 +694,22 @@ export function Visualizer() {
       .catch(() => { void 0; });
   }, []);
 
-  // Fetch per-stem visualization data lazily — only when a consumer actually
-  // needs it: FX mode (stem-reactive shader layers via ShaderVisualizer) or
-  // the inspector Mixer tab (ProfessionalMixer). Previously this fired on
-  // EVERY track select; for tracks with separated stems the backend runs
-  // per-stem librosa feature extraction (4 stems) whether or not the user
-  // ever opened a stem UI. Fetched once per track per session; a failed
-  // fetch is retried on the next activation.
-  const stemsFetchedRef = useRef<Set<string>>(new Set());
-  const stemsNeeded =
-    vizMode === "shader" || (inspectorOpen && inspectorTab === "mixer");
-  useEffect(() => {
-    if (!currentFilename || !stemsNeeded) return;
-    if (stemsFetchedRef.current.has(currentFilename)) return;
-    stemsFetchedRef.current.add(currentFilename);
-    let cancelled = false;
-    getStemsAnalysis(currentFilename)
-      .then(
-        (data: {
-          stems: Record<
-            string,
-            {
-              file: string;
-              url: string;
-              duration: number;
-              sample_rate: number;
-              rms_mean: number;
-              rms_std: number;
-              centroid_mean: number;
-              zcr_mean: number;
-              energy_curve: number[];
-              energy_curve_points: number;
-            }
-          >;
-          separated: boolean;
-        }) => {
-          if (!cancelled && data.separated && Object.keys(data.stems).length > 0) {
-            setStemsData((prev) => ({
-              ...prev,
-              [currentFilename]: data.stems,
-            }));
-          }
-        },
-      )
-      .catch(() => {
-        /* stems are optional — never block playback on analysis */
-        stemsFetchedRef.current.delete(currentFilename);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentFilename, stemsNeeded]);
-
-  // Auto-play when a track is selected, if the setting is enabled.
-  // Uses a small delay so the <audio key={audioUrl}> remount completes
-  // and the browser sees the play() as part of the active user gesture chain.
-  useEffect(() => {
-    if (!audioUrl || !autoPlay) return;
-    const timer = setTimeout(() => {
-      const el = audioElRef.current;
-      if (el) {
-        el.play()
-          .then(() => {
-            // onPlay will fire and run setupAudio()
-          })
-          .catch(() => {
-            // Autoplay blocked by browser policy — user can still press Play manually.
-          });
-      }
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [audioUrl, autoPlay]);
-
-  // Resume across a track switch: the <audio key={audioUrl}> remount starts
-  // paused, but isPlaying stays true through the swap (no pause event fires
-  // on unmount), so restarting here keeps the music going — the behaviour a
-  // listener expects when skipping tracks. The autoPlay effect above already
-  // covers the paused-at-selection case, so skip when it is armed.
-  const lastAudioUrlRef = useRef(audioUrl);
-  useEffect(() => {
-    if (audioUrl === lastAudioUrlRef.current) return;
-    lastAudioUrlRef.current = audioUrl;
-    if (!audioUrl || !isPlaying || autoPlay) return;
-    const timer = setTimeout(() => {
-      audioElRef.current?.play().catch(() => undefined);
-    }, 60);
-    return () => clearTimeout(timer);
-  }, [audioUrl, isPlaying, autoPlay]);
+  // Track/audio side-effects: lazy stems fetch, auto-play on select, and
+  // playback resume across a track switch (extracted — T-VIZ-33).
+  useVisualizerTrackEffects({
+    state: {
+      currentFilename,
+      vizMode,
+      inspectorOpen,
+      inspectorTab,
+      audioUrl,
+      autoPlay,
+      isPlaying,
+    },
+    refs: { audioElRef },
+    setters: { setStemsData },
+    api: { getStemsAnalysis },
+  });
 
 
 
@@ -1031,55 +961,15 @@ export function Visualizer() {
               onRetryLibrary={() => void refreshLibrary()}
             />
           )}
-          {/* Playhead + click-to-seek over the stage. Position comes from the
-              reactive `elapsed` state (driven by the playback rAF loop), not the
-              refs, so the marker tracks playback. The canvas paints over this
-              div; only the marker and readout are pointer-events: auto so
-              seeking works through the playing surface. */}
-          {audioUrl && audioDuration > 0 && (
-            <div
-              className="viz-playhead"
-              onClick={handlePlayheadClick}
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(audioDuration)}
-              aria-valuenow={Math.min(elapsed, audioDuration)}
-              aria-valuetext={`${formatTime(elapsed)} of ${formatTime(audioDuration)}`}
-            >
-              <div
-                className="viz-playhead-track"
-                aria-hidden="true"
-                style={{ transform: `scaleX(${Math.min(1, Math.max(0, elapsed / audioDuration))})` }}
-              />
-              {audioDuration > 0 && loopRegion && (
-                <div
-                  className="viz-loop-region"
-                  aria-hidden="true"
-                  style={{
-                    left: `${(loopRegion.start / audioDuration) * 100}%`,
-                    width: `${((loopRegion.end - loopRegion.start) / audioDuration) * 100}%`,
-                  }}
-                />
-              )}
-              {audioDuration > 0 && loopAnchor !== null && !loopRegion && (
-                <div
-                  className="viz-loop-anchor"
-                  aria-hidden="true"
-                  style={{ left: `${(loopAnchor / audioDuration) * 100}%` }}
-                />
-              )}
-              <div
-                className="viz-playhead-marker"
-                aria-hidden="true"
-                style={{ left: `${Math.min(100, (elapsed / audioDuration) * 100)}%` }}
-              />
-              <div
-                className="viz-playhead-readout"
-                aria-hidden="true"
-              >
-                {formatTime(elapsed)} / {formatTime(audioDuration)}
-              </div>
-            </div>
+          {/* Playhead + click-to-seek over the stage (VizPlayhead). */}
+          {audioUrl && (
+            <VizPlayhead
+              elapsed={elapsed}
+              audioDuration={audioDuration}
+              loopRegion={loopRegion}
+              loopAnchor={loopAnchor}
+              onSeek={handlePlayheadClick}
+            />
           )}
 
           {showAudioBrowser && (
@@ -1366,44 +1256,17 @@ export function Visualizer() {
               />
             ),
             mixer: (
-              <div className="viz-inspector-mixer">
-                <button
-                  onClick={() => setUseProMixer((v) => !v)}
-                  className={`viz-inspector-mixer-toggle ${useProMixer ? "active" : ""}`}
-                  aria-pressed={useProMixer}
-                >
-                  {useProMixer ? "Professional Mixer" : "Simple Mixer"}
-                </button>
-                {useProMixer && proMixerStems ? (
-                  <ProfessionalMixer
-                    audioFilename={currentFilename}
-                    sharedAudioContext={audioCtxRef.current}
-                    stems={proMixerStems}
-                    compact
-                    collapsedBuses
-                  />
-                ) : (
-                  <StemMixerPanel
-                    audioFilename={currentFilename}
-                    compact
-                    onStateChange={setStemsMixerState}
-                    sharedAudioContext={audioCtxRef.current}
-                    mainAudioRef={audioElRef}
-                    mainGainRef={mainGainRef}
-                  />
-                )}
-                <button
-                  className="viz-inspector-linkcard"
-                  onClick={openRemixStudio}
-                  title="Build a mashup from stems of different songs"
-                >
-                  <Wand2 size={13} />
-                  <span>
-                    Build a mashup
-                    <small>Remix Studio — stems from different songs</small>
-                  </span>
-                </button>
-              </div>
+              <VizMixerTab
+                useProMixer={useProMixer}
+                onToggleProMixer={() => setUseProMixer((v) => !v)}
+                proMixerStems={proMixerStems}
+                currentFilename={currentFilename}
+                audioCtx={audioCtxRef.current}
+                onMixerStateChange={setStemsMixerState}
+                audioElRef={audioElRef}
+                mainGainRef={mainGainRef}
+                onOpenRemixStudio={openRemixStudio}
+              />
             ),
             eq: currentFilename ? (
               <EqualizerPanel title="Master EQ" eqRef={eqRef} />
@@ -1427,53 +1290,16 @@ export function Visualizer() {
       </div>
 
       {audioUrl && (
-        <div className="viz-audio-player">
-          {/* Plan 1.1 — one custom transport replaces the browser's stock
-              <audio controls>; the element itself stays (refs, analyser and
-              keyboard map all drive it) but renders nothing. */}
-          <AudioTransport audioRef={audioElRef} ariaLabel="Playback transport" className="mb-2" />
-          <audio
-            key={audioUrl}
-            ref={audioElRef}
-            src={audioUrl}
-            data-main-player
-            className="viz-audio"
-            crossOrigin={
-              audioUrl.startsWith("http://") || audioUrl.startsWith("https://")
-                ? "anonymous"
-                : undefined
-            }
-            onPlay={() => {
-              setIsPlaying(true);
-              setIsPaused(false);
-              if (audioElRef.current) void setupAudio(audioElRef.current);
-            }}
-            onLoadedMetadata={(e) => {
-              const d = e.currentTarget.duration;
-              setAudioDuration(Number.isFinite(d) && d > 0 ? d : 0);
-            }}
-            onPause={() => {
-              setIsPlaying(false);
-              setIsPaused(true);
-            }}
-            onEnded={() => {
-              setIsPlaying(false);
-              setIsPaused(false);
-              resetAudioDerivedState();
-            }}
-            onError={() => {
-              setIsPlaying(false);
-              setError(
-                `Couldn't load audio — the file may have moved. Pick another track or re-upload.`,
-              );
-            }}
-            onCanPlay={() => {
-              setError(null);
-            }}
-          />
-          {/* Mixer / EQ / Remix live in the inspector drawer now — the
-              bottom bar stays a slim transport strip. */}
-        </div>
+        <VizAudioBar
+          audioUrl={audioUrl}
+          audioElRef={audioElRef}
+          setupAudio={setupAudio}
+          setIsPlaying={setIsPlaying}
+          setIsPaused={setIsPaused}
+          setAudioDuration={setAudioDuration}
+          setError={setError}
+          resetAudioDerivedState={resetAudioDerivedState}
+        />
       )}
 
       {/* Spectrum meters sit above the transport so play/pause stays the
