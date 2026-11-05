@@ -7,6 +7,7 @@
 import { useState } from "react";
 import type { ShaderPresetName } from "./shaders";
 import { SHADER_PRESET_INFO } from "./shaderPresets";
+import { WARP_PRESETS, type WarpPresetId } from "./warpPresets";
 
 export interface ShaderFxValues {
   speed: number;
@@ -24,6 +25,11 @@ interface ShaderHudProps {
   onFxOpenChange: (open: boolean) => void;
   fx: ShaderFxValues;
   onFxChange: (key: keyof ShaderFxValues, value: number) => void;
+  /** T-VIZ-25: "auto" = cycle warp presets on section boundaries; a preset
+   *  id pins the look (required for video renders that must hold one look
+   *  per section). */
+  warpPreset: WarpPresetId | "auto";
+  onWarpPresetChange: (sel: WarpPresetId | "auto") => void;
 }
 
 const FX_SLIDERS: {
@@ -44,8 +50,13 @@ const FX_SLIDERS: {
 
 export const DEFAULT_SHADER_FX: ShaderFxValues = { speed: 1, brightness: 1, contrast: 1, hue: 0, saturation: 1 };
 
-export function ShaderHud({ preset, onPresetChange, showFx, onFxOpenChange, fx, onFxChange }: ShaderHudProps) {
+export function ShaderHud({ preset, onPresetChange, showFx, onFxOpenChange, fx, onFxChange, warpPreset, onWarpPresetChange }: ShaderHudProps) {
   const [showSelector, setShowSelector] = useState(false);
+  const [showWarpSelector, setShowWarpSelector] = useState(false);
+  const warpLabel =
+    warpPreset === "auto"
+      ? "Auto"
+      : (WARP_PRESETS.find((p) => p.id === warpPreset)?.name ?? warpPreset);
 
   return (
     // Preset selector overlay + FX controls (plan 1.3 — `viz-shader-hud` is
@@ -74,7 +85,53 @@ export function ShaderHud({ preset, onPresetChange, showFx, onFxOpenChange, fx, 
             FX
           </button>
         )}
+        <button
+          onClick={() => setShowWarpSelector(!showWarpSelector)}
+          aria-label={`Warp preset: ${warpLabel}`}
+          aria-expanded={showWarpSelector}
+          className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors"
+          title="Warp preset — pin a look for video, or Auto to cycle on section changes"
+        >
+          Warp: {warpLabel}
+        </button>
       </div>
+
+      {showWarpSelector && (
+        <div className="absolute top-8 right-0 w-64 bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-white/10">
+            <span className="text-xs text-white/60 font-medium">Warp Presets</span>
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            <button
+              onClick={() => {
+                onWarpPresetChange("auto");
+                setShowWarpSelector(false);
+              }}
+              className={`w-full text-left px-3 py-2 hover:bg-white/10 transition-colors ${
+                warpPreset === "auto" ? "bg-indigo-500/20 text-indigo-300" : "text-white/80"
+              }`}
+            >
+              <div className="text-sm font-medium">Auto</div>
+              <div className="text-xs text-white/50">Cycle on section changes</div>
+            </button>
+            {WARP_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => {
+                  onWarpPresetChange(p.id);
+                  setShowWarpSelector(false);
+                }}
+                className={`w-full text-left px-3 py-2 hover:bg-white/10 transition-colors ${
+                  warpPreset === p.id ? "bg-indigo-500/20 text-indigo-300" : "text-white/80"
+                }`}
+              >
+                <div className="text-sm font-medium">{p.name}</div>
+                <div className="text-xs text-white/50">{p.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showSelector && (
         <div className="absolute top-8 right-0 w-64 bg-gray-900/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-xl overflow-hidden">

@@ -380,6 +380,10 @@ export function ShaderVisualizer({
   const sectionPresetRef = useRef(getSectionPreset("verse"));
   const lastSectionRef = useRef<string>("");
   const warpPresetIdRef = useRef<WarpPresetId>("deepCalm");
+  // T-VIZ-25: pinned warp preset for video production — null means the
+  // section-boundary auto-cycle stays in charge (the default).
+  const [warpPin, setWarpPin] = useState<WarpPresetId | null>(null);
+  const warpPinRef = useRef<WarpPresetId | null>(null);
   const [feedbackEnabled, setFeedbackEnabled] = useState(false);
   const [feedbackZoom, setFeedbackZoom] = useState(1.0);
   const [feedbackRotation, setFeedbackRotation] = useState(0.0);
@@ -527,8 +531,11 @@ export function ShaderVisualizer({
         setFeedbackDecay(mapping.feedbackDecay);
         // T-VIZ-20: cycle warp preset on section boundary. Transitions ride
         // the feedback buffer — only uniforms change, never a hard cut.
-        const nextId = nextWarpPresetId(warpPresetIdRef.current);
-        warpPresetIdRef.current = nextId;
+        // T-VIZ-25: suspended while a preset is pinned.
+        if (warpPinRef.current === null) {
+          const nextId = nextWarpPresetId(warpPresetIdRef.current);
+          warpPresetIdRef.current = nextId;
+        }
       }
 
       const sectionMapping = getSectionPreset(sectionType);
@@ -739,6 +746,16 @@ export function ShaderVisualizer({
     }
   }, []);
 
+  // T-VIZ-25: "auto" clears the pin so section-boundary cycling resumes at
+  // the next boundary; a preset id pins warpPresetIdRef immediately, which
+  // the render loop picks up on the next frame.
+  const handleWarpPresetChange = useCallback((sel: WarpPresetId | "auto") => {
+    const pin = sel === "auto" ? null : sel;
+    setWarpPin(pin);
+    warpPinRef.current = pin;
+    if (pin !== null) warpPresetIdRef.current = pin;
+  }, []);
+
   // Persist FX values to localStorage and backend whenever they change
   useEffect(() => {
     const values: ShaderFxValues = {
@@ -794,6 +811,8 @@ export function ShaderVisualizer({
         onFxOpenChange={onFxOpenChange}
         fx={{ speed: fxSpeed, brightness: fxBrightness, contrast: fxContrast, hue: fxHue, saturation: fxSaturation }}
         onFxChange={handleFxChange}
+        warpPreset={warpPin ?? "auto"}
+        onWarpPresetChange={handleWarpPresetChange}
       />
 
       {/* Track info */}

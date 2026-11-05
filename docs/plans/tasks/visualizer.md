@@ -323,11 +323,32 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** enabling the pass on any 3D style produces stable symmetry with no seam artifacts at fold boundaries; pass cost ≤ 1 ms at 1080p on the reference GPU (RenderStats frame-time delta).
 
 ### T-VIZ-25 — Warp preset pin/select control
-- **Status:** todo
+- **Status:** done
 - **Goal:** Let the user pin a single T-VIZ-20 warp preset (or re-enable auto-cycling) from the ShaderVisualizer controls — required for video production, where a render must hold one look per section rather than accept the cycle.
 - **Files:** `packages/frontend/src/features/visualizer/ShaderVisualizer.tsx`, `warpPresets.ts`
 - **Plan:** Add a preset picker (the six ids from warpPresets.ts) plus an "Auto (cycle on sections)" option, defaulting to Auto so current behaviour is unchanged. Pinning sets warpPresetIdRef and suspends the section-boundary cycling while pinned. Follow the existing feedback-control state pattern in the same file (feedbackEnabled/Zoom/Rotation/Decay).
 - **Acceptance:** with a preset pinned, section boundaries no longer change the active preset (verify across two boundaries); switching back to Auto resumes cycling at the next boundary; control state survives a shader-preset change in the same session.
+- **What changed:**
+  - `ShaderHud.tsx` gained a "Warp: …" button + dropdown beside the
+    preset/FX buttons: "Auto — cycle on section changes" plus the six
+    `WARP_PRESETS` entries (name + description, same panel styling as
+    the shader-preset selector).
+  - `ShaderVisualizer.tsx` holds `warpPin` state + `warpPinRef` mirror;
+    the section-boundary effect only advances `warpPresetIdRef` when the
+    pin is `null`. Pinning writes the id into `warpPresetIdRef`
+    immediately (picked up next frame); switching back to Auto resumes
+    cycling at the next boundary.
+  - `warpPresets.ts`: dropped the `WarpPreset[]` annotation so the
+    existing `as const` produces a real `WarpPresetId` literal union
+    (previously it widened to `string`, making `"auto"` unions
+    redundant); `palette`/`drawElements` are `readonly` and the array
+    carries `satisfies readonly WarpPreset[]`.
+- **Last session:** Devin (SWE-2 Flash), 2026-11-05 — implemented per
+  plan; pin suspends cycling via the `warpPinRef` guard at the section
+  boundary, Auto restores it. Verified: `tsc -b` clean project-wide,
+  eslint 0 errors on touched files (4 pre-existing warnings remain),
+  566 visualizer vitest pass. Manual two-boundary pin check pending a
+  live playback session.
 
 ### T-VIZ-26 - Live QA pass: canvas2d render crash, audio-ctx lifecycle, dead controls
 - **Status:** done

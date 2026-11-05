@@ -46,10 +46,10 @@ export interface WarpPreset {
   radial: number;
   // ── Palette ──
   /** Hex colors used by the draw elements */
-  palette: string[];
+  palette: readonly string[];
   // ── Draw elements ──
   /** Which visual elements the preset draws (drawn by ShaderCanvas) */
-  drawElements: DrawElement[];
+  drawElements: readonly DrawElement[];
   // ── Audio-response gains ──
   /** How strongly each audio band modulates the warp (0..1) */
   audioGains: AudioGains;
@@ -60,7 +60,7 @@ export interface WarpPreset {
  *  warp strength scales with both the preset's gain and the live band. */
 
 // ── 6 starter presets, calm → aggressive ──
-export const WARP_PRESETS: WarpPreset[] = [
+export const WARP_PRESETS = [
   {
     id: "deepCalm",
     name: "Deep Calm",
@@ -139,7 +139,7 @@ export const WARP_PRESETS: WarpPreset[] = [
     drawElements: ["grid", "dots", "rings", "spiral", "pulse"],
     audioGains: { bass: 1.0, mid: 0.9, treble: 0.9, transient: 1.0, energy: 1.0 },
   },
-] as const;
+] as const satisfies readonly WarpPreset[];
 
 export type WarpPresetId = (typeof WARP_PRESETS)[number]["id"];
 
@@ -156,7 +156,7 @@ export function getWarpPresetIds(): WarpPresetId[] {
 /** Next preset in the calm→aggressive sequence, wrapping around. */
 export function nextWarpPresetId(currentId: string): WarpPresetId {
   const ids = getWarpPresetIds();
-  const idx = ids.indexOf(currentId);
+  const idx = ids.indexOf(currentId as WarpPresetId);
   const nextIdx = idx >= 0 ? (idx + 1) % ids.length : 0;
   return ids[nextIdx];
 }
@@ -164,7 +164,7 @@ export function nextWarpPresetId(currentId: string): WarpPresetId {
 /** Previous preset in the calm→aggressive sequence, wrapping around. */
 export function prevWarpPresetId(currentId: string): WarpPresetId {
   const ids = getWarpPresetIds();
-  const idx = ids.indexOf(currentId);
+  const idx = ids.indexOf(currentId as WarpPresetId);
   const prevIdx = idx >= 0 ? (idx + ids.length - 1) % ids.length : 0;
   return ids[prevIdx];
 }
