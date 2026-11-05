@@ -25,7 +25,9 @@ param(
     [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')]
     [string[]]$Services = @('all'),
 
-    [switch]$NoOrphanScan
+    [switch]$NoOrphanScan,
+
+    [switch]$Json
 )
 
 $ErrorActionPreference = 'Stop'
@@ -470,39 +472,87 @@ $serviceList = if ($Services -contains 'all') { $allServices } else { $Services 
 
 switch ($Action) {
     'status' {
-        Write-Host "`nService Status" -ForegroundColor Cyan
-        Write-Host "===============" -ForegroundColor Cyan
-        foreach ($svc in $serviceList) {
-            $config = $ServiceConfig[$svc]
-            $status = Get-ServiceStatus $svc
-            $color = if ($status.Running) { 'Green' } else { 'Red' }
-            $state = if ($status.Running) { 'RUNNING' } else { 'STOPPED' }
-            Write-Host "  $($config.Name): " -NoNewline
-            Write-Host $state -ForegroundColor $color -NoNewline
-            Write-Host " (port $($config.Port))"
-        }
-        Write-Host ""
-        # Show any tracked processes (from start-studio.ps1 sessions).
-        $tracked = Get-TrackedProcesses
-        if ($tracked) {
-            Write-Host "Tracked processes:" -ForegroundColor Cyan
-            foreach ($t in $tracked) {
-                $age = [int]((Get-Date) - $t.StartTime).TotalMinutes
-                Write-Host "  PID $($t.ProcessId) $($t.Name) (started ${age}m ago, service: $($t.ServiceName))" -ForegroundColor Gray
-            }
-            Write-Host ""
-        }
-        if (-not $NoOrphanScan) {
-            $orphans = Get-OrphanReloaders
-            if ($orphans) {
-                Write-Host "Orphaned reloaders (no port held, safe to reap):" -ForegroundColor Yellow
-                foreach ($o in $orphans) {
-                    $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
-                    Write-Host "  pid $($o.ProcessId) (started ${age}m ago)" -ForegroundColor Yellow
+        if ($Json) {
+            # Machine-readable JSON output for agents
+            $services = @()
+            foreach ($svc in $serviceList) {
+                $config = $ServiceConfig[$svc]
+                $status = Get-ServiceStatus $svc
+                $services += @{
+                    name = $config.Name
+                    id = $svc
+                    port = $config.Port
+                    running = $status.Running
+                    note = $status.Note
                 }
             }
+            $tracked = Get-TrackedProcesses
+            $trackedProcesses = if ($tracked) {
+                foreach ($t in $tracked) {
+                    $age = [int]((Get-Date) - $t.StartTime).TotalMinutes
+                    @{
+                        pid = $t.ProcessId
+                        name = $t.Name
+                        age_minutes = $age
+                        service = $t.ServiceName
+                    }
+                }
+            } else { @() }
+
+            $orphans = if (-not $NoOrphanScan) { Get-OrphanReloaders } else { @() }
+            $orphanProcesses = if ($orphans) {
+                foreach ($o in $orphans) {
+                    $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
+                    @{
+                        pid = $o.ProcessId
+                        age_minutes = $age
+                    }
+                }
+            } else { @() }
+
+            $result = @{
+                timestamp = (Get-Date).ToUniversalTime().ToString("o")
+                services = $services
+                tracked_processes = $trackedProcesses
+                orphan_reloaders = $orphanProcesses
+            }
+            $result | ConvertTo-Json -Depth 10
         } else {
-            Write-Host "Orphan scan skipped (-NoOrphanScan). Run without the flag to scan." -ForegroundColor Gray
+            # Human-readable output
+            Write-Host "`nService Status" -ForegroundColor Cyan
+            Write-Host "===============" -ForegroundColor Cyan
+            foreach ($svc in $serviceList) {
+                $config = $ServiceConfig[$svc]
+                $status = Get-ServiceStatus $svc
+                $color = if ($status.Running) { 'Green' } else { 'Red' }
+                $state = if ($status.Running) { 'RUNNING' } else { 'STOPPED' }
+                Write-Host "  $($config.Name): " -NoNewline
+                Write-Host $state -ForegroundColor $color -NoNewline
+                Write-Host " (port $($config.Port))"
+            }
+            Write-Host ""
+            # Show any tracked processes (from start-studio.ps1 sessions).
+            $tracked = Get-TrackedProcesses
+            if ($tracked) {
+                Write-Host "Tracked processes:" -ForegroundColor Cyan
+                foreach ($t in $tracked) {
+                    $age = [int]((Get-Date) - $t.StartTime).TotalMinutes
+                    Write-Host "  PID $($t.ProcessId) $($t.Name) (started ${age}m ago, service: $($t.ServiceName))" -ForegroundColor Gray
+                }
+                Write-Host ""
+            }
+            if (-not $NoOrphanScan) {
+                $orphans = Get-OrphanReloaders
+                if ($orphans) {
+                    Write-Host "Orphaned reloaders (no port held, safe to reap):" -ForegroundColor Yellow
+                    foreach ($o in $orphans) {
+                        $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
+                        Write-Host "  pid $($o.ProcessId) (started ${age}m ago)" -ForegroundColor Yellow
+                    }
+                }
+            } else {
+                Write-Host "Orphan scan skipped (-NoOrphanScan). Run without the flag to scan." -ForegroundColor Gray
+            }
         }
     }
     'start' {

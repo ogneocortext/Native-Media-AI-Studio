@@ -10,10 +10,10 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from ..adapters.registry import adapter_registry
-from ..core.config import config
+from ..core.config import PROJECT_ROOT, config
 from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
 
@@ -123,6 +123,138 @@ async def health_check() -> dict:
         "backend": backend_status,
         "adapters": adapters_response,
         "overall": aggregate.get("overall", "healthy"),
+    }
+
+
+@router.get("/health/agent")
+async def agent_health() -> dict:
+    """Unified agent-friendly health endpoint with all service states.
+
+    This endpoint consolidates health information from multiple sources into
+    a single response optimized for AI agent consumption. It includes:
+
+    - Backend health and runtime info
+    - All adapter statuses (ComfyUI, Ollama, etc.)
+    - Go sidecar statuses
+    - GPU availability and VRAM
+    - Queue health (including stranded jobs)
+    - Model availability (Ollama)
+
+    This is designed to be the single endpoint an agent calls to determine
+    whether the system is ready for work and what services are available.
+
+    Returns:
+        {
+            "overall_status": "healthy|degraded|unhealthy",
+            "backend": {...},
+            "adapters": {...},
+            "sidecars": {...},
+            "gpu": {...},
+            "queue": {...},
+            "models": {...},
+            "timestamp": "ISO-8601"
+        }
+    """
+    import time
+
+    # Collect all health data in parallel where possible
+    aggregate = await health_monitor.get_aggregate_health()
+
+    # Backend info
+    import sys
+    backend_info = {
+        "status": "online",
+        "python_version": sys.version.split()[0],
+        "python_executable": sys.executable,
+        "python_prefix": sys.prefix,
+    }
+
+    # Adapters
+    adapters = {}
+    for name, adapter_data in aggregate.get("adapters", {}).items():
+        adapters[name] = {
+            "status": "online" if adapter_data.get("status") == "healthy" else "offline",
+            "url": adapter_data.get("url"),
+            "response_time_ms": adapter_data.get("response_time_ms"),
+            "error": adapter_data.get("error"),
+        }
+
+    # Go sidecars
+    sidecar_tasks = {
+        name: _check_go_sidecar(name, url_attr, path)
+        for name, (url_attr, path) in _GO_SIDECARS.items()
+    }
+    sidecar_names = list(sidecar_tasks)
+    sidecar_results = await asyncio.gather(*(sidecar_tasks[name] for name in sidecar_names))
+    sidecars = dict(zip(sidecar_names, sidecar_results, strict=True))
+
+    # GPU snapshot
+    gpu = await resource_monitor.get_gpu_snapshot()
+
+    # Queue health
+    from ..queue.manager import queue_manager
+    queue_stats = await queue_manager.get_stats()
+    stranded = await queue_manager.count_stale_running_jobs()
+    queue_info = {
+        "is_healthy": queue_stats.is_healthy and queue_stats.active_jobs < 50 and stranded == 0,
+        "active_jobs": queue_stats.active_jobs,
+        "queued_jobs": queue_stats.queued_jobs,
+        "failed_jobs": queue_stats.failed_jobs,
+        "stranded_running_jobs": stranded,
+    }
+
+    # Ollama models
+    from ..core import ollama_client as _oc
+    from ..core.urls import ollama_url
+    models_info = {"loaded": False, "server_online": False, "models": []}
+    try:
+        import aiohttp
+        session = await _oc.get_shared_session()
+        async with session.get(
+            ollama_url("/api/ps"), timeout=aiohttp.ClientTimeout(total=5)
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                models_info = {
+                    "loaded": len(data.get("models", [])) > 0,
+                    "server_online": True,
+                    "models": [
+                        {
+                            "name": m.get("name", "unknown"),
+                            "size_mb": (m.get("size", 0) or 0) // (1024 * 1024),
+                            "vram_mb": (m.get("size_vram", 0) or 0) // (1024 * 1024),
+                        }
+                        for m in data.get("models", [])
+                    ],
+                }
+    except Exception:
+        pass
+
+    # Determine overall status
+    adapter_statuses = [a.get("status") for a in adapters.values()]
+    sidecar_statuses = [s.get("status") for s in sidecars.values()]
+    any_online = any(s == "online" for s in adapter_statuses + sidecar_statuses)
+
+    if not queue_info["is_healthy"]:
+        overall = "unhealthy"
+    elif not gpu.get("available"):
+        overall = "degraded"
+    elif not models_info["server_online"]:
+        overall = "degraded"
+    elif not any_online:
+        overall = "degraded"
+    else:
+        overall = "healthy"
+
+    return {
+        "overall_status": overall,
+        "backend": backend_info,
+        "adapters": adapters,
+        "sidecars": sidecars,
+        "gpu": gpu,
+        "queue": queue_info,
+        "models": models_info,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
 
@@ -480,3 +612,263 @@ async def get_mcp_context() -> dict:
 async def set_mcp_context(payload: dict) -> dict:
     _write_context(payload or {})
     return {"ok": True, "context": _read_context()}
+
+
+# ---------------------------------------------------------------------------
+# API Catalog (agent-friendly endpoint discovery)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/catalog")
+async def api_catalog(request: Request) -> dict:
+    """Agent-friendly API catalog: groups endpoints by category for discovery.
+
+    Returns a structured catalog of all API endpoints, grouped by functional
+    area. This is designed for AI agents to programmatically discover available
+    endpoints without parsing the full OpenAPI spec or reading source code.
+
+    Returns:
+        {
+            "version": "1.0",
+            "categories": {
+                "health": [{"path": "/api/health", "method": "GET", "description": "..."}],
+                "audio": [...],
+                "video": [...],
+                ...
+            }
+        }
+    """
+    # Access app from request state to avoid circular import
+    app = request.app
+    openapi_schema = app.openapi()
+    paths = openapi_schema.get("paths", {})
+
+    # Define category mappings (path prefix -> category name)
+    categories = {
+        "/api/health": "Health & Diagnostics",
+        "/api/audio": "Audio Processing",
+        "/api/video": "Video Processing",
+        "/api/image": "Image Processing",
+        "/api/comfyui": "ComfyUI Integration",
+        "/api/ollama": "Ollama/LLM",
+        "/api/retrieval": "Knowledge Retrieval",
+        "/api/media": "Media Library",
+        "/api/outputs": "Output Management",
+        "/api/jobs": "Job Queue",
+        "/api/hardware": "Hardware/GPU",
+        "/api/transcription": "Transcription",
+        "/api/vision": "Vision Analysis",
+        "/api/unity": "Unity Integration",
+        "/api/blender": "Blender Integration",
+        "/api/hyperframes": "HyperFrames",
+        "/api/sub_agent": "Sub-agent Operations",
+        "/api/logs": "Logs & Analytics",
+        "/api/data": "Data Services",
+        "/api/database_admin": "Database Admin",
+        "/api/integrations": "External Integrations",
+        "/api/music": "Music Generation",
+        "/api/lyrics": "Lyrics Processing",
+        "/api/native_open": "Native OpenAI Bridge",
+        "/api/treblo_tags": "Treblo Tags",
+        "/api/mcp_validate": "MCP Validation",
+        "/api/notifications": "Notifications",
+    }
+
+    # Group endpoints by category
+    catalog: dict[str, list[dict]] = {}
+    for path, path_item in paths.items():
+        # Determine category from path prefix
+        category = "Other"
+        for prefix, cat_name in categories.items():
+            if path.startswith(prefix):
+                category = cat_name
+                break
+
+        if category not in catalog:
+            catalog[category] = []
+
+        # Extract endpoint info for each method
+        for method, details in path_item.items():
+            if method.lower() in ["get", "post", "put", "delete", "patch"]:
+                catalog[category].append({
+                    "path": path,
+                    "method": method.upper(),
+                    "summary": details.get("summary", ""),
+                    "description": details.get("description", ""),
+                    "tags": details.get("tags", []),
+                })
+
+    # Sort categories and endpoints
+    sorted_catalog = dict(sorted(catalog.items()))
+    for cat in sorted_catalog:
+        sorted_catalog[cat].sort(key=operator.itemgetter("path", "method"))
+
+    return {
+        "version": "1.0",
+        "backend_url": f"http://{config.backend_host}:{config.backend_port}",
+        "categories": sorted_catalog,
+        "total_endpoints": sum(len(eps) for eps in sorted_catalog.values()),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Model Reliability (programmatic access to model scores)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/model-reliability")
+async def model_reliability() -> dict:
+    """Programmatic access to model reliability scores for agent decision-making.
+
+    Returns the same scoring data as `tools/model-reliability/score.py` but
+    via HTTP so agents can query it without running CLI commands or reading
+    the tracked output files.
+
+    Scoring rules (see tools/model-reliability/README.md):
+        +20 per source currently listing the model as free (max 40)
+        +30 if observed working within 7 days (else +15 if within 30 days)
+        -50 if observed failing within 7 days
+        floor 0
+
+    Returns:
+        {
+            "models": [
+                {
+                    "name": "gemma4:e2b-it-qat",
+                    "score": 70,
+                    "tier": "RELIABLE NOW",
+                    "sources": ["ollama"],
+                    "last_worked": "2026-11-15",
+                    "last_failed": null,
+                    "notes": []
+                },
+                ...
+            ],
+            "snapshot_dates": {"ollama": "2026-11-15"},
+            "updated_at": "2026-11-15T10:30:00Z"
+        }
+    """
+    import datetime
+    import glob
+    import json
+    import os
+
+    base = os.path.join(str(PROJECT_ROOT), "tools", "model-reliability")
+    snap_dir = os.path.join(base, "snapshots")
+    observed_path = os.path.join(base, "observed.jsonl")
+
+    def days_ago(d):
+        return (datetime.date.today() - datetime.date.fromisoformat(d)).days
+
+    def latest_snapshots():
+        latest = {}
+        if not os.path.isdir(snap_dir):
+            return latest
+        for path in glob.glob(os.path.join(snap_dir, "*.json")):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    snap = json.load(f)
+                src = snap["source"]
+                if src not in latest or snap["fetched_at"] > latest[src]["fetched_at"]:
+                    latest[src] = snap
+            except Exception:
+                continue
+        return latest
+
+    def load_observed():
+        rows = []
+        if not os.path.exists(observed_path):
+            return rows
+        try:
+            with open(observed_path, encoding="utf-8-sig") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        r = json.loads(line)
+                        if r.get("model") and r.get("model") != "*":
+                            rows.append(r)
+        except Exception:
+            pass
+        return rows
+
+    def model_observed(model, rows):
+        worked, failed, notes = [], [], []
+        for r in rows:
+            if r["model"] != model:
+                continue
+            if "worked" in r:
+                worked_bool = bool(r["worked"])
+            elif "outcome" in r:
+                worked_bool = str(r["outcome"]).lower() == "success"
+            else:
+                worked_bool = True
+            date = r.get("date")
+            if not date and r.get("ts"):
+                date = str(r["ts"])[:10]
+            if date:
+                (worked if worked_bool else failed).append(date)
+            if r.get("note"):
+                notes.append(f"[{r.get('route', '?')}] {r['note']}")
+        return (max(worked) if worked else None,
+                max(failed) if failed else None, notes)
+
+    def tier_for(score, lw, lf):
+        if lf and (not lw or lf >= lw) and days_ago(lf) <= 7:
+            return "AVOID"
+        if lw and days_ago(lw) <= 7:
+            return "RELIABLE NOW"
+        if lw:
+            return "worked before"
+        return "listed, untested"
+
+    def score_model(sources, lw, lf):
+        score = 20 * len(sources)
+        if lw and days_ago(lw) <= 7:
+            score += 30
+        elif lw and days_ago(lw) <= 30:
+            score += 15
+        if lf and days_ago(lf) <= 7:
+            score -= 50
+        return max(0, score)
+
+    snaps = latest_snapshots()
+    rows = load_observed()
+
+    advertised = {}
+    for src, snap in snaps.items():
+        for m in snap["models"]:
+            advertised.setdefault(m["id"], set()).add(src)
+
+    for r in rows:
+        if r["model"] not in advertised:
+            advertised[r["model"]] = set()
+
+    if not advertised:
+        return {
+            "models": [],
+            "snapshot_dates": {},
+            "updated_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "note": "No observed sessions and no snapshots available"
+        }
+
+    table = []
+    for model, sources in advertised.items():
+        lw, lf, model_notes = model_observed(model, rows)
+        score = score_model(sources, lw, lf)
+        table.append({
+            "name": model,
+            "score": score,
+            "tier": tier_for(score, lw, lf),
+            "sources": sorted(sources),
+            "last_worked": lw,
+            "last_failed": lf,
+            "notes": model_notes[:2],  # Limit to top 2 notes
+        })
+
+    table.sort(key=lambda t: (-t["score"], t["name"]))
+
+    return {
+        "models": table,
+        "snapshot_dates": {s: snaps[s]["fetched_at"][:10] for s in sorted(snaps)},
+        "updated_at": datetime.datetime.utcnow().isoformat() + "Z",
+    }
