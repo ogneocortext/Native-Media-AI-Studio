@@ -169,7 +169,7 @@ export function MusicPromptGenerator({
   const [lyricStyle, setLyricStyle] = useState("");
   const [instrumental, setInstrumental] = useState(false);
   const [timeline, setTimeline] = useState(false);
-  const [model, setModel] = useState("qwen3.5:4b");
+  const [model, setModel] = useState("llama3.1:8b");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -709,6 +709,7 @@ export function MusicPromptGenerator({
                 autoComplete="off"
               />
               <datalist id="music-prompt-models">
+                <option value="llama3.1:8b" />
                 <option value="qwen3.5:4b" />
                 <option value="llama3.2:3b" />
                 <option value="ibm/granite4.2:3b" />

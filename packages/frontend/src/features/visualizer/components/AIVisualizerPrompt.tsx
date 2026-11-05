@@ -6,6 +6,7 @@ import type { VisualPreset } from "../aiPresetCatalog";
 import { AIPresetGallery } from "./AIPresetGallery";
 
 const TOOL_CAPABLE_MODELS = [
+  "llama3.1:8b",
   "gemma4:e2b-it-qat",
   "qwen3.5:4b",
 ];

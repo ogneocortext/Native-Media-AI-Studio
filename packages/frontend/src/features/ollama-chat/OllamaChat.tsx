@@ -169,7 +169,7 @@ export function OllamaChat() {
 
         setModels(sorted);
         setTools(toolsData.tools ?? []);
-        const preferred = ["gemma4:e2b-it-qat", "qwen3.5:4b", "qwen3-vl:2b"];
+        const preferred = ["llama3.1:8b", "gemma4:e2b-it-qat", "qwen3.5:4b", "qwen3-vl:2b"];
         const preferredModel = preferred.find((name) => sorted.some((model) => model.name === name));
         if (preferredModel) setSelectedModel(preferredModel);
         else if (sorted.length > 0) setSelectedModel(sorted[0].name);

@@ -460,6 +460,7 @@ export function Settings() {
                 <option value="qwen3.5:4b">qwen3.5:4b (fast, 4B)</option>
                 <option value="qwen3.5:4b">qwen3.5:4b (quality)</option>
                 <option value="gemma4:e2b-it-qat">gemma4:e2b-it-qat (vision)</option>
+                <option value="llama3.1:8b">llama3.1:8b (coding, tool use)</option>
                 <option value="llama3.2:3b">llama3.2:3b (lightweight)</option>
               </select>
               <p className="text-xs text-muted mt-1">
