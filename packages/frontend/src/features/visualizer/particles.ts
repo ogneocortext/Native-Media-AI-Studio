@@ -93,14 +93,24 @@ export function updateAndDrawParticles(
     }
     const alpha = p.life * 0.8;
     const rgb = hslToRgb(p.hue / 360, 1, 0.5 + energy * 0.3);
-    ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
-    ctx.shadowColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha * 0.8})`;
-    ctx.shadowBlur = 6 * dpr + bass * 8 * dpr + analyzedPunch * 6 * dpr;
+    const radius = p.size * dpr + bass * 2 * dpr;
+    // T-VIZ-17: two-pass glow — wide soft additive halo + crisp core,
+    // replacing per-particle shadow blur (the worst canvas2d offender).
+    const prevCO = ctx.globalCompositeOperation;
+    const prevA = ctx.globalAlpha;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = alpha * 0.4;
+    ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.35)`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * dpr + bass * 2 * dpr, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, radius * 3 + bass * 4 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = prevCO;
+    ctx.globalAlpha = prevA;
+    ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.shadowBlur = 0;
 
   // Center glow — radial gradient from bass/phraseFlash-driven color to transparent
   const grd = ctx.createRadialGradient(

@@ -24,6 +24,7 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   createEnvelopeStage,
+  drawGlowSprite,
   easeOutQuad,
   lerpColor,
   normalizeHex,
@@ -632,13 +633,12 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const breathe = 0.55 + Math.sin(t * 0.8) * 0.15;
           drawCtx.textAlign = "center";
           // Soft glow behind the text so it reads over the particle field.
-          drawCtx.shadowColor = colors[0] + "80";
-          drawCtx.shadowBlur = 18 * dpr;
+          // T-VIZ-17: pre-rendered sprite instead of shadow blur.
+          drawGlowSprite(drawCtx, colors[0], w / 2, h / 2 - 4 * dpr, w * 0.7, 90 * dpr, 0.4);
           drawCtx.fillStyle = colors[0];
           drawCtx.globalAlpha = breathe;
           drawCtx.font = `600 ${22 * dpr}px system-ui, sans-serif`;
           drawCtx.fillText("Drop a track to see it move", w / 2, h / 2 - 4 * dpr);
-          drawCtx.shadowBlur = 0;
           drawCtx.globalAlpha = 0.45 + idlePulse * 0.5;
           drawCtx.fillStyle = colors[1] || "#a5b4fc";
           drawCtx.font = `${12 * dpr}px system-ui, sans-serif`;

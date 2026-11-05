@@ -13,6 +13,7 @@ import {
   clamp,
   damp,
   dampLambda,
+  drawGlowSprite,
   easeOutBack,
   fbm,
   hexToRgb,
@@ -175,10 +176,9 @@ function drawBeatFlash(
 ): void {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x + 1, y - 3 * dpr, bw, 3 * dpr);
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 6 * dpr;
+  drawGlowSprite(ctx, color, x + 1 + bw / 2, y - dpr, bw + 10 * dpr, 8 * dpr, 0.7);
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(x + 1, y - 1 * dpr, bw, 1 * dpr);
-  ctx.shadowBlur = 0;
 }
 
 /** Draw a downbeat dot above a bar. */
@@ -420,10 +420,15 @@ export function renderSegmentedLedBars(
       modeCtx.ctx.roundRect(x + 1, y, bw, segH, [1 * dpr, 1 * dpr, 1 * dpr, 1 * dpr]);
       modeCtx.ctx.fill();
       if (modeCtx.d.beat && s === activeSegments - 1) {
-        modeCtx.ctx.shadowColor = modeCtx.colors[cIdx % modeCtx.colors.length];
-        modeCtx.ctx.shadowBlur = 8 * dpr;
-        modeCtx.ctx.fillRect(x + 1, y, bw, segH);
-        modeCtx.ctx.shadowBlur = 0;
+        drawGlowSprite(
+          modeCtx.ctx,
+          modeCtx.colors[cIdx % modeCtx.colors.length],
+          x + 1 + bw / 2,
+          y + segH / 2,
+          bw + 14 * dpr,
+          segH + 14 * dpr,
+          0.55,
+        );
       }
     }
   }
@@ -491,10 +496,15 @@ export function renderStereoSplitBars(
       modeCtx.ctx.fillStyle = "rgba(255,255,255,0.7)";
       modeCtx.ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
       if (modeCtx.d.beat && v > 0.4) {
-        modeCtx.ctx.shadowColor = band.color;
-        modeCtx.ctx.shadowBlur = 6 * dpr;
-        modeCtx.ctx.fillRect(x + 1, y, bw, bh + 2 * dpr);
-        modeCtx.ctx.shadowBlur = 0;
+        drawGlowSprite(
+          modeCtx.ctx,
+          band.color,
+          x + 1 + bw / 2,
+          y + bh / 2,
+          bw + 12 * dpr,
+          Math.min(bh + 12 * dpr, h * 0.5),
+          0.5,
+        );
       }
     }
   }
@@ -582,11 +592,17 @@ export function renderStackedFrequencyBands(
       const idx = Math.min(topLayer.start + i, freqLen - 1);
       const v = (modeCtx.freq?.[idx] ?? 0) / 255;
       if (v > 0.35) {
-        modeCtx.ctx.shadowColor = topLayer.color;
-        modeCtx.ctx.shadowBlur = 6 * dpr;
+        drawGlowSprite(
+          modeCtx.ctx,
+          topLayer.color,
+          x + 1 + bw / 2,
+          (topY + baseY) / 2,
+          bw + 12 * dpr,
+          baseY - topY + 12 * dpr,
+          0.5,
+        );
         modeCtx.ctx.fillStyle = "rgba(255,255,255,0.15)";
         modeCtx.ctx.fillRect(x + 1, topY, bw, baseY - topY);
-        modeCtx.ctx.shadowBlur = 0;
       }
     }
   }
@@ -599,6 +615,7 @@ export function renderDotPeakMatrix(
   modeCtx: BarModeContext,
   state: BarModeState,
 ): void {
+  void dpr; // dot/grid metrics are canvas-relative; glow sprite needs no dpr
   const barCount = 64;
   const cols = barCount;
   const rows = 12;
@@ -632,12 +649,18 @@ export function renderDotPeakMatrix(
         modeCtx.ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
         modeCtx.ctx.fill();
         if (modeCtx.d.beat && r === activeRows - 1) {
-          modeCtx.ctx.shadowColor = modeCtx.colors[cIdx % modeCtx.colors.length];
-          modeCtx.ctx.shadowBlur = 6 * dpr;
+          drawGlowSprite(
+            modeCtx.ctx,
+            modeCtx.colors[cIdx % modeCtx.colors.length],
+            cx,
+            cy,
+            dotR * 5,
+            dotR * 5,
+            0.55,
+          );
           modeCtx.ctx.beginPath();
           modeCtx.ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
           modeCtx.ctx.fill();
-          modeCtx.ctx.shadowBlur = 0;
         }
       } else {
         modeCtx.ctx.fillStyle = "rgba(255,255,255,0.08)";
@@ -702,8 +725,7 @@ export function renderWaveform(
 
   ctx.strokeStyle = colors[1];
   ctx.lineWidth = 2.2 * dpr;
-  ctx.shadowColor = colors[0];
-  ctx.shadowBlur =
+  const glowPx =
     9 * dpr + phraseFlash * 14 + (modeCtx.d.peak ?? 0) * 10 * dpr + energyMod * 8 * dpr;
   ctx.beginPath();
   const slice = w / state.smoothed.length;
@@ -732,6 +754,19 @@ export function renderWaveform(
     if (i === 0) ctx.moveTo(x + xOff, y);
     else ctx.lineTo(x + xOff, y);
   }
+  // T-VIZ-17: two-pass glow — wide low-alpha additive stroke under the
+  // crisp core, replacing the per-frame shadow blur rasterization.
+  const prevCO = ctx.globalCompositeOperation;
+  const prevA = ctx.globalAlpha;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.3;
+  ctx.strokeStyle = colors[0];
+  ctx.lineWidth = 2.2 * dpr + glowPx * 1.6;
+  ctx.stroke();
+  ctx.globalCompositeOperation = prevCO;
+  ctx.globalAlpha = prevA;
+  ctx.strokeStyle = colors[1];
+  ctx.lineWidth = 2.2 * dpr;
   ctx.stroke();
 
   // Subtle gradient fill under the primary waveform for depth
@@ -757,7 +792,6 @@ export function renderWaveform(
   // Secondary harmonic faint line
   ctx.strokeStyle = colors[2] + "88";
   ctx.lineWidth = 1.2 * dpr;
-  ctx.shadowBlur = 0;
   ctx.beginPath();
   for (let i = 0; i < wave.length; i += 2) {
     const x = i * slice;
@@ -769,21 +803,20 @@ export function renderWaveform(
   }
   ctx.stroke();
 
-  // Peak particles — glowing dots along peaks
-  ctx.shadowBlur = 8 * dpr;
+  // Peak particles — glowing dots along peaks (sprite glow, T-VIZ-17)
   for (let i = 0; i < wave.length; i += 24) {
     const v = (wave[i] - 128) / 128;
     if (Math.abs(v) > 0.55) {
       const x = i * slice;
       const y = h / 2 + v * h * 0.35 * (1 + (modeCtx.d.energy ?? 0) * 0.5);
+      const pr = 2.5 * dpr + (modeCtx.d.peak ?? 0) * 2 * dpr;
+      drawGlowSprite(ctx, colors[0], x, y, pr * 6, pr * 6, 0.5);
       ctx.fillStyle = d.beat ? "#ffffff" : colors[1];
-      ctx.shadowColor = colors[0];
       ctx.beginPath();
-      ctx.arc(x, y, 2.5 * dpr + (modeCtx.d.peak ?? 0) * 2 * dpr, 0, Math.PI * 2);
+      ctx.arc(x, y, pr, 0, Math.PI * 2);
       ctx.fill();
     }
   }
-  ctx.shadowBlur = 0;
 }
 
 /**
@@ -976,8 +1009,7 @@ export function renderLissajous(
 
   ctx.strokeStyle = colors[1];
   ctx.lineWidth = 2 * dpr;
-  ctx.shadowColor = colors[0];
-  ctx.shadowBlur = 6 * dpr + phraseFlash * 10;
+  const lissGlowPx = 6 * dpr + phraseFlash * 10;
   ctx.beginPath();
   const steps = 256;
   for (let i = 0; i < steps; i++) {
@@ -988,8 +1020,19 @@ export function renderLissajous(
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
+  // T-VIZ-17: two-pass glow stroke replacing shadow blur.
+  const prevCO = ctx.globalCompositeOperation;
+  const prevA = ctx.globalAlpha;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.3;
+  ctx.strokeStyle = colors[0];
+  ctx.lineWidth = 2 * dpr + lissGlowPx * 1.6;
   ctx.stroke();
-  ctx.shadowBlur = 0;
+  ctx.globalCompositeOperation = prevCO;
+  ctx.globalAlpha = prevA;
+  ctx.strokeStyle = colors[1];
+  ctx.lineWidth = 2 * dpr;
+  ctx.stroke();
 
   // Draw current-point glow
   const curAngle = t * (1 + d.bass);
@@ -1082,13 +1125,12 @@ export function renderConstellation(
       analyzedPunch * 3 * dpr;
     ctx.fillStyle =
       colors[Math.floor(p.v * colors.length) % colors.length];
-    ctx.shadowColor = colors[0];
-    ctx.shadowBlur = 4 * dpr + p.v * 8 * dpr + analyzedPunch * 6 * dpr;
+    const nodeGlow = 4 * dpr + p.v * 8 * dpr + analyzedPunch * 6 * dpr;
+    drawGlowSprite(ctx, colors[0], p.x, p.y, r * 2 + nodeGlow * 2, r * 2 + nodeGlow * 2, 0.5);
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.shadowBlur = 0;
 }
 
 /**

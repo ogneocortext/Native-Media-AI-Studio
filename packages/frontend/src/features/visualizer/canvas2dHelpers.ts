@@ -354,6 +354,94 @@ export function fbm(x: number, y: number, t: number, octaves = 4): number {
   return val;
 }
 
+// ============================================================================
+// T-VIZ-17 — pre-rendered glow sprites (replaces per-shape shadow blur)
+// ============================================================================
+// shadow blur forces the canvas to re-rasterize a gaussian blur for every
+// shape, every frame — the single most expensive 2D canvas feature. The
+// standard replacement is a soft radial sprite drawn additively: one
+// offscreen canvas per colour, scaled/translated per instance.
+
+const GLOW_SPRITE_SIZE = 128;
+const glowSpriteCache = new Map<string, HTMLCanvasElement>();
+
+/** Parse "#rgb"/"#rrggbb"/"rgb()"/"rgba()" into [r,g,b]; null if unknown. */
+function parseColorRgb(color: string): [number, number, number] | null {
+  const trimmed = color.trim();
+  const hexMatch = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
+  if (hexMatch) {
+    let h = hexMatch[1];
+    if (h.length === 3) h = h.split("").map((ch) => ch + ch).join("");
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  const m = /^rgba?\(([^)]+)\)/.exec(trimmed);
+  if (m) {
+    const parts = m[1].split(",").map((p) => parseFloat(p));
+    if (parts.length >= 3 && parts.every((p) => Number.isFinite(p))) {
+      return [parts[0], parts[1], parts[2]];
+    }
+  }
+  return null;
+}
+
+/**
+ * Soft radial glow sprite for `color`, cached per colour string. The
+ * gradient fades the colour to transparent — under `globalCompositeOperation
+ * = "lighter"` the black-transparent tail contributes nothing, so the
+ * falloff reads as a real glow.
+ */
+export function getGlowSprite(color: string): HTMLCanvasElement {
+  const cached = glowSpriteCache.get(color);
+  if (cached) return cached;
+  const size = GLOW_SPRITE_SIZE;
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+  const g = c.getContext("2d");
+  if (g) {
+    const r = size / 2;
+    const grad = g.createRadialGradient(r, r, 0, r, r, r);
+    const rgb = parseColorRgb(color);
+    if (rgb) {
+      const [cr, cg, cb] = rgb;
+      grad.addColorStop(0, `rgba(${cr},${cg},${cb},0.85)`);
+      grad.addColorStop(0.4, `rgba(${cr},${cg},${cb},0.28)`);
+      grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+    } else {
+      // Unparseable colour — still usable under 'lighter': the tail is
+      // transparent black which adds zero light.
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, "transparent");
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+  }
+  glowSpriteCache.set(color, c);
+  return c;
+}
+
+/**
+ * Draw an additive glow centred at (cx, cy) covering w×h device pixels.
+ * Saves/restores composite op and alpha so callers keep their state.
+ */
+export function drawGlowSprite(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  alpha = 0.6,
+): void {
+  const prevCO = ctx.globalCompositeOperation;
+  const prevA = ctx.globalAlpha;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(getGlowSprite(color), cx - w / 2, cy - h / 2, w, h);
+  ctx.globalCompositeOperation = prevCO;
+  ctx.globalAlpha = prevA;
+}
+
 /** Clamp a value into [min, max]. */
 export function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
