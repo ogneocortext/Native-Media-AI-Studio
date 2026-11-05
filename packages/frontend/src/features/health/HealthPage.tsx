@@ -59,6 +59,7 @@ import {
   GoServicesCard,
 } from "./components";
 import { ApiPerformanceCard } from "../../components/ApiPerformanceCard";
+import { NavPerformanceCard } from "../../components/NavPerformanceCard";
 import { MemoryMetricsCard } from "../../components/MemoryMetricsCard";
 import { NetworkMetricsCard } from "../../components/NetworkMetricsCard";
 import { showToast } from "../../utils/toast";
@@ -464,8 +465,9 @@ export function HealthPage() {
       </div>
 
       {/* Frontend & Network Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
         <ApiPerformanceCard />
+        <NavPerformanceCard />
         <MemoryMetricsCard />
         <NetworkMetricsCard
           uptime={networkMetrics.metrics.uptime}

@@ -37,6 +37,7 @@ import { BrandMark } from "./BrandMark";
 import { useHealthStore } from "../../state/healthStore";
 import { useUIStore } from "../../state/uiStore";
 import { getVideoEditorUrl } from "../../services/portConfig";
+import { preloadRoute } from "../../utils/routePreloader";
 
 interface NavItem {
   path: string;
@@ -322,6 +323,8 @@ function NavEntry({
           rel="noopener noreferrer"
           title={label}
           className={className}
+          onMouseEnter={() => preloadRoute(item.path)}
+          onMouseLeave={() => {}}
         >
           {body}
         </a>
@@ -335,6 +338,8 @@ function NavEntry({
         title={label}
         className={className}
         onClick={onNavigate}
+        onMouseEnter={() => preloadRoute(item.path)}
+        onMouseLeave={() => {}}
         end={item.path === "/"}
       >
         {body}

@@ -12,7 +12,7 @@
 interface MetricSample {
   timestamp: number;
   value: number;
-  tags?: Record<string, string>;
+  tags?: Record<string, string | number>;
 }
 
 interface MetricStats {
@@ -29,7 +29,7 @@ class MetricsStore {
   private metrics = new Map<string, MetricSample[]>();
   private maxSamples = 1000;
 
-  record(name: string, value: number, tags?: Record<string, string>) {
+  record(name: string, value: number, tags?: Record<string, string | number>) {
     if (!this.metrics.has(name)) {
       this.metrics.set(name, []);
     }
@@ -138,6 +138,64 @@ export function recordNetworkMetrics(
   metricsStore.record('network.bytesReceived', bytesReceived);
   metricsStore.record('network.bytesSent', bytesSent);
   metricsStore.record('network.latency', latency);
+}
+
+/**
+ * Record navigation timing between sidebar pages.
+ *
+ * @param fromPath - The route being navigated away from
+ * @param toPath - The route being navigated to
+ * @param navigateMs - Time from navigation call to route change (includes lazy module load)
+ * @param renderMs - Time from route change to first render commit
+ * @param totalMs - Total navigation time (navigateMs + renderMs)
+ */
+export function recordNavigationTiming(
+  fromPath: string,
+  toPath: string,
+  navigateMs: number,
+  renderMs: number,
+  totalMs: number
+) {
+  const key = `nav.${fromPath.replace(/\//g, '_')}.to.${toPath.replace(/\//g, '_')}`;
+  metricsStore.record(key, totalMs, { fromPath, toPath, navigateMs, renderMs });
+  metricsStore.record('nav.total.duration', totalMs);
+  metricsStore.record('nav.navigate.duration', navigateMs);
+  metricsStore.record('nav.render.duration', renderMs);
+}
+
+/**
+ * Get navigation metrics summary for the last 60 seconds.
+ */
+export function getNavigationMetricsSummary(): {
+  route: string;
+  count: number;
+  avgMs: number;
+  p95Ms: number;
+  maxMs: number;
+}[] {
+  const names = metricsStore.getAllNames().filter((n) => n.startsWith('nav.'));
+  const summary: {
+    route: string;
+    count: number;
+    avgMs: number;
+    p95Ms: number;
+    maxMs: number;
+  }[] = [];
+
+  for (const name of names) {
+    const stats = metricsStore.getStats(name, 60000);
+    if (stats && name.includes('.to.')) {
+      summary.push({
+        route: name,
+        count: stats.count,
+        avgMs: stats.avg,
+        p95Ms: stats.p95,
+        maxMs: stats.max,
+      });
+    }
+  }
+
+  return summary.sort((a, b) => b.avgMs - a.avgMs);
 }
 
 /**

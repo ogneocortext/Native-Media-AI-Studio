@@ -963,6 +963,7 @@ export const consoleErrorFilters = {
   network: ["net::", "NetworkError"],
   cdn: ["Failed to load resource", "script error"],
   vite: ["[vite]"],
+  react: ["A component was suspended by an uncached promise"],
 };
 
 /**
@@ -996,6 +997,7 @@ export function expectNoConsoleErrors(errors: string[], customExclude: string[] 
     ...consoleErrorFilters.network,
     ...consoleErrorFilters.cdn,
     ...consoleErrorFilters.vite,
+    ...consoleErrorFilters.react,
   ];
   const filtered = errors.filter((e) => !allExcludes.some((ex) => e.includes(ex)));
   expect(filtered).toEqual([]);

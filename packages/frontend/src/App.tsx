@@ -8,6 +8,7 @@ import { FirstRunGate } from "./features/onboarding/FirstRunGate";
 import { NotFound } from "./features/not-found/NotFound";
 import { Queue } from "./features/queue/Queue";
 import { Settings } from "./features/settings/Settings";
+import { registerRouteLoader } from "./utils/routePreloader";
 
 // Helper for lazy loading modules with named exports.
 // Retries once on transient network/HMR failures. A rejected import promise is
@@ -127,6 +128,40 @@ const AnimationStudio = lazyNamed(
 const OnboardingPage = lazyNamed(
   async () => import("./features/onboarding/OnboardingPage"), "OnboardingPage",
 );
+
+// Register all lazy routes for preloading on hover
+registerRouteLoader("/create/music-video", () => import("./features/music-video/MusicVideoWizard"));
+registerRouteLoader("/create/video", () => import("./features/video-generation/VideoGenerationPage"));
+registerRouteLoader("/create/3d", () => import("./features/three-js-studio/ThreeJSStudio"));
+registerRouteLoader("/create/image", () => import("./features/image-generation/ImageGeneration"));
+registerRouteLoader("/create/typography", () => import("./features/kinetic-typography/KineticTypographyPage"));
+registerRouteLoader("/create/music", () => import("./features/music-gen/MusicGenPage"));
+registerRouteLoader("/create/remix", () => import("./features/remix/RemixPage"));
+registerRouteLoader("/create/animation", () => import("./features/animation-studio/AnimationStudio"));
+registerRouteLoader("/create/unity", () => import("./features/unity-control/UnityControlPage"));
+registerRouteLoader("/create/hyperframes", () => import("./features/hyperframes/HyperFramesPage"));
+registerRouteLoader("/library", () => import("./features/media-library/MediaLibrary"));
+registerRouteLoader("/library/video", () => import("./features/media-library/VideoLibrary"));
+registerRouteLoader("/library/audio", () => import("./features/media-library/AudioLibrary"));
+registerRouteLoader("/library/storyboards", () => import("./features/storyboards/StoryboardPage"));
+registerRouteLoader("/mastering", () => import("./features/mastering/MasteringPage"));
+registerRouteLoader("/analyze/audio", () => import("./features/audio-analysis/AudioAnalysisPage"));
+registerRouteLoader("/analyze/ai", () => import("./features/ai-tools/AIToolsPage"));
+registerRouteLoader("/analyze/chat", () => import("./features/ollama-chat/OllamaChat"));
+registerRouteLoader("/render/visualizer", () => import("./features/visualizer/Visualizer"));
+registerRouteLoader("/render/preview", () => import("./features/preview/Preview"));
+registerRouteLoader("/render/prompts", () => import("./features/music-prompts/MusicPromptsWorkbench"));
+registerRouteLoader("/system", () => import("./features/dashboard/Dashboard"));
+registerRouteLoader("/system/queue", () => import("./features/queue/Queue"));
+registerRouteLoader("/system/settings", () => import("./features/settings/Settings"));
+registerRouteLoader("/system/health", () => import("./features/health/HealthPage"));
+registerRouteLoader("/system/data-management", () => import("./features/data-management/DataManagementPage"));
+registerRouteLoader("/system/database", () => import("./features/database/DatabasePage"));
+registerRouteLoader("/system/gpu", () => import("./features/gpu/GpuMonitorPage"));
+registerRouteLoader("/system/log-analytics", () => import("./features/log-analytics/LogAnalytics"));
+registerRouteLoader("/system/notifications", () => import("./features/notifications/NotificationsPage"));
+registerRouteLoader("/system/docs", () => import("./features/docs/DocsPage"));
+registerRouteLoader("/system/onboarding", () => import("./features/onboarding/OnboardingPage"));
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
 
