@@ -150,7 +150,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `custom-agent-design.md`  → `#ai`, `#technical`, `#documentation`
 - ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
 
-### 📊 Research & Reference (18/18 completed)
+### 📊 Research & Reference (19/19 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -161,6 +161,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `tempo-estimation-octave-errors-2026.md` → `#research`, `#audio`, `#beat-tracking`, `#octave-errors`, `#tempo-estimation`
 - ✅ `ai-music-video-platforms-2026.md`  → `#research`, `#platform-youtube`, `#ai`
 - ✅ `app-research-gaps-2026.md`  → `#research`
+- ✅ `audio-reactive-visualization-2026-11.md`  → `#research`, `#visualization`, `#audio`
 - ✅ `creative-onboarding-patterns-2026.md`  → `#research`, `#design`
 - ✅ `knowledge-retrieval-evaluation-2026.md`  → `#research`, `#technical`, `#documentation`
 - ✅ `feature-utilization-audit-2026.md`  → `#research`, `#features`

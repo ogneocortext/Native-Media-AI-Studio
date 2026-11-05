@@ -32,6 +32,7 @@ date: 2026-09-30
 - [[music-video-production|🎵 Music Video Production Guide]] — Complete production workflow from audio upload to final export
 - [[youtube-optimization|📺 YouTube Optimization]] — Platform-specific optimization for reach and engagement
 - [[audio-reactive-production|🎧 Audio-Reactive Production]] — Audio → visual mapping, beat sync
+- [[audio-reactive-visualization-2026-11|🔬 Audio-Reactive Visualization 2026-11]] — Research update: onset-detection constants, latency/clock discipline, Canvas2D perf budgets, band→parameter craft for T-VIZ-16–24 (NEW 2026-11-05)
 - [[a1-a6-media-pipeline-tooling-2026|🧰 A1–A6 Media-Pipeline Tooling Map]] — Concrete tooling for the six adopted backlog items: music brain, cost meter, beat-quantized assembler, lyric/Canvas products, stem-reactive viz, model routing (NEW 2026-09-29)
 - [[stem-system-evaluation-2026|🎛️ Stem System Evaluation 2026]] — Full audit of the per-stem pipeline: separation, API, frontend mixer, viz integration, bugs, and recommended fix sequence (NEW 2026-09-30)
 - [[ai-music-mastering-stems-2026|🎚️ Mastering & Stem Splitting for AI Music 2026]] — LUFS/true-peak targets, the AI-defect chain (mud/fizz/side fog), Demucs quality knobs, and where stems do and don't help (NEW 2026-10-02)
@@ -164,7 +165,7 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 18 documents |
-|| `#research/*` | Industry trends & analysis | 17 documents |
+|| `#research/*` | Industry trends & analysis | 18 documents |
 
 ### Cross-Cutting Tags
 
@@ -181,7 +182,7 @@ date: 2026-09-30
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 23 documents |
-|| `#visualization` | Visualization techniques | 17 documents |
+|| `#visualization` | Visualization techniques | 18 documents |
 || `#3d` | 3D generation & rendering | 14 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
