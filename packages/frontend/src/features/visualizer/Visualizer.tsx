@@ -33,29 +33,8 @@ import { useRef, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import {
-  Music,
   AlertCircle,
-  Maximize2,
-  Minimize2,
-  Video,
-  Square,
-  Download,
-  Settings,
-  Snowflake,
-  MessageSquare,
-  Sparkles,
-  Play,
   Wand2,
-  Accessibility,
-  EyeOff,
-  User,
-  Layers,
-  ListVideo,
-  MoreHorizontal,
-  Keyboard,
-  Film,
-  Camera,
-  Repeat,
 } from "lucide-react";
 import { formatTime } from "../../utils/format";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
@@ -82,7 +61,6 @@ import {
   createVisualizerRenderer,
   isWebGPUOptIn,
 } from "./webgpu/WebGPURendererDetector";
-import { SpectrumBar } from "./components/SpectrumBar";
 import { StemMixerPanel, type StemName } from "./components/StemMixer";
 import { RemixPanel } from "./remix/RemixPanel";
 import { EqualizerPanel } from "./components/EqualizerPanel";
@@ -90,12 +68,15 @@ import { ProfessionalMixer } from "./professionalMixer/ProfessionalMixer";
 import { StylePicker } from "./components/StylePicker";
 import { QuickPresetBar } from "./components/QuickPresetBar";
 import { ReactivityHUD } from "./components/ReactivityHUD";
+import { VizFooter } from "./components/VizFooter";
+import { VizEmptyState } from "./components/VizEmptyState";
+import { VizTopbar } from "./components/VizTopbar";
+import { VizToolbar } from "./components/VizToolbar";
 import {
   matchReactivityGenrePreset,
 } from "./reactivityGenrePresets";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
-import { PresetFileUpload } from "./components/PresetFileUpload";
 import { AIVisualizerPrompt } from "./components/AIVisualizerPrompt";
 import { KineticLyricOverlay } from "./components/KineticLyricOverlay";
 import { AnimationDemo } from "./components/AnimationDemo";
@@ -118,7 +99,6 @@ import { RenderStatsProbe, RenderStatsBadge } from "./components/RenderStats";
 import {
   CANVAS_2D_MODES,
   CANVAS_2D_MODE_LABELS,
-  shortModeLabel,
   BEAT_LATCH_MS,
   audioRefForFile,
   optionLabelForFile,
@@ -797,425 +777,81 @@ export function Visualizer() {
       <header
         className={`viz-topbar${openOverlay !== null ? " viz-topbar--overlay" : ""}`}
       >
-        <div className="viz-brand">
-          <Music size={20} />
-          <span>Visualizer</span>
-        </div>
-        <div className="viz-track-selector">
-          <select
-            data-testid="viz-track-select"
-            id="viz-track-select"
-            aria-label="Select a track"
-            onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
-            value={currentFilename ?? ""}
-            className="viz-track-select"
-          >
-            <option value="" disabled>
-              Select a track...
-            </option>
-            {libraryFiles.map((f) => {
-              const ref = audioRefForFile(f);
-              const name = optionLabelForFile(f);
-              const meta = trackMetadata[ref];
-              const badge = analysisData[ref] ? " ✓" : "";
-              const metaStr = meta.bpm ? ` (${meta.bpm} BPM)` : "";
-              return (
-                <option key={ref} value={ref}>
-                  {name}
-                  {metaStr}
-                  {badge}
-                </option>
-              );
-            })}
-          </select>
-          <button
-            onClick={toggleAutoPlay}
-            className={`viz-icon-btn ${autoPlay ? "active" : ""}`}
-            aria-label={autoPlay ? "Auto-play ON" : "Auto-play OFF"}
-            aria-pressed={autoPlay}
-            title={
-              autoPlay
-                ? "Auto-play ON — tracks start automatically"
-                : "Auto-play OFF — pick a track then press Play"
-            }
-          >
-            {/* ListVideo, not Play: this toggles auto-play of the NEXT track;
-                the Play glyph made it read as a duplicate transport (plan 1.1). */}
-            <ListVideo size={14} />
-          </button>
-          {currentFilename && !currentAnalysisData && (
-            <button
-              className="viz-analyze-btn"
-              onClick={async () => handleAnalyzeTrack(currentFilename)}
-              disabled={analyzing}
-              aria-describedby="viz-analyze-status"
-            >
-              {analyzing ? "Analyzing..." : "Analyze"}
-            </button>
-          )}
-          <span id="viz-analyze-status" className="sr-only" aria-live="polite">
-            {analyzing ? "Analyzing track..." : currentAnalysisData ? "Analysis complete" : ""}
-          </span>
-          {currentFilename && activeVisualPresetId && visualPresets[activeVisualPresetId] && (
-            <span
-              className="viz-preset-badge"
-              title={`Active preset: ${visualPresets[activeVisualPresetId].name}\n${visualPresets[activeVisualPresetId].description}`}
-            >
-              {visualPresets[activeVisualPresetId].name}
-            </span>
-          )}
-          {currentAnalysisData && !loadedPreset && (
-            <button
-              className="viz-enhance-btn"
-              onClick={handleEnhanceWithAI}
-              disabled={aiEnhancing}
-              title="Generate AI preset tuned to this track (manual, visible)"
-            >
-              {aiEnhancing ? "Enhancing..." : "Enhance with AI"}
-            </button>
-          )}
-        </div>
-        <div className="viz-actions" role="toolbar" aria-label="Visualizer controls">
-          <PresetFileUpload
-            onPresetLoaded={handlePresetLoaded}
-            loadedPresetName={loadedPreset?.name ?? null}
-            onClearPreset={handleClearPreset}
-          />
-          <div className="viz-btn-group">
-            <button
-              onClick={() => {
-                userPickedVizModeRef.current = true;
-                setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d");
-              }}
-              className={`viz-icon-btn ${vizMode !== "3d" ? "active" : ""}`}
-              title={`Mode: ${vizMode}`}
-              aria-label={`Visualization mode: ${vizMode}. Activate to switch mode.`}
-              aria-pressed={vizMode !== "3d"}
-            >
-              {vizMode === "3d" ? (
-                <span style={{ fontSize: 11 }}>3D</span>
-              ) : vizMode === "shader" ? (
-                <span style={{ fontSize: 11 }}>FX</span>
-              ) : (
-                <span style={{ fontSize: 11 }}>2D</span>
-              )}
-            </button>
-          </div>
-          <div className="viz-btn-group viz-layers-group" title="Layers">
-            <button
-              onClick={() => setVisualsVisible((v) => !v)}
-              className={`viz-icon-btn ${visualsVisible ? "active" : ""}`}
-              aria-label={visualsVisible ? "Hide visuals" : "Show visuals"}
-              aria-pressed={visualsVisible}
-              title={`Visuals: ${visualsVisible ? "on" : "off"} — 3D/shader/2D`}
-            >
-              {visualsVisible ? <Layers size={14} /> : <EyeOff size={14} />}
-            </button>
-            <button
-              onClick={() => setLyricsVisible((v) => !v)}
-              className={`viz-icon-btn viz-lyrics-btn ${lyricsVisible ? "active" : ""}`}
-              aria-label={lyricsVisible ? "Hide lyrics" : "Show lyrics"}
-              aria-pressed={lyricsVisible}
-              title={`Lyrics: ${lyricsVisible ? "on" : "off"}${lyrics.length === 0 ? " — no lyrics loaded" : ""}`}
-            >
-              <MessageSquare size={14} />
-            </button>
-            <button
-              onClick={() => setCharacterVisible((v) => !v)}
-              className={`viz-icon-btn ${characterVisible ? "active" : ""}`}
-              aria-label={characterVisible ? "Hide character" : "Show character"}
-              aria-pressed={characterVisible}
-              title={`Character: ${characterVisible ? "on" : "off"}`}
-            >
-              <User size={14} />
-            </button>
-          </div>
-          <div className="viz-btn-group">
-            <button
-              onClick={captureFrame}
-              className="viz-icon-btn"
-              aria-label="Capture high-res frame snapshot (PNG)"
-              title="Quick Snapshot (PNG)"
-            >
-              <Camera size={14} />
-            </button>
-            <button
-              onClick={toggleFocusMode}
-              className={`viz-icon-btn ${focusMode ? "active" : ""}`}
-              aria-label={focusMode ? "Exit Stage Mode (F)" : "Enter Fullscreen Stage Mode (F)"}
-              aria-pressed={focusMode}
-              title={focusMode ? "Exit Stage Mode (F)" : "Stage / Focus Mode (F)"}
-            >
-              {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
-          </div>
-          <div className="viz-btn-group">
-            <button
-              onClick={() => toggleOverlay("shortcuts")}
-              className={`viz-icon-btn viz-shortcuts-toggle ${showShortcuts ? "active" : ""}`}
-              data-viz-overlay-toggle="shortcuts"
-              aria-label="Keyboard shortcuts"
-              aria-expanded={showShortcuts}
-              aria-pressed={showShortcuts}
-              title="Keyboard shortcuts (H)"
-            >
-              <Keyboard size={14} />
-            </button>
-            {showShortcuts && (
-              <div className="viz-shortcuts-menu" role="dialog" aria-label="Keyboard shortcuts">
-                <div className="viz-shortcuts-title">Keyboard shortcuts</div>
-                <div className="viz-shortcut-row">
-                  <span>Play / pause</span>
-                  <kbd>Space</kbd>
-                </div>
-                <div className="viz-shortcut-row">
-                  <span>Cycle mode FX → 2D → 3D</span>
-                  <span className="viz-shortcut-keys">
-                    <kbd>←</kbd>
-                    <kbd>→</kbd>
-                  </span>
-                </div>
-                {CANVAS_2D_MODES.slice(0, 9).map((m, i) => (
-                  <div className="viz-shortcut-row" key={m}>
-                    <span>2D · {CANVAS_2D_MODE_LABELS[m]}</span>
-                    <kbd>{i + 1}</kbd>
-                  </div>
-                ))}
-                <div className="viz-shortcut-row">
-                  <span>Focus mode</span>
-                  <kbd>F</kbd>
-                </div>
-                <div className="viz-shortcut-row">
-                  <span>Loop A–B (start / end / clear)</span>
-                  <kbd>L</kbd>
-                </div>
-                <div className="viz-shortcut-row">
-                  <span>This list</span>
-                  <span className="viz-shortcut-keys">
-                    <kbd>H</kbd>
-                    <kbd>?</kbd>
-                  </span>
-                </div>
-                <div className="viz-shortcut-row">
-                  <span>Close list</span>
-                  <kbd>Esc</kbd>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="viz-btn-group">
-            <button
-              onClick={() => toggleOverlay("more")}
-              className={`viz-icon-btn viz-more-menu-toggle ${showMoreMenu ? "active" : ""}`}
-              data-testid="viz-more-toggle"
-              data-viz-overlay-toggle="more"
-              aria-label="More controls"
-              aria-expanded={showMoreMenu}
-              aria-pressed={showMoreMenu}
-              title="More controls"
-            >
-              <MoreHorizontal size={14} />
-            </button>
-            {showMoreMenu && (
-              <div className="viz-more-menu">
-                {vizMode === "2d" && (
-                  <select
-                    value={canvas2DMode}
-                    onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
-                    className="viz-2d-mode-select viz-more-item"
-                    title="2D mode"
-                  >
-                    {CANVAS_2D_MODES.map((m) => (
-                      <option key={m} value={m}>
-                        {shortModeLabel(m)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {isRecording && (
-                  <span className="viz-rec viz-more-item" aria-live="polite">
-                    <span className="viz-rec-dot" /> {Math.floor(recordingTime / 60)}:
-                    {(recordingTime % 60).toString().padStart(2, "0")}
-                  </span>
-                )}
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  className={`viz-icon-btn viz-more-item ${isRecording ? "rec" : ""}`}
-                  aria-label={isRecording ? "Stop recording" : "Start recording"}
-                  aria-pressed={isRecording}
-                  title={isRecording ? "Stop recording" : "Start recording"}
-                >
-                  {isRecording ? <Square size={14} /> : <Video size={14} />}
-                  <span className="viz-more-label">
-                    {isRecording ? "Stop recording" : "Record"}
-                  </span>
-                </button>
-                {/* Plan 2.9 — deterministic 10 s @ 30 fps export, exactly
-                    300 frames, driven from the frame index. Shader and 2D
-                    modes publish the API; 3D mode exports from the studio
-                    lane's own button (it owns its clock hijack). */}
-                {(vizMode === "shader" || vizMode === "2d") && (
-                  <button
-                    onClick={async () => startFrameAccurateExport(10)}
-                    disabled={isRecording || isExporting}
-                    className="viz-icon-btn viz-more-item"
-                    aria-label="Export 10 seconds frame-accurate"
-                    title="Export 10 s @ 30 fps frame-accurate (exactly 300 frames, deterministic)"
-                  >
-                    <Film size={14} />
-                    <span className="viz-more-label">
-                      {isExporting
-                        ? `Exporting ${Math.round(exportProgress * 100)}%`
-                        : "Export 10s HQ"}
-                    </span>
-                  </button>
-                )}
-                {recordedBlob && !isRecording && (
-                  <button
-                    onClick={downloadRecording}
-                    className="viz-icon-btn viz-more-item"
-                    aria-label="Download recording"
-                    title="Download recording"
-                  >
-                    <Download size={14} />
-                    <span className="viz-more-label">Download</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowExportModal(!showExportModal)}
-                  className="viz-icon-btn viz-more-item"
-                  aria-label="Export MP4"
-                  title="Export MP4 (WebCodecs)"
-                >
-                  <Film size={14} />
-                  <span className="viz-more-label">Export MP4</span>
-                </button>
-                <button
-                  onClick={captureFrame}
-                  data-testid="viz-capture-frame"
-                  className="viz-icon-btn viz-more-item"
-                  aria-label="Capture frame as PNG"
-                  title="Capture frame as PNG"
-                >
-                  <Camera size={14} />
-                  <span className="viz-more-label">Snapshot</span>
-                </button>
-                <button
-                  onClick={handleLoopToggle}
-                  data-testid="viz-loop-toggle"
-                  className={`viz-icon-btn viz-more-item ${loopRegion ? "active" : ""}`}
-                  aria-label={
-                    loopRegion
-                      ? `Looping ${formatTime(loopRegion.start)} to ${formatTime(loopRegion.end)} — click to clear`
-                      : loopAnchor !== null
-                        ? `Loop start set at ${formatTime(loopAnchor)} — click to set the end`
-                        : "Loop A–B: click to set start, again for end, again to clear"
-                  }
-                  aria-pressed={!!loopRegion}
-                  title={
-                    loopRegion
-                      ? `Loop ${formatTime(loopRegion.start)}–${formatTime(loopRegion.end)} — click to clear`
-                      : loopAnchor !== null
-                        ? `Start set at ${formatTime(loopAnchor)} — click to set end`
-                        : "Loop A–B"
-                  }
-                >
-                  <Repeat size={14} />
-                  <span className="viz-more-label">
-                    {loopRegion ? "Loop on" : loopAnchor !== null ? "Set end" : "Loop A–B"}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setSceneFrozen(!sceneFrozen)}
-                  className={`viz-icon-btn viz-more-item ${sceneFrozen ? "active" : ""}`}
-                  aria-label={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}
-                  aria-pressed={sceneFrozen}
-                  title={sceneFrozen ? "Unfreeze scene" : "Freeze scene"}
-                >
-                  <Snowflake size={14} />
-                  <span className="viz-more-label">{sceneFrozen ? "Unfreeze" : "Freeze"}</span>
-                </button>
-                <button
-                  onClick={toggleFocusMode}
-                  className={`viz-icon-btn viz-more-item`}
-                  aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"}
-                  aria-pressed={focusMode}
-                  title={focusMode ? "Exit focus mode" : "Enter focus mode"}
-                >
-                  {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                  <span className="viz-more-label">{focusMode ? "Exit focus" : "Focus mode"}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSettings(!showSettings);
-                    // Menu and settings must not coexist (plan 1.3).
-                    setOpenOverlay(null);
-                  }}
-                  className={`viz-icon-btn viz-more-item ${showSettings ? "active" : ""}`}
-                  aria-label={showSettings ? "Close settings" : "Open settings"}
-                  aria-pressed={showSettings}
-                  title={showSettings ? "Close settings" : "Open settings"}
-                >
-                  <Settings size={14} />
-                  <span className="viz-more-label">
-                    {showSettings ? "Close settings" : "Settings"}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setShowAnimDemo(!showAnimDemo)}
-                  className={`viz-icon-btn viz-more-item ${showAnimDemo ? "active" : ""}`}
-                  aria-label="Animation demo"
-                  aria-pressed={showAnimDemo}
-                  title="Animation demo"
-                >
-                  <Play size={14} />
-                  <span className="viz-more-label">Animation demo</span>
-                </button>
-                <button
-                  onClick={() => setShowTheatreStudio(!showTheatreStudio)}
-                  className={`viz-icon-btn viz-more-item ${showTheatreStudio ? "active" : ""}`}
-                  aria-label="Theatre.js Studio"
-                  aria-pressed={showTheatreStudio}
-                  title="Theatre.js Studio — Visual animation editor"
-                >
-                  <Wand2 size={14} />
-                  <span className="viz-more-label">Theatre.js Studio</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setOpenOverlay(null);
-                    setShowAIPanel(!showAIPanel);
-                  }}
-                  data-testid="viz-ai-toggle"
-                  className={`viz-icon-btn viz-more-item viz-ai-toggle ${showAIPanel ? "active" : ""}`}
-                  aria-label="AI generate preset"
-                  aria-pressed={showAIPanel}
-                  title="AI generate preset"
-                >
-                  <Sparkles size={14} />
-                  <span className="viz-more-label">AI preset</span>
-                </button>
-                <button
-                  onClick={() => setPrefersReducedMotion((p) => !p)}
-                  className={`viz-icon-btn viz-more-item ${prefersReducedMotion ? "active" : ""}`}
-                  aria-label={prefersReducedMotion ? "Motion on" : "Motion off"}
-                  aria-pressed={prefersReducedMotion}
-                  title={
-                    prefersReducedMotion
-                      ? "Reduced motion: ON (click to disable)"
-                      : "Reduced motion: OFF (click to enable)"
-                  }
-                >
-                  <Accessibility size={14} />
-                  <span className="viz-more-label">
-                    {prefersReducedMotion ? "Motion: on" : "Motion: off"}
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+        <VizTopbar
+          openOverlay={openOverlay !== null}
+          currentFilename={currentFilename}
+          libraryFiles={libraryFiles}
+          onSelectTrack={handleSelectLibraryTrack}
+          autoPlay={autoPlay}
+          onToggleAutoPlay={toggleAutoPlay}
+          analyzing={analyzing}
+          onAnalyzeTrack={handleAnalyzeTrack}
+          currentAnalysisData={currentAnalysisData}
+          trackMetadata={trackMetadata}
+          analysisData={analysisData}
+          activeVisualPresetId={activeVisualPresetId}
+          visualPresets={visualPresets}
+          onEnhanceWithAI={handleEnhanceWithAI}
+          aiEnhancing={aiEnhancing}
+          loadedPreset={loadedPreset}
+        />
+        <VizToolbar
+          onPresetLoaded={handlePresetLoaded}
+          loadedPresetName={loadedPreset?.name ?? null}
+          onClearPreset={handleClearPreset}
+          vizMode={vizMode}
+          onCycleMode={() => {
+            userPickedVizModeRef.current = true;
+            setVizMode(vizMode === "3d" ? "shader" : vizMode === "shader" ? "2d" : "3d");
+          }}
+          visualsVisible={visualsVisible}
+          onToggleVisuals={() => setVisualsVisible((v) => !v)}
+          lyricsVisible={lyricsVisible}
+          onToggleLyrics={() => setLyricsVisible((v) => !v)}
+          lyricsLength={lyrics.length}
+          characterVisible={characterVisible}
+          onToggleCharacter={() => setCharacterVisible((v) => !v)}
+          onCaptureFrame={captureFrame}
+          focusMode={focusMode}
+          onToggleFocus={toggleFocusMode}
+          showShortcuts={showShortcuts}
+          onToggleShortcuts={() => toggleOverlay("shortcuts")}
+          showMoreMenu={showMoreMenu}
+          onToggleMore={() => toggleOverlay("more")}
+          canvas2DMode={canvas2DMode}
+          onSelect2DMode={(m) => setCanvas2DMode(m)}
+          isRecording={isRecording}
+          recordingTime={recordingTime}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+          onExportFrameAccurate={(seconds) => startFrameAccurateExport(seconds)}
+          isExporting={isExporting}
+          exportProgress={exportProgress}
+          recordedBlob={recordedBlob}
+          onDownloadRecording={downloadRecording}
+          onToggleExportModal={() => setShowExportModal(!showExportModal)}
+          onToggleLoop={handleLoopToggle}
+          loopRegion={loopRegion}
+          loopAnchor={loopAnchor}
+          sceneFrozen={sceneFrozen}
+          onToggleSceneFrozen={() => setSceneFrozen(!sceneFrozen)}
+          onToggleFocusFromMenu={toggleFocusMode}
+          onToggleSettings={() => {
+            setShowSettings(!showSettings);
+            setOpenOverlay(null);
+          }}
+          showSettings={showSettings}
+          onToggleAnimDemo={() => setShowAnimDemo(!showAnimDemo)}
+          showAnimDemo={showAnimDemo}
+          onToggleTheatre={() => setShowTheatreStudio(!showTheatreStudio)}
+          showTheatreStudio={showTheatreStudio}
+          onToggleAIPanel={() => setShowAIPanel(!showAIPanel)}
+          showAIPanel={showAIPanel}
+          onCloseOverlay={() => setOpenOverlay(null)}
+          prefersReducedMotion={prefersReducedMotion}
+          onToggleReducedMotion={() => setPrefersReducedMotion((p) => !p)}
+        />
+</header>
 
       <AnimationDemo visible={showAnimDemo} onClose={() => setShowAnimDemo(false)} />
       <TheatreStudioPanel
@@ -1272,59 +908,7 @@ export function Visualizer() {
         <div className="viz-mode-fade" style={{ opacity: modeFade }} />
         <div className="viz-canvas-wrap" ref={containerRef}>
           {!audioUrl && !currentFilename && (
-            <div
-              className="viz-empty-hero"
-              role="status"
-              aria-label="Get started with the visualizer"
-            >
-              <div className="viz-empty-card">
-                <div className="viz-empty-icon">
-                  <Music size={28} />
-                </div>
-                <h3>Drop a song to see it</h3>
-                <p className="viz-empty-sub">
-                  Three steps — no setup. Pick a track, pick a vibe, hit play. Beat-synced shader +
-                  3D + lyrics.
-                </p>
-                <ol className="viz-empty-steps">
-                  <li>
-                    <span className="viz-empty-n">1</span> <b>Pick a track</b> → choose from the
-                    library above
-                    {libraryFiles.length > 0
-                      ? ` (${libraryFiles.length} tracks ready)`
-                      : ", or upload an MP3/WAV"}
-                  </li>
-                  <li>
-                    <span className="viz-empty-n">2</span> <b>Pick a vibe</b> → shader, 3D, or 2D
-                    from the toolbar
-                  </li>
-                  <li>
-                    <span className="viz-empty-n">3</span> Press <b>Play</b> — cuts land on beats,
-                    chorus = maximal
-                  </li>
-                </ol>
-                <div className="viz-empty-actions">
-                  <button
-                    className="viz-empty-cta"
-                    onClick={() => document.getElementById("viz-track-select")?.focus()}
-                  >
-                    Choose a track…
-                  </button>
-                  <button
-                    className="viz-empty-secondary"
-                    onClick={() => setShowAudioBrowser(true)}
-                  >
-                    Browse files…
-                  </button>
-                  <a href="/audio-analysis" className="viz-empty-link">
-                    Open Audio Analysis →
-                  </a>
-                </div>
-                <p className="viz-empty-tip">
-                  Tip: first 3s are the hook — start on the chorus for Shorts.
-                </p>
-              </div>
-            </div>
+            <VizEmptyState libraryFiles={libraryFiles} onBrowse={() => setShowAudioBrowser(true)} />
           )}
           {/* Playhead + click-to-seek over the stage. Position comes from the
               reactive `elapsed` state (driven by the playback rAF loop), not the
@@ -1518,21 +1102,9 @@ export function Visualizer() {
                 <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
               )}
             </>
-          ) : (
-            <div
-              className="viz-layer-hidden"
-              style={{
-                background: bgColor,
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, letterSpacing: 1 }}>
-                Visuals hidden
-              </span>
+          )         : (
+            <div className="viz-layer-hidden" style={{ background: bgColor }}>
+              <span className="viz-layer-hidden-label">Visuals hidden</span>
               {vizMode === "3d" && renderStats && <RenderStatsBadge stats={renderStats} />}
             </div>
           )}
@@ -1651,16 +1223,7 @@ export function Visualizer() {
         )}
       </div>
 
-      <footer className="viz-bottombar">
-        <div className="viz-spectrum">
-          <SpectrumBar label="Bass" value={liveAudioData.bass} color="#6366f1" />
-          <SpectrumBar label="Mid" value={liveAudioData.mid} color="#a855f7" />
-          <SpectrumBar label="Treble" value={liveAudioData.treble} color="#ec4899" />
-        </div>
-        <div className="viz-beat">
-          <div className={`viz-beat-dot ${liveAudioData.beat ? "active" : ""}`} />
-        </div>
-      </footer>
+      <VizFooter audioData={liveAudioData} />
 
       {audioUrl && (
         <div className="viz-audio-player">
