@@ -72,7 +72,13 @@ def classify_model_variant(model_name: str) -> str:
     if "ltx" in base:
         return "ltx_2_3"
     if "mochi" in base:
-        return "mochi_1" if re.search(r'(?<!\d)1(?!\d)', base) else "mochi_2"
+        # Match mochi_N where N is a standalone digit (not part of a larger
+        # number like mochi_10). Returns "mochi_1" for mochi_1, "mochi_2" for
+        # mochi_2, and "mochi_2" as fallback for unrecognized variants.
+        m = re.search(r'mochi_(\d+)', base)
+        if m:
+            return f"mochi_{m.group(1)}"
+        return "mochi_2"
     if "mm_sd" in base or "animate" in base or "motion" in base or "lora" in base:
         return "animate_diff_sd15"
     return "unknown"

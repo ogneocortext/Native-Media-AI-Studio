@@ -19,6 +19,15 @@ from .vram_types import GPUState
 
 logger = logging.getLogger(__name__)
 
+# Probe pynvml once at module import so the torch.cuda fallback path doesn't
+# re-import it on every call.
+try:
+    import pynvml as _pynvml
+    _PYNVML_AVAILABLE = True
+except Exception:
+    _pynvml = None
+    _PYNVML_AVAILABLE = False
+
 #: Cache of what Ollama's /api/ps actually reports as resident, refreshed on
 #: every verification.  The boolean flags (_ollama_loaded, _atomic_chat_loaded)
 #: can drift from reality (e.g. startup unloads Ollama but never flips the flag,
@@ -104,15 +113,14 @@ async def get_vram_status(
             try:
                 temp = 0
                 util = 0
-                import pynvml as _pynvml
-
-                try:
-                    _pynvml.nvmlInit()
-                    h = _pynvml.nvmlDeviceGetHandleByIndex(0)
-                    temp = _pynvml.nvmlDeviceGetTemperature(h, _pynvml.NVML_TEMPERATURE_GPU)
-                    util = _pynvml.nvmlDeviceGetUtilizationRates(h).gpu
-                except Exception:
-                    pass
+                if _PYNVML_AVAILABLE and _pynvml is not None:
+                    try:
+                        _pynvml.nvmlInit()
+                        h = _pynvml.nvmlDeviceGetHandleByIndex(0)
+                        temp = _pynvml.nvmlDeviceGetTemperature(h, _pynvml.NVML_TEMPERATURE_GPU)
+                        util = _pynvml.nvmlDeviceGetUtilizationRates(h).gpu
+                    except Exception:
+                        pass
             except Exception:
                 temp = 0
                 util = 0

@@ -65,6 +65,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_model_name(model_name: str, default_model: str) -> str:
+    """Sanitize a model name before loading.
+
+    Never infinite-pin a non-default llama model as the resident model;
+    fall back to ``default_model`` instead. Returns the sanitized name.
+    """
+    if "llama" in model_name.lower() and model_name != default_model:
+        logger.info(
+            "VRAM Manager: Substituting non-default llama model %s with default %s",
+            model_name,
+            default_model,
+        )
+        return default_model
+    return model_name
+
+
 class VRAMManager:
     """
     Manages GPU VRAM allocation between competing workloads.
@@ -82,7 +98,9 @@ class VRAMManager:
         # to True only after sync_resident_state() confirms a model is actually
         # resident via /api/ps. The app works fine without Ollama running.
         self._ollama_loaded: bool = False
+        self._ollama_model_name: str | None = None
         self._atomic_chat_loaded: bool = False
+        self._atomic_chat_model_name: str | None = None
         self._comfyui_busy: bool = False
         # Whether ComfyUI is believed to hold loaded models on the GPU. Tracked
         # separately from `_comfyui_busy`, which means "a prompt is running" --
@@ -112,6 +130,11 @@ class VRAMManager:
         try:
             resident = await _fetch_resident_models()
             self._ollama_loaded, self._atomic_chat_loaded = classify_resident_models(resident)
+            # Track which model names are resident for idempotent switching.
+            ollama_names = [m for m in resident if m.lower().startswith(("gemma4", "llama"))]
+            ac_names = [m for m in resident if m.lower().startswith("qwen3") or "qwen3_5" in m.lower()]
+            self._ollama_model_name = ollama_names[0] if ollama_names else None
+            self._atomic_chat_model_name = ac_names[0] if ac_names else None
         except Exception as exc:
             logger.warning("VRAM resident state sync failed: %s", exc)
             # Leave flags unchanged on failure - safer than assuming wrong state
@@ -446,12 +469,10 @@ class VRAMManager:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_3D:
                     logger.info("VRAM Manager: Reloading Ollama models (free=%dMB)", free_mb)
-                    # Get the last used model from Ollama adapter; sanitize to default if contaminated
                     from ..core.config import config as _cfg2
-                    last_model = _resolve_last_model(_cfg2.default_model)
-                    if "llama" in last_model.lower() and last_model != _cfg2.default_model:
-                        logger.info("VRAM Manager: _last_model %s not default, using %s instead", last_model, _cfg2.default_model)
-                        last_model = _cfg2.default_model
+                    last_model = _sanitize_model_name(
+                        _resolve_last_model(_cfg2.default_model), _cfg2.default_model
+                    )
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
                     reload_result = {"action": "reload_ollama", "success": reload_ok, "model": last_model}
@@ -791,9 +812,9 @@ class VRAMManager:
                 if free_mb > self.MIN_VRAM_FOR_LIPSYNC:
                     logger.info("VRAM Manager: Reloading Ollama after lip-sync (free=%dMB)", free_mb)
                     from ..core.config import config as _cfg2
-                    last_model = _resolve_last_model(_cfg2.default_model)
-                    if "llama" in last_model.lower() and last_model != _cfg2.default_model:
-                        last_model = _cfg2.default_model
+                    last_model = _sanitize_model_name(
+                        _resolve_last_model(_cfg2.default_model), _cfg2.default_model
+                    )
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
                     actions.append({"action": "reload_ollama", "success": reload_ok, "model": last_model})
@@ -969,9 +990,9 @@ class VRAMManager:
                         "VRAM Manager: Reloading Ollama after audio analysis "
                         "(free=%dMB)", free_mb)
                     from ..core.config import config as _cfg3
-                    last_model = _resolve_last_model(_cfg3.default_model)
-                    if "llama" in last_model.lower() and last_model != _cfg3.default_model:
-                        last_model = _cfg3.default_model
+                    last_model = _sanitize_model_name(
+                        _resolve_last_model(_cfg3.default_model), _cfg3.default_model
+                    )
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
                     actions.append({
@@ -1231,7 +1252,7 @@ class VRAMManager:
             await self.sync_resident_state()
 
             # Idempotency: if the same backend already has this model loaded, nothing to do
-            if backend == "ollama" and self._ollama_loaded:
+            if backend == "ollama" and self._ollama_loaded and self._ollama_model_name == model:
                 return {
                     "success": True,
                     "backend": backend,
@@ -1241,7 +1262,7 @@ class VRAMManager:
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                     "message": f"Model {model} already loaded for Ollama",
                 }
-            if backend == "atomic_chat" and self._atomic_chat_loaded:
+            if backend == "atomic_chat" and self._atomic_chat_loaded and self._atomic_chat_model_name == model:
                 return {
                     "success": True,
                     "backend": backend,
@@ -1256,6 +1277,7 @@ class VRAMManager:
             if self._ollama_loaded:
                 unloaded = await _unload_ollama_models()
                 self._ollama_loaded = False
+                self._ollama_model_name = None
                 actions.append(
                     {
                         "action": "unload_ollama",
@@ -1267,6 +1289,7 @@ class VRAMManager:
             if self._atomic_chat_loaded:
                 unloaded = await _unload_atomic_chat_models()
                 self._atomic_chat_loaded = False
+                self._atomic_chat_model_name = None
                 actions.append(
                     {
                         "action": "unload_atomic_chat",
@@ -1279,8 +1302,10 @@ class VRAMManager:
             load_ok = await _load_model_for_backend(backend, model)
             if backend == "ollama":
                 self._ollama_loaded = load_ok
+                self._ollama_model_name = model if load_ok else None
             else:
                 self._atomic_chat_loaded = load_ok
+                self._atomic_chat_model_name = model if load_ok else None
 
             return {
                 "success": load_ok,

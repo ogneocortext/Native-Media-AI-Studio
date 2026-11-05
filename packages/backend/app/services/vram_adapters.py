@@ -35,8 +35,8 @@ def _unload_ollama_models_sync() -> list[str]:
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
             loaded_models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("VRAM Manager: /api/ps query failed before unload: %s", exc)
 
     if not loaded_models:
         # Fallback: try the last known model
@@ -44,7 +44,9 @@ def _unload_ollama_models_sync() -> list[str]:
         if last_model:
             loaded_models = [last_model]
 
-    # Unload each loaded model
+    # Unload each loaded model. keep_alive=0 tells Ollama to evict the model
+    # immediately; the HTTP response may not arrive before the connection is
+    # torn down, so a read timeout is expected and not an error.
     for model_name in loaded_models:
         try:
             data = json.dumps({
@@ -58,11 +60,16 @@ def _unload_ollama_models_sync() -> list[str]:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=5):
+            # 2s is enough for the keep_alive=0 handshake; Ollama closes the
+            # connection as it evicts, so a read timeout is the normal path.
+            with urllib.request.urlopen(req, timeout=2):
                 pass
             logger.info("VRAM Manager: Unloaded Ollama model: %s", model_name)
-        except Exception:
-            pass  # Timeout is expected since we're unloading
+        except (TimeoutError, OSError) as exc:
+            # Expected: Ollama closes the connection while evicting.
+            logger.debug("VRAM Manager: Unload of %s completed (connection closed): %s", model_name, exc)
+        except Exception as exc:
+            logger.warning("VRAM Manager: Failed to unload Ollama model %s: %s", model_name, exc)
 
     return loaded_models
 
@@ -151,13 +158,20 @@ def _unload_atomic_chat_models_sync() -> list[str]:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=5):
+            # 2s is enough; Ollama closes the connection while evicting.
+            with urllib.request.urlopen(req, timeout=2):
                 pass
             logger.info(
                 "VRAM Manager: Unloaded Atomic Chat model: %s", name
             )
-        except Exception:
-            pass  # Timeout is expected since we're unloading
+        except (TimeoutError, OSError) as exc:
+            logger.debug(
+                "VRAM Manager: Atomic Chat unload of %s completed (connection closed): %s", name, exc
+            )
+        except Exception as exc:
+            logger.warning(
+                "VRAM Manager: Failed to unload Atomic Chat model %s: %s", name, exc
+            )
 
     return unloaded
 

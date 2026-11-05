@@ -725,39 +725,15 @@ class ResourceMonitor:
         except Exception:
             pass
 
-        # Try to offload Ollama if still high
+        # Try to offload Ollama via the VRAM manager if still high
         try:
             import psutil
 
             if psutil.virtual_memory().percent >= 85:
-                def _sync_offload() -> str | None:
-                    import json
-                    import urllib.request
-
-                    from ..core.urls import ollama_url
-                    try:
-                        req = urllib.request.Request(ollama_url("/api/ps"))
-                        with urllib.request.urlopen(req, timeout=3) as resp:
-                            data = json.loads(resp.read())
-                            for m in data.get("models", [])[:1]:  # offload at least one
-                                name = m.get("name", "")
-                                if name:
-                                    payload = json.dumps({"model": name, "keep_alive": 0}).encode()
-                                    r = urllib.request.Request(
-                                        ollama_url("/api/generate"),
-                                        data=payload,
-                                        headers={"Content-Type": "application/json"},
-                                    )
-                                    with urllib.request.urlopen(r, timeout=5):
-                                        pass
-                                    return f"offloaded ollama {name}"
-                    except Exception:
-                        pass
-                    return None
-
-                result = await asyncio.to_thread(_sync_offload)
-                if result:
-                    actions.append(result)
+                from ..services.vram_adapters import _unload_ollama_models
+                unloaded = await _unload_ollama_models()
+                if unloaded:
+                    actions.append(f"offloaded ollama: {', '.join(unloaded)}")
         except Exception:
             pass
 
@@ -832,10 +808,25 @@ class ResourceMonitor:
             if level != WarningLevel.CRITICAL:
                 self._last_warnings.pop(resource_type, None)
 
-        # Cleanup stale entries (resource types no longer being warned about)
-        stale_keys = [k for k in self._last_warnings if k not in [w["type"] for w in warnings]]
-        for key in stale_keys:
-            del self._last_warnings[key]
+            # Cleanup stale entries (resource types no longer being warned about)
+            stale_keys = [k for k in self._last_warnings if k not in [w["type"] for w in warnings]]
+            for key in stale_keys:
+                del self._last_warnings[key]
+
+    def shutdown(self) -> None:
+        """Shut down NVML and release GPU handles.
+
+        Called on app shutdown to avoid leaking the NVML handle across
+        process restarts.
+        """
+        if self._nvml_available:
+            try:
+                import pynvml
+                pynvml.nvmlShutdown()
+                self._nvml_available = False
+                logger.debug("ResourceMonitor: NVML shutdown complete")
+            except Exception as exc:
+                logger.debug("ResourceMonitor: NVML shutdown failed: %s", exc)
 
 
 # Global resource monitor instance
