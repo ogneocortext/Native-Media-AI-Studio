@@ -41,6 +41,25 @@ export interface AgentLoopOptions {
   systemPrompt?: string;
 }
 
+/**
+ * Strip outer markdown fences (```python, ```json, etc.) from model output.
+ *
+ * llama3.1:8b and similar models often wrap code in triple-backtick fences
+ * despite system prompts forbidding them. Stripping these fences prevents
+ * AST/JSON parsers from rejecting otherwise-valid output.
+ * See LatentMD (Sep 2026) on markdown boundary failures in LLM-generated text.
+ */
+function stripMarkdownFences(content: string): string {
+  const code = content.trim();
+  if (code.startsWith("```")) {
+    return code.replace(/^```(?:\w+)?\s*/i, "").replace(/\s*```$/, "").trim();
+  }
+  if (code.startsWith("~~~")) {
+    return code.replace(/^~~~(?:\w+)?\s*/i, "").replace(/\s*~~~$/, "").trim();
+  }
+  return code;
+}
+
 export interface AgentLoopResult {
   success: boolean;
   finalResponse: string;
@@ -200,7 +219,7 @@ The current user request is: "${userMessage}"`;
         // Add the assistant's tool-calling message to history
         messages.push({
           role: "assistant",
-          content: response.response || "I'll use tools to help with that.",
+          content: stripMarkdownFences(response.response) || "I'll use tools to help with that.",
           tool_calls: response.toolDetails.map((tc) => ({
             name: tc.name,
             arguments: tc.arguments as Record<string, any>, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -257,7 +276,7 @@ The current user request is: "${userMessage}"`;
       }
 
       // No tool calls - this is the final response
-      finalResponse = response.response || "I'm not sure how to help with that.";
+      finalResponse = stripMarkdownFences(response.response) || "I'm not sure how to help with that.";
       emitTurn({
         type: "final",
         content: finalResponse,

@@ -436,6 +436,24 @@ def _validate_task(task_type: str, content: str) -> dict[str, Any]:
     return validator(content)
 
 
+def _strip_markdown_fences(content: str) -> str:
+    """Strip outer markdown fences (```python, ```json, etc.) from model output.
+
+    llama3.1:8b and similar models often wrap code in triple-backtick fences
+    despite system prompts forbidding them. Stripping these fences before
+    validation prevents AST/JSON parsers from rejecting otherwise-valid output.
+    See LatentMD (Sep 2026) on markdown boundary failures in LLM-generated text.
+    """
+    code = content.strip()
+    if code.startswith("```"):
+        code = re.sub(r"^```(?:\w+)?\s*", "", code, flags=re.IGNORECASE)
+        code = re.sub(r"\s*```$", "", code)
+    elif code.startswith("~~~"):
+        code = re.sub(r"^~~~(?:\w+)?\s*", "", code, flags=re.IGNORECASE)
+        code = re.sub(r"\s*~~~$", "", code)
+    return code.strip()
+
+
 # ---------------------------------------------------------------------------
 # File I/O helpers
 # ---------------------------------------------------------------------------
@@ -529,6 +547,7 @@ async def run_single_benchmark(model: str, adapter, task_timeout: float = 60.0, 
                 timeout=task_timeout,
             )
             content = response.get("message", {}).get("content", "") if isinstance(response, dict) else str(response)
+            content = _strip_markdown_fences(content)
             validation = _validate_task(task["validator"], content)
             task_ok = bool(content and len(content.strip()) > 20 and validation["score"] >= 40)
             if task_ok:
