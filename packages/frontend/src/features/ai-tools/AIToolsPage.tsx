@@ -10,12 +10,13 @@ import {
   Wifi,
   WifiOff,
   Palette,
-  X,
-  Wrench,
-  Shield,
-  Eye,
-  Cpu,
-  Code2,
+  MessageCircle,
+  User,
+  Bot,
+  StopCircle,
+  Copy,
+  RotateCw,
+  ChevronRight,
 } from "lucide-react";
 import { ToolExecutionCard } from "../../components/ToolExecutionCard";
 import {
@@ -24,7 +25,6 @@ import {
   parseOllamaStream,
   getBenchmarkResults,
   getHardwareBenchmarks,
-  runBenchmark,
   type OllamaModel,
   type ToolDefinition,
   type OllamaBenchmarkResult,
@@ -38,18 +38,32 @@ import { Sidebar } from "./Sidebar";
 import { ToolEditor } from "./ToolEditor";
 import { DEFAULT_TOOLS, type Tool, type HistoryEntry } from "./types";
 
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  model?: string;
+  toolCalls?: number;
+  timestamp: Date;
+  thinking?: string;
+  showThinking?: boolean;
+  toolDetails?: {
+    name: string;
+    arguments: Record<string, unknown>;
+    result?: string;
+    status: "calling" | "done";
+  }[];
+  vizConfig?: VisualizationConfig;
+}
+
 export function AIToolsPage() {
   const [models, setModels] = useState<OllamaModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [response, setResponse] = useState<string>("");
-  const [thinking, setThinking] = useState<string>("");
-  const [showThinking, setShowThinking] = useState(false);
-  const [toolCalls, setToolCalls] = useState<
-    { name: string; arguments: Record<string, unknown>; result?: string }[]
-  >([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [_response, setResponse] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [tools, setTools] = useState<Tool[]>(DEFAULT_TOOLS);
   const [showToolEditor, setShowToolEditor] = useState(false);
@@ -60,12 +74,8 @@ export function AIToolsPage() {
   );
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
-  const [vizConfig, setVizConfig] = useState<
-    VisualizationConfig | null
-  >(null);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
   const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary>>({});
-  const [benchLoading, setBenchLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,14 +83,15 @@ export function AIToolsPage() {
     loadModels(true);
   }, []);
 
+  // Keep `response` in sync with the last assistant message for Sidebar compatibility
+  useEffect(() => {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    setResponse(lastAssistant?.content ?? "");
+  }, [messages]);
+
   const loadModels = async (verifiedOnly: boolean) => {
     try {
       const modelList = await getOllamaModels(verifiedOnly);
-      // Trust the backend. It now asks Ollama /api/show for authoritative
-      // capabilities; the name checks that used to live here were wrong in both
-      // directions and only ever added false positives - a model named "qwen..." was
-      // offered tools whether or not it had them. Left in, they would override the
-      // server's answer for exactly the models that need it least.
       const enhanced = modelList.map((m) => ({
         ...m,
         supportsTools: m.capabilities?.includes("tools") ?? false,
@@ -88,10 +99,6 @@ export function AIToolsPage() {
         supportsThinking: m.capabilities?.includes("thinking") ?? false,
       }));
 
-      // Scene quality and hardware latency are different signals: the scene
-      // score decides ordering, the hardware median is a tiebreak and the
-      // cleaner latency to display. allSettled so one failing endpoint
-      // cannot blank the other.
       let benchMap: Record<string, OllamaBenchmarkResult> = {};
       let hwMap: Record<string, HardwareBenchmarkSummary> = {};
       const [sceneRes, hwRes] = await Promise.allSettled([
@@ -107,16 +114,11 @@ export function AIToolsPage() {
         setHwSummary(hwMap);
       }
 
-      // Sort by benchmark score desc, then latency asc — best first
-      // Verified models first
       const sorted = [...enhanced].sort((a, b) => {
-        // Verified models first
         if (a.verified !== b.verified) return a.verified ? -1 : 1;
         const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
         const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
         if (sa !== sb) return sb - sa;
-        // Hardware median latency as the tiebreak; a model without hardware
-        // rows falls back to the scene benchmark's latency.
         const la =
           hwMap[a.name]?.median_latency_ms ||
           a.benchmark?.latency_ms ||
@@ -132,7 +134,6 @@ export function AIToolsPage() {
       setModels(sorted);
       setOllamaConnected(true);
       if (sorted.length > 0 && !selectedModel) {
-        // Prefer the first verified model with tools support
         const toolModel = sorted.find((m) => m.supportsTools);
         setSelectedModel(toolModel?.name || sorted[0].name);
       }
@@ -154,40 +155,11 @@ export function AIToolsPage() {
       }));
   }, [tools, enabledTools]);
 
-  const handleRunBenchmark = useCallback(async () => {
-    setBenchLoading(true);
-    try {
-      const data = await runBenchmark(undefined, 8);
-      setBenchmarks(data.results || {});
-      // Re-sort models by new scores
-      setModels((prev) => {
-        const sorted = [...prev].sort((a, b) => {
-          const sa = data.results[a.name]?.validation?.score ?? -1;
-          const sb = data.results[b.name]?.validation?.score ?? -1;
-          if (sa !== sb) return sb - sa;
-          return (
-            (data.results[a.name]?.latency_ms ?? 999999) -
-            (data.results[b.name]?.latency_ms ?? 999999)
-          );
-        });
-        return sorted;
-      });
-    } catch {
-      // Benchmark failed - silently ignore, models stay as-is
-    } finally {
-      setBenchLoading(false);
-    }
-  }, []);
-
   const handleGenerate = async () => {
-    if (!prompt.trim() || !selectedModel) return;
+    if (!prompt.trim()) return;
+    if (!selectedModel) return;
     setGenerating(true);
     setError(null);
-    setResponse("");
-    setThinking("");
-    setShowThinking(false);
-    setToolCalls([]);
-    setVizConfig(null);
 
     const supportsTools = models.find((m) => m.name === selectedModel)?.supportsTools;
     const activeTools = supportsTools ? convertToToolDefinitions() : [];
@@ -195,9 +167,30 @@ export function AIToolsPage() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: prompt.trim(),
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setPrompt("");
+
+    const assistantMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: "",
+      model: selectedModel,
+      timestamp: new Date(),
+      showThinking: false,
+      toolDetails: [],
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+    const assistantId = assistantMessage.id;
+
     try {
       const stream = await ollamaChatStream(
-        prompt,
+        prompt.trim(),
         selectedModel,
         {
           tools: activeTools,
@@ -208,10 +201,12 @@ export function AIToolsPage() {
       );
 
       let fullResponse = "";
+      let fullThinking = "";
       const toolDetails: {
         name: string;
         arguments: Record<string, unknown>;
         result?: string;
+        status: "calling" | "done";
       }[] = [];
 
       for await (const event of parseOllamaStream(stream)) {
@@ -219,39 +214,60 @@ export function AIToolsPage() {
         if (event.type === "content") {
           const data = event.data as { content: string; thinking?: string };
           fullResponse += data.content;
-          setResponse(fullResponse);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: fullResponse } : m,
+            ),
+          );
           if (data.thinking) {
-            setThinking((prev) => prev + data.thinking);
+            fullThinking += data.thinking;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, thinking: fullThinking } : m,
+              ),
+            );
           }
-      } else if (event.type === "tool_calls") {
-        const data = event.data as {
-          tool_calls: { name: string; arguments: Record<string, unknown> }[];
-        };
-        for (const tc of data.tool_calls) {
-          toolDetails.push(tc);
-        }
-        setToolCalls([...toolDetails]);
-      } else if (event.type === "tool_result") {
-        // The backend streams each tool's result after executing it. Attach
-        // it to the matching call so the Tool Calls card can show output, and
-        // render the visualization canvas when generate_visualization returns.
-        const data = event.data as { name: string; result: string };
-        const target = toolDetails.find((t) => t.name === data.name && !t.result);
-        if (target) {
-          target.result = data.result;
-        }
-        setToolCalls([...toolDetails]);
-        if (data.name === "generate_visualization") {
-          try {
-            const cfg = JSON.parse(data.result) as VisualizationConfig;
-            if (cfg?.style && cfg.colors) {
-              setVizConfig(cfg);
+        } else if (event.type === "tool_calls") {
+          const data = event.data as {
+            tool_calls: { name: string; arguments: Record<string, unknown> }[];
+          };
+          for (const tc of data.tool_calls) {
+            toolDetails.push({ ...tc, status: "calling" });
+          }
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m,
+            ),
+          );
+        } else if (event.type === "tool_result") {
+          const data = event.data as { name: string; result: string };
+          const target = toolDetails.find(
+            (t) => t.name === data.name && t.status === "calling",
+          );
+          if (target) {
+            target.result = data.result;
+            target.status = "done";
+          }
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m,
+            ),
+          );
+          if (data.name === "generate_visualization") {
+            try {
+              const cfg = JSON.parse(data.result) as VisualizationConfig;
+              if (cfg?.style && cfg.colors) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId ? { ...m, vizConfig: cfg } : m,
+                  ),
+                );
+              }
+            } catch {
+              /* result was not a visualization config */
             }
-          } catch {
-            /* result was not a visualization config */
           }
-        }
-      } else if (event.type === "error") {
+        } else if (event.type === "error") {
           const data = event.data as { message?: string };
           throw new Error(data.message || "Ollama returned no response");
         }
@@ -260,7 +276,7 @@ export function AIToolsPage() {
       if (fullResponse) {
         setHistory((prev) => [
           {
-            prompt,
+            prompt: userMessage.content,
             response: fullResponse,
             model: selectedModel,
             toolCalls: toolDetails.length,
@@ -287,19 +303,45 @@ export function AIToolsPage() {
     }
   };
 
-  const saveTool = (tool: Tool) => {
-    setTools((prev) => {
-      const existing = prev.find((t) => t.id === tool.id);
-      if (existing) return prev.map((t) => (t.id === tool.id ? tool : t));
-      return [...prev, tool];
-    });
-    setEnabledTools((prev) => new Set([...prev, tool.id]));
-    setShowToolEditor(false);
-    setEditingTool(null);
-    setToolJsonValid(true);
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
   };
 
-  const selectedModelData = models.find((m) => m.name === selectedModel);
+  const handleRegenerate = (message: Message) => {
+    if (message.role !== "assistant") return;
+    const idx = messages.findIndex((m) => m.id === message.id);
+    if (idx === -1) return;
+    const userMsg = messages[idx - 1];
+    if (!userMsg || userMsg.role !== "user") return;
+    setMessages((prev) => prev.slice(0, idx));
+    setGenerating(true);
+    const modelToUse = message.model || selectedModel || "";
+    setSelectedModel(modelToUse);
+    setPrompt(userMsg.content);
+    handleGenerate();
+  };
+
+  const getModelCaps = (m: OllamaModel) =>
+    [
+      m.supportsTools ? "tools" : "",
+      m.supportsVision ? "vision" : "",
+      m.supportsThinking ? "thinking" : "",
+    ].filter(Boolean);
+
+  const getModelLatency = (m: OllamaModel) => {
+    const latency =
+      hwSummary[m.name]?.median_latency_ms ||
+      benchmarks[m.name]?.latency_ms ||
+      m.benchmark?.latency_ms ||
+      null;
+    return latency ? `${(latency / 1000).toFixed(1)}s` : null;
+  };
+
+  const getModelScore = (m: OllamaModel) => {
+    const score =
+      benchmarks[m.name]?.validation?.score ?? m.benchmark?.score ?? null;
+    return score !== null && score >= 0 ? Math.round(score) : null;
+  };
 
   return (
     <div className={DS.page}>
@@ -334,135 +376,95 @@ export function AIToolsPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Model Selection */}
           <div className={DS.card}>
-            <label className={DS.textSmMedium + " block mb-2"}>Model</label>
+            <div className={DS.flexBetween + " mb-2"}>
+              <label className={DS.textSmMedium}>Model</label>
+              <button
+                onClick={() => {
+                  const next = !showAllModels;
+                  setShowAllModels(next);
+                  loadModels(!next);
+                }}
+                className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
+                title={
+                  showAllModels
+                    ? "Show only verified models"
+                    : "Show all models, including unverified ones"
+                }
+              >
+                {showAllModels ? "Verified only" : "Show all"}
+              </button>
+            </div>
             {models.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className={DS.select + " flex-1"}
-                    aria-label="Model"
-                  >
-                    {models.map((m) => {
-                      const bench = benchmarks[m.name];
-                      const score =
-                        bench?.validation?.score ?? m.benchmark?.score ?? null;
-                      // Prefer the hardware median (real end-to-end ms);
-                      // fall back to the scene benchmark's latency.
-                      const latency =
-                        hwSummary[m.name]?.median_latency_ms ||
-                        bench?.latency_ms ||
-                        m.benchmark?.latency_ms ||
-                        null;
-                      const s =
-                        score !== null && score >= 0 ? Math.round(score) : null;
-                      const caps = [
-                        m.supportsTools ? "tools" : "",
-                        m.supportsVision ? "vision" : "",
-                      ]
-                        .filter(Boolean)
-                        .join("+");
-                      const isBest =
-                        models[0]?.name === m.name && s !== null && s >= 60;
-                      return (
-                          <option key={m.name} value={m.name}>
-                            {m.name} ({m.size > 0 ? formatSize(m.size) : "unknown size"})
-                          {m.verified
-                            ? ""
-                            : ` · ${m.broken_reason === "not_tested" ? "not tested" : m.broken_reason || "unverified"}`}
-                          {caps ? ` · ${caps}` : ""}
-                          {s !== null
-                            ? ` · ${s}/100${latency ? ` · ${(latency / 1000).toFixed(1)}s` : ""}`
-                            : " · not benchmarked"}
-                          {isBest ? " · Best" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <button
-                    onClick={handleRunBenchmark}
-                    disabled={benchLoading}
-                    className="ml-2 px-2 py-1 text-xs rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 light:text-amber-700 border border-amber-500/20 disabled:opacity-50 flex items-center gap-1"
-                    title="Benchmark all models"
-                  >
-                    {benchLoading ? (
-                      <span className="w-3 h-3 border border-amber-300 light:border-amber-700 border-t-transparent rounded-full animate-spin inline-block" />
-                    ) : (
-                      "⚡"
-                    )}{" "}
-                     {benchLoading ? "…" : "Benchmark"}
-                   </button>
-                   <button
-                     onClick={() => {
-                       const next = !showAllModels;
-                       setShowAllModels(next);
-                       loadModels(!next);
-                     }}
-                     className="ml-1 px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
-                     title={
-                       showAllModels
-                         ? "Show only verified models"
-                         : "Show all models, including unverified ones"
-                     }
-                   >
-                     {showAllModels ? "Verified only" : "Show all"}
-                   </button>
-                </div>
-                {selectedModelData && (
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    {selectedModelData.verified && (
-                      <span className={DS.badgeGreen + " flex items-center gap-1"}>
-                        <Shield size={10} /> Verified Working
-                      </span>
-                    )}
-                    {!selectedModelData.verified && selectedModelData.broken_reason && (
-                      <span className={DS.badgeRed + " flex items-center gap-1"}>
-                        <AlertCircle size={10} /> {selectedModelData.broken_reason}
-                      </span>
-                    )}
-                    {selectedModelData.supportsTools && (
-                      <span className={DS.badgeGreen + " flex items-center gap-1"}>
-                        <Wrench size={10} /> Tools
-                      </span>
-                    )}
-                    {selectedModelData.supportsVision && (
-                      <span className={DS.badgeBlue + " flex items-center gap-1"}>
-                        <Eye size={10} /> Vision
-                      </span>
-                    )}
-                    {selectedModelData.supportsThinking && (
-                      <span className={DS.badgePurple + " flex items-center gap-1"}>
-                        <Cpu size={10} /> Thinking
-                      </span>
-                    )}
-                    {selectedModelData.verified_features?.includes("blender") && (
-                      <span className="bg-amber-900/50 text-amber-300 light:text-amber-700 border border-amber-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
-                        <Code2 size={10} /> Blender Scripts
-                      </span>
-                    )}
-                    {selectedModelData.verified_features?.includes("visualizer") && (
-                      <span className="bg-purple-900/50 text-purple-300 light:text-purple-700 border border-purple-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
-                        <Palette size={10} /> Visualizer
-                      </span>
-                    )}
-                    {selectedModelData.performance?.tokens_per_sec && (
-                      <span className="bg-gray-800 text-gray-200 border border-gray-700 px-2 py-0.5 rounded text-xs">
-                        ⚡ {selectedModelData.performance.tokens_per_sec} tok/s
-                      </span>
-                    )}
-                    {selectedModelData.performance?.vision_latency_sec && (
-                      <span className="bg-gray-800 text-gray-200 border border-gray-700 px-2 py-0.5 rounded text-xs">
-                        👁 ~{selectedModelData.performance.vision_latency_sec}s vision
-                      </span>
-                    )}
-                    {selectedModelData.verification_notes && (
-                      <span className="bg-gray-800 text-gray-200 border border-gray-700 px-2 py-0.5 rounded text-xs" title={selectedModelData.verification_notes}>
-                        ℹ️
-                      </span>
-                    )}
-                  </div>
-                )}
+              <div className="space-y-1">
+                {models.map((m) => {
+                  const score = getModelScore(m);
+                  const latency = getModelLatency(m);
+                  const caps = getModelCaps(m);
+                  const isSelected = m.name === selectedModel;
+                  const isBest =
+                    models[0]?.name === m.name && score !== null && score >= 60;
+                  const brokenReason = m.verified ? null : m.broken_reason;
+                  return (
+                    <button
+                      key={m.name}
+                      onClick={() => setSelectedModel(m.name)}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        isSelected
+                          ? "bg-violet-500/10 border-violet-500/30"
+                          : "bg-gray-700/30 border-gray-600/50 hover:bg-gray-700 hover:border-gray-500"
+                      } transition-colors`}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {m.name}
+                            </span>
+                            {isSelected && (
+                              <CheckCircle size={12} className="text-violet-400 shrink-0" />
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {m.verified && (
+                              <span className={DS.badgeGreen + " flex items-center gap-1"}>
+                                Verified
+                              </span>
+                            )}
+                            {brokenReason && (
+                              <span className={DS.badgeRed + " flex items-center gap-1"}>
+                                {brokenReason === "not_tested" ? "not tested" : brokenReason}
+                              </span>
+                            )}
+                            {caps.map((cap) => (
+                              <span key={cap} className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded">
+                                {cap}
+                              </span>
+                            ))}
+                            {score !== null && (
+                              <span className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded">
+                                {score}/100
+                              </span>
+                            )}
+                            {latency && (
+                              <span className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded">
+                                {latency}
+                              </span>
+                            )}
+                            {isBest && (
+                              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
+                                Best
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className={DS.textXs}>
+                          {m.size > 0 ? formatSize(m.size) : "unknown"}
+                        </span>
+                      </div>
+                      <ChevronRight size={14} className="text-muted shrink-0" />
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="space-y-2">
@@ -488,7 +490,6 @@ export function AIToolsPage() {
                       loadModels(!next);
                     }}
                     className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
-                    title="Show all models, including unverified ones"
                   >
                     {showAllModels ? "Verified only" : "Show all"}
                   </button>
@@ -497,37 +498,230 @@ export function AIToolsPage() {
             )}
           </div>
 
+          {/* Conversation */}
+          <div className="flex-1 min-h-[300px] max-h-[600px] overflow-y-auto space-y-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-muted">
+                <MessageCircle size={32} className="mb-3 opacity-30" />
+                <p>Start a conversation with your AI model</p>
+                <p className="text-xs mt-1 opacity-50">
+                  Select a model and type a message above
+                </p>
+              </div>
+            )}
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+              >
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                  {msg.role === "user" ? (
+                    <User size={14} className="text-gray-400" />
+                  ) : (
+                    <Bot size={14} className="text-violet-400" />
+                  )}
+                </div>
+                <div className={`flex-1 max-w-[85%] ${msg.role === "user" ? "text-right" : "text-left"}`}>
+                  <div className={`inline-block p-3 rounded-lg ${
+                    msg.role === "user"
+                      ? "bg-violet-600 text-white"
+                      : "bg-gray-700 border border-gray-600 text-foreground"
+                  }`}>
+                    {msg.role === "assistant" && msg.model && (
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="text-[10px] text-violet-300 font-medium">
+                          {msg.model}
+                        </span>
+                        <button
+                          onClick={() => handleRegenerate(msg)}
+                          disabled={generating}
+                          className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
+                          title="Regenerate"
+                        >
+                          <RotateCw size={10} />
+                        </button>
+                        <button
+                          onClick={() => handleCopy(msg.content)}
+                          className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
+                          title="Copy"
+                        >
+                          <Copy size={10} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="whitespace-pre-wrap break-words text-sm">
+                      {msg.content}
+                    </div>
+                    {msg.role === "assistant" && msg.thinking && !generating && (
+                      <div className="mt-2 pt-2 border-t border-gray-600/50">
+                        <button
+                          onClick={() => {
+                            setMessages((prev) =>
+                              prev.map((m) =>
+                                m.id === msg.id
+                                  ? { ...m, showThinking: !m.showThinking }
+                                  : m,
+                              ),
+                            );
+                          }}
+                          className="text-[10px] text-purple-300 hover:text-purple-200 flex items-center gap-1"
+                        >
+                          {msg.showThinking ? "Hide thinking" : "Show thinking"}
+                          <Brain size={10} />
+                        </button>
+                        {msg.showThinking && (
+                          <div className="mt-1 p-2 bg-gray-800/50 rounded text-[11px] text-purple-200 italic whitespace-pre-wrap">
+                            {msg.thinking}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {msg.role === "assistant" && msg.toolDetails && msg.toolDetails.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {msg.toolDetails.map((tc, i) => (
+                          <div
+                            key={i}
+                            className="p-2 bg-gray-800/50 rounded border border-gray-600/30"
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Zap size={12} className="text-amber-400 shrink-0" />
+                              <span className="text-xs text-amber-300 font-medium">
+                                {tc.name}
+                              </span>
+                              <span
+                                className={`ml-auto text-[10px] ${
+                                  tc.status === "calling"
+                                    ? "text-violet-300 animate-pulse"
+                                    : "text-green-400"
+                                }`}
+                              >
+                                {tc.status === "calling" ? "calling…" : "done"}
+                              </span>
+                            </div>
+                            <pre className={DS.mono + " overflow-auto"}>
+                              {JSON.stringify(tc.arguments, null, 2)}
+                            </pre>
+                            {tc.result && (
+                              <div className="mt-1 p-1.5 bg-green-900/10 border border-green-900/20 rounded text-[11px] text-green-300">
+                                {tc.result}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {generating && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                  <Bot size={14} className="text-violet-400 animate-pulse" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] text-violet-300 font-medium">
+                      {selectedModel}
+                    </span>
+                    <span className="text-[10px] text-purple-300 animate-pulse">
+                      Thinking…
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="w-3 h-3 bg-gray-600 rounded-full animate-pulse"
+                        style={{ animationDelay: `${i * 0.1}s` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Follow-up suggestions */}
+          {messages.length > 0 && !generating && (
+            <div className="space-y-2">
+              <p className={DS.textXs + " text-muted"}>Suggested follow-ups</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "Can you elaborate on that?",
+                  "Give me a concrete example",
+                  "Make it more concise",
+                  "What are the alternatives?",
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => setPrompt(suggestion)}
+                    className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <Zap size={10} className="text-amber-400 shrink-0" />
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Prompt Input */}
           <div className={DS.card}>
-            <label className={DS.textSmMedium + " block mb-2"}>Prompt</label>
-            <textarea
-              ref={promptRef}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className={DS.textarea}
-              rows={4}
-              placeholder="Ask for video concepts, scene descriptions, color palettes..."
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  handleGenerate();
-                }
-              }}
-            />
+            <div className="relative">
+              <textarea
+                ref={promptRef}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className={DS.textarea + " pr-12"}
+                rows={3}
+                placeholder="Ask for video concepts, scene descriptions, color palettes…"
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    (e.metaKey || e.ctrlKey) &&
+                    !e.shiftKey
+                  ) {
+                    e.preventDefault();
+                    handleGenerate();
+                  }
+                }}
+              />
+            </div>
             <div className={DS.flexBetween + " mt-2"}>
-              <span className={DS.textXs}>Ctrl+Enter to send</span>
+              <span className={DS.textXs}>
+                {prompt.length} / 4000 characters · Ctrl+Enter to send
+              </span>
               <div className="flex gap-2">
                 {generating && (
-                  <button onClick={handleCancel} className={DS.btnSecondary}>
-                    <X size={16} /> Cancel
+                  <button
+                    onClick={handleCancel}
+                    className={DS.btnSecondary + " flex items-center gap-1"}
+                  >
+                    <StopCircle size={16} className="text-red-400" />
+                    Cancel
                   </button>
                 )}
                 <button
                   onClick={handleGenerate}
-                  disabled={generating || !prompt.trim() || !selectedModel}
+                  disabled={
+                    generating ||
+                    (!prompt.trim()) ||
+                    !selectedModel
+                  }
                   className={DS.btnPrimary + " " + DS.btnDisabled}
                 >
-                  {generating ? <Loader2 size={16} className={DS.loading} /> : <Send size={16} />}
-                  {generating ? "Generating..." : "Generate"}
+                  {generating ? (
+                    <>
+                      <Loader2 size={16} className={DS.loading} />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Send
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -541,79 +735,29 @@ export function AIToolsPage() {
             </div>
           )}
 
-          {/* Thinking (collapsible) */}
-          {thinking && (
-            <div className={DS.card}>
-              <button
-                type="button"
-                onClick={() => setShowThinking((v) => !v)}
-                className={DS.flexCenter + " w-full mb-1"}
-                aria-expanded={showThinking}
-              >
-                <Brain size={16} className={DS.accentPurple} />
-                <span className={DS.textBold}>Thinking</span>
-                <span className={DS.textXs}>
-                  {showThinking ? "Hide" : "Show"}
-                </span>
-              </button>
-              {showThinking && (
-                <div className={DS.textSm + " whitespace-pre-wrap opacity-80"}>
-                  {thinking}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Response */}
-          {response && (
-            <div className={DS.card}>
-              <div className={DS.flexCenter + " mb-3"}>
-                <CheckCircle size={16} className={DS.accentGreen} />
-                <span className={DS.textBold}>Response</span>
-                <span className={DS.textXs}>({selectedModel})</span>
-              </div>
-              <div className={DS.textSm + " whitespace-pre-wrap"}>{response}</div>
-            </div>
-          )}
-
           {/* Visualization Canvas */}
-          {vizConfig && (
+          {messages.some((m) => m.vizConfig) && (
             <div className={DS.card}>
               <div className={DS.flexCenter + " mb-3"}>
                 <Palette size={16} className="text-purple-400" />
                 <span className={DS.textBold}>Visualization</span>
-                <span className={DS.textXs}>({vizConfig.style})</span>
               </div>
-              <Suspense fallback={<div className="viz-canvas-placeholder" style={{ width: 400, height: 300 }}><p>Rendering visualization…</p></div>}>
-                <VisualizationCanvas config={vizConfig} width={400} height={300} />
+              <Suspense
+                fallback={
+                  <div className="viz-canvas-placeholder" style={{ width: 400, height: 300 }}>
+                    <p>Rendering visualization…</p>
+                  </div>
+                }
+              >
+                <VisualizationCanvas
+                  config={messages.find((m) => m.vizConfig)!.vizConfig!}
+                  width={400}
+                  height={300}
+                />
               </Suspense>
             </div>
           )}
 
-          {/* Tool Calls */}
-          {toolCalls.length > 0 && (
-            <div className={DS.card}>
-              <div className={DS.flexCenter + " mb-3"}>
-                <Wrench size={16} className="text-amber-400" />
-                <span className={DS.textBold}>Tool Calls</span>
-                <span className={DS.textXs}>({toolCalls.length})</span>
-              </div>
-              <div className="space-y-2">
-                {toolCalls.map((tc, i) => (
-                  <div key={i} className="p-3 bg-gray-700/50 rounded-lg">
-                    <div className={DS.flexCenter + " mb-1"}>
-                      <Zap size={12} className="text-amber-400 light:text-amber-700" />
-                      <span className="text-amber-400 light:text-amber-700 text-sm font-medium">{tc.name}</span>
-                    </div>
-                    {tc.result && <p className="text-xs text-green-400 light:text-green-700 mt-1">{tc.result}</p>}
-                    <pre className={DS.mono + " overflow-auto mt-1"}>
-                      {JSON.stringify(tc.arguments, null, 2)}
-                    </pre>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {/* Tool Execution Metrics */}
           <ToolExecutionCard />
         </div>
@@ -629,7 +773,7 @@ export function AIToolsPage() {
           setTools={setTools}
           setPrompt={setPrompt}
           promptRef={promptRef}
-          selectedModel={selectedModel}
+          selectedModel={selectedModel || ""}
           setSelectedModel={setSelectedModel}
           models={models}
           history={history}
@@ -644,7 +788,17 @@ export function AIToolsPage() {
           setEditingTool={setEditingTool}
           toolJsonValid={toolJsonValid}
           setToolJsonValid={setToolJsonValid}
-          onSave={saveTool}
+          onSave={(tool: Tool) => {
+            setTools((prev) => {
+              const existing = prev.find((t) => t.id === tool.id);
+              if (existing) return prev.map((t) => (t.id === tool.id ? tool : t));
+              return [...prev, tool];
+            });
+            setEnabledTools((prev) => new Set([...prev, tool.id]));
+            setShowToolEditor(false);
+            setEditingTool(null);
+            setToolJsonValid(true);
+          }}
           onClose={() => {
             setShowToolEditor(false);
             setEditingTool(null);
