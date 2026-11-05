@@ -140,16 +140,16 @@ def estimate_model_vram_mb(model_name: str, model_size_bytes: int | None = None)
 # These used to be guessed from the model *name*, and the guesses were wrong.
 # Measured against `/api/show` on the 17 models installed on this workstation:
 #   - 4 models were reported as NOT vision-capable when they are
-#     (qwen3.5:9b, qwen3.5:4b, ornith-1.5:9b, deepseek-v4.1-flash:cloud) -
+#     (qwen3.5:9b, qwen3.5:4b, ornith-1.5:9b) -
 #     every one a false negative, so working models were hidden from the user.
 #   - `tools` and `thinking` were never reported for ANY model, because no name
 #     heuristic emitted them. Both are real capabilities in `/api/show`.
 #   - `audio` (gemma4) and `decision` (0.35 decision models) were unknown here.
 #
 # `/api/show` is authoritative and cheap locally, so the name heuristic is now only
-# a fallback for when the call fails - which does happen: at least one cloud model
-# in `/api/tags` (`deepseek-v4-flash:cloud`) returns an error from `/api/show`,
-# because the model lives on Ollama's servers, not on this machine.
+# a fallback for when the call fails - which does happen: at least one remote model
+# in `/api/tags` returns an error from `/api/show`, because the model lives on
+# Ollama's servers, not on this machine.
 
 #: How long a `/api/show` answer is trusted. Capabilities are a property of an
 #: installed model and do not change under a running server, so this only needs to

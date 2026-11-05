@@ -328,12 +328,6 @@ BROKEN_MODELS = {
     "minicpm-v:8b": {"reason": "8B model, ~7.7 GB VRAM est. -- exceeds 6.5 GB safe budget; was vision-only fallback"},
     "minicpm-v:latest": {"reason": "alias tag for minicpm-v:8b; deleted with it"},
     "openbmb/minicpm-v4.6:q4_K_M": {"reason": "invalid Blender API output"},
-    # Deleted 2026-10-22: cloud models without a paid key -- /api/show returns
-    # HTTP 402, they cannot run locally. Do not pull.
-    "glm-5.3:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
-    "minimax-m3.1-flash:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
-    "deepseek-v4.1-flash:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
-    "deepseek-v4-flash:cloud": {"reason": "cloud model, no paid key -- /api/show returns 402"},
 }
 
 
