@@ -17,6 +17,7 @@
 import {
   ollamaChat,
   ollamaEngineStatus,
+  getOllamaModels,
   type ChatMessage,
   type ToolDefinition,
 } from "./ollama";
@@ -39,6 +40,7 @@ export interface AgentTurn {
 
 export interface AgentLoopOptions {
   model?: string;
+  taskType?: "coding" | "vision" | "chat" | "default";
   maxIterations?: number;
   onTurn?: (turn: AgentTurn) => void;
   systemPrompt?: string;
@@ -64,25 +66,57 @@ function stripMarkdownFences(content: string): string {
 }
 
 /**
+ * Task-aware model preference map. When nothing is resident, these models
+ * are preferred for different task types based on benchmark results and
+ * model capabilities.
+ */
+const TASK_MODEL_PREFERENCES: Record<string, string[]> = {
+  coding: ["llama3.1:8b", "qwen3.5:4b", "llama3.2:3b"],
+  vision: ["gemma4:e2b-it-qat", "qwen3.5:4b", "llama3.1:8b"],
+  chat: ["llama3.2:3b", "qwen3.5:4b", "llama3.1:8b"],
+  default: ["llama3.1:8b", "qwen3.5:4b", "llama3.2:3b"],
+};
+
+// Cache for model selection results (TTL: 30 seconds) to avoid re-checking
+// endpoints on every call.
+let modelSelectionCache: { model: string; expiresAt: number } | null = null;
+const MODEL_SELECTION_TTL_MS = 30_000;
+
+/**
  * Automatically select the best model to use, preferring a model already
  * loaded in memory (resident) to avoid wasteful unload/load cycles.
  *
  * Selection order:
  *  1. If Ollama is online and has a resident model, reuse it.
  *  2. If Atomic Chat is online and reports a model, reuse it.
- *  3. If Ollama is online but nothing is loaded, use the preferred Ollama model.
- *  4. If Atomic Chat is online but nothing is loaded, use its preferred model.
- *  5. Fall back to llama3.1:8b.
+ *  3. If Ollama is online but nothing is loaded, pick the best installed
+ *     model for the task type (size-aware, prefers verified models).
+ *  4. If Atomic Chat is online but nothing is loaded, use qwen3.5:4b.
+ *  5. Fall back to the task's default preferred model.
  *
- * @param preferred - Optional preferred model to use when nothing is resident.
+ * Results are cached for 30 seconds to avoid repeated endpoint checks.
+ *
+ * @param taskType - Task category: "coding", "vision", "chat", or "default"
+ * @param preferred - Optional override model to use when nothing is resident.
  * @returns The model name to use.
  */
-export async function selectModel(preferred = "llama3.1:8b"): Promise<string> {
-  const [ollamaStatus, atomicStatus, loadedModels] = await Promise.allSettled([
-    ollamaEngineStatus(),
-    getAtomicChatStatus(),
-    getLoadedModels(),
-  ]);
+export async function selectModel(
+  taskType = "default",
+  preferred?: string,
+): Promise<string> {
+  // Return cached result if still valid
+  const now = Date.now();
+  if (modelSelectionCache && now < modelSelectionCache.expiresAt) {
+    return modelSelectionCache.model;
+  }
+
+  const [ollamaStatus, atomicStatus, loadedModels, installedModels] =
+    await Promise.allSettled([
+      ollamaEngineStatus(),
+      getAtomicChatStatus(),
+      getLoadedModels(),
+      getOllamaModels(false),
+    ]);
 
   // 1. Reuse a resident Ollama model if one is loaded
   if (
@@ -92,7 +126,9 @@ export async function selectModel(preferred = "llama3.1:8b"): Promise<string> {
     loadedModels.value.loaded &&
     loadedModels.value.models.length > 0
   ) {
-    return loadedModels.value.models[0].name;
+    const model = loadedModels.value.models[0].name;
+    modelSelectionCache = { model, expiresAt: now + MODEL_SELECTION_TTL_MS };
+    return model;
   }
 
   // 2. Reuse a resident Atomic Chat model if one is loaded
@@ -101,21 +137,72 @@ export async function selectModel(preferred = "llama3.1:8b"): Promise<string> {
     atomicStatus.value.reachable &&
     atomicStatus.value.model
   ) {
-    return atomicStatus.value.model;
+    const model = atomicStatus.value.model;
+    modelSelectionCache = { model, expiresAt: now + MODEL_SELECTION_TTL_MS };
+    return model;
   }
 
-  // 3. Ollama online but nothing loaded — use preferred
+  // 3. Ollama online but nothing loaded — pick best installed model for task
   if (ollamaStatus.status === "fulfilled" && ollamaStatus.value.online) {
-    return preferred;
+    const installed =
+      installedModels.status === "fulfilled" ? installedModels.value : [];
+
+    const preferences = preferred
+      ? [preferred]
+      : TASK_MODEL_PREFERENCES[taskType] ?? TASK_MODEL_PREFERENCES.default;
+
+    // Find the first preferred model that is installed and available
+    for (const candidate of preferences) {
+      const found = installed.find(
+        (m: OllamaModel) => m.name === candidate && m.is_available,
+      );
+      if (found) {
+        modelSelectionCache = {
+          model: found.name,
+          expiresAt: now + MODEL_SELECTION_TTL_MS,
+        };
+        return found.name;
+      }
+    }
+
+    // Preferred model not installed — fall back to task default preferences
+    const taskPrefs = TASK_MODEL_PREFERENCES[taskType] ?? TASK_MODEL_PREFERENCES.default;
+    const fallback = taskPrefs[0];
+    modelSelectionCache = {
+      model: fallback,
+      expiresAt: now + MODEL_SELECTION_TTL_MS,
+    };
+    return fallback;
   }
 
   // 4. Atomic Chat online but nothing loaded — use its preferred model
   if (atomicStatus.status === "fulfilled" && atomicStatus.value.reachable) {
-    return "qwen3.5:4b";
+    const model = "qwen3.5:4b";
+    modelSelectionCache = { model, expiresAt: now + MODEL_SELECTION_TTL_MS };
+    return model;
   }
 
   // 5. Fall back
-  return preferred;
+  const fallback = preferred ?? TASK_MODEL_PREFERENCES.default[0];
+  modelSelectionCache = { model: fallback, expiresAt: now + MODEL_SELECTION_TTL_MS };
+  return fallback;
+}
+
+/**
+ * Clear the model selection cache. Call this when models are loaded/unloaded
+ * so the next selection re-checks endpoint state.
+ */
+export function clearModelSelectionCache(): void {
+  modelSelectionCache = null;
+}
+
+interface OllamaModel {
+  name: string;
+  size?: number;
+  is_available?: boolean;
+  capabilities?: string[];
+  supports_tools?: boolean;
+  supports_vision?: boolean;
 }
 
 export interface AgentLoopResult {
@@ -181,12 +268,14 @@ export async function runAgentLoop(
   options: AgentLoopOptions = {},
 ): Promise<AgentLoopResult> {
   const {
+    model: modelOption,
+    taskType = "default",
     maxIterations = 10,
     onTurn,
     systemPrompt,
   } = options;
 
-  const model = options.model ?? (await selectModel());
+  const model = modelOption ?? (await selectModel(taskType, modelOption));
 
   const turns: AgentTurn[] = [];
 
