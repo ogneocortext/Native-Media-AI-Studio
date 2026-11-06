@@ -953,3 +953,38 @@ Rules: `docs/plans/tasks/README.md`
   features/generate3d/useGeneration3D.ts,
   docs/comfyui-workflows/comfyui-workflows.md.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-34 - Loose-end sweep: DLQ purge, orphan prompts, MCP output schemas, Hunyuan3D-2mv weights + node wiring
+- **Status:** done
+- **Goal:** Close the five platform-side loose ends recorded against Q6/D31
+  and the 8GB model sweep: dead-letter job rows, orphaned ComfyUI prompts,
+  MCP output-side validation, Hunyuan3D-2mv render path, and the stale LTX
+  "no backend path" note.
+- **What changed:** Dead-letter `image_generation` rows purged — prior
+  quarantine sweep had reduced 233 to 32; `POST /api/jobs/clear-dead`
+  removed the rest (backup at `storage/studio.db.pre-dlq-purge-*.bak`,
+  verified 0 dead rows, `/api/queue` empty). ComfyUI `/queue` verified
+  `queue_running`/`queue_pending` both empty — the 23 orphaned prompts
+  had already drained. `mcp_validator.py` gained `validate_tool_result`
+  + `POST /api/mcp/validate-tool-result`: output-side schema checks with
+  graceful pass-through for bridges declaring no output schema. LTX note
+  corrected — `model_tiers.py` + `adapters/comfyui.py::_build_ltx_workflow`
+  already dispatch `ltx_2_3`; weights staged on disk.
+- **Hunyuan3D-2mv:** downloaded `hunyuan3d-dit-v2-mv/model.fp16.safetensors`
+  (4.93 GB, tencent/Hunyuan3D-2mv) into
+  `ComfyUI\models\diffusion_models\hunyuan3d-2mv\`; verified the safetensors
+  bundles its own VAE (266 vae keys). Found the wrapper exposes
+  `Hy3DGenerateMeshMultiView` (optional front/left/right/back IMAGE inputs)
+  — `REQUIRED_NODES` and both Hy3D workflow builders now emit that node for
+  `hunyuan3d_2mv` with `front` wired to the source image; 2mini variants
+  keep `Hy3DGenerateMesh`. `/api/3d/status` reports `hunyuan3d_2mv
+  available: true`.
+- **Files:** services/gen3d/gen3d_service.py, core/mcp_validator.py,
+  api/mcp.py (or equivalent route module), docs/architecture/decision-log.md,
+  docs/knowledge-library/app-research-gaps-2026.md,
+  docs/comfyui-workflows/comfyui-workflows.md.
+- **Verification:** backend tests + ruff clean; live `/api/3d/status`
+  health green for 2mv; live `POST /api/3d/generate-image?model=hunyuan3d_2mv`
+  → success, `mv_e2e_test_00001_.glb` (1.1 MB decimated) in
+  `generated_3d/`, timing queue 2ms / inference 222s / post 20s.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

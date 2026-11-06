@@ -439,6 +439,26 @@ export function createOptimisticMutation<
 
 // ─── Pre-built Mutation Options ──────────────────────────────────────────────
 
+/** Minimal job row shape for optimistic list updates. */
+interface OptimisticJob {
+  id: string;
+  job_type?: string;
+  status?: string;
+  progress?: number;
+  retry_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  params?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Minimal remix row shape for optimistic list updates. */
+interface OptimisticRemix {
+  name?: string;
+  has_enhanced?: boolean;
+  [key: string]: unknown;
+}
+
 export const jobMutations = {
   create: () => createOptimisticMutation({
     mutationFn: async (params: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {
@@ -451,7 +471,7 @@ export const jobMutations = {
       return res.json();
     },
     queryKey: queryKeys.jobs.all,
-    optimisticUpdate: (current: any[] | undefined, newJob: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {
+    optimisticUpdate: (current: OptimisticJob[] | undefined, newJob: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {
       const newJobOptimistic = {
         id: `temp-${Date.now()}`,
         job_type: newJob.job_type,
@@ -472,7 +492,7 @@ export const jobMutations = {
       return res.json();
     },
     queryKey: queryKeys.jobs.all,
-    optimisticUpdate: (current: any[] | undefined, id: string) => {
+    optimisticUpdate: (current: OptimisticJob[] | undefined, id: string) => {
       if (!current) return [];
       return current.map(job => 
         job.id === id ? { ...job, status: "cancelled" as const } : job
@@ -487,10 +507,10 @@ export const jobMutations = {
       return res.json();
     },
     queryKey: queryKeys.jobs.all,
-    optimisticUpdate: (current: any[] | undefined, id: string) => {
+    optimisticUpdate: (current: OptimisticJob[] | undefined, id: string) => {
       if (!current) return [];
       return current.map(job => 
-        job.id === id ? { ...job, status: "queued" as const, retry_count: job.retry_count + 1 } : job
+        job.id === id ? { ...job, status: "queued" as const, retry_count: (job.retry_count ?? 0) + 1 } : job
       );
     },
   }),
@@ -502,7 +522,7 @@ export const jobMutations = {
       return { id };
     },
     queryKey: queryKeys.jobs.all,
-    optimisticUpdate: (current: any[] | undefined, id: string) => {
+    optimisticUpdate: (current: OptimisticJob[] | undefined, id: string) => {
       if (!current) return [];
       return current.filter(job => job.id !== id);
     },
@@ -511,7 +531,7 @@ export const jobMutations = {
 
 export const remixMutations = {
   build: () => createOptimisticMutation({
-    mutationFn: async (recipe: any) => {
+    mutationFn: async (recipe: Record<string, unknown>) => {
       const base = "";
       const res = await fetch(`${base}/api/audio/remix/build`, {
         method: "POST",
@@ -521,11 +541,11 @@ export const remixMutations = {
       return res.json();
     },
     queryKey: queryKeys.remix.list(),
-    optimisticUpdate: (current: any[] | undefined) => current ?? [],
+    optimisticUpdate: (current: OptimisticRemix[] | undefined) => current ?? [],
   }),
   
   preview: () => createOptimisticMutation({
-    mutationFn: async (recipe: any) => {
+    mutationFn: async (recipe: Record<string, unknown>) => {
       const base = "";
       const res = await fetch(`${base}/api/audio/remix/preview`, {
         method: "POST",
@@ -535,7 +555,7 @@ export const remixMutations = {
       return res.json();
     },
     queryKey: queryKeys.remix.all,
-    optimisticUpdate: (current: any[] | undefined) => current ?? [],
+    optimisticUpdate: (current: OptimisticRemix[] | undefined) => current ?? [],
   }),
   
   enhance: () => createOptimisticMutation({
@@ -547,7 +567,7 @@ export const remixMutations = {
       return res.json();
     },
     queryKey: queryKeys.remix.list(),
-    optimisticUpdate: (current: any[] | undefined, name: string) => {
+    optimisticUpdate: (current: OptimisticRemix[] | undefined, name: string) => {
       if (!current) return [];
       return current.map(remix => 
         remix.name === name ? { ...remix, has_enhanced: true } : remix
@@ -568,7 +588,7 @@ export const jobMutationsActions = {
       return res.json();
     },
     queryKey: queryKeys.jobs.all,
-    optimisticUpdate: (current: any[] | undefined, params: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {
+    optimisticUpdate: (current: OptimisticJob[] | undefined, params: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {
       const newJobOptimistic = {
         id: `temp-${Date.now()}`,
         job_type: params.job_type,
@@ -589,7 +609,7 @@ export const jobMutationsActions = {
       return { id };
     },
     queryKey: queryKeys.jobs.all,
-    optimisticUpdate: (current: any[] | undefined, id: string) => {
+    optimisticUpdate: (current: OptimisticJob[] | undefined, id: string) => {
       if (!current) return [];
       return current.map(job => 
         job.id === id ? { ...job, status: "cancelled" as const } : job
@@ -708,8 +728,8 @@ export function useSuspenseConfigPorts() {
  * 
  *   const [health, jobs, config] = [healthResult.data, jobsResult.data, configResult.data];
  */
-export function useParallelSuspenseQueries<TQueries extends Array<any>>(
-  queries: [...TQueries]
+export function useParallelSuspenseQueries(
+  queries: UseSuspenseQueryOptions<unknown, Error, unknown, QueryKey>[]
 ) {
   return useSuspenseQueries({ queries });
 }

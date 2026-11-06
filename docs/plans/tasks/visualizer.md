@@ -813,3 +813,42 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** Baseline and A/B numbers recorded in this item; opt-in off = zero behavior change (existing visualizer tests pass); opt-in on = no black-screen layers in the ported scene; decision recorded with evidence. Non-goals: no library-wide GLSL→TSL port, no default flip away from WebGL, no ShaderCanvas-lane or Canvas2D work.
 - **Depends on:** gate cleared — T-VIZ-15/16/18/19 landed 2026-11-05/06, so the data contracts and governor this spike is judged against already exist.
 - **Last session:** Orion, 2026-11-05 — item registered together with the browser-tech-transfer research doc (same commit); no code touched.
+
+### T-VIZ-41 - Shared AudioContext + Tier 2 per-frame chroma palette
+- **Status:** done
+- **Goal:** Close the two visualizer/audio loose ends: app-wide
+  AudioContext consolidation (D4 follow-up) and Q5 Tier 2 per-frame
+  chroma-driven hue shifts.
+- **What changed:** New `shared/audioContext.ts` singleton
+  (`getSharedAudioContext`, closed-context recovery) replaces ad-hoc
+  `new AudioContext` — every former site (BeatTimeline, StemMixer +
+  ProfessionalMixer fallbacks, useTrackManager, AudioVisualizer,
+  audioProbe) now goes through the singleton; `shared/audioContext.ts`
+  is the only `new AudioContext` left in `src/` and self-heals a closed
+  context. The visualizer-owned graph in `useAudioGraph` remains the
+  canonical owner for playback routing.
+  Tier 2 chroma: `tools/audio-analysis/analyze.py` and
+  `tools/audio_agent_profile.py` emit bounded `chroma_frames` (~2 fps,
+  normalized 12-bin pitch-class vectors + per-frame confidence) with
+  `chroma_times`/`chroma_frame_hz`; `audio.py` passes the field through
+  on both analysis response builders. Frontend: `chromaHueAtTime` in
+  `keyPalette.ts`, time-aware `useKeyPalette`, `u_chroma_hue` uniform
+  wired through ShaderVisualizer → ShaderCanvas (both render paths) →
+  `spectralReactor` in shaders.ts. Tier 1 key-derived hue remains the
+  fallback for missing/malformed/low-confidence chroma. Payload is
+  additive — pre-Tier-2 cached analyses stay valid (no schema bump).
+- **Files:** shared/audioContext.ts (new), components/audio/{BeatTimeline,
+  AudioVisualizer}.tsx, features/three-js-studio/hooks/useTrackManager.ts,
+  features/visualizer/{useKeyPalette,keyPalette,shaders,ShaderVisualizer}.ts(x),
+  features/visualizer/components/{ShaderCanvas,useStemMixer}.tsx,
+  professionalMixer/useProfessionalMixer.ts, utils/audioProbe.ts,
+  tools/audio-analysis/analyze.py, tools/audio_agent_profile.py,
+  api/audio.py, keyPalette.test.ts, docs/architecture/chroma-hue-mapping.md.
+- **Verification:** vitest keyPalette.test.ts 38/38 pass (dominant
+  pitch-class mapping, empty windows, confidence thresholds, out-of-range
+  times, malformed data, nonzero t0); tsc -b clean; python compile clean.
+  Note: chroma_frames is produced by the tools/audio-analysis pipeline
+  that writes `{id}_analysis.json`; the live API analyzer
+  (`_build_analysis_result`) does not compute chroma — same boundary as
+  key detection today, and the Tier 1 fallback covers it.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

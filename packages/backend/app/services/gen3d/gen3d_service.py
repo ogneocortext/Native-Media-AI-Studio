@@ -215,7 +215,12 @@ REQUIRED_NODES = {
         "Hy3DVAEDecode",
         "Hy3DExportMesh",
     ),
-    "hunyuan3d_2mv": ("Hy3DModelLoader", "Hy3DGenerateMesh", "Hy3DVAEDecode", "Hy3DExportMesh"),
+    "hunyuan3d_2mv": (
+        "Hy3DModelLoader",
+        "Hy3DGenerateMeshMultiView",
+        "Hy3DVAEDecode",
+        "Hy3DExportMesh",
+    ),
     "triposr": ("TripoSRModelLoader", "TripoSRSampler", "ExportMeshGLB"),
     "stable_fast_3d": ("Comfy3DLoadSF3DModel", "Comfy3DStableFast3D"),
     "point_e": ("PointETextTo3D", "PointECloudToMesh"),
@@ -559,16 +564,29 @@ class Gen3DService:
                 "inputs": {"samples": ["6", 0], "vae": ["2", 2]},
             },
             # --- Stage 2: image -> 3D mesh (Hunyuan3D) ---
-            "8": {
-                "class_type": "Hy3DGenerateMesh",
-                "inputs": {
-                    "pipeline": ["1", 0],
-                    "image": ["7", 0],
-                    "guidance_scale": 5.5,
-                    "steps": steps,
-                    "seed": seed,
-                },
-            },
+            "8": (
+                {
+                    "class_type": "Hy3DGenerateMeshMultiView",
+                    "inputs": {
+                        "pipeline": ["1", 0],
+                        "front": ["7", 0],
+                        "guidance_scale": 5.5,
+                        "steps": steps,
+                        "seed": seed,
+                    },
+                }
+                if self.backend == "hunyuan3d_2mv"
+                else {
+                    "class_type": "Hy3DGenerateMesh",
+                    "inputs": {
+                        "pipeline": ["1", 0],
+                        "image": ["7", 0],
+                        "guidance_scale": 5.5,
+                        "steps": steps,
+                        "seed": seed,
+                    },
+                }
+            ),
             "9": {
                 "class_type": "Hy3DVAEDecode",
                 "inputs": {
@@ -864,16 +882,29 @@ class Gen3DService:
                     "class_type": "LoadImage",
                     "inputs": {"image": image_name},
                 },
-                "3": {
-                    "class_type": "Hy3DGenerateMesh",
-                    "inputs": {
-                        "pipeline": ["1", 0],
-                        "image": ["2", 0],
-                        "guidance_scale": 5.5,
-                        "steps": steps,
-                        "seed": 42,
-                    },
-                },
+                "3": (
+                    {
+                        "class_type": "Hy3DGenerateMeshMultiView",
+                        "inputs": {
+                            "pipeline": ["1", 0],
+                            "front": ["2", 0],
+                            "guidance_scale": 5.5,
+                            "steps": steps,
+                            "seed": 42,
+                        },
+                    }
+                    if self.backend == "hunyuan3d_2mv"
+                    else {
+                        "class_type": "Hy3DGenerateMesh",
+                        "inputs": {
+                            "pipeline": ["1", 0],
+                            "image": ["2", 0],
+                            "guidance_scale": 5.5,
+                            "steps": steps,
+                            "seed": 42,
+                        },
+                    }
+                ),
                 "4": {
                     "class_type": "Hy3DVAEDecode",
                     "inputs": {

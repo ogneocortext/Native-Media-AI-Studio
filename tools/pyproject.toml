@@ -99,6 +99,9 @@ preview = true
 # names; renaming them to CapWords would collide with other addons'
 # operators, so the prefix is Blender's convention, not a lint miss.
 "blender_mcp_addon.py" = ["N801"]
+# local-rag/ is the deprecated argparse skeleton superseded by local_rag/;
+# kept on disk pending the owner's delete decision, so its style debt is ignored.
+"local-rag/**/*.py" = ["FBT001", "FBT002", "FBT003", "E741", "B905", "C416", "FURB118"]
 
 [tool.ruff.lint.flake8-boolean-trap]
 # AI agents love passing bare booleans; force named arguments or enums instead.

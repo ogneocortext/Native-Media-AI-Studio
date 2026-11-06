@@ -262,7 +262,7 @@ describe("chromaHueAtTime (Tier 2)", () => {
     expect(chromaHueAtTime(null, 1)).toBeNull();
     expect(chromaHueAtTime(undefined, 1)).toBeNull();
     expect(chromaHueAtTime({}, 1)).toBeNull();
-    expect(chromaHueAtTime({ fps: 2, pc: "nope" }, 1)).toBeNull();
+    expect(chromaHueAtTime({ fps: 2, pc: "nope" } as never, 1)).toBeNull();
     expect(chromaHueAtTime({ fps: 2, pc: [99], conf: [1] }, 0.1)).toBeNull();
   });
 

@@ -86,4 +86,7 @@ class TestGen3dRequiredNodes:
 
         for backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
             assert "Hy3DModelLoader" in REQUIRED_NODES[backend]
-            assert "Hy3DGenerateMesh" in REQUIRED_NODES[backend]
+        # 2mv runs the multi-view node (front/left/right/back inputs); the
+        # single-view variants use Hy3DGenerateMesh.
+        assert "Hy3DGenerateMesh" in REQUIRED_NODES["hunyuan3d_2mini"]
+        assert "Hy3DGenerateMeshMultiView" in REQUIRED_NODES["hunyuan3d_2mv"]

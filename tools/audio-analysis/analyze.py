@@ -68,7 +68,7 @@ chroma_frame_times = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr)
 chroma_edges = np.arange(0.0, dur + CHROMA_FRAME_SEC, CHROMA_FRAME_SEC)
 pc_frames: list[int] = []
 conf_frames: list[float] = []
-for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:]):
+for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:], strict=True):
     mask = (chroma_frame_times >= lo) & (chroma_frame_times < hi)
     if not mask.any():
         pc_frames.append(-1)

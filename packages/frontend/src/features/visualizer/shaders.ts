@@ -716,7 +716,7 @@ export const SHADER_PRESETS = {
       float t = u_time * 0.4;
 
       // ── Feedback: sample previous frame with zoom/rotation ──
-      vec4 feedback = texture(u_feedback_texture, uv);
+      vec4 feedback = texture2D(u_feedback_texture, uv);
       float trailIntensity = u_trail * 0.8;
 
       // ── Kick transient → geometry scale ──
@@ -785,8 +785,8 @@ export const SHADER_PRESETS = {
       // Chromatic aberration: shift color channels
       if (chromaOffset > 0.001) {
         vec2 shift = vec2(chromaOffset, 0.0);
-        float r = texture(u_feedback_texture, uv + shift).r;
-        float b = texture(u_feedback_texture, uv - shift).b;
+        float r = texture2D(u_feedback_texture, uv + shift).r;
+        float b = texture2D(u_feedback_texture, uv - shift).b;
         scene = vec3(r, scene.g, b);
       }
 

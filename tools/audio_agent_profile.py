@@ -381,14 +381,14 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
     # Tier 2 chroma frames (chroma-hue-mapping.md): same downsampled
     # dominant-pitch-class track analyze.py emits, so both analyzers stay
     # interchangeable for per-frame palette shifts.
-    CHROMA_FRAME_SEC = 0.5
+    chroma_frame_sec = 0.5
     chroma_times = librosa.frames_to_time(
         np.arange(chroma.shape[1]), sr=sr, hop_length=512
     )
-    chroma_edges = np.arange(0.0, dur + CHROMA_FRAME_SEC, CHROMA_FRAME_SEC)
+    chroma_edges = np.arange(0.0, dur + chroma_frame_sec, chroma_frame_sec)
     pc_frames: list[int] = []
     conf_frames: list[float] = []
-    for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:]):
+    for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:], strict=True):
         mask = (chroma_times >= lo) & (chroma_times < hi)
         if not mask.any():
             pc_frames.append(-1)
@@ -400,7 +400,7 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
         pc_frames.append(int(order[0]))
         conf_frames.append(round(float((top1 - top2) / (top1 + top2 + 1e-9)), 3))
     chroma_frames = {
-        "fps": round(1.0 / CHROMA_FRAME_SEC, 3),
+        "fps": round(1.0 / chroma_frame_sec, 3),
         "t0": 0.0,
         "pc": pc_frames,
         "conf": conf_frames,

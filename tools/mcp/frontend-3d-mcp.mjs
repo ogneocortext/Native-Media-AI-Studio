@@ -5,12 +5,18 @@
  * as MCP tools via backend API and Vision MCP integration.
  * 
  * Usage: node frontend-3d-mcp.mjs
+ * 
+ * Requirements:
+ * - Backend API running (see backend-openapi.yaml for endpoints)
+ * - Frontend dev server running
+ * - Vision MCP server available for screenshot analysis
+ * - ports.json with backend_url and frontend_url
  */
 
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, watchFile } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -18,16 +24,48 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..", "..");
 const PORTS_PATH = join(PROJECT_ROOT, "config", "ports.json");
 
-// Load port configuration
-let ports = {};
-try {
-    if (existsSync(PORTS_PATH)) {
-        ports = JSON.parse(readFileSync(PORTS_PATH, "utf-8"));
-    }
-} catch { /* ignore */ }
+// ─── Configuration Management ────────────────────────────────────────────────
 
-const BACKEND_URL = ports.backend_url || "http://127.0.0.1:8000";
-const FRONTEND_URL = ports.frontend_url || "http://127.0.0.1:5173";
+let ports = { backend_url: "http://127.0.0.1:8000", frontend_url: "http://127.0.0.1:5173" };
+let configWatcher = null;
+
+function loadPortConfig() {
+    try {
+        if (existsSync(PORTS_PATH)) {
+            const content = readFileSync(PORTS_PATH, "utf-8");
+            const parsed = JSON.parse(content);
+            // Merge with defaults, preserving existing values
+            ports = { ...ports, ...parsed };
+            console.error(`[config] Loaded ports: backend=${ports.backend_url}, frontend=${ports.frontend_url}`);
+        }
+    } catch (e) {
+        console.error(`[config] Failed to load ports.json: ${e.message}`);
+    }
+    return ports;
+}
+
+function watchPortConfig() {
+    if (configWatcher) return;
+    try {
+        watchFile(PORTS_PATH, { interval: 5000 }, (curr, prev) => {
+            if (curr.mtimeMs !== prev.mtimeMs) {
+                console.error("[config] ports.json changed, reloading...");
+                loadPortConfig();
+            }
+        });
+        configWatcher = true;
+        console.error("[config] Watching ports.json for changes");
+    } catch (e) {
+        console.error(`[config] Failed to watch ports.json: ${e.message}`);
+    }
+}
+
+// Initial load
+loadPortConfig();
+watchPortConfig();
+
+const getBackendUrl = () => ports.backend_url || "http://127.0.0.1:8000";
+const getFrontendUrl = () => ports.frontend_url || "http://127.0.0.1:5173";
 
 // ─── Server Setup ────────────────────────────────────────────────────────────
 
@@ -36,59 +74,125 @@ const server = new McpServer(
     { capabilities: { tools: {} } }
 );
 
-// ─── Helper: Fetch with Timeout ──────────────────────────────────────────────
+// ─── Helper: Fetch with Timeout & Proper Error Handling ──────────────────────
+
+/**
+ * Fetch with timeout, proper error handling, and optional auth.
+ * Returns { data } on success, throws McpError on failure.
+ */
+class McpError extends Error {
+    constructor(code, message, data) {
+        super(message);
+        this.name = "McpError";
+        this.code = code;
+        this.data = data;
+    }
+}
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    
+    const fetchOptions = {
+        ...options,
+        signal: controller.signal,
+        headers: {
+            "Content-Type": "application/json",
+            // Add auth header if available
+            ...(process.env.API_KEY && { "Authorization": `Bearer ${process.env.API_KEY}` }),
+            ...options.headers,
+        },
+    };
+    
     try {
-        const res = await fetch(url, { ...options, signal: controller.signal });
+        const res = await fetch(url, fetchOptions);
+        clearTimeout(timer);
+        
         if (!res.ok) {
             const text = await res.text().catch(() => "");
-            return { error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+            throw new McpError("BACKEND_ERROR", `HTTP ${res.status}: ${text.slice(0, 500)}`, { status: res.status, url });
         }
-        return await res.json();
+        
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+            return await res.json();
+        }
+        return await res.text();
     } catch (e) {
-        if (e.name === "AbortError") return { error: `Request timed out (${timeoutMs}ms)` };
-        return { error: `Fetch failed: ${e.message}` };
-    } finally {
         clearTimeout(timer);
+        if (e.name === "AbortError" || e.name === "TimeoutError") {
+            throw new McpError("TIMEOUT", `Request timed out after ${timeoutMs}ms`, { url, timeoutMs });
+        }
+        if (e instanceof McpError) throw e;
+        throw new McpError("FETCH_FAILED", `Fetch failed: ${e.message}`, { url, cause: e.message });
     }
 }
 
-// ─── Vision MCP Integration ──────────────────────────────────────────────────
+// Helper to call backend APIs with proper error handling
+async function callBackend(path, options = {}) {
+    const baseUrl = getBackendUrl();
+    const url = new URL(path, baseUrl).toString();
+    return fetchWithTimeout(url, options);
+}
+
+// Helper to call frontend URLs
+function buildFrontendUrl(pathname, params = {}) {
+    const baseUrl = getFrontendUrl();
+    const url = new URL(pathname, baseUrl);
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            url.searchParams.set(key, String(value));
+        }
+    });
+    return url.toString();
+}
+
+// ─── Vision MCP Integration ────────────────────────────────────────────────
 
 /**
  * Capture a browser page screenshot using Vision MCP.
- * This uses the vision-mcp server's analyze_image tool.
+ * Returns instructions for the agent to call vision-mcp's analyze_image tool.
  */
-async function captureAndAnalyze(url, prompt) {
-    // We'll use the vision-mcp via its stdio interface
-    // For now, return the URL and prompt for the agent to handle
+function createVisionCapture(tool, customUrl, customPrompt) {
+    const prompts = {
+        visualizer: "Analyze this audio-reactive visualizer. Describe the 3D scene, visual elements, audio sync quality, and any issues.",
+        threestudio: "Analyze this Three.js Studio scene. Describe objects, lighting, camera, and scene composition.",
+        animationstudio: "Analyze this Animation Studio timeline. Describe the animation tracks, keyframes, and audio sync.",
+        modelpreview: "Analyze this 3D model preview. Describe the model, materials, lighting, and any rendering issues.",
+        vizcanvas: "Analyze this AI-generated 3D scene. Describe the scene, how well it matches the prompt, and any artifacts.",
+    };
+    
+    const finalUrl = customUrl || buildFrontendUrl(
+        tool === "visualizer" ? "/render/visualizer" :
+        tool === "threestudio" ? "/create/3d" :
+        tool === "animationstudio" ? "/create/animation" :
+        tool === "modelpreview" ? "/generate3d" :
+        "/ai-tools"
+    );
+    const finalPrompt = customPrompt || prompts[tool];
+    
     return {
+        action: "capture_3d_view",
+        tool,
+        url: finalUrl,
+        vision_prompt: finalPrompt,
         note: "Use vision-mcp's analyze_image tool with this URL and prompt",
-        url,
-        suggested_prompt: prompt,
+        usage: `await vision_mcp.analyze_image({ image_path: "${finalUrl}", prompt: "${finalPrompt.replace(/"/g, '\\"')}" })`,
     };
 }
 
-// ─── Backend API Helpers ─────────────────────────────────────────────────────
+// ─── Backend API Helpers ───────────────────────────────────────────────────
 
 async function getAudioLibrary() {
-    return fetchWithTimeout(`${BACKEND_URL}/api/audio/files`);
+    return callBackend("/api/audio/files");
 }
 
 async function getRemixSources() {
-    return fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/sources`);
+    return callBackend("/api/audio/remix/sources");
 }
 
 async function getRemixList() {
-    return fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/list`);
-}
-
-async function getVisualizerState() {
-    // Try to get current visualizer state from backend
-    return fetchWithTimeout(`${BACKEND_URL}/api/visualizer/state`);
+    return callBackend("/api/audio/remix/list");
 }
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
@@ -104,10 +208,7 @@ server.registerTool(
         }),
     },
     async ({ track, mode }) => {
-        let url = `${FRONTEND_URL}/render/visualizer`;
-        if (track) url += `?track=${encodeURIComponent(track)}`;
-        if (mode) url += `${track ? "&" : "?"}mode=${mode}`;
-        
+        const url = buildFrontendUrl("/render/visualizer", { track, mode });
         return {
             content: [{
                 type: "text",
@@ -126,15 +227,14 @@ server.registerTool(
 server.registerTool(
     "visualizer_set_track",
     {
-        description: "Set the active track in the Visualizer via backend API.",
+        description: "Set the active track in the Visualizer via backend API. NOTE: Requires backend endpoint /api/visualizer/track to be implemented.",
         inputSchema: z.object({
             track: z.string().describe("Audio track filename"),
         }),
     },
     async ({ track }) => {
-        const result = await fetchWithTimeout(`${BACKEND_URL}/api/visualizer/track`, {
+        const result = await callBackend("/api/visualizer/track", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ track }),
         });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -144,15 +244,14 @@ server.registerTool(
 server.registerTool(
     "visualizer_set_style",
     {
-        description: "Apply a visual style preset to the Visualizer.",
+        description: "Apply a visual style preset to the Visualizer. NOTE: Requires backend endpoint /api/visualizer/style to be implemented.",
         inputSchema: z.object({
             style: z.string().describe("Style preset name (e.g., 'spectral', 'waveform', 'particles', 'shader')"),
         }),
     },
     async ({ style }) => {
-        const result = await fetchWithTimeout(`${BACKEND_URL}/api/visualizer/style`, {
+        const result = await callBackend("/api/visualizer/style", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ style }),
         });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -172,14 +271,7 @@ server.registerTool(
         }),
     },
     async ({ scene, storyboard, autogenerate, track }) => {
-        let url = `${FRONTEND_URL}/create/3d`;
-        const params = new URLSearchParams();
-        if (scene) params.set("scene", scene);
-        if (storyboard) params.set("storyboard", storyboard);
-        if (autogenerate) params.set("autogenerate", "true");
-        if (track) params.set("track", track);
-        if (params.toString()) url += `?${params.toString()}`;
-        
+        const url = buildFrontendUrl("/create/3d", { scene, storyboard, autogenerate: autogenerate ? "true" : undefined, track });
         return {
             content: [{
                 type: "text",
@@ -197,16 +289,15 @@ server.registerTool(
 server.registerTool(
     "threestudio_generate_scene",
     {
-        description: "Generate a Three.js scene via AI prompt using the AISceneGenerator.",
+        description: "Generate a Three.js scene via AI prompt using the AISceneGenerator. NOTE: Requires backend endpoint /api/ai/generate-scene to be implemented.",
         inputSchema: z.object({
             prompt: z.string().describe("Natural language scene description"),
             apply: z.boolean().optional().default(true).describe("Auto-apply to studio"),
         }),
     },
     async ({ prompt, apply }) => {
-        const result = await fetchWithTimeout(`${BACKEND_URL}/api/ai/generate-scene`, {
+        const result = await callBackend("/api/ai/generate-scene", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt, apply }),
         }, 120000);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -216,17 +307,16 @@ server.registerTool(
 server.registerTool(
     "threestudio_export_frames",
     {
-        description: "Export a frame sequence from Three.js Studio for video.",
+        description: "Export a frame sequence from Three.js Studio for video. NOTE: Requires backend endpoint /api/threestudio/export to be implemented.",
         inputSchema: z.object({
-            frames: z.number().default(360).describe("Total frames (360 = 15s @ 24fps)"),
-            fps: z.number().default(24).describe("Frames per second"),
+            frames: z.number().int().positive().max(10000).default(360).describe("Total frames (360 = 15s @ 24fps)"),
+            fps: z.number().int().positive().max(60).default(24).describe("Frames per second"),
             output_dir: z.string().describe("Output directory path"),
         }),
     },
     async ({ frames, fps, output_dir }) => {
-        const result = await fetchWithTimeout(`${BACKEND_URL}/api/threestudio/export`, {
+        const result = await callBackend("/api/threestudio/export", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ frames, fps, output_dir }),
         }, 300000);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -243,9 +333,7 @@ server.registerTool(
         }),
     },
     async ({ track }) => {
-        let url = `${FRONTEND_URL}/create/animation`;
-        if (track) url += `?track=${encodeURIComponent(track)}`;
-        
+        const url = buildFrontendUrl("/create/animation", { track });
         return {
             content: [{
                 type: "text",
@@ -263,7 +351,7 @@ server.registerTool(
 server.registerTool(
     "animationstudio_create_clip",
     {
-        description: "Create an AnimationClip via Theatre.js timeline.",
+        description: "Create an AnimationClip via Theatre.js timeline. NOTE: Requires backend endpoint /api/animationstudio/clip to be implemented.",
         inputSchema: z.object({
             object_name: z.string().describe("Object to animate"),
             clip_path: z.string().describe("Asset path for AnimationClip"),
@@ -275,9 +363,8 @@ server.registerTool(
         }),
     },
     async ({ object_name, clip_path, keyframes }) => {
-        const result = await fetchWithTimeout(`${BACKEND_URL}/api/animationstudio/clip`, {
+        const result = await callBackend("/api/animationstudio/clip", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ object_name, clip_path, keyframes }),
         });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -290,14 +377,12 @@ server.registerTool(
     {
         description: "Open Model Preview with a 3D model. Returns URL for Vision MCP.",
         inputSchema: z.object({
-            model_url: z.string().describe("URL to .glb/.gltf model"),
+            model_url: z.string().url().describe("URL to .glb/.gltf model"),
             auto_rotate: z.boolean().optional().default(true),
         }),
     },
     async ({ model_url, auto_rotate }) => {
-        let url = `${FRONTEND_URL}/generate3d?model=${encodeURIComponent(model_url)}`;
-        if (!auto_rotate) url += "&autorotate=false";
-        
+        const url = buildFrontendUrl("/generate3d", { model: model_url, autorotate: auto_rotate ? "true" : "false" });
         return {
             content: [{
                 type: "text",
@@ -323,7 +408,7 @@ server.registerTool(
         }),
     },
     async ({ prompt }) => {
-        const url = `${FRONTEND_URL}/ai-tools?prompt=${encodeURIComponent(prompt)}`;
+        const url = buildFrontendUrl("/ai-tools", { prompt });
         return {
             content: [{
                 type: "text",
@@ -369,13 +454,12 @@ server.registerTool(
         description: "Create a remix recipe optimized for 3D synchronization.",
         inputSchema: z.object({
             prompt: z.string().describe("Natural language remix request"),
-            target_bpm: z.number().optional().describe("Target BPM for 3D animation"),
+            target_bpm: z.number().positive().max(300).optional().describe("Target BPM for 3D animation"),
         }),
     },
     async ({ prompt, target_bpm }) => {
-        const result = await fetchWithTimeout(`${BACKEND_URL}/api/audio/remix/from-prompt`, {
+        const result = await callBackend("/api/audio/remix/from-prompt", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt, target_bpm }),
         }, 180000);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -389,35 +473,13 @@ server.registerTool(
         description: "Capture and analyze a 3D view using Vision MCP. Returns URL + prompt for vision-mcp.",
         inputSchema: z.object({
             tool: z.enum(["visualizer", "threestudio", "animationstudio", "modelpreview", "vizcanvas"]).describe("Which 3D tool to capture"),
-            url: z.string().optional().describe("Specific URL to capture (overrides tool)"),
+            url: z.string().url().optional().describe("Specific URL to capture (overrides tool)"),
             prompt: z.string().optional().describe("Custom analysis prompt"),
         }),
     },
     async ({ tool, url, prompt }) => {
-        const prompts = {
-            visualizer: "Analyze this audio-reactive visualizer. Describe the 3D scene, visual elements, audio sync quality, and any issues.",
-            threestudio: "Analyze this Three.js Studio scene. Describe objects, lighting, camera, and scene composition.",
-            animationstudio: "Analyze this Animation Studio timeline. Describe the animation tracks, keyframes, and audio sync.",
-            modelpreview: "Analyze this 3D model preview. Describe the model, materials, lighting, and any rendering issues.",
-            vizcanvas: "Analyze this AI-generated 3D scene. Describe the scene, how well it matches the prompt, and any artifacts.",
-        };
-        
-        const finalUrl = url || `${FRONTEND_URL}/${tool === "visualizer" ? "render/visualizer" : tool === "threestudio" ? "create/3d" : tool === "animationstudio" ? "create/animation" : tool === "modelpreview" ? "generate3d" : "ai-tools"}`;
-        const finalPrompt = prompt || prompts[tool];
-        
-        return {
-            content: [{
-                type: "text",
-                text: JSON.stringify({
-                    action: "capture_3d_view",
-                    tool,
-                    url: finalUrl,
-                    vision_prompt: finalPrompt,
-                    note: "Use vision-mcp's analyze_image tool with this URL and prompt",
-                    usage: `await vision_mcp.analyze_image({ image_path: "${finalUrl}", prompt: "${finalPrompt.replace(/"/g, '\\"')}" })`,
-                }, null, 2),
-            }],
-        };
+        const capture = createVisionCapture(tool, url, prompt);
+        return { content: [{ type: "text", text: JSON.stringify(capture, null, 2) }] };
     },
 );
 
@@ -430,9 +492,9 @@ server.registerTool(
     },
     async () => {
         const checks = await Promise.allSettled([
-            fetchWithTimeout(`${BACKEND_URL}/api/health`),
-            fetchWithTimeout(`${FRONTEND_URL}`),
-            fetchWithTimeout(`${BACKEND_URL}/api/audio/files`),
+            fetchWithTimeout(`${getBackendUrl()}/api/health`),
+            fetchWithTimeout(getFrontendUrl()),
+            fetchWithTimeout(`${getBackendUrl()}/api/audio/files`),
         ]);
         
         const status = {
@@ -440,19 +502,55 @@ server.registerTool(
             frontend: checks[1].status === "fulfilled" ? "ok" : "failed",
             audio_library: checks[2].status === "fulfilled" ? "ok" : "failed",
             tools: {
-                visualizer: `${FRONTEND_URL}/render/visualizer`,
-                threestudio: `${FRONTEND_URL}/create/3d`,
-                animationstudio: `${FRONTEND_URL}/create/animation`,
-                modelpreview: `${FRONTEND_URL}/generate3d`,
-                vizcanvas: `${FRONTEND_URL}/ai-tools`,
+                visualizer: buildFrontendUrl("/render/visualizer"),
+                threestudio: buildFrontendUrl("/create/3d"),
+                animationstudio: buildFrontendUrl("/create/animation"),
+                modelpreview: buildFrontendUrl("/generate3d"),
+                vizcanvas: buildFrontendUrl("/ai-tools"),
             },
+            backend_url: getBackendUrl(),
+            frontend_url: getFrontendUrl(),
         };
         
         return { content: [{ type: "text", text: JSON.stringify(status, null, 2) }] };
     },
 );
 
+// ─── Graceful Shutdown ──────────────────────────────────────────────────────
+
+let isShuttingDown = false;
+
+async function shutdown(signal) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.error(`\n[server] Received ${signal}, shutting down gracefully...`);
+    
+    if (configWatcher) {
+        // watchFile doesn't have unwatch in all Node versions
+        console.error("[config] Stopping config watcher");
+    }
+    
+    // Give time for in-flight requests to complete
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    process.exit(0);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("uncaughtException", (err) => {
+    console.error("[server] Uncaught exception:", err);
+    shutdown("uncaughtException");
+});
+process.on("unhandledRejection", (reason) => {
+    console.error("[server] Unhandled rejection:", reason);
+});
+
 // ─── Start Server ────────────────────────────────────────────────────────────
+
+console.error("[server] Starting Frontend 3D Studio MCP server...");
+console.error(`[server] Backend: ${getBackendUrl()}`);
+console.error(`[server] Frontend: ${getFrontendUrl()}`);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

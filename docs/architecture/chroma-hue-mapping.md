@@ -72,13 +72,22 @@ bike-track catalog). One scalar; cheap to tune later per visual profile.
 
 Cost: 3 floats per frame. Unmeasurable on the GTX 1070 Ti.
 
-## Tier 2 (future — per-frame hue modulation)
+## Tier 2 (per-frame hue modulation) — implemented 2026-11-06
 
-`analyze.py` currently stores only `chroma_mean`. For chord changes to drive
-palette shifts *within* a track, add a downsampled `chroma_frames` array
-(e.g. 2 fps) to `analysis.json` and a per-frame `u_chroma_hue` uniform.
-Specified here so the Tier 1 wiring doesn't block it; not implemented yet.
-Tier 1 ships first.
+`analyze.py` now emits a downsampled `chroma_frames` array (~2 fps, 1 s
+windows / 0.5 s hop, normalized 12-bin pitch-class vectors plus per-frame
+confidence) alongside `chroma_times` and `chroma_frame_hz`. The payload is
+bounded by construction and additive — analyses cached before this change
+simply lack the field.
+
+Plumbing: `audio_analyzer.py` → `audio.py`/`audio_analysis.py` pass it
+through → `useKeyPalette.ts` resolves `chromaHueAtTime(t)` against the
+playback clock → `ShaderVisualizer.tsx` → `u_chroma_hue` uniform in
+`ShaderCanvas.tsx` → consumed by `spectralReactor` in `shaders.ts`.
+`keyPalette.ts` keeps the Tier 1 key-derived hue as fallback for missing,
+malformed, or low-confidence chroma. Tests: `keyPalette.test.ts` covers
+dominant pitch-class mapping, empty windows, confidence thresholds,
+out-of-range times, and nonzero `t0` offsets.
 
 ## Worked example
 

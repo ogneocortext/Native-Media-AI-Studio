@@ -127,6 +127,10 @@ preview = true
 # __init__.py files are package markers; module-import-not-at-top-of-file
 # doesn't apply there.
 "**/__init__.py" = ["E402"]
+# tools/local_rag is in-flight WIP: blind-except/try-except-pass are tolerated
+# there until the package lands; real bug classes (F821, B023, ...) stay on.
+# NOTE: tools/local_rag has its own pyproject.toml, so this ignore lives there too.
+"tools/local_rag/**/*.py" = ["BLE001", "S110"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI/Starlette inspect these callables inside argument defaults —
@@ -138,6 +142,9 @@ extend-immutable-calls = [
     "fastapi.Path",
     "fastapi.Header",
     "fastapi.Form",
+    # typer inspects Option()/Argument() calls in argument defaults — same idiom.
+    "typer.Option",
+    "typer.Argument",
 ]
 
 [tool.ruff.lint.flake8-boolean-trap]
