@@ -271,6 +271,554 @@ async def skills_file(skill_name: str, path: str) -> PlainTextResponse:
 
 
 @router.post("/api/mcp/execute-tool", response_model=ExecuteToolResponse)
+async def _tool_list_audio_library(args: dict) -> ExecuteToolResponse:
+    result = await _http_get("/api/audio/files")
+    if isinstance(result, dict) and "error" in result:
+        return _error_response(result["error"])
+    files = [
+        {
+            "filename": o.get("filename", o.get("relative_path", "")),
+            "relative_path": o.get("relative_path", ""),
+            "file_type": o.get("file_type", "unknown"),
+            "size_bytes": o.get("size_bytes", 0),
+            "modified_at": o.get("modified_at", ""),
+        }
+        for o in result.get("outputs", [])
+    ]
+    return ExecuteToolResponse(
+        success=True,
+        result={
+            "files": files,
+            "count": len(files),
+            "by_type": _group_by_type(files),
+        },
+    )
+
+
+async def _tool_analyze_audio(args: dict) -> ExecuteToolResponse:
+    filename = args.get("filename")
+    if not filename:
+        return _error_response(
+            "filename is required. Provide an audio filename from the library "
+            "(use list_audio_library first to discover available files)."
+        )
+    # Try POST /api/audio/analyze first, then GET /api/analysis/{filename}
+    result = await _http_post(
+        "/api/audio/analyze",
+        {"filename": filename},
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        # Fallback to GET endpoint
+        result = await _http_get(f"/api/analysis/{filename}", timeout=60)
+        if isinstance(result, dict) and "error" in result:
+            return ExecuteToolResponse(
+                success=False,
+                error=f"Audio analysis failed: {result['error']}",
+            )
+    return ExecuteToolResponse(
+        success=True, result=_enhance_audio_analysis(result, filename)
+    )
+
+
+async def _tool_create_music_video_plan(args: dict) -> ExecuteToolResponse:
+    filename = args.get("filename")
+    if not filename:
+        return ExecuteToolResponse(
+            success=False,
+            error="filename is required. Provide an audio filename from the library.",
+        )
+    style = args.get("style", "")
+    result = await _http_post(
+        "/api/from-prompt",
+        {"prompt": f"Create a music video plan for {filename}", "style": style},
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+# ── IMAGE GENERATION ───────────────────────────────────────
+
+
+async def _tool_generate_image(args: dict) -> ExecuteToolResponse:
+    prompt = args.get("prompt")
+    if not prompt:
+        return ExecuteToolResponse(
+            success=False,
+            error="prompt is required. Describe the image you want to generate.",
+        )
+    result = await _http_post(
+        "/api/generate-image",
+        {
+            "description": args.get("prompt", ""),
+            "width": args.get("width", 1024),
+            "height": args.get("height", 1024),
+        },
+        timeout=120,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_generate_video(args: dict) -> ExecuteToolResponse:
+    prompt = args.get("prompt")
+    if not prompt:
+        return ExecuteToolResponse(
+            success=False,
+            error="prompt is required. Describe the video you want to generate.",
+        )
+    result = await _http_post(
+        "/api/music-video/generate-preview",
+        {
+            "prompt": args.get("prompt", ""),
+            "duration": args.get("duration", 4),
+            "fps": args.get("fps", 24),
+            "width": args.get("width", 1024),
+            "height": args.get("height", 768),
+            "negative_prompt": args.get("negative_prompt", ""),
+        },
+        timeout=120,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_analyze_image(args: dict) -> ExecuteToolResponse:
+    image_path = args.get("image_path")
+    if not image_path:
+        return ExecuteToolResponse(
+            success=False,
+            error="image_path is required. Provide the path or URL to an image file.",
+        )
+    result = await _http_post(
+        "/api/analyze-visualizer",
+        {
+            "image_path": image_path,
+            "prompt": args.get("prompt", "Describe this image in detail."),
+        },
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+# ── 3D GENERATION ──────────────────────────────────────────
+
+
+async def _tool_suggest_3d_prompt(args: dict) -> ExecuteToolResponse:
+    idea = args.get("idea")
+    if not idea:
+        return ExecuteToolResponse(
+            success=False,
+            error="idea is required. Describe the 3D object or scene you want to create.",
+        )
+    result = await _http_post(
+        "/api/music-video/generate-preview",
+        {
+            "prompt": idea,
+            "category": args.get("category", "character"),
+            "style": args.get("style", ""),
+        },
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_generate_3d_concept(args: dict) -> ExecuteToolResponse:
+    description = args.get("description")
+    if not description:
+        return ExecuteToolResponse(
+            success=False,
+            error="description is required. Describe the 3D concept you want to generate.",
+        )
+    result = await _http_post(
+        "/api/generate-image",
+        {
+            "description": description,
+            "category": args.get("category", "3d-character"),
+            "width": args.get("width", 1024),
+            "height": args.get("height", 1024),
+        },
+        timeout=120,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_plan_blender_script(args: dict) -> ExecuteToolResponse:
+    description = args.get("description")
+    if not description:
+        return ExecuteToolResponse(
+            success=False,
+            error="description is required. Describe what you want to build in Blender.",
+        )
+    result = await _http_post(
+        "/api/music-video/generate-preview",
+        {
+            "prompt": description,
+            "category": args.get("target", "mesh"),
+            "style": args.get("model", "qwen3.5:4b"),
+        },
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+# ── REMIX / MASHUP ─────────────────────────────────────────
+
+
+async def _tool_remix_list_sources(args: dict) -> ExecuteToolResponse:
+    result = await _http_get("/api/audio/remix/sources")
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_probe(args: dict) -> ExecuteToolResponse:
+    track = args.get("track")
+    if not track:
+        return ExecuteToolResponse(
+            success=False,
+            error="track is required. Provide the name of a source track to probe.",
+        )
+    result = await _http_post(f"/api/audio/remix/probe?track={track}", {}, timeout=30)
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_from_prompt(args: dict) -> ExecuteToolResponse:
+    prompt = args.get("prompt")
+    if not prompt:
+        return ExecuteToolResponse(
+            success=False,
+            error="prompt is required. Describe the mashup you want to create in natural language.",
+        )
+    result = await _http_post(
+        "/api/from-prompt",
+        {"prompt": prompt, "base_recipe": args.get("base_recipe")},
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_preview(args: dict) -> ExecuteToolResponse:
+    recipe = args.get("recipe")
+    if not recipe:
+        return ExecuteToolResponse(
+            success=False,
+            error="recipe is required. Provide a remix recipe object.",
+        )
+    result = await _http_post(
+        "/api/preview",
+        {"recipe": recipe},
+        timeout=60,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_build(args: dict) -> ExecuteToolResponse:
+    recipe = args.get("recipe")
+    if not recipe:
+        return ExecuteToolResponse(
+            success=False,
+            error="recipe is required. Provide a remix recipe object.",
+        )
+    result = await _http_post(
+        "/api/build",
+        {"recipe": recipe, "overwrite": args.get("overwrite", False)},
+        timeout=120,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_job_status(args: dict) -> ExecuteToolResponse:
+    job_id = args.get("job_id")
+    if not job_id:
+        return ExecuteToolResponse(
+            success=False,
+            error="job_id is required. Provide the job ID from a remix build or enhance call.",
+        )
+    result = await _http_get(f"/api/jobs/{job_id}")
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_enhance(args: dict) -> ExecuteToolResponse:
+    name = args.get("name")
+    if not name:
+        return ExecuteToolResponse(
+            success=False,
+            error="name is required. Provide the name of an existing remix to enhance.",
+        )
+    result = await _http_post(
+        f"/api/{name}/enhance",
+        {
+            "target_peak_dbfs": args.get("target_peak_dbfs", -1.0),
+            "master_ceiling_dbfs": args.get("master_ceiling_dbfs", -1.0),
+            "vocal_balance_db": args.get("vocal_balance_db", 0.0),
+            "output_format": args.get("output_format", "wav"),
+        },
+        timeout=120,
+    )
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_list(args: dict) -> ExecuteToolResponse:
+    result = await _http_get("/api/list")
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+
+async def _tool_remix_get_file(args: dict) -> ExecuteToolResponse:
+    name = args.get("name")
+    which = args.get("which")
+    if not name or not which:
+        return ExecuteToolResponse(
+            success=False,
+            error="name and which are required. which must be one of: vocals, drums, bass, other, master.",
+        )
+    return ExecuteToolResponse(
+        success=True,
+        result={"url": f"{BACKEND_BASE}/api/{name}/file/{which}"},
+    )
+
+# ── CONTEXT ────────────────────────────────────────────────
+
+
+async def _tool_update_mcp_context(args: dict) -> ExecuteToolResponse:
+    context = args.get("context")
+    if not context:
+        return ExecuteToolResponse(
+            success=False,
+            error="context is required. Provide a context object to merge into the shared state.",
+        )
+    result = await _http_post("/api/context", context, timeout=30)
+    if isinstance(result, dict) and "error" in result:
+        return ExecuteToolResponse(success=False, error=result["error"])
+    return ExecuteToolResponse(success=True, result=result)
+
+# ── WORKFLOW TOOLS (multi-step operations) ─────────────────
+
+
+async def _tool_create_music_video_from_audio(args: dict) -> ExecuteToolResponse:
+    """End-to-end: analyze audio → create plan → generate cover image."""
+    filename = args.get("filename")
+    if not filename:
+        return ExecuteToolResponse(
+            success=False,
+            error="filename is required. Provide an audio filename from the library.",
+        )
+    style = args.get("style", "")
+    # Step 1: Analyze audio
+    analysis = await _http_post(
+        "/api/audio/analyze",
+        {"filename": filename},
+        timeout=60,
+    )
+    if isinstance(analysis, dict) and "error" in analysis:
+        return ExecuteToolResponse(
+            success=False, error=f"Audio analysis failed: {analysis['error']}"
+        )
+    # Step 2: Create music video plan
+    plan = await _http_post(
+        "/api/from-prompt",
+        {"prompt": f"Create a music video plan for {filename}", "style": style},
+        timeout=60,
+    )
+    if isinstance(plan, dict) and "error" in plan:
+        return ExecuteToolResponse(
+            success=False, error=f"Plan creation failed: {plan['error']}"
+        )
+    # Step 3: Generate a concept image based on the plan
+    concept_prompt = (
+        f"Music video concept for {filename}: {args.get('prompt', 'cinematic music video')}"
+    )
+    concept = await _http_post(
+        "/api/generate-image",
+        {"description": concept_prompt, "width": 1024, "height": 1024},
+        timeout=120,
+    )
+    if isinstance(concept, dict) and "error" in concept:
+        return ExecuteToolResponse(
+            success=False, error=f"Concept generation failed: {concept['error']}"
+        )
+    return ExecuteToolResponse(
+        success=True,
+        result={
+            "filename": filename,
+            "analysis": analysis,
+            "plan": plan,
+            "concept_image": concept,
+            "workflow": "analyze → plan → concept",
+        },
+    )
+
+
+async def _tool_create_3d_asset_from_prompt(args: dict) -> ExecuteToolResponse:
+    """End-to-end: suggest prompt → generate concept image."""
+    idea = args.get("idea")
+    if not idea:
+        return ExecuteToolResponse(
+            success=False,
+            error="idea is required. Describe the 3D asset you want to create.",
+        )
+    # Step 1: Suggest a refined prompt
+    suggestion = await _http_post(
+        "/api/music-video/generate-preview",
+        {
+            "prompt": idea,
+            "category": args.get("category", "character"),
+            "style": args.get("style", ""),
+        },
+        timeout=60,
+    )
+    if isinstance(suggestion, dict) and "error" in suggestion:
+        return ExecuteToolResponse(
+            success=False, error=f"Prompt suggestion failed: {suggestion['error']}"
+        )
+    # Step 2: Generate concept image
+    refined_prompt = (
+        suggestion.get("prompt", idea) if isinstance(suggestion, dict) else idea
+    )
+    concept = await _http_post(
+        "/api/generate-image",
+        {
+            "description": refined_prompt,
+            "category": args.get("category", "character"),
+            "width": 1024,
+            "height": 1024,
+        },
+        timeout=120,
+    )
+    if isinstance(concept, dict) and "error" in concept:
+        return ExecuteToolResponse(
+            success=False, error=f"Concept generation failed: {concept['error']}"
+        )
+    return ExecuteToolResponse(
+        success=True,
+        result={
+            "idea": idea,
+            "suggested_prompt": refined_prompt,
+            "category": args.get("category", "character"),
+            "concept_image": concept,
+            "workflow": "suggest_prompt → generate_concept",
+        },
+    )
+
+
+async def _tool_create_complete_music_video(args: dict) -> ExecuteToolResponse:
+    """End-to-end pipeline: analyze audio → plan → generate images → create video."""
+    filename = args.get("filename")
+    if not filename:
+        return ExecuteToolResponse(
+            success=False,
+            error="filename is required. Provide an audio filename from the library.",
+        )
+    style = args.get("style", "cinematic")
+    # Step 1: Analyze audio
+    analysis = await _http_post(
+        "/api/audio/analyze",
+        {"filename": filename},
+        timeout=60,
+    )
+    if isinstance(analysis, dict) and "error" in analysis:
+        return ExecuteToolResponse(
+            success=False, error=f"Audio analysis failed: {analysis['error']}"
+        )
+    # Step 2: Create music video plan
+    plan = await _http_post(
+        "/api/from-prompt",
+        {"prompt": f"Create a complete music video plan for {filename}", "style": style},
+        timeout=60,
+    )
+    if isinstance(plan, dict) and "error" in plan:
+        return ExecuteToolResponse(
+            success=False, error=f"Plan creation failed: {plan['error']}"
+        )
+    # Step 3: Generate concept image
+    concept_prompt = f"Music video concept for {filename}: {style} style"
+    concept = await _http_post(
+        "/api/generate-image",
+        {"description": concept_prompt, "width": 1024, "height": 1024},
+        timeout=120,
+    )
+    if isinstance(concept, dict) and "error" in concept:
+        return ExecuteToolResponse(
+            success=False, error=f"Concept generation failed: {concept['error']}"
+        )
+    # Step 4: Generate video
+    video = await _http_post(
+        "/api/music-video/generate-preview",
+        {
+            "prompt": f"Music video for {filename} in {style} style",
+            "duration": args.get("duration", 4),
+            "fps": 24,
+            "width": 1024,
+            "height": 768,
+        },
+        timeout=120,
+    )
+    if isinstance(video, dict) and "error" in video:
+        return ExecuteToolResponse(
+            success=False, error=f"Video generation failed: {video['error']}"
+        )
+    return ExecuteToolResponse(
+        success=True,
+        result={
+            "filename": filename,
+            "analysis": analysis,
+            "plan": plan,
+            "concept_image": concept,
+            "video": video,
+            "workflow": "analyze → plan → concept → video",
+        },
+    )
+
+
+_TOOL_HANDLERS: dict[str, Any] = {
+    "list_audio_library": _tool_list_audio_library,
+    "analyze_audio": _tool_analyze_audio,
+    "create_music_video_plan": _tool_create_music_video_plan,
+    "generate_image": _tool_generate_image,
+    "generate_video": _tool_generate_video,
+    "analyze_image": _tool_analyze_image,
+    "suggest_3d_prompt": _tool_suggest_3d_prompt,
+    "generate_3d_concept": _tool_generate_3d_concept,
+    "plan_blender_script": _tool_plan_blender_script,
+    "remix_list_sources": _tool_remix_list_sources,
+    "remix_probe": _tool_remix_probe,
+    "remix_from_prompt": _tool_remix_from_prompt,
+    "remix_preview": _tool_remix_preview,
+    "remix_build": _tool_remix_build,
+    "remix_job_status": _tool_remix_job_status,
+    "remix_enhance": _tool_remix_enhance,
+    "remix_list": _tool_remix_list,
+    "remix_get_file": _tool_remix_get_file,
+    "update_mcp_context": _tool_update_mcp_context,
+    "create_music_video_from_audio": _tool_create_music_video_from_audio,
+    "create_3d_asset_from_prompt": _tool_create_3d_asset_from_prompt,
+    "create_complete_music_video": _tool_create_complete_music_video,
+}
+
+
 async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
     """Execute any tool via the backend API.
 
@@ -282,504 +830,10 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
 
     try:
         # ── AUDIO LIBRARY ──────────────────────────────────────────
-        if tool_name == "list_audio_library":
-            result = await _http_get("/api/audio/files")
-            if isinstance(result, dict) and "error" in result:
-                return _error_response(result["error"])
-            files = [
-                {
-                    "filename": o.get("filename", o.get("relative_path", "")),
-                    "relative_path": o.get("relative_path", ""),
-                    "file_type": o.get("file_type", "unknown"),
-                    "size_bytes": o.get("size_bytes", 0),
-                    "modified_at": o.get("modified_at", ""),
-                }
-                for o in result.get("outputs", [])
-            ]
-            return ExecuteToolResponse(
-                success=True,
-                result={
-                    "files": files,
-                    "count": len(files),
-                    "by_type": _group_by_type(files),
-                },
-            )
-
-        elif tool_name == "analyze_audio":
-            filename = args.get("filename")
-            if not filename:
-                return _error_response(
-                    "filename is required. Provide an audio filename from the library "
-                    "(use list_audio_library first to discover available files)."
-                )
-            # Try POST /api/audio/analyze first, then GET /api/analysis/{filename}
-            result = await _http_post(
-                "/api/audio/analyze",
-                {"filename": filename},
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                # Fallback to GET endpoint
-                result = await _http_get(f"/api/analysis/{filename}", timeout=60)
-                if isinstance(result, dict) and "error" in result:
-                    return ExecuteToolResponse(
-                        success=False,
-                        error=f"Audio analysis failed: {result['error']}",
-                    )
-            return ExecuteToolResponse(
-                success=True, result=_enhance_audio_analysis(result, filename)
-            )
-
-        elif tool_name == "create_music_video_plan":
-            filename = args.get("filename")
-            if not filename:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="filename is required. Provide an audio filename from the library.",
-                )
-            style = args.get("style", "")
-            result = await _http_post(
-                "/api/from-prompt",
-                {"prompt": f"Create a music video plan for {filename}", "style": style},
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        # ── IMAGE GENERATION ───────────────────────────────────────
-        elif tool_name == "generate_image":
-            prompt = args.get("prompt")
-            if not prompt:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="prompt is required. Describe the image you want to generate.",
-                )
-            result = await _http_post(
-                "/api/generate-image",
-                {
-                    "description": args.get("prompt", ""),
-                    "width": args.get("width", 1024),
-                    "height": args.get("height", 1024),
-                },
-                timeout=120,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "generate_video":
-            prompt = args.get("prompt")
-            if not prompt:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="prompt is required. Describe the video you want to generate.",
-                )
-            result = await _http_post(
-                "/api/music-video/generate-preview",
-                {
-                    "prompt": args.get("prompt", ""),
-                    "duration": args.get("duration", 4),
-                    "fps": args.get("fps", 24),
-                    "width": args.get("width", 1024),
-                    "height": args.get("height", 768),
-                    "negative_prompt": args.get("negative_prompt", ""),
-                },
-                timeout=120,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "analyze_image":
-            image_path = args.get("image_path")
-            if not image_path:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="image_path is required. Provide the path or URL to an image file.",
-                )
-            result = await _http_post(
-                "/api/analyze-visualizer",
-                {
-                    "image_path": image_path,
-                    "prompt": args.get("prompt", "Describe this image in detail."),
-                },
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        # ── 3D GENERATION ──────────────────────────────────────────
-        elif tool_name == "suggest_3d_prompt":
-            idea = args.get("idea")
-            if not idea:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="idea is required. Describe the 3D object or scene you want to create.",
-                )
-            result = await _http_post(
-                "/api/music-video/generate-preview",
-                {
-                    "prompt": idea,
-                    "category": args.get("category", "character"),
-                    "style": args.get("style", ""),
-                },
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "generate_3d_concept":
-            description = args.get("description")
-            if not description:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="description is required. Describe the 3D concept you want to generate.",
-                )
-            result = await _http_post(
-                "/api/generate-image",
-                {
-                    "description": description,
-                    "category": args.get("category", "3d-character"),
-                    "width": args.get("width", 1024),
-                    "height": args.get("height", 1024),
-                },
-                timeout=120,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "plan_blender_script":
-            description = args.get("description")
-            if not description:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="description is required. Describe what you want to build in Blender.",
-                )
-            result = await _http_post(
-                "/api/music-video/generate-preview",
-                {
-                    "prompt": description,
-                    "category": args.get("target", "mesh"),
-                    "style": args.get("model", "qwen3.5:4b"),
-                },
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        # ── REMIX / MASHUP ─────────────────────────────────────────
-        elif tool_name == "remix_list_sources":
-            result = await _http_get("/api/audio/remix/sources")
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_probe":
-            track = args.get("track")
-            if not track:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="track is required. Provide the name of a source track to probe.",
-                )
-            result = await _http_post(f"/api/audio/remix/probe?track={track}", {}, timeout=30)
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_from_prompt":
-            prompt = args.get("prompt")
-            if not prompt:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="prompt is required. Describe the mashup you want to create in natural language.",
-                )
-            result = await _http_post(
-                "/api/from-prompt",
-                {"prompt": prompt, "base_recipe": args.get("base_recipe")},
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_preview":
-            recipe = args.get("recipe")
-            if not recipe:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="recipe is required. Provide a remix recipe object.",
-                )
-            result = await _http_post(
-                "/api/preview",
-                {"recipe": recipe},
-                timeout=60,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_build":
-            recipe = args.get("recipe")
-            if not recipe:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="recipe is required. Provide a remix recipe object.",
-                )
-            result = await _http_post(
-                "/api/build",
-                {"recipe": recipe, "overwrite": args.get("overwrite", False)},
-                timeout=120,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_job_status":
-            job_id = args.get("job_id")
-            if not job_id:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="job_id is required. Provide the job ID from a remix build or enhance call.",
-                )
-            result = await _http_get(f"/api/jobs/{job_id}")
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_enhance":
-            name = args.get("name")
-            if not name:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="name is required. Provide the name of an existing remix to enhance.",
-                )
-            result = await _http_post(
-                f"/api/{name}/enhance",
-                {
-                    "target_peak_dbfs": args.get("target_peak_dbfs", -1.0),
-                    "master_ceiling_dbfs": args.get("master_ceiling_dbfs", -1.0),
-                    "vocal_balance_db": args.get("vocal_balance_db", 0.0),
-                    "output_format": args.get("output_format", "wav"),
-                },
-                timeout=120,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_list":
-            result = await _http_get("/api/list")
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        elif tool_name == "remix_get_file":
-            name = args.get("name")
-            which = args.get("which")
-            if not name or not which:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="name and which are required. which must be one of: vocals, drums, bass, other, master.",
-                )
-            return ExecuteToolResponse(
-                success=True,
-                result={"url": f"{BACKEND_BASE}/api/{name}/file/{which}"},
-            )
-
-        # ── CONTEXT ────────────────────────────────────────────────
-        elif tool_name == "update_mcp_context":
-            context = args.get("context")
-            if not context:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="context is required. Provide a context object to merge into the shared state.",
-                )
-            result = await _http_post("/api/context", context, timeout=30)
-            if isinstance(result, dict) and "error" in result:
-                return ExecuteToolResponse(success=False, error=result["error"])
-            return ExecuteToolResponse(success=True, result=result)
-
-        # ── WORKFLOW TOOLS (multi-step operations) ─────────────────
-        elif tool_name == "create_music_video_from_audio":
-            """End-to-end: analyze audio → create plan → generate cover image."""
-            filename = args.get("filename")
-            if not filename:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="filename is required. Provide an audio filename from the library.",
-                )
-            style = args.get("style", "")
-            # Step 1: Analyze audio
-            analysis = await _http_post(
-                "/api/audio/analyze",
-                {"filename": filename},
-                timeout=60,
-            )
-            if isinstance(analysis, dict) and "error" in analysis:
-                return ExecuteToolResponse(
-                    success=False, error=f"Audio analysis failed: {analysis['error']}"
-                )
-            # Step 2: Create music video plan
-            plan = await _http_post(
-                "/api/from-prompt",
-                {"prompt": f"Create a music video plan for {filename}", "style": style},
-                timeout=60,
-            )
-            if isinstance(plan, dict) and "error" in plan:
-                return ExecuteToolResponse(
-                    success=False, error=f"Plan creation failed: {plan['error']}"
-                )
-            # Step 3: Generate a concept image based on the plan
-            concept_prompt = (
-                f"Music video concept for {filename}: {args.get('prompt', 'cinematic music video')}"
-            )
-            concept = await _http_post(
-                "/api/generate-image",
-                {"description": concept_prompt, "width": 1024, "height": 1024},
-                timeout=120,
-            )
-            if isinstance(concept, dict) and "error" in concept:
-                return ExecuteToolResponse(
-                    success=False, error=f"Concept generation failed: {concept['error']}"
-                )
-            return ExecuteToolResponse(
-                success=True,
-                result={
-                    "filename": filename,
-                    "analysis": analysis,
-                    "plan": plan,
-                    "concept_image": concept,
-                    "workflow": "analyze → plan → concept",
-                },
-            )
-
-        elif tool_name == "create_3d_asset_from_prompt":
-            """End-to-end: suggest prompt → generate concept image."""
-            idea = args.get("idea")
-            if not idea:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="idea is required. Describe the 3D asset you want to create.",
-                )
-            # Step 1: Suggest a refined prompt
-            suggestion = await _http_post(
-                "/api/music-video/generate-preview",
-                {
-                    "prompt": idea,
-                    "category": args.get("category", "character"),
-                    "style": args.get("style", ""),
-                },
-                timeout=60,
-            )
-            if isinstance(suggestion, dict) and "error" in suggestion:
-                return ExecuteToolResponse(
-                    success=False, error=f"Prompt suggestion failed: {suggestion['error']}"
-                )
-            # Step 2: Generate concept image
-            refined_prompt = (
-                suggestion.get("prompt", idea) if isinstance(suggestion, dict) else idea
-            )
-            concept = await _http_post(
-                "/api/generate-image",
-                {
-                    "description": refined_prompt,
-                    "category": args.get("category", "character"),
-                    "width": 1024,
-                    "height": 1024,
-                },
-                timeout=120,
-            )
-            if isinstance(concept, dict) and "error" in concept:
-                return ExecuteToolResponse(
-                    success=False, error=f"Concept generation failed: {concept['error']}"
-                )
-            return ExecuteToolResponse(
-                success=True,
-                result={
-                    "idea": idea,
-                    "suggested_prompt": refined_prompt,
-                    "category": args.get("category", "character"),
-                    "concept_image": concept,
-                    "workflow": "suggest_prompt → generate_concept",
-                },
-            )
-
-        elif tool_name == "create_complete_music_video":
-            """End-to-end pipeline: analyze audio → plan → generate images → create video."""
-            filename = args.get("filename")
-            if not filename:
-                return ExecuteToolResponse(
-                    success=False,
-                    error="filename is required. Provide an audio filename from the library.",
-                )
-            style = args.get("style", "cinematic")
-            # Step 1: Analyze audio
-            analysis = await _http_post(
-                "/api/audio/analyze",
-                {"filename": filename},
-                timeout=60,
-            )
-            if isinstance(analysis, dict) and "error" in analysis:
-                return ExecuteToolResponse(
-                    success=False, error=f"Audio analysis failed: {analysis['error']}"
-                )
-            # Step 2: Create music video plan
-            plan = await _http_post(
-                "/api/from-prompt",
-                {"prompt": f"Create a complete music video plan for {filename}", "style": style},
-                timeout=60,
-            )
-            if isinstance(plan, dict) and "error" in plan:
-                return ExecuteToolResponse(
-                    success=False, error=f"Plan creation failed: {plan['error']}"
-                )
-            # Step 3: Generate concept image
-            concept_prompt = f"Music video concept for {filename}: {style} style"
-            concept = await _http_post(
-                "/api/generate-image",
-                {"description": concept_prompt, "width": 1024, "height": 1024},
-                timeout=120,
-            )
-            if isinstance(concept, dict) and "error" in concept:
-                return ExecuteToolResponse(
-                    success=False, error=f"Concept generation failed: {concept['error']}"
-                )
-            # Step 4: Generate video
-            video = await _http_post(
-                "/api/music-video/generate-preview",
-                {
-                    "prompt": f"Music video for {filename} in {style} style",
-                    "duration": args.get("duration", 4),
-                    "fps": 24,
-                    "width": 1024,
-                    "height": 768,
-                },
-                timeout=120,
-            )
-            if isinstance(video, dict) and "error" in video:
-                return ExecuteToolResponse(
-                    success=False, error=f"Video generation failed: {video['error']}"
-                )
-            return ExecuteToolResponse(
-                success=True,
-                result={
-                    "filename": filename,
-                    "analysis": analysis,
-                    "plan": plan,
-                    "concept_image": concept,
-                    "video": video,
-                    "workflow": "analyze → plan → concept → video",
-                },
-            )
-
-        else:
+        handler = _TOOL_HANDLERS.get(tool_name)
+        if handler is None:
             return ExecuteToolResponse(success=False, error=f"Unknown tool: {tool_name}")
-
+        return await handler(args)
     except httpx.ConnectError:
         return ExecuteToolResponse(
             success=False, error="Backend not reachable at http://127.0.0.1:8000"

@@ -895,6 +895,316 @@ async def switch_backend_model(body: dict) -> dict:
 
 
 @router.post("/ollama/chat")
+async def _emit_tool_call_events(
+    tool_calls: list[dict[str, Any]],
+    assistant_content: str,
+    tool_adapter: Any,
+    current_messages: list[dict[str, Any]],
+):
+    """Yield tool_calls/tool_result SSE events and append messages."""
+    yield {
+        "event": "tool_calls",
+        "data": json.dumps(
+            {
+                "tool_calls": [
+                    {
+                        "name": tc["function"]["name"],
+                        "arguments": tc["function"]["arguments"],
+                    }
+                    for tc in tool_calls
+                ]
+            }
+        ),
+    }
+    current_messages.append(
+        {
+            "role": "assistant",
+            "content": assistant_content,
+            "tool_calls": tool_calls,
+        }
+    )
+    for tc in tool_calls:
+        assert tool_adapter is not None
+        result = await tool_adapter.execute_tool_call(
+            tc["function"]["name"],
+            tc["function"]["arguments"],
+            {},
+        )
+        # Stream the result back to the client so it can display tool
+        # output (and render things like the visualization canvas) without
+        # having to re-parse the model's prose.
+        yield {
+            "event": "tool_result",
+            "data": json.dumps({"name": tc["function"]["name"], "result": result}),
+        }
+        current_messages.append(
+            {
+                "role": "tool",
+                "tool_name": tc["function"]["name"],
+                "content": result,
+            }
+        )
+
+
+async def _explicit_tool_fallback(
+    message: str,
+    tools: list[Any],
+    tool_adapter: Any,
+    current_messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Execute a single explicitly-named tool when the model produced no
+    tool call and no content. Returns SSE event dicts, or [] when the
+    request does not name exactly one registered tool."""
+    explicit_names = [
+        tool.get("function", {}).get("name", "")
+        for tool in tools
+        if isinstance(tool, dict)
+    ]
+    explicit_names = [name for name in explicit_names if name and name.lower() in message.lower()]
+    if len(explicit_names) != 1:
+        return []
+    name = explicit_names[0]
+    args: dict[str, object] = {}
+    depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE)
+    if depth_match:
+        args["depth"] = min(6, int(depth_match.group(1)))
+    assert tool_adapter is not None
+    result = await tool_adapter.execute_tool_call(name, args, {})
+    current_messages.extend(
+        [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"function": {"name": name, "arguments": args}}],
+            },
+            {"role": "tool", "tool_name": name, "content": result},
+        ]
+    )
+    return [
+        {
+            "event": "tool_calls",
+            "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
+        },
+        {"event": "tool_result", "data": json.dumps({"name": name, "result": result})},
+    ]
+
+
+def _done_chunk_events(
+    chunk: dict[str, Any],
+    model: Any,
+    final_content: str,
+    tool_call_count: int,
+    *,
+    saw_thinking: bool,
+) -> list[dict[str, Any]]:
+    """Build the terminal SSE events for a done chunk."""
+    if not final_content and tool_call_count == 0:
+        if saw_thinking:
+            no_response_msg = "The model finished reasoning but produced no answer. Try rephrasing, or disable thinking mode."
+        else:
+            no_response_msg = "The model produced no response. Try rephrasing, or use a model with native tool support."
+        return [
+            {
+                "event": "error",
+                "data": json.dumps(
+                    {"message": no_response_msg, "model": chunk.get("model", model)}
+                ),
+            }
+        ]
+    return [
+        {
+            "event": "done",
+            "data": json.dumps(
+                {
+                    "content": final_content,
+                    "model": chunk.get("model", model),
+                    "tool_calls": tool_call_count,
+                }
+            ),
+        }
+    ]
+
+
+async def _stream_chat_events(
+    adapter: Any,
+    messages: list[dict[str, Any]],
+    model: Any,
+    tools: list[Any],
+    think: Any,
+    ollama_options: dict,
+    max_tool_calls: int,
+    tool_adapter: Any,
+    message: str,
+):
+    """Run the streaming agent loop, yielding SSE event dicts."""
+    tool_call_count = 0
+    fallback_executed = False
+    current_messages = messages.copy()
+    # Ollama streams the answer as deltas; the final "done"
+    # chunk carries an empty message.content. Accumulate the
+    # streamed text so a completed answer is never mistaken
+    # for "no response" (measured on Ollama 0.40.2).
+    streamed_content = ""
+    saw_thinking = False
+    while tool_call_count < max_tool_calls:
+        async for chunk in cast(
+            "AsyncIterator[dict[str, Any]]",
+            await adapter.chat(
+                messages=current_messages,
+                model=model,
+                tools=tools,
+                stream=True,
+                think=think,
+                **ollama_options,
+            ),
+        ):
+            msg = chunk.get("message", {}) or {}
+            tool_calls = msg.get("tool_calls", [])
+            # Tool calls can arrive in a non-done chunk on
+            # Ollama streaming (measured on 0.40.2: the
+            # tool_calls chunk has done=false and the
+            # following done chunk is empty). Handle them
+            # wherever they appear so the call is never
+            # dropped.
+            if tool_calls and tool_call_count < max_tool_calls:
+                tool_call_count += 1
+                async for ev in _emit_tool_call_events(
+                    tool_calls,
+                    msg.get("content", "") or "",
+                    tool_adapter,
+                    current_messages,
+                ):
+                    yield ev
+                break
+            if chunk.get("done"):
+                # The done chunk's content is empty on
+                # Ollama streaming; the real answer was
+                # streamed as deltas above.
+                done_content = msg.get("content", "") or ""
+                final_content = done_content or streamed_content
+                # Guarded fallback for explicit, unambiguous
+                # requests: small local models sometimes
+                # describe a tool instead of emitting the
+                # native tool call. Execute only a named
+                # registered tool, never guess a tool. Only
+                # on the first completion (tool_call_count
+                # == 0) so it never re-fires after a real
+                # tool call and executes the tool twice.
+                if (
+                    not final_content
+                    and not fallback_executed
+                    and tool_call_count == 0
+                    and tool_call_count < max_tool_calls
+                ):
+                    events = await _explicit_tool_fallback(
+                        message, tools, tool_adapter, current_messages
+                    )
+                    if events:
+                        tool_call_count += 1
+                        fallback_executed = True
+                        for ev in events:
+                            yield ev
+                        break
+                for ev in _done_chunk_events(
+                    chunk, model, final_content, tool_call_count, saw_thinking=saw_thinking
+                ):
+                    yield ev
+                return
+            else:
+                content = chunk.get("message", {}).get("content", "")
+                thinking = chunk.get("message", {}).get("thinking", "")
+                if content:
+                    streamed_content += content
+                if thinking:
+                    saw_thinking = True
+                if content or thinking:
+                    yield {
+                        "event": "content",
+                        "data": json.dumps({"content": content, "thinking": thinking}),
+                    }
+    # Send done event to properly close the stream
+    yield {"event": "done", "data": json.dumps({"status": "complete"})}
+
+
+async def _run_nonstream_chat(
+    adapter: Any,
+    messages: list[dict[str, Any]],
+    model: Any,
+    tools: list[Any],
+    think: Any,
+    ollama_options: dict,
+    max_tool_calls: int,
+    tool_adapter: Any,
+) -> dict[str, Any]:
+    """Non-streaming agent loop: chat -> execute tool calls -> repeat."""
+    tool_call_count = 0
+    current_messages = messages.copy()
+    last_response = ""
+    tool_details = []
+    # Loop until the model produces a final answer. The bound is
+    # the tool-call guard below, not the loop condition: with
+    # max_tool_calls == 0 the model must still be called once to
+    # answer, and after the last allowed tool call it must be
+    # called again to produce the final text. The old
+    # `while tool_call_count < max_tool_calls` skipped both and
+    # returned an empty response (measured 2026-10-11).
+    while True:
+        result = await adapter.chat(
+            messages=current_messages,
+            model=model,
+            tools=tools,
+            stream=False,
+            think=think,
+            **ollama_options,
+        )
+        if not isinstance(result, dict):
+            # Non-streaming chat should always return a dict
+            raise RuntimeError("Unexpected async iterator from non-streaming chat")
+        msg = result.get("message", {})
+        tool_calls = msg.get("tool_calls", [])
+        content = msg.get("content", "")
+        if not (tool_calls and tool_call_count < max_tool_calls):
+            last_response = content
+            break
+        tool_call_count += 1
+        # Add assistant message with tool calls
+        current_messages.append(
+            {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+            }
+        )
+        # Execute each tool and add results
+        for tc in tool_calls:
+            assert tool_adapter is not None
+            tool_result = await tool_adapter.execute_tool_call(
+                tc["function"]["name"],
+                tc["function"]["arguments"],
+                {},
+            )
+            tool_details.append(
+                {
+                    "name": tc["function"]["name"],
+                    "arguments": tc["function"]["arguments"],
+                    "result": tool_result,
+                }
+            )
+            current_messages.append(
+                {
+                    "role": "tool",
+                    "tool_name": tc["function"]["name"],
+                    "content": tool_result,
+                }
+            )
+    return {
+        "response": last_response,
+        "model": model,
+        "tool_calls": tool_call_count,
+        "tool_details": tool_details,
+    }
+
+
 async def ollama_chat(body: OllamaChatRequest) -> Any:
     """
     Chat with Ollama or Atomic Chat using the /api/chat endpoint with tool calling support.
@@ -1017,267 +1327,36 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                 try:
                     # Send initial event to confirm connection
                     yield {"event": "connected", "data": json.dumps({"status": "streaming"})}
-                    tool_call_count = 0
-                    fallback_executed = False
-                    current_messages = messages[:]
-                    # Ollama streams the answer as deltas; the final "done"
-                    # chunk carries an empty message.content. Accumulate the
-                    # streamed text so a completed answer is never mistaken
-                    # for "no response" (measured on Ollama 0.40.2).
-                    streamed_content = ""
-                    saw_thinking = False
-                    while tool_call_count < max_tool_calls:
-                        async for chunk in cast(
-                            "AsyncIterator[dict[str, Any]]",
-                            await adapter.chat(
-                                messages=current_messages,
-                                model=model,
-                                tools=tools,
-                                stream=True,
-                                think=think,
-                                **ollama_options,
-                            ),
-                        ):
-                            msg = chunk.get("message", {}) or {}
-                            tool_calls = msg.get("tool_calls", [])
-                            # Tool calls can arrive in a non-done chunk on
-                            # Ollama streaming (measured on 0.40.2: the
-                            # tool_calls chunk has done=false and the
-                            # following done chunk is empty). Handle them
-                            # wherever they appear so the call is never
-                            # dropped.
-                            if tool_calls and tool_call_count < max_tool_calls:
-                                tool_call_count += 1
-                                yield {
-                                    "event": "tool_calls",
-                                    "data": json.dumps(
-                                        {
-                                            "tool_calls": [
-                                                {
-                                                    "name": tc["function"]["name"],
-                                                    "arguments": tc["function"]["arguments"],
-                                                }
-                                                for tc in tool_calls
-                                            ]
-                                        }
-                                    ),
-                                }
-                                current_messages.append(
-                                    {
-                                        "role": "assistant",
-                                        "content": msg.get("content", "") or "",
-                                        "tool_calls": tool_calls,
-                                    }
-                                )
-                                for tc in tool_calls:
-                                    assert tool_adapter is not None
-                                    result = await tool_adapter.execute_tool_call(
-                                        tc["function"]["name"],
-                                        tc["function"]["arguments"],
-                                        {},
-                                    )
-                                    # Stream the result back to the client so it
-                                    # can display tool output (and render things
-                                    # like the visualization canvas) without having
-                                    # to re-parse the model's prose.
-                                    yield {
-                                        "event": "tool_result",
-                                        "data": json.dumps(
-                                            {
-                                                "name": tc["function"]["name"],
-                                                "result": result,
-                                            }
-                                        ),
-                                    }
-                                    current_messages.append(
-                                        {
-                                            "role": "tool",
-                                            "tool_name": tc["function"]["name"],
-                                            "content": result,
-                                        }
-                                    )
-                                break
-                            if chunk.get("done"):
-                                # The done chunk's content is empty on
-                                # Ollama streaming; the real answer was
-                                # streamed as deltas above.
-                                done_content = msg.get("content", "") or ""
-                                final_content = done_content or streamed_content
-                                # Guarded fallback for explicit, unambiguous
-                                # requests: small local models sometimes
-                                # describe a tool instead of emitting the
-                                # native tool call. Execute only a named
-                                # registered tool, never guess a tool. Only
-                                # on the first completion (tool_call_count
-                                # == 0) so it never re-fires after a real
-                                # tool call and executes the tool twice.
-                                explicit_names = [
-                                    tool.get("function", {}).get("name", "")
-                                    for tool in tools
-                                    if isinstance(tool, dict)
-                                ]
-                                explicit_names = [
-                                    name
-                                    for name in explicit_names
-                                    if name and name.lower() in message.lower()
-                                ]
-                                if (
-                                    not final_content
-                                    and not fallback_executed
-                                    and tool_call_count == 0
-                                    and len(explicit_names) == 1
-                                    and tool_call_count < max_tool_calls
-                                ):
-                                    name = explicit_names[0]
-                                    args: dict[str, object] = {}
-                                    depth_match = re.search(
-                                        r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE
-                                    )
-                                    if depth_match:
-                                        args["depth"] = min(6, int(depth_match.group(1)))
-                                    tool_call_count += 1
-                                    fallback_executed = True
-                                    yield {
-                                        "event": "tool_calls",
-                                        "data": json.dumps(
-                                            {"tool_calls": [{"name": name, "arguments": args}]}
-                                        ),
-                                    }
-                                    assert tool_adapter is not None
-                                    result = await tool_adapter.execute_tool_call(name, args, {})
-                                    yield {
-                                        "event": "tool_result",
-                                        "data": json.dumps({"name": name, "result": result}),
-                                    }
-                                    current_messages.extend(
-                                        [
-                                            {
-                                                "role": "assistant",
-                                                "content": "",
-                                                "tool_calls": [
-                                                    {"function": {"name": name, "arguments": args}}
-                                                ],
-                                            },
-                                            {"role": "tool", "tool_name": name, "content": result},
-                                        ]
-                                    )
-                                    break
-                                if not final_content and tool_call_count == 0:
-                                    if saw_thinking:
-                                        no_response_msg = "The model finished reasoning but produced no answer. Try rephrasing, or disable thinking mode."
-                                    else:
-                                        no_response_msg = "The model produced no response. Try rephrasing, or use a model with native tool support."
-                                    yield {
-                                        "event": "error",
-                                        "data": json.dumps(
-                                            {
-                                                "message": no_response_msg,
-                                                "model": chunk.get("model", model),
-                                            }
-                                        ),
-                                    }
-                                else:
-                                    yield {
-                                        "event": "done",
-                                        "data": json.dumps(
-                                            {
-                                                "content": final_content,
-                                                "model": chunk.get("model", model),
-                                                "tool_calls": tool_call_count,
-                                            }
-                                        ),
-                                    }
-                                return
-                            else:
-                                content = chunk.get("message", {}).get("content", "")
-                                thinking = chunk.get("message", {}).get("thinking", "")
-                                if content:
-                                    streamed_content += content
-                                if thinking:
-                                    saw_thinking = True
-                                if content or thinking:
-                                    yield {
-                                        "event": "content",
-                                        "data": json.dumps(
-                                            {"content": content, "thinking": thinking}
-                                        ),
-                                    }
-                    # Send done event to properly close the stream
-                    yield {"event": "done", "data": json.dumps({"status": "complete"})}
+                    async for ev in _stream_chat_events(
+                        adapter,
+                        messages,
+                        model,
+                        tools,
+                        think,
+                        ollama_options,
+                        max_tool_calls,
+                        tool_adapter,
+                        message,
+                    ):
+                        yield ev
                 finally:
                     adapter.clear_activity(model or config.default_model)
 
             return EventSourceResponse(event_generator())
         else:
             # Non-streaming response with agent loop
-            tool_call_count = 0
-            current_messages = messages.copy()
-            last_response = ""
-            tool_details = []
-            # Loop until the model produces a final answer. The bound is
-            # the tool-call guard below, not the loop condition: with
-            # max_tool_calls == 0 the model must still be called once to
-            # answer, and after the last allowed tool call it must be
-            # called again to produce the final text. The old
-            # `while tool_call_count < max_tool_calls` skipped both and
-            # returned an empty response (measured 2026-10-11).
-            while True:
-                result = await adapter.chat(
-                    messages=current_messages,
-                    model=model,
-                    tools=tools,
-                    stream=False,
-                    think=think,
-                    **ollama_options,
-                )
-                if not isinstance(result, dict):
-                    # Non-streaming chat should always return a dict
-                    raise RuntimeError("Unexpected async iterator from non-streaming chat")
-                msg = result.get("message", {})
-                tool_calls = msg.get("tool_calls", [])
-                content = msg.get("content", "")
-                if tool_calls and tool_call_count < max_tool_calls:
-                    tool_call_count += 1
-                    # Add assistant message with tool calls
-                    current_messages.append(
-                        {
-                            "role": "assistant",
-                            "content": content,
-                            "tool_calls": tool_calls,
-                        }
-                    )
-                    # Execute each tool and add results
-                    for tc in tool_calls:
-                        assert tool_adapter is not None
-                        tool_result = await tool_adapter.execute_tool_call(
-                            tc["function"]["name"],
-                            tc["function"]["arguments"],
-                            {},
-                        )
-                        tool_details.append(
-                            {
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"],
-                                "result": tool_result,
-                            }
-                        )
-                        current_messages.append(
-                            {
-                                "role": "tool",
-                                "tool_name": tc["function"]["name"],
-                                "content": tool_result,
-                            }
-                        )
-                else:
-                    last_response = content
-                    break
+            result = await _run_nonstream_chat(
+                adapter,
+                messages,
+                model,
+                tools,
+                think,
+                ollama_options,
+                max_tool_calls,
+                tool_adapter,
+            )
             adapter.clear_activity(model or config.default_model)
-            return {
-                "response": last_response,
-                "model": model,
-                "tool_calls": tool_call_count,
-                "tool_details": tool_details,
-            }
+            return result
     except Exception as e:
         adapter.clear_activity(model or config.default_model)
         logger.error("Ollama chat error: %s", str(e), exc_info=True)

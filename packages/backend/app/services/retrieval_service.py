@@ -40,7 +40,10 @@ import sqlite3
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from ..core.config import PROJECT_ROOT, config
 from ..core.connection import DB_PATH
@@ -310,6 +313,68 @@ def _rerank_cross_encoder(query: str, candidates: list[tuple[str, str]]) -> list
     return scored
 
 
+def _parse_frontmatter_tags(text: str) -> list[str]:
+    """Extract the ``tags:`` list from YAML frontmatter, if present."""
+    if not text.startswith("---"):
+        return []
+    end = text.find("\n---", 3)
+    if end == -1:
+        return []
+    for line in text[3:end].splitlines():
+        if not line.strip().startswith("tags:"):
+            continue
+        v = line.split(":", 1)[1].strip()
+        if v.startswith("["):
+            v = v.strip("[]")
+            return [x.strip().strip('"').strip("'") for x in v.split(",") if x.strip()]
+        return [v.strip().strip('"').strip("'")]
+    return []
+
+
+def _doc_metadata(text: str, p: Path) -> tuple[str, str, list[str], bool]:
+    """Return (body, title, tags, is_superseded) for one markdown file."""
+    body = text
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            body = text[end + 4 :].lstrip("\n")
+    m = re.search(r"^#\s+(.+)", body, re.MULTILINE)
+    title = m.group(1).strip()[:80] if m else p.stem.replace("-", " ").replace("_", " ").title()
+    is_superseded = "superseded" in text.lower() or "superseded" in body.lower()
+    return body, title, _parse_frontmatter_tags(text), is_superseded
+
+
+def _index_one_doc(p: Path) -> tuple[str, list[dict[str, Any]]] | None:
+    """Read, parse, and chunk one markdown file. None on any failure."""
+    try:
+        rel = p.relative_to(DOCS_ROOT).as_posix()
+        in_vault = (
+            p.is_relative_to(VAULT_ROOT)
+            if hasattr(p, "is_relative_to")
+            else str(p).startswith(str(VAULT_ROOT))
+        )
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        body, title, tags, is_superseded = _doc_metadata(text, p)
+    except Exception:
+        return None
+
+    entries: list[dict[str, Any]] = []
+    for i, chunk_text in enumerate(_split_text_into_chunks(body)):
+        entries.append(
+            {
+                "chunk_id": _chunk_id(rel, i),
+                "doc_path": rel,
+                "doc_title": title,
+                "chunk_index": i,
+                "text": chunk_text,
+                "in_vault": in_vault,
+                "tags": tags,
+                "is_superseded": is_superseded,
+            }
+        )
+    return rel, entries
+
+
 def _scan_docs_for_indexing() -> list[dict[str, Any]]:
     """Scan docs corpus and return chunk-ready entries.
 
@@ -324,78 +389,15 @@ def _scan_docs_for_indexing() -> list[dict[str, Any]]:
 
     seen: set[str] = set()
     for p in list(DOCS_ROOT.rglob("*.md")) + list(VAULT_ROOT.glob("*.md")):
-        if ".obsidian" in p.parts:
-            continue
-        if "node_modules" in p.parts:
+        if ".obsidian" in p.parts or "node_modules" in p.parts:
             continue
         key = p.resolve().as_posix()
         if key in seen:
             continue
         seen.add(key)
-
-        try:
-            rel = p.relative_to(DOCS_ROOT).as_posix()
-            in_vault = (
-                p.is_relative_to(VAULT_ROOT)
-                if hasattr(p, "is_relative_to")
-                else str(p).startswith(str(VAULT_ROOT))
-            )
-            try:
-                text = p.read_text(encoding="utf-8", errors="ignore")
-                # Strip frontmatter for cleaner indexing
-                body = text
-                if text.startswith("---"):
-                    end = text.find("\n---", 3)
-                    if end != -1:
-                        body = text[end + 4 :].lstrip("\n")
-                # Title from first H1 or filename
-                m = re.search(r"^#\s+(.+)", body, re.MULTILINE)
-                title = (
-                    m.group(1).strip()[:80]
-                    if m
-                    else p.stem.replace("-", " ").replace("_", " ").title()
-                )
-                tags: list[str] = []
-                # Extract tags from frontmatter
-                if text.startswith("---"):
-                    end = text.find("\n---", 3)
-                    if end != -1:
-                        fm = text[3:end]
-                        for line in fm.splitlines():
-                            if line.strip().startswith("tags:"):
-                                v = line.split(":", 1)[1].strip()
-                                if v.startswith("["):
-                                    v = v.strip("[]")
-                                    tags = [
-                                        x.strip().strip('"').strip("'")
-                                        for x in v.split(",")
-                                        if x.strip()
-                                    ]
-                                else:
-                                    tags = [v.strip().strip('"').strip("'")]
-                                break
-
-                # Detect superseded documents by checking for superseded banner
-                is_superseded = "superseded" in text.lower() or "superseded" in body.lower()
-            except Exception:
-                continue
-
-            chunks = _split_text_into_chunks(body)
-            for i, chunk_text in enumerate(chunks):
-                entries.append(
-                    {
-                        "chunk_id": _chunk_id(rel, i),
-                        "doc_path": rel,
-                        "doc_title": title,
-                        "chunk_index": i,
-                        "text": chunk_text,
-                        "in_vault": in_vault,
-                        "tags": tags,
-                        "is_superseded": is_superseded,
-                    }
-                )
-        except Exception:
-            continue
+        result = _index_one_doc(p)
+        if result is not None:
+            entries.extend(result[1])
 
     return entries
 

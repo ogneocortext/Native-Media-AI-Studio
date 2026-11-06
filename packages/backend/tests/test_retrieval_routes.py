@@ -66,7 +66,7 @@ def reranker_mock():
 
     original_hybrid_search = RetrievalIndex.hybrid_search
 
-    async def fake_hybrid_search(self, query, *, limit=5, vault_only=False):
+    async def fake_hybrid_search(self, query, *, limit=5, vault_only=False, model=None):
         return [
             {
                 "chunk_id": "test-chunk-1",

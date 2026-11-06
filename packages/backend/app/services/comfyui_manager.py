@@ -847,6 +847,53 @@ class ComfyUIManager:
 
         return status
 
+    async def _download_video_output(
+        self,
+        base_url: str,
+        outputs: dict,
+        session,
+        safe_section: str,
+        prompt_id: str,
+    ) -> str | None:
+        """Fetch and save the first usable gif output. Returns path or None."""
+        from ..core import comfyui_client as _cu
+
+        for output in outputs.values():
+            for gif in output.get("gifs", []):
+                try:
+                    video_path = _cu.sanitize_filename(gif.get("filename", ""))
+                except ValueError:
+                    continue
+                if not video_path:
+                    continue
+                video_subfolder = _cu.sanitize_subfolder(gif.get("subfolder", ""))
+                try:
+                    data = await _cu.fetch_view_bytes(
+                        base_url,
+                        video_path,
+                        video_subfolder,
+                        session=session,
+                        timeout=60,
+                    )
+                except RuntimeError:
+                    continue
+                return self._write_video_output(video_path, data, safe_section, prompt_id)
+        return None
+
+    def _write_video_output(
+        self, video_path: str, data: bytes, safe_section: str, prompt_id: str
+    ) -> str | None:
+        ext = Path(video_path).suffix or ".mp4"
+        output_path = (
+            PROJECT_ROOT / "output" / "video" / f"{safe_section}_{prompt_id[:8]}{ext}"
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if not output_path.resolve().is_relative_to((PROJECT_ROOT / "output" / "video").resolve()):
+            logger.error("Refusing to write outside output/video")
+            return None
+        Path(output_path).write_bytes(data)
+        return str(output_path)
+
     async def generate_video(
         self,
         prompt: str,
@@ -941,43 +988,14 @@ class ComfyUIManager:
             for _ in range(max_polls):
                 await asyncio.sleep(5)
                 history = await _cu.fetch_history(base_url, prompt_id, session=session, timeout=10)
-                if prompt_id in history:
-                    outputs = history[prompt_id].get("outputs", {})
-                    for _node_id, output in outputs.items():
-                        if "gifs" in output:
-                            for gif in output["gifs"]:
-                                try:
-                                    video_path = _cu.sanitize_filename(gif.get("filename", ""))
-                                except ValueError:
-                                    continue
-                                video_subfolder = _cu.sanitize_subfolder(gif.get("subfolder", ""))
-                                if video_path:
-                                    # Download the video
-                                    try:
-                                        data = await _cu.fetch_view_bytes(
-                                            base_url,
-                                            video_path,
-                                            video_subfolder,
-                                            session=session,
-                                            timeout=60,
-                                        )
-                                    except RuntimeError:
-                                        continue
-                                    ext = Path(video_path).suffix or ".mp4"
-                                    output_path = (
-                                        PROJECT_ROOT
-                                        / "output"
-                                        / "video"
-                                        / f"{safe_section}_{prompt_id[:8]}{ext}"
-                                    )
-                                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                                    if not output_path.resolve().is_relative_to(
-                                        (PROJECT_ROOT / "output" / "video").resolve()
-                                    ):
-                                        logger.error("Refusing to write outside output/video")
-                                        return None
-                                    Path(output_path).write_bytes(data)
-                                    return str(output_path)
+                entry = history.get(prompt_id)
+                if entry is None:
+                    continue
+                result = await self._download_video_output(
+                    base_url, entry.get("outputs", {}), session, safe_section, prompt_id
+                )
+                if result is not None:
+                    return result
             logger.error("ComfyUI generation timed out")
             return None
         except Exception as e:

@@ -768,24 +768,33 @@ class OllamaToolsMixin:
 
         for pattern in ["**/*.md", "docs/**/*.md", "packages/**/README.md"]:
             for filepath in glob.glob(str(Path(root) / pattern), recursive=True):
-                try:
-                    content = Path(filepath).read_text(encoding="utf-8")
-                    if query_lower in content.lower():
-                        lines = content.split("\n")
-                        for i, line in enumerate(lines):
-                            if query_lower in line.lower():
-                                start = max(0, i - 1)
-                                end = min(len(lines), i + 3)
-                                snippet = "\n".join(lines[start:end])
-                                rel_path = Path(filepath).relative_to(root)
-                                results.append(f"[{rel_path}]:\n{snippet}")
-                                if len(results) >= limit:
-                                    return "\n\n".join(results)
-                                break
-                except (OSError, UnicodeDecodeError):
-                    continue
+                if self._search_doc_file(filepath, query_lower, root, results, limit):
+                    return "\n\n".join(results)
 
         return "\n\n".join(results) if results else f"No docs found for '{query}'"
+
+    @staticmethod
+    def _search_doc_file(
+        filepath: str, query_lower: str, root: Path, results: list[str], limit: int
+    ) -> bool:
+        """Append the first matching snippet for one file. True if limit hit."""
+        try:
+            content = Path(filepath).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return False
+        if query_lower not in content.lower():
+            return False
+        lines = content.split("\n")
+        for i, line in enumerate(lines):
+            if query_lower not in line.lower():
+                continue
+            start = max(0, i - 1)
+            end = min(len(lines), i + 3)
+            snippet = "\n".join(lines[start:end])
+            rel_path = Path(filepath).relative_to(root)
+            results.append(f"[{rel_path}]:\n{snippet}")
+            return len(results) >= limit
+        return False
 
     async def _tool_get_system_health(self) -> str:
         """Get real system health status using psutil."""

@@ -16,6 +16,17 @@ import psutil
 logger = logging.getLogger(__name__)
 
 
+# (minimum build, display name) — Windows 11 starts at build 22000.
+_WINDOWS_BUILD_NAMES = [
+    (22631, "11 24H2"),
+    (22621, "11 23H2"),
+    (22000, "11 21H2/22H2"),
+    (19045, "10 22H2"),
+    (19044, "10 21H2"),
+    (19041, "10 2004"),
+]
+
+
 def get_windows_version() -> str:
     """Get the correct Windows display version (e.g., Windows 11 Pro)."""
     if sys.platform != "win32":
@@ -29,47 +40,36 @@ def get_windows_version() -> str:
         build = version.build
 
         # Determine Windows display name based on build number
-        if build >= 22631:
-            display_name = "11 24H2"
-        elif build >= 22621:
-            display_name = "11 23H2"
-        elif build >= 22000:
-            display_name = "11 21H2/22H2"
-        elif build >= 19045:
-            display_name = "10 22H2"
-        elif build >= 19044:
-            display_name = "10 21H2"
-        elif build >= 19041:
-            display_name = "10 2004"
-        else:
-            display_name = f"10 (Build {build})"
+        display_name = next(
+            (name for min_build, name in _WINDOWS_BUILD_NAMES if build >= min_build),
+            f"10 (Build {build})",
+        )
 
         # Try to get the edition (Pro, Home, etc.)
-        try:
-            import winreg
-
-            key = winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-            )
-            edition, _ = winreg.QueryValueEx(key, "DisplayEdition")
-            product_name, _ = winreg.QueryValueEx(key, "ProductName")
-            winreg.CloseKey(key)
+        edition = _windows_edition()
+        if edition:
             return f"Windows {display_name} {edition}"
-        except Exception:
-            # Fallback: try EditionID
-            try:
-                import winreg
-
-                key = winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-                )
-                edition_id, _ = winreg.QueryValueEx(key, "EditionID")
-                winreg.CloseKey(key)
-                return f"Windows {display_name} {edition_id}"
-            except Exception:
-                return f"Windows {display_name}"
+        return f"Windows {display_name}"
     except Exception:
         return platform.version()
+
+
+def _windows_edition() -> str | None:
+    """Read the Windows edition name from the registry. None on failure."""
+    try:
+        import winreg
+
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+        )
+        try:
+            edition, _ = winreg.QueryValueEx(key, "DisplayEdition")
+        except OSError:
+            edition, _ = winreg.QueryValueEx(key, "EditionID")
+        winreg.CloseKey(key)
+        return edition
+    except Exception:
+        return None
 
 
 class ServiceHealth(StrEnum):

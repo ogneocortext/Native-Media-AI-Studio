@@ -29,41 +29,58 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
         if end != -1:
             fm = text[3:end].strip()
             body = text[end + 4 :].lstrip("\n")
-            meta: dict[str, Any] = {}
-            # Minimal YAML parse for tags/aliases/title
-            for line in fm.splitlines():
-                if ":" in line:
-                    k, v = line.split(":", 1)
-                    k = k.strip()
-                    v = v.strip()
-                    if k in ("tags", "aliases", "cssclasses"):
-                        # Handle list like "- tag" or "[a, b]"
-                        if v.startswith("["):
-                            v = v.strip("[]")
-                            meta[k] = [
-                                x.strip().strip('"').strip("'") for x in v.split(",") if x.strip()
-                            ]
-                        elif not v:
-                            # multiline list follows
-                            continue
-                        else:
-                            meta[k] = [v.strip().strip('"').strip("'")]
-                    else:
-                        meta[k] = v.strip().strip('"').strip("'")
+            meta = _parse_fm_pairs(fm)
             # Handle multiline tags
             if "tags" not in meta:
-                tags = re.findall(r"^\s*-\s*(\S.+)", fm, re.MULTILINE)
-                # crude but captures tags list
-                if tags and any(t in fm for t in ["tags:"]):
-                    # Only keep first block after tags:
-                    m = re.search(r"tags:\s*\n((?:\s*-\s*.+\n)+)", fm)
-                    if m:
-                        meta["tags"] = [
-                            x.strip().strip('"').strip("'").lstrip("- ").strip()
-                            for x in m.group(1).strip().splitlines()
-                        ]
+                tags = _multiline_tags(fm)
+                if tags:
+                    meta["tags"] = tags
             return meta, body
     return {}, text
+
+
+def _parse_fm_pairs(fm: str) -> dict[str, Any]:
+    """Minimal YAML parse for tags/aliases/title from frontmatter text."""
+    meta: dict[str, Any] = {}
+    for line in fm.splitlines():
+        if ":" not in line:
+            continue
+        k, v = line.split(":", 1)
+        k = k.strip()
+        v = v.strip()
+        if k in ("tags", "aliases", "cssclasses"):
+            parsed = _parse_fm_list_value(v)
+            if parsed is not None:
+                meta[k] = parsed
+        else:
+            meta[k] = v.strip().strip('"').strip("'")
+    return meta
+
+
+def _parse_fm_list_value(v: str) -> list[str] | None:
+    """Parse a frontmatter list value; None means 'multiline list follows'."""
+    if v.startswith("["):
+        v = v.strip("[]")
+        return [x.strip().strip('"').strip("'") for x in v.split(",") if x.strip()]
+    if not v:
+        return None
+    return [v.strip().strip('"').strip("'")]
+
+
+def _multiline_tags(fm: str) -> list[str]:
+    """Extract a ``tags:`` block written as ``- item`` lines."""
+    tags = re.findall(r"^\s*-\s*(\S.+)", fm, re.MULTILINE)
+    # crude but captures tags list
+    if not (tags and any(t in fm for t in ["tags:"])):
+        return []
+    # Only keep first block after tags:
+    m = re.search(r"tags:\s*\n((?:\s*-\s*.+\n)+)", fm)
+    if not m:
+        return []
+    return [
+        x.strip().strip('"').strip("'").lstrip("- ").strip()
+        for x in m.group(1).strip().splitlines()
+    ]
 
 
 def _title_from_path(path: Path) -> str:

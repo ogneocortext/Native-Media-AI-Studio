@@ -667,64 +667,75 @@ class ResourceMonitor:
                 # on WDDM, use the Ollama API for llama-server / Ollama processes.
                 # This runs AFTER the snapshot thread so it never perturbs NVML reads.
                 if not snap.get("memory_available"):
-                    try:
-                        ollama_vram = await self._get_ollama_vram_usage()
-                        if ollama_vram > 0:
-                            attributed = False
-                            for proc in snap.get("processes", []):
-                                name = (proc.get("name") or "").lower()
-                                if "llama" in name or "ollama" in name:
-                                    proc["used_mb"] = ollama_vram
-                                    proc["enriched"] = "ollama-api"
-                                    attributed = True
-                                    break
-                            if not attributed:
-                                snap.setdefault("processes", []).append(
-                                    {
-                                        "pid": 0,
-                                        "used_mb": ollama_vram,
-                                        "name": "ollama (model)",
-                                        "kind": "compute",
-                                        "enriched": "ollama-api",
-                                    }
-                                )
-                            snap["memory_available"] = True
-                            # Debug-level: this fires every monitor cycle
-                            # while a model is resident - INFO spammed the log.
-                            logger.debug("Ollama VRAM enrichment applied: %s MB", ollama_vram)
-                    except Exception as _e:
-                        logger.debug("Ollama enrichment skipped: %s", _e)
+                    await self._enrich_snapshot_ollama(snap)
                 return snap
             except Exception as e:
                 logger.warning(f"Failed to get GPU snapshot via NVML: {e}")
 
         # Fallback: torch.cuda (works even when pynvml fails on WDDM/system python)
+        torch_snap = await self._torch_gpu_snapshot()
+        if torch_snap is not None:
+            return torch_snap
+
+        return snapshot
+
+    async def _enrich_snapshot_ollama(self, snap: dict[str, Any]) -> None:
+        """Attribute Ollama model VRAM to a process entry via the Ollama API."""
+        try:
+            ollama_vram = await self._get_ollama_vram_usage()
+            if ollama_vram <= 0:
+                return
+            for proc in snap.get("processes", []):
+                name = (proc.get("name") or "").lower()
+                if "llama" in name or "ollama" in name:
+                    proc["used_mb"] = ollama_vram
+                    proc["enriched"] = "ollama-api"
+                    break
+            else:
+                snap.setdefault("processes", []).append(
+                    {
+                        "pid": 0,
+                        "used_mb": ollama_vram,
+                        "name": "ollama (model)",
+                        "kind": "compute",
+                        "enriched": "ollama-api",
+                    }
+                )
+            snap["memory_available"] = True
+            # Debug-level: this fires every monitor cycle
+            # while a model is resident - INFO spammed the log.
+            logger.debug("Ollama VRAM enrichment applied: %s MB", ollama_vram)
+        except Exception as _e:
+            logger.debug("Ollama enrichment skipped: %s", _e)
+
+    @staticmethod
+    async def _torch_gpu_snapshot() -> dict[str, Any] | None:
+        """GPU snapshot via torch.cuda when NVML is unavailable."""
         try:
             import torch
 
-            if torch.cuda.is_available():
-                props = torch.cuda.get_device_properties(0)
-                free, total = torch.cuda.mem_get_info(0)
-                used = total - free
-                snapshot = {
-                    "available": True,
-                    "name": props.name,
-                    "memory_used_mb": used // (1024 * 1024),
-                    "memory_free_mb": free // (1024 * 1024),
-                    "memory_total_mb": total // (1024 * 1024),
-                    "memory_percent": round((used / total) * 100, 1) if total else 0,
-                    "gpu_utilization": 0,  # NVML unavailable
-                    "memory_controller_utilization": 0,
-                    "temperature_c": 0,
-                    "processes": [],
-                    "memory_available": True,
-                    "fallback": "torch.cuda",
-                }
-                return snapshot
+            if not torch.cuda.is_available():
+                return None
+            props = torch.cuda.get_device_properties(0)
+            free, total = torch.cuda.mem_get_info(0)
+            used = total - free
+            return {
+                "available": True,
+                "name": props.name,
+                "memory_used_mb": used // (1024 * 1024),
+                "memory_free_mb": free // (1024 * 1024),
+                "memory_total_mb": total // (1024 * 1024),
+                "memory_percent": round((used / total) * 100, 1) if total else 0,
+                "gpu_utilization": 0,  # NVML unavailable
+                "memory_controller_utilization": 0,
+                "temperature_c": 0,
+                "processes": [],
+                "memory_available": True,
+                "fallback": "torch.cuda",
+            }
         except Exception as e:
             logger.debug(f"torch.cuda fallback failed: {e}")
-
-        return snapshot
+            return None
 
     async def cleanup_system_memory(self) -> dict[str, Any]:
         """Attempt to free system RAM when critical. Returns actions taken."""
@@ -748,6 +759,16 @@ class ResourceMonitor:
             pass
 
         # Clear old temp files and job sidecars older than 7 days
+        self._cleanup_old_temp_files(actions)
+
+        # Try to offload Ollama via the VRAM manager if still high
+        await self._maybe_offload_ollama(actions)
+
+        return {"actions": actions}
+
+    @staticmethod
+    def _cleanup_old_temp_files(actions: list[str]) -> None:
+        """Delete files older than 7 days in known output dirs (keep 5 newest)."""
         try:
             import time
             from pathlib import Path
@@ -759,23 +780,22 @@ class ResourceMonitor:
                 "output/audio_analysis",
             ]:
                 p = Path(__file__).resolve().parents[3] / sub
-                if p.exists():
-                    for f in p.iterdir():
-                        try:
-                            if time.time() - f.stat().st_mtime > 7 * 86400 and f.is_file():
-                                # Keep at least 5 most recent
-                                files = sorted(
-                                    p.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
-                                )
-                                if f not in files[:5]:
-                                    f.unlink()
-                                    actions.append(f"removed old {f.name}")
-                        except Exception:
-                            pass
+                if not p.exists():
+                    continue
+                files = sorted(p.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)
+                for f in files[5:]:
+                    try:
+                        if f.is_file() and time.time() - f.stat().st_mtime > 7 * 86400:
+                            f.unlink()
+                            actions.append(f"removed old {f.name}")
+                    except Exception:
+                        pass
         except Exception:
             pass
 
-        # Try to offload Ollama via the VRAM manager if still high
+    @staticmethod
+    async def _maybe_offload_ollama(actions: list[str]) -> None:
+        """Offload Ollama models when system RAM is still >= 85%."""
         try:
             import psutil
 
@@ -787,8 +807,6 @@ class ResourceMonitor:
                     actions.append(f"offloaded ollama: {', '.join(unloaded)}")
         except Exception:
             pass
-
-        return {"actions": actions}
 
     async def _maybe_auto_cleanup(self) -> Any:
         """Run destructive cleanup at most once per cooldown window.

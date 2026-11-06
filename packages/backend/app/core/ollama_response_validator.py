@@ -3,6 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+_TYPE_CHECKS = {
+    "string": lambda v: isinstance(v, str),
+    "number": lambda v: isinstance(v, (int, float)),
+    "integer": lambda v: isinstance(v, int),
+    "array": lambda v: isinstance(v, list),
+    "object": lambda v: isinstance(v, dict),
+}
+
 
 def validate_ollama_json_response(
     response_content: str,
@@ -26,19 +34,11 @@ def validate_ollama_json_response(
         return False, None
 
     for field_name, field_schema in properties.items():
-        if field_name in parsed:
-            value = parsed[field_name]
-            expected_type = field_schema.get("type")
-            if expected_type == "string" and not isinstance(value, str):
-                return False, None
-            elif expected_type == "number" and not isinstance(value, (int, float)):
-                return False, None
-            elif expected_type == "integer" and not isinstance(value, int):
-                return False, None
-            elif expected_type == "array" and not isinstance(value, list):
-                return False, None
-            elif expected_type == "object" and not isinstance(value, dict):
-                return False, None
+        if field_name not in parsed:
+            continue
+        check = _TYPE_CHECKS.get(field_schema.get("type"))
+        if check is not None and not check(parsed[field_name]):
+            return False, None
 
     return True, parsed
 
