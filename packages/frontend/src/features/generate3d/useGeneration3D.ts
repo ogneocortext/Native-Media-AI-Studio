@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { useNavigate } from "react-router-dom";
 import { generate3D, generate3DFromImage, get3DStatus, updateMCPContext } from "../../services/api";
 
@@ -126,6 +126,28 @@ export const MATERIAL_TEMPLATES = [
 ] as const;
 
 const PENDING_CHARACTER_KEY = "pendingCharacter";
+
+// Distilled DiT variants need proportionally fewer diffusion steps.
+const MODEL_SPEED_FACTOR: Record<string, number> = {
+  hunyuan3d_2mini_fast: 0.7,
+  hunyuan3d_2mini_turbo: 0.5,
+};
+
+// Magic-byte check mirroring the backend's _sniff_image_type — file.type is
+// client-supplied and spoofable, so verify the payload signature too.
+async function sniffImageType(file: File): Promise<string | null> {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const b = Array.from(head);
+  const isPng = b.slice(0, 8).join(",") === "137,80,78,71,13,10,26,10";
+  const isJpeg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const isWebp =
+    String.fromCharCode(...b.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...b.slice(8, 12)) === "WEBP";
+  if (isPng) return "image/png";
+  if (isJpeg) return "image/jpeg";
+  if (isWebp) return "image/webp";
+  return null;
+}
 
 function loadBibles(): Record<string, CharacterBible> {
   try {
@@ -255,6 +277,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const [refFile, setRefFile] = useState<File | null>(null);
   const [refPreviewUrl, setRefPreviewUrl] = useState<string | null>(null);
   const [refError, setRefError] = useState<string | null>(null);
+  const sniffSeq = useRef(0);
   const [bibles, setBibles] = useState<Record<string, CharacterBible>>(loadBibles);
 
   const saveBible = useCallback((filename: string, bible: CharacterBible) => {
@@ -275,6 +298,9 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
 
   const handleReferenceFile = useCallback(
     (file: File | null) => {
+      // Bumped on every call (including clears) so an in-flight sniff for a
+      // previously picked file can't resurrect it after the selection changed.
+      const seq = ++sniffSeq.current;
       if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
       setRefPreviewUrl(null);
       setRefFile(null);
@@ -288,11 +314,27 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         setRefError("Reference image exceeds 15 MB.");
         return;
       }
-      setRefFile(file);
-      setRefPreviewUrl(URL.createObjectURL(file));
+      // Async magic-byte check; reject before upload instead of after a 415.
+      void sniffImageType(file).then((sniffed) => {
+        if (seq !== sniffSeq.current) return;
+        if (!sniffed) {
+          setRefError("File content is not a valid PNG, JPEG, or WebP image.");
+          return;
+        }
+        setRefFile(file);
+        setRefPreviewUrl(URL.createObjectURL(file));
+      });
     },
     [refPreviewUrl],
   );
+
+  // Revoke the object URL on unmount — handleReferenceFile only cleans up the
+  // *previous* URL when a new file is picked.
+  useEffect(() => {
+    return () => {
+      if (refPreviewUrl) URL.revokeObjectURL(refPreviewUrl);
+    };
+  }, [refPreviewUrl]);
 
   const bibleForResult = useCallback(
     (): CharacterBible => ({
@@ -370,7 +412,16 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         const d2 = await res2.json();
         const outs = d2.outputs ?? [];
         setGeneratedList(
-          outs.filter((f: { filename: string }) => f.filename.endsWith(".glb")).slice(0, 10),
+          outs
+            .filter((f: { filename: string }) => f.filename.endsWith(".glb"))
+            .slice(0, 10)
+            .map((f: { filename: string; path?: string; size?: number }) => ({
+              filename: f.filename,
+              path: f.path ?? "",
+              servable_url: null,
+              size_bytes: f.size ?? 0,
+              modified: 0,
+            })),
         );
       }
     } catch {
@@ -448,7 +499,10 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
   const isAvailable = (status3d.available as boolean) ?? false;
   const comfyRunning = (status3d.comfyui_running as boolean) ?? false;
-  const estimatedSec = steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300;
+  const estimatedSec = Math.round(
+    (steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300) *
+      (MODEL_SPEED_FACTOR[model] ?? 1),
+  );
 
   const resultModelPath = (result as { model_path?: string } | null)?.model_path;
   const glbFilename = resultModelPath
@@ -465,6 +519,11 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       setError("Prompt too long (max 500 chars). Keep under 75 words.");
       return;
     }
+    const sel = models.find((m) => m.id === model);
+    if (sel && !sel.available) {
+      setError(`${sel.name} is not available — pick an installed variant or start ComfyUI.`);
+      return;
+    }
     setGenerating(true);
     setError(null);
     setResult(null);
@@ -477,7 +536,6 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         steps,
         seed,
         cfg: vizParams.cfg,
-        params: vizParams as unknown as Record<string, unknown>,
       });
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
@@ -539,9 +597,15 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
 
   const handleGenerateFromReference = async () => {
     if (!refFile) return;
+    const sel = models.find((m) => m.id === model);
+    if (sel && !sel.available) {
+      setError(`${sel.name} is not available — pick an installed variant or start ComfyUI.`);
+      return;
+    }
     setGenerating(true);
     setError(null);
     setResult(null);
+    setGenTiming(null);
     const start = Date.now();
     try {
       const data = await generate3DFromImage(refFile, { steps, model });

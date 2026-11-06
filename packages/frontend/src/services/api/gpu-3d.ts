@@ -108,7 +108,6 @@ export async function generate3D(request: {
   steps?: number;
   cfg?: number;
   seed?: number;
-  params?: Record<string, unknown>;
 }): Promise<Record<string, unknown>> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/3d/generate`, {

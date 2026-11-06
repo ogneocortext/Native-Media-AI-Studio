@@ -863,3 +863,25 @@ Rules: `docs/plans/tasks/README.md`
   fake PNG with `type=image/png` → 415 via magic bytes; ruff clean;
   14 checkpoint tests pass.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-31 - useGeneration3D.ts hardening: upload race, leaks, dead params
+- **Status:** done
+- **Goal:** Line-by-line review of the 3D generation hook; fix resource
+  leaks, validation gaps, and dead request fields.
+- **What changed:** Reference-image picker now verifies magic bytes
+  client-side (`sniffImageType`, mirrors backend `_sniff_image_type`) so
+  spoofed types fail before upload; a `sniffSeq` ref prevents a stale
+  async sniff from resurrecting a cleared/replaced file; the preview
+  object URL is revoked on unmount (was leaked — only the *previous* URL
+  was revoked on re-pick); both generate paths guard against an
+  unavailable selected model instead of round-tripping to a backend
+  error; `estimatedSec` now scales by distilled-variant speed factor;
+  dead `params` blob removed from the `generate3D` request (backend never
+  read it); `/api/outputs` fallback now maps entries to the real
+  `GeneratedModel` shape instead of passing raw `any` through;
+  `handleGenerateFromReference` resets `genTiming` like the text path.
+- **Files:** features/generate3d/useGeneration3D.ts,
+  services/api/gpu-3d.ts.
+- **Verification:** tsc -b clean; eslint 0 errors (warnings are the
+  file's pre-existing `any`-fetch style).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
