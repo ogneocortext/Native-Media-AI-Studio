@@ -158,6 +158,56 @@ def test_stored_name_always_yields_the_job_id(tmp_path, monkeypatch):
     assert audio_mod.hash_prefix(reused) == expected
 
 
+def test_different_bytes_under_prefixed_name_do_not_stack_prefixes(
+    tmp_path, monkeypatch
+):
+    """A re-encoded track arrives with different bytes AND an old prefix.
+
+    Content dedup cannot catch this (hash differs), so the naming layer must:
+    `newid_03c5fbfd_Song.mp3` would otherwise become
+    `abcd1234_newid_03c5fbfd_Song.mp3` — the divergence this guards against.
+    """
+    payload = b"re-encoded audio" * 60
+
+    stored = _store(tmp_path, monkeypatch, payload, "03c5fbfd_Song.mp3")
+
+    assert stored.startswith(hashlib.sha256(payload).hexdigest()[:8] + "_")
+    assert stored.endswith("_Song.mp3"), stored
+    assert "03c5fbfd" not in stored
+
+
+def test_stacked_prefixes_collapse_to_single_clean_name(tmp_path, monkeypatch):
+    """`32129cfa_03c5fbfd_Song.mp3` with new bytes -> `<id>_Song.mp3`."""
+    payload = b"yet another encode" * 50
+
+    stored = _store(tmp_path, monkeypatch, payload, "32129cfa_03c5fbfd_Song.mp3")
+
+    assert stored.endswith("_Song.mp3"), stored
+    assert "32129cfa" not in stored and "03c5fbfd" not in stored
+
+
+def test_uuid_named_upload_is_cleaned(tmp_path, monkeypatch):
+    """Legacy uuid4 filenames carry no human name; don't stack a prefix on them."""
+    payload = b"uuid named" * 40
+
+    stored = _store(
+        tmp_path, monkeypatch, payload,
+        "796d0367-65fa-4c60-a720-9e0ed6f56b51.wav",
+    )
+
+    assert "796d0367-65fa-4c60-a720-9e0ed6f56b51" not in stored
+    assert stored.endswith("_track.wav"), stored
+
+
+def test_prefixed_name_with_no_readable_part_falls_back(tmp_path, monkeypatch):
+    """A name that is ONLY a machine prefix still yields a valid filename."""
+    payload = b"bare prefix" * 40
+
+    stored = _store(tmp_path, monkeypatch, payload, "deadbeef_.mp3")
+
+    assert stored.endswith("_track.mp3"), stored
+
+
 def test_oversized_upload_raises_and_leaves_nothing_behind(tmp_path, monkeypatch):
     """A rejected upload must not leave a file under a real name."""
     audio_mod = _audio()

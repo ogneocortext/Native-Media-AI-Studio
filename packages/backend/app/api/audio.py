@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import shutil
 import tempfile
 import time
@@ -79,6 +80,43 @@ ANALYSIS_INDEX = ANALYSIS_DIR / "index.json"
 # (file content, fps, sr, hop_length, n_fft) — a perfect cache candidate.
 SPECTRAL_CACHE_DIR = PROJECT_ROOT / "output" / "cache" / "spectral_timeline"
 SPECTRAL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# Machine-generated prefixes that can already sit on an incoming filename:
+# the `<sha256[:8]>_` content hash this module writes, and bare uuid4 names
+# left by older paths. Stripping them before composing `<id>_<name>` keeps
+# re-uploads of re-encoded files from stacking prefixes.
+# Order matters: the uuid pattern must run before the bare 8-hex rule,
+# which would otherwise eat just the first uuid segment (`796d0367-`).
+_INCOMING_PREFIX_RES = (
+    re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_.]?",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^[0-9a-f]{8}[-_]", re.IGNORECASE),
+)
+
+
+def _clean_incoming_name(filename: str) -> str:
+    """Return `filename` without leading machine-generated prefixes.
+
+    Applied to the human-readable part only (stem), repeatedly, so stacked
+    prefixes like `32129cfa_03c5fbfd_Song.mp3` collapse to `Song.mp3`.
+    Falls back to `track` when nothing human-readable remains.
+    """
+    path = Path(filename)
+    stem, suffix = path.stem, path.suffix
+    changed = True
+    while changed:
+        changed = False
+        for rx in _INCOMING_PREFIX_RES:
+            new_stem = rx.sub("", stem, count=1)
+            if new_stem != stem:
+                stem, changed = new_stem, True
+    stem = stem.lstrip("-_. ")
+    if not stem:
+        stem = "track"
+    return stem + suffix
 
 
 def _find_by_content_id(audio_dir: Path, content_id: str) -> Path | None:
@@ -152,7 +190,7 @@ async def _store_upload(file: UploadFile) -> str:
         logger.info(f"Upload of '{existing.name}' deduplicated by content id {unique_id}")
         return existing.name
 
-    final_path = AUDIO_DIR / f"{unique_id}_{file.filename}"
+    final_path = AUDIO_DIR / f"{unique_id}_{_clean_incoming_name(file.filename or 'track')}"
     try:
         tmp_path.replace(final_path)  # atomic within the same volume
     except OSError:
@@ -778,7 +816,7 @@ async def _store_video_as_audio(file: UploadFile) -> tuple[str, ExtractionResult
         if total == 0:
             raise HTTPException(status_code=400, detail="File is empty")
 
-        stem = target_stem(file.filename or "track")
+        stem = target_stem(_clean_incoming_name(file.filename or "track"))
         converted = tmp_dir / f"{digest.hexdigest()[:8]}_{stem}.m4a"
         result = extract_audio(src, converted)
 
