@@ -17,9 +17,27 @@
     "models": "${CONFIG_DIR}/comfyui/models"
   },
   
-  "custom_nodes": {
+    "custom_nodes": {
     "description": "Custom ComfyUI nodes maintained by the app. These are symlinked into ComfyUI's custom_nodes/ directory on startup so ComfyUI core remains untouched.",
     "nodes": [
+      {
+        "id": "nma-audio-analysis-producer",
+        "name": "NMA Audio Analysis Producer",
+        "source": "audio_analysis_producer.py",
+        "description": "Produces AUDIO_ANALYSIS bundle for audio-reactive visual nodes"
+      },
+      {
+        "id": "nma-stem-separator-producer",
+        "name": "NMA Stem Separator Producer",
+        "source": "stem_separator_producer.py",
+        "description": "Produces AUDIO_STEMS bundle for stem-reactive visual nodes"
+      },
+      {
+        "id": "nma-remix-layer-producer",
+        "name": "NMA Remix Layer Producer",
+        "source": "remix_layer_producer.py",
+        "description": "Produces REMIX_LAYERS bundle for remix controller nodes"
+      },
       {
         "id": "nma-audio-sync",
         "name": "NMA Audio Sync",
@@ -28,7 +46,7 @@
       },
       {
         "id": "nma-stem-router",
-        "name": "NMA Stem Router", 
+        "name": "NMA Stem Router",
         "source": "stem_router_node.py",
         "description": "Routes audio stems to different visual channels"
       },
