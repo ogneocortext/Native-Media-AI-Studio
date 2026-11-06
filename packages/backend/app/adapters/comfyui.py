@@ -22,6 +22,38 @@ from .base import AdapterStatus, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
+
+def _patch_comfy_aimdo_model_vbar() -> None:
+    """
+    Patch comfy-aimdo's ModelVBAR.__init__ to accept and ignore
+    ``pageout_callback`` keyword argument.
+
+    ComfyUI >= some-version calls ``ModelVBAR(size, device, pageout_callback=...)``
+    but the installed comfy-aimdo package's ModelVBAR.__init__ only accepts
+    ``(self, size, device)``. Rather than modifying ComfyUI core, we monkeypatch
+    the aimdo module here so generation works with the updated ComfyUI.
+    """
+    try:
+        from comfy_aimdo.model_vbar import ModelVBAR
+
+        _orig_init = ModelVBAR.__init__
+
+        def _patched_init(self, size, device, pageout_callback=None, **kwargs):
+            # pageout_callback is a newer ComfyUI feature; older comfy-aimdo
+            # doesn't support it. Accept and ignore.
+            return _orig_init(self, size, device)
+
+        # Only patch if not already patched
+        if ModelVBAR.__init__ is _orig_init:
+            ModelVBAR.__init__ = _patched_init
+            logger.debug(
+                "Patched comfy_aimdo.model_vbar.ModelVBAR.__init__ to accept "
+                "pageout_callback kwarg"
+            )
+    except Exception as e:
+        logger.debug(f"Could not patch comfy_aimdo ModelVBAR: {e}")
+
+
 #: How long to keep waiting when our prompt is still sitting in ComfyUI's queue
 #: rather than executing. The normal image timeout (300s) is generous for the
 #: ~11s median render measured on this machine, but a prompt queued behind a
@@ -195,6 +227,7 @@ class ComfyUIAdapter(BaseAdapter):
         self._last_health_log: str | None = None
         self._available_checkpoints: list[str] = []
         self._available_motion_modules: list[str] = []
+        _patch_comfy_aimdo_model_vbar()
 
     async def _fetch_available_checkpoints(self) -> list[str]:
         """Fetch available checkpoints from ComfyUI"""
