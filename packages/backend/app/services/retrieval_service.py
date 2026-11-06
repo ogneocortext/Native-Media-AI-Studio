@@ -177,7 +177,7 @@ def _get_reranker() -> tuple[object, object] | None:
         _reranker_tokenizer = AutoTokenizer.from_pretrained(RERANK_MODEL)
         model_kwargs: dict = {}
         if _reranker_device == "cuda":
-            model_kwargs["torch_dtype"] = torch.float16
+            model_kwargs["dtype"] = torch.float16
         _reranker_model = AutoModelForSequenceClassification.from_pretrained(
             RERANK_MODEL,
             **model_kwargs,
