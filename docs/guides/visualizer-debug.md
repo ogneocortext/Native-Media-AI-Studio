@@ -81,14 +81,28 @@ async function diff(a, b) {
 - Confirm with `maxDiff`: sample the highest-diff pixel pair between two frames; >50% intensity shift proves the shader is updating.
 
 ### Built-in debug toggle (ShaderCanvas)
-Append `#shader-debug` to the visualizer URL to enable lightweight motion logging.
-> **Note (2026-11-05):** The documented log format `[ShaderCanvas debug] frame=60 time=1.0s avgPixelDiff=12.3`
-> was not found in current `ShaderCanvas.tsx`; the debug toggle exists but the console output
-> format may differ. Verify actual runtime output before relying on exact format.
+Append `#shader-debug` to the visualizer URL to enable lightweight debug output.
+The component lives at `features/visualizer/components/ShaderCanvas.tsx`
+(moved out of the feature root in the T-VIZ-33 decomposition).
 
-- Logs a 3×3 pixel-grid diff every ~1s
-- Output: `[ShaderCanvas debug] frame=60 time=1.0s avgPixelDiff=12.3` (documented; verify)
-- Remove the hash to disable; no code changes needed
+What the flag actually does today (verified 2026-11-06 against source):
+
+- Logs the **GPU renderer string** via `WEBGL_debug_renderer_info`
+  (`UNMASKED_RENDERER_WEBGL` / `UNMASKED_VENDOR_WEBGL`) once at init —
+  the fastest way to confirm whether the shader path is on the real GPU
+  or a software rasterizer.
+- Enables `glCheckError` reporting: every GL call site logs
+  `[WebGL2] GL error 0x… at <where>` instead of failing silently.
+- Prints anisotropic-filtering max and texture-load failures.
+
+> **Removed feature:** the old per-second
+> `[ShaderCanvas debug] frame=60 time=1.0s avgPixelDiff=12.3` motion log
+> no longer exists — the frame-diff sampler was dropped. For motion
+> verification use the ffmpeg `gdigrab` workflow above (or
+> `scripts/verify-shader-motion.mjs`), which measures real display
+> output and cannot be fooled by compositor timing.
+
+- Remove the hash to disable; no code changes needed.
 
 ### Quick verification script
 Use `scripts/verify-shader-motion.mjs` instead of the old canvas-screenshot capture script. It records the actual display with ffmpeg, extracts frames, and analyzes with sharp.

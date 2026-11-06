@@ -120,4 +120,37 @@ Current studio uses `KineticLyricOverlay.tsx` + `KineticPresets.ts` (GSAP/Anime.
 - For beat detection, prefer `spectral-flux` (`visual-flux`) over `librosa` for 2D canvas.
 - Search future work with `2026` suffix: e.g., `PixiJS 8 2026`, `p5.js sound 2026`, `meyda 2026`.
 
+---
+
+## 9. Adoption Status (as of 2026-11-06)
+
+What this research actually turned into in the codebase. The studio
+stayed on **Canvas2D + Web Audio** — no PixiJS/p5.js/I2Djs dependency was
+added; the recommendations were applied as patterns inside the existing
+renderer instead.
+
+| Recommendation | Outcome |
+|---|---|
+| 2D as low-end fallback alongside R3F | Done — `Canvas2DVisualizer` is the full 2D surface; R3F (`viz-styles/`) is the 3D surface; `terrain`, `stem-scene` styles landed T-VIZ-22/23 |
+| Mode breadth (visual-flux's 7 modes) | Exceeded — `CANVAS_2D_MODES` in `visualizerHelpers.ts` has 15 Canvas2D modes incl. `kinetic-type` (T-VIZ-21, lyrics-as-scene), `bars`, `mirrored-bars`, `segmented-led-bars`, `stereo-split-bars`, `stacked-frequency-bands`, `dot-peak-matrix`, `waveform`, `radial`, `spectrogram`, `lissajous`, `constellation`, `particles`, `aurora` |
+| spectral-flux beat detection | Done — T-VIZ-16 onset envelope (`onset` in mode ctx); T-VIZ-19 phase-locked `beatEnv` grid-locks `d.beat` to analysed beats |
+| Kinetic typography (pv-tool reference) | Done differently — `kinetic-type` Canvas2D mode + existing `KineticTypographyPage`; PixiJS layer not adopted |
+| Performance budget | Done — T-VIZ-18 quality governor (p95 frame-time window, DPR ladder, PostFX gate at bottom rung); T-VIZ-15 single envelope stage replaced per-mode springs |
+| Bar-mode quality items | Done — rounded tops, baseline reflections, falling peak caps, log mapping, glow sprites; audit T-VIZ-38 fixed peaks/reflections/harmonic overlay that were present-but-broken |
+| Waviz/meyda dependency swap | Not adopted — hand-rolled `AnalyserNode` path retained; `trackFeatures.ts` still custom |
+| 9:16/WebM loop export (visual-flux/phase-viz) | Partial — Remotion pipeline exists for video generation; no dedicated 9:16 loop exporter |
+
+### Still-open 2D items
+
+- **PixiJS 8 lyric-particle layer** — the one recommendation with real
+  remaining upside (GPU text sprites vs Canvas2D fillText). Deferred:
+  Canvas2D kinetic-type covers the use case at current scale.
+- **Bar-count adaptivity** — bar modes use fixed 64/48 counts; cramped
+  on narrow windows. See `canvas2d-bar-visualization-research.md`.
+- **True fill batching** in bar modes — per-bar `fillStyle` switches
+  remain; within budget at 60 fps but documented as partial.
+- **`stereo-split-bars` naming** — renders frequency bands, not stereo
+  channels; rename or implement real L/R split (needs per-channel
+  analyser data that doesn't exist today).
+
 _Generated 2026-09-02 via web search `2026 open source 2D visualization`; addendum 2026-09-05 via Summer 2026 refresh._
