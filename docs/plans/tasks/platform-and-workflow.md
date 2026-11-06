@@ -801,3 +801,21 @@ Rules: `docs/plans/tasks/README.md`
   and `custom_nodes\` listings; remaining docs grepped for stale
   install/download claims (none left).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-28 - Model-listing gaps: AnimateDiff LoRAs + TripoSR filter
+- **Status:** done
+- **Goal:** Surface every installed model on the frontend; stop
+  non-image checkpoints leaking into the image picker.
+- **What changed:** `/api/integrations/comfyui/video-models` now also
+  scans `custom_nodes/ComfyUI-AnimateDiff-Evolved/motion_lora/` — the
+  official 8-LoRA camera-motion pack lived outside `models/`, so only
+  the ZoomIn copy under `models/animatediff_motion_lora/` was listed.
+  Image-generation checkpoint filter now excludes `triposr` (image→3D
+  model whose ComfyUI nodes aren't installed; it rendered as a generic
+  "Image/Video" option that would fail on use).
+- **Files:** api/integrations_generation.py,
+  features/image-generation/ImageGeneration.tsx.
+- **Verification:** Live endpoint returns all 8 unique LoRA names
+  (ZoomIn deduped by the frontend's by-name map); ruff clean; eslint
+  0 errors on touched file.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

@@ -177,6 +177,25 @@ async def get_video_models() -> dict:
                 "motion_lora" if "lora" in subdir else "motion_module",
             )
         )
+    # AnimateDiff-Evolved keeps its official camera-motion LoRA pack under
+    # custom_nodes/, outside models/. Scan it too so all installed LoRAs are
+    # selectable; paths are relative to the ComfyUI root for these entries.
+    ade_lora_dir = (
+        comfyui_models_dir.parent
+        / "custom_nodes"
+        / "ComfyUI-AnimateDiff-Evolved"
+        / "motion_lora"
+    )
+    if ade_lora_dir.is_dir():
+        video_models.extend(
+            _scan_model_dir(
+                ade_lora_dir,
+                comfyui_models_dir.parent,
+                VIDEO_MODEL_SUFFIXES,
+                1024,
+                "motion_lora",
+            )
+        )
     # Diffusion models that look video-related.
     video_models.extend(
         _scan_model_dir(

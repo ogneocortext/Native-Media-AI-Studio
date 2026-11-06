@@ -338,8 +338,9 @@ export function ImageGeneration() {
               !baseName.includes("motion") &&
               !baseName.includes("hunyuan") &&
               !baseName.includes("3d") &&
-              !baseName.includes("kandinsky")
-            ); // Kandinsky is also not SD
+              !baseName.includes("kandinsky") &&
+              !baseName.includes("triposr")
+            ); // Kandinsky/TripoSR are not SD image models
           });
           // If no models found, show all (fallback)
           const finalModels = imageModels.length > 0 ? imageModels : data.checkpoints;
