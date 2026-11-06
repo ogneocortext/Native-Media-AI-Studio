@@ -63,8 +63,10 @@ foreach ($proc in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue))
     if ($proc.ProcessId -in $pids) { continue }
     $cl = $proc.CommandLine
     if (-not $cl) { continue }
+    # Scope the sweep to THIS project's ports: an unscoped ngrok.exe kill
+    # would take down tunnels belonging to other projects on the same machine.
     if ($cl -match 'localtunnel' -or $proc.Name -eq 'ngrok.exe') {
-        if ($proc.Name -eq 'ngrok.exe' -or $cl -match '--port (8000|5173)') {
+        if ($cl -match '--port (8000|5173)' -or ($proc.Name -eq 'ngrok.exe' -and $cl -match ':(8000|5173)(\s|$)')) {
             # -ErrorAction SilentlyContinue already swallows a process
             # that raced us to exit; no try/catch needed around the kill.
             Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue

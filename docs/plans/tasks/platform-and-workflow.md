@@ -427,6 +427,58 @@ Rules: `docs/plans/tasks/README.md`
   7.6.9, conda Python 3.11.9, script param blocks, gate flags).
 - **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
 
+### T-PLT-14 — Audit, consolidate, and repair the PowerShell script set
+- **Status:** done
+- **Goal:** Classify all tracked + untracked `.ps1` files, fix real
+  defects, consolidate duplicates, and decide what belongs in source
+  control.
+- **What changed:**
+  - `comfyui-patch-status.ps1` — was completely broken: its `Git()`
+    helper called `git` from inside a function also named `Git`, so
+    PowerShell resolved the call to itself (call-depth overflow under
+    SilentlyContinue → every field empty, upstream section dead code).
+    Renamed to `Invoke-Git`, converted args to `[string[]]` splat (a
+    single space-joined string reaches git as ONE argv element), fixed
+    all call sites, and corrected the misleading "Invalid" patch label
+    (non-zero apply --check also means already-applied). Verified live:
+    branch/commit/remote/ahead-behind/tags now populate.
+  - `comfyui-safe-update.ps1` — `git stash pop` result was discarded;
+    a failed pop silently leaves local changes in the stash. Now checks
+    `$LASTEXITCODE` and prints recovery instructions.
+  - `tools/music-gen/start-service.ps1` — called `Write-Warn`/`Write-Err`
+    which were never defined (no shared-utils dot-source) →
+    CommandNotFoundException on those paths. Added the two helpers.
+  - `stop-tunnel.ps1` — orphan sweep killed ANY `ngrok.exe` on the
+    machine and any localtunnel on ports 8000/5173, including other
+    projects' tunnels. Now scoped to command lines referencing this
+    project's ports.
+  - `start-tunnel.ps1` — exported an empty `PUBLIC_ORIGIN` in
+    `-Target frontend` mode; now only set when a backend URL exists.
+  - `monitor-bandwidth.ps1` + `start-monitor-bandwidth.ps1` —
+    consolidated into one self-relaunching script (the wrapper only
+    forwarded args the monitor already handles); `-LogPath` is now
+    forwarded on relaunch too. Wrapper deleted.
+  - `scripts/dev/_psa_tunnel_check.ps1` — deleted; one-off
+    PSParser::Tokenize syntax probe (deprecated API).
+  - `.gitignore` — the `scripts/**/*.ps1` blanket-ignore had hidden four
+    real ops scripts from every clone while docs referenced them. Added
+    explicit `!` re-inclusions for `check-env-health.ps1` (referenced by
+    SETUP_SUMMARY, knowledge-library, source-map, and the
+    report-path-orphans whitelist), the comfyui patch pair, and
+    `utility/monitor-bandwidth.ps1`; they are now tracked.
+- **Classification:** canonical = `manage-servers.ps1` (all lifecycle
+  flows through it); `start-studio.ps1` = primary launcher;
+  `start-dev.ps1`/`start-services.ps1` = documented compatibility
+  wrappers (kept — distinct param surfaces); tunnel trio = one
+  concern split three ways (kept); `shared-utils.ps1` = single source
+  of truth; `check-env-health.ps1`/comfyui pair/bandwidth monitor =
+  ops tools now tracked; test scripts stay under `dev/`/`utility/tests/`.
+- **Files:** the scripts above + `.gitignore`.
+- **Acceptance:** all six touched scripts parse with 0 errors
+  (`Parser::ParseFile`); `comfyui-patch-status.ps1` run live against the
+  real ComfyUI checkout produces correct git state (was empty before).
+- **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
+
 ### T-PLT-XX - Consolidate duplicates and delete dead modules
 - **Status:** done
 - **Goal:** Streamline the codebase after the decomposition pass - remove

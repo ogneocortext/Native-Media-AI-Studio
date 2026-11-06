@@ -281,7 +281,9 @@ if (-not $verified) {
 # ---------------------------------------------------------------------------
 # Process-local only: the running backend never sees this. Tunnel origins are
 # matched by allow_origin_regex in app/core/cors.py, so no restart is needed.
-$env:PUBLIC_ORIGIN = $backendUrl
+# Only export a non-empty origin: in -Target frontend mode there is no
+# backend tunnel, and an empty PUBLIC_ORIGIN is worse than none.
+if ($backendUrl) { $env:PUBLIC_ORIGIN = $backendUrl }
 
 $state = @{
     provider     = $Provider

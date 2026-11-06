@@ -36,6 +36,9 @@ param(
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+function Write-Warn { param([string]$Msg) Write-Warning $Msg }
+function Write-Err  { param([string]$Msg) Write-Error $Msg }
+
 # Resolve defaults
 if ($Port -eq 0) {
     $Port = 8201

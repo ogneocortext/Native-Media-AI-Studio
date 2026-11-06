@@ -92,6 +92,16 @@ scripts/utility/tunnel-urls.json
 # has not run them by hand on this machine first. Real source, not scratch.
 !scripts/start-services.ps1
 !scripts/check-ports.ps1
+# Referenced by docs (SETUP_SUMMARY, knowledge-library, source-map) and by
+# tools/report-path-orphans.py - real ops tooling, not scratch.
+!scripts/check-env-health.ps1
+# ComfyUI safe-update pair: patch export/backup/rollback for the external
+# ComfyUI checkout. Referenced by docs/source-map.md.
+!scripts/comfyui-patch-status.ps1
+!scripts/comfyui-safe-update.ps1
+# Bandwidth monitor for tunnel debugging (self-relaunches hidden; the old
+# start-monitor-bandwidth.ps1 wrapper was merged into it).
+!scripts/utility/monitor-bandwidth.ps1
 
 # Test
 coverage/
@@ -337,5 +347,6 @@ tools/model-reliability/snapshots/
 /icon2_model.json
 /modernlogo_model.json
 /vector_model.json
-p a c k a g e s / b a c k e n d / s t u d i o - d a t a /  
+p a c k a g e s / b a c k e n d / s t u d i o - d a t a / 
+ 
  
