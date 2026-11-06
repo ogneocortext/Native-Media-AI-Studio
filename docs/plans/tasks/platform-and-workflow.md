@@ -685,3 +685,20 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** 55 queue tests pass incl. new TTL expiry test;
   ruff clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-22 - Job output previews in queue list
+- **Status:** done
+- **Goal:** Jobs showed only an .mp4 inline player or a bare filename;
+  images/audio/other outputs had no visual preview.
+- **What changed:** `QueueList.tsx` gained `JobOutputPreview` +
+  `resolveJobOutput`, which normalizes every output_path shape seen in
+  the wild (project-relative `output/video/x.mp4`, absolute
+  `D:\...\output\...`, output-dir-relative, `/output/...`, full URL) to a
+  servable `/output/` URL via `getOutputUrl`. Completed jobs now render
+  by extension: `<video>` for video, `<img>` thumbnail for images,
+  `<audio>` for audio, Open/Download links for everything else. Replaces
+  the old block that guessed `previews/` vs `video/` subfolders and only
+  handled mp4.
+- **Files:** features/queue/QueueList.tsx, queueOutput.test.ts (new).
+- **Acceptance:** 6 resolver unit tests pass; tsc + eslint clean.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

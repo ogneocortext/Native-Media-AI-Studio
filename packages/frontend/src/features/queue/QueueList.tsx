@@ -144,7 +144,7 @@ function outputKind(filename: string): OutputKind {
  * ("/output/..." or a full URL). Reduce any of them to a URL the backend's
  * `/output` static mount can serve.
  */
-function resolveJobOutput(
+export function resolveJobOutput(
   raw: string,
 ): { url: string; filename: string; kind: OutputKind } | null {
   if (!raw) return null;
