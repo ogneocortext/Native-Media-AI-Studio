@@ -131,7 +131,7 @@ async def test_ltx_video_route_builds_ltx_workflow(
     assert result["model_label"] == "LTX 2.3 distilled"
     assert result["ckpt_name"] == "ltxv-2b-0.9.8-distilled-fp8.safetensors"
     assert result["t5_name"] == "t5-xxl-fp8.safetensors"
-    assert result["vae_name"] == "LTX23_video_vae.safetensors"
+    assert result["vae_name"] == "LTX23_video_vae_bf16.safetensors"
     assert result["model_variant"] == "ltxv-2b-0.9.8-distilled-fp8"
 
     # Verify the submitted workflow contains LTX node types.
