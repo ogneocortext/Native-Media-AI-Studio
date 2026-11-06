@@ -32,6 +32,7 @@ from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .adapters.registry import adapter_registry
+from .api import ascii as ascii_router
 from .api.image_processing import router as image_processing_router
 from .api.integrations_config import router as integrations_config_router
 from .api.integrations_generation import router as integrations_generation_router
@@ -822,6 +823,7 @@ app.include_router(visualizer.router)
 app.include_router(threestudio.router)
 app.include_router(animationstudio.router)
 app.include_router(ai.router)
+app.include_router(ascii_router.router)
 
 
 # Additional root-level routes
