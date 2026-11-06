@@ -733,3 +733,31 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   wrong-version / shapeless drops, index pruning, LRU eviction,
   re-save recency, storage-failure false); 595 visualizer tests pass;
   tsc + eslint clean on touched files.
+
+### T-VIZ-38 - Fix dead peak indicators and offscreen reflections in bar modes
+- **Status:** done
+- **Goal:** Owner: "lets do bar visualizations." Audit of the four
+  bar-style Canvas2D modes against the bar-research doc found the
+  documented peak/reflection features were present in code but
+  non-functional.
+- **What changed:**
+  - ``renderBars`` - ``state.barPeaks[i] = easedH`` ran BEFORE the
+    peak-update block, so ``bh > barPeaks[i]`` was never true and the
+    decay branch collapsed to ``max(bh, bh*0.985) = bh``: peak
+    indicators were pinned to the bar top forever. Removed the
+    clobbering assignment; the existing decay block now works.
+  - ``renderMirroredBars`` / ``renderStereoSplitBars`` - same class of
+    bug: ``barPeaks[i] = bh`` with no decay path at all, so "peaks"
+    were just the current frame's height. Added the standard
+    high-water-mark + ``PEAK_DECAY`` update (matching
+    ``renderStackedFrequencyBands``, which was already correct).
+  - ``drawBar`` reflection - drawn at ``refY = h + 2*dpr``, i.e.
+    entirely below the canvas bottom edge and clipped invisible.
+    Now hangs below the bar baseline (``y + bh + 2*dpr``); dropped the
+    now-unused ``h`` parameter.
+- **Files:** canvas2dModes.ts
+- **Acceptance:** tsc -b --force clean project-wide; eslint 0 errors on
+  the file (3 pre-existing warnings elsewhere); 595 visualizer tests
+  pass. Live headed check of falling peaks + visible reflections is
+  the remaining acceptance item.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

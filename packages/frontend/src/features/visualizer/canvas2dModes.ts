@@ -127,7 +127,6 @@ function computeBarTarget(
 /** Draw a single rounded bar with gradient, warm/cool mix, and reflection. */
 function drawBar(
   ctx: CanvasRenderingContext2D,
-  h: number,
   dpr: number,
   x: number,
   y: number,
@@ -158,8 +157,10 @@ function drawBar(
     ctx.save();
     ctx.globalAlpha = 0.18;
     ctx.fillStyle = gradient;
+    // Reflection hangs below the bar's baseline (y + bh), not below the
+    // canvas — the old `h + 2*dpr` origin was clipped offscreen entirely.
     const refH = bh * 0.3;
-    const refY = h + 2 * dpr;
+    const refY = y + bh + 2 * dpr;
     ctx.beginPath();
     ctx.roundRect(x + 1, refY, bw, refH, [0, 0, radius, radius]);
     ctx.fill();
@@ -254,7 +255,6 @@ export function renderBars(
     const { smoothH, springRising } = computeBarTarget(i, freqMap, modeCtx, state);
     const easeT = clamp(smoothH / Math.max(1, h * 0.78 * modeCtx.energyMod), 0, 1);
     const easedH = smoothH * (1 + 0.08 * easeOutBack(easeT) * (springRising ? 1 : 0));
-    state.barPeaks[i] = easedH;
     const bh = easedH;
     const x = Math.round(i * barW);
     const y = Math.round(baseY - bh);
@@ -265,7 +265,7 @@ export function renderBars(
     const coolMix = i / barCount > 0.7 ? modeCtx.d.treble * 0.35 : 0;
 
     drawBar(
-      modeCtx.ctx, h, dpr, x, y, bw, bh, radius,
+      modeCtx.ctx, dpr, x, y, bw, bh, radius,
       barGradients[cIdx % barGradients.length],
       warmMix, coolMix,
     );
@@ -331,7 +331,9 @@ export function renderMirroredBars(
     const targetH = boosted * maxBarH * modeCtx.energyMod;
     // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
     const bh = Math.max(0, targetH);
-    state.barPeaks[i] = bh;
+    // Falling peak: hold the high-water mark, decay slowly toward the bar.
+    if (bh > state.barPeaks[i]) state.barPeaks[i] = bh;
+    else state.barPeaks[i] = Math.max(bh, state.barPeaks[i] * PEAK_DECAY);
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
     const radius = Math.min(bw / 2, 3 * dpr);
@@ -497,7 +499,8 @@ export function renderStereoSplitBars(
       const targetH = boosted * h * 0.65 * modeCtx.energyMod;
       // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
       const bh = Math.max(0, targetH);
-      state.barPeaks[i] = bh;
+      if (bh > state.barPeaks[i]) state.barPeaks[i] = bh;
+      else state.barPeaks[i] = Math.max(bh, state.barPeaks[i] * PEAK_DECAY);
       const x = Math.round(i * barW);
       const y = Math.round(baseY - bh);
       const bw = Math.round(barW) - 2;
