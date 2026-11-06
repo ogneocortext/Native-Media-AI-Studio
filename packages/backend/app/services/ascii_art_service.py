@@ -1,6 +1,14 @@
 """
 AsciiArtService - ASCII Art Generation Service
 Provides various ASCII art generation capabilities for the Native Media AI Studio.
+
+Based on November 2026 best practices:
+- chafa is the gold standard for terminal graphics
+- Use 240-color mode for reliability (not 256)
+- Symbol classes: block, half, quad, sextant, octant, braille
+- Aspect ratio correction: terminal chars ~1:2 (h:w)
+- Color space: din99d for perceptual accuracy
+- Dithering: ordered (bayer) for clean output
 """
 
 from __future__ import annotations
@@ -11,7 +19,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
@@ -20,15 +28,31 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AsciiOptions:
-    """Options for ASCII art generation."""
+    """Options for ASCII art generation.
+    
+    Based on November 2026 best practices:
+    - chafa is the gold standard for terminal graphics
+    - Use 240-color mode for reliability (not 256)
+    - Symbol classes: block, half, quad, sextant, octant, braille
+    - Aspect ratio correction: terminal chars ~1:2 (h:w)
+    - Color space: din99d for perceptual accuracy
+    - Dithering: ordered (bayer) for clean output
+    """
     width: int = 80
     height: int = 40
     colors: bool = True
-    color_mode: str = "256"  # "none", "16", "256", "truecolor"
+    color_mode: str = "240"  # "none", "16", "240", "256", "full" (full only for sixel)
+    color_space: str = "din99d"  # "rgb", "din99d"
     format: str = "symbols"  # "symbols", "braille", "blocks"
+    symbol_classes: str = "block+border+stipple+braille"  # chafa symbol classes
     charset: str = "standard"  # "standard", "extended", "minimal", "braille"
     invert: bool = False
-    dither: str = "none"  # "none", "floyd-steinberg", "ordered"
+    dither: str = "ordered"  # "none", "ordered", "floyd-steinberg"
+    dither_intensity: float = 1.0
+    alpha: bool = True
+    stretch: bool = True
+    work_level: int = 5  # 1-9, CPU work level
+    scale: str = "fit"  # "fit", "stretch", "zoom"
 
 
 @dataclass
@@ -97,24 +121,32 @@ class AsciiArtService:
         return await self._python_fallback(image_path, options)
     
     async def _chafa_image(self, image_path: Path, options: AsciiOptions) -> AsciiResult:
-        """Convert image using chafa (best quality)."""
+        """Convert image using chafa (best quality).
+        
+        Based on November 2026 best practices:
+        - Use 240-color mode for reliability (not 256)
+        - Symbol classes: block+border+stipple+braille for best quality
+        - Color space: din99d for perceptual accuracy
+        - Dithering: ordered (bayer) for clean output
+        - Aspect ratio correction: terminal chars ~1:2 (h:w)
+        """
         cmd = ["chafa"]
         
-        # Size
-        cmd.extend(["-s", f"{options.width}x{options.height}"])
+        # Size with aspect ratio correction
+        # Terminal chars are ~1:2 (height:width), so we adjust
+        if options.height and options.width:
+            # chafa handles aspect correction with --stretch
+            cmd.extend(["-s", f"{options.width}x{options.height}"])
         
         # Format
-        if options.format == "braille":
-            cmd.extend(["-f", "braille"])
-        elif options.format == "blocks":
-            cmd.extend(["-f", "blocks"])
-        else:
-            cmd.extend(["-f", "symbols"])
+        cmd.extend(["-f", "symbols"])  # Unicode symbols by default
         
-        # Colors
+        # Colors - Use 240 for reliability (not 256)
         if options.colors:
-            if options.color_mode == "truecolor":
-                cmd.extend(["--colors", "full"])
+            if options.color_mode == "full":
+                cmd.extend(["--colors", "full"])  # Only works with sixel
+            elif options.color_mode == "240":
+                cmd.extend(["--colors", "240"])  # Recommended for reliability
             elif options.color_mode == "256":
                 cmd.extend(["--colors", "256"])
             elif options.color_mode == "16":
@@ -122,23 +154,39 @@ class AsciiArtService:
         else:
             cmd.extend(["--colors", "none"])
         
-        # Charset
-        if options.charset == "braille":
-            cmd.extend(["--symbols", "braille"])
-        elif options.charset == "extended":
-            cmd.extend(["--symbols", "extended"])
-        elif options.charset == "minimal":
-            cmd.extend(["--symbols", "minimal"])
+        # Color space - din99d for perceptual accuracy
+        cmd.extend(["--color-space", options.color_space])
+        
+        # Symbol classes - combine for best quality
+        # block+border+stipple+braille gives best quality
+        cmd.extend(["--symbols", options.symbol_classes])
         
         # Dithering
         if options.dither != "none":
             cmd.extend(["--dither", options.dither])
+            if options.dither_intensity != 1.0:
+                cmd.extend(["--dither-intensity", str(options.dither_intensity)])
+        
+        # Alpha transparency
+        if options.alpha:
+            cmd.append("--alpha")
+        
+        # Stretch to fit
+        if options.stretch:
+            cmd.append("--stretch")
+        
+        # Work level (CPU effort)
+        cmd.extend(["--work", str(options.work_level)])
+        
+        # Scale mode
+        if options.scale != "fit":
+            cmd.extend(["--scale", options.scale])
         
         # Invert
         if options.invert:
             cmd.append("-i")
         
-        cmd.append(str(options.path))
+        cmd.append(str(image_path))
         
         try:
             proc = await asyncio.create_subprocess_exec(

@@ -39,11 +39,18 @@ class ImageToAsciiRequest(BaseModel):
     width: int = Field(default=80, ge=10, le=300)
     height: int = Field(default=40, ge=10, le=200)
     colors: bool = Field(default=True)
-    color_mode: str = Field(default="256", pattern="^(none|16|256|truecolor)$")
-    format: str = Field(default="symbols", pattern="^(symbols|braille|blocks)$")
-    charset: str = Field(default="standard", pattern="^(standard|extended|minimal|braille)$")
+    color_mode: str = Field(default="240", pattern=r"^(none|16|240|256|full)$")
+    color_space: str = Field(default="din99d", pattern=r"^(rgb|din99d)$")
+    format: str = Field(default="symbols", pattern=r"^(symbols|braille|blocks)$")
+    symbol_classes: str = Field(default="block+border+stipple+braille", 
+        pattern=r"^(all|none|space|solid|stipple|block|border|diagonal|dot|quad|half|hhalf|vhalf|inverted|braille|technical|geometric|ascii|legacy|sextant|octant|wedge|wide|narrow|[\+\-](?:space|solid|stipple|block|border|diagonal|dot|quad|half|hhalf|vhalf|inverted|braille|technical|geometric|ascii|legacy|sextant|octant|wedge|wide|narrow|u[0-9a-fA-F]{4})(?:,[\+\-](?:space|solid|stipple|block|border|diagonal|dot|quad|half|hhalf|vhalf|inverted|braille|technical|geometric|ascii|legacy|sextant|octant|wedge|wide|narrow|u[0-9a-fA-F]{4}))*)$")
     invert: bool = False
-    dither: str = Field(default="none", pattern="^(none|floyd-steinberg|ordered)$")
+    dither: str = Field(default="ordered", pattern=r"^(none|ordered|floyd-steinberg)$")
+    dither_intensity: float = Field(default=1.0, ge=0.0, le=10.0)
+    alpha: bool = True
+    stretch: bool = True
+    work_level: int = Field(default=5, ge=1, le=9)
+    scale: str = Field(default="fit", pattern=r"^(fit|stretch|zoom)$")
 
 
 class BannerRequest(BaseModel):
@@ -67,21 +74,33 @@ def get_service() -> AsciiArtService:
 
 @router.post("/image", response_model=dict)
 async def image_to_ascii_endpoint(
-    file: UploadFile = File(..., description="Image file to convert"),
     width: int = Form(default=80, ge=10, le=300),
     height: int = Form(default=40, ge=10, le=200),
     colors: bool = Form(default=True),
-    color_mode: str = Form(default="256"),
+    color_mode: str = Form(default="240"),
+    color_space: str = Form(default="din99d"),
     format: str = Form(default="symbols"),
-    charset: str = Form(default="standard"),
+    symbol_classes: str = Form(default="block+border+stipple+braille"),
     invert: bool = Form(default=False),
-    dither: str = Form(default="none"),
+    dither: str = Form(default="ordered"),
+    dither_intensity: float = Form(default=1.0),
+    alpha: bool = Form(default=True),
+    stretch: bool = Form(default=True),
+    work_level: int = Form(default=5),
+    scale: str = Form(default="fit"),
+    file: UploadFile = File(..., description="Image file to convert"),
     service: AsciiArtService = Depends(get_service),
 ):
     """
     Convert an uploaded image to ASCII art.
     
     Supports: PNG, JPG, JPEG, WebP, BMP, TIFF, GIF (first frame)
+    
+    Best practices (Nov 2026):
+    - Use color_mode=240 for reliability (not 256)
+    - Use symbol_classes=block+border+stipple+braille for best quality
+    - Use color_space=din99d for perceptual accuracy
+    - Use dither=ordered for clean output
     """
     # Validate file type
     allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/bmp", "image/tiff", "image/gif"}
@@ -104,10 +123,16 @@ async def image_to_ascii_endpoint(
             height=height,
             colors=colors,
             color_mode=color_mode,
+            color_space=color_space,
             format=format,
-            charset=charset,
+            symbol_classes=symbol_classes,
             invert=invert,
             dither=dither,
+            dither_intensity=dither_intensity,
+            alpha=alpha,
+            stretch=stretch,
+            work_level=work_level,
+            scale=scale,
         )
         
         result = await service.image_to_ascii(tmp_path, options)
