@@ -38,7 +38,7 @@ gated, rate-limited to uselessness). This is a work-assignment rule,
 not a probe: the tracker's no-synthetic-probes rule (README) stands —
 no pings, no scheduled availability tests.
 
-## Roster (2026-10-25, from observed.jsonl)
+## Roster (updated 2026-11-05, from observed.jsonl)
 
 ### Tier A — Delegate
 | Model (route) | Evidence | Last observed | Notes |
@@ -47,6 +47,7 @@ no pings, no scheduled availability tests.
 | StepFun Step 5 Preview (kilo, `stepfun/step-5-preview-free`) | 11 sessions, all worked — Playwright suite, plan steps with all gates green, remix phase work | 2026-10-14 | Strongest recent streak in the log. |
 | StepFun Step 3.7 Flash (kilo, `:free`) | Owner: "worked for months at a time; competent; known-good fallback" | 2026-10-02 | The daily-driver benchmark. Evidence is old but long-horizon; re-confirm on next use. |
 | Ling 3.1 Flash (kilo) | 5 sessions, all worked — root-causing, remix plan implementation, upgrade verification | 2026-10-10 | Also a commit author in this repo (trailer: `Co-authored-by: Ling 3.1 Flash`). |
+| Devin SWE-2 Flash (Devin desktop; trailer `Co-authored-by: Devin`) | 72 trailer-attributed commits (+27,002/−15,981), ~68 of them on a single day, 2026-11-05: the full visualizer smoothness slate (T-VIZ-15–19), modes T-VIZ-21–24, T-VIZ-25/37/38/39, the chrome + decomposition batch (T-VIZ-26–36), platform queue/VRAM work (T-PLT-20–25, D70–D72); observed entries 2026-11-05 (server health sweep, visualizer live QA) both worked | 2026-11-05 | **Provisional A — executor lane only.** Demonstrated throughput is on planner-written Plans, with same-commit ledger updates (the discipline other executors have missed). Caveats: a single-day burst sample, so multi-week reliability is unobserved; T-VIZ-15/16/18 acceptances still carry headed-verification-pending notes (unit-test green is not looked-at); its own `ee2714e` dropped the chrome CSS, self-caught and restored the same day (T-VIZ-27); 4 commits carry the `devin-ai-integration[bot]` phantom trailer email; one observed line is misdated 2026-11-30. The owner is in a 30-day SWE 2.0 promo window (~to early Dec 2026) — that window's job is converting this row from burst evidence into a track record. |
 
 ### Tier B — Scoped
 | Model (route) | Evidence | Last observed | Notes |

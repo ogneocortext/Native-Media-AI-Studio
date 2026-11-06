@@ -56,7 +56,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `acestep-agent-drive-2026.md`  → `#production`, `#audio`
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 
-### 🛠️ Technical Implementation (19/19 completed) ✅
+### 🛠️ Technical Implementation (20/20 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
 - ✅ `database-operations-2026.md`  → `#technical`, `#database`, `#gpu`, `#telemetry`
 
@@ -76,6 +76,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `wangp-local-video-generation-2026.md`  → `#technical`, `#ai`, `#performance`
 - ✅ `npx-best-practices-2026.md`  → `#technical`, `#security`, `#nodejs`, `#npx`, `#supply-chain`
 - ✅ `remotion-agent-skills-2026.md`  → `#technical`, `#remotion`, `#skills`, `#ai-agents`
+- ✅ `higgsfield-comfyui-challenge-2026.md`  → `#technical`, `#comfyui`, `#video-generation`, `#open-source`
 - ✅ `programmatic-tool-calling-2026.md`  → `#technical`, `#ai-agents`, `#tooling`
 
 ### 🎮 MCP & Platform Integrations (12/12 completed) ✅
