@@ -44,6 +44,7 @@ catalog:
   vite: 8.3.5
   comfyui-mcp: 0.52.206
   '@playwright/mcp': 0.0.83
+  '@tanstack/react-query': ^5.106.0
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 sharedWorkspaceLockfile: true
