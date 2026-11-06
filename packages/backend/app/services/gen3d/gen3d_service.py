@@ -1143,6 +1143,7 @@ class Gen3DService:
             method="POST",
         )
 
+        t_submit = time.time()
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode())
 
@@ -1150,6 +1151,11 @@ class Gen3DService:
             return {"success": False, "error": f"Failed to submit workflow: {result}"}
 
         prompt_id = result["prompt_id"]
+        submit_done = time.time()
+        # First poll that sees the prompt in queue_running marks execution start;
+        # history presence marks execution end. Both drive the timing breakdown.
+        exec_start: float | None = None
+        exec_end: float | None = None
         logger.info("3D generation workflow submitted: %s", prompt_id)
 
         # Determine the expected filename prefix from the workflow
@@ -1165,12 +1171,28 @@ class Gen3DService:
         while time.time() - start < max_wait:
             elapsed = time.time() - start
             try:
+                # Detect execution start: prompt leaves queue_pending for
+                # queue_running. One extra lightweight call per poll cycle.
+                if exec_start is None:
+                    qreq = urllib.request.Request(f"{COMFYUI_URL}/queue")
+                    with urllib.request.urlopen(qreq, timeout=5) as qresp:
+                        qdata = json.loads(qresp.read().decode())
+                    for item in qdata.get("queue_running", []):
+                        if (
+                            isinstance(item, (list, tuple))
+                            and len(item) > 1
+                            and item[1] == prompt_id
+                        ):
+                            exec_start = time.time()
+                            break
+
                 # Check ComfyUI history for completion
                 req = urllib.request.Request(f"{COMFYUI_URL}/history/{prompt_id}")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     history = json.loads(resp.read().decode())
 
                 if prompt_id in history:
+                    exec_end = exec_end or time.time()
                     node_history = history[prompt_id]
                     outputs = node_history.get("outputs", {})
 
@@ -1187,7 +1209,9 @@ class Gen3DService:
 
                     if glb_rel:
                         logger.info("3D generation complete: %s", glb_rel)
-                        return self._upload_image(glb_rel, prompt_id)
+                        return self._finish_with_timing(
+                            glb_rel, prompt_id, t_submit, submit_done, exec_start, exec_end
+                        )
 
                     # Check for errors
                     messages = node_history.get("status", {})
@@ -1204,7 +1228,14 @@ class Gen3DService:
                             glb_path = COMFYUI_OUTPUT_DIR / glb_name
                             if glb_path.exists():
                                 logger.info("3D generation complete (file found): %s", glb_path)
-                                return self._upload_image(str(glb_path), prompt_id)
+                                return self._finish_with_timing(
+                                    str(glb_path),
+                                    prompt_id,
+                                    t_submit,
+                                    submit_done,
+                                    exec_start,
+                                    exec_end,
+                                )
 
                         # Fallback: search for any new GLB in the output directory
                         glb_files = sorted(
@@ -1215,7 +1246,14 @@ class Gen3DService:
                         for glb_file in glb_files:
                             if glb_file.stat().st_mtime > start:
                                 logger.info("3D generation complete (new file): %s", glb_file)
-                                return self._upload_image(str(glb_file), prompt_id)
+                                return self._finish_with_timing(
+                                    str(glb_file),
+                                    prompt_id,
+                                    t_submit,
+                                    submit_done,
+                                    exec_start,
+                                    exec_end,
+                                )
 
             except Exception as e:
                 logger.debug("Polling for completion: %s", e)
@@ -1228,6 +1266,40 @@ class Gen3DService:
             await asyncio.sleep(2)
 
         return {"success": False, "error": "Timeout waiting for 3D generation"}
+
+    def _finish_with_timing(
+        self,
+        glb_ref: str,
+        prompt_id: str,
+        t_submit: float,
+        submit_done: float,
+        exec_start: float | None,
+        exec_end: float | None,
+    ) -> dict[str, Any]:
+        """Run the output finalize step and attach real phase timings.
+
+        queue_wait = submit -> first seen in ComfyUI queue_running (None when
+        the prompt finished between polls); inference = exec start -> history
+        entry; post_process = the _upload_image copy/decimate/chrome step.
+        ComfyUI exposes no per-phase model-load or VRAM telemetry over REST,
+        so those stay null rather than fabricated.
+        """
+        import time
+
+        post_t0 = time.time()
+        res = self._upload_image(glb_ref, prompt_id)
+        post_ms = (time.time() - post_t0) * 1000
+        exec_done = exec_end or time.time()
+        res["timing"] = {
+            "queue_wait_ms": (
+                max(0, int((exec_start - submit_done) * 1000)) if exec_start else None
+            ),
+            "inference_ms": max(0, int((exec_done - (exec_start or submit_done)) * 1000)),
+            "post_process_ms": int(post_ms),
+            "total_ms": int((time.time() - t_submit) * 1000),
+            "vram_peak_mb": None,
+        }
+        return res
 
     def _backend_health(self) -> dict[str, Any]:
         """Live per-backend health: model presence + required node registration.

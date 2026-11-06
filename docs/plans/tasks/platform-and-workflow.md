@@ -885,3 +885,27 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** tsc -b clean; eslint 0 errors (warnings are the
   file's pre-existing `any`-fetch style).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-32 - Real 3D generation timing (replaces fabricated breakdown)
+- **Status:** done
+- **Goal:** The Timing card showed invented numbers (total−2s "queue
+  wait", fixed 500ms "post-process", 0 VRAM). Wire real phase timings.
+- **What changed:** `_submit_workflow` now polls ComfyUI `/queue` each
+  cycle to timestamp when the prompt enters `queue_running` (execution
+  start) and stamps history completion (execution end);
+  `_finish_with_timing` wraps `_upload_image` (copy + Blender decimate +
+  chrome pass) to measure real post-process time and returns a `timing`
+  block: `queue_wait_ms` (null when the job finished between polls),
+  `inference_ms`, `post_process_ms`, `total_ms`, `vram_peak_mb: null`.
+  Frontend `GenTiming` fields are `number | null`; both generate paths
+  map server timings with client-elapsed fallback for total; the card
+  renders "—" for unmeasurable phases instead of fake zeros.
+  `hooks/useGenerationTiming.ts` deleted — dead code, zero importers.
+- **Files:** services/gen3d/gen3d_service.py,
+  features/generate3d/useGeneration3D.ts,
+  components/GenerationTimingCard.tsx, hooks/useGenerationTiming.ts
+  (deleted).
+- **Verification:** ruff clean, py_compile OK, tsc -b clean, eslint
+  0 errors. ComfyUI offline so live timing unverified end-to-end —
+  phase math is unit-simple and degrades to nulls safely.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

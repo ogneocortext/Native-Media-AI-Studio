@@ -171,6 +171,35 @@ export const PIPELINE_STEPS = [
 
 export type WizardStep = "describe" | "style" | "generate";
 
+// Phases ComfyUI can't report over REST stay null and render as "—".
+export interface GenTiming {
+  queueWaitTime: number | null;
+  modelLoadTime: number | null;
+  inferenceTime: number | null;
+  postProcessTime: number | null;
+  totalTime: number;
+  vramPeak: number | null;
+}
+
+interface ServerGenTiming {
+  queue_wait_ms?: number | null;
+  inference_ms?: number | null;
+  post_process_ms?: number | null;
+  total_ms?: number | null;
+  vram_peak_mb?: number | null;
+}
+
+function toGenTiming(t: ServerGenTiming | null | undefined, fallbackTotalMs: number): GenTiming {
+  return {
+    queueWaitTime: t?.queue_wait_ms ?? null,
+    modelLoadTime: null, // ComfyUI REST exposes no per-phase model-load split
+    inferenceTime: t?.inference_ms ?? null,
+    postProcessTime: t?.post_process_ms ?? null,
+    totalTime: t?.total_ms ?? fallbackTotalMs,
+    vramPeak: t?.vram_peak_mb ?? null,
+  };
+}
+
 export interface UseGeneration3DReturn {
   // State
   prompt: string;
@@ -215,14 +244,7 @@ export interface UseGeneration3DReturn {
   glbUrl: string | null;
   glbFilename: string | null;
   resultModelPath: string | null | undefined;
-  genTiming: {
-    queueWaitTime: number;
-    modelLoadTime: number;
-    inferenceTime: number;
-    postProcessTime: number;
-    totalTime: number;
-    vramPeak: number;
-  } | null;
+  genTiming: GenTiming | null;
 
   // Actions
   saveBible: (filename: string, bible: CharacterBible) => void;
@@ -249,14 +271,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const [statusLoading, setStatusLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [genTiming, setGenTiming] = useState<{
-    queueWaitTime: number;
-    modelLoadTime: number;
-    inferenceTime: number;
-    postProcessTime: number;
-    totalTime: number;
-    vramPeak: number;
-  } | null>(null);
+  const [genTiming, setGenTiming] = useState<GenTiming | null>(null);
   const [generatedList, setGeneratedList] = useState<GeneratedModel[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>("describe");
@@ -497,8 +512,8 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
 
   const selectedModel = models.find((m) => m.id === model) ?? models[0];
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
-  const isAvailable = (status3d.available as boolean) ?? false;
-  const comfyRunning = (status3d.comfyui_running as boolean) ?? false;
+  const isAvailable = (status3d.available as boolean | undefined) ?? false;
+  const comfyRunning = (status3d.comfyui_running as boolean | undefined) ?? false;
   const estimatedSec = Math.round(
     (steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300) *
       (MODEL_SPEED_FACTOR[model] ?? 1),
@@ -529,6 +544,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     setResult(null);
     setGenTiming(null);
     const start = Date.now();
+    let serverTiming: ServerGenTiming | null = null;
     try {
       const data = await generate3D({
         prompt,
@@ -537,6 +553,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         seed,
         cfg: vizParams.cfg,
       });
+      serverTiming = (data as { timing?: ServerGenTiming }).timing ?? null;
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError(
@@ -579,17 +596,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     } finally {
       setGenerating(false);
       const totalTime = Date.now() - start;
-      // Approximate pipeline breakdown: ComfyUI status gives us the current
-      // queue depth but not per-job wait time, so total minus a small
-      // overhead is treated as inference + post-process.
-      setGenTiming({
-        queueWaitTime: Math.max(0, totalTime - 2000), // rough estimate
-        modelLoadTime: 0,
-        inferenceTime: Math.max(0, totalTime - 1000),
-        postProcessTime: 500,
-        totalTime,
-        vramPeak: 0,
-      });
+      setGenTiming(toGenTiming(serverTiming, totalTime));
       const dur = Math.round(totalTime / 1000);
       if (dur > 5) console.log(`3D generation took ${dur}s`);
     }
@@ -607,8 +614,10 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     setResult(null);
     setGenTiming(null);
     const start = Date.now();
+    let serverTiming: ServerGenTiming | null = null;
     try {
       const data = await generate3DFromImage(refFile, { steps, model });
+      serverTiming = (data as { timing?: ServerGenTiming }).timing ?? null;
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError(
@@ -626,6 +635,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       setError(err instanceof Error ? err.message : "Reference generation failed");
     } finally {
       setGenerating(false);
+      setGenTiming(toGenTiming(serverTiming, Date.now() - start));
       const dur = Math.round((Date.now() - start) / 1000);
       if (dur > 5) console.log(`Reference 3D generation took ${dur}s`);
     }

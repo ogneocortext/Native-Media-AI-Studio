@@ -1,17 +1,18 @@
 /**
  * Component to display 3D generation timing metrics.
+ * Null phases (not measurable via ComfyUI REST) render as "—".
  */
 
 import { Clock, Cpu } from "lucide-react";
 import { Card } from "./common";
 
 interface GenerationTimingCardProps {
-  queueWaitTime: number;
-  modelLoadTime: number;
-  inferenceTime: number;
-  postProcessTime: number;
+  queueWaitTime: number | null;
+  modelLoadTime: number | null;
+  inferenceTime: number | null;
+  postProcessTime: number | null;
   totalTime: number;
-  vramPeak: number;
+  vramPeak: number | null;
 }
 
 export function GenerationTimingCard({
@@ -28,7 +29,8 @@ export function GenerationTimingCard({
     return "text-red-400";
   };
 
-  const formatTime = (ms: number) => {
+  const formatTime = (ms: number | null) => {
+    if (ms === null) return "—";
     if (ms < 1000) return `${ms.toFixed(0)} ms`;
     return `${(ms / 1000).toFixed(1)} s`;
   };
@@ -63,7 +65,9 @@ export function GenerationTimingCard({
             <Cpu size={10} />
             VRAM Peak
           </span>
-          <span className="text-sm tabular-nums text-gray-300">{vramPeak.toFixed(0)} MB</span>
+          <span className="text-sm tabular-nums text-gray-300">
+            {vramPeak === null ? "—" : `${vramPeak.toFixed(0)} MB`}
+          </span>
         </div>
       </div>
     </Card>
