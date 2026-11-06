@@ -394,6 +394,39 @@ Rules: `docs/plans/tasks/README.md`
   exists and backend path resolves.
 - **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
 
+### T-PLT-13 — Review and repair the five root docs files
+- **Status:** done
+- **Goal:** Deep-review `docs/README.md`, `agent-code-navigation.md`,
+  `agent-shell-cheatsheet.md`, `powershell-command-sheet.md`, and
+  `source-map.md` against the live tree; fix every stale claim found.
+- **What changed:**
+  - `source-map.md` rewritten — it claimed "every path confirmed" but was
+    ~50-80% stale: 5 of 15 listed `api/` modules no longer exist (actual
+    ~44), `services/` listed 10 of ~70, `features/` named 32 of 36 (missing
+    agent-chat, image-processing, music-prompts, onboarding), `app/agents/`
+    was absent entirely, `websocket/` "426 shim" claim was wrong (real
+    ConnectionManager; SSE is canonical), scripts/tools/config/tests
+    tables were far from exhaustive, and the commit-trailer rule named only
+    Kilo (now a multi-agent table in AGENTS.md). Restructured as a curated
+    map with counts + "tree wins" guidance instead of fake-exhaustive lists.
+  - `powershell-command-sheet.md` — fixed a §13 reference to a
+    non-existent section; generalized the "bash tool" wording (repo-wide
+    doc, not Devin-specific); fixed the `start-services.ps1` example which
+    passed `-Action`/`-Services` params the script doesn't accept.
+  - `agent-shell-cheatsheet.md` — removed the Git-bash path suggestion
+    (contradicts the no-bash rule); corrected node version (active fnm
+    default is v24.20.0, not 26.13).
+  - `docs/README.md` — knowledge-library count ~110 → ~116; corpus size
+    211 → ~210.
+  - `agent-code-navigation.md` — added pointer to `source-map.md`.
+    Verified all example-trace paths still exist; no other changes needed.
+- **Files:** the five docs files above.
+- **Acceptance:** every path/symbol/command claim in the five files
+  verified against the working tree (features/api/services/hooks/state/
+  utils/scripts/tools/config/tests listings, fnm node versions, pwsh
+  7.6.9, conda Python 3.11.9, script param blocks, gate flags).
+- **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
+
 ### T-PLT-XX - Consolidate duplicates and delete dead modules
 - **Status:** done
 - **Goal:** Streamline the codebase after the decomposition pass - remove

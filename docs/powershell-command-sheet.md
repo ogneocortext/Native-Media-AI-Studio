@@ -2,9 +2,9 @@
 
 **Platform: Windows 11. All terminal commands MUST go through PowerShell 7 (`pwsh`). Do NOT use `bash`, `cmd`, or Unix shells on this machine.** `bash` here resolves to the WSL launcher — it is NOT Git Bash and will produce confusing errors.
 
-**CRITICAL:** The `bash` tool runs PowerShell 7 on this machine — NOT bash, NOT WSL, NOT Git Bash. Do NOT use `tail`, `wc`, `head`, `grep`, `cat`, `ls`, `cp`, `mv`, `rm`, `find`, `ps`, `kill`, `netstat`, `env`, `export`, `xargs`, `&&`, or any other Unix utility in the `bash` tool or any shell command. All of these fail in PowerShell 7.
+**CRITICAL:** Some agent shells expose a tool literally named `bash` that actually runs PowerShell 7 on this machine — NOT bash, NOT WSL, NOT Git Bash. Do NOT use `tail`, `wc`, `head`, `grep`, `cat`, `ls`, `cp`, `mv`, `rm`, `find`, `ps`, `kill`, `netstat`, `env`, `export`, `xargs`, `&&`-chained Unix utilities, or any other Unix utility in shell commands. All of these either fail in PowerShell 7 or resolve to the WSL launcher.
 
-Use PowerShell 7 cmdlets instead (see the translation table in §13 below), or better yet, use the dedicated Kilo tools (`read`, `glob`, `grep`, `filesystem_*`) for file operations — they work cross-platform and avoid shell issues entirely.
+Use PowerShell 7 cmdlets instead (see the Bash → PowerShell translation table at the end of this document), or better yet, use the dedicated file tools (`read`, `glob`, `grep`, `filesystem_*`) for file operations — they work cross-platform and avoid shell issues entirely.
 
 If you need to search file contents, use the `grep` tool, not `Select-String` or `grep`. If you need to list files, use `glob` or `filesystem_list_directory`, not `Get-ChildItem`. Only use shell commands for genuine PowerShell 7 operations (git, pwsh scripts, python, etc.).
 
@@ -103,7 +103,10 @@ Get-Service | Where-Object Name -EQ w32time
 
 ```powershell
 # Run a project script (REQUIRED method)
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1 -Action start -Services all
+# start-services.ps1 takes only -ComfyUI / -VideoEditor switches — it starts
+# the default service set itself. For per-service control use manage-servers.ps1.
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1 -ComfyUI -VideoEditor
 
 # Check ports
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\check-ports.ps1

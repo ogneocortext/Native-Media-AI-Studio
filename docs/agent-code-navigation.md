@@ -1,5 +1,8 @@
 # Agent Code Navigation
 
+For a condensed "where is what" file map, start at `docs/source-map.md` —
+it is curated orientation, not exhaustive; confirm paths with `rg --files`.
+
 Use this when a task requires finding implementation files. The documentation
 search API searches `docs/`; it does **not** search source code. The
 `docs/knowledge-library/codebase.json` file is a legacy orientation map, not a

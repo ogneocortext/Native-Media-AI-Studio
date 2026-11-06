@@ -13,9 +13,9 @@ Quick reference for shells used by agents in this repo. Full detail: `AGENTS.md`
 
 ## Commands available
 - `rg` (ripgrep) is on PATH — use it for content search.
-- `grep`, `sed`, `head`, `tail` are NOT available — use `Select-String` or the Kilo `grep` tool.
-- `bash` resolves to the WSL launcher — use `C:\Program Files\Git\bin\bash.exe`.
-- `node` is an fnm alias pinned to Node 26.13 — prefer `pnpm.cmd` with explicit cwd.
+- `grep`, `sed`, `head`, `tail` are NOT available — use `Select-String` or the agent `grep` tool.
+- No Unix shell at all: `bash` resolves to the WSL launcher and is forbidden by repo rule — use `pwsh` only.
+- `node` is an fnm alias — active default is v24.20.0 (v26.13.0 also installed); prefer `pnpm.cmd` with explicit cwd.
 
 ## Exit codes / encoding
 - Run gates via `python tools/run-gates.py` (owns UTF-8 + exit codes).
