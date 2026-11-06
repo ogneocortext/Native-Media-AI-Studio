@@ -47,6 +47,7 @@ date: 2026-09-30
 
 ### 🛠️ Technical Implementation (Code & Systems)
 - [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
+- [[database-operations-2026|🗄️ Database Operations 2026]] — studio.db paths/PRAGMAs, gpu_telemetry growth+retention, admin maintenance API, VACUUM/mmap caveat (NEW 2026-11-06)
 
 - [[technical-reference|⚙️ Technical Reference]] — System architecture, API reference, service management
 - [[comfyui-workflows|🎨 ComfyUI Workflows]] — Custom workflows for image/video generation
@@ -169,7 +170,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 16 documents |
-|| `#technical/*` | System implementation & code | 19 documents |
+|| `#technical/*` | System implementation & code | 20 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |

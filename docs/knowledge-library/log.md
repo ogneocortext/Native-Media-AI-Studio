@@ -23,6 +23,10 @@ type: tracker
 
 ## 2026-11-06 — Agent chat doc + index gap repair
 
+- Added `docs/knowledge-library/database-operations-2026.md` → `#technical` —
+  studio.db/PRAGMA reference, gpu_telemetry growth + retention policy,
+  admin maintenance API, and the VACUUM-vs-mmap caveat (second content gap
+  from the audit).
 - Added `docs/knowledge-library/agent-chat-architecture-2026.md` → `#ai` —
   end-to-end agent chat reference (skill discovery, tool-def conversion,
   SSE tool-execution loop, reliability heuristics), closing the largest

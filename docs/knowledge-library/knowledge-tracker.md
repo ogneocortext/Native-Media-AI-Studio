@@ -56,8 +56,9 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `acestep-agent-drive-2026.md`  → `#production`, `#audio`
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 
-### 🛠️ Technical Implementation (18/18 completed) ✅
+### 🛠️ Technical Implementation (19/19 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
+- ✅ `database-operations-2026.md`  → `#technical`, `#database`, `#gpu`, `#telemetry`
 
 - ✅ `technical-reference.md`  → `#technical`, `#platform-comfyui`, `#platform-blender`, `#hardware-8gb`
 - ✅ `comfyui-workflows.md`  → `#technical`, `#platform-comfyui`
