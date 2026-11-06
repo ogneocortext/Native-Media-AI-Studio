@@ -199,21 +199,20 @@ async def fetch_history(
     the caller.
     """
     sess = session or await get_shared_session()
-    async with asyncio.timeout(timeout):
-        async with sess.get(
-            f"{base_url.rstrip('/')}/history/{prompt_id}",
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status == 200:
-                return await resp.json()
-            # Callers treat an absent entry as "still running", so a proxy error
-            # (502/504) would otherwise look like a healthy queue forever.
-            logger.warning(
-                "ComfyUI /history/%s returned %s (not treating as failure)",
-                prompt_id,
-                resp.status,
-            )
-            return {}
+    async with asyncio.timeout(timeout), sess.get(
+        f"{base_url.rstrip('/')}/history/{prompt_id}",
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        if resp.status == 200:
+            return await resp.json()
+        # Callers treat an absent entry as "still running", so a proxy error
+        # (502/504) would otherwise look like a healthy queue forever.
+        logger.warning(
+            "ComfyUI /history/%s returned %s (not treating as failure)",
+            prompt_id,
+            resp.status,
+        )
+        return {}
 
 
 async def fetch_queue(
@@ -225,16 +224,15 @@ async def fetch_queue(
 
     Bounded by ``asyncio.timeout(timeout)``."""
     sess = session or await get_shared_session()
-    async with asyncio.timeout(timeout):
-        async with sess.get(
-            f"{base_url.rstrip('/')}/queue",
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status == 200:
-                return await resp.json()
-            # An empty queue and an unreachable queue look identical downstream.
-            logger.warning("ComfyUI /queue returned %s (reporting empty queue)", resp.status)
-            return {}
+    async with asyncio.timeout(timeout), sess.get(
+        f"{base_url.rstrip('/')}/queue",
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        if resp.status == 200:
+            return await resp.json()
+        # An empty queue and an unreachable queue look identical downstream.
+        logger.warning("ComfyUI /queue returned %s (reporting empty queue)", resp.status)
+        return {}
 
 
 def find_queue_entry(queue_data: dict[str, Any], prompt_id: str) -> dict[str, Any] | None:
@@ -271,15 +269,14 @@ async def fetch_view_bytes(
 
     Bounded by ``asyncio.timeout(timeout)``."""
     sess = session or await get_shared_session()
-    async with asyncio.timeout(timeout):
-        async with sess.get(
-            f"{base_url.rstrip('/')}/view",
-            params=view_params(filename, subfolder, file_type),
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                raise RuntimeError(f"ComfyUI /view returned {resp.status}")
-            return await resp.read()
+    async with asyncio.timeout(timeout), sess.get(
+        f"{base_url.rstrip('/')}/view",
+        params=view_params(filename, subfolder, file_type),
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"ComfyUI /view returned {resp.status}")
+        return await resp.read()
 
 
 async def submit_prompt(
@@ -296,20 +293,19 @@ async def submit_prompt(
     """
     sess = session or await get_shared_session()
     payload = workflow if "prompt" in workflow else {"prompt": workflow}
-    async with asyncio.timeout(timeout):
-        async with sess.post(
-            f"{base_url.rstrip('/')}/prompt",
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                body = await resp.text()
-                raise parse_workflow_rejection(resp.status, body)
-            data = await resp.json()
-            prompt_id = data.get("prompt_id")
-            if not prompt_id:
-                raise RuntimeError("ComfyUI returned no prompt_id")
-            return prompt_id
+    async with asyncio.timeout(timeout), sess.post(
+        f"{base_url.rstrip('/')}/prompt",
+        json=payload,
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        if resp.status != 200:
+            body = await resp.text()
+            raise parse_workflow_rejection(resp.status, body)
+        data = await resp.json()
+        prompt_id = data.get("prompt_id")
+        if not prompt_id:
+            raise RuntimeError("ComfyUI returned no prompt_id")
+        return prompt_id
 
 
 async def upload_image(
@@ -334,16 +330,15 @@ async def upload_image(
         filename=path.name,
         content_type="image/png",
     )
-    async with asyncio.timeout(timeout):
-        async with sess.post(
-            f"{base_url.rstrip('/')}/upload/image",
-            data=form,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                body = await resp.text()
-                raise RuntimeError(f"ComfyUI /upload/image returned {resp.status}: {body[:200]}")
-            return await resp.json()
+    async with asyncio.timeout(timeout), sess.post(
+        f"{base_url.rstrip('/')}/upload/image",
+        data=form,
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        if resp.status != 200:
+            body = await resp.text()
+            raise RuntimeError(f"ComfyUI /upload/image returned {resp.status}: {body[:200]}")
+        return await resp.json()
 
 
 async def _upload_media(
@@ -425,26 +420,7 @@ async def cancel_prompt(
     url = f"{base_url.rstrip('/')}/queue"
 
     async with asyncio.timeout(timeout):
-        # Look the prompt up with GET. Do NOT use DELETE /queue: on this ComfyUI
-        # build that method returns 405 Method Not Allowed, and treating it as fatal
-        # made cancellation a silent no-op - verified live, the prompt stayed queued.
-        try:
-            async with sess.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-                if resp.status != 200:
-                    return False
-                body = await resp.json()
-        except Exception:
-            return False
-
-        found = False
-        for key in ("queue_running", "queue_pending"):
-            for entry in body.get(key, []) or []:
-                # Entries are [queue_number, prompt_id, prompt, extra, outputs].
-                if isinstance(entry, (list, tuple)) and len(entry) > 1 and entry[1] == prompt_id:
-                    found = True
-                    break
-            if found:
-                break
+        found = await _prompt_in_queue(sess, url, prompt_id, timeout)
         if not found:
             return False
 
@@ -459,6 +435,34 @@ async def cancel_prompt(
             return False
 
 
+async def _prompt_in_queue(
+    sess: aiohttp.ClientSession,
+    url: str,
+    prompt_id: str,
+    timeout: float,
+) -> bool | None:
+    """True/False whether prompt_id is queued; None when the lookup fails.
+
+    Look the prompt up with GET. Do NOT use DELETE /queue: on this ComfyUI
+    build that method returns 405 Method Not Allowed, and treating it as fatal
+    made cancellation a silent no-op - verified live, the prompt stayed queued.
+    """
+    try:
+        async with sess.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+            if resp.status != 200:
+                return None
+            body = await resp.json()
+    except Exception:
+        return None
+
+    for key in ("queue_running", "queue_pending"):
+        for entry in body.get(key, []) or []:
+            # Entries are [queue_number, prompt_id, prompt, extra, outputs].
+            if isinstance(entry, (list, tuple)) and len(entry) > 1 and entry[1] == prompt_id:
+                return True
+    return False
+
+
 async def queue_depth(
     base_url: str,
     session: aiohttp.ClientSession | None = None,
@@ -469,14 +473,13 @@ async def queue_depth(
     Bounded by ``asyncio.timeout(timeout)``."""
     sess = session or await get_shared_session()
     try:
-        async with asyncio.timeout(timeout):
-            async with sess.get(
-                f"{base_url.rstrip('/')}/queue",
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp:
-                if resp.status != 200:
-                    return (-1, -1)
-                body = await resp.json()
+        async with asyncio.timeout(timeout), sess.get(
+            f"{base_url.rstrip('/')}/queue",
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            if resp.status != 200:
+                return (-1, -1)
+            body = await resp.json()
     except Exception:
         return (-1, -1)
     return (
@@ -495,12 +498,11 @@ async def interrupt_current(base_url: str, session: aiohttp.ClientSession | None
     Bounded by ``asyncio.timeout(10)``."""
     sess = session or await get_shared_session()
     try:
-        async with asyncio.timeout(10):
-            async with sess.post(
-                f"{base_url.rstrip('/')}/interrupt",
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                return resp.status in (200, 204)
+        async with asyncio.timeout(10), sess.post(
+            f"{base_url.rstrip('/')}/interrupt",
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            return resp.status in (200, 204)
     except Exception:
         return False
 
@@ -511,12 +513,11 @@ async def is_reachable(base_url: str, timeout: float = 3.0) -> bool:
     Bounded by ``asyncio.timeout(timeout)``."""
     try:
         sess = await get_shared_session()
-        async with asyncio.timeout(timeout):
-            async with sess.get(
-                f"{base_url.rstrip('/')}/system_stats",
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp:
-                return resp.status == 200
+        async with asyncio.timeout(timeout), sess.get(
+            f"{base_url.rstrip('/')}/system_stats",
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            return resp.status == 200
     except Exception:
         return False
 
@@ -532,14 +533,13 @@ async def fetch_object_info(
     Bounded by ``asyncio.timeout(timeout)``."""
     try:
         sess = session or await get_shared_session()
-        async with asyncio.timeout(timeout):
-            async with sess.get(
-                f"{base_url.rstrip('/')}/object_info/{node_class}",
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp:
-                if resp.status != 200:
-                    return {}
-                return await resp.json()
+        async with asyncio.timeout(timeout), sess.get(
+            f"{base_url.rstrip('/')}/object_info/{node_class}",
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            if resp.status != 200:
+                return {}
+            return await resp.json()
     except Exception as e:
         logger.debug("object_info/%s failed: %s", node_class, e)
         return {}
