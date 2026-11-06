@@ -34,6 +34,9 @@ export function useOllamaStream() {
     ) => {
       setGenerating(true);
       setOutput("");
+      // outputRef accumulates streamed chunks independently of state — without
+      // this reset a second Generate concatenates the previous scene's code.
+      outputRef.current = "";
       const controller = new AbortController();
       abortRef.current = controller;
 

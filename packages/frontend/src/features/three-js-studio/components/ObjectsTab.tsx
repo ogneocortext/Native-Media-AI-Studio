@@ -104,7 +104,15 @@ export function ObjectsTab({
         {objects.map((obj) => (
           <div
             key={obj.id}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectObject(obj.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelectObject(obj.id);
+              }
+            }}
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer transition-colors ${
               selectedObject === obj.id
                 ? "bg-purple-600/30 border border-purple-500/50 text-white font-medium"

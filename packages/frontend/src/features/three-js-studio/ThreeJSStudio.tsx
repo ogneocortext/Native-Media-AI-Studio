@@ -42,7 +42,7 @@ export function ThreeJSStudio() {
   const [objects, setObjects] = useState<AnimObject[]>(DEFAULT_OBJECTS);
   const [selectedObject, setSelectedObject] = useState<string | null>("crown-1");
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
-  const [activeTemplateId, _setActiveTemplateId] = useState<string | null>(null);
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>("");
   const [backgroundImageVisible, setBackgroundImageVisible] = useState(true);
   const [libraryImages, setLibraryImages] = useState<{ url: string; label: string }[]>([]);
@@ -254,6 +254,7 @@ export function ThreeJSStudio() {
     rendererRef,
     setParticleConfig,
     setCameraMode,
+    setActiveTemplateId,
   });
 
   // User-initiated adds get explicit feedback: without it an object that

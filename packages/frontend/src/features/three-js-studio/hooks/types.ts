@@ -83,45 +83,6 @@ export interface UseThreeSceneResult {
   endDeterministicRun: () => void;
 }
 
-export interface UseObjectManagerOptions {
-  objects: AnimObject[];
-  setObjects: React.Dispatch<React.SetStateAction<AnimObject[]>>;
-  selectedObject: string | null;
-  setSelectedObject: React.Dispatch<React.SetStateAction<string | null>>;
-  sceneRef: React.RefObject<THREE.Scene | null>;
-  objectsMapRef: React.RefObject<Map<string, THREE.Object3D>>;
-  characterMixersRef: React.RefObject<Map<string, any>>;
-  characterAnimDataRef: React.RefObject<Map<string, { mixer: any; action: any; clips: string[] }>>;
-  createMeshForObject: (obj: AnimObject, THREE: any) => Promise<THREE.Object3D>;
-  cameraRef: React.RefObject<THREE.PerspectiveCamera | null>;
-  rendererRef: React.RefObject<THREE.WebGLRenderer | null>;
-  setParticleConfig?: (config: any) => void;
-  setCameraMode?: (mode: CameraMode) => void;
-}
-
-export interface UseObjectManagerResult {
-  addObject: (
-    type: AnimObject["type"],
-    overrides?: Omit<Partial<AnimObject>, "id" | "type">,
-  ) => void;
-  removeObject: (id: string) => void;
-  updateObject: (id: string, updates: Partial<AnimObject>) => void;
-  loadTemplate: (template: any) => void;
-  characterAnimState:
-    { isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined;
-  setCharacterAnimState: React.Dispatch<
-    React.SetStateAction<
-      { isPlaying: boolean; currentTime: number; duration: number; clipNames: string[] } | undefined
-    >
-  >;
-  refreshCharacterAnimState: (objId: string) => void;
-  handleAnimPlayPause: () => void;
-  handleAnimSeek: (time: number) => void;
-  handleAnimSelect: (clipName: string) => void;
-  handleViewportReset: () => void;
-  exportFrame: () => void;
-}
-
 export interface UseTrackManagerOptions {
   selectedTrack: string;
   setSelectedTrack: React.Dispatch<React.SetStateAction<string>>;

@@ -521,6 +521,28 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
     }
 
 
+def _resolve_unique_audio_basename(filename: str) -> Path | None:
+    """Resolve a bare basename to a unique file under AUDIO_DIR.
+
+    Library entries carry `filename` as a basename, but most tracks live in
+    subdirectories (mastered/, Suno-V6-Mini/, ...), so the direct lookup 404s.
+    Mirrors the analysis endpoint's resolve-against-disk fallback; only a
+    single match is accepted because an ambiguous basename has no right answer.
+    """
+    if "/" in filename or "\\" in filename:
+        return None
+    wanted = filename.lower()
+    matches = [
+        f
+        for f in AUDIO_DIR.rglob("*")
+        if f.is_file()
+        and f.suffix.lower() in ALLOWED_EXTENSIONS
+        and not f.name.startswith(".")
+        and f.name.lower() == wanted
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 @router.get("/file/{filename:path}")
 async def serve_audio_file(request: Request, filename: str):
     """Serve an audio file by filename."""
@@ -536,7 +558,10 @@ async def serve_audio_file(request: Request, filename: str):
         raise HTTPException(status_code=400, detail="Invalid filename")
     file_path = candidate
     if not file_path.exists() or not file_path.is_file():
-        raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+        resolved = _resolve_unique_audio_basename(filename)
+        if resolved is None:
+            raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
+        file_path = resolved
 
     # Determine media type based on extension
     ext = file_path.suffix.lower()

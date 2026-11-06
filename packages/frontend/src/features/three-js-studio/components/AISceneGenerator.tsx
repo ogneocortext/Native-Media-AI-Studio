@@ -67,7 +67,8 @@ export function AISceneGenerator({
   autoGenerate,
   storyboardScene,
 }: AISceneGeneratorProps) {
-  const { metadata, loading: metaLoading } = useTrackMetadata(selectedTrack || null);
+  const { metadata, loading: metaLoading, error: metaError } =
+    useTrackMetadata(selectedTrack || null);
   const { generate, cancel, generating, output, getOutput } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
@@ -117,12 +118,18 @@ export function AISceneGenerator({
     }
   }, [storyboard]);
 
-  // Auto-generate when requested
+  // Auto-generate when requested — one shot per mount. The ref guard prevents
+  // refiring on later dep changes (model/variation picks) since ?autogenerate
+  // stays in the URL for the session; the handle ref keeps the closure fresh.
+  const autoGenFiredRef = useRef(false);
+  const handleGenerateRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
+    if (autoGenFiredRef.current) return;
     if (autoGenerate && selectedModel && metadata && !generating) {
-      handleGenerate();
+      autoGenFiredRef.current = true;
+      void handleGenerateRef.current();
     }
-  }, [autoGenerate, selectedModel, metadata]);
+  }, [autoGenerate, selectedModel, metadata, generating]);
 
   const formatModelSize = (bytes: number) => {
     if (!bytes) return "";
@@ -252,6 +259,13 @@ export function AISceneGenerator({
       void 0;
     });
 
+    // Recompute variations from live metadata: the `variations` state lags one
+    // effect behind, so auto-generate (?autogenerate=true) would otherwise send
+    // the default 120 BPM prompt instead of the track-adapted one.
+    const liveVariations = generatePromptVariations(metadata);
+    const activePrompt =
+      liveVariations[activeVariation]?.prompt ?? liveVariations[0]?.prompt ?? "";
+
     // Build scene context from storyboard if available
     let sceneContext = "";
     if (storyboard && storyboardContent) {
@@ -307,7 +321,7 @@ function applyScene(scene,camera,renderer,THREE){
 
 Track: ${metadata.bpm} BPM, ${Math.round(metadata.duration)}s, sections: ${metadata.sections.map((s: any) => s.type).join(", ")}, avgEnergy ${Math.round((metadata.sections.reduce((a: any, c: any) => a + c.energy, 0) / (metadata.sections.length || 1)) * 100)}%
 ${sceneContext}
-User request: ${variations[activeVariation].prompt}
+User request: ${activePrompt}
 Return ONLY the function, no fences.`;
 
     // VRAM-aware num_ctx: keeps output usable for pro visuals while avoiding OOM/offload
@@ -330,13 +344,14 @@ Return ONLY the function, no fences.`;
     }
 
     await generate(
-      variations[activeVariation].prompt,
+      activePrompt,
       selectedModel,
       systemPrompt,
       { temperature: 0.2, top_p: 0.9, num_predict: 900, repeat_penalty: 1.1, num_ctx },
       false,
     );
   };
+  handleGenerateRef.current = handleGenerate;
 
   const parseStoryboardScenes = (md: string) => {
     const lines = md.split("\n");
@@ -403,7 +418,9 @@ Return ONLY the function, no fences.`;
     : !metadata
       ? metaLoading
         ? "Loading track metadata…"
-        : "No track selected — choose a track in the top bar first."
+        : selectedTrack
+          ? `Track analysis unavailable${metaError ? `: ${metaError}` : " — run analysis in Audio Analysis first."}`
+          : "No track selected — choose a track in the top bar first."
       : null;
 
   return (

@@ -14,6 +14,7 @@ export function useObjectManager({
   rendererRef,
   setParticleConfig,
   setCameraMode,
+  setActiveTemplateId,
 }: {
   objects: AnimObject[];
   setObjects: React.Dispatch<React.SetStateAction<AnimObject[]>>;
@@ -24,6 +25,7 @@ export function useObjectManager({
   rendererRef: React.RefObject<THREE.WebGLRenderer | null>;
   setParticleConfig?: (config: any) => void;
   setCameraMode?: (mode: CameraMode) => void;
+  setActiveTemplateId?: (id: string | null) => void;
 }) {
   const objectCounterRef = useRef(0);
   const [characterAnimState, setCharacterAnimState] = useState<
@@ -90,26 +92,29 @@ export function useObjectManager({
       };
       setObjects((prev) => [...prev, newObj]);
       setSelectedObject(id);
+      setActiveTemplateId?.(null);
     },
-    [setObjects, setSelectedObject, objects.length],
+    [setObjects, setSelectedObject, setActiveTemplateId, objects.length],
   );
 
   const removeObject = useCallback(
     (id: string) => {
       setObjects((prev) => prev.filter((obj: any) => obj.id !== id));
+      setActiveTemplateId?.(null);
       if (selectedObject === id) {
         const remaining = objects.filter((obj: any) => obj.id !== id);
         setSelectedObject(remaining[0]?.id || null);
       }
     },
-    [selectedObject, objects, setObjects, setSelectedObject],
+    [selectedObject, objects, setObjects, setSelectedObject, setActiveTemplateId],
   );
 
   const updateObject = useCallback(
     (id: string, updates: Partial<AnimObject>) => {
       setObjects((prev) => prev.map((obj) => (obj.id === id ? { ...obj, ...updates } : obj)));
+      setActiveTemplateId?.(null);
     },
-    [setObjects],
+    [setObjects, setActiveTemplateId],
   );
 
   const loadTemplate = useCallback(
@@ -122,8 +127,9 @@ export function useObjectManager({
         setCameraMode(template.cameraMode);
       }
       setSelectedObject(template.objects[0]?.id ?? null);
+      setActiveTemplateId?.(template.id);
     },
-    [setObjects, setSelectedObject, setParticleConfig, setCameraMode],
+    [setObjects, setSelectedObject, setParticleConfig, setCameraMode, setActiveTemplateId],
   );
 
   const refreshCharacterAnimState = useCallback((objId: string) => {

@@ -34,6 +34,7 @@ export function InspectorTab({
 }: InspectorTabProps) {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textureInputRef = useRef<HTMLInputElement>(null);
   const [texturePrompt, setTexturePrompt] = useState("");
   const [textureGenError, setTextureGenError] = useState<string | null>(null);
 
@@ -262,12 +263,13 @@ export function InspectorTab({
               ? "border-amber-400 bg-amber-900/20"
               : "border-gray-600 hover:border-gray-500 bg-gray-800/50"
           }`}
+          onClick={() => textureInputRef.current?.click()}
         >
           <div className="text-gray-400 text-[11px]">
             {dragOver ? "Drop image here" : "Drag image file here or click to browse"}
           </div>
           <input
-            ref={fileInputRef}
+            ref={textureInputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
             className="hidden"

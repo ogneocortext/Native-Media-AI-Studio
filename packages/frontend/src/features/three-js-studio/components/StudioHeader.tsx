@@ -63,8 +63,10 @@ export function StudioHeader({
   onSelectTrack,
   onViewportReset,
 }: StudioHeaderProps) {
-  const meta = selectedTrack ? trackMetadata[selectedTrack] : undefined;
-  const metaStr = meta?.bpm && meta.duration ? ` (${meta.bpm} BPM, ${meta.duration}s)` : "";
+  const metaFor = (filename: string) => {
+    const m = trackMetadata[filename];
+    return m?.bpm && m?.duration ? ` (${m.bpm} BPM, ${m.duration}s)` : "";
+  };
 
   return (
     <div
@@ -154,7 +156,7 @@ export function StudioHeader({
             libraryTracks.map((t) => (
               <option key={t.filename} value={t.filename} className="bg-gray-800">
                 {t.optionLabel}
-                {metaStr}
+                {metaFor(t.filename)}
               </option>
             ))}
         </select>
