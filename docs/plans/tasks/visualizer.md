@@ -710,3 +710,26 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   components/KineticTransport.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors (the
   feature has no vitest coverage - pre-existing warnings only).
+
+### T-VIZ-37 - localStorage analysis cache (skip ensure-analysis round-trip on repeat visits)
+- **Status:** done
+- **Goal:** Owner: "tracks shouldn't need to analyze more than once." Backend already caches (DB + on-disk JSON, verified 0.3 s `status:"cached"` hit), but every page load still paid a network round-trip before presets/beat grid applied.
+- **What changed:**
+  - ``analysisCache.ts`` (new) - per-file localStorage entries
+    (``nma.viz.analysis.<enc>`` → ``{v, savedAt, analysis}``) plus a
+    recency index; MAX_ENTRIES=10 (~1.7 MB, under quota), 180-day TTL,
+    version-tagged, shape-validated on load, quota-failure eviction +
+    retry. Pure storage-agnostic functions so vitest's node env can
+    inject a fake Storage.
+  - ``useVisualizerState.ts`` - ``analysisData`` now hydrates from the
+    cache in the ``useState`` initializer; a write-through effect
+    persists only entries whose object identity changed (ref snapshot).
+  - ``useTrackSelection.ts`` - ``realBpm`` falls back to the hydrated
+    analysis's ``tempo_bpm`` when ``trackMetadata`` is empty, so
+    BPM-aware preset selection works on cache hits.
+- **Files:** analysisCache.ts (new), analysisCache.test.ts (new),
+  useVisualizerState.ts, useTrackSelection.ts
+- **Acceptance:** 9 new vitest cases (round-trip, slash keys, corrupt /
+  wrong-version / shapeless drops, index pruning, LRU eviction,
+  re-save recency, storage-failure false); 595 visualizer tests pass;
+  tsc + eslint clean on touched files.

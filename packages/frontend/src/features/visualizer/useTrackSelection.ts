@@ -335,7 +335,11 @@ export function useTrackSelection({
       // on the slow sequential path (analysis → lyrics) before applying.
       const lyricsPromise = parseLyricsForTrack(cleanName, trackFolder);
       let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
-      let realBpm = trackMetadata[fileRef]?.bpm;
+      // Cached/hydrated analyses carry tempo_bpm too — don't lose the BPM
+      // hint just because trackMetadata hasn't been populated yet.
+      let realBpm =
+        trackMetadata[fileRef]?.bpm ??
+        (analysis?.tempo_bpm ? Math.round(analysis.tempo_bpm) : undefined);
       if (!analysis) {
         // Surface progress: a fresh analysis can take a while, during which the
         // visualizer runs on the fallback (threshold) beat detector — visibly

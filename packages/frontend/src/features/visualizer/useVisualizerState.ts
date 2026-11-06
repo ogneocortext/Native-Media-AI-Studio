@@ -21,6 +21,7 @@ import type { ShaderPresetName } from "./shaders";
 import type { VisualPreset } from "./aiPresetCatalog";
 import type { VisualizationStyle } from "./trackConceptAnalyzer";
 import { DEFAULT_REACTIVITY_TRIAD } from "./audioReactivityProcessor";
+import { loadCachedAnalyses, saveCachedAnalysis } from "./analysisCache";
 const REACTIVITY_STORAGE_KEY = "visualizerReactivity:triad";
 
 export type OverlayId = "shortcuts" | "more" | "fx" | null;
@@ -206,7 +207,21 @@ export function useVisualizerState() {
   const [trackMetadata, setTrackMetadata] = useState<
     Record<string, { bpm?: number; duration?: number }>
   >({});
-  const [analysisData, setAnalysisData] = useState<Record<string, AudioAnalysisData>>({});
+  // Hydrate from the localStorage analysis cache so repeat visits skip the
+  // ensure-analysis round-trip entirely (analysis is immutable per file).
+  const [analysisData, setAnalysisData] = useState<Record<string, AudioAnalysisData>>(() =>
+    loadCachedAnalyses(),
+  );
+  // Write-through cache: only persist entries whose object identity changed.
+  const analysisCacheSnapshotRef = useRef<Record<string, AudioAnalysisData>>({});
+  useEffect(() => {
+    for (const [filename, analysis] of Object.entries(analysisData)) {
+      if (analysisCacheSnapshotRef.current[filename] !== analysis) {
+        analysisCacheSnapshotRef.current[filename] = analysis;
+        saveCachedAnalysis(filename, analysis);
+      }
+    }
+  }, [analysisData]);
   const [stemsData, setStemsData] = useState<Record<string, StemAnalysisData>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
