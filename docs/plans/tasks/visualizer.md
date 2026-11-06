@@ -763,9 +763,13 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   - Removed dead ``barVelocities`` allocations in ``renderBars`` and
     ``renderStackedFrequencyBands`` (allocated, never read or written;
     only ``renderSegmentedLedBars`` uses the field).
-- **Files:** canvas2dModes.ts
+- **Files:** canvas2dModes.ts, canvas2dModes.test.ts (new)
 - **Acceptance:** tsc -b --force clean project-wide; eslint 0 errors on
-  the file (3 pre-existing warnings elsewhere); 595 visualizer tests
-  pass. Live headed check of falling peaks + visible reflections is
-  the remaining acceptance item.
+  the file (3 pre-existing warnings elsewhere); 597 visualizer tests
+  pass. Headed playback verified 2026-11-06: reflections confirmed
+  rendering below the baseline via canvas pixel scan (previously
+  impossible — clipped offscreen); peak decay proven deterministically
+  by canvas2dModes.test.ts (call-recorder ctx asserts the white tick
+  floats above the bar top after a spectral drop in both renderBars and
+  renderMirroredBars, and that reflection tops stay inside the canvas).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
