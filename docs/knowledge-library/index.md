@@ -55,6 +55,8 @@ date: 2026-09-30
 - [[notification-system-improvements-2026|🔔 Notification System Improvements 2026]] — Priority-based SSE routing, toast collapse, cross-tab sync, replay, notification center
 - [[python-environment-management|🐍 Python Environment Management]] — venv mechanics, decoupling graph, PyTorch×Pascal (sm_61) wheel matrix, env migration recipes
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React
+- [[remotion-agent-skills-2026|🎬 Remotion Agent Skills]] — Agent skills for Remotion video work (indexed 2026-11-06)
+- [[npx-best-practices-2026|🔒 npx Best Practices 2026]] — Supply-chain-safe npx usage, pinning, and audit habits (indexed 2026-11-06)
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
 - [[javascript-upgrade-research-2026|🔧 JavaScript Upgrade Research 2026]] — TypeScript 7 adoption, deprecated mp4-muxer replacement, React 19 features, Vite 8/Rolldown optimization, Tailwind v4 container queries, CI gaps, Prettier adoption
@@ -97,6 +99,7 @@ date: 2026-09-30
 - [[storyboard-enrichment-from-track-practice-2026|🎬 Storyboard Enrichment from Track Practice 2026]] — growing the storyboard generator from theme-driven to track-driven: measured beat grids, sung-truth lyric diffs, character lock, panel lifecycle, and the track-lyrics library inventoried as storyboard source data (NEW 2026-10-22)
 - [[acestep-agent-drive-2026|🎵 ACE-Step Agent Drive 2026]] — driving the local ACE-Step 1.5 service from an agent: the two API surfaces (backend /api/music-gen, service :8201), the Tier 3/Pascal contract, the agent-as-planner loop, sample calls, and the A1–A4 open checks (NEW 2026-10-22)
 - [[visualization-vision-prompts|👁️ Visualization Vision Prompts]] — Vision-model prompts for visualization analysis and VFX review
+- [[3d-viz-code-harnesses-2026|🔧 3D Viz Code Harnesses 2026]] — Agent code harnesses for 3D and visualization work (indexed 2026-11-06)
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
 - [[audio-reactive-best-practices-2026|🎵 Audio-Reactive Best Practices 2026]] — 2026 research: signal stack, mel/gamma perception, <30 ms latency, per-band envelopes, genre routing — with verified gap analysis (NEW 2026-10-02)
 - [[three-js-render-motion-2026|🎥 Three.js Render + Motion 2026]] — Deterministic frame-accurate export (mediabunny, clock-hijack), headless Playwright 4K pipeline, motion-craft easing/choreography anchors, transparent-video codecs (NEW 2026-10-06)
@@ -115,6 +118,9 @@ date: 2026-09-30
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
 - [[nemotron-3-5-bolt-e4b-2026|🤖 Nemotron 3.5 Bolt E4B 4GB]] — Local agent model reference: strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, routing guidance for cloud models (NEW 2026-11-01)
+- [[nemotron-3-5-super-vl-prompting-2026|👁️ Nemotron 3.5 Super VL Prompting]] - Prompting reference for Nemotron 3.5 Super VL via the Kilo route (indexed 2026-11-06)
+- [[custom-agent-design|🤖 Custom Agent Design]] - Native Media AI Studio agent architecture and design notes (indexed 2026-11-06)
+- [[programmatic-tool-calling-2026|🛠️ Programmatic Tool Calling 2026]] - PTC patterns taken from Factory Droid 1.0 (indexed 2026-11-06)
 - [[ollama-structured-output-pattern|🧠 Ollama Structured Output Pattern]] — Client-side JSON validation and retry pattern for Ollama structured outputs
 - [[vision-model-reliability-2026|🖼️ Vision Model Reliability 2026]] — qwen3-vl degenerate reasoning loop (Ollama #17978), measured evidence, the gemma4 primary routing fix, and the 2026-10-10 model pruning (NEW 2026-10-10)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy
@@ -150,6 +156,8 @@ date: 2026-09-30
 - [[social-platform-video-research-2026|🔍 Social-Platform Video Research 2026]] — LinkedIn/Substack/Medium findings: reference-video breakdown, transparent overlays, music-first directing methodology
 - [[x-platform-video-research-2026|🔍 X-Platform Video Research 2026]] — HyperFrames Studio eval (Oct 5 launch), style-learning loop, scripted pipeline template, QC-as-code
 - [[tempo-estimation-octave-errors-2026|⏱️ Tempo Estimation Octave Errors 2026]] — Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
+- [[lyria-3.5-brief-library-README|🎵 Lyria 3.5 Brief Library]] - Research briefs on Lyria 3.5 music generation (indexed 2026-11-06)
+- [[suno-v6-style-tags-README|🎼 Suno v6 Style-Tag Library]] - Suno v6 style-tag reference for music prompts (indexed 2026-11-06)
 
 ---
 
