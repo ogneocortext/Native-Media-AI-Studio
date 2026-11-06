@@ -118,11 +118,11 @@ MODEL_BACKENDS = {
     },
     "triposr": {
         "name": "TripoSR",
-        "vram_gb": 4,
-        "speed_s": "0.5",
+        "vram_gb": 6,
+        "speed_s": "5-30",
         "quality": "Good",
-        "description": "Single-pass feedforward 3D reconstruction. Fastest option. ~0.5s per mesh.",
-        "checkpoint_subpath": "triposr/model.safetensors",
+        "description": "Single-pass feedforward 3D reconstruction. Fastest option. Vertex-colored mesh.",
+        "checkpoint_subpath": "triposr.ckpt",
         "diffusion_subpath": None,
         "supports_texture": False,
         "supports_multiview": False,
@@ -216,7 +216,7 @@ REQUIRED_NODES = {
         "Hy3DExportMesh",
     ),
     "hunyuan3d_2mv": ("Hy3DModelLoader", "Hy3DGenerateMesh", "Hy3DVAEDecode", "Hy3DExportMesh"),
-    "triposr": ("TripoSRGenerate",),
+    "triposr": ("TripoSRModelLoader", "TripoSRSampler", "ExportMeshGLB"),
     "stable_fast_3d": ("Comfy3DLoadSF3DModel", "Comfy3DStableFast3D"),
     "point_e": ("PointETextTo3D", "PointECloudToMesh"),
     "shap_e": ("ShapETextTo3D", "ShapEMeshExtract"),
@@ -515,7 +515,9 @@ class Gen3DService:
         return {
             "1": {
                 "class_type": "Hy3DModelLoader",
-                "inputs": {"model": model_path.replace("\\", "/")},
+                # Hy3DModelLoader's dropdown lists OS-native paths (backslashes
+                # on Windows); forward slashes fail prompt validation.
+                "inputs": {"model": model_path.replace("/", "\\")},
             },
             # --- Stage 1: text -> image (SD1.5, 512x512) ---
             "2": {
@@ -658,22 +660,25 @@ class Gen3DService:
                 "class_type": "VAEDecode",
                 "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
             },
-            # Stage 2: TripoSR image -> mesh
+            # Stage 2: TripoSR image -> mesh (Flowty-TripoSR node pack)
             "7": {
-                "class_type": "TripoSRGenerate",
-                "inputs": {
-                    "image": ["6", 0],
-                    "resolution": 512,
-                    "quality_preset": "balanced",
-                    "mesh_format": "glb",
-                },
+                "class_type": "TripoSRModelLoader",
+                "inputs": {"model": "triposr.ckpt", "chunk_size": 8192},
             },
             "8": {
-                "class_type": "Save3DModel",
+                "class_type": "TripoSRSampler",
                 "inputs": {
-                    "mesh": ["7", 0],
+                    "model": ["7", 0],
+                    "reference_image": ["6", 0],
+                    "geometry_resolution": 256,
+                    "threshold": 25.0,
+                },
+            },
+            "9": {
+                "class_type": "ExportMeshGLB",
+                "inputs": {
+                    "mesh": ["8", 0],
                     "filename_prefix": f"3d/{output_name}",
-                    "format": "glb",
                 },
             },
         }
@@ -840,9 +845,8 @@ class Gen3DService:
     ) -> dict[str, Any]:
         """Build ComfyUI workflow JSON for image-to-3D based on the selected backend."""
         # The workflow only needs the image's basename -- ComfyUI resolves it
-        # against its own input directory. (This used to call _upload_image(),
-        # the output-finalize step, which crashed with a NameError here.)
-        image_name = Path(image_path).name
+        # against its own input directory, so stage the file there first.
+        image_name = self._stage_input_image(image_path)
         proc_output_name = self._sanitize_name(output_name)
 
         if self.backend in HY3D_BACKENDS:
@@ -852,7 +856,9 @@ class Gen3DService:
             return {
                 "1": {
                     "class_type": "Hy3DModelLoader",
-                    "inputs": {"model": model_path.replace("\\", "/")},
+                    # Hy3DModelLoader's dropdown lists OS-native paths (backslashes
+                    # on Windows); forward slashes fail prompt validation.
+                    "inputs": {"model": model_path.replace("/", "\\")},
                 },
                 "2": {
                     "class_type": "LoadImage",
@@ -911,20 +917,23 @@ class Gen3DService:
                     "inputs": {"image": image_name},
                 },
                 "2": {
-                    "class_type": "TripoSRGenerate",
-                    "inputs": {
-                        "image": ["1", 0],
-                        "resolution": 512,
-                        "quality_preset": "balanced",
-                        "mesh_format": "glb",
-                    },
+                    "class_type": "TripoSRModelLoader",
+                    "inputs": {"model": "triposr.ckpt", "chunk_size": 8192},
                 },
                 "3": {
-                    "class_type": "Save3DModel",
+                    "class_type": "TripoSRSampler",
                     "inputs": {
-                        "mesh": ["2", 0],
+                        "model": ["2", 0],
+                        "reference_image": ["1", 0],
+                        "geometry_resolution": 256,
+                        "threshold": 25.0,
+                    },
+                },
+                "4": {
+                    "class_type": "ExportMeshGLB",
+                    "inputs": {
+                        "mesh": ["3", 0],
                         "filename_prefix": f"3d/{proc_output_name}",
-                        "format": "glb",
                     },
                 },
             }
@@ -959,6 +968,42 @@ class Gen3DService:
         else:
             raise ValueError(f"Unsupported backend for image-to-3D: {self.backend}")
 
+    def _stage_input_image(self, image_path: str) -> str:
+        """Make an image file visible to ComfyUI's LoadImage node.
+
+        Prefers the /upload/image API; falls back to copying into ComfyUI's
+        input dir. Returns the filename LoadImage should reference.
+        """
+        src = Path(image_path)
+        if not src.exists():
+            raise FileNotFoundError(f"Reference image not found: {image_path}")
+
+        boundary = "----nma3duploadboundary"
+        body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="image"; filename="{src.name}"\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n"
+        ).encode() + src.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+        try:
+            req = urllib.request.Request(
+                f"{COMFYUI_URL}/upload/image",
+                data=body,
+                headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                payload = json.loads(resp.read().decode())
+            name = payload.get("name")
+            if name:
+                sub = payload.get("subfolder") or ""
+                return f"{sub}/{name}" if sub else name
+        except Exception as e:
+            logger.warning("ComfyUI /upload/image failed (%s); copying into input dir", e)
+
+        dst = COMFYUI_DIR / "input" / src.name
+        shutil.copy2(src, dst)
+        return src.name
+
     def _upload_image(self, image_path: str, prompt_id: str) -> dict[str, Any]:
         """Copy the ComfyUI-exported .glb into the backend output dir, decimate if needed, and return its path."""
         logger.info("Finalizing output: %s", image_path)
@@ -984,11 +1029,12 @@ class Gen3DService:
                 }
 
             # Post-process: decimate if mesh is too large
-            decimate_result = self._decimate_if_needed(dst)
-            # Apply chrome PBR if prompt looks metallic (fast variant is always untextured gray)
-            # This turns the "alien gray blob" into the intended chrome look without needing the 2GB paint model
+            decimate_result = self._decimate_if_needed(dst, self.target_faces)
+            # Apply chrome PBR if prompt looks metallic. Only for Hy3D backends —
+            # their meshes are untextured gray, while TripoSR already carries
+            # vertex colors that a chrome override would destroy.
             try:
-                if (
+                if self.backend in HY3D_BACKENDS and (
                     any(k in dst.name.lower() for k in ("chrome", "robot", "metal"))
                     or decimate_result.get("decimated") is not None
                 ):
@@ -1158,11 +1204,13 @@ class Gen3DService:
         exec_end: float | None = None
         logger.info("3D generation workflow submitted: %s", prompt_id)
 
-        # Determine the expected filename prefix from the workflow
+        # Determine the expected filename prefix from the workflow. Any export
+        # node (Hy3DExportMesh, ExportMeshGLB, ...) carries it as an input.
         expected_prefix = None
         for node in workflow.values():
-            if node.get("class_type") == "Hy3DExportMesh":
-                expected_prefix = node.get("inputs", {}).get("filename_prefix", "")
+            prefix = node.get("inputs", {}).get("filename_prefix")
+            if isinstance(prefix, str) and prefix:
+                expected_prefix = prefix
                 break
 
         max_wait = 900  # 15 minutes (SD image stage + Hunyuan mesh + export)
@@ -1353,6 +1401,7 @@ class Gen3DService:
             "text_to_3d_backends": [
                 "point_e",
                 "shap_e",
+                "triposr",
                 "hunyuan3d_2mini",
                 "hunyuan3d_2mini_fast",
                 "hunyuan3d_2mini_turbo",

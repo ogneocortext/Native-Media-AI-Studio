@@ -133,6 +133,12 @@ const MODEL_SPEED_FACTOR: Record<string, number> = {
   hunyuan3d_2mini_turbo: 0.5,
 };
 
+// TripoSR is a single feed-forward pass — the steps slider doesn't apply,
+// so it gets a flat estimate instead of the steps-scaled formula.
+const MODEL_ESTIMATE_SEC: Record<string, number> = {
+  triposr: 60,
+};
+
 // Magic-byte check mirroring the backend's _sniff_image_type — file.type is
 // client-supplied and spoofable, so verify the payload signature too.
 async function sniffImageType(file: File): Promise<string | null> {
@@ -499,6 +505,15 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       available: healthAvailable("hunyuan3d_2mini_turbo", false),
     },
     {
+      id: "triposr",
+      name: "TripoSR",
+      vram: "6GB",
+      time: "~1 min",
+      desc: "Single-pass image→mesh • vertex colors • fastest",
+      color: "text-sky-400",
+      available: healthAvailable("triposr", false),
+    },
+    {
       id: "hunyuan3d-2",
       name: "Hunyuan3D-2",
       vram: "9GB+",
@@ -514,10 +529,12 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
   const isAvailable = (status3d.available as boolean | undefined) ?? false;
   const comfyRunning = (status3d.comfyui_running as boolean | undefined) ?? false;
-  const estimatedSec = Math.round(
-    (steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300) *
-      (MODEL_SPEED_FACTOR[model] ?? 1),
-  );
+  const estimatedSec =
+    MODEL_ESTIMATE_SEC[model] ??
+    Math.round(
+      (steps <= 10 ? 90 : steps <= 15 ? 150 : steps <= 20 ? 210 : 300) *
+        (MODEL_SPEED_FACTOR[model] ?? 1),
+    );
 
   const resultModelPath = (result as { model_path?: string } | null)?.model_path;
   const glbFilename = resultModelPath

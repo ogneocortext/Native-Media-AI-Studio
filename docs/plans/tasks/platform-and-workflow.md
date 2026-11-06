@@ -909,3 +909,47 @@ Rules: `docs/plans/tasks/README.md`
   0 errors. ComfyUI offline so live timing unverified end-to-end —
   phase math is unit-simple and degrades to nulls safely.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-33 - TripoSR image-to-3D actually works end-to-end
+- **Status:** done
+- **Goal:** `triposr.ckpt` sat in checkpoints but the backend's TripoSR
+  workflows referenced node classes (`TripoSRGenerate`, `Save3DModel`)
+  that exist in no public pack — the backend could never run.
+- **External ComfyUI changes (not in this repo):**
+  - Installed `ComfyUI-Flowty-TripoSR` into `custom_nodes/` + `omegaconf`
+    into the `comfyui-cuda` env (all other deps already present).
+  - Added `custom_nodes/nma-mesh-export/` — tiny `ExportMeshGLB` node
+    (MESH→GLB via trimesh, keeps vertex colors, honors `3d/` prefix).
+  - Patched `tsr/system.py`: transformers>=5 renamed ViT params
+    (`encoder.layer`→`layers`, `attention.*`→`q/k/v/o_proj`,
+    `intermediate.dense`→`mlp.fc1`, `output.dense`→`mlp.fc2`); added
+    `_remap_legacy_vit_keys` applied in both `from_pretrained*` loaders.
+    Verified strict `load_state_dict` passes.
+- **Backend (`gen3d_service.py`):**
+  - `REQUIRED_NODES["triposr"]` → real node classes; both image and
+    text-to-3D (SD1.5 concept stage) workflows rewritten to
+    `TripoSRModelLoader`→`TripoSRSampler`→`ExportMeshGLB`.
+  - NEW `_stage_input_image`: uploads the reference via ComfyUI
+    `/upload/image` (fallback: copy into `input/`) — previously the
+    workflow referenced a basename that was never staged, so EVERY
+    image-to-3D backend 400'd at prompt validation.
+  - `expected_prefix` detection generalized to any node's
+    `filename_prefix` input (was Hy3DExportMesh-only).
+  - FIXED Hy3D model path separator: sent `a/b/c` but the node's dropdown
+    on Windows lists `a\b\c` — every Hy3D prompt failed validation.
+    Now sends OS-native backslashes.
+  - Chrome-material pass restricted to HY3D backends (was destroying
+    TripoSR vertex colors); `_decimate_if_needed` now honors
+    per-backend `target_faces`; triposr added to
+    `text_to_3d_backends`; metadata corrected (~6 GB VRAM).
+- **Frontend:** TripoSR card in the 3D selector driven by live
+  `backend_health`; flat ~60s estimate (steps slider doesn't apply).
+- **Verified live:** direct ComfyUI prompt → `3d/triposr_e2e_test_*.glb`
+  (2.7 MB); `POST /api/3d/generate-image?model=triposr` → success,
+  decimated GLB in `generated_3d/`, real timing block
+  (queue 3ms / inference 232s cold / post 21s); `/api/3d/status` reports
+  `triposr.available=true`; Hunyuan model path passes validation.
+- **Files:** services/gen3d/gen3d_service.py,
+  features/generate3d/useGeneration3D.ts,
+  docs/comfyui-workflows/comfyui-workflows.md.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

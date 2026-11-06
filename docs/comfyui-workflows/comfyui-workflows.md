@@ -10,7 +10,7 @@ be loaded into the ComfyUI UI or executed via the Blender/ComfyUI MCP bridge.
 |------|-------|------|-------|---------|---------|
 | `hunyuan3d-2mini-native.json` | Hunyuan3D-2mini | ~5 GB | 30–60s | Very good | Geometry-only 3D from image |
 | `hunyuan3d-2mv-native.json` | Hunyuan3D-2mv | ~6 GB | 60–120s | Excellent | Multi-view 3D from 4 images |
-| `triposr-fast.json` | TripoSR | ~4–5 GB | ~0.5s | Good | Fast single-image 3D |
+| `triposr-fast.json` | TripoSR | ~6 GB | seconds–minutes | Good | Fast single-image 3D, vertex colors |
 | `text-to-3d-sdxl-reference.json` | SDXL reference | varies | varies | varies | Text-to-3D via SDXL reference |
 
 ## Details
@@ -40,16 +40,19 @@ Nodes: `ImageOnlyCheckpointLoader`, `Hunyuan3Dv2ConditioningMultiView`, `SaveGLB
 
 ### `triposr-fast.json`
 
-> [!warning] Unavailable (corrected 2026-11-05)
-> `ComfyUI-3D-Pack` / `ComfyUI-TripoSR` custom nodes were not found in the current
-> external ComfyUI installation, and `TripoSRGenerate`/`Save3DModel` nodes were not
-> found in source. This workflow cannot run until those nodes are installed.
+> [!note] Available (corrected 2026-11-06)
+> `ComfyUI-Flowty-TripoSR` is installed under `custom_nodes/` (provides
+> `TripoSRModelLoader` / `TripoSRSampler` / `TripoSRViewer`) plus a small
+> `nma-mesh-export` pack (`ExportMeshGLB`) for GLB output with vertex colors.
+> The old `TripoSRGenerate`/`Save3DModel` node names never existed in any
+> public pack — the backend workflows were rewritten to the real nodes.
+> `tsr/system.py` carries a local patch remapping the checkpoint's legacy ViT
+> key names for transformers>=5 (`image_tokenizer.*` only).
 
-Ultra-fast single-image 3D using TripoSR (~0.5s per image). Requires
-`ComfyUI-3D-Pack` or `ComfyUI-TripoSR` via ComfyUI Manager. Good quality,
-~4–5 GB VRAM.
-
-Nodes: `LoadImage`, `TripoSRGenerate`, `Save3DModel` (actual JSON uses `Save3DModel`, not `SaveMesh`)
+Ultra-fast single-image 3D using TripoSR (~0.5s on A100; ~4 min cold / faster
+warm on the GTX 1070 Ti including model load). ~6 GB VRAM. Works from both
+`/api/3d/generate-image?model=triposr` and text-to-3D (SD1.5 concept image
+first stage).
 
 ### `text-to-3d-sdxl-reference.json`
 
