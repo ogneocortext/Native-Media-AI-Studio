@@ -29,6 +29,7 @@ import {
 import { Card } from "../../components/common";
 import {
   skillsList,
+  selectModel,
   type SkillInfo,
   type ExecuteToolResponse,
 } from "../../services/api";
@@ -217,7 +218,9 @@ export function AgentChat() {
       }
 
       // Step 2: Stream from Ollama (backend handles tool execution loop)
-      const stream = await ollamaChatStream(userText, "gemma4:e2b-it-qat", {
+      const model = await selectModel("default");
+
+      const stream = await ollamaChatStream(userText, model, {
         history,
         tools: toolDefs,
         think: false,
