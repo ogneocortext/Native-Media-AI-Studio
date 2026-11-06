@@ -201,6 +201,31 @@ class TestHybridSearch:
         # Same doc should appear at most once
         assert sum(1 for r in results if r["doc_path"] == "docs/same-doc.md") == 1
 
+    async def test_hybrid_search_cache_respects_limit_and_vault_scope(self, monkeypatch):
+        idx = RetrievalIndex()
+        idx.add_chunk("outside", "docs/general.md", "General", 0, "searchable term")
+        idx.add_chunk(
+            "inside", "docs/knowledge-library/guide.md", "Guide", 0, "searchable term"
+        )
+        idx.finalize()
+
+        async def no_vectors(*args, **kwargs):
+            return []
+
+        async def ordered_rerank(query, candidates, **kwargs):
+            return [(cid, 1.0 if cid == "outside" else 0.9) for cid, _ in candidates]
+
+        monkeypatch.setattr(idx, "vector_search", no_vectors)
+        monkeypatch.setattr(idx, "rerank", ordered_rerank)
+
+        first = await idx.hybrid_search("searchable", limit=1)
+        vault = await idx.hybrid_search("searchable", limit=1, vault_only=True)
+        both = await idx.hybrid_search("searchable", limit=2)
+
+        assert [item["chunk_id"] for item in first] == ["outside"]
+        assert [item["chunk_id"] for item in vault] == ["inside"]
+        assert {item["chunk_id"] for item in both} == {"outside", "inside"}
+
 
 # ---------------------------------------------------------------------------
 # _get_reranker -- unavailable without transformers

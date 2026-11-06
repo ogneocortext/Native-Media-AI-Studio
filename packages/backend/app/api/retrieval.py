@@ -10,7 +10,7 @@ Endpoints:
 import logging
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from ..core.ollama_client import embed_text_batch_concurrent, list_models
 from ..services.retrieval_service import (
@@ -50,10 +50,18 @@ class IndexStatus(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    query: str
-    limit: int = 5
+    query: str = Field(min_length=1, max_length=2000)
+    limit: int = Field(default=5, ge=1, le=50)
     vault_only: bool = False
     model: str | None = None  # override default embedding model for query embedding
+
+    @field_validator("query")
+    @classmethod
+    def strip_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("query must contain non-whitespace characters")
+        return value
 
 
 class SearchResult(BaseModel):

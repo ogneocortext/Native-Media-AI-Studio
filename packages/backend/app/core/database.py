@@ -41,8 +41,11 @@ from .audio import (
     get_audio_analysis_field,
     get_audio_file,
     get_audio_files,
+    get_audio_files_for_dedup,
     save_audio_file,
     search_audio_by_analysis,
+    set_audio_content_hash,
+    set_audio_duplicate_of,
     update_audio_analysis,
 )
 
@@ -384,8 +387,11 @@ __all__ = [
     "get_audio_analysis_field",
     "get_audio_file",
     "get_audio_files",
+    "get_audio_files_for_dedup",
     "save_audio_file",
     "search_audio_by_analysis",
+    "set_audio_content_hash",
+    "set_audio_duplicate_of",
     "update_audio_analysis",
     # prompts
     "_row_to_prompt",

@@ -409,6 +409,16 @@ class AudioSearchRequest(BaseModel):
     limit: int = 100
 
 
+class DedupScanRequest(BaseModel):
+    """Options for the library duplicate scan.
+
+    ``apply`` persists ``duplicate_of`` marks; without it the endpoint is a
+    read-only report so agents can review groups before changing rows.
+    """
+
+    apply: bool = False
+
+
 @router.get("/backends")
 async def list_audio_backends():
     """List available audio analysis backends."""
@@ -568,9 +578,123 @@ async def search_audio_library(body: AudioSearchRequest):
                 "schema_version": analysis.get("schema_version"),
                 "section_count": len(analysis.get("sections") or []),
                 "has_analysis": bool(analysis),
+                "duplicate_of": row.get("duplicate_of"),
             }
         )
     return {"count": len(results), "results": results}
+
+
+def _resolve_stored_audio_path(stored_path: str, filename: str) -> Path | None:
+    """Resolve a row's stored_path to an existing file.
+
+    stored_path is usually absolute; fall back to the audio dir for rows
+    written with relative or stale paths.
+    """
+    candidates = []
+    if stored_path:
+        p = Path(stored_path)
+        candidates.append(p if p.is_absolute() else AUDIO_DIR / p)
+    candidates.append(AUDIO_DIR / filename)
+    candidates.append(AUDIO_DIR / stored_path)
+    for cand in candidates:
+        if cand.is_file():
+            return cand
+    return None
+
+
+@router.post("/dedup-scan")
+async def dedup_scan(body: DedupScanRequest):
+    """Group byte-identical audio files by content hash.
+
+    Agent-facing duplicate detection: hashes every library file missing a
+    ``content_hash`` (sha256, streamed), groups rows by hash, and picks a
+    canonical per group (root-level file preferred over subdirectory copies,
+    then earliest created_at). With ``apply=true`` it persists
+    ``duplicate_of`` on non-canonical rows and clears stale marks; without it
+    the response is a report only.
+
+    Only exact byte duplicates are grouped — same-song different-mix files
+    have different hashes and are intentionally left for human review.
+    """
+    import hashlib
+
+    from ..core import database
+
+    rows = await asyncio.to_thread(database.get_audio_files_for_dedup)
+
+    hashed = 0
+    missing_files = []
+    for row in rows:
+        if row.get("content_hash"):
+            continue
+        path = _resolve_stored_audio_path(row.get("stored_path") or "", row["filename"])
+        if path is None:
+            missing_files.append(row["filename"])
+            continue
+        digest = hashlib.sha256()
+        try:
+            with open(path, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except OSError:
+            missing_files.append(row["filename"])
+            continue
+        hexdigest = digest.hexdigest()
+        await asyncio.to_thread(database.set_audio_content_hash, row["filename"], hexdigest)
+        row["content_hash"] = hexdigest
+        hashed += 1
+
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        if row.get("content_hash"):
+            groups.setdefault(row["content_hash"], []).append(row)
+
+    duplicate_groups = []
+    desired_marks: dict[str, str | None] = {}
+    for content_hash, members in groups.items():
+        if len(members) < 2:
+            for m in members:
+                desired_marks[m["filename"]] = None
+            continue
+        # Canonical: prefer a root-level file over subdirectory copies, then
+        # the earliest-created row (rows arrive sorted by created_at ASC).
+        canonical = min(
+            members,
+            key=lambda m: (
+                "/" in m["filename"] or "\\" in m["filename"],
+                m.get("created_at") or "",
+                m["filename"],
+            ),
+        )
+        filenames = sorted(m["filename"] for m in members)
+        duplicate_groups.append(
+            {
+                "content_hash": content_hash,
+                "canonical": canonical["filename"],
+                "files": filenames,
+            }
+        )
+        for m in members:
+            desired_marks[m["filename"]] = (
+                None if m["filename"] == canonical["filename"] else canonical["filename"]
+            )
+
+    marked = 0
+    if body.apply:
+        for filename, canonical in desired_marks.items():
+            if any(r["filename"] == filename and r.get("duplicate_of") == canonical for r in rows):
+                continue
+            await asyncio.to_thread(database.set_audio_duplicate_of, filename, canonical)
+            marked += 1
+
+    return {
+        "hashed_now": hashed,
+        "missing_files": missing_files,
+        "duplicate_groups": duplicate_groups,
+        "duplicate_file_count": sum(len(g["files"]) for g in duplicate_groups),
+        "applied": body.apply,
+        "marks_changed": marked,
+    }
 
 
 @router.post("/upload", response_model=AudioUploadResponse)
@@ -1424,7 +1548,10 @@ async def analyze_all_pending(backend: str = "sonara"):
     for file_path in audio_files:
         filename = _relative_audio_path(file_path)
         existing = database.get_audio_analysis(filename)
-        if existing and existing.get("beat_times"):
+        # Stale-schema blobs count as pending: they predate key/chroma fields
+        # and would otherwise be skipped forever because they still carry
+        # beat_times from the older schema.
+        if existing and existing.get("beat_times") and not _analysis_is_stale(existing):
             continue
         resolution = resolve_analysis(filename, _analysis_candidates(), ANALYSIS_SCHEMA_VERSION)
         if resolution.match is not None:

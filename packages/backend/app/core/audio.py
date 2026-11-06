@@ -130,6 +130,8 @@ def _row_to_audio(row: sqlite3.Row) -> dict[str, Any]:
         "music_prompt_id": row["music_prompt_id"],
         "analysis_result": _safe_json_loads(row["analysis_result"], {}),
         "display_name": row["display_name"] if "display_name" in row.keys() else None,
+        "content_hash": row["content_hash"] if "content_hash" in row.keys() else None,
+        "duplicate_of": row["duplicate_of"] if "duplicate_of" in row.keys() else None,
         "created_at": row["created_at"],
     }
 
@@ -306,6 +308,50 @@ def search_audio_by_analysis(
     with get_db() as conn:
         rows = conn.execute(query, args).fetchall()
     return [_row_to_audio(row) for row in rows]
+
+
+def set_audio_content_hash(filename: str, content_hash: str) -> None:
+    """Record the sha256 of an audio file's bytes for dedup grouping."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE audio_files SET content_hash = ? WHERE filename = ?",
+            (content_hash, filename),
+        )
+
+
+def set_audio_duplicate_of(filename: str, canonical_filename: str | None) -> None:
+    """Mark a row as a duplicate of ``canonical_filename`` (or clear the mark)."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE audio_files SET duplicate_of = ? WHERE filename = ?",
+            (canonical_filename, filename),
+        )
+
+
+def get_audio_files_for_dedup() -> list[dict[str, Any]]:
+    """All audio rows with the fields needed for duplicate detection.
+
+    Returns filename/stored_path/content_hash/duplicate_of/created_at without
+    parsing the (potentially large) analysis blob.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT filename, stored_path, content_hash, duplicate_of, created_at
+            FROM audio_files
+            ORDER BY created_at ASC
+            """
+        ).fetchall()
+    return [
+        {
+            "filename": row["filename"],
+            "stored_path": row["stored_path"],
+            "content_hash": row["content_hash"],
+            "duplicate_of": row["duplicate_of"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
 
 
 def get_audio_analysis_field(filename: str, json_path: str, default: Any = None) -> Any:

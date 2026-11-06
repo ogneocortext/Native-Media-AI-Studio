@@ -157,18 +157,22 @@ class TestRetrievalSearch:
         body = r.json()
         assert len(body["results"]) <= 2
 
-    async def test_search_empty_query(self, client, mock_embeddings, reranker_mock):
-        await client.post("/api/retrieval/index", json={"force_reindex": True})
+    async def test_search_rejects_empty_query(self, client):
+        r = await client.post("/api/retrieval/search", json={"query": "", "limit": 5})
+        assert r.status_code == 422
 
-        r = await client.post(
-            "/api/retrieval/search",
-            json={"query": "", "limit": 5},
-        )
-        assert r.status_code == 200
-        body = r.json()
-        # Empty query should still return results (BM25 matches nothing,
-        # but reranker may still score)
-        assert "results" in body
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"query": "   "},
+            {"query": "x" * 2001},
+            {"query": "valid", "limit": 0},
+            {"query": "valid", "limit": 51},
+        ],
+    )
+    async def test_search_rejects_out_of_range_inputs(self, client, payload):
+        r = await client.post("/api/retrieval/search", json=payload)
+        assert r.status_code == 422
 
     async def test_search_before_index(self, client, mock_embeddings, reranker_mock):
         # Reset index to empty state

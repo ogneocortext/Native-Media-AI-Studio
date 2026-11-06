@@ -778,15 +778,17 @@ class RetrievalIndex:
 
         Returns list of dicts with chunk text, doc metadata, and scores.
 
-        Results are cached per (query, model) pair with a 300s TTL to avoid
-        re-running the full pipeline on repeated queries.
+        Results are cached per query, model, limit, and vault scope with a
+        300s TTL to avoid re-running the full pipeline on repeated queries.
         """
         if not self._chunks:
             return []
 
         # Check cache first
         now = time.monotonic()
-        cache_key = hashlib.sha256((query + "|" + model).encode("utf-8")).hexdigest()[:16]
+        cache_key = hashlib.sha256(
+            json.dumps([query, model, limit, vault_only], ensure_ascii=False).encode("utf-8")
+        ).hexdigest()[:16]
         cached = self._search_cache.get(cache_key)
         if cached and now - cached[0] < self._cache_ttl:
             self._cache_access[cache_key] = now
@@ -833,7 +835,7 @@ class RetrievalIndex:
         # 5. Build final results
         results: list[dict] = []
         seen_docs: set[str] = set()
-        for cid, rerank_score in reranked[:limit]:
+        for cid, rerank_score in reranked:
             if cid not in self._chunks:
                 continue
             chunk = self._chunks[cid]
@@ -854,6 +856,8 @@ class RetrievalIndex:
                     "matched_terms": [],  # populated below if BM25 hit
                 }
             )
+            if len(results) >= limit:
+                break
 
         # Add matched terms from BM25 for explainability
         bm25_term_map: dict[str, set[str]] = {cid: terms for cid, _s, terms in bm25_results}
