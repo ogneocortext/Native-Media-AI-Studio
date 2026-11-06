@@ -8,6 +8,7 @@ const ICONS: Record<string, typeof Info> = {
   "job.cancelled": AlertTriangle,
   "job.queued": Info,
   "job.started": Info,
+  "job.retrying": Clock,
   "job.progress": Info,
   "system.": AlertTriangle,
   "health.": Info,

@@ -340,10 +340,20 @@ function handleSSEMessage(
   }
 
   switch (eventName) {
+    case "job.deleted":
+      // The job no longer exists server-side; drop it locally and refresh stats.
+      get().removeJob(jobId);
+      fetchQueueStats()
+        .then((stats) => get().setStats(stats))
+        .catch(console.error);
+      break;
+
     case "job.queued":
     case "job.started":
+    case "job.retrying":
     case "job.completed":
     case "job.failed":
+    case "job.dead":
     case "job.cancelled":
       {
         // Prefer the full nested job object when present, otherwise the flat fields

@@ -150,8 +150,18 @@ class Job(BaseModel):
     @computed_field
     @property
     def can_cancel(self) -> bool:
-        """True when job is in a cancellable state."""
-        return self.status in {JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING}
+        """True when job is in a cancellable state.
+
+        ``RETRYING`` is included: the job is waiting out its backoff in
+        memory, still fully owned by the queue, and cancelling it there is
+        the only way to stop a retry before it re-runs.
+        """
+        return self.status in {
+            JobStatus.PENDING,
+            JobStatus.QUEUED,
+            JobStatus.RUNNING,
+            JobStatus.RETRYING,
+        }
 
 
 class JobCreateRequest(BaseModel):
@@ -204,8 +214,13 @@ class QueueStats(BaseModel):
     @computed_field
     @property
     def terminal_jobs(self) -> int:
-        """Jobs that have reached a final state."""
-        return self.completed + self.failed + self.cancelled + self.dead
+        """Jobs that have reached a final state.
+
+        ``failed`` already includes ``DEAD`` (``_UNSUCCESSFUL_STATUSES``),
+        so adding ``dead`` again double-counted every dead-lettered job -
+        terminal_jobs read 131 against a total_jobs of 104.
+        """
+        return self.completed + self.failed + self.cancelled
 
     @computed_field
     @property

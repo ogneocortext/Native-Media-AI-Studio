@@ -128,14 +128,23 @@ class QueueManager:
             await self.recover_stale_running_jobs()
         except Exception as e:
             logger.error("Stale running-job recovery failed: %s", e)
-        # Also drop queued/running jobs that carry no params. The reaper only
-        # looks at RUNNING, so without this a job requeued with empty params
-        # would keep cycling through the processor and burn its retries on a
-        # failure that cannot be fixed by retrying.
+        # Also drop queued/running/retrying jobs that carry no params. The
+        # reaper only looks at RUNNING, so without this a job requeued with
+        # empty params would keep cycling through the processor and burn its
+        # retries on a failure that cannot be fixed by retrying. RETRYING is
+        # included because a restart can strand a job there (see
+        # recover_stranded_retrying_jobs).
         try:
             await self.quarantine_unrunnable_jobs()
         except Exception as e:
             logger.error("Unrunnable-job quarantine failed: %s", e)
+        # RETRYING is a transient backoff state that only lives in memory; a
+        # restart strands every job that was mid-backoff. Recover them after
+        # quarantine so unrunnable ones are already dead-lettered.
+        try:
+            await self.recover_stranded_retrying_jobs()
+        except Exception as e:
+            logger.error("Retrying-job recovery failed: %s", e)
 
     @staticmethod
     def _lease_window_seconds(job: Job) -> int:
@@ -170,7 +179,7 @@ class QueueManager:
         return bool(job.params)
 
     async def quarantine_unrunnable_jobs(self) -> dict[str, Any]:
-        """Dead-letter queued jobs that no handler could ever run.
+        """Dead-letter queued/running/retrying jobs that no handler could ever run.
 
         ``recover_stale_running_jobs`` only inspects RUNNING jobs, so a job that
         was requeued with empty params would sit in QUEUED and be picked up by the
@@ -183,7 +192,7 @@ class QueueManager:
         quarantined: list[str] = []
         candidates = [
             j for j in self._jobs.values()
-            if j.status in (JobStatus.QUEUED, JobStatus.RUNNING)
+            if j.status in (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.RETRYING)
             and not self.is_runnable(j)
         ]
         for job in candidates:
@@ -331,6 +340,71 @@ class QueueManager:
             "skipped_active": skipped_active,
             "examined": len(candidates),
         }
+
+    async def recover_stranded_retrying_jobs(self) -> dict[str, Any]:
+        """Requeue or dead-letter jobs stranded in RETRYING by a dead process.
+
+        RETRYING is a transient in-process state: the processor sets it,
+        sleeps out the exponential backoff, then flips the job back to
+        QUEUED. The backoff timer lives only in memory, so a restart or
+        reload orphans every job that was mid-backoff - the process loop
+        only ever reads QUEUED, so nothing transitions it again and the
+        job reports ``is_active`` forever. ``reload_from_db`` runs before
+        the processor starts, so every RETRYING job present here is
+        stranded by definition.
+
+        Runnable jobs with retry budget left go back to QUEUED - the
+        downtime already exceeded any backoff. Unrunnable jobs are left
+        for ``quarantine_unrunnable_jobs``; exhausted ones are
+        dead-lettered here.
+        """
+        requeued: list[str] = []
+        dead: list[str] = []
+
+        candidates = [
+            j for j in self._jobs.values() if j.status == JobStatus.RETRYING
+        ]
+        for job in candidates:
+            if not self.is_runnable(job):
+                # Leave for the quarantine sweep; it dead-letters with the
+                # canonical "no params" reason.
+                continue
+            if job.retry_count >= job.max_retries:
+                ok = await self._move_to_dead_letter(
+                    job.id,
+                    "worker restarted while this job was waiting out its "
+                    "retry backoff; retries exhausted",
+                )
+                if ok:
+                    dead.append(job.id)
+                    logger.warning(
+                        "Dead-lettered stranded retrying job %s (%s): retries exhausted",
+                        job.id, job.job_type,
+                    )
+                continue
+            updated = await self.update_job(
+                job.id,
+                status=JobStatus.QUEUED,
+                progress=0.0,
+                message="requeued after restart (was mid-backoff)",
+                error=None,
+            )
+            if updated is not None:
+                self._signal_new_job()
+                requeued.append(job.id)
+                logger.warning(
+                    "Recovered stranded retrying job %s (%s); requeued "
+                    "(attempt %d/%d)",
+                    job.id, job.job_type,
+                    job.retry_count, job.max_retries,
+                )
+
+        if requeued or dead:
+            logger.warning(
+                "Retrying-job recovery: %d requeued, %d dead-lettered",
+                len(requeued), len(dead),
+            )
+        return {"requeued": requeued, "dead": dead, "examined": len(candidates)}
 
     async def count_stale_running_jobs(
         self, max_age_seconds: int = 900
@@ -520,11 +594,45 @@ class QueueManager:
 
     async def wait_for_jobs(self, timeout: float | None = None):
         """Wait for a new job to be enqueued. Returns True if signaled, False on timeout."""
+        # The event is level-triggered and nothing else clears it. Without
+        # this, the first enqueue sets it permanently and every subsequent
+        # wait returns instantly - the processor's idle path then busy-spins
+        # on get_jobs_by_status instead of sleeping. Clearing first is safe:
+        # the caller only waits after finding no QUEUED jobs, and any enqueue
+        # after the clear re-sets the event and wakes the wait immediately.
+        self._new_job_event.clear()
         try:
             await asyncio.wait_for(self._new_job_event.wait(), timeout=timeout)
             return True
         except TimeoutError:
             return False
+
+    @staticmethod
+    def _job_event_name(
+        status: JobStatus | None,
+        old_status: JobStatus,
+        progress: float | None,
+    ) -> str | None:
+        """Pick the SSE event name for an update_job transition.
+
+        RUNNING and RETRYING only fire on the transition into the state -
+        repeated progress ticks while RUNNING go out as job.progress
+        instead of re-announcing job.started. Terminal statuses broadcast
+        on every call that sets them (callers only set them once).
+        """
+        if status == JobStatus.RUNNING and old_status != JobStatus.RUNNING:
+            return "job.started"
+        if status == JobStatus.RETRYING and old_status != JobStatus.RETRYING:
+            return "job.retrying"
+        if status == JobStatus.COMPLETED:
+            return "job.completed"
+        if status == JobStatus.FAILED:
+            return "job.failed"
+        if status == JobStatus.CANCELLED:
+            return "job.cancelled"
+        if progress is not None:
+            return "job.progress"
+        return None
 
     async def _broadcast_job_event(self, event_type: str, job: Job):
         """Broadcast a job event to all SSE clients"""
@@ -687,9 +795,10 @@ class QueueManager:
             j for j in completed_jobs
             if (now - j.completed_at).total_seconds() <= 60.0
         ]
-        # Field is reported as `processing_rate_per_min`, so normalise the
-        # 60-second window to a per-minute rate.
-        processing_rate = len(recent_completed) / 60.0 if recent_completed else 0.0
+        # recent_completed counts completions inside a 60-second window, so
+        # the count itself IS the per-minute rate - dividing by 60 again
+        # reported jobs-per-second mislabeled as per-minute (60x low).
+        processing_rate = float(len(recent_completed))
         dead_jobs = [j for j in jobs if j.status == JobStatus.DEAD]
         dead_sample = [
             {
@@ -793,16 +902,9 @@ class QueueManager:
         await self._notify_subscribers(job)
 
         # Broadcast event outside lock
-        if status == JobStatus.RUNNING and old_status != JobStatus.RUNNING:
-            await self._broadcast_job_event("job.started", job)
-        elif status == JobStatus.COMPLETED:
-            await self._broadcast_job_event("job.completed", job)
-        elif status == JobStatus.FAILED:
-            await self._broadcast_job_event("job.failed", job)
-        elif status == JobStatus.CANCELLED:
-            await self._broadcast_job_event("job.cancelled", job)
-        elif progress is not None:
-            await self._broadcast_job_event("job.progress", job)
+        event = self._job_event_name(status, old_status, progress)
+        if event is not None:
+            await self._broadcast_job_event(event, job)
 
         return job
 
@@ -813,7 +915,12 @@ class QueueManager:
             if not job:
                 return False
 
-            if job.status not in (JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING):
+            if job.status not in (
+                JobStatus.PENDING,
+                JobStatus.QUEUED,
+                JobStatus.RUNNING,
+                JobStatus.RETRYING,
+            ):
                 return False
 
             job.status = JobStatus.CANCELLED
@@ -905,14 +1012,22 @@ class QueueManager:
 
     async def delete_job(self, job_id: str) -> bool:
         """Delete a job from the queue"""
+        job: Job | None = None
         async with self._lock:
-            if job_id in self._jobs:
+            job = self._jobs.get(job_id)
+            if job is not None:
                 del self._jobs[job_id]
                 self._last_progress_at.pop(job_id, None)
                 # Remove from SQLite
                 await JobDatabaseManager.delete_job_async(job_id)
-                return True
+        if job is None:
             return False
+        # Tell subscribers and SSE clients the job is gone - without this a
+        # deleted job lingered in every connected client's store until the
+        # next unrelated event or a manual refresh.
+        await self._notify_subscribers(job)
+        await self._broadcast_job_event("job.deleted", job)
+        return True
 
     async def clear_completed(self) -> int:
         """Remove all completed and cancelled jobs"""

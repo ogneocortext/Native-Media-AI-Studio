@@ -610,3 +610,48 @@ Rules: `docs/plans/tasks/README.md`
   holder/waiter status, release-on-exception, status payload) passes;
   59 existing queue+vram+separation tests pass; ruff clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-19 - Recover jobs stranded in RETRYING across restarts (D72)
+- **Status:** done
+- **Goal:** No job may sit in RETRYING forever after a restart - the
+  backoff timer is memory-only, so mid-backoff jobs were orphaned.
+- **What changed:** `QueueManager.recover_stranded_retrying_jobs()` in
+  reload_from_db - runnable jobs with retries left requeue to QUEUED,
+  exhausted ones dead-letter, unrunnable ones left for quarantine
+  (which now also sweeps RETRYING). Live result on reload: 21 zombie
+  image_generation jobs (empty params) dead-lettered, active_jobs
+  21 -> 0.
+- **Files:** queue/manager.py, tests/test_queue_stale_recovery.py
+  (new TestRetryingRecovery, 5 tests), decision-log D72.
+- **Acceptance:** 42 queue tests pass incl. 5 new; ruff clean; live
+  /api/jobs/stats shows retrying=0, active_jobs=0 after auto-reload.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-20 - Job system correctness + lifecycle event coverage
+- **Status:** done
+- **Goal:** Fix job-system issues found in audit and close the SSE event
+  gaps between the queue and the rest of the app.
+- **What changed (backend):**
+  - QueueStats.terminal_jobs no longer adds DEAD on top of FAILED
+    (dead is already a subset) - was 131 vs total 104; live stats now
+    reconcile (104/104, success_rate corrected 42.7 -> 53.8).
+  - wait_for_jobs clears _new_job_event before waiting - the event was
+    never cleared, so after the first enqueue every idle wait returned
+    instantly and the processor busy-spun.
+  - RETRYING jobs are now cancellable (cancel_job + can_cancel) - a job
+    waiting out backoff could previously not be stopped.
+  - update_job broadcasts job.retrying; delete_job notifies subscribers
+    and broadcasts job.deleted (deleted jobs previously lingered in
+    every connected client until manual refresh).
+  - get_metrics processing_rate_per_min no longer divides the 60 s
+    window count by 60 again (was 60x low).
+- **What changed (frontend):** jobStore handles job.retrying /
+  job.dead / job.deleted (update or removeJob + stats refresh);
+  NotificationItem maps job.retrying to Clock; notificationStore groups
+  it under the failed-job preference.
+- **Files:** queue/manager.py, models/job.py,
+  state/jobStore.ts, notificationStore.ts, NotificationItem.tsx,
+  tests/test_queue_lifecycle_events.py (new, 8 tests).
+- **Acceptance:** 54 queue tests pass; ruff clean; tsc -b clean; live
+  /api/jobs/stats shows terminal_jobs == total_jobs == 104.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

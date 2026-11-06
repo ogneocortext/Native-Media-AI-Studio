@@ -302,7 +302,7 @@ function matchesPreferences(
   name: string,
   prefs: NotificationPreferences,
 ): boolean {
-  if (name.startsWith("job.failed") || name.startsWith("job.dead")) return prefs.failed;
+  if (name.startsWith("job.failed") || name.startsWith("job.dead") || name.startsWith("job.retrying")) return prefs.failed;
   if (name.startsWith("job.completed")) return prefs.completed;
   if (name.startsWith("job.cancelled")) return prefs.cancelled;
   if (name.startsWith("job.progress")) return prefs.progress;
