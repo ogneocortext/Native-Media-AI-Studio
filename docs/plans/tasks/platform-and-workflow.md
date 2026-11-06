@@ -742,3 +742,24 @@ Rules: `docs/plans/tasks/README.md`
   renders scene list, zero console/page errors. tsc + eslint clean
   (3 pre-existing warnings).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-25 - Ollama model thrash under RAM pressure
+- **Status:** done
+- **Goal:** Fix Ollama issues - models being evicted mid-request.
+- **Root cause:** System RAM sits at 85-96% on this machine. The
+  30s resource-monitor loop ran `cleanup_system_memory()` on EVERY
+  cycle while RAM >= 90% critical, and cleanup unconditionally unloads
+  all Ollama models (`keep_alive: 0`). Result: vision/chat models were
+  evicted seconds after loading - vision_describe returned empty
+  responses all session, and every request paid a multi-GB reload.
+- **What changed:** `ResourceMonitor` now rate-limits auto-cleanup to
+  once per 5 minutes (`_cleanup_cooldown_seconds`); warnings still
+  broadcast every cycle so the UI stays honest. The per-cycle
+  "Ollama VRAM enrichment applied" INFO log was demoted to debug
+  (it fired every 30s while any model was resident).
+- **Files:** diagnostics/resources.py, tests/test_resources_async.py
+  (new cooldown regression test).
+- **Verification:** 13 resource tests pass incl. new cooldown test;
+  ruff clean. Ollama itself verified healthy: v0.40.14, 11 models,
+  llama3.2:3b generate OK in ~8s cold.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

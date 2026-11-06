@@ -333,3 +333,40 @@ def test_no_api_module_calls_subprocess_run_directly():
         + ", ".join(offenders)
         + " — use services.subprocess_runner.run_subprocess_thread"
     )
+
+
+@pytest.mark.asyncio
+async def test_ram_critical_cleanup_respects_cooldown():
+    """Auto-cleanup must not run every monitor cycle while RAM stays critical.
+
+    Regression: on a machine pinned above the critical threshold the 30s
+    loop evicted every loaded Ollama model each cycle, so vision/chat
+    requests were killed mid-inference and reloaded multi-GB weights.
+    """
+    monitor = ResourceMonitor()
+    critical = {
+        "type": "memory",
+        "level": "critical",
+        "message": "System memory critical: 95.0% used",
+        "current_value": 95.0,
+        "threshold": 90.0,
+        "unit": "percent",
+    }
+    calls = 0
+
+    async def fake_cleanup():
+        nonlocal calls
+        calls += 1
+        return {"actions": ["gc.collect: 0 objects"]}
+
+    monitor.cleanup_system_memory = fake_cleanup  # type: ignore[assignment]
+
+    with patch.object(monitor, "check_memory", return_value=critical), \
+         patch.object(monitor, "check_disk", return_value=None), \
+         patch.object(monitor, "check_vram", return_value=None), \
+         patch.object(monitor, "broadcast_warnings", return_value=None):
+        await monitor.check_all()
+        await monitor.check_all()
+        await monitor.check_all()
+
+    assert calls == 1

@@ -71,6 +71,13 @@ class ResourceMonitor:
         self._last_warnings: dict[ResourceType, WarningLevel] = {}
         self._last_broadcast_time: dict[ResourceType, float] = {}
         self._broadcast_interval_seconds = 60.0
+        # Auto-cleanup (gc, torch cache purge, Ollama model unload) runs at
+        # most once per cooldown. Without it, a machine sitting at 90%+ RAM
+        # evicts every Ollama model every 30s cycle - vision/chat requests
+        # then spend their whole budget reloading a multi-GB model and can
+        # be evicted mid-inference, which shows up as empty responses.
+        self._last_auto_cleanup_at = 0.0
+        self._cleanup_cooldown_seconds = 300.0
         self._gpustat_available = False
         self._nvml_available = False
         self._win32pdh_available: bool | None = None  # cached availability probe
@@ -682,7 +689,9 @@ class ResourceMonitor:
                                     }
                                 )
                             snap["memory_available"] = True
-                            logger.info("Ollama VRAM enrichment applied: %s MB", ollama_vram)
+                            # Debug-level: this fires every monitor cycle
+                            # while a model is resident - INFO spammed the log.
+                            logger.debug("Ollama VRAM enrichment applied: %s MB", ollama_vram)
                     except Exception as _e:
                         logger.debug("Ollama enrichment skipped: %s", _e)
                 return snap
@@ -781,6 +790,20 @@ class ResourceMonitor:
 
         return {"actions": actions}
 
+    async def _maybe_auto_cleanup(self) -> Any:
+        """Run destructive cleanup at most once per cooldown window.
+
+        Returns the cleanup actions taken, or a skip marker. Warnings keep
+        broadcasting every cycle regardless - only the cleanup is throttled.
+        """
+        now = time.monotonic()
+        if now - self._last_auto_cleanup_at < self._cleanup_cooldown_seconds:
+            return "skipped (cooldown)"
+        self._last_auto_cleanup_at = now
+        cleanup = await self.cleanup_system_memory()
+        logger.warning(f"System RAM critical, cleanup: {cleanup['actions']}")
+        return cleanup["actions"]
+
     async def check_all(self) -> list[dict[str, Any]]:
         """Check all resources and return list of warnings"""
         warnings = []
@@ -789,9 +812,7 @@ class ResourceMonitor:
         mem_warning = await self.check_memory()
         if mem_warning:
             if mem_warning["level"] == WarningLevel.CRITICAL:
-                cleanup = await self.cleanup_system_memory()
-                mem_warning["cleanup"] = cleanup["actions"]
-                logger.warning(f"System RAM critical, cleanup: {cleanup['actions']}")
+                mem_warning["cleanup"] = await self._maybe_auto_cleanup()
             warnings.append(mem_warning)
 
         # Check disk
