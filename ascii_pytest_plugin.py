@@ -132,7 +132,7 @@ class AsciiArtPytestPlugin:
             ],
             'test_details': self.test_results,
             'duration_ms': (time.time() - self.start_time) * 1000
-        }()
+        })()
         
         # Print beautiful summary
         from cli_output import CLIOutput, safe_print, format_test_results

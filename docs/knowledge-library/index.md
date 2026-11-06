@@ -178,7 +178,7 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 19 documents |
-|| `#research/*` | Industry trends & analysis | 20 documents |
+|| `#research/*` | Industry trends & analysis | 21 documents |
 
 ### Cross-Cutting Tags
 
