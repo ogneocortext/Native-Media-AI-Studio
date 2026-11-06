@@ -8,8 +8,8 @@ import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,45 @@ class Gen3DGenerateRequest(BaseModel):
     cfg: float = 7.0
     model: str | None = None
 
+    @field_validator("prompt")
+    @classmethod
+    def validate_prompt(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("prompt must not be empty")
+        if len(v) > 2000:
+            raise ValueError("prompt must be at most 2000 characters")
+        return v
+
+    @field_validator("output_name")
+    @classmethod
+    def validate_output_name(cls, v: str | None) -> str | None:
+        if v is not None and len(v) > 200:
+            raise ValueError("output_name must be at most 200 characters")
+        return v
+
+    @field_validator("steps")
+    @classmethod
+    def validate_steps(cls, v: int) -> int:
+        # Matches the 5-50 slider on the 3D page; distilled variants want low values.
+        if v < 1 or v > 50:
+            raise ValueError("steps must be between 1 and 50")
+        return v
+
+    @field_validator("seed")
+    @classmethod
+    def validate_seed(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("seed must be >= 0")
+        return v
+
+    @field_validator("cfg")
+    @classmethod
+    def validate_cfg(cls, v: float) -> float:
+        if v < 0.0 or v > 30.0:
+            raise ValueError("cfg must be between 0.0 and 30.0")
+        return v
+
 
 def _resolve_backend(model: str | None) -> str:
     """Map a frontend model id (e.g. 'hunyuan3d-2mini-fast') to a backend key.
@@ -33,11 +72,9 @@ def _resolve_backend(model: str | None) -> str:
     Returns DEFAULT_BACKEND for empty input; raises HTTPException for names
     that are not real backends so a typo can't silently run the default.
     """
-    from fastapi import HTTPException
-
     from ..services.gen3d.gen3d_service import DEFAULT_BACKEND, MODEL_BACKENDS
 
-    key = (model or "").strip().replace("-", "_")
+    key = (model or "").strip().lower().replace("-", "_")
     if not key:
         return DEFAULT_BACKEND
     if key not in MODEL_BACKENDS:
@@ -82,12 +119,23 @@ ALLOWED_REF_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_REF_IMAGE_BYTES = 15 * 1024 * 1024
 
 
+def _sniff_image_type(head: bytes) -> str | None:
+    """Return the real image MIME type from magic bytes, or None."""
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
 @router.post("/generate-image")
 async def gen3d_generate_image(
     file: UploadFile = File(...),
-    steps: int = 15,
-    output_name: str | None = None,
-    model: str | None = None,
+    steps: int = Query(15, ge=1, le=50),
+    output_name: str | None = Query(None, max_length=200),
+    model: str | None = Query(None, max_length=100),
 ) -> dict:
     """Generate a 3D model from a reference image (face/body lock source).
 
@@ -97,12 +145,13 @@ async def gen3d_generate_image(
     character consistency method).
     """
     if file.content_type not in ALLOWED_REF_IMAGE_TYPES:
-        from fastapi import HTTPException
-
         raise HTTPException(
-            status_code=400,
+            status_code=415,
             detail=f"Unsupported image type {file.content_type}; use PNG, JPEG, or WebP",
         )
+    # Early reject when the client declared a size (not authoritative, but free).
+    if file.size is not None and file.size > MAX_REF_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Reference image exceeds 15 MB")
     suffix = Path(file.filename or "reference.png").suffix.lower() or ".png"
     if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
         suffix = ".png"
@@ -110,13 +159,21 @@ async def gen3d_generate_image(
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp_path = Path(tmp.name)
-        with tmp_path.open("wb") as out:
+            head = b""
             size = 0
             while chunk := await file.read(1024 * 1024):
+                if not head:
+                    head = chunk[:16]
                 size += len(chunk)
                 if size > MAX_REF_IMAGE_BYTES:
-                    raise ValueError("Reference image exceeds 15 MB")
-                out.write(chunk)
+                    raise HTTPException(status_code=413, detail="Reference image exceeds 15 MB")
+                tmp.write(chunk)
+        # content_type is client-supplied; the payload's magic bytes are authoritative.
+        if _sniff_image_type(head) not in ALLOWED_REF_IMAGE_TYPES:
+            raise HTTPException(
+                status_code=415,
+                detail="File content is not a valid PNG, JPEG, or WebP image",
+            )
         from ..services.gen3d.gen3d_service import gen3d_service
         from ..services.vram_manager import vram_manager
 
@@ -127,10 +184,6 @@ async def gen3d_generate_image(
                 steps=steps,
                 backend=_resolve_backend(model),
             )
-    except ValueError as e:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=400, detail=str(e)) from e
     finally:
         if tmp_path is not None:
             try:

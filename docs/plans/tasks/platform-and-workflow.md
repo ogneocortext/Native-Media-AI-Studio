@@ -842,3 +842,24 @@ Rules: `docs/plans/tasks/README.md`
   14 checkpoint-filtering tests pass; ruff clean; tsc -b clean; eslint
   0 errors.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-30 - gen3d.py hardening: request validation + upload sniffing
+- **Status:** done
+- **Goal:** Line-by-line review of the 3D API router; close unvalidated
+  input paths and spoofable upload checks.
+- **What changed:** `Gen3DGenerateRequest` gained field_validators
+  (prompt strip + 1–2000 chars, output_name ≤200, steps 1–50 matching the
+  UI slider, seed ≥0, cfg 0–30 — same bounds style as models/generation.py).
+  `/generate-image` query params now bounded via `Query(ge/le/max_length)`;
+  oversize/invalid uploads return proper **413/415** instead of 400;
+  `file.size` early-rejects declared-oversized bodies; upload streams into
+  the temp file in one open (was close+reopen); magic-byte sniffing
+  (`_sniff_image_type`) verifies PNG/JPEG/WebP signatures because
+  `content_type` is client-supplied; `_resolve_backend` is now
+  case-insensitive; `HTTPException` hoisted to module imports.
+- **Files:** api/gen3d.py.
+- **Verification:** Live — empty prompt/steps=999 → 422, bogus model → 400,
+  `Hunyuan3D-2mini-Turbo` (mixed case) resolves to the turbo backend,
+  fake PNG with `type=image/png` → 415 via magic bytes; ruff clean;
+  14 checkpoint tests pass.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
