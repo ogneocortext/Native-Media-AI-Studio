@@ -26,6 +26,27 @@ async def create_job(request: JobCreateRequest) -> Job:
     return await queue_manager.enqueue(request)
 
 
+def _existing_output(path: str | None) -> str | None:
+    """Return *path* if it resolves to a file under the output dir, else None.
+
+    Stored paths come in three shapes: absolute, project-relative
+    ("output/video/x.mp4"), and output-dir-relative ("video/x.mp4"). The old
+    code joined PROJECT_ROOT/"output" unconditionally, so "output/..."
+    paths were checked as output/output/... and real files were hidden.
+    """
+    if not path:
+        return None
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        # Strip a leading "output" segment so "output/x" and "x" both
+        # resolve under the output dir exactly once.
+        rel_parts = list(candidate.parts)
+        if rel_parts and rel_parts[0].lower() == "output":
+            rel_parts = rel_parts[1:]
+        candidate = PROJECT_ROOT / "output" / Path(*rel_parts)
+    return path if candidate.is_file() else None
+
+
 @router.get("", response_model=list[Job])
 async def list_jobs(
     status: str | None = Query(
@@ -47,22 +68,15 @@ async def list_jobs(
     # paths that no longer exist: the Queue UI can then show an honest
     # "output unavailable" state instead of issuing broken media requests.
     for job in jobs:
-        # Check top-level output_path
-        if job.output_path:
-            candidate = Path(job.output_path)
-            if not candidate.is_absolute():
-                candidate = PROJECT_ROOT / "output" / candidate
-            if not candidate.is_file():
-                job.output_path = None
+        job.output_path = _existing_output(job.output_path)
         # Check result.output_path independently
         if job.result and "output_path" in job.result:
             result_path = job.result.get("output_path")
             if isinstance(result_path, str):
-                result_candidate = Path(result_path)
-                if not result_candidate.is_absolute():
-                    result_candidate = PROJECT_ROOT / "output" / result_candidate
-                if not result_candidate.is_file():
-                    job.result = {**job.result, "output_path": None}
+                job.result = {
+                    **job.result,
+                    "output_path": _existing_output(result_path),
+                }
     return jobs
 
 

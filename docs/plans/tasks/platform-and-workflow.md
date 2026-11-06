@@ -702,3 +702,25 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** features/queue/QueueList.tsx, queueOutput.test.ts (new).
 - **Acceptance:** 6 resolver unit tests pass; tsc + eslint clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-23 - Job output path resolution fixes (browser-verified)
+- **Status:** done
+- **Goal:** Verify job thumbnails in browser; fix issues found.
+- **What changed:**
+  - `api/jobs.py` list endpoint resolved relative output paths as
+    `PROJECT_ROOT/output/<path>` unconditionally, so stored
+    `output/video/x.mp4` paths were checked as `output/output/...`,
+    failed is_file(), and were nulled - real outputs were hidden from
+    the queue UI. Extracted `_existing_output()` which strips a leading
+    `output/` segment before joining.
+  - `QueueList.tsx` `JobOutputPreview` only read `output_path` /
+    `result.output_path`; real handlers also write `result.video_path`
+    (lipsync), `result.image`, `result.audio`, etc. Now scans
+    RESULT_PATH_KEYS in order.
+- **Verification:** seeded two completed jobs (image via output_path,
+  video via result.video_path), reloaded backend, Playwright + vision:
+  image thumbnail loaded (naturalWidth>0), video element rendered,
+  zero console errors. Test jobs deleted afterward.
+- **Files:** api/jobs.py, features/queue/QueueList.tsx.
+- **Acceptance:** 66 job-related backend tests pass; ruff/tsc/eslint clean.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

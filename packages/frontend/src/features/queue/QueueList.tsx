@@ -169,14 +169,40 @@ export function resolveJobOutput(
 }
 
 /**
+ * Result fields that may carry the produced file. Handlers are inconsistent:
+ * most set `output_path`, but lipsync uses `video_path`, music gen `audio`,
+ * and some only embed the path inside `result` sub-objects.
+ */
+const RESULT_PATH_KEYS = [
+  "output_path",
+  "video_path",
+  "image_path",
+  "image",
+  "audio_path",
+  "audio",
+  "file",
+  "filepath",
+  "path",
+] as const;
+
+function firstString(...values: unknown[]): string {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return "";
+}
+
+/**
  * Renders the completed job's output inline: a video player for video
  * files, an image thumbnail for images, an audio element for audio, and a
  * link for everything else. Falls back to the Open/Download row if the
  * media element fails to load.
  */
 function JobOutputPreview({ job }: { job: Job }) {
-  const raw = String(
-    job.output_path ?? (job.result?.output_path as string | undefined) ?? "",
+  const result: Record<string, unknown> = job.result ?? {};
+  const raw = firstString(
+    job.output_path,
+    ...RESULT_PATH_KEYS.map((k) => result[k]),
   );
   const out = resolveJobOutput(raw);
   if (!out) return null;
