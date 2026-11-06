@@ -49,6 +49,8 @@ class IndexStatus(BaseModel):
     doc_count: int
     avg_length: float
     embedding_model: str
+    index_model: str | None = None
+    content_hash: str | None = None
     embedding_model_available: bool = True
     embedding_models_available: list[str] = []
     rerank_model: str
@@ -202,6 +204,9 @@ async def index_docs(req: IndexRequest) -> dict:
                 chunk.embedding = embs[i]
 
         idx._embeddings = {c.id: c.embedding for c in chunk_objects if c.embedding is not None}
+        # Record which model built the index for smart selection
+        idx._index_model = index_model
+        # Content hash is set by finalize() above
 
         # Persist to SQLite
         await persist_chunk_embeddings(chunk_objects)
@@ -211,6 +216,8 @@ async def index_docs(req: IndexRequest) -> dict:
             "chunks": len(chunk_objects),
             "docs": len({c.doc_path for c in chunk_objects}),
             "embedding_model": index_model,
+            "index_model": index_model,
+            "content_hash": idx._content_hash,
             "rerank_model": RERANK_MODEL,
         }
     finally:
@@ -252,6 +259,8 @@ async def index_status() -> IndexStatus:
         doc_count=len({c.doc_path for c in idx._chunks.values()}),
         avg_length=idx._avg_len,
         embedding_model=EMBED_MODEL,
+        index_model=idx._index_model,
+        content_hash=idx._content_hash,
         embedding_model_available=embedding_model_available,
         embedding_models_available=embedding_models_available,
         rerank_model=RERANK_MODEL,

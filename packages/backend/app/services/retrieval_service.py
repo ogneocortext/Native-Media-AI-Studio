@@ -34,6 +34,7 @@ import hashlib
 import json
 import logging
 import math
+import operator
 import sqlite3
 import time
 from collections import Counter, defaultdict
@@ -331,6 +332,16 @@ class RetrievalIndex:
         self._embeddings: dict[str, list[float]] = {}  # id -> vector
         self._built_at: float = 0.0
         self._doc_count: int = 0
+        #: Model used to generate the current embeddings (for smart selection)
+        self._index_model: str | None = None
+        #: Content hash of all chunk texts at index time (for change detection)
+        self._content_hash: str | None = None
+        #: Search result cache: (query_hash, model) -> results
+        self._search_cache: dict[tuple[str, str], list[dict]] = {}
+        #: Cache TTL in seconds
+        self._cache_ttl: float = 300.0
+        #: Last access time per cache key
+        self._cache_access: dict[tuple[str, str], float] = {}
 
     # -- indexing -----------------------------------------------------------
 
@@ -382,6 +393,46 @@ class RetrievalIndex:
         else:
             self._avg_len = 0.0
         self._doc_count = len(self._chunks)
+        # Compute content hash for change detection
+        self._content_hash = self.compute_content_hash()
+
+    @staticmethod
+    def compute_content_hash() -> str:
+        """Compute a hash of all doc chunk contents for change detection.
+
+        Re-scans the docs corpus and hashes all chunk texts. Returns a stable
+        hex digest that changes when any doc is added, removed, or modified.
+        """
+        from ..api.retrieval import _scan_docs_for_indexing
+
+        entries = _scan_docs_for_indexing()
+        # Sort by chunk_id for deterministic ordering
+        entries.sort(key=operator.itemgetter("chunk_id"))
+        hasher = hashlib.sha256()
+        for e in entries:
+            hasher.update(e["chunk_id"].encode("utf-8"))
+            hasher.update(b"\x00")
+            hasher.update(e["text"].encode("utf-8"))
+            hasher.update(b"\x00")
+        return hasher.hexdigest()[:16]
+
+    def needs_reindex(self, model: str) -> tuple[bool, str | None]:
+        """Check if the index needs rebuilding for the given model.
+
+        Returns (needs_reindex, reason) where reason is None if no reindex
+        is needed, or a human-readable explanation otherwise.
+        """
+        if not self._chunks:
+            return True, "index is empty"
+        if self._index_model != model:
+            return True, f"index built with {self._index_model}, requested {model}"
+        if self._content_hash is None:
+            return True, "no content hash recorded"
+        # Recompute to detect changes
+        current_hash = self.compute_content_hash()
+        if current_hash != self._content_hash:
+            return True, "docs have changed since last index"
+        return False, None
 
     # -- BM25 search --------------------------------------------------------
 
@@ -424,6 +475,8 @@ class RetrievalIndex:
         self, query: str, limit: int = TOP_K_CANDIDATES, model: str = EMBED_MODEL
     ) -> list[tuple[str, float]]:
         """Return [(chunk_id, cosine_similarity)] ranked by vector similarity."""
+        # Track which model was used for this query (for smart selection)
+        self._index_model = model
         q_emb = await embed_text(query, model=model, expected_dim=EMBED_DIM)
         if not q_emb:
             logger.warning(
@@ -630,9 +683,26 @@ class RetrievalIndex:
         Full retrieval pipeline: BM25 + vector -> RRF -> rerank -> top-k.
 
         Returns list of dicts with chunk text, doc metadata, and scores.
+
+        Results are cached per (query, model) pair with a 300s TTL to avoid
+        re-running the full pipeline on repeated queries.
         """
         if not self._chunks:
             return []
+
+        # Check cache first
+        now = time.monotonic()
+        cache_key = hashlib.sha256((query + "|" + model).encode("utf-8")).hexdigest()[:16]
+        cached = self._search_cache.get(cache_key)
+        if cached and now - cached[0] < self._cache_ttl:
+            self._cache_access[cache_key] = now
+            return cached[1]
+
+        # Clean up expired cache entries
+        expired = [k for k, v in self._cache_access.items() if now - v > self._cache_ttl]
+        for k in expired:
+            self._search_cache.pop(k, None)
+            self._cache_access.pop(k, None)
 
         # 1. Parallel retrieval
         bm25_results = self.bm25_search(query, limit=TOP_K_CANDIDATES)
@@ -691,6 +761,10 @@ class RetrievalIndex:
         bm25_term_map: dict[str, set[str]] = {cid: terms for cid, _s, terms in bm25_results}
         for r in results:
             r["matched_terms"] = sorted(bm25_term_map.get(r["chunk_id"], set()))
+
+        # Cache results for future identical queries
+        self._search_cache[cache_key] = (now, results)
+        self._cache_access[cache_key] = now
 
         return results
 
