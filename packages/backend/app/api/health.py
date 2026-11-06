@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
@@ -84,6 +85,98 @@ async def _check_go_sidecar(name: str, url_attr: str, path: str) -> dict[str, An
 async def ping() -> dict:
     """Simple ping endpoint"""
     return {"status": "ok", "timestamp": ""}
+
+
+# ---------------------------------------------------------------------------
+# Liveness / readiness split (2026 production pattern)
+#
+# /healthz  — liveness: is the process alive? Fast, no external dependencies.
+# /readyz   — readiness: can we serve traffic? Checks DB, ComfyUI, Ollama.
+# Orchestrators use /readyz to gate traffic during deploys; load balancers
+# use /healthz to detect a wedged process.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/healthz", response_model=dict)
+async def healthz() -> dict:
+    """Liveness check: proves the process is alive and the event loop is free.
+
+    Intentionally does NOT call external services (DB, ComfyUI, Ollama) so
+    that a slow or wedged downstream does not mark this instance as dead.
+    """
+    import time
+
+    return {
+        "status": "alive",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+@router.get("/readyz", response_model=dict)
+async def readyz() -> dict:
+    """Readiness check: verifies dependencies are reachable before serving traffic.
+
+    Checks the database, ComfyUI adapter, and Ollama server. Returns 200 when
+    all critical dependencies are healthy, 503 otherwise. Orchestrators should
+    use this endpoint (not /healthz) to gate traffic during zero-downtime deploys.
+    """
+    import time
+
+    from ..adapters.registry import adapter_registry
+
+    checks: dict[str, dict[str, Any]] = {}
+
+    # Database
+    try:
+        from ..core.database import get_db
+
+        with get_db() as conn:
+            conn.execute("SELECT 1")
+        checks["database"] = {"status": "healthy", "latency_ms": 0}
+    except Exception as exc:
+        checks["database"] = {"status": "unhealthy", "error": str(exc)}
+
+    # ComfyUI
+    comfyui = adapter_registry.get("comfyui")
+    if comfyui:
+        try:
+            started = time.perf_counter()
+            ok = await comfyui.health_check()
+            checks["comfyui"] = {
+                "status": "healthy" if ok else "unhealthy",
+                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            }
+        except Exception as exc:
+            checks["comfyui"] = {"status": "unhealthy", "error": str(exc)}
+    else:
+        checks["comfyui"] = {"status": "unhealthy", "error": "adapter not registered"}
+
+    # Ollama
+    ollama = adapter_registry.get("ollama")
+    if ollama:
+        try:
+            started = time.perf_counter()
+            ok = await ollama.health_check()
+            checks["ollama"] = {
+                "status": "healthy" if ok else "unhealthy",
+                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            }
+        except Exception as exc:
+            checks["ollama"] = {"status": "unhealthy", "error": str(exc)}
+    else:
+        checks["ollama"] = {"status": "unhealthy", "error": "adapter not registered"}
+
+    unhealthy = [name for name, c in checks.items() if c["status"] != "healthy"]
+    overall = "healthy" if not unhealthy else "unhealthy"
+
+    return JSONResponse(
+        status_code=200 if overall == "healthy" else 503,
+        content={
+            "status": overall,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "checks": checks,
+        },
+    )
 
 
 @router.get("", response_model=dict)

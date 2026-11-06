@@ -2035,3 +2035,27 @@
 - **Files:** `app/api/retrieval.py`, `app/services/retrieval_service.py`
 - **Consequences:** `check-import-cycles.py` reports no cycles or layer
   inversions; 44 retrieval tests pass; `ruff check` clean.
+
+### D74 - Split health into liveness (/healthz) and readiness (/readyz); convert ComfyUI workflows to API format (2026-11-06)
+
+- **Status:** Decided
+- **Context:** The single `/api/health` endpoint conflated liveness (process
+  alive) with readiness (dependencies reachable). Orchestrators and load
+  balancers need distinct endpoints: `/healthz` for fast liveness probes that
+  never call external services, `/readyz` for gating traffic during deploys
+  after verifying DB, ComfyUI, and Ollama are reachable. Separately, the
+  ComfyUI workflow JSONs under `config/comfyui/workflows/` were in ComfyUI's
+  editor format (`nodes` array + `position` + `connections`), which ComfyUI's
+  `/prompt` endpoint rejects — they must be API format (flat node map keyed by
+  ID, `class_type`, connections embedded in `inputs`) to be submit-able.
+- **Decision:** Added `GET /api/health/healthz` (liveness: timestamp only, no
+  external calls) and `GET /api/health/readyz` (readiness: checks database,
+  ComfyUI adapter, Ollama adapter; returns 200/503). Converted
+  `stem_mixer_preview.json`, `music_video_scene.json`, and
+  `audio_reactive_visualizer.json` from editor format to ComfyUI API format,
+  tagged with `"format": "comfyui_api"`.
+- **Files:** `app/api/health.py`, `config/comfyui/workflows/{stem_mixer_preview,music_video_scene,audio_reactive_visualizer}.json`
+- **Consequences:** Zero-downtime deploys can gate on `/readyz`; load balancers
+  can use `/healthz` for fast liveness. ComfyUI workflow JSONs are now directly
+  submit-able to `POST /prompt`. `check-import-cycles.py` clean; ruff clean;
+  ESLint 0 errors; all 3 workflow JSONs valid.

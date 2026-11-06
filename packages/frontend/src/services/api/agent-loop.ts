@@ -440,16 +440,21 @@ The current user request is: "${userMessage}"`;
       });
 
       // Check if the model made tool calls (toolDetails contains the actual calls)
-      // Backend returns snake_case "tool_details"; frontend type uses camelCase
-      const toolDetails = (response as any).tool_details ?? response.toolDetails;
-      if (toolDetails && toolDetails.length > 0) {
+      // Backend returns snake_case "tool_details"; frontend type uses camelCase.
+      // res.json() is untyped, so accept both shapes.
+      const rawResponse = response as {
+        tool_details?: { name: string; arguments: Record<string, unknown>; result: string }[];
+        toolDetails?: { name: string; arguments: Record<string, unknown>; result: string }[];
+      };
+      const toolDetails = rawResponse.tool_details ?? rawResponse.toolDetails ?? [];
+      if (toolDetails.length > 0) {
         // Add the assistant's tool-calling message to history
         messages.push({
           role: "assistant",
           content: stripMarkdownFences(response.response) || "I'll use tools to help with that.",
-          tool_calls: toolDetails.map((tc: any) => ({
+          tool_calls: toolDetails.map((tc) => ({
             name: tc.name,
-            arguments: tc.arguments as Record<string, any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+            arguments: tc.arguments as Record<string, unknown>,
           })),
         });
 

@@ -322,8 +322,9 @@ export function AgentChat() {
 
           case "tool_result": {
             const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-            const toolName = (raw as any).name || (raw as any).tool_name || "unknown";
-            const resultData = (raw as any).result;
+            const toolResult = raw as { name?: string; tool_name?: string; result?: unknown };
+            const toolName = toolResult.name || toolResult.tool_name || "unknown";
+            const resultData = toolResult.result;
             const execResult: ExecuteToolResponse =
               resultData && typeof resultData === "object" && "success" in resultData
                 ? (resultData as ExecuteToolResponse)
