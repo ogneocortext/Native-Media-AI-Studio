@@ -145,6 +145,7 @@ async def text_to_banner_endpoint(
             font=request.font,
             width=request.width,
             color=request.color,
+            font_list=request.font_list,
         )
         
         return {
