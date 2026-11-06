@@ -18,7 +18,10 @@ only — which model is resident is the operator's choice.
 
 from __future__ import annotations
 
+import os
 import socket
+import urllib.error
+import urllib.request
 
 import pytest
 
@@ -36,8 +39,27 @@ def _port_open(port: int, timeout: float = 1.0) -> bool:
         return False
 
 
+def _atomic_capable() -> bool:
+    """Port-open is not enough: an auth-walled Atomic Chat 401s every call.
+
+    Probe /v1/models without credentials. 200 means the server needs no key;
+    401 means the tests can only pass when ATOMIC_CHAT_API_KEY is set.
+    """
+    if not _port_open(1337):
+        return False
+    req = urllib.request.Request(f"{ATOMIC_URL}/v1/models")
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            return resp.status == 200
+    except urllib.error.HTTPError as e:
+        return e.code == 401 and bool(os.getenv("ATOMIC_CHAT_API_KEY", "").strip())
+    except OSError:
+        return False
+
+
 requires_atomic = pytest.mark.skipif(
-    not _port_open(1337), reason="Atomic Chat not listening on 127.0.0.1:1337"
+    not _atomic_capable(),
+    reason="Atomic Chat not listening on 127.0.0.1:1337, or requires ATOMIC_CHAT_API_KEY",
 )
 requires_ollama = pytest.mark.skipif(
     not _port_open(11434), reason="Ollama not listening on 127.0.0.1:11434"

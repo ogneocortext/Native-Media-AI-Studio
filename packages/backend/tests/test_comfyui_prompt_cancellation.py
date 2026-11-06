@@ -132,6 +132,7 @@ def test_queued_prompt_extends_the_deadline(rec, monkeypatch):
         state = {"t": 0.0}
         a._get_history = never
         a._get_queue_status = still_queued
+        monkeypatch.setattr(mod.time, "monotonic", lambda: state["t"])
 
         loop = asyncio.get_event_loop()
         real_time, real_sleep = loop.time, mod.asyncio.sleep
@@ -170,6 +171,7 @@ def test_prompt_not_yet_started_does_not_extend_forever(rec, monkeypatch):
         state = {"t": 0.0}
         a._get_history = never
         a._get_queue_status = not_queued
+        monkeypatch.setattr(mod.time, "monotonic", lambda: state["t"])
 
         loop = asyncio.get_event_loop()
         real_time, real_sleep = loop.time, mod.asyncio.sleep
@@ -214,6 +216,7 @@ def test_video_timeout_cancels_the_prompt(rec, monkeypatch):
         state = {"t": 0.0}
         a._get_history = never
         a._get_queue_status = still_queued
+        monkeypatch.setattr(mod.time, "monotonic", lambda: state["t"])
 
         loop = asyncio.get_event_loop()
         real_time, real_sleep = loop.time, mod.asyncio.sleep
@@ -261,6 +264,7 @@ def test_video_vanished_prompt_fails_fast(rec, monkeypatch):
 
         a._get_history = never
         a._get_queue_status = gone
+        monkeypatch.setattr(mod.time, "monotonic", lambda: state["t"])
 
         loop = asyncio.get_event_loop()
         real_time, real_sleep = loop.time, mod.asyncio.sleep
