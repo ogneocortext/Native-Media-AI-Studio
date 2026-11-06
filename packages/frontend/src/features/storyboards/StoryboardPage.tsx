@@ -106,8 +106,12 @@ export function StoryboardPage() {
   const [selectedTrack, setSelectedTrack] = useState<TrackLyricsData | null>(null);
   const [trackLyricsData, setTrackLyricsData] = useState<TrackLyricsData[]>([]);
   const [tracksLoading, setTracksLoading] = useState(true);
-  const { entries: libraryTracks } = useAudioLibrary();
-  const [trackMetadata, setTrackMetadata] = useState<Record<string, TrackMetadata>>({});
+  const { entries: libraryTracks, isLoading: libraryLoading } = useAudioLibrary();
+  // Values are undefined for storyboards whose track never matched a
+  // library entry - the record only contains keys for matched boards.
+  const [trackMetadata, setTrackMetadata] = useState<
+    Record<string, TrackMetadata | undefined>
+  >({});
   const [compileResult, setCompileResult] = useState<CompileStoryboardResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState<string | null>(null);
@@ -132,7 +136,19 @@ export function StoryboardPage() {
       const match = STORYBOARDS.find((s) => {
         const nameLower = s.trackName.toLowerCase();
         const cleanLower = cleanName.toLowerCase();
-        return cleanLower.includes(nameLower) || nameLower.includes(cleanLower);
+        if (cleanLower.includes(nameLower) || nameLower.includes(cleanLower)) {
+          return true;
+        }
+        // Filenames often drop spaces/punctuation ("TakeTheCrown_v2.mp3"
+        // vs track "Take the Crown") - compare alphanumeric-normalized forms.
+        const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        const nameNorm = norm(s.trackName);
+        const cleanNorm = norm(cleanName);
+        return (
+          nameNorm.length > 0 &&
+          cleanNorm.length > 0 &&
+          (cleanNorm.includes(nameNorm) || nameNorm.includes(cleanNorm))
+        );
       });
       if (match) {
         metadata[match.name] = { filename: t.filename };
@@ -144,16 +160,18 @@ export function StoryboardPage() {
   // Fetch BPM/duration from analysis for matched tracks
   useEffect(() => {
     Object.entries(trackMetadata).forEach(([storyboardName, meta]) => {
-      if (meta.bpm) return; // already fetched
+      if (!meta?.filename || meta.bpm) return; // unmatched or already fetched
       getAnalysis(meta.filename)
         .then((data: AudioAnalysisResponse) => {
           if (data.tempo_bpm) {
             setTrackMetadata((prev) => ({
               ...prev,
               [storyboardName]: {
-                ...prev[storyboardName],
+                filename: meta.filename,
                 bpm: data.tempo_bpm ? Math.round(data.tempo_bpm) : undefined,
-                duration: data.duration_seconds ? Math.round(data.duration_seconds) : undefined,
+                duration: data.duration_seconds
+                  ? Math.round(data.duration_seconds)
+                  : undefined,
               },
             }));
           }
@@ -241,7 +259,7 @@ export function StoryboardPage() {
     setCompiling(true);
     setCompileError(null);
     try {
-      const audioFilename = trackMetadata[selected.name].filename;
+      const audioFilename = trackMetadata[selected.name]?.filename;
       const audioData = audioFilename
         ? await getHyperFramesAudioPayload(audioFilename).catch(() => undefined)
         : undefined;
@@ -264,7 +282,7 @@ export function StoryboardPage() {
     (storyboard: StoryboardFile) => {
       const params = new URLSearchParams();
       const meta = trackMetadata[storyboard.name];
-      if (meta.filename) params.set("track", meta.filename);
+      if (meta?.filename) params.set("track", meta.filename);
       params.set("storyboard", storyboard.name);
       void navigate(`/three-js-studio?${params.toString()}`);
     },
@@ -275,7 +293,7 @@ export function StoryboardPage() {
     (storyboard: StoryboardFile, sceneIdx: number) => {
       const params = new URLSearchParams();
       const meta = trackMetadata[storyboard.name];
-      if (meta.filename) params.set("track", meta.filename);
+      if (meta?.filename) params.set("track", meta.filename);
       params.set("storyboard", storyboard.name);
       params.set("scene", String(sceneIdx));
       params.set("autogenerate", "true");
@@ -599,6 +617,7 @@ export function StoryboardPage() {
           <StoryboardGrid
             storyboards={filtered}
             trackMetadata={trackMetadata}
+            libraryLoading={libraryLoading}
             query={query}
             onSearch={setQuery}
             onSelect={setSelected}
@@ -732,6 +751,7 @@ function TracksTab({
 function StoryboardGrid({
   storyboards,
   trackMetadata,
+  libraryLoading,
   query,
   onSearch,
   onSelect,
@@ -739,7 +759,8 @@ function StoryboardGrid({
   onGenerate,
 }: {
   storyboards: StoryboardFile[];
-  trackMetadata: Record<string, TrackMetadata>;
+  trackMetadata: Record<string, TrackMetadata | undefined>;
+  libraryLoading?: boolean;
   query: string;
   onSearch: (q: string) => void;
   onSelect: (s: StoryboardFile) => void;
@@ -760,6 +781,8 @@ function StoryboardGrid({
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {storyboards.map((s) => {
+          // Metadata only exists for storyboards whose track matched a
+          // library entry - unmatched boards have no key at all.
           const meta = trackMetadata[s.name];
           return (
             <div
@@ -789,19 +812,19 @@ function StoryboardGrid({
                 />
               </div>
               <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
-                {meta.bpm && (
+                {meta?.bpm && (
                   <span className="flex items-center gap-1">
                     <Zap size={10} className="text-amber-400" />
                     {meta.bpm} BPM
                   </span>
                 )}
-                {meta.duration && (
+                {meta?.duration && (
                   <span className="flex items-center gap-1">
                     <Clock size={10} />
                     {meta.duration}s
                   </span>
                 )}
-                {!meta.filename && (
+                {!meta?.filename && !libraryLoading && (
                   <span className="text-gray-600 italic">Track not in library</span>
                 )}
               </div>

@@ -724,3 +724,21 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** api/jobs.py, features/queue/QueueList.tsx.
 - **Acceptance:** 66 job-related backend tests pass; ruff/tsc/eslint clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-24 - Storyboards page crash fix
+- **Status:** done
+- **Goal:** /library/storyboards crashed with "Cannot read properties of
+  undefined (reading 'bpm')" and showed the error boundary.
+- **What changed:** `trackMetadata` only contains entries for storyboards
+  whose track matched a library entry; `StoryboardGrid` and three
+  callbacks dereferenced it unconditionally. All accesses now use `?.`,
+  the state type is honestly `Record<string, TrackMetadata | undefined>`,
+  and "Track not in library" is suppressed while the audio library is
+  still loading (`libraryLoading` prop). Track matching now also compares
+  alphanumeric-normalized names so "TakeTheCrown_v2.mp3" matches
+  "Take the Crown".
+- **Files:** features/storyboards/StoryboardPage.tsx.
+- **Verification:** Playwright - grid renders 2 boards, detail view
+  renders scene list, zero console/page errors. tsc + eslint clean
+  (3 pre-existing warnings).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
