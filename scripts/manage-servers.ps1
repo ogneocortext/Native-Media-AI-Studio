@@ -22,7 +22,7 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'update-comfyui')]
     [string]$Action,
 
-    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')]
+    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-studio', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')]
     [string[]]$Services = @('all'),
 
     [switch]$NoOrphanScan,
@@ -140,6 +140,18 @@ $ServiceConfig = @{
         # Python or Node, so we launch it via LocalCmd with no args.
         LocalCmd = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Atomic Chat\Atomic-Chat.exe'
         LocalArgs = @()
+    }
+    # go-studio (D70): one process hosting all five legacy loopback listeners
+    # (dashboard 3847, media 3848, worker 3849, gateway 3850, ports 3851).
+    # The five go-* entries below remain for status/stop of legacy binaries
+    # still running from before the consolidation.
+    'go-studio' = @{
+        Name = 'Go Studio'
+        Port = $Ports.dashboard_port
+        HealthPath = '/api/health'
+        WorkingDir = $ProjectRoot
+        LogFile = 'go-studio.log'
+        LocalCmd = Join-Path $ProjectRoot 'bin\go-studio.exe'
     }
     'go-dashboard' = @{
         Name = 'Go Dashboard'
@@ -468,7 +480,7 @@ function Start-StudioService {
 # Determine which services to manage
 # $Services is a string array: a single -Services all, a comma list, or
 # the array start-services.ps1 passes all bind correctly.
-$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')
+$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-studio', 'atomic-chat')
 $serviceList = if ($Services -contains 'all') { $allServices } else { $Services }
 
 # Only dispatch the action when invoked directly. When dot-sourced (e.g. by

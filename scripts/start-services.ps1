@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 
-$services = @('backend', 'frontend', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')
+$services = @('backend', 'frontend', 'go-studio', 'atomic-chat')
 if ($ComfyUI) { $services += 'comfyui' }
 if ($VideoEditor) { $services += 'video' }
 $services = $services | Select-Object -Unique

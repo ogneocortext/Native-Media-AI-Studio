@@ -565,3 +565,27 @@ Rules: `docs/plans/tasks/README.md`
   verified against importers via rg (write_sidecar x4, proxy_request
   unity x2, port_manager fast path, sseService canonical /api/events).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-17 - Consolidate five Go sidecars into one go-studio binary
+- **Status:** done
+- **Goal:** Merge the five loopback Go daemons into a single process that
+  keeps every legacy port/route so no caller migrates (D70).
+- **What changed:** new `tools/go-studio/` module - shared CORS/health/
+  version/graceful-shutdown helpers plus per-role muxes: dashboard (:3847
+  SSE publish/events), media (:3848 FFmpeg jobs), worker (:3849 sidecar
+  writes + jobs), gateway (:3850 bridge proxy), ports (:3851 check/scan).
+  All five listeners bind 127.0.0.1 (gateway/media previously bound all
+  interfaces - tightened to the loopback contract). `bin/go-studio.exe`
+  built; manage-servers.ps1 gains a `go-studio` service (legacy go-*
+  entries kept for status/stop of pre-consolidation binaries), and
+  start-services.ps1 launches it instead of five processes.
+- **Files:** tools/go-studio/{go.mod,main,shared,dashboard,media,
+  worker,gateway,ports}.go, main_test.go; scripts/{manage-servers,
+  start-services,check-ports}.ps1; bin/go-studio.exe; docs
+  (decision-log D70, ARCHITECTURE.md, SETUP_SUMMARY.md, tools/go/README).
+- **Acceptance:** `go test ./...` passes in tools/go-studio (ported
+  worker+media tests); go-studio.exe smoke-tested on offset ports - all
+  five listeners answered /api/health, /bridges listed 4 bridges,
+  /check/8000 reported in-use, sidecar write succeeded and traversal
+  rejected 400, /jobs returned [], /publish queued.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

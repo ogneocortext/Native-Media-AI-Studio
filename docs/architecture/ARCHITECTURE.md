@@ -137,11 +137,7 @@ _(None — all components now source media data from the library API)_
 - `uiStore` — Shared UI state (focus mode toggle)
 
 ### Go Sidecar Services
-- `go-dashboard` — SSE stream hub (`/events`) + health aggregation on `:3847`
-- `go-gateway` — MCP bridge proxy on `:3850`; routes Unity/Blender/ComfyUI/Ollama bridge calls through a single HTTP gateway
-- `go-worker` — Async sidecar I/O on `:3849`; writes JSON sidecars for generated outputs so Python job handlers stay non-blocking
-- `go-media` — FFmpeg post-processing worker on `:3848`
-- `go-ports` — Port availability checker on `:3851`
+- `go-studio` — consolidated sidecar binary (D70) hosting all five loopback listeners: `go-dashboard` SSE stream hub (`/events`) + health on `:3847`, `go-gateway` MCP bridge proxy on `:3850` (Unity bridge in use; Blender/ComfyUI/Ollama configured), `go-worker` async sidecar I/O on `:3849`, `go-media` FFmpeg worker on `:3848` (reserved — no callers yet), `go-ports` port checker on `:3851`. Ports and routes are unchanged; only the process boundary merged.
 
 ### Frontend UX (2026-09-08 polish)
 - `Sidebar.tsx` — Progressive disclosure: `Generate`/`System` collapsible (System default closed, auto-opens on active route), External demoted to footer link. `GoServicesCard` throttled 5s→15s.

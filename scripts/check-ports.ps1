@@ -19,7 +19,7 @@
 param(
     [string[]]$ProcessName = @(
         'node', 'npm', 'vite', 'uvicorn', 'python',
-        'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports'
+        'go-studio', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports'
     ),
     [switch]$All
 )

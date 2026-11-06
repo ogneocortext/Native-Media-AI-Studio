@@ -1918,3 +1918,37 @@
 
 
 
+
+### D70 - Go sidecars consolidated into one go-studio binary (2026-11-06)
+
+- **Status:** Decided
+- **Context:** Five tiny Go services (go-dashboard :3847, go-media :3848,
+  go-worker :3849, go-gateway :3850, go-ports :3851) each duplicated the
+  same CORS/health/version/graceful-shutdown boilerplate as separate
+  processes. An importer audit showed uneven usefulness: go-worker
+  sidecar writes and the go-gateway unity proxy are live, go-ports is an
+  optional accelerator, go-dashboard is a write-only SSE mirror nothing
+  reads, and go-media server mode has zero callers (go_media_client.py
+  was dead code; FFmpeg runs in-process).
+- **Decision:** New `tools/go-studio/` — one binary hosting all five
+  legacy listeners on their original ports and routes, so every caller
+  (go_*_client.py, ports.json URLs, port_manager, sse/handler.py
+  broadcasts, GoServicesCard) works unchanged. net/http ServeMux
+  replaces gin; per-listener port env vars preserved
+  (GO_DASHBOARD_PORT etc.). All listeners now bind 127.0.0.1
+  (gateway/media previously bound all interfaces — tightened to match
+  the loopback sidecar contract). manage-servers.ps1/start-services.ps1
+  launch `go-studio`; the five legacy service entries remain for
+  status/stop of pre-consolidation binaries. The old tools/go-*/ sources
+  stay in-tree as reference until go-studio proves out.
+- **Files:** `tools/go-studio/{main,shared,dashboard,media,worker,
+  gateway,ports}.go` (new), `tools/go-studio/main_test.go`,
+  `scripts/{manage-servers,start-services,check-ports}.ps1`,
+  `bin/go-studio.exe`.
+- **Consequences:** 5 processes -> 1, ~500 lines of duplicated
+  boilerplate -> shared helpers, one binary to build/ship. Port-level
+  contracts unchanged, so no Python/frontend migration was needed.
+  Follow-ups (not done): rebuild media jobs as a persistent queue
+  (claim/heartbeat/retry per industry pattern), decide whether
+  go-dashboard's write-only mirror and go-media's unused server mode
+  should be deleted outright.

@@ -15,6 +15,11 @@
 | Unity MCP Bridge | 7800 (REST) | `POST http://127.0.0.1:7800/api/exec {command:"editor_status"}` | `tools/mcp/unity-mcp-bridge.mjs` |
 | Blender MCP | 9876 (TCP) | Blender addon sidebar “Start MCP Server” | `uvx blender-mcp`, executable `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` |
 | Ollama | 11434 | `GET http://127.0.0.1:11434/api/tags` | `gemma4:e2b-it-qat`, `qwen3-vl:4b` |
+All five Go listeners are hosted by the single `go-studio` binary (D70);
+the rows below are its ports/routes, not separate processes.
+
+| listener | port | health probe | purpose |
+|---|---|---|---|
 | go-dashboard | 3847 | `GET http://127.0.0.1:3847/api/health` | SSE hub, frontend fallback for `/events` |
 | go-gateway | 3850 | `GET http://127.0.0.1:3850/api/health` | MCP bridge proxy (Unity via gateway, Blender raw socket) |
 | go-worker | 3849 | `GET http://127.0.0.1:3849/api/health` | Async sidecar writes for generated outputs |
