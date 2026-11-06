@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderBars, renderMirroredBars, type BarModeContext, type BarModeState } from "./canvas2dModes";
+import { renderBars, renderMirroredBars, renderStackedFrequencyBands, type BarModeContext, type BarModeState } from "./canvas2dModes";
 
 /**
  * Regression coverage for the T-VIZ-38 bar fixes:
@@ -218,5 +218,36 @@ describe("renderMirroredBars peak indicators (T-VIZ-38)", () => {
       if (bt !== undefined && ty < bt - 3) floating++;
     }
     expect(floating).toBeGreaterThan(0);
+  });
+});
+
+describe("renderStackedFrequencyBands layer sampling", () => {
+  it("samples distinct spectrum slices per layer instead of clamping to the top bin", () => {
+    // Energy only in the lowest FFT bins. With the old index-space bug every
+    // layer sampled the same clamped top bin, so all three segments drew the
+    // same (tiny) height. The fix must make the low layer tall and the high
+    // layer short.
+    const freq = new Uint8Array(1024);
+    freq.fill(10);
+    freq.fill(255, 0, 60);
+    const rec = makeRecorder();
+    renderStackedFrequencyBands(1, W, H, makeModeCtx(rec.ctx, freq), makeState());
+
+    // layer.color is the palette string, so heights are attributable per band.
+    const heights = new Map<string, number[]>(); // color -> segment heights
+    for (const c of rec.calls) {
+      if (c.kind !== "roundRect" || c.alpha !== 1 || typeof c.fill !== "string") continue;
+      const barIdx = Math.round((c.args[0] - 1) / (W / 48));
+      if (barIdx !== 10) continue; // one representative column
+      const arr = heights.get(c.fill) ?? [];
+      arr.push(c.args[3]);
+      heights.set(c.fill, arr);
+    }
+    const low = heights.get("#ff0044")?.[0];
+    const high = heights.get("#4488ff")?.[0];
+    expect(low).toBeDefined();
+    expect(high).toBeDefined();
+    if (low === undefined || high === undefined) return;
+    expect(low).toBeGreaterThan(high + 5);
   });
 });

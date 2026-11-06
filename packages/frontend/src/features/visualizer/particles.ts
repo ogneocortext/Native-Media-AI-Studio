@@ -8,7 +8,7 @@
  * Particles spawn from center on energy/beat, accelerate outward, and fade.
  * A center glow completes the mode.
  */
-import { damp, dampLambda, hslToRgb } from "./canvas2dHelpers";
+import { damp, dampLambda, hslToRgb, withAlpha } from "./canvas2dHelpers";
 
 export interface Particle {
   x: number;
@@ -121,13 +121,12 @@ export function updateAndDrawParticles(
     h / 2,
     Math.min(w, h) * 0.3,
   );
-  grd.addColorStop(
-    0,
-    colors[0] +
-      Math.floor(phraseFlash * 40 + bass * 60)
-        .toString(16)
-        .padStart(2, "0"),
-  );
+  // Alpha byte is clamped to a byte: phraseFlash/bass are nominally 0..1 but
+  // an out-of-range energy value must not emit a 3-char hex suffix.
+  const alphaByte = Math.floor(Math.min(255, Math.max(0, phraseFlash * 40 + bass * 60)))
+    .toString(16)
+    .padStart(2, "0");
+  grd.addColorStop(0, withAlpha(colors[0], alphaByte));
   grd.addColorStop(1, "transparent");
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, w, h);

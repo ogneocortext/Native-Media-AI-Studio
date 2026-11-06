@@ -21,6 +21,7 @@ import {
   normalizeHex,
   sampleMappedBand,
   valueNoise,
+  withAlpha,
   type PerceptualScale,
 } from "./canvas2dHelpers";
 import { CANVAS_2D_MODES } from "./visualizerHelpers";
@@ -763,5 +764,20 @@ describe("beatPhaseEnvelope (T-VIZ-19)", () => {
   it("snaps to 0 near the end of the interval instead of wrapping negative", () => {
     expect(beatPhaseEnvelope(0.9999)).toBe(0);
     expect(beatPhaseEnvelope(1.5)).toBe(0);
+  });
+});
+
+describe("withAlpha", () => {
+  it("appends alpha to #rrggbb unchanged", () => {
+    expect(withAlpha("#ff0044", "60")).toBe("#ff004460");
+  });
+
+  it("expands #rgb shorthand before appending alpha", () => {
+    expect(withAlpha("#abc", "80")).toBe("#aabbcc80");
+  });
+
+  it("falls back to the default background for non-hex colors", () => {
+    expect(withAlpha("red", "80")).toBe("#05050580");
+    expect(withAlpha(undefined, "80")).toBe("#05050580");
   });
 });

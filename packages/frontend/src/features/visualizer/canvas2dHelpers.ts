@@ -26,6 +26,19 @@ export function normalizeHex(hex: string): string {
   return "#050505"; // non-hex background: fall back to the default canvas bg
 }
 
+/**
+ * Append a two-digit hex alpha to any CSS color string.
+ *
+ * `color + "80"` only produces a valid color for `#rrggbb` inputs — a `#rgb`
+ * shorthand, named color, or `rgb()` string yields something like `#abc80` or
+ * `red80`, which the canvas silently rejects (the previous fillStyle stays).
+ * Routing through `normalizeHex` first guarantees a valid `#rrggbbaa`; an
+ * unparseable input falls back to the default canvas background.
+ */
+export function withAlpha(color: string | null | undefined, alpha: string): string {
+  return normalizeHex(color ?? "") + alpha;
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   const m = normalizeHex(hex).slice(1);
   return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];

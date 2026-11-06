@@ -773,3 +773,34 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   floats above the bar top after a spectral drop in both renderBars and
   renderMirroredBars, and that reflection tops stay inside the canvas).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-VIZ-39 - Fix stacked-frequency-bands index-space bug + invalid color-alpha strings
+- **Status:** done
+- **Goal:** Owner: "check where else math might be invalid and fix it."
+  Full audit of canvas2dHelpers/perceptualScales/particles/canvas2dModes
+  after the T-VIZ-38 fixes.
+- **What changed:**
+  - ``renderStackedFrequencyBands`` - third instance of the index-space
+    bug class: ``layer.start + i`` mixed a bin-space layer offset with a
+    bar index and fed it to ``freqMap`` (domain 0..barCount-1). Mapper
+    output clamped every sample to the top FFT bin, so low/mid/high
+    layers all drew identical heights. Now sweeps each layer's spectrum
+    fraction by column position (``p*barCount`` stays in domain) through
+    the perceptual mapper; beat-glow reuses the sampled top-layer value
+    instead of a second arbitrary bin index. Also guards ``step`` and
+    ``freqLen`` against 0.
+  - ``withAlpha()`` helper (canvas2dHelpers) - ``color + "80"`` only
+    yields a valid color for #rrggbb; #rgb shorthand, named, or rgb()
+    colors produced invalid fillStyles the canvas silently ignored.
+    All 21 ``color + "XX"`` concatenation sites across canvas2dModes,
+    Canvas2DVisualizer, and particles.ts now route through it.
+  - ``particles.ts`` center-glow alpha byte - ``phraseFlash*40 +
+    bass*60`` could exceed 255 and emit a 3-char hex suffix; now clamped
+    to a byte.
+- **Files:** canvas2dModes.ts, canvas2dHelpers.ts, particles.ts,
+  Canvas2DVisualizer.tsx, canvas2dModes.test.ts, canvas2dHelpers.test.ts
+- **Acceptance:** tsc -b --force clean; eslint 0 errors (2 pre-existing
+  warnings remain in canvas2dModes); 601 visualizer tests pass incl. new
+  regression tests: stacked-bands layers provably sample different
+  spectrum slices, withAlpha normalizes #rgb/non-hex/undefined inputs.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

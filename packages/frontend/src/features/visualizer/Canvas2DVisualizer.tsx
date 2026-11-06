@@ -29,6 +29,7 @@ import {
   easeOutQuad,
   lerpColor,
   normalizeHex,
+  withAlpha,
   type EnvelopeStage,
   type PerceptualScale,
 } from "./canvas2dHelpers";
@@ -526,7 +527,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           const gradients = cols.map((c) => {
             const grad = drawCtx.createLinearGradient(0, 0, 0, h);
             grad.addColorStop(0, c);
-            grad.addColorStop(1, cols[0] + "60");
+            grad.addColorStop(1, withAlpha(cols[0], "60"));
             return grad;
           });
           barGradientsCacheRef.current = { key, gradients };

@@ -20,6 +20,7 @@ import {
   hslToRgb,
   makeFreqMapper,
   sampleMappedBand,
+  withAlpha,
   type PerceptualScale,
 } from "./canvas2dHelpers";
 import { updateAndDrawParticles, type Particle } from "./particles";
@@ -491,7 +492,7 @@ export function renderStereoSplitBars(
   );
 
   for (const band of bands) {
-    modeCtx.ctx.fillStyle = band.color + "18";
+    modeCtx.ctx.fillStyle = withAlpha(band.color, "18");
     modeCtx.ctx.fillRect(0, baseY - 2 * dpr, w, 2 * dpr);
     for (let i = band.start; i < band.end; i++) {
       const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
@@ -537,7 +538,16 @@ export function renderStackedFrequencyBands(
   state: BarModeState,
 ): void {
   const barCount = 48;
-  const step = Math.floor((modeCtx.freq?.length ?? 1024) / barCount);
+  const freqLen = Math.max(1, modeCtx.freq?.length ?? 1024);
+  const step = Math.max(1, Math.floor(freqLen / barCount));
+  // Layer start/end are expressed in "step units" (~freqLen total). The old
+  // code fed `layer.start + i` — a bin-space offset plus a bar index — into
+  // freqMap as if it were a bar index (domain 0..barCount-1). Values of
+  // ~150-1000 produced mapper outputs far past the top bin, so every layer
+  // sampled the same clamped bin and the three bands drew identically.
+  // Instead, sweep each layer's spectrum fraction with the column position
+  // and let the perceptual mapper place it — p*barCount stays in domain.
+  const spectrumSpan = Math.max(1, step * barCount);
   const barW = w / barCount;
   const baseY = Math.round(h * 0.88);
   const layers = [
@@ -560,7 +570,6 @@ export function renderStackedFrequencyBands(
     state.barPeaks = new Array(barCount).fill(0);
   }
 
-  const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
     barCount,
@@ -575,11 +584,14 @@ export function renderStackedFrequencyBands(
     let layerY = baseY;
     let topY = baseY;
     let stackH = 0;
-    for (let li = 0; li < layers.length; li++) {
-      const layer = layers[li];
-      const idx = Math.min(layer.start + i, freqLen - 1);
-      const logIdx = Math.min(freqLen - 1, Math.floor(freqMap(idx)));
-      const v = (modeCtx.freq?.[logIdx] ?? 0) / 255;
+    const layerVs: number[] = [];
+    for (const layer of layers) {
+      const fracStart = layer.start / spectrumSpan;
+      const fracEnd = layer.end / spectrumSpan;
+      const p = fracStart + ((i + 0.5) / barCount) * (fracEnd - fracStart);
+      const binIdx = clamp(Math.floor(freqMap(p * barCount)), 0, freqLen - 1);
+      const v = (modeCtx.freq?.[binIdx] ?? 0) / 255;
+      layerVs.push(v);
       const boosted = boostedValue(v, modeCtx);
       // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
       const lh = boosted * h * 0.22 * modeCtx.energyMod;
@@ -602,11 +614,10 @@ export function renderStackedFrequencyBands(
     const peakY = Math.round(baseY - state.barPeaks[i]);
     modeCtx.ctx.fillStyle = "rgba(255,255,255,0.7)";
     modeCtx.ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
-    // Beat glow on top layer
+    // Beat glow on top layer — reuse the value already sampled for it.
     if (modeCtx.d.beat) {
       const topLayer = layers[layers.length - 1];
-      const idx = Math.min(topLayer.start + i, freqLen - 1);
-      const v = (modeCtx.freq?.[idx] ?? 0) / 255;
+      const v = layerVs[layerVs.length - 1] ?? 0;
       if (v > 0.35) {
         drawGlowSprite(
           modeCtx.ctx,
@@ -704,7 +715,7 @@ export function renderWaveform(
   if (!wave) return;
 
   // Depth grid behind waveform
-  ctx.strokeStyle = colors[0] + "18";
+  ctx.strokeStyle = withAlpha(colors[0], "18");
   ctx.lineWidth = dpr;
   const gridStep = Math.max(1, Math.floor(w / 12));
   for (let gx = 0; gx < w; gx += gridStep) {
@@ -788,9 +799,9 @@ export function renderWaveform(
   // Subtle gradient fill under the primary waveform for depth
   ctx.globalAlpha = 0.12 + energyMod * 0.08;
   const waveGrad = ctx.createLinearGradient(0, h / 2, 0, h);
-  waveGrad.addColorStop(0, colors[1] + "00");
-  waveGrad.addColorStop(0.5, colors[1] + "44");
-  waveGrad.addColorStop(1, colors[1] + "00");
+  waveGrad.addColorStop(0, withAlpha(colors[1], "00"));
+  waveGrad.addColorStop(0.5, withAlpha(colors[1], "44"));
+  waveGrad.addColorStop(1, withAlpha(colors[1], "00"));
   ctx.fillStyle = waveGrad;
   ctx.beginPath();
   for (let i = 0; i < state.smoothed.length; i++) {
@@ -806,7 +817,7 @@ export function renderWaveform(
   ctx.globalAlpha = 1;
 
   // Secondary harmonic faint line
-  ctx.strokeStyle = colors[2] + "88";
+  ctx.strokeStyle = withAlpha(colors[2], "88");
   ctx.lineWidth = 1.2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < wave.length; i += 2) {
@@ -892,8 +903,8 @@ export function renderRadial(
   const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + d.bass * 0.3);
   const glowR = coreR * 3;
   const grd = ctx.createRadialGradient(cx, cy, coreR * 0.2, cx, cy, glowR);
-  grd.addColorStop(0, colors[0] + "cc");
-  grd.addColorStop(0.4, colors[1] + "66");
+  grd.addColorStop(0, withAlpha(colors[0], "cc"));
+  grd.addColorStop(0.4, withAlpha(colors[1], "66"));
   grd.addColorStop(1, "transparent");
   ctx.fillStyle = grd;
   ctx.beginPath();
@@ -901,7 +912,7 @@ export function renderRadial(
   ctx.fill();
 
   // Secondary orbital ring
-  ctx.strokeStyle = colors[2] + "55";
+  ctx.strokeStyle = withAlpha(colors[2], "55");
   ctx.lineWidth = 1.5 * dpr;
   ctx.beginPath();
   ctx.arc(cx, cy, coreR * 1.8 + (d.energy ?? 0) * 8 * dpr, 0, Math.PI * 2);
@@ -971,7 +982,7 @@ export function renderSpectrogram(
   }
 
   // Axis labels (frequency Hz on Y, time on X)
-  ctx.fillStyle = colors[0] + "90";
+  ctx.fillStyle = withAlpha(colors[0], "90");
   ctx.font = `${10 * dpr}px monospace`;
   ctx.textAlign = "right";
   const nyquist = 22050; // assume 44.1kHz sample rate
@@ -1088,7 +1099,7 @@ export function renderConstellation(
   }
 
   // Draw connections — spatial partition to reduce O(n²) complexity
-  ctx.strokeStyle = colors[0] + "30";
+  ctx.strokeStyle = withAlpha(colors[0], "30");
   ctx.lineWidth = dpr;
   const maxPoints = points.length;
   const gridStep = 60 * dpr;
@@ -1198,8 +1209,8 @@ export function renderAurora(
 
   // Top vignette fade for cinematic aurora look
   const topGrd = ctx.createLinearGradient(0, 0, 0, h * 0.3);
-  topGrd.addColorStop(0, bg + "AA");
-  topGrd.addColorStop(1, bg + "00");
+  topGrd.addColorStop(0, withAlpha(bg, "AA"));
+  topGrd.addColorStop(1, withAlpha(bg, "00"));
   ctx.fillStyle = topGrd;
   ctx.fillRect(0, 0, w, h * 0.3);
 
@@ -1208,8 +1219,8 @@ export function renderAurora(
   const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + modeCtx.d.bass * 0.3);
   const glowR = coreR * 3;
   const grd = ctx.createRadialGradient(w / 2, h / 2, coreR * 0.2, w / 2, h / 2, glowR);
-  grd.addColorStop(0, colors[0] + "cc");
-  grd.addColorStop(0.4, colors[1] + "66");
+  grd.addColorStop(0, withAlpha(colors[0], "cc"));
+  grd.addColorStop(0.4, withAlpha(colors[1], "66"));
   grd.addColorStop(1, "transparent");
   ctx.fillStyle = grd;
   ctx.beginPath();
@@ -1217,7 +1228,7 @@ export function renderAurora(
   ctx.fill();
 
   // Secondary orbital ring
-  ctx.strokeStyle = colors[2] + "55";
+  ctx.strokeStyle = withAlpha(colors[2], "55");
   ctx.lineWidth = 1.5 * dpr;
   ctx.beginPath();
   ctx.arc(w / 2, h / 2, coreR * 1.8 + (modeCtx.d.energy ?? 0) * 8 * dpr, 0, Math.PI * 2);
@@ -1309,7 +1320,7 @@ export function renderKineticType(
   const groundY = h * 0.8;
   const bars = 48;
   const barW = w / bars;
-  ctx.fillStyle = colors[1] + "33";
+  ctx.fillStyle = withAlpha(colors[1], "33");
   if (freq) {
     const step = Math.max(1, Math.floor(freq.length / bars));
     for (let i = 0; i < bars; i++) {
@@ -1319,7 +1330,7 @@ export function renderKineticType(
       if (v > 0.5) ctx.fillRect(i * barW + 1, groundY - v, barW - 2, v);
     }
   }
-  ctx.fillStyle = colors[1] + "55";
+  ctx.fillStyle = withAlpha(colors[1], "55");
   ctx.fillRect(0, groundY, w, Math.max(1, dpr));
 
   const isHook =
@@ -1331,11 +1342,11 @@ export function renderKineticType(
     const label = (sectionName ?? "").toLowerCase();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = colors[0] + "aa";
+    ctx.fillStyle = withAlpha(colors[0], "aa");
     ctx.font = `600 ${Math.round(h * 0.045 * dpr)}px system-ui, sans-serif`;
     const card = label ? label.toUpperCase() : "INSTRUMENTAL";
     ctx.fillText(card, w / 2, h * 0.42);
-    ctx.fillStyle = colors[1] + "66";
+    ctx.fillStyle = withAlpha(colors[1], "66");
     ctx.font = `500 ${Math.round(h * 0.02 * dpr)}px system-ui, sans-serif`;
     ctx.fillText("— instrumental —", w / 2, h * 0.42 + h * 0.07 * dpr);
     return;
