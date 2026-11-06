@@ -755,6 +755,14 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
     entirely below the canvas bottom edge and clipped invisible.
     Now hangs below the bar baseline (``y + bh + 2*dpr``); dropped the
     now-unused ``h`` parameter.
+  - ``renderBars`` harmonic overlay - fed a raw FFT-bin index into
+    ``freqMap`` as if it were a bar index (``t`` ~ 8 pushed every
+    sample to the top bin, so the overlay was a flat shimmer, not
+    per-bar harmonics). Now samples ``freqMap(i) * 2``, one octave
+    above each bar's mapped bin.
+  - Removed dead ``barVelocities`` allocations in ``renderBars`` and
+    ``renderStackedFrequencyBands`` (allocated, never read or written;
+    only ``renderSegmentedLedBars`` uses the field).
 - **Files:** canvas2dModes.ts
 - **Acceptance:** tsc -b --force clean project-wide; eslint 0 errors on
   the file (3 pre-existing warnings elsewhere); 595 visualizer tests

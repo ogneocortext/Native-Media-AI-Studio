@@ -236,10 +236,6 @@ export function renderBars(
     state.smoothedBars = new Array(barCount).fill(0);
   }
 
-  if (state.barVelocities?.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
-  }
-
   const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
@@ -287,11 +283,15 @@ export function renderBars(
     }
   }
 
-  // Secondary harmonic overlay
+  // Secondary harmonic overlay — one octave above each bar's mapped bin.
+  // (The old code fed a raw bin index into freqMap as if it were a bar
+  // index; t ≈ 8 pushed every sample to the top FFT bin, so the overlay
+  // was a flat shimmer instead of per-bar harmonics.)
   modeCtx.ctx.globalAlpha = 0.22 + modeCtx.d.treble * 0.25;
   modeCtx.ctx.fillStyle = modeCtx.colors[2] || modeCtx.colors[1];
   for (let i = 0; i < barCount; i++) {
-    const v2 = sampleMappedBand(modeCtx.freq, freqMap, Math.min(freqLen - 1, Math.floor((i * 1.5) % freqLen))) / 255;
+    const idx = Math.min(freqLen - 1, Math.floor(freqMap(i) * 2));
+    const v2 = (modeCtx.freq?.[idx] ?? 0) / 255;
     if (v2 > 0.5) {
       const h2 = v2 * h * 0.18;
       modeCtx.ctx.fillRect(i * barW + barW * 0.35, h - h2 - 2 * dpr, barW * 0.3, h2);
@@ -558,9 +558,6 @@ export function renderStackedFrequencyBands(
 
   if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
-  }
-  if (state.barVelocities?.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
   }
 
   const freqLen = modeCtx.freq?.length ?? 1024;
