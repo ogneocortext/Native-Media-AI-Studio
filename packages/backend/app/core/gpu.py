@@ -31,6 +31,21 @@ class GpuTelemetryRow:
     processes: list[dict]
 
 
+# History rows only need the processes that actually reported a memory
+# figure. On Windows most enumerated processes come back permission-denied
+# with used_mb=None (~99.6% of stored entries measured 2026-11-06), so the
+# unfiltered list was ~3.7 KB/row of names that answer nothing the live
+# /api/health/gpu/processes endpoint doesn't already serve.
+_TELEMETRY_PROCESS_LIMIT = 12
+
+
+def _compact_processes(procs: list[dict] | None) -> list[dict]:
+    """Keep measured processes only, largest first, capped."""
+    measured = [p for p in procs or [] if p.get("used_mb") is not None]
+    measured.sort(key=lambda p: p.get("used_mb") or 0, reverse=True)
+    return measured[:_TELEMETRY_PROCESS_LIMIT]
+
+
 def log_gpu_telemetry(snapshot: dict, processes: list[dict] | None = None) -> int:
     """Persist a GPU snapshot for trending. Returns row id. No-op if unavailable."""
     if not snapshot.get("available"):
@@ -57,7 +72,7 @@ def log_gpu_telemetry(snapshot: dict, processes: list[dict] | None = None) -> in
                 snapshot.get("gpu_utilization"),
                 snapshot.get("memory_controller_utilization"),
                 snapshot.get("temperature_c"),
-                json.dumps(procs or []),
+                json.dumps(_compact_processes(procs)),
             ),
         )
         return cur.lastrowid or 0

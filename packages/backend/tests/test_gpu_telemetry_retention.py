@@ -197,3 +197,67 @@ def test_next_prune_time_is_in_the_future():
     from app.diagnostics.resources import GPU_PRUNE_INTERVAL_SECONDS, next_prune_time
 
     assert next_prune_time() >= GPU_PRUNE_INTERVAL_SECONDS - 5
+
+
+def test_log_gpu_telemetry_compacts_permission_denied_processes(tmp_path, monkeypatch):
+    """processes_json must not store used_mb=None permission stubs.
+
+    Measured 2026-11-06: 99.6% of stored process entries had used_mb=None
+    (~3.7 KB/row), making processes_json ~40 MB of a 68 MB database. Only
+    measured processes are kept, largest first, capped.
+    """
+    import json
+
+    database, db_file = _fresh_db(tmp_path, monkeypatch)
+
+    procs = [
+        {"pid": 1, "used_mb": None, "name": "denied-a", "kind": "compute"},
+        {"pid": 2, "used_mb": 500, "name": "big", "kind": "compute"},
+        {"pid": 3, "used_mb": None, "name": "denied-b", "kind": "compute"},
+        {"pid": 4, "used_mb": 9000, "name": "huge", "kind": "compute"},
+        {"pid": 5, "used_mb": 100, "name": "small", "kind": "compute"},
+    ]
+    row_id = database.log_gpu_telemetry(
+        {"available": True, "name": "GPU"}, processes=procs
+    )
+    assert row_id
+
+    conn = sqlite3.connect(db_file)
+    try:
+        stored = json.loads(
+            conn.execute(
+                "SELECT processes_json FROM gpu_telemetry WHERE id = ?", (row_id,)
+            ).fetchone()[0]
+        )
+    finally:
+        conn.close()
+
+    # Null-used_mb stubs dropped; survivors sorted by used_mb desc.
+    assert [p["pid"] for p in stored] == [4, 2, 5]
+
+
+def test_log_gpu_telemetry_caps_process_list(tmp_path, monkeypatch):
+    import json
+
+    database, db_file = _fresh_db(tmp_path, monkeypatch)
+
+    procs = [
+        {"pid": i, "used_mb": i * 10, "name": f"p{i}", "kind": "compute"}
+        for i in range(30)
+    ]
+    row_id = database.log_gpu_telemetry(
+        {"available": True, "name": "GPU"}, processes=procs
+    )
+
+    conn = sqlite3.connect(db_file)
+    try:
+        stored = json.loads(
+            conn.execute(
+                "SELECT processes_json FROM gpu_telemetry WHERE id = ?", (row_id,)
+            ).fetchone()[0]
+        )
+    finally:
+        conn.close()
+
+    assert len(stored) == 12
+    assert stored[0]["used_mb"] == 290  # largest first

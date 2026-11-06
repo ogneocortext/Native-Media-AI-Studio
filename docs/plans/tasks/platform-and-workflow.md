@@ -338,6 +338,37 @@ Rules: `docs/plans/tasks/README.md`
   the same `any`-typed three.js patterns, moved with the code),
   three-js-studio vitest 92/92 pass.
 
+### T-PLT-11 — Compact gpu_telemetry process payloads and purge test tables
+- **Status:** done
+- **Goal:** `studio.db` had grown to 68 MB. Audit found the dominant cost was
+  `gpu_telemetry.processes_json` (~40 MB): every 30 s snapshot stored the full
+  GPU process list, and 99.6% of entries were permission-denied stubs with
+  `used_mb=None` that no consumer reads (the frontend never passes
+  `include_processes`). Six scratch tables (`cp`, `keep`, `leak`, `filler`,
+  `dangling`, `test_persist`) leaked into the production DB from old test runs.
+- **What changed:**
+  - ``app/core/gpu.py`` — ``_compact_processes()`` filters to entries with a
+    measured ``used_mb``, sorts largest-first, caps at 12; applied in
+    ``log_gpu_telemetry`` before serializing. Write-path only, no schema change;
+    ``include_processes`` readers still get a list of process dicts.
+  - One-time live-DB compaction (scratch script, not committed): rewrote all
+    11,185 stored payloads, ran the 7-day retention delete (46 rows), and
+    VACUUMed. Junk tables dropped after verifying contents were synthetic
+    test fixtures. File went 68.2 MB -> 21.1 MB.
+  - Found while reclaiming: ``VACUUM`` cannot truncate the main file while the
+    backend holds ``mmap_size`` connections (Windows), so ``cleanup_old_gpu_
+    telemetry``'s vacuum silently leaves allocated slack. Reclamation requires
+    a backend stop; ``manage-servers.ps1 -Action stop/start -Services backend``
+    used for this pass. Future prunes still free pages logically — the file
+    reuses the slack — so this is a disk-cost caveat, not a correctness bug.
+- **Files:** packages/backend/app/core/gpu.py,
+  packages/backend/tests/test_gpu_telemetry_retention.py
+- **Acceptance:** ``test_gpu_telemetry_retention.py`` 9/9 pass (2 new:
+  null-``used_mb`` stubs dropped + ordering, 12-entry cap); live DB
+  ``integrity_check`` ok, 21.1 MB on disk; backend restarted and
+  ``/api/health`` returns 200.
+- **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
+
 ### T-PLT-XX - Consolidate duplicates and delete dead modules
 - **Status:** done
 - **Goal:** Streamline the codebase after the decomposition pass - remove
