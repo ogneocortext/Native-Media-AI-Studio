@@ -475,8 +475,6 @@ class RetrievalIndex:
         self, query: str, limit: int = TOP_K_CANDIDATES, model: str = EMBED_MODEL
     ) -> list[tuple[str, float]]:
         """Return [(chunk_id, cosine_similarity)] ranked by vector similarity."""
-        # Track which model was used for this query (for smart selection)
-        self._index_model = model
         q_emb = await embed_text(query, model=model, expected_dim=EMBED_DIM)
         if not q_emb:
             logger.warning(
@@ -539,15 +537,11 @@ class RetrievalIndex:
 
         # Check cache first
         if use_cache:
-            import hashlib
-
             norm_query = " ".join(query.lower().split())
             doc_hash = hashlib.sha1(
                 "||".join(f"{cid}|{text}" for cid, text in candidates).encode()
             ).hexdigest()[:16]
             cache_key = f"{hashlib.sha1(norm_query.encode()).hexdigest()[:16]}:{doc_hash}"
-            import time
-
             entry = _rerank_cache.get(cache_key)
             if entry is not None:
                 cached_results, expiry = entry
@@ -576,9 +570,6 @@ class RetrievalIndex:
 
             # Cache the results
             if use_cache:
-                import hashlib
-                import time
-
                 norm_query = " ".join(query.lower().split())
                 doc_hash = hashlib.sha1(
                     "||".join(f"{cid}|{text}" for cid, text in candidates).encode()
@@ -623,7 +614,7 @@ class RetrievalIndex:
                 candidate_texts.append("")
 
         embeddings = await embed_text_batch_concurrent(
-            candidate_texts, model=EMBED_MODEL
+            candidate_texts, model=self._index_model or EMBED_MODEL
         )
         emb_map: dict[str, list[float] | None] = dict(
             zip(candidate_texts, embeddings, strict=True)
