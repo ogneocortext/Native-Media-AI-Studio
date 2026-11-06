@@ -257,19 +257,38 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
             if not is_image_checkpoint(request.ckpt_name):
                 logger.warning(f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring")
                 params.pop("ckpt_name", None)
-        logger.debug("calling adapter.submit_only with params=%s", params)
-        # Submit the prompt and get the prompt_id immediately
-        prompt_id = await adapter.submit_only(params)
-        logger.debug("prompt_id=%s", prompt_id)
-        return {
-            "success": True,
-            "prompt_id": prompt_id,
-            "status": "started",
-            "message": f"Generation started. Poll /api/integrations/comfyui/progress/{prompt_id} for progress.",
-        }
+
+        # VRAM preflight: offload Ollama before ComfyUI generation to prevent OOM
+        # on 8 GB cards where both models can't be resident simultaneously.
+        from ..services.vram_manager import vram_manager
+        vram_result = await vram_manager.begin_3d_generation()
+        logger.debug("VRAM pre-ComfyUI generation: %s", vram_result)
+
+        try:
+            logger.debug("calling adapter.submit_only with params=%s", params)
+            # Submit the prompt and get the prompt_id immediately
+            prompt_id = await adapter.submit_only(params)
+            logger.debug("prompt_id=%s", prompt_id)
+            return {
+                "success": True,
+                "prompt_id": prompt_id,
+                "status": "started",
+                "message": f"Generation started. Poll /api/integrations/comfyui/progress/{prompt_id} for progress.",
+            }
+        finally:
+            # VRAM postflight: reload Ollama after ComfyUI generation
+            from ..services.vram_manager import vram_manager
+            vram_cleanup = await vram_manager.end_3d_generation()
+            logger.debug("VRAM post-ComfyUI generation: %s", vram_cleanup)
     except Exception as e:
         logger.debug("exception in generate_image: %s", e)
         logger.error("Generate endpoint error: %s", e, exc_info=True)
+        # Ensure Ollama is reloaded even on error
+        try:
+            from ..services.vram_manager import vram_manager
+            await vram_manager.end_3d_generation()
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -560,15 +579,32 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
         except Exception:
             pass
     try:
-        result = await adapter.generate(request.to_adapter_params())
-        return {
-            "success": True,
-            "output_path": result.get("video_path"),
-            "seed": result.get("seed"),
-            "prompt_id": result.get("prompt_id"),
-            "message": result.get("info", f"Video generated: {request.num_frames} frames @ {request.fps}fps"),
-        }
+        # VRAM preflight: offload Ollama before ComfyUI video generation
+        from ..services.vram_manager import vram_manager
+        vram_result = await vram_manager.begin_3d_generation()
+        logger.debug("VRAM pre-ComfyUI video generation: %s", vram_result)
+
+        try:
+            result = await adapter.generate(request.to_adapter_params())
+            return {
+                "success": True,
+                "output_path": result.get("video_path"),
+                "seed": result.get("seed"),
+                "prompt_id": result.get("prompt_id"),
+                "message": result.get("info", f"Video generated: {request.num_frames} frames @ {request.fps}fps"),
+            }
+        finally:
+            # VRAM postflight: reload Ollama after ComfyUI video generation
+            from ..services.vram_manager import vram_manager
+            vram_cleanup = await vram_manager.end_3d_generation()
+            logger.debug("VRAM post-ComfyUI video generation: %s", vram_cleanup)
     except Exception as e:
+        # Ensure Ollama is reloaded even on error
+        try:
+            from ..services.vram_manager import vram_manager
+            await vram_manager.end_3d_generation()
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
