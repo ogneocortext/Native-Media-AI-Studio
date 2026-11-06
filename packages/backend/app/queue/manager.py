@@ -448,7 +448,7 @@ class QueueManager:
         # Collect and evict under the lock so a concurrent update_job cannot
         # resurrect or mutate a job mid-expiry; DB deletes run after release
         # so slow SQLite I/O does not stall the queue.
-        expired_ids: list[str] = []
+        expired: dict[str, Job] = {}
         async with self._lock:
             for job in list(self._jobs.values()):
                 if job.status not in terminal_statuses:
@@ -457,20 +457,28 @@ class QueueManager:
                     continue
                 if job.completed_at > cutoff:
                     continue
-                expired_ids.append(job.id)
-            for job_id in expired_ids:
+                expired[job.id] = job
+            for job_id in expired:
                 self._jobs.pop(job_id, None)
                 self._last_progress_at.pop(job_id, None)
 
-        for job_id in expired_ids:
+        for job_id in expired:
             try:
                 await JobDatabaseManager.delete_job_async(job_id)
             except Exception as e:
                 logger.error("Failed to delete expired job %s from DB: %s", job_id, e)
 
-        if expired_ids:
-            logger.info("Expired %d terminal jobs older than %ds", len(expired_ids), ttl)
-        return len(expired_ids)
+        # Evicted jobs must be retracted from connected clients too, or the
+        # frontend keeps showing ghosts until the next manual refresh.
+        for job in expired.values():
+            try:
+                await self._broadcast_job_event("job.deleted", job)
+            except Exception as e:
+                logger.error("Failed to broadcast expiry for job %s: %s", job.id, e)
+
+        if expired:
+            logger.info("Expired %d terminal jobs older than %ds", len(expired), ttl)
+        return len(expired)
 
     # ------------------------------------------------------------------
     # Priority aging (starvation prevention)
@@ -898,13 +906,19 @@ class QueueManager:
 
             if status == JobStatus.COMPLETED:
                 self._completed_count += 1
+            expired_jobs: list[Job] = []
             if self._completed_count >= self._max_completed_cache:
-                await self._auto_cleanup_unlocked()
+                expired_jobs = await self._auto_cleanup_unlocked()
                 self._completed_count = 0
 
         # Notify subscribers outside the lock so a slow subscriber cannot
         # block other queue operations.
         await self._notify_subscribers(job)
+        for expired in expired_jobs:
+            try:
+                await self._broadcast_job_event("job.deleted", expired)
+            except Exception as e:
+                logger.error("Failed to broadcast auto-cleanup for job %s: %s", expired.id, e)
 
         # Broadcast event outside lock
         event = self._job_event_name(status, old_status, progress)
@@ -1049,15 +1063,23 @@ class QueueManager:
 
     async def clear_completed(self) -> int:
         """Remove all completed and cancelled jobs"""
+        doomed: list[Job] = []
         async with self._lock:
-            completed_ids = [j.id for j in self._jobs.values()
-                           if j.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)]
-            for job_id in completed_ids:
-                del self._jobs[job_id]
-                self._last_progress_at.pop(job_id, None)
+            doomed = [
+                j for j in self._jobs.values()
+                if j.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)
+            ]
+            for job in doomed:
+                del self._jobs[job.id]
+                self._last_progress_at.pop(job.id, None)
         # Also clear from database
         await JobDatabaseManager.clear_completed_async()
-        return len(completed_ids)
+        for job in doomed:
+            try:
+                await self._broadcast_job_event("job.deleted", job)
+            except Exception as e:
+                logger.error("Failed to broadcast clear for job %s: %s", job.id, e)
+        return len(doomed)
 
     async def clear_failed(self) -> int:
         """Remove all unsuccessful jobs (FAILED and dead-lettered).
@@ -1066,36 +1088,51 @@ class QueueManager:
         ``FAILED``, so this endpoint clears both ``FAILED`` and ``DEAD``.
         ``clear_dead`` remains available for the DLQ-only view.
         """
+        doomed: list[Job] = []
         async with self._lock:
             doomed = [
-                j.id
-                for j in self._jobs.values()
+                j for j in self._jobs.values()
                 if j.status in _UNSUCCESSFUL_STATUSES
             ]
-            for job_id in doomed:
-                del self._jobs[job_id]
-                self._last_progress_at.pop(job_id, None)
+            for job in doomed:
+                del self._jobs[job.id]
+                self._last_progress_at.pop(job.id, None)
             count = 0
             for status in _UNSUCCESSFUL_STATUSES:
                 count += await JobDatabaseManager.clear_status_async(status)
-            return len(doomed)
+        for job in doomed:
+            try:
+                await self._broadcast_job_event("job.deleted", job)
+            except Exception as e:
+                logger.error("Failed to broadcast clear for job %s: %s", job.id, e)
+        return len(doomed)
 
     async def clear_dead(self) -> int:
         """Remove all dead-lettered jobs"""
+        doomed: list[Job] = []
         async with self._lock:
-            dead_ids = [j.id for j in self._jobs.values()
-                       if j.status == JobStatus.DEAD]
-            for job_id in dead_ids:
-                del self._jobs[job_id]
-                self._last_progress_at.pop(job_id, None)
+            doomed = [
+                j for j in self._jobs.values()
+                if j.status == JobStatus.DEAD
+            ]
+            for job in doomed:
+                del self._jobs[job.id]
+                self._last_progress_at.pop(job.id, None)
         # Also clear from database
         await JobDatabaseManager.clear_status_async(JobStatus.DEAD)
-        return len(dead_ids)
+        for job in doomed:
+            try:
+                await self._broadcast_job_event("job.deleted", job)
+            except Exception as e:
+                logger.error("Failed to broadcast clear for job %s: %s", job.id, e)
+        return len(doomed)
 
-    async def _auto_cleanup_unlocked(self) -> int:
+    async def _auto_cleanup_unlocked(self) -> list[Job]:
         """Auto-cleanup old terminal jobs (must be called under lock).
-        Keeps the most recent completed jobs and removes older ones to prevent
-        unbounded memory growth. Returns the number of jobs removed.
+
+        Keeps the most recent half of terminal jobs once the cache exceeds
+        ``_max_completed_cache``. Returns the evicted Job objects so the
+        caller can retract them from clients after releasing the lock.
         """
         terminal_statuses = {
             JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD
@@ -1108,14 +1145,14 @@ class QueueManager:
         terminal_jobs.sort(key=lambda j: j.completed_at)
 
         to_remove = terminal_jobs[:max(0, len(terminal_jobs) // 2)]
-        removed = 0
         # Capture ids first, then release lock pressure by deleting from DB in batch
         ids_to_delete = [j.id for j in to_remove]
+        evicted = []
         for job in to_remove:
             if job.id in self._jobs:
                 del self._jobs[job.id]
                 self._last_progress_at.pop(job.id, None)
-                removed += 1
+                evicted.append(job)
 
         if ids_to_delete:
             try:
@@ -1123,9 +1160,9 @@ class QueueManager:
             except Exception as e:
                 logger.error("Batch delete during auto-cleanup failed: %s", e)
 
-        if removed:
-            logger.info("Auto-cleanup removed %d old terminal jobs", removed)
-        return removed
+        if evicted:
+            logger.info("Auto-cleanup removed %d old terminal jobs", len(evicted))
+        return evicted
 
 
 # Global queue instance

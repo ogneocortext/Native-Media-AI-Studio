@@ -669,7 +669,15 @@ Rules: `docs/plans/tasks/README.md`
   - The expiry method mutated `self._jobs` without `self._lock`; now
     collects+evicts under the lock and deletes from SQLite after
     release so slow DB I/O cannot stall the queue.
-  - `cancel_job`, `delete_job`, and `retry_job` had no log lines at all -
+  - Slow-query logging in `db_manager._timed_execute` dumped bound `params`
+  verbatim - job payloads can carry prompts and file paths. Now logs
+  param count + type/length shape only.
+- TTL expiry, `clear_completed`/`clear_failed`/`clear_dead`, and
+  `_auto_cleanup_unlocked` removed jobs with no SSE notification, so
+  connected frontends kept ghost entries until manual refresh. All four
+  paths now broadcast `job.deleted` per evicted job (auto-cleanup
+  collects evictions under the lock and broadcasts after release).
+- `cancel_job`, `delete_job`, and `retry_job` had no log lines at all -
     `rg <job-id>` could not trace a cancellation, deletion, or manual
     retry. All three now log id/type/status (or attempt count for retry).
 - **Files:** queue/manager.py, queue/processor.py,

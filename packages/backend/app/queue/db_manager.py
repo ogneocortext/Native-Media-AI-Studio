@@ -56,9 +56,15 @@ class JobDatabaseManager:
         finally:
             elapsed = time.monotonic() - start
             if elapsed > SLOW_QUERY_THRESHOLD_SECONDS:
+                # Params can carry job payloads (prompts, file paths) - log
+                # shape only, never values.
+                shape = ",".join(
+                    f"{type(p).__name__}:{len(p) if isinstance(p, (str, bytes)) else '-'}"
+                    for p in params
+                )
                 logger.warning(
-                    "Slow DB query (%.3fs): %s ... %s",
-                    elapsed, label or sql[:80], params,
+                    "Slow DB query (%.3fs): %s ... params(%d) [%s]",
+                    elapsed, label or sql[:80], len(params), shape,
                 )
 
     @staticmethod
