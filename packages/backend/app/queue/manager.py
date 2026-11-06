@@ -1,6 +1,7 @@
 """Job queue manager with serial execution support."""
 import asyncio
 import logging
+import os
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
@@ -45,9 +46,9 @@ _LEASE_WINDOW_BY_TYPE: dict = {
 }
 
 #: Job TTL: terminal jobs older than this many seconds are expired from memory
-#: (and the DB) to prevent unbounded growth. Set via ``queue_ttl_seconds`` in
-#: config, default 7 days.
-JOB_TTL_SECONDS = 604800
+#: (and the DB) to prevent unbounded growth. Defaults to 7 days; override with
+#: the NMA_QUEUE_TTL_SECONDS environment variable.
+JOB_TTL_SECONDS = int(os.environ.get("NMA_QUEUE_TTL_SECONDS", "604800"))
 
 #: Priority aging: jobs waiting in QUEUED longer than this many seconds get
 #: their effective priority boosted by 1, up to MAX_AGED_PRIORITY_BOOST, to
@@ -444,24 +445,28 @@ class QueueManager:
         terminal_statuses = {
             JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD
         }
+        # Collect and evict under the lock so a concurrent update_job cannot
+        # resurrect or mutate a job mid-expiry; DB deletes run after release
+        # so slow SQLite I/O does not stall the queue.
         expired_ids: list[str] = []
-        for job in list(self._jobs.values()):
-            if job.status not in terminal_statuses:
-                continue
-            if job.completed_at is None:
-                continue
-            if job.completed_at > cutoff:
-                continue
-            expired_ids.append(job.id)
+        async with self._lock:
+            for job in list(self._jobs.values()):
+                if job.status not in terminal_statuses:
+                    continue
+                if job.completed_at is None:
+                    continue
+                if job.completed_at > cutoff:
+                    continue
+                expired_ids.append(job.id)
+            for job_id in expired_ids:
+                self._jobs.pop(job_id, None)
+                self._last_progress_at.pop(job_id, None)
 
         for job_id in expired_ids:
-            job = self._jobs.pop(job_id, None)
-            if job:
-                self._last_progress_at.pop(job_id, None)
-                try:
-                    await JobDatabaseManager.delete_job_async(job_id)
-                except Exception as e:
-                    logger.error("Failed to delete expired job %s from DB: %s", job_id, e)
+            try:
+                await JobDatabaseManager.delete_job_async(job_id)
+            except Exception as e:
+                logger.error("Failed to delete expired job %s from DB: %s", job_id, e)
 
         if expired_ids:
             logger.info("Expired %d terminal jobs older than %ds", len(expired_ids), ttl)
@@ -923,6 +928,7 @@ class QueueManager:
             ):
                 return False
 
+            old_status = job.status
             job.status = JobStatus.CANCELLED
             job.completed_at = datetime.now()
             self._last_progress_at.pop(job_id, None)
@@ -933,6 +939,10 @@ class QueueManager:
                 completed_at=job.completed_at
             )
             await self._notify_subscribers(job)
+            logger.info(
+                "Job cancelled id=%s type=%s was=%s",
+                job_id, job.job_type, old_status,
+            )
 
         await self._broadcast_job_event("job.cancelled", job)
         return True
@@ -995,6 +1005,10 @@ class QueueManager:
             job.progress = 0.0
             job.message = ""
             self._last_progress_at.pop(job_id, None)
+            logger.info(
+                "Job retry queued id=%s type=%s attempt=%d/%d manual=%s",
+                job_id, job.job_type, job.retry_count, job.max_retries, manual,
+            )
             # Persist to SQLite
             await JobDatabaseManager.update_job_async(
                 job_id,
@@ -1022,6 +1036,10 @@ class QueueManager:
                 await JobDatabaseManager.delete_job_async(job_id)
         if job is None:
             return False
+        logger.info(
+            "Job deleted id=%s type=%s status=%s",
+            job_id, job.job_type, job.status,
+        )
         # Tell subscribers and SSE clients the job is gone - without this a
         # deleted job lingered in every connected client's store until the
         # next unrelated event or a manual refresh.

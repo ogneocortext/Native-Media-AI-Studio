@@ -43,6 +43,10 @@ HANDLER_TIMEOUT_SECONDS = 300
 STALE_JOB_MAX_AGE_SECONDS = 900
 STALE_JOB_REAP_INTERVAL_SECONDS = 60
 
+# How often the loop sweeps terminal jobs past their TTL. Hourly is plenty -
+# the sweep is a cheap in-memory scan and expiry is measured in days.
+JOB_TTL_SWEEP_INTERVAL_SECONDS = 3600
+
 # How often (in seconds) to poll for cancellation while a handler runs.
 CANCELLATION_HEARTBEAT_INTERVAL = 2.0
 
@@ -325,12 +329,12 @@ class JobProcessor:
         restart. Without this the queue only self-heals on a clean deploy.
         """
         last_reap = 0.0
+        last_ttl_sweep = 0.0
         while self._running:
             try:
-                now = time.monotonic()
-                if now - last_reap >= STALE_JOB_REAP_INTERVAL_SECONDS:
-                    last_reap = now
-                    await self._reap_stranded_jobs()
+                last_reap, last_ttl_sweep = await self._periodic_maintenance(
+                    last_reap, last_ttl_sweep
+                )
 
                 # Find next queued job (priority DESC, created_at ASC)
                 queued_jobs = await queue_manager.get_jobs_by_status(JobStatus.QUEUED)
@@ -345,6 +349,26 @@ class JobProcessor:
             except Exception as e:
                 logger.error("Error in process loop: %s", e)
                 await asyncio.sleep(1)
+
+    async def _periodic_maintenance(
+        self, last_reap: float, last_ttl_sweep: float
+    ) -> tuple[float, float]:
+        """Run the interval-gated sweeps (stale-job reaper, job TTL expiry).
+
+        Returns the updated (last_reap, last_ttl_sweep) timestamps so the
+        caller can carry them across loop iterations.
+        """
+        now = time.monotonic()
+        if now - last_reap >= STALE_JOB_REAP_INTERVAL_SECONDS:
+            last_reap = now
+            await self._reap_stranded_jobs()
+        if now - last_ttl_sweep >= JOB_TTL_SWEEP_INTERVAL_SECONDS:
+            last_ttl_sweep = now
+            try:
+                await queue_manager.expire_old_terminal_jobs()
+            except Exception as e:
+                logger.error("Job TTL sweep failed: %s", e)
+        return last_reap, last_ttl_sweep
 
     async def _backoff_sleep(
         self, retry_count: int, base_seconds: float = 2.0, max_seconds: float = 60.0

@@ -655,3 +655,25 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** 54 queue tests pass; ruff clean; tsc -b clean; live
   /api/jobs/stats shows terminal_jobs == total_jobs == 104.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-21 - Job TTL sweep wiring + lifecycle logging gaps
+- **Status:** done
+- **Goal:** Fix issues found auditing how jobs are logged and managed.
+- **What changed:**
+  - `expire_old_terminal_jobs` was dead code - defined but never called,
+    and its docstring referenced a `queue_ttl_seconds` config that does
+    not exist. Now wired into `JobProcessor._process_loop` on an hourly
+    cadence (JOB_TTL_SWEEP_INTERVAL_SECONDS, first sweep at startup) and
+    the TTL is actually configurable via `NMA_QUEUE_TTL_SECONDS`
+    (default 7 days).
+  - The expiry method mutated `self._jobs` without `self._lock`; now
+    collects+evicts under the lock and deletes from SQLite after
+    release so slow DB I/O cannot stall the queue.
+  - `cancel_job`, `delete_job`, and `retry_job` had no log lines at all -
+    `rg <job-id>` could not trace a cancellation, deletion, or manual
+    retry. All three now log id/type/status (or attempt count for retry).
+- **Files:** queue/manager.py, queue/processor.py,
+  tests/test_queue_lifecycle_events.py (new TestTtlExpiry).
+- **Acceptance:** 55 queue tests pass incl. new TTL expiry test;
+  ruff clean.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

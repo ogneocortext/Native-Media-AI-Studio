@@ -170,3 +170,42 @@ class TestProcessingRate:
         metrics = await m.get_metrics()
         # One completion inside the 60 s window -> 1 job/min, not 0.02.
         assert metrics["processing_rate_per_min"] == 1.0
+
+
+class TestTtlExpiry:
+    @pytest.mark.asyncio
+    async def test_expire_old_terminal_jobs_removes_only_old_terminal(self):
+        now = datetime.now()
+        old_done = _job(
+            "old",
+            JobStatus.COMPLETED,
+            created_at=now - timedelta(days=8),
+            completed_at=now - timedelta(days=8),
+        )
+        new_done = _job(
+            "new",
+            JobStatus.COMPLETED,
+            created_at=now - timedelta(hours=1),
+            completed_at=now - timedelta(hours=1),
+        )
+        old_active = _job(
+            "act",
+            JobStatus.QUEUED,
+            created_at=now - timedelta(days=30),
+        )
+        old_no_completed = _job(
+            "nc",
+            JobStatus.DEAD,
+            created_at=now - timedelta(days=30),
+            completed_at=None,
+        )
+        m = _manager([old_done, new_done, old_active, old_no_completed])
+
+        removed = await m.expire_old_terminal_jobs(ttl_seconds=604800)
+
+        assert removed == 1
+        assert "old" not in m._jobs
+        assert "new" in m._jobs
+        assert "act" in m._jobs
+        # DEAD with no completed_at is kept - there is no timestamp to age it by.
+        assert "nc" in m._jobs
