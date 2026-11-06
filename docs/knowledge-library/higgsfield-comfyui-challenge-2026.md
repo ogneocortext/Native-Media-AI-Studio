@@ -121,6 +121,45 @@ None of the following appeared anywhere in `docs/` before this article:
    (project skills, executor agents); Cinetic Film is evidence the
    pattern is how editing tools now ship.
 
+## The project gap — checked against the code (2026-11-06)
+
+The doc gaps above were only half the question; the owner asked which
+pieces are missing from the *project*. Code survey (2026-11-06, Orion):
+`grep` across `packages/` for inpaint, depth estimation, relighting,
+motion transfer, and video segmentation returns **nothing in code** —
+and the pattern those absences form is the finding. This studio
+generates video well and has **no transformation layer for footage
+that already exists**: every pipeline (T2V, I2V via
+`music_video_handler` and the adapter builders) starts from text or an
+image.
+
+- **Present:** T2V/I2V generation; lip sync (`services/lipsync` — a
+  Freefield headline item, already built here); agent control of
+  ComfyUI over MCP (OpenField's headline, already this repo's pattern);
+  beat-sync editing; 3D scene blocking (three-js-studio, T-VID-05).
+- **Partial:** camera direction — 8 moves exist
+  (`models/generation.py:162`) but as prompt-text suffixes in the
+  adapter, duplicated in two places, with no lens/lighting/look layer
+  (Backlot's rigs are workflow data). Agent-as-editor — agents, skills,
+  and Remotion exist, but no reference-video → recreated-edit workflow
+  (Katana's shape); `reference_match.py` is audio mastering, not video.
+- **Missing entirely:** video-to-video input of any kind; character/
+  object swap (Openjutsu); first-frame paint → propagation (Paint a
+  Plate); depth-based re-shoot (ReAngle); relighting; motion transfer;
+  an infinite-canvas surface for generations (33 frontend features,
+  none is a canvas — lowest value of the set for this pipeline).
+
+Registered at the owner's request (2026-11-06), all gated design-first
+items in `docs/plans/tasks/video-pipeline-and-storyboard.md`:
+**T-VID-07** the V2V route design (the foundation the next three stand
+on), **T-VID-08** swap spec, **T-VID-09** paint→propagate spec,
+**T-VID-10** re-shoot spec, **T-VID-11** camera-rig preset registry
+design. Relighting, motion transfer, and the canvas were deliberately
+*not* registered — no owner need stated; they can be added if that
+changes. All five sit downstream of T-VID-02 and the storyboard
+critical path; registering them changes no priorities and lifts no
+holds.
+
 ## Caveats
 
 - The video's own closing assessment: the recreations are not perfect —
