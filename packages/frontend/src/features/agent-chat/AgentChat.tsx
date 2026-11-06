@@ -4,7 +4,7 @@
  * Uses ollamaChatStream + parseOllamaStream for true streaming:
  * 1. Discover skills from the backend /api/mcp/skills/list endpoint
  * 2. Convert skills into Ollama tool definitions
- * 3. Stream ollamaChat with the user's message + tools (backend handles tool execution loop)
+ * 3. Stream ollamaChat with the user's message + tools (backend handles tool execution)
  * 4. Display content, tool calls, and tool results in real-time as they arrive
  * 5. Render image/video tool results inline
  *
@@ -16,15 +16,15 @@ import {
   Send,
   Loader2,
   Bot,
-  Wrench,
   Activity,
   Video as VideoIcon,
-  StopCircle,
   CheckCircle,
   AlertCircle,
   Clock,
   ChevronDown,
   ChevronRight,
+  Download,
+  Pause,
 } from "lucide-react";
 import { Card } from "../../components/common";
 import {
@@ -43,6 +43,16 @@ import { getOutputUrl } from "../../utils/url";
 
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg"];
 const VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi", ".mkv"];
+
+// Human-friendly labels for skills
+const SKILL_LABELS: Record<string, string> = {
+  comfyui: "Image Generation",
+  blender: "3D Rendering",
+  audio: "Audio Analysis",
+  vision: "Visual Analysis",
+  remix: "Remix / Mashup",
+  context: "Context Search",
+};
 
 function isImagePath(path: string): boolean {
   const ext = path.toLowerCase().slice(path.lastIndexOf("."));
@@ -68,6 +78,10 @@ function extractMediaPaths(obj: unknown): string[] {
   return paths;
 }
 
+function skillDisplayName(skillName: string): string {
+  return SKILL_LABELS[skillName] || skillName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 interface AgentMessage {
   id: string;
   type: "user" | "assistant" | "tool_call" | "tool_result" | "thought" | "error" | "final";
@@ -75,9 +89,10 @@ interface AgentMessage {
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolResult?: ExecuteToolResponse;
-  mediaUrls?: string[]; // Inline image/video URLs to render
+  mediaUrls?: string[];
   timestamp: Date;
   expanded?: boolean;
+  retryCount?: number;
 }
 
 export function AgentChat() {
@@ -87,6 +102,7 @@ export function AgentChat() {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [skillsLoaded, setSkillsLoaded] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [agentInfoExpanded, setAgentInfoExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -149,6 +165,32 @@ export function AgentChat() {
 
   const formatTimestamp = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const handleRetry = (msgId: string) => {
+    // Find the tool call message and re-trigger it
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg || !msg.toolName) return;
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId
+          ? {
+              ...m,
+              retryCount: (m.retryCount ?? 0) + 1,
+              content: `Re-calling \`${skillDisplayName(m.toolName || "")}\`...`,
+            }
+          : m,
+      ),
+    );
+
+    // Re-run the agent loop for this specific tool call
+    // For simplicity, we re-submit the original user message
+    const lastUserMsg = [...messages].reverse().find((m) => m.type === "user");
+    if (lastUserMsg) {
+      setInput(lastUserMsg.content);
+      // Don't submit here - let user press send, or auto-submit
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -237,7 +279,6 @@ export function AgentChat() {
 
         switch (event.type) {
           case "connected":
-            // Stream connected, no UI change needed
             break;
 
           case "content": {
@@ -278,22 +319,21 @@ export function AgentChat() {
 
               addMessage({
                 type: "tool_call",
-                content: `Calling \`${tc.name}\`...`,
+                content: `Using \`${skillDisplayName(tc.name)}\`...`,
                 toolName: tc.name,
                 toolArgs: tc.arguments as Record<string, unknown>,
               });
             }
             break;
           }
+
           case "tool_result": {
             const raw =
               typeof event.data === "string"
                 ? JSON.parse(event.data)
                 : event.data;
-            // Backend sends {"name": "...", "result": {...}} for tool results
             const toolName = (raw as any).name || (raw as any).tool_name || "unknown";
             const resultData = (raw as any).result;
-            // result may be an ExecuteToolResponse {success, error, result} or raw data
             const execResult: ExecuteToolResponse =
               resultData && typeof resultData === "object" && "success" in resultData
                 ? (resultData as ExecuteToolResponse)
@@ -310,8 +350,8 @@ export function AgentChat() {
               updateLastMessage({
                 type: "tool_result",
                 content: success
-                  ? `Tool \`${toolName}\` completed.`
-                  : `Tool \`${toolName}\` failed: ${error || "Unknown error"}`,
+                  ? `Generated with \`${skillDisplayName(toolName)}\``
+                  : `Tool \`${skillDisplayName(toolName)}\` failed: ${error || "Unknown error"}`,
                 toolName,
                 toolResult: {
                   success,
@@ -325,8 +365,8 @@ export function AgentChat() {
               addMessage({
                 type: "tool_result",
                 content: success
-                  ? `Tool \`${toolName}\` completed.`
-                  : `Tool \`${toolName}\` failed: ${error || "Unknown error"}`,
+                  ? `Generated with \`${skillDisplayName(toolName)}\``
+                  : `Tool \`${skillDisplayName(toolName)}\` failed: ${error || "Unknown error"}`,
                 toolName,
                 toolResult: {
                   success,
@@ -338,8 +378,8 @@ export function AgentChat() {
             }
             break;
           }
+
           case "done": {
-            // Stream complete
             break;
           }
 
@@ -406,6 +446,29 @@ export function AgentChat() {
           )}
         </div>
 
+        {/* Agent Context Panel (collapsible) */}
+        <div className="p-3 border-b bg-muted/30">
+          <button
+            onClick={() => setAgentInfoExpanded(!agentInfoExpanded)}
+            className="flex items-center gap-2 w-full text-xs text-muted hover:text-primary transition-colors"
+          >
+            {agentInfoExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            <span>About this agent</span>
+          </button>
+          {agentInfoExpanded && (
+            <div className="mt-2 p-2 bg-background/50 rounded text-xs text-muted/80 space-y-1">
+              <p>
+                The agent uses Ollama with tool-calling to discover skills, execute tools,
+                and iterate until your task is complete.
+              </p>
+              <p>
+                Images and videos generated by tools appear inline below each result.
+                Use the download button to save media files.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Messages */}
         <div
           ref={messagesEndRef}
@@ -449,8 +512,8 @@ export function AgentChat() {
                       {isAssistant && <span className="text-primary">Assistant</span>}
                       {isToolCall && (
                         <>
-                          <Wrench className="w-3 h-3" />
-                          <span className="text-purple-400">{msg.toolName}</span>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span className="text-purple-400">{skillDisplayName(msg.toolName || "")}</span>
                         </>
                       )}
                       {isToolResult && (
@@ -461,7 +524,7 @@ export function AgentChat() {
                             <AlertCircle className="w-3 h-3 text-destructive" />
                           ))}
                           <span className={`text-xs ${msg.toolResult?.success ? "text-emerald-400" : "text-destructive"}`}>
-                            {msg.toolName}
+                            {skillDisplayName(msg.toolName || "")}
                           </span>
                         </>
                       )}
@@ -499,7 +562,7 @@ export function AgentChat() {
                   {/* Message content */}
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
 
-                  {/* Tool result details */}
+                  {/* Tool result details + retry */}
                   {isToolResult && msg.toolResult && (
                     <div className="mt-2 pt-2 border-t border-muted/30">
                       <div className="flex items-center gap-2 mb-1 text-xs">
@@ -510,6 +573,15 @@ export function AgentChat() {
                         )}
                         {msg.toolResult.error && (
                           <span className="text-muted/70">· {msg.toolResult.error}</span>
+                        )}
+                        {!msg.toolResult.success && (
+                          <button
+                            onClick={() => handleRetry(msg.id)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" />
+                            Retry
+                          </button>
                         )}
                       </div>
                       {msg.toolResult.result != null && Boolean(msg.toolResult.result) && (
@@ -535,14 +607,20 @@ export function AgentChat() {
                   {msg.mediaUrls && msg.mediaUrls.length > 0 && (
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {msg.mediaUrls.map((url, idx) => (
-                        <div key={idx} className="rounded-lg overflow-hidden border border-muted/30 bg-background">
+                        <div key={idx} className="rounded-lg overflow-hidden border border-muted/30 bg-background group">
                           {isImagePath(url) ? (
-                            <img
-                              src={url}
-                              alt="Generated image"
-                              className="w-full h-48 object-cover"
-                              loading="lazy"
-                            />
+                            <>
+                              <img
+                                src={url}
+                                alt="Generated image"
+                                className="w-full h-48 object-cover group-hover:scale-105 transition-transform"
+                                loading="lazy"
+                              />
+                              <div className="absolute bottom-1 right-1 bg-black/60 px-2 py-1 rounded text-xs text-white">
+                                <Download className="w-3 h-3 mr-1" />
+                                Download
+                              </div>
+                            </>
                           ) : (
                             <div className="aspect-video bg-muted flex items-center justify-center p-2">
                               <video
@@ -576,6 +654,7 @@ export function AgentChat() {
                   onClick={handleCancel}
                   className="ml-4 text-xs text-destructive hover:text-destructive/80 underline"
                 >
+                  <Pause className="w-3 h-3 mr-1" />
                   Cancel
                 </button>
               </Card>
@@ -600,7 +679,7 @@ export function AgentChat() {
                 onClick={handleCancel}
                 className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
               >
-                <StopCircle className="w-4 h-4" />
+                <Pause className="w-4 h-4" />
               </button>
             ) : (
               <button
