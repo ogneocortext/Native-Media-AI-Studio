@@ -729,6 +729,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 from .api import (  # noqa: E402
+    ai,
+    animationstudio,
     audio,
     audio_edit,
     audio_mastering,
@@ -756,11 +758,13 @@ from .api import (  # noqa: E402
     notifications,
     outputs,
     retrieval,
+    threestudio,
     transcription,
     treblo_tags,
     unity_control,
     video,
     vision,
+    visualizer,
 )
 
 app.include_router(jobs.router)
@@ -814,6 +818,10 @@ app.include_router(mcp_skills.router)
 app.include_router(image_processing_router)
 app.include_router(sub_agent_router)
 app.include_router(retrieval.router)
+app.include_router(visualizer.router)
+app.include_router(threestudio.router)
+app.include_router(animationstudio.router)
+app.include_router(ai.router)
 
 
 # Additional root-level routes
