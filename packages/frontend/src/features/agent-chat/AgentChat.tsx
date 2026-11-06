@@ -1,27 +1,71 @@
 /**
- * AgentChat — Frontend agent that acts on behalf of the user.
+ * AgentChat — Frontend agent chat with real-time streaming and inline visualizations.
  *
- * Uses the agent-loop (runAgentLoop) to:
+ * Uses ollamaChatStream + parseOllamaStream for true streaming:
  * 1. Discover skills from the backend /api/mcp/skills/list endpoint
  * 2. Convert skills into Ollama tool definitions
- * 3. Call ollamaChat with the user's message + tools
- * 4. Execute tool calls via /api/mcp/execute-tool
- * 5. Feed results back and loop until complete
+ * 3. Stream ollamaChat with the user's message + tools (backend handles tool execution loop)
+ * 4. Display content, tool calls, and tool results in real-time as they arrive
+ * 5. Render image/video tool results inline
  *
  * Route: /analyze/agent-chat
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Send, Loader2, Bot, Wrench, Activity } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  Bot,
+  Wrench,
+  Activity,
+  Video as VideoIcon,
+  StopCircle,
+  CheckCircle,
+  AlertCircle,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { Card } from "../../components/common";
 import {
-  runAgentLoop,
-  type AgentTurn,
-  type AgentLoopResult,
   skillsList,
   type SkillInfo,
   type ExecuteToolResponse,
 } from "../../services/api";
+import {
+  ollamaChatStream,
+  parseOllamaStream,
+  type ChatMessage,
+  type ToolDefinition,
+} from "../../services/api/ollama";
+import { getOutputUrl } from "../../utils/url";
+
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg"];
+const VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi", ".mkv"];
+
+function isImagePath(path: string): boolean {
+  const ext = path.toLowerCase().slice(path.lastIndexOf("."));
+  return IMAGE_EXTENSIONS.includes(ext);
+}
+
+function isVideoPath(path: string): boolean {
+  const ext = path.toLowerCase().slice(path.lastIndexOf("."));
+  return VIDEO_EXTENSIONS.includes(ext);
+}
+
+function extractMediaPaths(obj: unknown): string[] {
+  const paths: string[] = [];
+  if (typeof obj === "string") {
+    if (isImagePath(obj) || isVideoPath(obj)) paths.push(obj);
+  } else if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+    for (const v of Object.values(obj)) {
+      paths.push(...extractMediaPaths(v));
+    }
+  } else if (Array.isArray(obj)) {
+    for (const item of obj) paths.push(...extractMediaPaths(item));
+  }
+  return paths;
+}
 
 interface AgentMessage {
   id: string;
@@ -30,17 +74,20 @@ interface AgentMessage {
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolResult?: ExecuteToolResponse;
+  mediaUrls?: string[]; // Inline image/video URLs to render
   timestamp: Date;
+  expanded?: boolean;
 }
 
 export function AgentChat() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<AgentMessage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [skillsLoaded, setSkillsLoaded] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load skills on mount
   useEffect(() => {
@@ -61,7 +108,30 @@ export function AgentChat() {
   const addMessage = useCallback(
     (msg: Omit<AgentMessage, "id" | "timestamp">) => {
       const id = Math.random().toString(36).slice(2);
-      setMessages((prev) => [...prev, { ...msg, id, timestamp: new Date() }]);
+      setMessages((prev) => [...prev, { ...msg, id, timestamp: new Date(), expanded: false }]);
+    },
+    [],
+  );
+
+  const appendToLastMessage = useCallback(
+    (content: string) => {
+      setMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const last = prev[prev.length - 1];
+        const updated = { ...last, content: last.content + content };
+        return [...prev.slice(0, -1), updated];
+      });
+    },
+    [],
+  );
+
+  const updateLastMessage = useCallback(
+    (updates: Partial<Omit<AgentMessage, "id" | "timestamp">>) => {
+      setMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const last = { ...prev[prev.length - 1], ...updates };
+        return [...prev.slice(0, -1), last];
+      });
     },
     [],
   );
@@ -70,73 +140,234 @@ export function AgentChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const toggleExpanded = useCallback((id: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, expanded: !m.expanded } : m)),
+    );
+  }, []);
+
+  const formatTimestamp = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || streaming) return;
 
     const userText = input;
     setInput("");
     addMessage({ type: "user", content: userText });
 
-    setLoading(true);
+    setStreaming(true);
+    abortControllerRef.current = new AbortController();
 
     try {
-      const result: AgentLoopResult = await runAgentLoop(userText, {
-        maxIterations: 10,
-        onTurn: (turn: AgentTurn) => {
-          switch (turn.type) {
-            case "thought":
-              addMessage({ type: "thought", content: turn.content });
-              break;
-            case "tool_call":
-              addMessage({
-                type: "tool_call",
-                content: `Calling \`${turn.toolName}\`...`,
-                toolName: turn.toolName,
-                toolArgs: turn.toolArgs,
-              });
-              break;
-            case "tool_result": {
-              const success = turn.toolResult?.success ?? false;
-              const content = success
-                ? `Tool \`${turn.toolName}\` completed.`
-                : `Tool \`${turn.toolName}\` failed: ${turn.toolResult?.error}`;
-              addMessage({
-                type: "tool_result",
-                content,
-                toolName: turn.toolName,
-                toolResult: turn.toolResult,
-              });
-              break;
-            }
-            case "final":
-              addMessage({ type: "final", content: turn.content });
-              break;
-            case "error":
-              addMessage({ type: "error", content: turn.content });
-              break;
-          }
-          // Scroll after state update
-          setTimeout(scrollToBottom, 50);
-        },
-      });
+      // Step 1: Discover skills from the backend
+      let loadedSkills: SkillInfo[] = skills.length > 0 ? skills : [];
+      try {
+        loadedSkills = await skillsList();
+        setSkills(loadedSkills);
+        setSkillsLoaded(true);
+      } catch (err) {
+        setSkillsError(err instanceof Error ? err.message : String(err));
+        setSkillsLoaded(true);
+      }
 
-      // If the loop didn't emit a "final" turn (e.g. error), show the result
-      if (!result.success && result.finalResponse) {
-        const hasFinal = messages.some((m) => m.type === "final");
-        if (!hasFinal) {
-          addMessage({ type: "final", content: result.finalResponse });
+      const toolDefs: ToolDefinition[] = loadedSkills.map((skill) => ({
+        type: "function",
+        function: {
+          name: `skill_${skill.name}`,
+          description:
+            skill.description || `Skill: ${skill.name}. Available tools: ${skill.tools.join(", ")}`,
+          parameters: {
+            type: "object",
+            properties: {
+              tool: {
+                type: "string",
+                description: `Which tool to call within the ${skill.name} skill. Available: ${skill.tools.join(
+                  ", ",
+                )}`,
+              },
+              arguments: {
+                type: "object",
+                description:
+                  "Arguments for the tool. Parameter names and types depend on the specific tool.",
+              },
+            },
+            required: ["tool", "arguments"],
+            additionalProperties: false,
+          },
+        },
+      }));
+
+      // Build conversation history from existing messages
+      const history: ChatMessage[] = [];
+      for (const m of messages) {
+        if (m.type === "user") {
+          history.push({ role: "user", content: m.content });
+        } else if (m.type === "assistant" || m.type === "final") {
+          history.push({ role: "assistant", content: m.content });
+        } else if (m.type === "tool_result") {
+          history.push({
+            role: "tool",
+            content: JSON.stringify(m.toolResult),
+            tool_name: m.toolName,
+          });
         }
       }
-    } catch (err) {
-      addMessage({
-        type: "error",
-        content: `Agent error: ${err instanceof Error ? err.message : String(err)}`,
+
+      // Step 2: Stream from Ollama (backend handles tool execution loop)
+      const stream = await ollamaChatStream(userText, "gemma4:e2b-it-qat", {
+        history,
+        tools: toolDefs,
+        think: false,
+        maxToolCalls: 5,
       });
+
+      const eventStream = parseOllamaStream(stream);
+
+      let assistantMessageId: string | null = null;
+      const toolCallMessageIds = new Map<string, string>();
+
+      for await (const event of eventStream) {
+        if (abortControllerRef.current?.signal.aborted) break;
+
+        switch (event.type) {
+          case "connected":
+            // Stream connected, no UI change needed
+            break;
+
+          case "content": {
+            const text = typeof event.data === "string" ? event.data : String(event.data);
+            if (!assistantMessageId) {
+              const newId = Math.random().toString(36).slice(2);
+              assistantMessageId = newId;
+              setMessages((prev: AgentMessage[]) => [
+                ...prev,
+                {
+                  id: newId,
+                  type: "assistant",
+                  content: text,
+                  timestamp: new Date(),
+                },
+              ]);
+            } else {
+              appendToLastMessage(text);
+            }
+            break;
+          }
+
+          case "tool_calls": {
+            const calls =
+              typeof event.data === "string"
+                ? JSON.parse(event.data)
+                : (event.data as { tool_calls: Array<{ name: string; arguments: unknown }> });
+            const toolCalls = calls.tool_calls || [];
+
+            for (const tc of toolCalls) {
+              const toolId = Math.random().toString(36).slice(2);
+              toolCallMessageIds.set(tc.name, toolId);
+
+              addMessage({
+                type: "tool_call",
+                content: `Calling \`${tc.name}\`...`,
+                toolName: tc.name,
+                toolArgs: tc.arguments as Record<string, unknown>,
+              });
+            }
+            break;
+          }
+
+          case "tool_result": {
+            const raw =
+              typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+            // Backend tool_result events may have different shapes; normalize
+            const result: ExecuteToolResponse =
+              raw.success !== undefined
+                ? (raw as ExecuteToolResponse)
+                : { success: true, result: raw };
+            const toolName = (raw as any).tool_name || (raw as any).name || "unknown";
+            const success = result.success ?? false;
+            const error = result.error;
+            const resultData = result.result;
+
+            // Extract media paths for inline rendering
+            const mediaUrls = extractMediaPaths(resultData).map((p) => getOutputUrl(p));
+
+            // Find the matching tool_call message to mark as complete
+            const toolId = toolCallMessageIds.get(toolName);
+            if (toolId) {
+              updateLastMessage({
+                type: "tool_result",
+                content: success
+                  ? `Tool \`${toolName}\` completed.`
+                  : `Tool \`${toolName}\` failed: ${error || "Unknown error"}`,
+                toolName,
+                toolResult: {
+                  success,
+                  error,
+                  result: resultData,
+                },
+                mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+              });
+              toolCallMessageIds.delete(toolName);
+            } else {
+              addMessage({
+                type: "tool_result",
+                content: success
+                  ? `Tool \`${toolName}\` completed.`
+                  : `Tool \`${toolName}\` failed: ${error || "Unknown error"}`,
+                toolName,
+                toolResult: {
+                  success,
+                  error,
+                  result: resultData,
+                },
+                mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+              });
+            }
+            break;
+          }
+
+          case "done": {
+            // Stream complete
+            break;
+          }
+
+          case "error": {
+            const errMsg =
+              typeof event.data === "string"
+                ? event.data
+                : (event.data as { message?: string }).message || "Stream error";
+            addMessage({ type: "error", content: errMsg });
+            break;
+          }
+        }
+
+        scrollToBottom();
+      }
+
+      setStreaming(false);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (!abortControllerRef.current?.signal.aborted) {
+        addMessage({ type: "error", content: `Agent error: ${errMsg}` });
+      }
+      setStreaming(false);
     } finally {
-      setLoading(false);
+      if (!abortControllerRef.current?.signal.aborted) {
+        setStreaming(false);
+      }
       scrollToBottom();
     }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setStreaming(false);
+    addMessage({ type: "error", content: "Request cancelled." });
   };
 
   const skillsSummary = skills
@@ -179,46 +410,165 @@ export function AgentChat() {
           )}
           {messages.map((msg) => {
             const isUser = msg.type === "user";
+            const isAssistant = msg.type === "assistant";
+            const isToolCall = msg.type === "tool_call";
+            const isToolResult = msg.type === "tool_result";
+            const isThought = msg.type === "thought";
+            const isError = msg.type === "error";
+            const isFinal = msg.type === "final";
+
             return (
-              <div key={msg.id} className={isUser ? "flex justify-end" : "flex justify-start"}>
-                <Card className={`max-w-[85%] p-3 rounded-lg ${
-                  isUser
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}>
-                  {msg.type === "tool_call" && (
-                    <div className="flex items-start gap-2 mb-2 text-xs text-muted/70">
-                      <Wrench className="w-3 h-3" />
-                      <span>🔧 {msg.toolName}</span>
-                    </div>
-                  )}
-                  {msg.type === "tool_result" && msg.toolResult && (
-                    <div className="mb-2">
-                      {msg.toolResult.success ? (
-                        <span className="text-xs text-emerald-400">✓</span>
-                      ) : (
-                        <span className="text-xs text-destructive">✗</span>
+              <div
+                key={msg.id}
+                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+              >
+                <Card
+                  className={`max-w-[85%] p-3 rounded-lg shadow-sm border ${
+                    isUser
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : isError
+                      ? "bg-destructive text-destructive-foreground border-destructive"
+                      : isToolCall || isToolResult
+                      ? "bg-muted text-muted-foreground border-muted/50"
+                      : "bg-background text-foreground border-border"
+                  }`}
+                >
+                  {/* Message header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {isUser && <span className="text-primary">You</span>}
+                      {isAssistant && <span className="text-primary">Assistant</span>}
+                      {isToolCall && (
+                        <>
+                          <Wrench className="w-3 h-3" />
+                          <span className="text-purple-400">{msg.toolName}</span>
+                        </>
                       )}
-                      <span className="ml-1 text-xs">
-                        {msg.toolResult.error ? `Error: ${msg.toolResult.error}` : "Completed"}
-                      </span>
+                      {isToolResult && (
+                        <>
+                          {(msg.toolResult?.success ? (
+                            <CheckCircle className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <AlertCircle className="w-3 h-3 text-destructive" />
+                          ))}
+                          <span className={`text-xs ${msg.toolResult?.success ? "text-emerald-400" : "text-destructive"}`}>
+                            {msg.toolName}
+                          </span>
+                        </>
+                      )}
+                      {isThought && (
+                        <>
+                          <Clock className="w-3 h-3 text-muted/50" />
+                          <span className="text-muted">Thinking</span>
+                        </>
+                      )}
+                      {isError && (
+                        <>
+                          <AlertCircle className="w-3 h-3 text-destructive" />
+                          <span className="text-destructive">Error</span>
+                        </>
+                      )}
+                      {isFinal && (
+                        <>
+                          <CheckCircle className="w-3 h-3 text-primary" />
+                          <span className="text-primary">Done</span>
+                        </>
+                      )}
+                      <span className="text-muted/50">· {formatTimestamp(msg.timestamp)}</span>
+                    </div>
+                    {msg.expanded !== undefined && (
+                      <button
+                        onClick={() => toggleExpanded(msg.id)}
+                        className="p-1 hover:bg-muted/50 rounded text-muted hover:text-primary transition-colors"
+                        title={msg.expanded ? "Collapse" : "Expand"}
+                      >
+                        {msg.expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Message content */}
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+
+                  {/* Tool result details */}
+                  {isToolResult && msg.toolResult && (
+                    <div className="mt-2 pt-2 border-t border-muted/30">
+                      <div className="flex items-center gap-2 mb-1 text-xs">
+                        {msg.toolResult.success ? (
+                          <span className="text-emerald-400">✓ Success</span>
+                        ) : (
+                          <span className="text-destructive">✗ Failed</span>
+                        )}
+                        {msg.toolResult.error && (
+                          <span className="text-muted/70">· {msg.toolResult.error}</span>
+                        )}
+                      </div>
+                      {msg.toolResult.result != null && Boolean(msg.toolResult.result) && (
+                        <div className="mt-1">
+                          <button
+                            onClick={() => toggleExpanded(msg.id)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            {msg.expanded ? "Hide details" : "Show details"}
+                            {msg.expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                          </button>
+                          {msg.expanded && (
+                            <div className="mt-2 p-2 bg-background/50 rounded overflow-x-auto whitespace-pre-wrap text-xs text-muted">
+                              {JSON.stringify(msg.toolResult.result, null, 2).slice(0, 1000)}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  {msg.type === "tool_result" && msg.toolResult != null && Boolean(msg.toolResult.result) && msg.toolResult.success && (
-                    <div className="mt-2 p-2 bg-background/50 rounded text-xs text-muted overflow-x-auto whitespace-pre-wrap">
-                      {JSON.stringify(msg.toolResult.result, null, 2).slice(0, 500)}
+
+                  {/* Inline media rendering */}
+                  {msg.mediaUrls && msg.mediaUrls.length > 0 && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {msg.mediaUrls.map((url, idx) => (
+                        <div key={idx} className="rounded-lg overflow-hidden border border-muted/30 bg-background">
+                          {isImagePath(url) ? (
+                            <img
+                              src={url}
+                              alt="Generated image"
+                              className="w-full h-48 object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="aspect-video bg-muted flex items-center justify-center p-2">
+                              <video
+                                src={url}
+                                className="w-full h-full object-cover"
+                                controls
+                                preload="metadata"
+                              />
+                              {!isVideoPath(url) && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                  <VideoIcon className="w-8 h-8 text-muted/50 mb-1" />
+                                  <span className="text-xs text-muted">Media: {url.split("/").pop()}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </Card>
               </div>
             );
           })}
-          {loading && (
+          {streaming && (
             <div className="flex justify-start">
               <Card className="p-3 bg-muted text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                <span className="text-sm">Agent thinking...</span>
+                <span className="text-sm">Agent working…</span>
+                <button
+                  onClick={handleCancel}
+                  className="ml-4 text-xs text-destructive hover:text-destructive/80 underline"
+                >
+                  Cancel
+                </button>
               </Card>
             </div>
           )}
@@ -232,20 +582,31 @@ export function AgentChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 px-4 py-2 rounded-lg border bg-muted/30 text-muted-foreground focus:outline-none focus:border-primary"
-              disabled={loading}
-              placeholder={loading ? "Agent working…" : "Ask the agent…"}
+              disabled={streaming}
+              placeholder={streaming ? "Agent working…" : "Ask the agent…"}
             />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90 transition-colors"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            {streaming ? (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+              >
+                <StopCircle className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
           </form>
           <p className="text-xs text-muted mt-1">
             The agent uses Ollama with tool-calling to discover skills,
             execute tools, and iterate until your task is complete.
+            Images and videos generated by tools appear inline below.
           </p>
         </div>
       </div>
