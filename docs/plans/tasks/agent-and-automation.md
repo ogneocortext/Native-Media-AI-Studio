@@ -121,6 +121,21 @@ Code: `packages/backend/app/agents/`
 - **Last session:** Orion, 2026-11-01 — Item created from the
   cloud↔local bridge work of the same day (the bridge
   integration's Layer 1); not started.
+- **Last session:** Orion, 2026-11-06 — Still todo: the Kilo
+  definition itself is unbuilt. Supporting evidence for the
+  role it encodes, gathered owner-requested via the
+  Orion→Atomic route (not the Kilo route this item builds):
+  one serial Bolt call reviewed
+  `packages/backend/app/services/stem_curves.py` — accurate
+  summary, edge cases reported "none found" (defensible on
+  contract; missed position-dependent NaN behavior in max()
+  chunks, caught by mechanical verification: 3,000-case
+  property test, 0 failures). Logged in observed.jsonl
+  2026-11-06. Owner's framing: Bolt as gap-filler while Devin
+  SWE 2.0 is rate-limit-stalled and Nemotron-via-Kilo hits
+  compaction/rate limits; owner rule — Atomic calls are
+  strictly serial, never parallel (single 8 GB GPU, shared
+  with Hermes).
 
 ### T-AGT-05 — Design the cloud-agent bridge (backend service + Bridge panel)
 - **Status:** todo
