@@ -57,6 +57,7 @@ date: 2026-09-30
 - [[python-environment-management|🐍 Python Environment Management]] — venv mechanics, decoupling graph, PyTorch×Pascal (sm_61) wheel matrix, env migration recipes
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React
 - [[remotion-agent-skills-2026|🎬 Remotion Agent Skills]] — Agent skills for Remotion video work (indexed 2026-11-06)
+- [[higgsfield-comfyui-challenge-2026|🎥 Open Source Higgsfield Challenge]] — ComfyUI's $10K challenge and its 8 open-source recreations: gap-checked against this library, 6 missing techniques recorded (indexed 2026-11-06)
 - [[npx-best-practices-2026|🔒 npx Best Practices 2026]] — Supply-chain-safe npx usage, pinning, and audit habits (indexed 2026-11-06)
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
@@ -170,7 +171,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 16 documents |
-|| `#technical/*` | System implementation & code | 20 documents |
+|| `#technical/*` | System implementation & code | 21 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
