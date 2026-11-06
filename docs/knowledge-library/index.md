@@ -121,6 +121,7 @@ date: 2026-09-30
 - [[nemotron-3-5-super-vl-prompting-2026|👁️ Nemotron 3.5 Super VL Prompting]] - Prompting reference for Nemotron 3.5 Super VL via the Kilo route (indexed 2026-11-06)
 - [[custom-agent-design|🤖 Custom Agent Design]] - Native Media AI Studio agent architecture and design notes (indexed 2026-11-06)
 - [[programmatic-tool-calling-2026|🛠️ Programmatic Tool Calling 2026]] - PTC patterns taken from Factory Droid 1.0 (indexed 2026-11-06)
+- [[agent-chat-architecture-2026|💬 Agent Chat Architecture 2026]] — End-to-end agent chat: skill discovery, tool-def conversion, SSE tool-execution loop, reliability heuristics (NEW 2026-11-06)
 - [[ollama-structured-output-pattern|🧠 Ollama Structured Output Pattern]] — Client-side JSON validation and retry pattern for Ollama structured outputs
 - [[vision-model-reliability-2026|🖼️ Vision Model Reliability 2026]] — qwen3-vl degenerate reasoning loop (Ollama #17978), measured evidence, the gemma4 primary routing fix, and the 2026-10-10 model pruning (NEW 2026-10-10)
 - [[ollama-prompting-2026|🤖 Ollama Prompting 2026]] — Vision grounding/uncertainty, structured-output schemas, code-gen contracts, VRAM latency policy
@@ -172,7 +173,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 18 documents |
+|| `#ai/*` | AI models, training & ML | 19 documents |
 || `#research/*` | Industry trends & analysis | 18 documents |
 
 ### Cross-Cutting Tags

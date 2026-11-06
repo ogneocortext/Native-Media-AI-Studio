@@ -21,6 +21,18 @@ type: tracker
 
 ---
 
+## 2026-11-06 — Agent chat doc + index gap repair
+
+- Added `docs/knowledge-library/agent-chat-architecture-2026.md` → `#ai` —
+  end-to-end agent chat reference (skill discovery, tool-def conversion,
+  SSE tool-execution loop, reliability heuristics), closing the largest
+  content gap found in the knowledge-library gap audit.
+- Indexed 8 previously-orphaned docs in `index.md`
+  (`3d-viz-code-harnesses-2026`, `custom-agent-design`,
+  `lyria-3.5-brief-library-README`, `nemotron-3-5-super-vl-prompting-2026`,
+  `npx-best-practices-2026`, `programmatic-tool-calling-2026`,
+  `remotion-agent-skills-2026`, `suno-v6-style-tags-README`).
+
 ## 2026-11-05 — Full documentation audit and corrections (69 files)
 
 Conducted a full audit of 211 documentation files across `docs/` against

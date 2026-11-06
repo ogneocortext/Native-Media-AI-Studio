@@ -129,7 +129,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (18/18 completed) ✅
+### 🤖 AI & ML (19/19 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `nemotron-3-5-bolt-e4b-2026.md`  → `#ai`, `#ai-agents`, `#platform-atomic-chat`
@@ -149,6 +149,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `synced-technical-scan-sample-2026-10.md`  → `#ai`
 - ✅ `custom-agent-design.md`  → `#ai`, `#technical`, `#documentation`
 - ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
+- ✅ `agent-chat-architecture-2026.md`  → `#ai`, `#agent`, `#architecture`, `#documentation`
 
 ### 📊 Research & Reference (19/19 completed)
 
