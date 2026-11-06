@@ -94,6 +94,23 @@ export function ServiceChecksCard() {
         </div>
         {PROBED_SERVICES.map((service) => {
           const check = checks[service];
+          // Guard: service may not have been checked yet
+          if (!check) {
+            return (
+              <div
+                key={service}
+                className="flex items-center justify-between gap-2 p-2 bg-white/[0.02] rounded-lg"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-2 h-2 rounded-full shrink-0 bg-gray-600" />
+                  <span className="text-sm text-white capitalize">{service}</span>
+                </div>
+                <span className="flex items-center gap-1 text-xs text-gray-600">
+                  not checked
+                </span>
+              </div>
+            );
+          }
           const ago = check.lastChecked
             ? Math.max(0, Math.round((Date.now() - check.lastChecked) / 1000))
             : null;
