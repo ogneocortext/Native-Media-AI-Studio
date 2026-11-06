@@ -85,7 +85,7 @@ Flow-shift: 5.0
 - Enable CPU offloading for intermediate frames
 - Consider as alternative to AnimateDiff for higher-quality motion
 
-> **Note:** This contradicts our earlier deletion from comfyui-workflows. Re-evaluate whether to add GGUF-quantized Wan 2.2 5B back to the stack.
+> **Note:** This contradicts our earlier deletion from comfyui-workflows. **Resolved 2026-11:** the GGUF-quantized Wan 2.2 5B is now on disk at `ComfyUI\models\diffusion_models\Wan2.2-TI2V-5B-Q4_K_M.gguf` (3.2 GB) with `wan2.2_vae`, `umt5-xxl-fp8`, `ComfyUI-GGUF`, and `ComfyUI-WanVideoWrapper` — it is part of the stack, not hypothetical.
 
 ---
 
@@ -312,7 +312,7 @@ Tiling splits high-resolution renders into smaller tiles that fit in VRAM, proce
 
 **Secondary (Quality):**
 
-- **Wan 2.2 5B GGUF** - if added back to stack
+- **Wan 2.2 5B GGUF** — installed (`Wan2.2-TI2V-5B-Q4_K_M.gguf`, verified 2026-11)
 - **LTX Video 2B** with FP8+tiling - image-to-video
 
 **Experimental:**

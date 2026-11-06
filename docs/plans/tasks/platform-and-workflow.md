@@ -776,3 +776,28 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** diagnostics/resources.py.
 - **Verification:** 16 resource/SSE tests pass; ruff clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-27 - Doc reconciliation with on-disk model/node reality
+- **Status:** done
+- **Goal:** Align setup/knowledge docs with the verified C:/D: model
+  inventory so stale paths and "needs install" claims stop misleading.
+- **What changed:** Rewrote `docs/setup/VIDEO_SETUP.md` (removed
+  nonexistent `setup-video-models.bat` / `stable-diffusion/` /
+  `third_party/ComfyUI` paths; documented the actual Wan 2.2 5B GGUF,
+  AnimateDiff v2+v3, LTX-2B, Kandinsky stack, installed custom nodes,
+  and the not-on-disk SVD/14B/API-only boundary). Corrected the
+  `hardware-verified-models.md` installed-assets table (`models\animatediff\`
+  is empty; v2/v3 motion modules live in `animatediff_models\`; added
+  Wan 2.2 GGUF + VAE/encoder + GGUF/WanVideoWrapper nodes). Marked
+  `hunyuan3d-2mv-native.json` weights-absent in
+  `comfyui-workflows.md` (only the 2mini tree is on disk; `hunyuan3d_2mv`
+  backend will fail until weights are fetched). Updated
+  `video-generation-vram-2026.md` "if added back" notes to reflect the
+  installed GGUF.
+- **Files:** docs/setup/VIDEO_SETUP.md, docs/knowledge-library/
+  hardware-verified-models.md, video-generation-vram-2026.md,
+  docs/comfyui-workflows/comfyui-workflows.md.
+- **Verification:** Paths cross-checked against live `ComfyUI\models\`
+  and `custom_nodes\` listings; remaining docs grepped for stale
+  install/download claims (none left).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

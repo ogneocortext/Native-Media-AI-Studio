@@ -25,6 +25,13 @@ Nodes: `ImageOnlyCheckpointLoader`, `Hunyuan3Dv2Conditioning`, `SaveGLB`
 
 ### `hunyuan3d-2mv-native.json`
 
+> [!warning] Weights not on disk (verified 2026-11)
+> Only the **2mini** checkpoint tree is downloaded
+> (`diffusion_models/hunyuan3d-2mini/` — DiT mini/fast/turbo + VAE mini/turbo).
+> The 2mv DiT (`hunyuan3d-dit-v2-mv`) is absent, so this workflow and the
+> `hunyuan3d_2mv` backend in `gen3d_service.py` will fail until ~6 GB of
+> weights are fetched.
+
 Multi-view 3D generation from front/left/right/back images. Front-only works
 but may have unseen-side artifacts. Built into ComfyUI core — no custom nodes
 needed.

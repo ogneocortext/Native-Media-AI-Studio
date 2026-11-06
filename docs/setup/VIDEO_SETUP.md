@@ -1,200 +1,62 @@
 # Video Generation Setup Guide
 
-> [!warning] Partially superseded (corrected 2026-11-05)
-> `scripts\setup-video-models.bat` does not exist, `stable-diffusion/` and
-> `third_party/ComfyUI` paths are gone (ComfyUI is external; motion modules
-> live under its `models/animatediff_models/`), and backend startup is
-> `pnpm dev:backend` / `scripts/manage-servers.ps1`, not `cd backend`. The
-> "Video Helper Suite" requirement is unverified against the current external
-> ComfyUI install. Treat layout specifics below as historical.
+> [!info] Rewritten 2026-11 to match on-disk reality
+> ComfyUI is an external install at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
+> (there is no `stable-diffusion/` or `third_party/ComfyUI` tree, and
+> `scripts\setup-video-models.bat` does not exist). All models listed below are
+> already downloaded — this is a reference, not a setup checklist.
 
 ## Overview
 
-This guide covers setting up video generation capabilities using ComfyUI with AnimateDiff.
+Video generation runs through the external ComfyUI instance (`http://127.0.0.1:8188`)
+driven by the backend's ComfyUI adapter (`POST /api/integrations/comfyui/generate-video`)
+and the WanVideoWrapper / AnimateDiff-Evolved custom nodes.
 
-## Current Status
+## What's on disk (verified)
 
-### ✅ What's Implemented:
-1. **Media Library** - Browse all generated images/videos/audio
-2. **Video Generation API** - Backend endpoint for video generation
-3. **ComfyUI Adapter** - Supports video workflows
-4. **Video Model Setup Script** - Automated download script
+| Model | Location | Size | Role |
+|-------|----------|------|------|
+| Wan 2.2 TI2V-5B GGUF Q4_K_M | `models/diffusion_models/` | 3.2 GB | Primary 8 GB video model (T2V/I2V, 480p–720p) |
+| Wan 2.2 VAE | `models/vae/wan2.2_vae.safetensors` | — | Wan 2.2 decode |
+| umt5-xxl text encoder (fp8) | `models/text_encoders/` | — | Wan 2.2 prompt encoding |
+| AnimateDiff v2 motion module | `models/animatediff_models/mm_sd_v15_v2.ckpt` | 1.7 GB | SD1.5 motion (`--lowvram` friendly) |
+| AnimateDiff v3 motion module | `models/animatediff_models/mm_sd15_v3.safetensors` | 798 MB | Newer motion module |
+| SD 1.5 base | `models/checkpoints/v1-5-pruned-emaonly.safetensors` | ~4 GB | AnimateDiff base |
+| AnimateDiff motion LoRAs ×8 | `custom_nodes/ComfyUI-AnimateDiff-Evolved/motion_lora/` | ~74 MB each | Camera moves (pan/tilt/zoom/roll) |
+| LTX-2B distilled (fp8) | `models/diffusion_models/ltxv-2b-0.9.8-distilled-fp8.safetensors` | 4.5 GB | Fast 768×512 video (~4× Wan speed) |
+| Wan 2.1 T2V 1.3B fp16 | `models/diffusion_models/` | ~3 GB | Lightweight fallback |
+| Kandinsky5 lite i2v | `models/checkpoints/` | — | Alternate i2v path |
 
-### ⚠️ What's Needed:
-1. **AnimateDiff Motion Module** (~1.6GB)
-2. **Video Helper Suite** custom node for ComfyUI
-3. **ComfyUI-AnimateDiff-Evolved** custom node
+**Custom nodes installed:** `ComfyUI-AnimateDiff-Evolved`, `ComfyUI-VideoHelperSuite`,
+`ComfyUI-GGUF`, `ComfyUI-WanVideoWrapper`, `ComfyUI-LTX-Video`, `ComfyUI-Hunyuan3DWrapper`,
+`comfyui-feynobg`, `kandinsky`. (`ComfyUI-Manager` is present but disabled.)
 
-## Hardware Requirements
+**Not on disk (and not runnable on 8 GB anyway):** SVD (needs 12 GB+), Wan 2.2 14B
+(needs 24 GB+), Wan 2.5/2.6 (API-only), all closed models.
 
-**Your System (GTX 1070 Ti 8GB):**
-- ✅ Supported with limitations
-- ✅ Use 512x512 resolution max
-- ✅ Use 16-24 frames max per video
-- ✅ Enable --lowvram flag for ComfyUI
+## Hardware notes (GTX 1070 Ti 8 GB)
 
-## Setup Steps
+- Wan 2.2 5B GGUF is the quality path: Q4_K_M + CPU T5 offload ≈ 6–8 GB at 480p.
+- AnimateDiff on SD1.5 stays the fast daily driver; keep `--lowvram` behavior in mind.
+- LTX-2B distilled is the speed option for short 768×512 clips.
+- ControlNet suite on disk: canny / depth / openpose / lineart / scribble (SD1.5).
 
-### 1. Download Video Models
-
-Run the setup script:
-```powershell
-cd scripts
-.\setup-video-models.bat
-```
-
-Or download manually:
-1. **AnimateDiff Motion Module** (required)
-   - Download: https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15_v2.safetensors
-   - Place in: `stable-diffusion/models/animatediff/`
-   - Size: ~1.6GB
-
-2. **Stable Video Diffusion (SVD)** - Optional, needs 9GB VRAM
-   - Download: https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt
-   - Place in: `stable-diffusion/models/svd/`
-   - Size: ~9.3GB
-
-### 2. Install ComfyUI Custom Nodes
-
-**Option A: Using ComfyUI Manager (if installed)**
-1. Open ComfyUI web interface
-2. Click "Manager" → "Install Custom Nodes"
-3. Search and install:
-   - `ComfyUI-AnimateDiff-Evolved`
-   - `ComfyUI-VideoHelperSuite`
-
-**Option B: Manual Installation**
-```powershell
-cd third_party/ComfyUI/custom_nodes
-
-# Install AnimateDiff Evolved
-git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
-
-# Install Video Helper Suite
-git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
-
-# Restart ComfyUI
-```
-
-### 3. Restart Services
+## Using video generation
 
 ```powershell
-# Restart ComfyUI with low VRAM mode
-cd third_party/ComfyUI
-python main.py --port 8188 --listen 127.0.0.1 --lowvram
-
-# Restart backend
-cd backend
-python -c "from app.main import run; run()"
+# Backend is already running on :8000; ComfyUI on :8188
+curl -X POST http://localhost:8000/api/integrations/comfyui/generate-video `
+  -H "Content-Type: application/json" `
+  -d '{ "prompt": "a cat dancing", "steps": 20, "width": 512, "height": 512, "num_frames": 16, "fps": 8 }'
 ```
 
-## Using Video Generation
-
-### Via API
-
-```bash
-curl -X POST http://localhost:8000/api/integrations/comfyui/generate-video \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "a cat dancing, beautiful, high quality",
-    "negative_prompt": "blurry, low quality",
-    "steps": 20,
-    "width": 512,
-    "height": 512,
-    "num_frames": 16,
-    "fps": 8
-  }'
-```
-
-### Via Media Library
-
-1. Navigate to **Media Library** in the sidebar
-2. Generated videos will appear in the library
-3. Click to preview, download, or view metadata
-
-## Video Generation Parameters
-
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `num_frames` | 16 | 8-32 | Number of frames in video |
-| `fps` | 8 | 1-30 | Frames per second |
-| `width` | 512 | 256-1024 | Video width (use 512 for 8GB) |
-| `height` | 512 | 256-1024 | Video height (use 512 for 8GB) |
-| `steps` | 20 | 10-50 | Sampling steps |
-| `motion_module` | mm_sd_v15_v2 | - | Motion module to use |
-
-## Performance Tips
-
-**For GTX 1070 Ti 8GB:**
-- Use 512x512 resolution max
-- Use 16 frames max (2 seconds at 8fps)
-- Enable --lowvram flag
-- Close other GPU-intensive apps
-- Use Euler or Euler_a sampler (faster)
-
-**Generation Time:**
-- 16 frames @ 512x512: ~2-3 minutes
-- 24 frames @ 512x512: ~4-5 minutes
+Generated videos land under `output/video/` (see `GET /api/outputs/video`).
 
 ## Troubleshooting
 
-### Out of Memory Error
-```
-RuntimeError: CUDA out of memory
-```
-**Solutions:**
-1. Reduce resolution to 512x512 or 384x384
-2. Reduce num_frames to 8-12
-3. Use --lowvram flag
-4. Close other applications
-
-### Motion Module Not Found
-```
-Error: mm_sd_v15_v2.safetensors not found
-```
-**Solution:**
-1. Download motion module to `stable-diffusion/models/animatediff/`
-2. Restart ComfyUI
-
-### Custom Nodes Not Loading
-```
-Error: AnimateDiffLoaderWithContext not found
-```
-**Solution:**
-1. Install ComfyUI-AnimateDiff-Evolved custom node
-2. Restart ComfyUI
-
-## File Locations
-
-```
-stable-diffusion/
-├── models/
-│   ├── checkpoints/        # SD models (.safetensors)
-│   ├── animatediff/        # Motion modules
-│   │   └── mm_sd_v15_v2.safetensors
-│   └── svd/                # SVD models (optional)
-│       └── svd_xt.safetensors
-└── ...
-
-output/
-├── images/                 # Generated images
-├── video/                  # Generated videos (.mp4)
-└── audio/                  # Generated audio
-```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/integrations/comfyui/generate` | POST | Generate image |
-| `/api/integrations/comfyui/generate-video` | POST | Generate video |
-| `/api/outputs/` | GET | List all outputs |
-| `/api/outputs/video` | GET | List video outputs |
-
-## Next Steps
-
-1. ✅ Run `setup-video-models.bat` to download motion module
-2. ✅ Install custom nodes (AnimateDiff-Evolved, VideoHelperSuite)
-3. ✅ Restart ComfyUI with --lowvram flag
-4. ✅ Test video generation via API or Media Library
-5. ✅ Browse generated videos in Media Library
+| Symptom | Fix |
+|---------|-----|
+| `CUDA out of memory` | Drop to 512×512 / fewer frames; prefer the 5B GGUF or AnimateDiff over FP16 packs |
+| `AnimateDiffLoaderWithContext not found` | `ComfyUI-AnimateDiff-Evolved` is installed — restart ComfyUI |
+| Wan 2.2 nodes missing | Requires `ComfyUI-GGUF` + `ComfyUI-WanVideoWrapper` (both installed) |
+| ComfyUI unreachable | Start it separately; the backend never auto-starts it |

@@ -171,9 +171,12 @@ For structure/pose guidance on AnimateDiff clips:
 | ------------------------------------ | --------------------------------------------------------------- | ------- | ------------ |
 | AnimateDiff motion LoRAs             | `ComfyUI\custom_nodes\ComfyUI-AnimateDiff-Evolved\motion_lora\` | 8 files | ~591 MB      |
 | SD 1.5 checkpoint                    | `ComfyUI\models\checkpoints\`                                   | 1       | Pre-existing |
-| AnimateDiff v3 motion module         | `ComfyUI\models\animatediff\`                                   | 1       | Pre-existing |
-| AnimateDiff v2 motion module         | `ComfyUI\models\animatediff_models\`                            | 1       | Pre-existing |
-| AnimateDiff stabilized motion module | `ComfyUI\models\animatediff_models\`                            | 1       | Pre-existing |
+| AnimateDiff v2 motion module         | `ComfyUI\models\animatediff_models\mm_sd_v15_v2.ckpt`           | 1       | 1.7 GB       |
+| AnimateDiff v3 motion module         | `ComfyUI\models\animatediff_models\mm_sd15_v3.safetensors`      | 1       | 798 MB       |
+| ~~AnimateDiff stabilized motion module~~ | — not present on disk (`models\animatediff\` is empty)      | 0       | Removed 2026-11 |
+| Wan 2.2 TI2V-5B GGUF (Q4_K_M)         | `ComfyUI\models\diffusion_models\Wan2.2-TI2V-5B-Q4_K_M.gguf`    | 1       | 3.2 GB       |
+| Wan 2.2 VAE + umt5-xxl-fp8 encoder    | `ComfyUI\models\vae\`, `models\text_encoders\`                  | 2       | Pre-existing |
+| ComfyUI-GGUF + WanVideoWrapper nodes | `ComfyUI\custom_nodes\`                                         | 2       | Installed    |
 | LTX-2B distilled checkpoint          | `ComfyUI\models\diffusion_models\`                              | 1       | 4.46 GB      |
 | LTX-2.3 video VAE (bf16)             | `ComfyUI\models\vae\`                                           | 1       | Pre-existing |
 | LTX-2.3 text projection              | `ComfyUI\models\text_encoders\`                                 | 1       | Pre-existing |
