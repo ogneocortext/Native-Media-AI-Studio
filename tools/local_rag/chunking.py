@@ -2,7 +2,6 @@
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional
 
 from .config import get_config
 
@@ -12,7 +11,7 @@ class Chunk:
     """A document chunk with metadata."""
     text: str
     tokens: int
-    header_path: List[str] = None  # e.g. ["## Section", "### Subsection"]
+    header_path: list[str] = None  # e.g. ["## Section", "### Subsection"]
     start_line: int = 0
     end_line: int = 0
 
@@ -26,7 +25,7 @@ def count_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def extract_headers(lines: List[str]) -> List[tuple[int, str, int]]:
+def extract_headers(lines: list[str]) -> list[tuple[int, str, int]]:
     """Extract markdown headers from lines. Returns (line_idx, header_text, level)."""
     headers = []
     for i, line in enumerate(lines):
@@ -38,7 +37,7 @@ def extract_headers(lines: List[str]) -> List[tuple[int, str, int]]:
     return headers
 
 
-def get_header_context(headers: List[tuple[int, str, int]], line_idx: int) -> List[str]:
+def get_header_context(headers: list[tuple[int, str, int]], line_idx: int) -> list[str]:
     """Get header path for a given line index."""
     context = []
     for h_line, h_text, h_level in headers:
@@ -49,7 +48,7 @@ def get_header_context(headers: List[tuple[int, str, int]], line_idx: int) -> Li
     return context
 
 
-def chunk_markdown(text: str, config=None) -> List[Chunk]:
+def chunk_markdown(text: str, config=None) -> list[Chunk]:
     """
     Split markdown into chunks by token count with header context.
     

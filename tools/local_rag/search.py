@@ -2,11 +2,10 @@
 
 import sys
 import threading
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from .config import get_config
 from .database import get_database
-
 
 # ─── Cross-Encoder Reranker (Lazy Singleton) ────────────────────────────────────
 
@@ -45,11 +44,10 @@ class CrossEncoderReranker:
             os.environ.setdefault('HF_HUB_DISABLE_PROGRESS_BARS', '1')
             os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
 
-            from transformers import AutoTokenizer, AutoModelForSequenceClassification
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
             from transformers.utils import logging as hf_logging
             hf_logging.set_verbosity_error()
             hf_logging.disable_progress_bar()
-            import torch
 
             print(f"[RERANK] Loading {config.model}...", file=sys.stderr)
 
@@ -64,13 +62,13 @@ class CrossEncoderReranker:
 
             self._model.eval()
             self._config = config
-            print(f"[RERANK] Loaded successfully", file=sys.stderr)
+            print("[RERANK] Loaded successfully", file=sys.stderr)
         except Exception as e:
             print(f"[WARN] Failed to load cross-encoder: {e}", file=sys.stderr)
             self._model = None
             self._tokenizer = None
 
-    def rerank(self, query: str, docs: List[Dict], top_k: int) -> List[Dict]:
+    def rerank(self, query: str, docs: list[dict], top_k: int) -> list[dict]:
         """Rerank documents using cross-encoder."""
         self._ensure_loaded()
         if self._model is None or not docs:
@@ -114,10 +112,10 @@ def get_reranker() -> CrossEncoderReranker:
 # ─── Search Functions ─────────────────────────────────────────────────────────
 
 def reciprocal_rank_fusion(
-    bm25_results: List[Dict],
-    vector_results: List[Dict],
+    bm25_results: list[dict],
+    vector_results: list[dict],
     k: int = 60
-) -> List[Dict]:
+) -> list[dict]:
     """Fuse BM25 and vector results using Reciprocal Rank Fusion."""
     scores = {}
 
@@ -141,11 +139,11 @@ def reciprocal_rank_fusion(
 
 def search(
     query: str,
-    top_k: Optional[int] = None,
+    top_k: int | None = None,
     mode: str = "hybrid",
     rerank: bool = False,
     config=None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Search the corpus.
 
@@ -222,7 +220,7 @@ def search(
     }
 
 
-def get_status() -> Dict[str, Any]:
+def get_status() -> dict[str, Any]:
     """Get index status and statistics."""
     db = get_database()
     config = get_config()

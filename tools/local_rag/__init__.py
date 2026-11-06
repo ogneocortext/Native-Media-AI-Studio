@@ -3,17 +3,17 @@
 __version__ = "2.0.0"
 
 from .config import Config, get_config, set_config
-from .search import search, get_status
 from .indexing import index_corpus
 from .mcp_server import create_server, run_server
+from .search import get_status, search
 
 __all__ = [
     "Config",
+    "create_server",
     "get_config",
-    "set_config",
-    "search",
     "get_status",
     "index_corpus",
-    "create_server",
     "run_server",
+    "search",
+    "set_config",
 ]

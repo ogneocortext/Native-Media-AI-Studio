@@ -6,9 +6,7 @@ Run: python tools/check-model-inventory.py
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 # ComfyUI root (external install)
 COMFYUI_ROOT = Path(r"D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI")
@@ -145,7 +143,8 @@ REQUIRED_NODES = [
     "kandinsky",
 ]
 
-def check_path_exists(path: Path) -> Tuple[bool, int]:
+
+def check_path_exists(path: Path) -> tuple[bool, int]:
     """Check if path exists and return (exists, size_mb)"""
     if path.is_file():
         return True, path.stat().st_size // (1024 * 1024)
@@ -156,7 +155,8 @@ def check_path_exists(path: Path) -> Tuple[bool, int]:
         return len(files) > 0, total_size // (1024 * 1024)
     return False, 0
 
-def scan_comfyui() -> Dict:
+
+def scan_comfyui() -> dict:
     """Scan ComfyUI directory for models and nodes"""
     results = {
         "models": {},
@@ -231,7 +231,8 @@ def scan_comfyui() -> Dict:
 
     return results
 
-def print_report(results: Dict):
+
+def print_report(results: dict):
     """Print formatted report"""
     if "error" in results:
         print(f"[ERROR] {results['error']}")
@@ -256,7 +257,7 @@ def print_report(results: Dict):
         print(f"\n[{model_type.upper()}]")
         print("-" * 80)
 
-        for key, model in type_models.items():
+        for _key, model in type_models.items():
             status_icon = {"installed": "[OK]", "partial": "[PARTIAL]", "missing": "[MISSING]"}[model["status"]]
             print(f"\n{status_icon} {model['name']} ({model['priority']}) - VRAM: {model['vram_gb']}")
 
@@ -271,7 +272,7 @@ def print_report(results: Dict):
                 print(f"  {icon} [dep] {f['path']}{size}")
 
     # Nodes
-    print(f"\n[CUSTOM NODES]")
+    print("\n[CUSTOM NODES]")
     print("-" * 80)
     for node, info in results["nodes"].items():
         icon = "[OK]" if info["exists"] else "[MISSING]"
@@ -283,9 +284,10 @@ def print_report(results: Dict):
         if v["status"] == "missing" and v["priority"] in ["P0", "P1"]
     ]
     if missing_critical:
-        print(f"\n[CRITICAL MISSING (P0/P1)]:")
-        for k, v in missing_critical:
+        print("\n[CRITICAL MISSING (P0/P1)]:")
+        for _k, v in missing_critical:
             print(f"   - {v['name']} ({v['priority']})")
+
 
 def main():
     import argparse
@@ -304,6 +306,7 @@ def main():
         print(json.dumps(results, indent=2))
     else:
         print_report(results)
+
 
 if __name__ == "__main__":
     main()

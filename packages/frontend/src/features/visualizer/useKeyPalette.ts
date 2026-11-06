@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { keyPalette, type KeyAnalysisLike, type KeyPalette } from "./keyPalette";
+import { keyPalette, type ChromaFramesLike, type KeyAnalysisLike, type KeyPalette } from "./keyPalette";
 
 /**
  * How to interpret a `GET /api/audio/analysis/by-filename/{filename}` response.
@@ -24,6 +24,12 @@ export function classifyAnalysisResponse(status: number): AnalysisLookup {
 
 export interface KeyPaletteState {
   palette: KeyPalette;
+  /**
+   * Tier 2 per-frame chroma track (chroma-hue-mapping.md), or null when the
+   * analysis predates it / the track is unanalyzed. Read per frame via
+   * `chromaHueAtTime`; never throws on malformed data.
+   */
+  chromaFrames: ChromaFramesLike | null;
   loading: boolean;
   error: string | null;
   /**
@@ -51,7 +57,10 @@ export interface KeyPaletteState {
 // Module-level cache for successful lookups only. A 404 ("not analyzed") is
 // deliberately NOT cached — the user can analyze the track and come back, and
 // a stale "unavailable" would hide the new key. Errors aren't cached either.
-const paletteCache = new Map<string, { palette: KeyPalette; unavailable: boolean }>();
+const paletteCache = new Map<
+  string,
+  { palette: KeyPalette; unavailable: boolean; chromaFrames: ChromaFramesLike | null }
+>();
 const inflight = new Map<string, Promise<KeyAnalysisLike | null>>();
 
 export function useKeyPalette(filename: string | null): KeyPaletteState {
@@ -64,6 +73,7 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [chromaFrames, setChromaFrames] = useState<ChromaFramesLike | null>(null);
   // Holds the last good hue so a subsequent fallback holds the palette steady
   // instead of snapping to red between tracks.
   const lastHueRef = useRef<number | null>(null);
@@ -73,6 +83,7 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
       const next = keyPalette(null, lastHueRef.current);
       lastHueRef.current = next.hue;
       setPalette(next);
+      setChromaFrames(null);
       setUnavailable(false);
       return;
     }
@@ -81,6 +92,7 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
     if (hit) {
       lastHueRef.current = hit.palette.hue;
       setPalette(hit.palette);
+      setChromaFrames(hit.chromaFrames);
       setUnavailable(hit.unavailable);
       setLoading(false);
       setError(null);
@@ -115,12 +127,18 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
         const next = keyPalette(data, lastHueRef.current);
         lastHueRef.current = next.hue;
         setPalette(next);
+        const frames = data?.chroma_frames ?? null;
+        setChromaFrames(frames);
         setUnavailable(data === null);
         // Only cache palettes fully determined by the analysis. A found-but-
         // low-confidence result still blends lastHueRef (session state), and
         // 404s must stay live so a later analysis is picked up.
         if (data !== null && !next.fallback) {
-          paletteCache.set(filename, { palette: next, unavailable: false });
+          paletteCache.set(filename, {
+            palette: next,
+            unavailable: false,
+            chromaFrames: frames,
+          });
         }
         setError(null);
         setLoading(false);
@@ -132,6 +150,7 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
         const next = keyPalette(null, lastHueRef.current);
         lastHueRef.current = next.hue;
         setPalette(next);
+        setChromaFrames(null);
         setUnavailable(false);
         setError(err instanceof Error ? err.message : "Unknown error");
         setLoading(false);
@@ -142,5 +161,5 @@ export function useKeyPalette(filename: string | null): KeyPaletteState {
     };
   }, [filename]);
 
-  return { palette, loading, error, unavailable };
+  return { palette, chromaFrames, loading, error, unavailable };
 }

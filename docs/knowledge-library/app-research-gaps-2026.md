@@ -357,7 +357,7 @@ type: synthesis
 
 ### Suggested Research
 
-1. ~~MCP tool contract standard~~ — input side done 2026-10-06 (see §13 table; registry lives in `mcp_validator.py`, not in `mcp-contracts.md`). Open follow-up: output-side schemas per tool.
+1. ~~MCP tool contract standard~~ — done 2026-10-06/11-06 (see §13 table; registry lives in `mcp_validator.py`, not in `mcp-contracts.md`). Input side enforces args via `POST /api/mcp/validate-tool`; output side added 2026-11-06 via `validate_tool_result` + `POST /api/mcp/validate-tool-result` with graceful pass-through for bridges that declare no output schema.
 2. **Parallel agent experiment**: Run 3 agents in parallel for a single track: (a) audio analysis, (b) 3D asset generation, (c) prompt engineering. Measure wall-clock time vs sequential.
 
 ---

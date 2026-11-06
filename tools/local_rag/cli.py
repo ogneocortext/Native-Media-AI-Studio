@@ -1,17 +1,14 @@
 """CLI for local-rag."""
 
 import json
-import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 
 from .config import Config, get_config, set_config
+from .database import close_pool
 from .indexing import index_corpus
-from .search import search, get_status
-from .database import init_database, close_pool
-
+from .search import get_status, search
 
 app = typer.Typer(
     name="local-rag",
@@ -25,21 +22,20 @@ app = typer.Typer(
 
 def common_options(ctx: typer.Context):
     """Add common options to context."""
-    pass
 
 
 # ─── Commands ─────────────────────────────────────────────────────────────────
 
 @app.command()
 def index(
-    corpus: Optional[Path] = typer.Option(
+    corpus: Path | None = typer.Option(
         None, "--corpus", "-c", help="Corpus root directory", exists=True, file_okay=False, dir_okay=True
     ),
-    db: Optional[Path] = typer.Option(
+    db: Path | None = typer.Option(
         None, "--db", "-d", help="Database path", file_okay=True, dir_okay=False
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Force full reindex"),
-    config_file: Optional[Path] = typer.Option(
+    config_file: Path | None = typer.Option(
         None, "--config", help="Config file path", exists=True, file_okay=True, dir_okay=False
     ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON"),
@@ -98,8 +94,8 @@ def cmd_search(
     top_k: int = typer.Option(10, "--top-k", "-k", help="Number of results"),
     mode: str = typer.Option("hybrid", "--mode", "-m", help="Search mode: bm25, vector, hybrid, hybrid+rerank"),
     rerank: bool = typer.Option(False, "--rerank", "-r", help="Enable cross-encoder reranking"),
-    db: Optional[Path] = typer.Option(None, "--db", "-d", help="Database path"),
-    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
+    db: Path | None = typer.Option(None, "--db", "-d", help="Database path"),
+    config_file: Path | None = typer.Option(None, "--config", help="Config file path"),
     json_output: bool = typer.Option(False, "--json", help="Output JSON"),
 ):
     """Search the corpus."""
@@ -142,8 +138,8 @@ def cmd_search(
 
 @app.command()
 def status(
-    db: Optional[Path] = typer.Option(None, "--db", "-d", help="Database path"),
-    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
+    db: Path | None = typer.Option(None, "--db", "-d", help="Database path"),
+    config_file: Path | None = typer.Option(None, "--config", help="Config file path"),
     json_output: bool = typer.Option(False, "--json", help="Output JSON"),
 ):
     """Get index status and statistics."""
@@ -179,7 +175,7 @@ def status(
 
 @app.command()
 def config_show(
-    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
+    config_file: Path | None = typer.Option(None, "--config", help="Config file path"),
 ):
     """Show current configuration."""
     if config_file:
@@ -203,8 +199,8 @@ def config_init(
 
 @app.command()
 def serve(
-    db: Optional[Path] = typer.Option(None, "--db", "-d", help="Database path"),
-    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
+    db: Path | None = typer.Option(None, "--db", "-d", help="Database path"),
+    config_file: Path | None = typer.Option(None, "--config", help="Config file path"),
 ):
     """Run MCP stdio server."""
     if config_file:

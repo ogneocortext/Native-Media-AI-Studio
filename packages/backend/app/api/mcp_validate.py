@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.mcp_validator import ValidationError, validate_tool_call
+from ..services.mcp_validator import ValidationError, validate_tool_call, validate_tool_result
 
 logger = logging.getLogger(__name__)
 
@@ -57,4 +57,34 @@ async def validate_tool(args: ValidateToolCallRequest) -> ValidateToolCallRespon
         )
     except Exception as exc:
         logger.error("MCP tool validation error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"validation error: {exc}") from exc
+
+
+class ValidateToolResultRequest(BaseModel):
+    tool_name: str
+    result: Any
+
+
+class ValidateToolResultResponse(BaseModel):
+    valid: bool
+    tool_name: str
+    error: str | None = None
+
+
+@router.post("/api/mcp/validate-result", response_model=ValidateToolResultResponse)
+async def validate_result(args: ValidateToolResultRequest) -> ValidateToolResultResponse:
+    """Validate an MCP tool *result* against the CallToolResult envelope.
+
+    Checks the ``content`` block array, ``isError`` flag, and optional
+    ``structuredContent`` — the output-side counterpart to
+    ``/api/mcp/validate-tool``. Unknown tools pass through (``valid=True``).
+    """
+    try:
+        validate_tool_result(args.tool_name, args.result)
+        return ValidateToolResultResponse(valid=True, tool_name=args.tool_name)
+    except ValidationError as exc:
+        logger.warning("MCP tool result validation failed: %s", exc)
+        return ValidateToolResultResponse(valid=False, tool_name=args.tool_name, error=str(exc))
+    except Exception as exc:
+        logger.error("MCP tool result validation error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"validation error: {exc}") from exc

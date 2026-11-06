@@ -502,6 +502,8 @@ export function ShaderCanvas({
       "u_key_hue",
       "u_key_sat",
       "u_key_conf",
+      // Tier 2 per-frame chroma hue (chroma-hue-mapping.md). -1 = inactive.
+      "u_chroma_hue",
       "u_feedback_texture",
     ];
     for (const name of uniformNames) {
@@ -790,6 +792,7 @@ export function ShaderCanvas({
           gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
           gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
           gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);
+          gl.uniform1f(locs.u_chroma_hue, u.chromaHue ?? -1);
           gl.uniform2f(locs.u_resolution, write.width, write.height);
 
           gl.activeTexture(gl.TEXTURE0);
@@ -839,6 +842,7 @@ export function ShaderCanvas({
           gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
           gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
           gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);
+          gl.uniform1f(locs.u_chroma_hue, u.chromaHue ?? -1);
           gl.uniform2f(locs.u_resolution, canvas.width, canvas.height);
 
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

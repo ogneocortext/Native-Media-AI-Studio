@@ -1,17 +1,16 @@
 """MCP Server for local-rag using MCP Python SDK v2."""
 
-from typing import Any, Dict, List, Optional
 
 from mcp.server import MCPServer
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent
 
-from .config import get_config, Config
-from .search import search, get_status
+from .config import Config, get_config
+from .database import close_pool, init_database
 from .indexing import index_corpus
-from .database import init_database, close_pool
+from .search import get_status, search
 
 
-def create_server(config: Optional[Config] = None) -> MCPServer:
+def create_server(config: Config | None = None) -> MCPServer:
     """Create MCP server instance."""
     if config is None:
         config = get_config()
@@ -28,7 +27,7 @@ def create_server(config: Optional[Config] = None) -> MCPServer:
         top_k: int = 10,
         mode: str = "hybrid",
         rerank: bool = False
-    ) -> List[TextContent]:
+    ) -> list[TextContent]:
         """
         Search the local knowledge corpus using hybrid BM25+vector retrieval
         with optional cross-encoder reranking.
@@ -51,8 +50,8 @@ def create_server(config: Optional[Config] = None) -> MCPServer:
     @mcp.tool()
     def local_rag_index(
         force: bool = False,
-        corpus: Optional[str] = None
-    ) -> List[TextContent]:
+        corpus: str | None = None
+    ) -> list[TextContent]:
         """
         Index or reindex the local knowledge corpus.
         
@@ -70,7 +69,7 @@ def create_server(config: Optional[Config] = None) -> MCPServer:
         return [TextContent(type="text", text=str(result))]
 
     @mcp.tool()
-    def local_rag_status() -> List[TextContent]:
+    def local_rag_status() -> list[TextContent]:
         """
         Get index status and statistics.
         """
@@ -78,7 +77,7 @@ def create_server(config: Optional[Config] = None) -> MCPServer:
         return [TextContent(type="text", text=str(result))]
 
     @mcp.tool()
-    def local_rag_config() -> List[TextContent]:
+    def local_rag_config() -> list[TextContent]:
         """
         Get current configuration.
         """
@@ -87,7 +86,7 @@ def create_server(config: Optional[Config] = None) -> MCPServer:
     return mcp
 
 
-def run_server(config: Optional[Config] = None):
+def run_server(config: Config | None = None):
     """Run MCP server with stdio transport."""
     if config is None:
         config = get_config()

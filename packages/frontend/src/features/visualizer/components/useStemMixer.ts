@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { getApiBase, getAudioStems, separateAudioFile } from "../../../services/api";
 import { createEQ, type EQBand, type EQInstance } from "../audioEQ";
 import { createStemSpatialProcessor, type StemSpatialProcessor } from "../stemSpatial";
+import { getSharedAudioContext } from "../../../shared/audioContext";
 import {
   DEFAULT_STEM_GAINS_DB,
   MIX_PRESETS,
@@ -306,7 +307,9 @@ export function useStemMixer({
     const created: LoadedStem[] = [];
     void (() => {
       try {
-        const ctx = sharedAudioContext ?? new AudioContext({ renderSizeHint: "hardware" } as any);
+        // Prop wins; otherwise fall back to the shared page-lifetime context.
+        // Neither is owned here, so neither may be closed on cleanup.
+        const ctx = sharedAudioContext ?? getSharedAudioContext();
         ctxRef.current = ctx;
         for (const name of STEM_NAMES) {
           const raw = stems[name];
@@ -353,10 +356,8 @@ export function useStemMixer({
             s.element.pause();
             if (s.eq) s.eq.dispose();
           });
-          if (!sharedAudioContext && ctxRef.current) {
-            void ctxRef.current.close();
-            ctxRef.current = null;
-          }
+          // ctx is the shared prop/singleton — never closed here.
+          ctxRef.current = null;
           return;
         }
         loadedRef.current = created;
@@ -379,10 +380,8 @@ export function useStemMixer({
         if (s.spatial) s.spatial.dispose();
       });
       loadedRef.current = [];
-      if (ctxRef.current && !sharedAudioContext) {
-        void ctxRef.current.close();
-        ctxRef.current = null;
-      }
+      // ctx is the shared prop/singleton — never closed here.
+      ctxRef.current = null;
       // Restore the main track's output when stems are released.
       if (mainGainRef?.current) {
         mainGainRef.current.gain.setTargetAtTime(1, mainGainRef.current.context.currentTime, 0.06);

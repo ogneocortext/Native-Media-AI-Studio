@@ -369,6 +369,87 @@ def validate_tool_call(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
             errors.append(f"field {key!r} must be an array, got {type(value).__name__}")
 
     if errors:
-        raise ValidationError(f"tool {tool_name!r}: invalid arguments -- " + "; ".join(errors))
+        raise ValidationError(f"tool {tool_name!r}: invalid arguments -- " + ". ".join(errors))
 
     return args
+
+
+# ---------------------------------------------------------------------------
+# Output-side validation
+#
+# Every in-repo bridge returns the standard MCP CallToolResult envelope:
+# ``{content: [{type, ...}], isError?: bool, structuredContent?: dict}``.
+# Per-tool *payload* shapes are documented prose in
+# ``docs/knowledge-library/mcp-contracts-2026.md``; what is enforceable here
+# is the envelope contract itself — a malformed envelope breaks every MCP
+# client regardless of what the text payload says.
+# ---------------------------------------------------------------------------
+
+_CONTENT_BLOCK_TYPES = {"text", "image", "audio", "resource", "resource_link"}
+
+
+def validate_tool_result(tool_name: str, result: Any) -> Any:
+    """Validate a tool *result* against the MCP CallToolResult envelope.
+
+    Parameters
+    ----------
+    tool_name : str
+        The MCP tool that produced the result (for error messages and the
+        unknown-tool pass-through policy).
+    result : Any
+        The value a ``tools/call`` handler returned.
+
+    Returns
+    -------
+    dict
+        The validated result, unchanged.
+
+    Raises
+    ------
+    ValidationError
+        If *result* is not a well-formed CallToolResult. Unknown tools are
+        passed through unchanged, matching :func:`validate_tool_call`.
+    """
+    if tool_name not in _TOOL_SCHEMAS:
+        logger.warning(
+            "validate_tool_result: unknown tool %r -- passing through unchanged",
+            tool_name,
+        )
+        return result
+
+    errors: list[str] = []
+
+    if not isinstance(result, dict):
+        raise ValidationError(
+            f"tool {tool_name!r}: result must be an object, got {type(result).__name__}"
+        )
+
+    content = result.get("content")
+    if not isinstance(content, list):
+        errors.append("missing or invalid 'content' array")
+    else:
+        for i, block in enumerate(content):
+            if not isinstance(block, dict):
+                errors.append(f"content[{i}] must be an object, got {type(block).__name__}")
+                continue
+            btype = block.get("type")
+            if btype not in _CONTENT_BLOCK_TYPES:
+                errors.append(
+                    f"content[{i}].type must be one of {sorted(_CONTENT_BLOCK_TYPES)}, "
+                    f"got {btype!r}"
+                )
+            if btype == "text" and not isinstance(block.get("text"), str):
+                errors.append(f"content[{i}].text must be a string")
+
+    if "isError" in result and not isinstance(result["isError"], bool):
+        errors.append("'isError' must be a boolean")
+
+    if "structuredContent" in result and not isinstance(result["structuredContent"], dict):
+        errors.append("'structuredContent' must be an object")
+
+    if errors:
+        raise ValidationError(
+            f"tool {tool_name!r}: invalid result -- " + "; ".join(errors)
+        )
+
+    return result

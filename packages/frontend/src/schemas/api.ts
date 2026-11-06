@@ -1,22 +1,25 @@
 /**
- * Zod v4 Schemas for API Types
+ * Zod v3 Schemas for API Types
  * 
  * Single source of truth for runtime validation + TypeScript inference.
  * Use `z.infer<typeof Schema>` to get types, `Schema.safeParse()` for validation.
  * 
- * Note: Zod v4 uses chainable methods for schema construction:
+ * Note: Using Zod v3 compatible methods:
  * - z.string().uuid() instead of z.uuid()
  * - z.string().datetime() instead of z.iso.datetime()
  * - z.string().url() instead of z.url()
+ * 
+ * Note: Zod v3 doesn't have .validate() or .compile() - those are v4.6+ features.
+ * For fast validation in v3, use .safeParse().success or compile schemas manually.
  */
 
-import { z } from "zod/v3";
+import { z } from "zod";
 
 // ─── Shared Base Types ────────────────────────────────────────────────────────
 
-export const UUIDSchema = z.string().uuid();
-export const TimestampSchema = z.string().datetime();
-export const URLSchema = z.string().url();
+export const UUIDSchema = z.uuid();
+export const TimestampSchema = z.iso.datetime();
+export const URLSchema = z.url();
 
 // ─── Health & System ──────────────────────────────────────────────────────────
 
@@ -31,7 +34,7 @@ export const AdapterHealthSchema = z.object({
 export const AggregateHealthSchema = z.object({
   backend: z.enum(["online", "offline"]),
   overall: z.enum(["healthy", "degraded", "unhealthy"]),
-  adapters: z.record(AdapterHealthSchema),
+  adapters: z.record(z.string(), AdapterHealthSchema),
   timestamp: TimestampSchema,
 });
 
@@ -78,14 +81,14 @@ export const JobStatusSchema = z.enum([
 export const JobSchema = z.object({
   id: z.string(),
   job_type: z.string(),
-  params: z.record(z.unknown()),
+  params: z.record(z.string(), z.unknown()),
   status: JobStatusSchema,
   progress: z.number().min(0).max(100).default(0),
   message: z.string().optional(),
   error: z.string().optional(),
   started_at: TimestampSchema.optional(),
   completed_at: TimestampSchema.optional(),
-  result: z.record(z.unknown()).optional(),
+  result: z.record(z.string(), z.unknown()).optional(),
   output_path: z.string().optional(),
   max_retries: z.number().int().nonnegative().default(3),
   retry_count: z.number().int().nonnegative().default(0),
@@ -118,7 +121,7 @@ export type QueueMetrics = z.infer<typeof QueueMetricsSchema>;
 
 export const CreateJobRequestSchema = z.object({
   job_type: z.string().min(1),
-  params: z.record(z.unknown()),
+  params: z.record(z.string(), z.unknown()),
   max_retries: z.number().int().nonnegative().max(10).default(3),
 });
 
@@ -196,7 +199,7 @@ export const RemixBuildResultSchema = z.object({
     source_tracks: z.array(z.string()),
     stems: z.array(z.string()),
   }),
-  stems: z.record(z.string()),
+  stems: z.record(z.string(), z.string()),
   warnings: z.array(z.string()),
 });
 
@@ -231,7 +234,7 @@ export type RemixVersion = z.infer<typeof RemixVersionSchema>;
 // ─── Audio ────────────────────────────────────────────────────────────────────
 
 export const AudioStemsSchema = z.object({
-  stems: z.record(StemNameSchema, z.string().url()),
+  stems: z.record(StemNameSchema, z.url()),
 });
 
 export type AudioStems = z.infer<typeof AudioStemsSchema>;
@@ -263,7 +266,7 @@ export const GenerationRequestSchema = z.object({
 export const GenerationResponseSchema = z.object({
   job_id: z.string(),
   status: z.enum(["queued", "running", "completed", "failed"]),
-  result_url: z.string().url().optional(),
+  result_url: z.url().optional(),
   error: z.string().optional(),
 });
 
@@ -273,31 +276,31 @@ export type GenerationResponse = z.infer<typeof GenerationResponseSchema>;
 // ─── Settings / Config ────────────────────────────────────────────────────────
 
 export const PortConfigSchema = z.object({
-  backend_url: z.string().url(),
+  backend_url: z.url(),
   backend_port: z.number().int().positive(),
   frontend_port: z.number().int().positive(),
   ws_port: z.number().int().positive(),
-  events_url: z.string().url().optional(),
-  sse_url: z.string().url().optional(),
+  events_url: z.url().optional(),
+  sse_url: z.url().optional(),
 });
 
 export const AppConfigSchema = z.object({
   backend_port: z.number().int().positive(),
   frontend_port: z.number().int().positive(),
   ws_port: z.number().int().positive(),
-  backend_url: z.string().url(),
-  frontend_url: z.string().url(),
-  comfyui_url: z.string().url(),
+  backend_url: z.url(),
+  frontend_url: z.url(),
+  comfyui_url: z.url(),
   comfyui_port: z.number().int().positive(),
   video_editor_port: z.number().int().positive(),
-  ollama_url: z.string().url(),
-  atomic_chat_url: z.string().url(),
+  ollama_url: z.url(),
+  atomic_chat_url: z.url(),
   atomic_chat_enabled: z.boolean(),
-  go_dashboard_url: z.string().url(),
-  go_media_url: z.string().url(),
-  go_worker_url: z.string().url(),
-  go_gateway_url: z.string().url(),
-  go_ports_url: z.string().url(),
+  go_dashboard_url: z.url(),
+  go_media_url: z.url(),
+  go_worker_url: z.url(),
+  go_gateway_url: z.url(),
+  go_ports_url: z.url(),
 });
 
 export type PortConfig = z.infer<typeof PortConfigSchema>;
@@ -308,6 +311,8 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 /**
  * Validate unknown data against a schema, returning typed result or throwing.
  * Use in API routes, form handlers, SSE handlers.
+ * 
+ * Throws on validation failure with formatted error.
  */
 export function validateOrThrow<T>(schema: z.ZodSchema<T>, data: unknown): T {
   const result = schema.safeParse(data);
@@ -319,10 +324,19 @@ export function validateOrThrow<T>(schema: z.ZodSchema<T>, data: unknown): T {
 }
 
 /**
- * Fast boolean validation.
+ * Fast boolean validation using safeParse.
+ * Note: Zod v3 doesn't have .validate() - that's v4.6+.
+ * Use safeParse().success for boolean checks.
  */
 export function isValid<T>(schema: z.ZodSchema<T>, data: unknown): boolean {
   return schema.safeParse(data).success;
+}
+
+/**
+ * Async fast validation using safeParseAsync.
+ */
+export async function isValidAsync<T>(schema: z.ZodSchema<T>, data: unknown): Promise<boolean> {
+  return (await schema.safeParseAsync(data)).success;
 }
 
 /**

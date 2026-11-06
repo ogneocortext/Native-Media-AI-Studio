@@ -1,15 +1,15 @@
 """Indexing pipeline for local-rag."""
 
 import hashlib
-import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Callable
+from typing import Any
 
+from .chunking import chunk_markdown, chunk_to_text
 from .config import get_config
 from .database import get_database, init_database
-from .chunking import chunk_markdown, chunk_to_text
 from .embedding import embed_chunks, ensure_model, pull_model, warm_model
 
 
@@ -40,13 +40,13 @@ def compute_corpus_hash(corpus_root: Path) -> str:
 
 
 def index_corpus(
-    corpus_root: Optional[Path] = None,
-    db_path: Optional[Path] = None,
+    corpus_root: Path | None = None,
+    db_path: Path | None = None,
     force: bool = False,
-    progress_callback: Optional[Callable[[str, int, int], None]] = None,
+    progress_callback: Callable[[str, int, int], None] | None = None,
     config=None,
     json_output: bool = False
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Index all markdown files in corpus_root.
     
@@ -116,13 +116,11 @@ def index_corpus(
 
             # Check if file already indexed with same content
             existing = db.get_file_chunks(str(md_file))
-            if existing and not force:
-                # Verify content hash matches
-                if existing[0].get('content_hash') == content_hash:
-                    skipped_files += 1
-                    if progress_callback:
-                        progress_callback("indexing", idx + 1, len(md_files))
-                    continue
+            if existing and not force and existing[0].get('content_hash') == content_hash:
+                skipped_files += 1
+                if progress_callback:
+                    progress_callback("indexing", idx + 1, len(md_files))
+                continue
 
             # Remove old chunks for this file
             db.delete_file_chunks(str(md_file))
@@ -133,7 +131,7 @@ def index_corpus(
                 continue
 
             # Embed chunks
-            def embed_progress(current, total):
+            def embed_progress(current, total, rel_path=rel_path):
                 if progress_callback:
                     progress_callback(f"embedding {rel_path}", current, total)
 

@@ -378,6 +378,34 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
     runner_up_key = key_scores[1][1]
     runner_up_conf = round(key_scores[1][0], 3)
 
+    # Tier 2 chroma frames (chroma-hue-mapping.md): same downsampled
+    # dominant-pitch-class track analyze.py emits, so both analyzers stay
+    # interchangeable for per-frame palette shifts.
+    CHROMA_FRAME_SEC = 0.5
+    chroma_times = librosa.frames_to_time(
+        np.arange(chroma.shape[1]), sr=sr, hop_length=512
+    )
+    chroma_edges = np.arange(0.0, dur + CHROMA_FRAME_SEC, CHROMA_FRAME_SEC)
+    pc_frames: list[int] = []
+    conf_frames: list[float] = []
+    for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:]):
+        mask = (chroma_times >= lo) & (chroma_times < hi)
+        if not mask.any():
+            pc_frames.append(-1)
+            conf_frames.append(0.0)
+            continue
+        vec = chroma[:, mask].mean(axis=1)
+        order = np.argsort(vec)[::-1]
+        top1, top2 = float(vec[order[0]]), float(vec[order[1]])
+        pc_frames.append(int(order[0]))
+        conf_frames.append(round(float((top1 - top2) / (top1 + top2 + 1e-9)), 3))
+    chroma_frames = {
+        "fps": round(1.0 / CHROMA_FRAME_SEC, 3),
+        "t0": 0.0,
+        "pc": pc_frames,
+        "conf": conf_frames,
+    }
+
     # Dynamics
     rms = librosa.feature.rms(y=y, frame_length=4096, hop_length=2048)[0]
     rms_db = librosa.amplitude_to_db(rms, ref=np.max)
@@ -442,6 +470,7 @@ def profile_for_file(path: str | Path, sr: int | None = 22050) -> dict[str, Any]
         "key_confidence_r": key_conf_r,
         "key_runner_up": runner_up_key,
         "key_runner_up_r": runner_up_conf,
+        "chroma_frames": chroma_frames,
         "dynamic_range_db": dynamic_range,
         "band_energy_pct": band_energy,
         "spectral": {

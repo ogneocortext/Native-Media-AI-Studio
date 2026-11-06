@@ -338,6 +338,10 @@ class AudioAnalysisResult(BaseModel):
     key_confidence_r: float | None = None
     key_runner_up: str | None = None
     key_runner_up_r: float | None = None
+    # Tier 2 chroma (chroma-hue-mapping.md): per-0.5s dominant pitch class +
+    # confidence, emitted by analyze.py / audio_agent_profile.py. Optional —
+    # analyses stored before it existed simply lack the key.
+    chroma_frames: dict | None = None
     stored_path: str | None = None
     job_id: str | None = None
     beats_truncated: bool = False  # True when beat_times hit the response cap
@@ -706,6 +710,7 @@ def _build_beat_map_response(data: dict) -> dict:
         "key_confidence_r": data.get("key_confidence_r"),
         "key_runner_up": data.get("key_runner_up"),
         "key_runner_up_r": data.get("key_runner_up_r"),
+        "chroma_frames": data.get("chroma_frames"),
     }
 
 
@@ -1570,6 +1575,9 @@ def _agent_profile_from_cached(data: dict) -> dict:
         "key_confidence_r": data.get("key_confidence_r"),
         "key_runner_up": data.get("key_runner_up"),
         "key_runner_up_r": data.get("key_runner_up_r"),
+        # Tier 2 chroma frames for per-frame palette shifts; absent on
+        # pre-Tier-2 analyses, which the frontend treats as "no chroma".
+        "chroma_frames": data.get("chroma_frames"),
         "dynamic_range_db": data.get("dynamic_range_db"),
         "band_energy_pct": band_energy,
         "spectral": {

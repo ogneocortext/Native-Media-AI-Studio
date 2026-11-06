@@ -1,15 +1,13 @@
 """Embedding generation with Ollama for local-rag."""
 
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
-from typing import List, Optional, Callable
+import sys
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 import ollama
 
-from .config import get_config
 from .chunking import Chunk
-
+from .config import Config, EmbeddingConfig, get_config
 
 # ─── Embedding Cache ──────────────────────────────────────────────────────────
 
@@ -26,7 +24,7 @@ class EmbeddingCache:
         prefix = "q:" if is_query else "d:"
         return f"{model}:{prefix}{hash(text)}"
 
-    def get(self, text: str, model: str, is_query: bool) -> Optional[List[float]]:
+    def get(self, text: str, model: str, is_query: bool) -> list[float] | None:
         key = self._make_key(text, model, is_query)
         if key in self._cache:
             self._hits += 1
@@ -34,7 +32,7 @@ class EmbeddingCache:
         self._misses += 1
         return None
 
-    def set(self, text: str, model: str, is_query: bool, embedding: List[float]):
+    def set(self, text: str, model: str, is_query: bool, embedding: list[float]):
         if len(self._cache) >= self._max_size:
             # Simple eviction: clear half
             keys_to_remove = list(self._cache.keys())[:self._max_size // 2]
@@ -68,9 +66,8 @@ def get_embedding_cache() -> EmbeddingCache:
 
 # ─── Embedding Functions ──────────────────────────────────────────────────────
 
-def _get_embedding_config(config) -> "EmbeddingConfig":
+def _get_embedding_config(config) -> EmbeddingConfig:
     """Extract EmbeddingConfig from either Config or EmbeddingConfig."""
-    from .config import Config, EmbeddingConfig
     if isinstance(config, Config):
         return config.embedding
     if isinstance(config, EmbeddingConfig):
@@ -79,11 +76,11 @@ def _get_embedding_config(config) -> "EmbeddingConfig":
 
 
 def embed_batch(
-    texts: List[str],
-    model: Optional[str] = None,
+    texts: list[str],
+    model: str | None = None,
     is_query: bool = False,
     config=None
-) -> List[List[float]]:
+) -> list[list[float]]:
     """Embed a batch of texts via Ollama with task prefix."""
     ec = _get_embedding_config(config)
     if model is None:
@@ -109,10 +106,10 @@ def embed_batch(
 
 def embed_with_cache(
     text: str,
-    model: Optional[str] = None,
+    model: str | None = None,
     is_query: bool = False,
     config=None
-) -> List[float]:
+) -> list[float]:
     """Embed single text with caching."""
     ec = _get_embedding_config(config)
     if model is None:
@@ -129,11 +126,11 @@ def embed_with_cache(
 
 
 def embed_chunks(
-    chunks: List[Chunk],
-    model: Optional[str] = None,
+    chunks: list[Chunk],
+    model: str | None = None,
     config=None,
-    progress_callback: Optional[Callable[[int, int], None]] = None
-) -> List[List[float]]:
+    progress_callback: Callable[[int, int], None] | None = None
+) -> list[list[float]]:
     """Embed multiple chunks with batching and concurrency."""
     ec = _get_embedding_config(config)
     if model is None:
@@ -144,7 +141,6 @@ def embed_chunks(
     max_workers = ec.max_workers
 
     results = [None] * len(texts)
-    total_batches = (len(texts) + batch_size - 1) // batch_size
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
@@ -179,17 +175,7 @@ def chunk_to_text(chunk: Chunk, include_header: bool = True) -> str:
 
 # ─── Model Management ─────────────────────────────────────────────────────────
 
-def _get_embedding_config(config) -> "EmbeddingConfig":
-    """Extract EmbeddingConfig from either Config or EmbeddingConfig."""
-    from .config import Config, EmbeddingConfig
-    if isinstance(config, Config):
-        return config.embedding
-    if isinstance(config, EmbeddingConfig):
-        return config
-    return get_config().embedding
-
-
-def ensure_model(model: Optional[str] = None, config=None) -> bool:
+def ensure_model(model: str | None = None, config=None) -> bool:
     """Ensure embedding model is available in Ollama."""
     ec = _get_embedding_config(config)
     if model is None:
@@ -204,7 +190,7 @@ def ensure_model(model: Optional[str] = None, config=None) -> bool:
         return False
 
 
-def pull_model(model: Optional[str] = None, config=None) -> bool:
+def pull_model(model: str | None = None, config=None) -> bool:
     """Pull embedding model from Ollama."""
     ec = _get_embedding_config(config)
     if model is None:
@@ -219,7 +205,7 @@ def pull_model(model: Optional[str] = None, config=None) -> bool:
         return False
 
 
-def warm_model(model: Optional[str] = None, config=None) -> bool:
+def warm_model(model: str | None = None, config=None) -> bool:
     """Warm up embedding model with a dummy request."""
     ec = _get_embedding_config(config)
     if model is None:

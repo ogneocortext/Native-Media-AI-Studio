@@ -14,7 +14,11 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.services import push_notifier
-from app.services.mcp_validator import ValidationError, validate_tool_call
+from app.services.mcp_validator import (
+    ValidationError,
+    validate_tool_call,
+    validate_tool_result,
+)
 from app.services.visual_fallback import _token_in, select_fallback_preset
 
 
@@ -66,6 +70,62 @@ def test_validator_rejects_bool_for_number_field():
     # the validator must exclude it explicitly.
     with pytest.raises(ValidationError, match="must be a number"):
         validate_tool_call("generate_image", {"prompt": "x", "width": True})
+
+
+def test_result_validator_accepts_call_tool_result_envelope():
+    result = {
+        "content": [{"type": "text", "text": "ok"}],
+        "isError": False,
+        "structuredContent": {"job_id": "j1"},
+    }
+    assert validate_tool_result("generate_video", result) is result
+
+
+def test_result_validator_rejects_missing_content():
+    with pytest.raises(ValidationError, match="content"):
+        validate_tool_result("generate_video", {"isError": False})
+
+
+def test_result_validator_rejects_bad_block_type_and_text():
+    with pytest.raises(ValidationError, match="content\\[0\\]\\.type"):
+        validate_tool_result("generate_video", {"content": [{"type": "bogus"}]})
+    with pytest.raises(ValidationError, match="content\\[0\\]\\.text"):
+        validate_tool_result("generate_video", {"content": [{"type": "text"}]})
+
+
+def test_result_validator_rejects_non_bool_iserror():
+    with pytest.raises(ValidationError, match="isError"):
+        validate_tool_result(
+            "generate_video", {"content": [{"type": "text", "text": "x"}], "isError": "yes"}
+        )
+
+
+def test_result_validator_passes_unknown_tool_through():
+    weird = {"not": "an envelope"}
+    assert validate_tool_result("upstream_tool", weird) is weird
+
+
+@pytest.mark.asyncio
+async def test_validate_result_route():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        ok = await client.post(
+            "/api/mcp/validate-result",
+            json={
+                "tool_name": "generate_video",
+                "result": {"content": [{"type": "text", "text": "done"}]},
+            },
+        )
+        assert ok.status_code == 200
+        assert ok.json()["valid"] is True
+
+        bad = await client.post(
+            "/api/mcp/validate-result",
+            json={"tool_name": "generate_video", "result": {"content": "nope"}},
+        )
+        assert bad.status_code == 200
+        assert bad.json()["valid"] is False
+        assert "content" in bad.json()["error"]
 
 
 @pytest.mark.asyncio

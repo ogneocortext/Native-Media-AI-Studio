@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useRef } from "react";
 import { Plus, Trash2, Music, Zap, SkipForward, PauseCircle } from "lucide-react";
 import { formatTime } from "../../utils/format";
+import { getSharedAudioContext } from "../../shared/audioContext";
 
 export interface BeatMarker {
   id: string;
@@ -95,7 +96,9 @@ export function BeatTimeline({
       const response = await fetch(audioElement.src);
       const arrayBuffer = await response.arrayBuffer();
 
-      const audioCtx = new AudioContext({ renderSizeHint: "hardware" } as AudioContextOptions);
+      // Shared page-lifetime context — decode works while suspended and the
+      // singleton must not be closed (see shared/audioContext.ts).
+      const audioCtx = getSharedAudioContext();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
       // Get the first channel's audio data
@@ -169,7 +172,6 @@ export function BeatTimeline({
       });
 
       onMarkersChange([...markers, ...newMarkers].sort((a, b) => a.time - b.time));
-      await audioCtx.close();
     } catch {
       // Fallback: simple interval-based detection
       const interval = 0.5;

@@ -2,31 +2,36 @@
  * TanStack Query v5 Patterns
  * 
  * Modern idiomatic patterns for TanStack Query v5:
- * - useSuspenseQuery for non-undefined data
- * - queryOptions() for shareable config
+ * - useSuspenseQuery for non-undefined data (data guaranteed defined)
+ * - queryOptions() for shareable config with type inference
  * - queryKey factories for consistent keys
- * - Simplified optimistic updates
+ * - Simplified optimistic updates with useMutation
+ * - queryClient.query() for imperative queries (loaders)
+ * - useSuspenseQueries for parallel suspense queries
  * 
- * Note: Type signatures simplified to avoid Zod v3/v4 compatibility issues.
- * Use `as any` where needed for schema validation at runtime.
+ * Based on TanStack Query v5 docs: https://tanstack.com/query/v5/docs/framework/react/guides
+ * Requires @tanstack/react-query v5.100+
  */
 
 import {
   useSuspenseQuery,
+  useSuspenseQueries,
   useQueryClient,
-  useQueries,
-  QueryKey,
+  type QueryKey,
   UseMutationOptions,
   UseQueryOptions,
+  UseSuspenseQueryOptions,
 } from "@tanstack/react-query";
 import { schemas } from "../schemas/api";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 // ─── Query Key Factories ──────────────────────────────────────────────────────
 
 /**
  * Centralized query key factories.
  * Use these everywhere instead of inline arrays.
+ * 
+ * Pattern from TanStack Query v5 docs: query keys as const tuples
  */
 export const queryKeys = {
   // Health
@@ -84,6 +89,16 @@ export const queryKeys = {
 /**
  * Create shareable query options with Zod validation.
  * 
+ * This is the RECOMMENDED pattern from TanStack Query v5 docs.
+ * 
+ * Benefits:
+ * - Type inference for queryKey, queryFn, select, etc.
+ * - Shareable between useQuery, useSuspenseQuery, useQueries, useSuspenseQueries
+ * - Override options at call site with spread operator
+ * - Co-locates queryKey and queryFn
+ * 
+ * Based on: https://tanstack.com/query/v5/docs/framework/react/guides/query-options
+ * 
  * Usage:
  *   const healthOptions = createQueryOptions({
  *     queryKey: queryKeys.health.aggregate(),
@@ -94,20 +109,29 @@ export const queryKeys = {
  * 
  *   // In component:
  *   const { data } = useSuspenseQuery(healthOptions);
+ *   const { data } = useQuery(healthOptions);
+ * 
+ *   // With select override:
+ *   const { data: count } = useQuery({
+ *     ...healthOptions,
+ *     select: (data) => data.total,
+ *   });
  */
 export function createQueryOptions<
   TQueryKey extends QueryKey,
   TData,
+  TSchema extends z.ZodSchema<TData>
 >(options: {
   queryKey: TQueryKey;
   queryFn: () => Promise<unknown>;
-  schema: z.ZodSchema<TData>;
+  schema: TSchema;
   staleTime?: number;
   gcTime?: number;
   retry?: number | boolean;
   refetchOnWindowFocus?: boolean;
   refetchOnReconnect?: boolean;
   select?: (data: TData) => TData;
+  refetchInterval?: number | false;
 }): UseQueryOptions<TData, Error, TData, TQueryKey> {
   const { queryKey, queryFn, schema, ...rest } = options;
   
@@ -134,11 +158,26 @@ function validateOrThrow<T>(schema: z.ZodSchema<T>, data: unknown): T {
   return result.data;
 }
 
+/**
+ * Convert UseQueryOptions to UseSuspenseQueryOptions by removing
+ * unsupported options (enabled, throwOnError, placeholderData).
+ */
+function toSuspenseOptions<TData, _TError, TQueryKey extends QueryKey>(
+  options: UseQueryOptions<TData, Error, TData, TQueryKey>
+): UseSuspenseQueryOptions<TData, Error, TData, TQueryKey> {
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  const { enabled, throwOnError, placeholderData, ...rest } = options;
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+  return rest as UseSuspenseQueryOptions<TData, Error, TData, TQueryKey>;
+}
+
 // ─── Pre-built Query Options ─────────────────────────────────────────────────
 
 /**
  * Ready-to-use query options for common endpoints.
  * Import and use directly: `useSuspenseQuery(healthQueries.aggregate())`
+ * 
+ * All options use Zod validation for runtime type safety.
  */
 export const healthQueries = {
   aggregate: () => createQueryOptions({
@@ -175,7 +214,7 @@ export const healthQueries = {
       const res = await fetch(`${base}/api/health/services`);
       return res.json();
     },
-    schema: z.record(z.string()),
+    schema: z.record(z.string(), z.string()),
     staleTime: 5_000,
     gcTime: 30_000,
     retry: 1,
@@ -333,6 +372,8 @@ export const configQueries = {
 /**
  * Create a mutation with simplified optimistic updates.
  * 
+ * Based on TanStack Query v5 docs: https://tanstack.com/query/v5/docs/framework/react/guides/optimistic-updates
+ * 
  * Usage:
  *   const addJobMutation = createOptimisticMutation({
  *     mutationFn: (params) => api.createJob(params),
@@ -350,6 +391,13 @@ export const configQueries = {
  *       {mutation.isPending && <li style={{opacity: 0.5}}>{mutation.variables.job_type}</li>}
  *     </ul>
  *   );
+ * 
+ * Best practices from TanStack Query v5:
+ * - Use queryOptions for mutation config sharing
+ * - onMutate: cancel queries, snapshot, optimistic update
+ * - onError: rollback to previous data
+ * - onSettled: invalidate queries for server sync
+ * - Use queryClient.query() for imperative loads (loaders)
  */
 export function createOptimisticMutation<
   TData,
@@ -534,7 +582,7 @@ export const jobMutationsActions = {
     },
   }),
   
-cancelJob: () => createOptimisticMutation({
+  cancelJob: () => createOptimisticMutation({
     mutationFn: async (id: string) => {
       const base = "";
       await fetch(`${base}/api/jobs/${id}/cancel`, { method: "POST" });
@@ -550,11 +598,56 @@ cancelJob: () => createOptimisticMutation({
   }),
 };
 
+// ─── Imperative Query Methods (v5.100+) ──────────────────────────────────────
+
+/**
+ * Imperative query methods for loaders and server components.
+ * 
+ * Based on TanStack Query v5.100+ RFC: https://github.com/TanStack/query/discussions/9135
+ * 
+ * Usage in route loaders:
+ *   // Kick off loading immediately, stream data down
+ *   void context.services.queryClient.query(
+ *     { ...getEventOptions, staleTime: 'static' }
+ *   );
+ * 
+ *   // In component:
+ *   const { data } = useSuspenseQuery(getEventOptions);
+ * 
+ * Methods available on queryClient:
+ * - queryClient.query(options) - fetch and cache
+ * - queryClient.ensureQueryData(options) - fetch if missing
+ * - queryClient.getQueryData(key) - synchronous read
+ * - queryClient.setQueryData(key, data) - manual cache write
+ * - queryClient.invalidateQueries({ queryKey }) - invalidate
+ * - queryClient.cancelQueries({ queryKey }) - cancel in-flight
+ */
+export function useImperativeQueries() {
+  const queryClient = useQueryClient();
+  
+  return {
+    query: queryClient.query.bind(queryClient),
+    ensureQueryData: queryClient.ensureQueryData.bind(queryClient),
+    getQueryData: queryClient.getQueryData.bind(queryClient),
+    setQueryData: queryClient.setQueryData.bind(queryClient),
+    invalidateQueries: queryClient.invalidateQueries.bind(queryClient),
+    cancelQueries: queryClient.cancelQueries.bind(queryClient),
+  };
+}
+
 // ─── Suspense Query Helpers ──────────────────────────────────────────────────
 
 /**
  * Hook that throws a promise until data is ready.
  * Use with <Suspense fallback={<Skeleton />}>.
+ * 
+ * Based on TanStack Query v5: https://tanstack.com/query/v5/docs/framework/react/reference/useSuspenseQuery
+ * 
+ * Benefits:
+ * - data is guaranteed to be defined (never undefined)
+ * - status is either "success" or "error"
+ * - No isPending check needed
+ * - Works with <Suspense fallback={<Skeleton />}>
  * 
  * Usage:
  *   // In component tree:
@@ -563,49 +656,51 @@ cancelJob: () => createOptimisticMutation({
  *   </Suspense>
  * 
  *   // In JobsList:
- *   const { data: jobs } = useSuspenseHealthAggregate(); // Never undefined!
+ *   const { data: jobs } = useSuspenseJobsList(); // Never undefined!
  *   return <ul>{jobs.map(...)}</ul>;
  */
 export function useSuspenseHealthAggregate() {
-  return useSuspenseQuery(healthQueries.aggregate() as any);
+  return useSuspenseQuery(toSuspenseOptions(healthQueries.aggregate()));
 }
 
 export function useSuspenseHealthSystem() {
-  return useSuspenseQuery(healthQueries.system() as any);
+  return useSuspenseQuery(toSuspenseOptions(healthQueries.system()));
 }
 
 export function useSuspenseJobsList(status?: string) {
-  return useSuspenseQuery(jobsQueries.list(status) as any);
+  return useSuspenseQuery(toSuspenseOptions(jobsQueries.list(status)));
 }
 
 export function useSuspenseJobsStats() {
-  return useSuspenseQuery(jobsQueries.stats() as any);
+  return useSuspenseQuery(toSuspenseOptions(jobsQueries.stats()));
 }
 
 export function useSuspenseRemixSources() {
-  return useSuspenseQuery(remixQueries.sources() as any);
+  return useSuspenseQuery(toSuspenseOptions(remixQueries.sources()));
 }
 
 export function useSuspenseRemixList() {
-  return useSuspenseQuery(remixQueries.list() as any);
+  return useSuspenseQuery(toSuspenseOptions(remixQueries.list()));
 }
 
 export function useSuspenseAudioLibrary() {
-  return useSuspenseQuery(audioQueries.library() as any);
+  return useSuspenseQuery(toSuspenseOptions(audioQueries.library()));
 }
 
 export function useSuspenseConfigPorts() {
-  return useSuspenseQuery(configQueries.ports() as any);
+  return useSuspenseQuery(toSuspenseOptions(configQueries.ports()));
 }
 
-// ─── Parallel Queries ────────────────────────────────────────────────────────
+// ─── Parallel Suspense Queries ────────────────────────────────────────────────
 
 /**
- * Fetch multiple queries in parallel with useQueries.
- * Returns array of query results in same order.
+ * Fetch multiple suspense queries in parallel.
+ * Use useSuspenseQueries instead of multiple useSuspenseQuery in same component.
+ * 
+ * Based on TanStack Query v5: https://tanstack.com/query/v5/docs/framework/react/reference/useSuspenseQueries
  * 
  * Usage:
- *   const [healthResult, jobsResult, configResult] = useParallelQueries([
+ *   const [healthResult, jobsResult, configResult] = useParallelSuspenseQueries([
  *     healthQueries.aggregate(),
  *     jobsQueries.stats(),
  *     configQueries.ports(),
@@ -613,10 +708,10 @@ export function useSuspenseConfigPorts() {
  * 
  *   const [health, jobs, config] = [healthResult.data, jobsResult.data, configResult.data];
  */
-export function useParallelQueries<TQueries extends Array<any>>(
+export function useParallelSuspenseQueries<TQueries extends Array<any>>(
   queries: [...TQueries]
 ) {
-  return useQueries({ queries });
+  return useSuspenseQueries({ queries });
 }
 
 // ─── Export All ──────────────────────────────────────────────────────────────

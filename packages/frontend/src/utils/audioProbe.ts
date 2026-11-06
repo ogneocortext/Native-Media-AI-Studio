@@ -3,6 +3,8 @@
  * Uses Web Audio decode when available, falls back to <audio> metadata.
  */
 
+import { getSharedAudioContext } from "../shared/audioContext";
+
 export interface AudioProbeResult {
   durationSeconds: number | null;
   channels: number | null;
@@ -62,33 +64,22 @@ async function probeViaElement(file: File, timeoutMs = 8000): Promise<AudioProbe
 export async function probeAudioFile(file: File): Promise<AudioProbeResult> {
   // Prefer full decode — also catches corrupt headers early.
   try {
-    const AudioCtx: typeof AudioContext | undefined =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (AudioCtx) {
+    const hasAudioCtx =
+      typeof window !== "undefined" &&
+      ("AudioContext" in window || "webkitAudioContext" in window);
+    if (hasAudioCtx) {
       const buf = await file.arrayBuffer();
       // decodeAudioData detaches the buffer; copy cost is acceptable for ≤500MB probe.
       // Guard against huge files blocking the main thread: fall back for >150MB.
       if (file.size < 150 * 1024 * 1024) {
-        const ctx = new AudioCtx();
-        try {
-          const decoded = await ctx.decodeAudioData(buf);
-          const result: AudioProbeResult = {
-            durationSeconds: decoded.duration,
-            channels: decoded.numberOfChannels,
-            sampleRate: decoded.sampleRate,
-          };
-          void ctx.close().catch(() => {
-            void 0;
-          });
-          return result;
-        } finally {
-          // decodeAudioData may leave context running on failure paths
-          if (ctx.state !== "closed")
-            void ctx.close().catch(() => {
-              void 0;
-            });
-        }
+        // Shared page-lifetime context — never close it (shared/audioContext.ts).
+        const ctx = getSharedAudioContext();
+        const decoded = await ctx.decodeAudioData(buf);
+        return {
+          durationSeconds: decoded.duration,
+          channels: decoded.numberOfChannels,
+          sampleRate: decoded.sampleRate,
+        };
       }
     }
   } catch {

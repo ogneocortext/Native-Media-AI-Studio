@@ -5,6 +5,7 @@ import {
   pitchClassToHue,
   hueToRgb,
   parseKey,
+  chromaHueAtTime,
   SAT_MAJOR,
   SAT_MINOR,
   SAT_NEUTRAL,
@@ -228,5 +229,46 @@ describe("parseKey", () => {
     expect(parseKey("")).toBeNull();
     expect(parseKey(null)).toBeNull();
     expect(parseKey(undefined)).toBeNull();
+  });
+});
+
+describe("chromaHueAtTime (Tier 2)", () => {
+  // chroma_frames contract (analyze.py / audio_agent_profile.py):
+  //   { fps, t0, pc: number[] (chromatic 0=C..11=B, -1=empty), conf: number[] }
+  const frames = {
+    fps: 2,
+    t0: 0,
+    pc: [0, 9, 4, -1, 7], // C, A, E, empty, G
+    conf: [0.8, 0.9, 0.7, 0.0, 0.85],
+  };
+
+  it("maps the dominant pitch class to a fifths hue", () => {
+    // C is fifths index 0 -> hue 0; A is index 3 -> 90/360 = 0.25.
+    expect(chromaHueAtTime(frames, 0.1)).toBeCloseTo(0, 5);
+    expect(chromaHueAtTime(frames, 0.6)).toBeCloseTo(0.25, 5);
+    expect(chromaHueAtTime(frames, 1.1)).toBeCloseTo(pitchClassToHue("E")!, 5);
+    expect(chromaHueAtTime(frames, 2.1)).toBeCloseTo(pitchClassToHue("G")!, 5);
+  });
+
+  it("returns null for empty windows, low confidence, and out-of-range times", () => {
+    expect(chromaHueAtTime(frames, 1.6)).toBeNull(); // pc = -1
+    const weak = { ...frames, conf: [0.05, 0.05, 0.05, 0.0, 0.05] };
+    expect(chromaHueAtTime(weak, 0.1)).toBeNull();
+    expect(chromaHueAtTime(frames, -1)).toBeNull();
+    expect(chromaHueAtTime(frames, 99)).toBeNull();
+  });
+
+  it("returns null when chroma data is absent or malformed", () => {
+    expect(chromaHueAtTime(null, 1)).toBeNull();
+    expect(chromaHueAtTime(undefined, 1)).toBeNull();
+    expect(chromaHueAtTime({}, 1)).toBeNull();
+    expect(chromaHueAtTime({ fps: 2, pc: "nope" }, 1)).toBeNull();
+    expect(chromaHueAtTime({ fps: 2, pc: [99], conf: [1] }, 0.1)).toBeNull();
+  });
+
+  it("honours t0 offsets", () => {
+    const shifted = { ...frames, t0: 10 };
+    expect(chromaHueAtTime(shifted, 10.1)).toBeCloseTo(0, 5);
+    expect(chromaHueAtTime(shifted, 0.1)).toBeNull();
   });
 });

@@ -3,12 +3,11 @@
 import sqlite3
 import struct
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator, Optional, List, Dict
 
 from .config import get_config
-
 
 # ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -139,7 +138,7 @@ class Database:
 
     # ─── Meta Operations ──────────────────────────────────────────────────────
 
-    def get_meta(self, key: str) -> Optional[str]:
+    def get_meta(self, key: str) -> str | None:
         with self.pool.get() as conn:
             row = conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
             return row[0] if row else None
@@ -172,7 +171,7 @@ class Database:
         chunk_index: int,
         text: str,
         tokens: int,
-        embedding: Optional[List[float]] = None
+        embedding: list[float] | None = None
     ) -> int:
         """Insert a document chunk and optionally its embedding."""
         with self.pool.get() as conn:
@@ -196,7 +195,7 @@ class Database:
             conn.commit()
             return doc_id
 
-    def get_file_chunks(self, file_path: str) -> List[Dict]:
+    def get_file_chunks(self, file_path: str) -> list[dict]:
         """Get all chunks for a file."""
         with self.pool.get() as conn:
             rows = conn.execute(
@@ -217,7 +216,7 @@ class Database:
 
     # ─── Search Operations ────────────────────────────────────────────────────
 
-    def bm25_search(self, query: str, top_k: int) -> List[Dict]:
+    def bm25_search(self, query: str, top_k: int) -> list[dict]:
         """BM25 keyword search via FTS5."""
         with self.pool.get() as conn:
             try:
@@ -238,7 +237,7 @@ class Database:
                 print(f"[WARN] BM25 search failed: {e}")
                 return []
 
-    def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict]:
+    def vector_search(self, query_embedding: list[float], top_k: int) -> list[dict]:
         """Vector similarity search via sqlite-vec."""
         with self.pool.get() as conn:
             try:
@@ -271,7 +270,7 @@ class Database:
 
 # ─── Global Pool ──────────────────────────────────────────────────────────────
 
-_pool: Optional[ConnectionPool] = None
+_pool: ConnectionPool | None = None
 _pool_lock = threading.Lock()
 
 

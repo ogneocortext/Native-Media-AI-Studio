@@ -5,6 +5,7 @@
 
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { formatTime } from "../../utils/format";
+import { getSharedAudioContext } from "../../shared/audioContext";
 
 interface AudioVisualizerProps {
   audioUrl: string;
@@ -65,11 +66,9 @@ export function AudioVisualizer({
           audio.addEventListener("error", () => resolve());
         });
 
-        // Create audio context
-        const audioContext = new (
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        )();
+        // Shared page-lifetime context — must not be closed on unmount
+        // (see shared/audioContext.ts); its nodes are GC'd with the element.
+        const audioContext = getSharedAudioContext();
         audioContextRef.current = audioContext;
 
         // Create analyser
@@ -140,9 +139,7 @@ export function AudioVisualizer({
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      if (audioContextRef.current?.state !== "closed") {
-        void audioContextRef.current?.close();
-      }
+      // Shared context is page-lifetime — do not close it here.
       audioRef.current?.pause();
     };
   }, [audioUrl, onAudioBufferLoaded]);

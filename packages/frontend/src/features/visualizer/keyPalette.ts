@@ -39,6 +39,57 @@ export interface KeyAnalysisLike {
   key_confidence_r?: number | null;
   key_runner_up?: string | null;
   key_runner_up_r?: number | null;
+  /** Tier 2 per-frame chroma (chroma-hue-mapping.md). Optional. */
+  chroma_frames?: ChromaFramesLike | null;
+}
+
+/**
+ * Downsampled dominant-pitch-class track emitted by analyze.py /
+ * audio_agent_profile.py at ~2 fps. `pc` is a chromatic index
+ * (0=C, 1=C#, ... 11=B); -1 marks an empty window. `conf` is the
+ * (top1-top2)/(top1+top2) margin, 0..1.
+ */
+export interface ChromaFramesLike {
+  fps?: number;
+  t0?: number;
+  pc?: number[];
+  conf?: number[];
+}
+
+/** Chromatic pitch-class index -> pitch-class name (sharps, analyzer order). */
+const CHROMA_PC_NAMES = [
+  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+] as const;
+
+/**
+ * Confidence floor for per-frame chroma. The margin is a different scale than
+ * the key correlation r, so it gets its own floor: below this the window is
+ * treated as "no chord information" and the caller keeps the static palette.
+ */
+export const CHROMA_CONF_FLOOR = 0.2;
+
+/**
+ * Look up the dominant-chroma hue at a playback time.
+ *
+ * Returns a 0..1 hue along the circle of fifths, or null when the track has
+ * no chroma_frames, the time is outside the analyzed range, the window is
+ * empty, or confidence is below CHROMA_CONF_FLOOR. Null means "keep the
+ * static key palette" — never a black frame, matching the Tier 1 contract.
+ */
+export function chromaHueAtTime(
+  frames: ChromaFramesLike | null | undefined,
+  timeSec: number,
+): number | null {
+  if (!frames || !Array.isArray(frames.pc) || frames.pc.length === 0) return null;
+  const fps = typeof frames.fps === "number" && frames.fps > 0 ? frames.fps : 2;
+  const t0 = typeof frames.t0 === "number" ? frames.t0 : 0;
+  const idx = Math.floor((timeSec - t0) * fps);
+  if (idx < 0 || idx >= frames.pc.length) return null;
+  const pc = frames.pc[idx];
+  if (typeof pc !== "number" || pc < 0 || pc > 11) return null;
+  const conf = Array.isArray(frames.conf) ? frames.conf[idx] : 1;
+  if (typeof conf === "number" && conf < CHROMA_CONF_FLOOR) return null;
+  return pitchClassToHue(CHROMA_PC_NAMES[pc]);
 }
 
 /**

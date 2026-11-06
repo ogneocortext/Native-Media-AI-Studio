@@ -37,6 +37,7 @@ import {
   type ReactivityTriad,
 } from "./audioReactivityProcessor";
 import { useKeyPalette } from "./useKeyPalette";
+import { chromaHueAtTime, type ChromaFramesLike } from "./keyPalette";
 import { synthesizeLiveFrame } from "./liveSpectralFrame";
 import {
   buildShaderMotionInput,
@@ -318,16 +319,22 @@ export function ShaderVisualizer({
     keyHue: 0,
     keySat: 0.08,
     keyConf: 0,
+    // Tier 2 per-frame chroma hue (chroma-hue-mapping.md): -1 = inactive,
+    // shaders keep the static key/centroid hue. Written per frame below.
+    chromaHue: -1,
   });
   // Key-derived palette (docs/architecture/chroma-hue-mapping.md, Q5). Static
   // per track, so it lives in its own ref rather than in uniformsRef: the rAF
   // loop reassigns uniformsRef.current wholesale every frame and would discard
   // these values if they were part of that object.
-  const { palette: keyPaletteState, unavailable: keyUnavailable } = useKeyPalette(
-    trackFile || null,
-  );
+  const { palette: keyPaletteState, chromaFrames, unavailable: keyUnavailable } =
+    useKeyPalette(trackFile || null);
   const keyPaletteRef = useRef(keyPaletteState);
   keyPaletteRef.current = keyPaletteState;
+  // Tier 2 chroma track in a ref so the rAF loop reads it without
+  // re-subscribing (same rule as keyPaletteRef, D14 rule 2).
+  const chromaFramesRef = useRef<ChromaFramesLike | null>(chromaFrames);
+  chromaFramesRef.current = chromaFrames;
   const userSelectedPreset = useRef(false);
   const lrcSyncPropRef = useRef(lrcSync);
   lrcSyncPropRef.current = lrcSync;
@@ -669,6 +676,9 @@ export function ShaderVisualizer({
         keyHue: keyPaletteRef.current.hue,
         keySat: keyPaletteRef.current.saturation,
         keyConf: keyPaletteRef.current.confidence,
+        // Tier 2: per-frame dominant-chroma hue at the current playhead.
+        // -1 sentinel = no confident chroma -> shader keeps static palette.
+        chromaHue: chromaHueAtTime(chromaFramesRef.current, elapsed) ?? -1,
       };
       raf = requestAnimationFrame(update);
     };

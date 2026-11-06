@@ -58,6 +58,34 @@ res["key_confidence_r"] = round(key_scores[0][0], 3)
 res["key_runner_up"] = key_scores[1][1]
 res["key_runner_up_r"] = round(key_scores[1][0], 3)
 
+# --- Tier 2 chroma: per-window dominant pitch class (chroma-hue-mapping.md) ---
+# Downsample the 12-bin chromagram to ~2 fps so chord changes can drive
+# per-frame palette shifts in the shader visualizer. Each window stores the
+# argmax pitch class (0=C .. 11=B, chromatic order) and a confidence margin
+# (top1-top2)/(top1+top2) so consumers can gate weak frames.
+CHROMA_FRAME_SEC = 0.5
+chroma_frame_times = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr)
+chroma_edges = np.arange(0.0, dur + CHROMA_FRAME_SEC, CHROMA_FRAME_SEC)
+pc_frames: list[int] = []
+conf_frames: list[float] = []
+for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:]):
+    mask = (chroma_frame_times >= lo) & (chroma_frame_times < hi)
+    if not mask.any():
+        pc_frames.append(-1)
+        conf_frames.append(0.0)
+        continue
+    vec = chroma[:, mask].mean(axis=1)
+    order = np.argsort(vec)[::-1]
+    top1, top2 = float(vec[order[0]]), float(vec[order[1]])
+    pc_frames.append(int(order[0]))
+    conf_frames.append(round(float((top1 - top2) / (top1 + top2 + 1e-9)), 3))
+res["chroma_frames"] = {
+    "fps": round(1.0 / CHROMA_FRAME_SEC, 3),
+    "t0": 0.0,
+    "pc": pc_frames,
+    "conf": conf_frames,
+}
+
 # --- dynamics: RMS energy curve ---
 rms = librosa.feature.rms(y=y, frame_length=4096, hop_length=2048)[0]
 times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=2048)

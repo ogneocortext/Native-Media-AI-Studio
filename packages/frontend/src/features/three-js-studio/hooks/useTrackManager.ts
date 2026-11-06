@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useBeatTimeline } from "../../../hooks/useBeatTimeline";
+import { getSharedAudioContext } from "../../../shared/audioContext";
 import { getAnalysis } from "../../../services/api";
 import { useAudioLibrary } from "../../../hooks/useAudioLibrary";
 import type { UseTrackManagerOptions, UseTrackManagerResult } from "./types";
@@ -106,8 +107,8 @@ export function useTrackManager({
     if (!audioElementRef.current) return;
     try {
       if (!audioContextRef.current) {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        const ctx = new AudioCtx();
+        // Shared page-lifetime context (never closed by consumers).
+        const ctx = getSharedAudioContext();
         audioContextRef.current = ctx;
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;

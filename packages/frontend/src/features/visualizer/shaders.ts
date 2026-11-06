@@ -4,8 +4,9 @@
 //   u_key_hue - 0..1, pitch class mapped along the circle of fifths
 //   u_key_sat - 0..1, from mode and key confidence
 //   u_key_conf - 0..1, raw key correlation
+//   u_chroma_hue - 0..1 per-frame dominant-chroma hue (Tier 2), or -1 when inactive
 // Declared per-shader below only if used, so unused uniforms are optimized out;
-// ShaderCanvas sets all three every frame and WebGL drops the absent ones.
+// ShaderCanvas sets all four every frame and WebGL drops the absent ones.
 
 export const SHADER_PRESETS = {
   // ============================================================
@@ -686,6 +687,7 @@ export const SHADER_PRESETS = {
     uniform float u_key_hue;
     uniform float u_key_sat;
     uniform float u_key_conf;
+    uniform float u_chroma_hue;
     uniform vec2 u_resolution;
     uniform sampler2D u_feedback_texture;
 
@@ -737,6 +739,13 @@ export const SHADER_PRESETS = {
       // Weight by confidence: r=0.6+ takes over, r<0.4 contributes nothing.
       float keyWeight = smoothstep(0.4, 0.6, u_key_conf);
       float hueAngle = mix(centroidHue, keyHue, keyWeight);
+      // Tier 2 chroma (chroma-hue-mapping.md): per-frame dominant pitch class
+      // lets chord changes shift the grade within a track. -1 = inactive, so
+      // pre-Tier-2 analyses render identically to before. Weight is modest —
+      // the chord informs the palette, it does not replace the key blend.
+      float chromaActive = step(0.0, u_chroma_hue);
+      float chromaHueDeg = max(u_chroma_hue, 0.0) * 360.0;
+      hueAngle = mix(hueAngle, chromaHueDeg, chromaActive * 0.45);
       float hueRad = radians(hueAngle);
 
       // ── Primary geometry: reactive tunnel ──

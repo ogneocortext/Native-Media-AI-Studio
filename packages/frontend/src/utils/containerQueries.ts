@@ -4,6 +4,11 @@
  * Component-level responsiveness using @container variants.
  * No plugin needed - built into Tailwind v4 core.
  * 
+ * Based on Tailwind v4 docs and 2026 best practices:
+ * - https://tailwindcss.com/docs/container-queries
+ * - @container, @md:, @max-md:, @container-size, named containers
+ * - @min-[500px]: arbitrary values
+ * 
  * Usage:
  *   <div class="@container">
  *     <div class="flex flex-col gap-4 @md:flex-row">
@@ -72,15 +77,21 @@ export const containerQueryStyles = `
 
 /* Container query breakpoints (match Tailwind's default breakpoints) */
 /* These are generated automatically by Tailwind v4, but here for reference:
- * @container (min-width: 40rem)  -> @md:
- * @container (min-width: 48rem)  -> @lg:
- * @container (min-width: 64rem)  -> @xl:
- * @container (min-width: 80rem)  -> @2xl:
+ * @container (min-width: 20rem)  -> @xs:
+ * @container (min-width: 24rem)  -> @sm:
+ * @container (min-width: 28rem)  -> @md:
+ * @container (min-width: 32rem)  -> @lg:
+ * @container (min-width: 36rem)  -> @xl:
+ * @container (min-width: 42rem)  -> @2xl:
+ * @container (min-width: 48rem)  -> @3xl:
+ * @container (min-width: 56rem)  -> @4xl:
+ * @container (min-width: 64rem)  -> @5xl:
  * 
  * Max-width variants:
- * @container (max-width: 39.99rem) -> @max-sm:
- * @container (max-width: 47.99rem) -> @max-md:
- * @container (max-width: 63.99rem) -> @max-lg:
+ * @container (max-width: 19.99rem) -> @max-xs:
+ * @container (max-width: 23.99rem) -> @max-sm:
+ * @container (max-width: 27.99rem) -> @max-md:
+ * @container (max-width: 31.99rem) -> @max-lg:
  */
 
 /* Container units (browser-native, no Tailwind needed) */
@@ -102,6 +113,15 @@ export const containerQueryStyles = `
 /**
  * Complete reference of Tailwind v4 container query utilities.
  * These are available out-of-the-box in Tailwind v4 (no config needed).
+ * 
+ * Default container breakpoints (smaller than viewport for component-level):
+ * @xs:  20rem (320px)  | @sm:  24rem (384px)  | @md:  28rem (448px)
+ * @lg:  32rem (512px)  | @xl:  36rem (576px)  | @2xl: 42rem (672px)
+ * @3xl: 48rem (768px)  | @4xl: 56rem (896px)  | @5xl: 64rem (1024px)
+ * 
+ * Max-width variants (inverse logic):
+ * @max-xs: @max-[19.99rem]: | @max-sm: @max-[23.99rem]:
+ * @max-md: @max-[27.99rem]: | @max-lg: @max-[31.99rem]:
  */
 
 export const CONTAINER_QUERY_CLASSES = {
@@ -121,10 +141,6 @@ export const CONTAINER_QUERY_CLASSES = {
   xl3: "@min-[48rem]:",     // 768px
   xl4: "@min-[56rem]:",     // 896px
   xl5: "@min-[64rem]:",     // 1024px
-  xl6: "@min-[72rem]:",     // 1152px
-  xl7: "@min-[80rem]:",     // 1280px
-  xl8: "@min-[88rem]:",     // 1408px
-  xl9: "@min-[96rem]:",     // 1536px
   
   // Max-width variants (inverse logic)
   maxXs: "@max-[19.99rem]:",
@@ -136,10 +152,6 @@ export const CONTAINER_QUERY_CLASSES = {
   maxXl3: "@max-[47.99rem]:",
   maxXl4: "@max-[55.99rem]:",
   maxXl5: "@max-[63.99rem]:",
-  maxXl6: "@max-[71.99rem]:",
-  maxXl7: "@max-[79.99rem]:",
-  maxXl8: "@max-[87.99rem]:",
-  maxXl9: "@max-[95.99rem]:",
   
   // Named container variants
   mdSidebar: "@min-[28rem]/sidebar:",
@@ -168,6 +180,13 @@ export const CONTAINER_QUERY_CLASSES = {
 /**
  * Common component patterns using container queries.
  * Copy these into your components.
+ * 
+ * Best practices from 2026:
+ * - Use @container on wrapper, @md: on children
+ * - Name containers when nesting: @container/sidebar
+ * - Use @max-* for narrow-only rules
+ * - Combine with viewport variants for hybrid layouts
+ * - Don't forget @container on parent (silent failure without it)
  */
 
 export const containerPatterns = {
@@ -277,6 +296,35 @@ export const containerPatterns = {
   <div class="w-[max(25cqw,min(75cqw,300px))]">Clamped fluid width</div>
 </div>
   `,
+  
+  // Hybrid: viewport + container
+  hybrid: `
+<div class="@container md:flex md:gap-6">
+  <aside class="@md:hidden md:block w-64">Sidebar (viewport)</aside>
+  <main class="flex-1">
+    <div class="grid @md:grid-cols-2">Cards (container)</div>
+  </main>
+</div>
+  `,
+  
+  // Named container for sidebar
+  namedSidebar: `
+<div class="@container/main">
+  <aside class="@container/sidebar w-64">
+    <nav class="space-y-2">
+      <a class="flex items-center gap-3 px-3 py-2">
+        <Icon class="w-5 h-5" />
+        <span class="@max-md/sidebar:hidden">Dashboard</span>
+      </a>
+    </nav>
+  </aside>
+  <main class="@container/content flex-1 p-6">
+    <div class="@lg/content:grid @lg/content:grid-cols-3">
+      {content.map(c => <Card key={c.id} {...c} />)}
+    </div>
+  </main>
+</div>
+  `,
 } as const;
 
 // ─── Utility Functions ──────────────────────────────────────────────────────
@@ -349,14 +397,17 @@ export const containerQuerySupport = `
 /**
  * v3 -> v4 migration notes for container queries.
  * 
- * v3: Required @tailwindcss/container-queries plugin
+ * v3: Required @tailwindcss/container-queries plugin (last published 2023)
  * v4: Built-in, no plugin needed
  * 
  * Migration:
  * 1. Remove @tailwindcss/container-queries from package.json
  * 2. Remove plugin from tailwind.config.js
  * 3. Classes work the same (@container, @md:, @lg:, etc.)
- * 4. New in v4: @max-* variants, @container-size, named containers
+ * 4. New in v4: @max-* variants, @container-size, named containers, @min-[500px]:
+ * 5. Container breakpoints are SMALLER than viewport (designed for components)
+ * 6. Use @theme { --container-* } for custom sizes
+ * 6. @container-size for both width/height queries
  */
 export const migrationGuide = `
 // v3 package.json
@@ -368,6 +419,36 @@ export const migrationGuide = `
 // v4: Nothing needed! Just use:
 // <div class="@container">...</div>
 // <div class="@md:flex-row">...</div>
+
+// v4 Custom container sizes:
+@import "tailwindcss";
+@theme {
+  --container-8xl: 96rem;  // Creates @8xl:* and max-w-8xl
+}
+`;
+
+// ─── Browser Support (2026) ────────────────────────────────────────────────
+
+/**
+ * Container queries are Baseline Widely Available since August 2025.
+ * 
+ * Browser support (2026):
+ * - Chrome 105+
+ * - Firefox 110+
+ * - Safari 16+
+ * - Edge 105+
+ * 
+ * All production-grade browsers support @container natively.
+ * No polyfill needed for any production-grade project in 2026.
+ */
+export const browserSupport = `
+Container queries are Baseline Widely Available (since August 2025).
+All modern browsers support @container natively:
+- Chrome 105+
+- Firefox 110+
+- Safari 16+
+- Edge 105+
+No polyfill needed for production in 2026.
 `;
 
 // ─── Export All ────────────────────────────────────────────────────────────
@@ -380,4 +461,5 @@ export const containerQueries = {
   cqUnit,
   support: containerQuerySupport,
   migration: migrationGuide,
+  browserSupport,
 };

@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getSharedAudioContext } from "../../../shared/audioContext";
 import { createEQ, type EQBand, type EQInstance } from "../audioEQ";
 import { createCompressor, type CompressorState } from "./stemCompressor";
 import type {
@@ -166,8 +167,8 @@ export function useProfessionalMixer({
 
   const getOrCreateCtx = useCallback(() => {
     if (!ctxRef.current) {
-      const ctx =
-        sharedAudioContext ?? new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Prop wins; otherwise the shared page-lifetime context (never closed).
+      const ctx = sharedAudioContext ?? getSharedAudioContext();
       ctxRef.current = ctx;
     }
     return ctxRef.current;
