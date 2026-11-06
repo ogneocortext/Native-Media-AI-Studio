@@ -920,11 +920,11 @@ Rules: `docs/plans/tasks/README.md`
     into the `comfyui-cuda` env (all other deps already present).
   - Added `custom_nodes/nma-mesh-export/` — tiny `ExportMeshGLB` node
     (MESH→GLB via trimesh, keeps vertex colors, honors `3d/` prefix).
-  - Patched `tsr/system.py`: transformers>=5 renamed ViT params
-    (`encoder.layer`→`layers`, `attention.*`→`q/k/v/o_proj`,
-    `intermediate.dense`→`mlp.fc1`, `output.dense`→`mlp.fc2`); added
-    `_remap_legacy_vit_keys` applied in both `from_pretrained*` loaders.
-    Verified strict `load_state_dict` passes.
+  - `nma-mesh-export/__init__.py` wraps `TSR.load_state_dict` to remap the
+    checkpoint's legacy ViT key names for transformers>=5
+    (`image_tokenizer.*` only). Lives in OUR pack, not the vendored one,
+    so upstream `git pull` on ComfyUI-Flowty-TripoSR can't regress it.
+    Verified strict load + full ComfyUI generation after the move.
 - **Backend (`gen3d_service.py`):**
   - `REQUIRED_NODES["triposr"]` → real node classes; both image and
     text-to-3D (SD1.5 concept stage) workflows rewritten to

@@ -46,8 +46,9 @@ Nodes: `ImageOnlyCheckpointLoader`, `Hunyuan3Dv2ConditioningMultiView`, `SaveGLB
 > `nma-mesh-export` pack (`ExportMeshGLB`) for GLB output with vertex colors.
 > The old `TripoSRGenerate`/`Save3DModel` node names never existed in any
 > public pack — the backend workflows were rewritten to the real nodes.
-> `tsr/system.py` carries a local patch remapping the checkpoint's legacy ViT
-> key names for transformers>=5 (`image_tokenizer.*` only).
+> The transformers>=5 ViT key-remap shim lives in `nma-mesh-export`
+> (wraps `TSR.load_state_dict`), NOT in the vendored pack, so upstream
+> `git pull`s can't wipe it.
 
 Ultra-fast single-image 3D using TripoSR (~0.5s on A100; ~4 min cold / faster
 warm on the GTX 1070 Ti including model load). ~6 GB VRAM. Works from both
