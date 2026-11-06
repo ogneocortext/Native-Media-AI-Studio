@@ -987,4 +987,4 @@ Rules: `docs/plans/tasks/README.md`
   health green for 2mv; live `POST /api/3d/generate-image?model=hunyuan3d_2mv`
   → success, `mv_e2e_test_00001_.glb` (1.1 MB decimated) in
   `generated_3d/`, timing queue 2ms / inference 222s / post 20s.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+- **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit.

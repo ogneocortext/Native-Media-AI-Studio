@@ -97,7 +97,7 @@ export function BeatTimeline({
       const arrayBuffer = await response.arrayBuffer();
 
       // Shared page-lifetime context — decode works while suspended and the
-      // singleton must not be closed (see shared/audioContext.ts).
+      // singleton must not be closed (see packages/frontend/src/shared/audioContext.ts).
       const audioCtx = getSharedAudioContext();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 

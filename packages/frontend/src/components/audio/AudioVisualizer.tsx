@@ -67,7 +67,7 @@ export function AudioVisualizer({
         });
 
         // Shared page-lifetime context — must not be closed on unmount
-        // (see shared/audioContext.ts); its nodes are GC'd with the element.
+        // (see packages/frontend/src/shared/audioContext.ts); its nodes are GC'd with the element.
         const audioContext = getSharedAudioContext();
         audioContextRef.current = audioContext;
 

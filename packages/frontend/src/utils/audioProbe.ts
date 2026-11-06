@@ -72,7 +72,7 @@ export async function probeAudioFile(file: File): Promise<AudioProbeResult> {
       // decodeAudioData detaches the buffer; copy cost is acceptable for ≤500MB probe.
       // Guard against huge files blocking the main thread: fall back for >150MB.
       if (file.size < 150 * 1024 * 1024) {
-        // Shared page-lifetime context — never close it (shared/audioContext.ts).
+        // Shared page-lifetime context — never close it (packages/frontend/src/shared/audioContext.ts).
         const ctx = getSharedAudioContext();
         const decoded = await ctx.decodeAudioData(buf);
         return {

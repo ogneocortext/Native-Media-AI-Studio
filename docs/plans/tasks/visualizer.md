@@ -819,11 +819,11 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Goal:** Close the two visualizer/audio loose ends: app-wide
   AudioContext consolidation (D4 follow-up) and Q5 Tier 2 per-frame
   chroma-driven hue shifts.
-- **What changed:** New `shared/audioContext.ts` singleton
+- **What changed:** New `packages/frontend/src/shared/audioContext.ts` singleton
   (`getSharedAudioContext`, closed-context recovery) replaces ad-hoc
   `new AudioContext` — every former site (BeatTimeline, StemMixer +
   ProfessionalMixer fallbacks, useTrackManager, AudioVisualizer,
-  audioProbe) now goes through the singleton; `shared/audioContext.ts`
+  audioProbe) now goes through the singleton; `packages/frontend/src/shared/audioContext.ts`
   is the only `new AudioContext` left in `src/` and self-heals a closed
   context. The visualizer-owned graph in `useAudioGraph` remains the
   canonical owner for playback routing.
@@ -837,7 +837,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   `spectralReactor` in shaders.ts. Tier 1 key-derived hue remains the
   fallback for missing/malformed/low-confidence chroma. Payload is
   additive — pre-Tier-2 cached analyses stay valid (no schema bump).
-- **Files:** shared/audioContext.ts (new), components/audio/{BeatTimeline,
+- **Files:** packages/frontend/src/shared/audioContext.ts (new), components/audio/{BeatTimeline,
   AudioVisualizer}.tsx, features/three-js-studio/hooks/useTrackManager.ts,
   features/visualizer/{useKeyPalette,keyPalette,shaders,ShaderVisualizer}.ts(x),
   features/visualizer/components/{ShaderCanvas,useStemMixer}.tsx,
@@ -851,4 +851,4 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   that writes `{id}_analysis.json`; the live API analyzer
   (`_build_analysis_result`) does not compute chroma — same boundary as
   key detection today, and the Tier 1 fallback covers it.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+- **Last session:** Devin, 2026-11-06 - implementation swept into `8b322e70`; audioContext singleton + shader texture2D fix in the follow-up commit.
