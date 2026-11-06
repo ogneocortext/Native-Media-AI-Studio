@@ -85,3 +85,24 @@ def test_get_audio_analysis_field_extracts_json_path(tmp_path, monkeypatch):
     assert database.get_audio_analysis_field("track.mp3", "$.tempo_bpm") == 128.0
     assert database.get_audio_analysis_field("track.mp3", "$.estimated_key") == "D major"
     assert database.get_audio_analysis_field("track.mp3", "$.missing", "fallback") == "fallback"
+
+
+def test_dedup_marks_and_listing(tmp_path, monkeypatch):
+    """duplicate_of marks round-trip through the dedup helpers."""
+    database = _with_temp_db(tmp_path, monkeypatch)
+
+    database.update_audio_analysis("canon.mp3", _analysis(120.0))
+    database.update_audio_analysis("copy.mp3", _analysis(120.0))
+    database.set_audio_content_hash("canon.mp3", "abc123")
+    database.set_audio_content_hash("copy.mp3", "abc123")
+    database.set_audio_duplicate_of("copy.mp3", "canon.mp3")
+
+    rows = {r["filename"]: r for r in database.get_audio_files_for_dedup()}
+    assert rows["canon.mp3"]["content_hash"] == "abc123"
+    assert rows["canon.mp3"]["duplicate_of"] is None
+    assert rows["copy.mp3"]["duplicate_of"] == "canon.mp3"
+
+    # Clearing the mark restores canonical status.
+    database.set_audio_duplicate_of("copy.mp3", None)
+    rows = {r["filename"]: r for r in database.get_audio_files_for_dedup()}
+    assert rows["copy.mp3"]["duplicate_of"] is None

@@ -594,8 +594,7 @@ def _resolve_stored_audio_path(stored_path: str, filename: str) -> Path | None:
     if stored_path:
         p = Path(stored_path)
         candidates.append(p if p.is_absolute() else AUDIO_DIR / p)
-    candidates.append(AUDIO_DIR / filename)
-    candidates.append(AUDIO_DIR / stored_path)
+    candidates.extend([AUDIO_DIR / filename, AUDIO_DIR / stored_path])
     for cand in candidates:
         if cand.is_file():
             return cand

@@ -709,9 +709,9 @@ def _migrate_v22(conn: sqlite3.Connection):
     so they cannot serve as a content identity for the whole library.
     Idempotent: existing columns are left alone.
     """
-    for column, ddl in (
-        ("content_hash", "ALTER TABLE audio_files ADD COLUMN content_hash TEXT"),
-        ("duplicate_of", "ALTER TABLE audio_files ADD COLUMN duplicate_of TEXT"),
+    for ddl in (
+        "ALTER TABLE audio_files ADD COLUMN content_hash TEXT",
+        "ALTER TABLE audio_files ADD COLUMN duplicate_of TEXT",
     ):
         try:
             conn.execute(ddl)
