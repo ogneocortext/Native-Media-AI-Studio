@@ -142,6 +142,139 @@ proxy: { "/api": ..., "/output": ..., "/ws": ... },
 
 ---
 
+## 3.4 Complete Vite 8 Config Reference (Source of Truth)
+
+> **All settings below are from `packages/frontend/vite.config.ts`** — this is the canonical reference. Update this section when the config changes.
+
+### 3.4.1 Core Resolution
+```ts
+tsconfig: "tsconfig.json",           // Vite 8: use project tsconfig for path resolution
+resolve: {
+  tsconfigPaths: true,               // Vite 8: native tsconfig paths (no plugin needed)
+  alias: {
+    "three/addons": ".../three/examples/jsm",  // Bare import not in tsconfig
+  },
+  dedupe: ["three", "three-stdlib"], // Prevent duplicate three instances
+},
+```
+
+### 3.4.2 Dev Server & HMR
+```ts
+server: {
+  host: "0.0.0.0",                   // Listen on all interfaces (LAN + tunnel)
+  port: portConfig.frontend_port,    // Dynamic from config/ports.json
+  strictPort: true,                  // Fail visibly on collision (no silent fallback)
+  
+  // Vite 8: allowedHosts is a list, NOT a wildcard
+  // "all" matched nothing in Vite 8 -> 403 for tunnels
+  allowedHosts: ALLOWED_HOSTS,       // ["localhost", ".loca.lt", ".ngrok-free.app", ...]
+  
+  proxy: { "/api", "/output", "/ws" }, // Dynamic backend target from ports.json
+  
+  // Windows: native fs events unreliable -> polling
+  watch: {
+    usePolling: process.platform === "win32",
+    interval: 1000,
+    ignored: ["**/node_modules/**", "**/dist/**", "**/.git/**", "**/.vite/**", ...],
+  },
+  
+  hmr: { overlay: true },            // Show error overlay in browser
+  
+  // Vite 8: forward browser console to terminal (agent-friendly)
+  forwardConsole: {
+    unhandledErrors: true,
+    logLevels: ["warn", "error"],
+  },
+  
+  // Security: restrict dev server filesystem access
+  fs: {
+    allow: [__dirname, "../../shared"],
+    deny: [".env*", "*.key", "*.pem", "*.{crt,p12,pfx,cer,der}", ".npmrc", ".yarnrc.yml"],
+  },
+  
+  open: process.env.NMA_OPEN_BROWSER === 'true', // No auto-open by default
+},
+```
+
+### 3.4.3 Plugins & DevTools
+```ts
+plugins: [
+  react(),                           // @vitejs/plugin-react v6 (Oxc-based)
+  tailwindcss(),                     // Tailwind v4 via @tailwindcss/vite
+  // Vite 8: built-in devtools (no external plugin)
+  devtools: { 
+    apply: "serve",                  // Only in dev
+    clientAuth: false,               // Skip auth dialog (blocks UI)
+  },
+  isAnalyze && visualizer({ ... }),  // Bundle analyzer on demand
+],
+```
+
+### 3.4.4 Dependency Optimization
+```ts
+optimizeDeps: {
+  include: [
+    "react", "react-dom", "react-dom/client",
+    "three", "@react-three/fiber",
+    "animejs", "lucide-react", "zustand",
+    // Heavy deps OMITTED intentionally:
+    // @theatre/studio, @react-three/drei -> large trees, slow optimizer
+  ],
+},
+```
+
+### 3.4.5 Build Output
+```ts
+build: {
+  outDir: "dist",
+  sourcemap: !isProd,                // Source maps in dev builds only
+  cssMinify: "esbuild",              // esbuild for CSS (Oxc not yet used for CSS)
+  minify: "esbuild",                 // esbuild for JS (Oxc via plugin-react)
+  target: "es2022",                  // Modern browsers (Baseline Widely Available)
+  modulePreload: true,               // <link rel="modulepreload"> for async chunks
+  chunkSizeWarningLimit: 500,
+  reportCompressedSize: false,       // Reduce console noise
+  
+  // Vite 8.1+: stable chunk hashes across deploys
+  chunkImportMap: true,
+  
+  rollupOptions: {
+    output: {
+      // Vite 8 / Rolldown: manualChunks MUST be a function
+      manualChunks(id) { /* three-core, three-examples, react-vendor, ... */ },
+    },
+  },
+},
+```
+
+### 3.4.6 Preview Server (Production Smoke Test)
+```ts
+preview: {
+  port: portConfig.frontend_port + 1, // Avoid dev server collision
+  allowedHosts: ALLOWED_HOSTS,        // Same tunnel policy as dev
+  proxy,                               // Mirrors dev server proxy
+},
+```
+
+### 3.4.7 Constants & Shared Config
+```ts
+// Single source of truth for tunnel host suffixes
+const ALLOWED_HOSTS = [
+  "localhost", ".localhost",
+  ".loca.lt", ".ngrok-free.app", ".ngrok-free.dev", 
+  ".ngrok.app", ".ngrok.io", ".trycloudflare.com", ".serveo.net",
+];
+
+// Proxy targets defined once, used by server + preview
+const PROXY_TARGETS = {
+  "/api": { changeOrigin: true },
+  "/output": { changeOrigin: true },
+  "/ws": { changeOrigin: true, ws: true },
+};
+```
+
+---
+
 ## 4. Verification
 
 | Command | Result |

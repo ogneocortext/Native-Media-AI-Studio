@@ -146,6 +146,7 @@ date: 2026-09-30
 - [[ai-music-video-platforms-2026|🏟️ AI Music-Video Platforms 2026]] — Competitive landscape: music-first agents, clip generators, cost/min table, gaps a local studio can exploit, 6 adopted backlog items
 - [[creative-onboarding-patterns-2026|🎬 Creative Onboarding Patterns 2026]] — CapCut/Resolve/Runway first-run teardowns, 7-pattern catalog, recommendations behind the 5-minute path (O1)
 - [[knowledge-retrieval-evaluation-2026|🔎 Knowledge Retrieval Evaluation 2026]] — Measured: hybrid BM25+nomic RRF beats either alone (doc@5 90%); parent-child and whole-document return are not worth it; the context cliff is the real limit
+- [[local-rag-redesign-2026|🔧 Local-First RAG Redesign 2026]] — Standalone sqlite-vec + Ollama RAG replacing backend /api/retrieval; hybrid BM25+vector, incremental indexing, MCP server (NEW 2026-11-06)
 - [[app-research-gaps-2026|🔍 App Research Gaps 2026]] — 15 research areas: video models, audio analysis, music gen, frontend, Go sidecars, testing, deployment, a11y, Pascal perf, lyrics, HyperFrames, WebGPU, agents, data, knowledge maintenance
 - [[feature-utilization-audit-2026|🎯 Feature Utilization & Gap Analysis 2026]] — False-confidence dead code, orphaned capabilities, data-flow breaks, and true missing features
 - [[ollama-benchmarks|🏁 Ollama Three.js Scene Benchmark]] — Model benchmarking for scene generation
@@ -175,7 +176,7 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
 || `#ai/*` | AI models, training & ML | 19 documents |
-|| `#research/*` | Industry trends & analysis | 18 documents |
+|| `#research/*` | Industry trends & analysis | 19 documents |
 
 ### Cross-Cutting Tags
 
@@ -188,7 +189,7 @@ date: 2026-09-30
 || `#platform-remotion` | Remotion video compositing | 3 documents |
 || `#hardware-8gb` | 8GB VRAM constraints | 16 documents |
 || `#hardware-pascal` | Pascal architecture specifics | 8 documents |
-|| `#mcp` | Model Context Protocol | 1 document |
+|| `#mcp` | Model Context Protocol | 1 documents |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 23 documents |

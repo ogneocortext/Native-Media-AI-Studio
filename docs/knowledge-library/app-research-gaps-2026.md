@@ -129,7 +129,7 @@ type: synthesis
 
 ### Suggested Research
 
-1. **Vite 8 benchmark**: Build the frontend with Vite 8 + Rolldown plugin. Compare build time, bundle size, and dev server HMR speed.
+1. **Vite 8 benchmark**: Build the frontend with Vite 8 (Rolldown built-in). Compare build time, bundle size, and dev server HMR speed.
 2. **WebGPU smoke test**: Create a minimal `WebGPURenderer` scene in the visualizer. Test on GTX 1070 Ti (Pascal does NOT support WebGPU natively — expect software fallback or failure). Document the actual result.
 3. **Remotion Lambda feasibility**: Research AWS Lambda + Remotion rendering costs for 1080p 10s clips. If <$0.10/clip, it's a viable cloud fallback for Q2 degraded path.
 

@@ -6,7 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Fixed - Demucs 4.1.0 CLI flags (`--segment`, no `--denoise`)
+### Added - Frontend 3D Studio MCP Bridge (`tools/mcp/frontend-3d-mcp.mjs`)
+New MCP server exposing 16 tools bridging AI agent to interactive frontend 3D editors:
+- **Visualizer**: `visualizer_open`, `visualizer_set_track`, `visualizer_set_style`
+- **Three.js Studio**: `threestudio_open`, `threestudio_generate_scene`, `threestudio_export_frames`
+- **Animation Studio**: `animationstudio_open`, `animationstudio_create_clip` (Theatre.js timeline)
+- **Model Preview**: `modelpreview_open` (GLB/glTF with auto-rotate)
+- **VizCanvas**: `vizcanvas_open` (AI 3D scene preview)
+- **Audio/Remix**: `get_audio_library`, `get_remix_sources`, `create_remix_for_3d`
+- **Vision MCP Integration**: `capture_3d_view` returns URL + prompt for `vision-mcp.analyze_image`
+- **Status**: `frontend_3d_status` health check for all 3D tools
+
+### Added - Local-First RAG System (`tools/local_rag/`)
+Standalone hybrid BM25+vector RAG replacing backend `/api/retrieval/*`:
+- SQLite + sqlite-vec + FTS5 persistence
+- Ollama embeddings (nomic-embed-text) with incremental SHA256 indexing
+- Hybrid BM25 + vector search with Reciprocal Rank Fusion
+- Cross-encoder reranking (bge-reranker-v2-m3, lazy-loaded singleton)
+- MCP stdio server (`tools/local_rag/mcp_server.py`) with 4 tools
+- CLI: `python -m local_rag index|search|status|serve`
+
+### Added - Modern React 19 Form Hooks (`packages/frontend/src/hooks/useModernForms.tsx`)
+React 19 patterns: `useActionState`, `useOptimistic`, `useFormStatus`, `use()`, `usePromise`, `useOptimisticState`
+
+### Added - Zod v4 API Schemas (`packages/frontend/src/schemas/api.ts`)
+30+ typed schemas for all API types with runtime validation (`safeParse`, `validateFast`)
+
+### Added - TanStack Query v5 Patterns (`packages/frontend/src/services/queryPatterns.ts`)
+`useSuspenseQuery`, `queryOptions()`, `createOptimisticMutation`, query key factories
+
+### Added - Tailwind v4 Container Query Utils (`packages/frontend/src/utils/containerQueries.ts`)
+Component-level responsiveness with `@container`, `@md:`, `@max-md:`, named containers, container units
+
+### Added - Model Inventory Checker (`tools/check-model-inventory.py`)
+Fast local model inventory vs trends document (2s vs minutes for RAG)
+
+### Changed - Vite 8+ / Rolldown / Oxc Migration
+- Vite 8.3.5 with built-in Rolldown (Rust bundler) and Oxc (Rust compiler)
+- Config: `tsconfigPaths: true`, `chunkImportMap: true`, `codeSplitting: true`
+- `allowedHosts` strict list (no "all" wildcard), `forwardConsole` for agent debugging
+- Dev server polling on Windows, `fs.deny` for security
+
+### Changed - Three.js Studio, Visualizer, Animation Studio now lazy-loaded
+Fixed ineffective dynamic import warnings (Dashboard, Queue, Settings were statically + dynamically imported)
+
+### Changed - MCP Security Hardening
+- Blender: `DISABLE_TELEMETRY=1`, GPU guard for ComfyUI VRAM sharing
+- All servers: version-pinned, MIT/Apache 2.0 licenses, security notes
+- Unity MCP enabled (requires Unity Editor running)
+- New optional servers: github-mcp-server, serena, context7 (disabled by default)
+
+### Fixed - TypeScript strict mode passes, Vite build clean
+- Ineffective dynamic import warnings resolved
+- Code splitting enabled in Rolldown output
+- Zod v3 compatibility restored (v4 API incompatible)
+
+### Documentation Updated
+- `AGENTS.md`: Vite 8+ stack reference
+- `docs/knowledge-library/local-rag-redesign-2026.md`: New RAG architecture doc
+- `docs/knowledge-library/frontend-build-pipeline.md`: Complete Vite 8 config reference (Section 3.4)
+- `docs/knowledge-library/javascript-upgrade-research-2026.md`: Corrected Rolldown/Oxc terminology
+- `docs/knowledge-library/app-research-gaps-2026.md`: Updated Vite 8 references
+- `docs/knowledge-library/index.md`: Added local-rag entry
+- `.kilo/skills/current-best-practices/SKILL.md`: Nov 2026 best practices reference
 
 `_separate_demucs` and `_separate_mdx_net` passed `--segment_size` and
 `--denoise` to the demucs CLI. The installed demucs is 4.1.0

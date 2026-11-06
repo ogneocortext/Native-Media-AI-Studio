@@ -225,6 +225,8 @@ export default defineConfig(({ mode }) => {
       chunkImportMap: true,
       rollupOptions: {
         output: {
+          // Enable code splitting for smaller chunks (Rolldown/Vite 8)
+          codeSplitting: true,
           // Manual chunk splitting for better caching
           // Rolldown/Vite 8 requires a function for manualChunks
           manualChunks(id: string) {

@@ -132,13 +132,14 @@ Tailwind v4 bundles its own PostCSS pipeline and **does not require** autoprefix
 
 ### 4.5 Vite 8 / Rolldown optimization (MEDIUM)
 
-**Finding:** Vite 8 uses Rolldown (Rust-based bundler) instead of Rollup. The `vite.config.ts` already uses Rollup-specific `manualChunks` syntax.
+**Finding:** Vite 8 uses **Rolldown** (Rust-based bundler) instead of Rollup, and **Oxc** (Rust-based compiler) for transforms/minification instead of esbuild. The `vite.config.ts` uses the Vite 8 / Rolldown `manualChunks` function API.
 
 **Action:**
 
-1. Verify the current `manualChunks` function works correctly under Rolldown — Rolldown supports the same API in Vite 8, but edge cases exist.
+1. Verify the current `manualChunks` function works correctly under Rolldown — Vite 8 / Rolldown supports the same function API, but edge cases exist.
 2. Consider switching to `rollupOptions.output.manualChunks` id-based strategy that plays well with Rolldown caching.
 3. Add `build.incremental: true` if not already inherited by Vite 8 defaults.
+4. Ensure `cssMinify` and `minify` use `"esbuild"` (Oxc is not yet used for CSS minification in Vite 8).
 
 ### 4.6 Remotion 4.x refresh (MEDIUM)
 

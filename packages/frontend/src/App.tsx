@@ -3,11 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { ErrorBoundary, PageLoader } from "./components/common";
 import { DebugPanel } from "./components/debug/DebugPanel";
 import { Layout } from "./components/layout/Layout";
-import { Dashboard } from "./features/dashboard/Dashboard";
 import { FirstRunGate } from "./features/onboarding/FirstRunGate";
 import { NotFound } from "./features/not-found/NotFound";
-import { Queue } from "./features/queue/Queue";
-import { Settings } from "./features/settings/Settings";
 import { registerRouteLoader } from "./utils/routePreloader";
 
 // Helper for lazy loading modules with named exports.
@@ -36,6 +33,9 @@ const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: str
   );
 
 // Heavy pages loaded on-demand
+const Dashboard = lazyNamed(async () => import("./features/dashboard/Dashboard"), "Dashboard");
+const Queue = lazyNamed(async () => import("./features/queue/Queue"), "Queue");
+const Settings = lazyNamed(async () => import("./features/settings/Settings"), "Settings");
 const MasteringPage = lazyNamed(
   async () => import("./features/mastering/MasteringPage"),
   "MasteringPage",

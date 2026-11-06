@@ -63,10 +63,11 @@
         "mcp-for-blender@2.0.0"
       ],
       "environment": {
-        "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
+        "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe",
+        "DISABLE_TELEMETRY": "1"
       },
       "enabled": true,
-      "security_note": "Version-pinned MCP server. blender-mcp was renamed to mcp-for-blender@2.0.0. Pre-install with 'uv pip install mcp-for-blender==2.0.0' then run offline."
+      "security_note": "Official PyPI package mcp-for-blender@2.0.0, MIT license. DISABLE_TELEMETRY=1 disables telemetry. GPU guard protects ComfyUI VRAM sharing."
     },
     "unity": {
       "type": "local",
@@ -100,6 +101,52 @@
       ],
       "enabled": true,
       "security_note": "Version-pinned MCP server. Pre-install with 'pnpm add -D @playwright/mcp@0.0.83' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+    },
+    "frontend-3d-studio": {
+      "type": "local",
+      "command": [
+        "node",
+        "tools/mcp/frontend-3d-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000"
+      },
+      "enabled": true,
+      "security_note": "Bridges frontend 3D tools (Visualizer, Three.js Studio, Animation Studio, Model Preview) via backend API and Vision MCP"
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "github-mcp-server@1.7.0"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      },
+      "enabled": false,
+      "security_note": "Official GitHub MCP server (v1.7.0). Requires GITHUB_PERSONAL_ACCESS_TOKEN env var. Enable when needed for repo operations, PR management, Actions monitoring. MIT license, maintained by GitHub."
+    },
+    "serena": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "serena@0.10.0"
+      ],
+      "environment": {},
+      "enabled": false,
+      "security_note": "Community semantic code toolkit (~27k stars). IDE-like symbol-level code retrieval/editing. MIT license. Enable for large codebase refactoring. Last release July 2026."
+    },
+    "context7": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "context7@1.0.0"
+      ],
+      "environment": {},
+      "enabled": false,
+      "security_note": "Official Upstash Context7 MCP. Library documentation lookup and version resolution. Enable for API/docs lookup. Maintained by Upstash."
     }
   }
 }

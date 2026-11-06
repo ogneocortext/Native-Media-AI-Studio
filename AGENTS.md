@@ -84,7 +84,7 @@
 
 ## Project Overview
 
-Full-stack music-video creation suite: React/Vite/TypeScript frontend, FastAPI backend, Unity/Blender/ComfyUI/[[remotion-agent-skills-2026|Remotion]] integrations, and Go sidecars.
+Full-stack music-video creation suite: React/**Vite 8+**/TypeScript frontend, FastAPI backend, Unity/Blender/ComfyUI/[[remotion-agent-skills-2026|Remotion]] integrations, and Go sidecars.
 
 ## Directory Structure
 

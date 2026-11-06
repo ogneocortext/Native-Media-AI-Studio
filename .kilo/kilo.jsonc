@@ -1,0 +1,149 @@
+{
+  "$schema": "https://kilo.ai/schema/kilo.jsonc",
+  "mcp": {
+    "ollama-tools": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\Aomega Imaging\\AppData\\Roaming\\fnm\\aliases\\default\\node.exe",
+        "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\tools\\mcp\\ollama-tools-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000"
+      },
+      "enabled": true,
+      "timeout": 300000
+    },
+    "vision": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\Aomega Imaging\\AppData\\Roaming\\fnm\\aliases\\default\\node.exe",
+        "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\tools\\mcp\\vision-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000",
+        "VISION_KEEP_ALIVE": "30m"
+      },
+      "enabled": true,
+      "timeout": 300000
+    },
+    "unity": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\Aomega Imaging\\AppData\\Roaming\\fnm\\aliases\\default\\node.exe",
+        "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\tools\\mcp\\unity-mcp-bridge.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000",
+        "UNITY_PROJECT_PATH": "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\unity-project-mcp"
+      },
+      "enabled": true,
+      "timeout": 60000
+    },
+    "frontend-3d-studio": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\Aomega Imaging\\AppData\\Roaming\\fnm\\aliases\\default\\node.exe",
+        "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\tools\\mcp\\frontend-3d-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000"
+      },
+      "enabled": true,
+      "timeout": 120000
+    },
+    "hyperframes": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\Aomega Imaging\\AppData\\Roaming\\fnm\\aliases\\default\\node.exe",
+        "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\tools\\mcp\\hyperframes-mcp.mjs"
+      ],
+      "environment": {
+        "OLLAMA_URL": "http://127.0.0.1:11434",
+        "COMFYUI_URL": "http://127.0.0.1:8188",
+        "BACKEND_URL": "http://127.0.0.1:8000",
+        "HYPERFRAMES_PROJECT": "tools/hyperframes-test"
+      },
+      "enabled": true,
+      "timeout": 600000
+    },
+    "comfyui": {
+      "type": "local",
+      "command": [
+        "npx",
+        "--no",
+        "--offline",
+        "comfyui-mcp@0.52.206",
+        "--comfyui-url",
+        "http://localhost:8188",
+        "--force-remote"
+      ],
+      "enabled": true,
+      "timeout": 300000,
+      "security_note": "Version-pinned MCP server. comfyui-mcp@1.0.0 does not exist; pinned to latest 0.52.206. Pre-install with 'pnpm add -D comfyui-mcp@0.52.206' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+    },
+    "blender": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "mcp-for-blender@2.0.0"
+      ],
+      "environment": {
+        "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe",
+        "DISABLE_TELEMETRY": "1"
+      },
+      "enabled": true,
+      "timeout": 300000,
+      "security_note": "Version-pinned MCP server (mcp-for-blender@2.0.0). Official PyPI package, MIT license. DISABLE_TELEMETRY=1 disables anonymous usage telemetry. GPU guard protects ComfyUI VRAM sharing. Pre-install with 'uv pip install mcp-for-blender==2.0.0' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+    },
+    "playwright": {
+      "type": "remote",
+      "url": "http://localhost:8931/mcp",
+      "enabled": true,
+      "timeout": 300000,
+      "security_note": "Playwright MCP server running standalone via HTTP transport. Start with: npx @playwright/mcp@latest --port 8931 --allowed-hosts '*' --env PLAYWRIGHT_MCP_PING_TIMEOUT_MS=300000. Version-pinned to @playwright/mcp@0.0.83. Pre-install with 'pnpm add -D @playwright/mcp@0.0.83' then run offline. See docs/knowledge-library/npx-best-practices-2026.md."
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "github-mcp-server@1.7.0"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      },
+      "enabled": false,
+      "timeout": 120000,
+      "security_note": "Official GitHub MCP server (v1.7.0). Requires GITHUB_PERSONAL_ACCESS_TOKEN env var. Enable when needed for repo operations, PR management, Actions monitoring. MIT license, maintained by GitHub."
+    },
+    "serena": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "serena@0.10.0"
+      ],
+      "environment": {},
+      "enabled": false,
+      "timeout": 120000,
+      "security_note": "Community semantic code toolkit (~27k stars). IDE-like symbol-level code retrieval/editing. MIT license. Enable for large codebase refactoring. Last release July 2026."
+    },
+    "context7": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "context7@1.0.0"
+      ],
+      "environment": {},
+      "enabled": false,
+      "timeout": 60000,
+      "security_note": "Official Upstash Context7 MCP. Library documentation lookup and version resolution. Enable for API/docs lookup. Maintained by Upstash."
+    }
+  }
+}
