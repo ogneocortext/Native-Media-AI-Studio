@@ -391,6 +391,24 @@ class EnsureAnalysisRequest(BaseModel):
     backend: str = "sonara"
 
 
+class AudioSearchRequest(BaseModel):
+    """Filters for searching the audio library by analysis fields.
+
+    All filters are optional and combined with AND. Tempo/energy/sections
+    read from the stored analysis JSON; `key` matches the detected key
+    (e.g. "E major", "A minor") case-insensitively.
+    """
+
+    min_tempo: float | None = None
+    max_tempo: float | None = None
+    min_energy: float | None = None
+    max_energy: float | None = None
+    min_sections: int | None = None
+    max_sections: int | None = None
+    key: str | None = None
+    limit: int = 100
+
+
 @router.get("/backends")
 async def list_audio_backends():
     """List available audio analysis backends."""
@@ -452,6 +470,107 @@ async def get_analysis_summary(filename: str):
         "job_id": data.get("job_id"),
         "stored_path": data.get("stored_path"),
     }
+
+
+# Documented JSON paths inside audio_files.analysis_result. Agents should
+# read this instead of guessing field names — every key here is emitted by
+# _build_analysis_result (app/api/audio_analysis.py) at schema v3.
+ANALYSIS_FIELDS: dict[str, str] = {
+    # Identity / timing
+    "tempo_bpm": "Detected tempo in BPM",
+    "duration_seconds": "Track duration in seconds",
+    "beat_count": "Number of detected beats",
+    "beat_times": "List of beat timestamps (seconds), capped for response size",
+    "downbeat_times": "List of downbeat timestamps (seconds)",
+    "onset_times": "List of onset timestamps (seconds)",
+    "beats_truncated": "True when beat_times hit the response cap",
+    # Energy / dynamics
+    "energy_curve": "Normalized 0-1 energy curve for visualization",
+    "amplitude_envelope": "Normalized amplitude envelope",
+    "avg_energy": "Mean energy value (used by library search)",
+    "spectral": "Aggregate spectral summary (centroid, rolloff, bandwidth, zcr)",
+    "spectral_centroid": "Per-frame spectral centroid curve (Hz)",
+    "spectral_rolloff": "Per-frame spectral rolloff curve (Hz)",
+    "spectral_bandwidth": "Per-frame spectral bandwidth curve (Hz)",
+    "zero_crossing_rate": "Per-frame zero-crossing rate curve",
+    # Key / chroma
+    "estimated_key": "Detected key, e.g. 'E major'",
+    "key_confidence": "Clamped 0-1 display confidence",
+    "key_confidence_r": "Raw key-profile correlation (-1..1); hue mapping uses this",
+    "key_runner_up": "Second-best key candidate",
+    "key_runner_up_r": "Raw correlation for the runner-up key",
+    "chroma_frames": "Per-0.5s chroma: {fps, t0, pc (pitch class 0-11, -1 none), conf}",
+    # Structure
+    "sections": "List of {type, start, end, energy} song sections",
+    "confidence": "Overall beat-tracking confidence 0-1",
+    # Provenance / suggestions
+    "metadata": "Analyzer provenance: backend name; sonara adds loudness_lufs, dynamic_range_db, rms_mean/max, onset_density, bpm_candidates",
+    "suggested_visualization": "Suggested visualizer preset",
+    "suggested_kinetic_preset": "Suggested kinetic preset",
+    "suggested_theme_seed": "Suggested theme seed",
+    "timing_contract": "Timing metadata shared with frontend/Remotion/agents",
+    "schema_version": "Analysis schema version; stale versions trigger re-analysis",
+    "computed_on": "Device that ran the spectral pass ('GPU'/'CPU')",
+    "stored_path": "Absolute path of the analyzed file",
+    "relative_path": "Output-relative path safe for /api/audio/file/*",
+    "job_id": "Analysis job id when produced via the job queue",
+}
+
+
+@router.get("/analysis-fields")
+async def get_analysis_fields():
+    """List the documented fields inside analysis_result JSON.
+
+    Agent-facing: call this before constructing json_extract paths or
+    expecting fields, so queries use real keys instead of guesses.
+    """
+    return {
+        "schema_version_current": ANALYSIS_SCHEMA_VERSION,
+        "fields": ANALYSIS_FIELDS,
+        "search_endpoint": "POST /api/audio/search",
+        "summary_endpoint": "GET /api/audio/analysis/summary/{filename}",
+        "full_endpoint": "GET /api/audio/analysis/by-filename/{filename}",
+    }
+
+
+@router.post("/search")
+async def search_audio_library(body: AudioSearchRequest):
+    """Search the audio library by cached analysis fields.
+
+    Agent-facing discovery endpoint: find tracks by tempo range, key,
+    energy, or section count without fetching every analysis blob.
+    Returns compact rows (no full analysis payload).
+    """
+    from ..core import database
+
+    rows = database.search_audio_by_analysis(
+        min_tempo=body.min_tempo,
+        max_tempo=body.max_tempo,
+        min_energy=body.min_energy,
+        max_energy=body.max_energy,
+        min_sections=body.min_sections,
+        max_sections=body.max_sections,
+        key=body.key,
+        limit=body.limit,
+    )
+    results = []
+    for row in rows:
+        analysis = row.get("analysis_result") or {}
+        results.append(
+            {
+                "filename": row.get("filename"),
+                "original_name": row.get("original_name"),
+                "duration": row.get("duration"),
+                "bpm": row.get("bpm"),
+                "key": row.get("key") or analysis.get("estimated_key"),
+                "file_size": row.get("file_size"),
+                "created_at": row.get("created_at"),
+                "schema_version": analysis.get("schema_version"),
+                "section_count": len(analysis.get("sections") or []),
+                "has_analysis": bool(analysis),
+            }
+        )
+    return {"count": len(results), "results": results}
 
 
 @router.post("/upload", response_model=AudioUploadResponse)

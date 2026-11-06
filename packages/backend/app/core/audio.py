@@ -143,7 +143,8 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
             SET analysis_result = ?,
                 bpm = ?,
                 duration = ?,
-                stored_path = ?
+                stored_path = ?,
+                key = ?
             WHERE filename = ?
             """,
             (
@@ -151,6 +152,7 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
                 analysis_result.get("tempo_bpm"),
                 analysis_result.get("duration_seconds"),
                 analysis_result.get("stored_path", ""),
+                analysis_result.get("estimated_key"),
                 filename,
             ),
         )
@@ -165,8 +167,8 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
             conn.execute(
                 """
                 INSERT INTO audio_files
-                (id, filename, original_name, stored_path, file_size, analysis_result, bpm, duration, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, filename, original_name, stored_path, file_size, analysis_result, bpm, duration, key, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
@@ -177,6 +179,7 @@ def update_audio_analysis(filename: str, analysis_result: dict) -> bool:
                     json.dumps(analysis_result),
                     analysis_result.get("tempo_bpm"),
                     analysis_result.get("duration_seconds"),
+                    analysis_result.get("estimated_key"),
                     datetime.now().isoformat(),
                 ),
             )
@@ -249,6 +252,7 @@ def search_audio_by_analysis(
     max_energy: float | None = None,
     min_sections: int | None = None,
     max_sections: int | None = None,
+    key: str | None = None,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
     """
@@ -286,6 +290,14 @@ def search_audio_by_analysis(
     if max_sections is not None:
         clauses.append("json_array_length(analysis_result, '$.sections') <= ?")
         args.append(max_sections)
+    if key is not None:
+        # Case-insensitive match on the detected key ("E major", "A minor").
+        # The dedicated `key` column is preferred; the JSON path covers rows
+        # written before the column was synced.
+        clauses.append(
+            "(LOWER(key) = LOWER(?) OR LOWER(json_extract(analysis_result, '$.estimated_key')) = LOWER(?))"
+        )
+        args.extend([key, key])
 
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     args.append(max(1, min(int(limit), 500)))

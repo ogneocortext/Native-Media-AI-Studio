@@ -38,9 +38,11 @@ import app.core.connection as _connection_module
 from .audio import (
     _row_to_audio,
     get_audio_analysis,
+    get_audio_analysis_field,
     get_audio_file,
     get_audio_files,
     save_audio_file,
+    search_audio_by_analysis,
     update_audio_analysis,
 )
 
@@ -379,9 +381,11 @@ __all__ = [
     # audio
     "_row_to_audio",
     "get_audio_analysis",
+    "get_audio_analysis_field",
     "get_audio_file",
     "get_audio_files",
     "save_audio_file",
+    "search_audio_by_analysis",
     "update_audio_analysis",
     # prompts
     "_row_to_prompt",

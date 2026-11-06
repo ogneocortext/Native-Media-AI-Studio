@@ -270,20 +270,23 @@ async def skills_file(skill_name: str, path: str) -> PlainTextResponse:
         raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}") from exc
 
 
-@router.post("/api/mcp/execute-tool", response_model=ExecuteToolResponse)
 async def _tool_list_audio_library(args: dict) -> ExecuteToolResponse:
     result = await _http_get("/api/audio/files")
     if isinstance(result, dict) and "error" in result:
         return _error_response(result["error"])
+    # /api/audio/files returns {"files": [{filename, relative_path,
+    # size_bytes, modified, folder}, ...]} — the old "outputs" key never
+    # existed, so this tool always reported an empty library.
+    raw = result.get("files") if isinstance(result, dict) else result
     files = [
         {
             "filename": o.get("filename", o.get("relative_path", "")),
             "relative_path": o.get("relative_path", ""),
-            "file_type": o.get("file_type", "unknown"),
+            "file_type": o.get("file_type", o.get("folder", "unknown")),
             "size_bytes": o.get("size_bytes", 0),
-            "modified_at": o.get("modified_at", ""),
+            "modified_at": o.get("modified_at", o.get("modified", "")),
         }
-        for o in result.get("outputs", [])
+        for o in (raw or [])
     ]
     return ExecuteToolResponse(
         success=True,
@@ -293,6 +296,28 @@ async def _tool_list_audio_library(args: dict) -> ExecuteToolResponse:
             "by_type": _group_by_type(files),
         },
     )
+
+
+async def _tool_search_audio_library(args: dict) -> ExecuteToolResponse:
+    """Search the library by cached analysis fields (tempo, key, energy, sections)."""
+    filters = {
+        k: args[k]
+        for k in (
+            "min_tempo",
+            "max_tempo",
+            "min_energy",
+            "max_energy",
+            "min_sections",
+            "max_sections",
+            "key",
+            "limit",
+        )
+        if args.get(k) is not None
+    }
+    result = await _http_post("/api/audio/search", filters, timeout=30)
+    if isinstance(result, dict) and "error" in result:
+        return _error_response(result["error"])
+    return ExecuteToolResponse(success=True, result=result)
 
 
 async def _tool_analyze_audio(args: dict) -> ExecuteToolResponse:
@@ -795,6 +820,7 @@ async def _tool_create_complete_music_video(args: dict) -> ExecuteToolResponse:
 
 _TOOL_HANDLERS: dict[str, Any] = {
     "list_audio_library": _tool_list_audio_library,
+    "search_audio_library": _tool_search_audio_library,
     "analyze_audio": _tool_analyze_audio,
     "create_music_video_plan": _tool_create_music_video_plan,
     "generate_image": _tool_generate_image,
@@ -819,6 +845,7 @@ _TOOL_HANDLERS: dict[str, Any] = {
 }
 
 
+@router.post("/api/mcp/execute-tool", response_model=ExecuteToolResponse)
 async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
     """Execute any tool via the backend API.
 
@@ -853,6 +880,24 @@ async def tools_list() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {},
+                "required": [],
+            },
+        },
+        {
+            "name": "search_audio_library",
+            "description": "Search the audio library by cached analysis fields: tempo range (BPM), detected key (e.g. 'E major'), average energy (0-1), and section count. Use this to find tracks matching musical criteria without analyzing every file. Call GET /api/audio/analysis-fields for the full list of queryable analysis fields.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "min_tempo": {"type": "number", "description": "Minimum BPM."},
+                    "max_tempo": {"type": "number", "description": "Maximum BPM."},
+                    "min_energy": {"type": "number", "description": "Minimum average energy (0-1)."},
+                    "max_energy": {"type": "number", "description": "Maximum average energy (0-1)."},
+                    "min_sections": {"type": "integer", "description": "Minimum number of detected song sections."},
+                    "max_sections": {"type": "integer", "description": "Maximum number of detected song sections."},
+                    "key": {"type": "string", "description": "Detected musical key, case-insensitive (e.g. 'E major', 'A minor')."},
+                    "limit": {"type": "integer", "description": "Max results (default 100, cap 500).", "default": 100},
+                },
                 "required": [],
             },
         },
