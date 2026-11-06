@@ -420,13 +420,15 @@ class RetrievalIndex:
 
     # -- vector search ------------------------------------------------------
 
-    async def vector_search(self, query: str, limit: int = TOP_K_CANDIDATES) -> list[tuple[str, float]]:
+    async def vector_search(
+        self, query: str, limit: int = TOP_K_CANDIDATES, model: str = EMBED_MODEL
+    ) -> list[tuple[str, float]]:
         """Return [(chunk_id, cosine_similarity)] ranked by vector similarity."""
-        q_emb = await embed_text(query, model=EMBED_MODEL, expected_dim=EMBED_DIM)
+        q_emb = await embed_text(query, model=model, expected_dim=EMBED_DIM)
         if not q_emb:
             logger.warning(
                 "Vector search unavailable: embedding model %s returned no vector "
-                "(or wrong dimension); falling back to BM25-only results", EMBED_MODEL,
+                "(or wrong dimension); falling back to BM25-only results", model,
             )
             return []
 
@@ -622,6 +624,7 @@ class RetrievalIndex:
         *,
         limit: int = TOP_K_FINAL,
         vault_only: bool = False,
+        model: str = EMBED_MODEL,
     ) -> list[dict]:
         """
         Full retrieval pipeline: BM25 + vector -> RRF -> rerank -> top-k.
@@ -633,7 +636,7 @@ class RetrievalIndex:
 
         # 1. Parallel retrieval
         bm25_results = self.bm25_search(query, limit=TOP_K_CANDIDATES)
-        vector_results = await self.vector_search(query, limit=TOP_K_CANDIDATES)
+        vector_results = await self.vector_search(query, limit=TOP_K_CANDIDATES, model=model)
 
         # 2. RRF fusion
         fused: dict[str, float] = defaultdict(float)

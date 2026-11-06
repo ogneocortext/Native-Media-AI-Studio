@@ -20,6 +20,7 @@ from ..services.retrieval_service import (
     EMBED_DIM,
     EMBED_MODEL,
     RERANK_MODEL,
+    VECTOR_MODEL_ALT,
     _split_text_into_chunks,
     get_index,
     persist_chunk_embeddings,
@@ -39,6 +40,7 @@ VAULT_ROOT = DOCS_ROOT / "knowledge-library"
 
 class IndexRequest(BaseModel):
     force_reindex: bool = False
+    model: str | None = None  # override default embedding model for indexing
 
 
 class IndexStatus(BaseModel):
@@ -47,8 +49,9 @@ class IndexStatus(BaseModel):
     doc_count: int
     avg_length: float
     embedding_model: str
-    rerank_model: str
     embedding_model_available: bool = True
+    embedding_models_available: list[str] = []
+    rerank_model: str
     built_at: float | None = None
     models_available: list[str] = []
 
@@ -57,6 +60,7 @@ class SearchRequest(BaseModel):
     query: str
     limit: int = 5
     vault_only: bool = False
+    model: str | None = None  # override default embedding model for query embedding
 
 
 class SearchResult(BaseModel):
@@ -185,7 +189,8 @@ async def index_docs(req: IndexRequest) -> dict:
         # Generate embeddings for all chunks (concurrent Ollama calls)
         chunk_objects = list(idx._chunks.values())
         texts = [c.text for c in chunk_objects]
-        embs = await _embed_batch(texts, EMBED_MODEL)
+        index_model = req.model or EMBED_MODEL
+        embs = await _embed_batch(texts, index_model)
         # embs is a list (possibly with None slots for failed embeddings);
         # never None itself since embed_text_batch_concurrent always returns a list.
         if embs is None or all(e is None for e in embs):
@@ -205,7 +210,7 @@ async def index_docs(req: IndexRequest) -> dict:
             "status": "indexed",
             "chunks": len(chunk_objects),
             "docs": len({c.doc_path for c in chunk_objects}),
-            "embedding_model": EMBED_MODEL,
+            "embedding_model": index_model,
             "rerank_model": RERANK_MODEL,
         }
     finally:
@@ -226,7 +231,12 @@ async def index_status() -> IndexStatus:
     # If it's missing, vector search silently degrades to BM25-only, so we
     # surface the gap explicitly rather than letting the user wonder why
     # semantic results are poor.
+    model_names = [m.get("name", "") for m in models]
     embedding_model_available = EMBED_MODEL in model_names
+    # Also report which alternative embedding models are installed
+    embedding_models_available = [
+        m for m in (EMBED_MODEL, VECTOR_MODEL_ALT) if m in model_names
+    ]
     if not embedding_model_available:
         logger.warning(
             "Configured embedding model %s is not installed in Ollama; "
@@ -242,10 +252,11 @@ async def index_status() -> IndexStatus:
         doc_count=len({c.doc_path for c in idx._chunks.values()}),
         avg_length=idx._avg_len,
         embedding_model=EMBED_MODEL,
+        embedding_model_available=embedding_model_available,
+        embedding_models_available=embedding_models_available,
         rerank_model=RERANK_MODEL,
         built_at=idx._built_at,
         models_available=model_names,
-        embedding_model_available=embedding_model_available,
     )
 
 
@@ -269,6 +280,7 @@ async def search(req: SearchRequest) -> SearchResponse:
         req.query,
         limit=req.limit,
         vault_only=req.vault_only,
+        model=req.model or EMBED_MODEL,
     )
 
     search_results = [
