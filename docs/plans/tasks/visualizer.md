@@ -804,3 +804,12 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   regression tests: stacked-bands layers provably sample different
   spectrum slices, withAlpha normalizes #rgb/non-hex/undefined inputs.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-VIZ-40 — WebGPU compute spike: port the GLSL particle layer to TSL (single-layer, gated)
+- **Status:** todo
+- **Goal:** Measure — on the owner's rig, headed — whether a TSL/NodeMaterial port of the R3F particle layer with its update in a WebGPU compute pass beats or out-capabilities the WebGL/GLSL baseline, behind the existing WebGPU opt-in. A written negative result is a valid, complete outcome.
+- **Files:** new spike module under `packages/frontend/src/features/visualizer/webgpu/`; the particle layer under `viz-styles/` (exact file confirmed during the step-1 baseline); switch point in `VisualizerScene.tsx` only if the verdict is merge.
+- **Plan:** Research: `docs/knowledge/browser-tech-transfer-2026-11-05/README.md` §2.2 + §3. Steps: (1) headed baseline — frame-time p95 at DPR cap + draw calls (RenderStatsBadge) for a particle-heavy scene on WebGL, recorded in this item; name the exact particle-layer file(s). (2) Port that one layer to TSL with a compute-pass update, gated by `isWebGPUOptIn()`; no other layer touched — the backdrop dome is out of scope. (3) Headed A/B on the same track + scene, opt-in on vs off: no black-screened layers; frame time against the T-VIZ-18 budget (20 ms p95); note the particle-count ceiling each path sustains. (4) Verdict written into this item with the numbers: merge, iterate, or negative result (spike code removed, finding kept). (5) If merged: TSL has no repo compile gate — add a smoke check per `docs/guides/visualizer-debug.md` so the port cannot rot silently.
+- **Acceptance:** Baseline and A/B numbers recorded in this item; opt-in off = zero behavior change (existing visualizer tests pass); opt-in on = no black-screen layers in the ported scene; decision recorded with evidence. Non-goals: no library-wide GLSL→TSL port, no default flip away from WebGL, no ShaderCanvas-lane or Canvas2D work.
+- **Depends on:** gate cleared — T-VIZ-15/16/18/19 landed 2026-11-05/06, so the data contracts and governor this spike is judged against already exist.
+- **Last session:** Orion, 2026-11-05 — item registered together with the browser-tech-transfer research doc (same commit); no code touched.
