@@ -71,7 +71,7 @@ class NMAStemSeparatorProducer:
                 "pan": pan,
             }
 
-        return ({"stems": stems, "source_file": str(audio_file) if audio_file else ""},)
+        return (stems,)
 
 
 NODE_CLASS_MAPPINGS = {
