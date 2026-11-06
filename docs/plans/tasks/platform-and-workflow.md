@@ -505,3 +505,41 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** tsc -b + tsconfig.tests fully clean (0 errors
   project-wide), eslint 0 errors on touched files, remix/visualizer
   vitest 42/42 pass.
+
+### T-PLT-15 - Fix /system/health crash and consolidate redundant data points
+- **Status:** done
+- **Goal:** Repair the health page (crash + false "degraded" banner) and
+  remove duplicated metrics.
+- **What changed:**
+  - `OllamaModelsCard.tsx` - crashed the whole page via ErrorBoundary:
+    `activity[m.name]` is undefined for models with no active task and
+    `active.started_at` was read unguarded. Now `active?.started_at`.
+  - Adapter-status vocabulary bug: backend `AdapterStatus` reports
+    `available`/`busy`/`connected`/`online`/`degraded`/..., but the page
+    only treated `connected|online|healthy` as healthy — a live Ollama
+    ("available") rendered the banner as "degraded — ollama is
+    unreachable", a gray StatusBadge, and red card styling while the
+    live probe said online. Added shared `isHealthyAdapterStatus` /
+    `isWarningAdapterStatus` predicates in `features/health/utils.ts`;
+    banner, Services card, and warning tiers now agree. `StatusBadge`
+    learned `available` (green) and `busy` (amber).
+  - `ResourceCard` - usage % was rendered twice (colored badge + bold
+    body value); body now shows the Good/Moderate/High label only.
+  - `GPUCard` + `VRAMManagerCard` merged into one card — both rendered
+    VRAM %, GB used/free, GPU util, and temperature from two endpoints.
+    GPUCard now also carries the workload label and the four model
+    pills (Ollama/Atomic Chat/ComfyUI/Music Gen) with offload/reload
+    actions; `VRAMManagerCard.tsx` deleted.
+  - `ServiceChecksCard` - dropped the tautological "backend: live" row
+    (the page cannot render without the backend) and the now-unused
+    store subscription.
+- **Files:** `features/health/{HealthPage,GPUCard,OllamaModelsCard,
+  ResourceCard,ServiceChecksCard,utils,components}.{tsx,ts}`,
+  `components/common/index.tsx` (StatusBadge), `state/healthStore.ts`
+  (comment), deleted `VRAMManagerCard.tsx`.
+- **Acceptance:** headed Playwright pass on /system/health — banner
+  reads "healthy — All systems operational", Ollama Models card renders
+  both loaded models, merged GPU card shows telemetry + workload +
+  pills + processes, zero console errors; `tsc -b` clean, eslint 0
+  errors, vitest 935/935 pass.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

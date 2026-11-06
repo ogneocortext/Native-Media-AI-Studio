@@ -361,7 +361,7 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 
 // ============================================================================
 // VRAM status polling — keeps the manager state fresh so any component
-// (VRAMManagerCard, HealthPage, etc.) can read it without competing intervals.
+// (GPUCard, HealthPage, etc.) can read it without competing intervals.
 // ============================================================================
 let vramPollInterval: ReturnType<typeof setInterval> | null = null;
 

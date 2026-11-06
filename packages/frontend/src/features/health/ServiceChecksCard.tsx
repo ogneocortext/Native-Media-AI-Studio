@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Activity, Loader2, CheckCircle, XCircle, Play, Pause, RefreshCw } from "lucide-react";
 import { Card } from "../../components/common";
 import { checkService } from "../../services/api";
-import { useHealthStore } from "../../state/healthStore";
 
 interface ServiceCheck {
   service: string;
@@ -20,7 +19,6 @@ const CHECK_INTERVAL_MS = 30000;
 export function ServiceChecksCard() {
   const [checks, setChecks] = useState<Record<string, ServiceCheck>>({});
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const backend = useHealthStore((s) => s.backend);
 
   const handleCheck = useCallback(async (service: string) => {
     setChecks((prev) => ({ ...prev, [service]: { service, status: "checking" } }));
@@ -76,22 +74,8 @@ export function ServiceChecksCard() {
       }
     >
       <div className="space-y-2">
-        {/* Backend needs no probe — this page rendered, so it is reachable. */}
-        <div className="flex items-center justify-between gap-2 p-2 bg-white/[0.02] rounded-lg">
-          <div className="flex items-center gap-2 min-w-0">
-            <div
-              className={`w-2 h-2 rounded-full shrink-0 ${backend === "online" ? "bg-emerald-400" : "bg-red-400"}`}
-            />
-            <span className="text-sm text-white capitalize">backend</span>
-            <span className="text-[10px] text-muted/60">live</span>
-          </div>
-          <span
-            className={`flex items-center gap-1 text-xs ${backend === "online" ? "text-emerald-400" : "text-red-400"}`}
-          >
-            {backend === "online" ? <CheckCircle size={12} /> : <XCircle size={12} />}
-            {backend}
-          </span>
-        </div>
+        {/* No "backend" row — this page cannot render without it, so it is
+            tautological. Only externally-probed services are listed. */}
         {PROBED_SERVICES.map((service) => {
           const check = checks[service];
           // Guard: service may not have been checked yet

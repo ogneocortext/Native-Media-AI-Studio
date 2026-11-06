@@ -50,10 +50,7 @@ export function ResourceCard({
         </span>
       </div>
       <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted">{getUsageLabel(usage)}</span>
-          <span className="font-bold tabular-nums">{usage.toFixed(1)}%</span>
-        </div>
+        <span className="text-sm text-muted">{getUsageLabel(usage)}</span>
         <div className="h-2 bg-background rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-500"

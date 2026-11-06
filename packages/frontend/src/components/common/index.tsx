@@ -12,6 +12,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case "healthy":
       case "connected":
       case "online":
+      case "available":
         return {
           dot: "status-healthy",
           text: "text-emerald-400 light:text-emerald-700",
@@ -20,6 +21,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case "running":
       case "degraded":
       case "warning":
+      case "busy":
         return {
           dot: "status-degraded",
           text: "text-amber-400 light:text-amber-700",

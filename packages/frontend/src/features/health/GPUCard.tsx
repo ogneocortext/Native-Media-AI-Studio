@@ -1,8 +1,35 @@
-import { useState, useEffect } from "react";
-import { CpuIcon, MemoryStick, Activity, Thermometer, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  CpuIcon,
+  MemoryStick,
+  Activity,
+  Thermometer,
+  RefreshCw,
+} from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
+import { getApiBaseUrl } from "../../services/portConfig";
 import { getUsageColor, getUsageTextColor } from "./utils";
+
+const WORKLOAD_LABELS: Record<string, string> = {
+  idle: "Idle",
+  llm_inference: "LLM Inference",
+  render_3d: "3D Render",
+  image_generation: "Image Generation",
+  music_generation: "Music Generation",
+  audio_analysis: "Audio Analysis",
+  lipsync: "Lip Sync",
+};
+
+const WORKLOAD_COLORS: Record<string, string> = {
+  idle: "text-emerald-400 border-emerald-500/20",
+  llm_inference: "text-violet-400 border-violet-500/20",
+  render_3d: "text-blue-400 border-blue-500/20",
+  image_generation: "text-pink-400 border-pink-500/20",
+  music_generation: "text-orange-400 border-orange-500/20",
+  audio_analysis: "text-cyan-400 border-cyan-500/20",
+  lipsync: "text-rose-400 border-rose-500/20",
+};
 
 export function GPUCard() {
   const [gpu, setGpu] = useState<Awaited<
@@ -10,6 +37,7 @@ export function GPUCard() {
   > | null>(null);
   const [processes, setProcesses] = useState<import("../../services/api").GPUProcessInfo[]>([]);
   const fetchGPUData = useHealthStore((s) => s.fetchGPUData);
+  const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
   const granular = useHealthStore((s) => s.granular);
 
   useEffect(() => {
@@ -24,6 +52,77 @@ export function GPUCard() {
     if (snapshot) setGpu(snapshot);
     if (procData.processes) setProcesses(procData.processes);
   }, [granular.gpu.snapshot, granular.gpu.processes]);
+
+  const manager = granular.manager ?? null;
+  const hasManager = manager != null && Object.keys(manager).length > 0;
+
+  const handleOffloadOllama = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/integrations/vram/offload-ollama`, {
+        method: "POST",
+      });
+      if (res.ok) await fetchVRAM();
+    } catch {
+      /* ignore */
+    }
+  }, [fetchVRAM]);
+
+  const handleReloadOllama = useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/integrations/vram/reload-ollama`, {
+        method: "POST",
+      });
+      if (res.ok) await fetchVRAM();
+    } catch {
+      /* ignore */
+    }
+  }, [fetchVRAM]);
+
+  const workload = (manager?.current_workload ?? "idle") as string;
+  const hasWorkload = hasManager && manager?.current_workload != null;
+  const workloadLabel = WORKLOAD_LABELS[workload] ?? workload;
+
+  // VRAM-manager section — shared by both the available and unavailable
+  // branches so workload/model state still renders if NVML is missing.
+  const managerSection = hasManager ? (
+    <div className="space-y-3 pt-3 border-t border-white/5">
+      <div className="flex justify-between text-sm">
+        <span className="text-muted flex items-center gap-1">
+          <CpuIcon size={12} /> Workload
+        </span>
+        <span
+          className={`font-bold tabular-nums ${WORKLOAD_COLORS[workload] ?? WORKLOAD_COLORS.idle}`}
+        >
+          {hasWorkload ? workloadLabel : "—"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <ModelPill
+          label="Ollama"
+          loaded={manager?.ollama_loaded === true}
+          hasData
+          onOffload={handleOffloadOllama}
+          onReload={handleReloadOllama}
+        />
+        <ModelPill
+          label="Atomic Chat"
+          loaded={manager?.atomic_chat_loaded === true}
+          hasData
+        />
+        <ModelPill
+          label="ComfyUI"
+          loaded={manager?.comfyui_models_loaded === true}
+          busy={manager?.comfyui_busy === true}
+          hasData
+        />
+        <ModelPill
+          label="Music Gen"
+          loaded={manager?.music_gen_running === true}
+          hasData
+        />
+      </div>
+    </div>
+  ) : null;
 
   if (!gpu?.available) {
     return (
@@ -50,6 +149,7 @@ export function GPUCard() {
         <p className="text-xs text-muted">
           GPU monitoring requires NVIDIA drivers with NVML support
         </p>
+        {managerSection}
       </Card>
     );
   }
@@ -117,6 +217,9 @@ export function GPUCard() {
               style={{ width: `${memPercent}%`, background: getUsageColor(memPercent) }}
             />
           </div>
+          <p className="text-[11px] text-muted mt-1 tabular-nums">
+            {formatGB(gpu.memory_total_mb - gpu.memory_free_mb)} used
+          </p>
         </div>
 
         {/* GPU Utilization */}
@@ -158,6 +261,8 @@ export function GPUCard() {
           </span>
         </div>
 
+        {managerSection}
+
         {/* GPU Processes */}
         {processes.length > 0 && (
           <div className="mt-3 pt-3 border-t border-white/5">
@@ -184,5 +289,71 @@ export function GPUCard() {
         )}
       </div>
     </Card>
+  );
+}
+
+interface ModelPillProps {
+  label: string;
+  loaded: boolean;
+  busy?: boolean;
+  hasData: boolean;
+  onOffload?: () => void;
+  onReload?: () => void;
+}
+
+function ModelPill({ label, loaded, busy, hasData, onOffload, onReload }: ModelPillProps) {
+  const canOffload = loaded && hasData && !!onOffload;
+  const canReload = !loaded && hasData && !!onReload;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted">{label}</span>
+        <span
+          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+            hasData
+              ? loaded
+                ? "bg-green-500/20 text-green-400"
+                : "bg-red-500/20 text-red-400"
+              : "bg-white/10 text-muted"
+          }`}
+        >
+          {hasData ? (loaded ? "Loaded" : "Unloaded") : "—"}
+        </span>
+      </div>
+      {busy && hasData && (
+        <span className="text-[10px] text-amber-400 flex items-center gap-1">
+          <Activity size={10} /> Busy
+        </span>
+      )}
+      {!hasData && (
+        <span className="text-[10px] text-muted/50 flex items-center gap-1">
+          No data
+        </span>
+      )}
+      <div className="flex gap-1">
+        {canOffload && (
+          <button
+            onClick={onOffload}
+            className="text-[10px] px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 hover:text-red-300 border border-red-500/30 disabled:opacity-50"
+            title="Offload Ollama to free VRAM"
+          >
+            Offload
+          </button>
+        )}
+        {canReload && (
+          <button
+            onClick={onReload}
+            className="text-[10px] px-2 py-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 hover:text-emerald-300 border border-emerald-500/30 disabled:opacity-50"
+            title="Reload Ollama to GPU"
+          >
+            Reload
+          </button>
+        )}
+        {!canOffload && !canReload && (
+          <span className="text-[10px] text-muted/50">—</span>
+        )}
+      </div>
+    </div>
   );
 }

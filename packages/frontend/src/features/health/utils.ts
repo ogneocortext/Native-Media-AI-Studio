@@ -25,6 +25,30 @@ export function getUsageLabel(percent: number): string {
   return "High";
 }
 
+/**
+ * Adapter status vocabulary comes from backend `AdapterStatus`
+ * (connected/disconnected/online/available/busy/critical/offline/error) plus
+ * bridge statuses (healthy/degraded/warning). Centralize the grouping so the
+ * banner, Services card, and badges agree — previously "available" fell
+ * through every healthy check and a live Ollama rendered as "unreachable".
+ */
+const HEALTHY_ADAPTER_STATUSES = new Set([
+  "connected",
+  "online",
+  "healthy",
+  "available",
+]);
+
+const WARNING_ADAPTER_STATUSES = new Set(["degraded", "warning", "busy"]);
+
+export function isHealthyAdapterStatus(status: string | undefined | null): boolean {
+  return !!status && HEALTHY_ADAPTER_STATUSES.has(status);
+}
+
+export function isWarningAdapterStatus(status: string | undefined | null): boolean {
+  return !!status && WARNING_ADAPTER_STATUSES.has(status);
+}
+
 /** Extract VRAM info from the raw status response with safe defaults */
 export function parseVRAMStatus(
   vramStatus: Record<string, unknown> | null,

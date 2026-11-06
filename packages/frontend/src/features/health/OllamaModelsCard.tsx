@@ -41,7 +41,7 @@ export function OllamaModelsCard() {
         <div className="space-y-2">
           {models.map((m) => {
             const active = activity[m.name];
-            const elapsed = active.started_at ? Math.floor(now / 1000 - active.started_at) : null;
+            const elapsed = active?.started_at ? Math.floor(now / 1000 - active.started_at) : null;
             return (
               <div
                 key={m.name}

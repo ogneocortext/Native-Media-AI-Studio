@@ -50,7 +50,6 @@ import {
   ComfyUICard,
   ResourceCard,
   GPUCard,
-  VRAMManagerCard,
   ActionLog,
   PerformanceHistoryCard,
   ServiceChecksCard,
@@ -63,6 +62,7 @@ import { NavPerformanceCard } from "../../components/NavPerformanceCard";
 import { MemoryMetricsCard } from "../../components/MemoryMetricsCard";
 import { NetworkMetricsCard } from "../../components/NetworkMetricsCard";
 import { showToast } from "../../utils/toast";
+import { isHealthyAdapterStatus, isWarningAdapterStatus } from "./utils";
 
 export function HealthPage() {
   const { health, serviceStatus, loading, error } = useHealth();
@@ -272,21 +272,35 @@ export function HealthPage() {
 
   // Banner reflects BOTH host resources and adapter services — previously it only
   // read health.status (host), so it said "Healthy" while ComfyUI was offline.
-  const offlineAdapters = Object.entries(serviceStatus?.adapters ?? {})
-    .filter(([, s]) => s !== "connected" && s !== "online" && s !== "healthy")
+  // Adapter statuses use the backend AdapterStatus vocabulary (available/busy/
+  // degraded/...), so healthy/warning checks come from the shared predicates —
+  // a literal "connected|online|healthy" list wrongly flagged "available".
+  const adapterEntries = Object.entries(serviceStatus?.adapters ?? {});
+  const unreachableAdapters = adapterEntries
+    .filter(
+      ([, s]) => !isHealthyAdapterStatus(s) && !isWarningAdapterStatus(s),
+    )
+    .map(([name]) => name.replace(/_/g, " "));
+  const degradedAdapters = adapterEntries
+    .filter(([, s]) => isWarningAdapterStatus(s))
     .map(([name]) => name.replace(/_/g, " "));
   const hostStatus = health?.status ?? "unknown";
-  const overallHealth = offlineAdapters.length > 0 ? "degraded" : hostStatus;
+  const overallHealth =
+    unreachableAdapters.length > 0 || degradedAdapters.length > 0
+      ? "degraded"
+      : hostStatus;
   const overallDetail =
-    offlineAdapters.length > 0
-      ? `${offlineAdapters.join(", ")} ${offlineAdapters.length === 1 ? "is" : "are"} unreachable`
-      : hostStatus === "healthy"
-        ? "All systems operational"
-        : hostStatus === "degraded"
-          ? "Some services experiencing issues"
-          : hostStatus === "unknown"
-            ? "Waiting for health data…"
-            : "Critical issues detected";
+    unreachableAdapters.length > 0
+      ? `${unreachableAdapters.join(", ")} ${unreachableAdapters.length === 1 ? "is" : "are"} unreachable`
+      : degradedAdapters.length > 0
+        ? `${degradedAdapters.join(", ")} ${degradedAdapters.length === 1 ? "is" : "are"} degraded`
+        : hostStatus === "healthy"
+          ? "All systems operational"
+          : hostStatus === "degraded"
+            ? "Some services experiencing issues"
+            : hostStatus === "unknown"
+              ? "Waiting for health data…"
+              : "Critical issues detected";
 
   // Backend sends platform="Windows" + platform_version="Windows 11 ..." — dedupe the prefix.
   const platformLabel = (() => {
@@ -450,7 +464,6 @@ export function HealthPage() {
               subtext={`${health?.disk.free_gb?.toFixed(1)}GB free`}
             />
             <GPUCard />
-            <VRAMManagerCard />
           </div>
         </div>
       </div>
@@ -488,8 +501,8 @@ export function HealthPage() {
               const adapter = serviceStatus.adapter_details?.[name];
               const error = adapter?.error;
               const url = adapter?.url;
-              const isHealthy =
-                status === "connected" || status === "online" || status === "healthy";
+              const isHealthy = isHealthyAdapterStatus(status);
+              const isWarning = isWarningAdapterStatus(status);
 
               return (
                 <div
@@ -497,7 +510,7 @@ export function HealthPage() {
                   className={`p-4 rounded-lg border ${
                     isHealthy
                       ? "border-green-500/20 bg-green-500/5"
-                      : status === "degraded" || status === "warning"
+                      : isWarning
                         ? "border-yellow-500/20 bg-yellow-500/5"
                         : "border-red-500/20 bg-red-500/5"
                   }`}
@@ -508,14 +521,14 @@ export function HealthPage() {
                         className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                           isHealthy
                             ? "bg-green-500/20"
-                            : status === "degraded" || status === "warning"
+                            : isWarning
                               ? "bg-yellow-500/20"
                               : "bg-red-500/20"
                         }`}
                       >
                         {isHealthy ? (
                           <Wifi size={16} className="text-green-400" />
-                        ) : status === "degraded" || status === "warning" ? (
+                        ) : isWarning ? (
                           <AlertTriangle size={16} className="text-yellow-400" />
                         ) : (
                           <WifiOff size={16} className="text-red-400" />
