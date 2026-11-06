@@ -9,6 +9,14 @@ Part of the ComfyUI bridge layer - lives in config/comfyui/custom_nodes/
 and is symlinked into ComfyUI's custom_nodes/ directory on startup.
 """
 
+# Per-stem neutral defaults (amplitude, dominant_frequency, pan)
+_STEM_DEFAULTS: dict[str, tuple[float, float, float]] = {
+    "vocals": (0.0, 440.0, 0.5),
+    "drums": (0.0, 120.0, 0.5),
+    "bass": (0.0, 60.0, 0.5),
+    "other": (0.0, 1000.0, 0.5),
+}
+
 
 class NMAStemSeparatorProducer:
     """Produce an AUDIO_STEMS bundle for stem-reactive visual nodes.
@@ -40,14 +48,6 @@ class NMAStemSeparatorProducer:
     CATEGORY = "Native Media AI"
     OUTPUT_NODE = False
 
-    # Per-stem neutral defaults (amplitude, dominant_frequency, pan)
-    _STEM_DEFAULTS: dict[str, tuple[float, float, float]] = {
-        "vocals": (0.0, 440.0, 0.5),
-        "drums": (0.0, 120.0, 0.5),
-        "bass": (0.0, 60.0, 0.5),
-        "other": (0.0, 1000.0, 0.5),
-    }
-
     def produce(
         self,
         audio_file: str = "",
@@ -64,7 +64,7 @@ class NMAStemSeparatorProducer:
             to {amplitude, dominant_frequency, pan} dicts.
         """
         stems: dict[str, dict] = {}
-        for stem_type, (amp, freq, pan) in self._STEM_DEFAULTS.items():
+        for stem_type, (amp, freq, pan) in _STEM_DEFAULTS.items():
             stems[stem_type] = {
                 "amplitude": amp,
                 "dominant_frequency": freq,
