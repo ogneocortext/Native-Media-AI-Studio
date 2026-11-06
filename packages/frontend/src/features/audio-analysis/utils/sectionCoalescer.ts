@@ -17,7 +17,7 @@ export function coalesceSections(
   const out: DisplaySection[] = [];
   for (const section of sections) {
     const last = out[out.length - 1];
-    if (last.type === section.type && last.end === section.start) {
+    if (last && last.type === section.type && last.end === section.start) {
       last.end = section.end;
       last.energy = Math.max(last.energy, section.energy);
     } else {

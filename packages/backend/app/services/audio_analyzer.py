@@ -1,6 +1,7 @@
 """Audio analysis service for extracting waveform and beat features from audio files."""
 
 import logging
+import operator
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -306,6 +307,10 @@ class AudioAnalysisResult:
     waveform: WaveformFeatures
     beats: BeatFeatures
     metadata: dict[str, Any]
+    #: Key detection + Tier 2 chroma frames (chroma-hue-mapping.md), emitted
+    #: for every backend so the API payload is interchangeable regardless of
+    #: which beat tracker produced the grid.
+    key_analysis: dict[str, Any] | None = None
 
 
 class AudioAnalyzer:
@@ -361,6 +366,77 @@ class AudioAnalyzer:
         if hasattr(value, "tolist"):
             return value.tolist()
         return list(value)
+
+    @staticmethod
+    def _key_and_chroma_features(y, sr: int) -> dict[str, Any] | None:
+        """Krumhansl/Schneider key detection + Tier 2 chroma frames.
+
+        Same algorithm as tools/audio_agent_profile.py so both analyzers stay
+        interchangeable: chroma_cqt -> correlate against major/minor templates
+        -> dominant pitch class per 0.5 s window with a confidence margin.
+        """
+        if not LIBROSA_AVAILABLE or y is None or len(y) == 0:
+            return None
+        try:
+            dur = float(len(y) / sr)
+            chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+            chroma_mean = chroma.mean(axis=1)
+            major = np.array(
+                [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+            )
+            minor = np.array(
+                [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+            )
+            names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+            key_scores = []
+            for i in range(12):
+                for tmpl, mode in ((major, "major"), (minor, "minor")):
+                    r = float(np.corrcoef(chroma_mean, np.roll(tmpl, i))[0, 1])
+                    key_scores.append((r, f"{names[i]} {mode}"))
+            key_scores.sort(key=operator.itemgetter(0), reverse=True)
+            estimated_key = key_scores[0][1]
+            key_conf = round(max(0.0, min(1.0, key_scores[0][0])), 3)
+            key_conf_r = round(key_scores[0][0], 3)
+            runner_up_key = key_scores[1][1]
+            runner_up_conf = round(key_scores[1][0], 3)
+
+            chroma_frame_sec = 0.5
+            chroma_times = librosa.frames_to_time(
+                np.arange(chroma.shape[1]), sr=sr, hop_length=512
+            )
+            chroma_edges = np.arange(0.0, dur + chroma_frame_sec, chroma_frame_sec)
+            pc_frames: list[int] = []
+            conf_frames: list[float] = []
+            for lo, hi in zip(chroma_edges[:-1], chroma_edges[1:], strict=True):
+                mask = (chroma_times >= lo) & (chroma_times < hi)
+                if not mask.any():
+                    pc_frames.append(-1)
+                    conf_frames.append(0.0)
+                    continue
+                vec = chroma[:, mask].mean(axis=1)
+                order = np.argsort(vec)[::-1]
+                top1, top2 = float(vec[order[0]]), float(vec[order[1]])
+                pc_frames.append(int(order[0]))
+                conf_frames.append(round(float((top1 - top2) / (top1 + top2 + 1e-9)), 3))
+            chroma_frames = {
+                "fps": round(1.0 / chroma_frame_sec, 3),
+                "t0": 0.0,
+                "pc": pc_frames,
+                "conf": conf_frames,
+            }
+            return {
+                "estimated_key": estimated_key,
+                "key_confidence": key_conf,
+                "key_confidence_r": key_conf_r,
+                "key_runner_up": runner_up_key,
+                "key_runner_up_r": runner_up_conf,
+                "chroma_frames": chroma_frames,
+            }
+        except Exception as exc:
+            # Key/chroma is additive metadata; a failure must not sink the
+            # analysis that already produced beats and waveform features.
+            logger.warning("key/chroma extraction failed: %s: %s", type(exc).__name__, exc)
+            return None
 
     def _extract_waveform_features(self, y, sr):
         hop_length = self.hop_length
@@ -640,6 +716,7 @@ class AudioAnalyzer:
             analysis_timestamp=datetime.now().isoformat(),
             waveform=self._extract_waveform_features(y, sr),
             beats=beats,
+            key_analysis=self._key_and_chroma_features(y, sr),
             metadata={
                 "backend": backend,
                 "beat_backend": used_beat_backend,
@@ -741,6 +818,7 @@ class AudioAnalyzer:
                     downbeat_frames=downbeat_frames,
                     downbeat_times=downbeat_times,
                 ),
+                key_analysis=self._key_and_chroma_features(y, sr),
                 metadata={
                     "backend": "madmom-infer",
                     "duration_samples": len(y),
@@ -800,6 +878,7 @@ class AudioAnalyzer:
                 analysis_timestamp=datetime.now().isoformat(),
                 waveform=waveform,
                 beats=beat_features,
+                key_analysis=self._key_and_chroma_features(y_native, sr_native),
                 metadata={
                     "backend": "sonara",
                     # Compact-mode timbre/loudness stats, so agents can use them

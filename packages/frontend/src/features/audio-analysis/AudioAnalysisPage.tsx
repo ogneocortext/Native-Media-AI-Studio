@@ -133,7 +133,7 @@ export function AudioAnalysisPage() {
             Audio Analysis
           </h1>
           <p className={DS.pageSubtitle}>
-            Upload or select a track to analyze tempo, beats, sections, and energy
+            Upload or select a track to analyze tempo, key, beats, sections, and energy
           </p>
         </div>
         {audio.analysis && (

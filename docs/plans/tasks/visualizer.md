@@ -851,4 +851,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   that writes `{id}_analysis.json`; the live API analyzer
   (`_build_analysis_result`) does not compute chroma — same boundary as
   key detection today, and the Tier 1 fallback covers it.
+  UPDATE (T-AUD-14): `_key_and_chroma_features` in audio_analyzer.py now
+  emits key + chroma_frames for every backend, so the live API path
+  produces the same payload — schema bumped to v3.
 - **Last session:** Devin, 2026-11-06 - implementation swept into `8b322e70`; audioContext singleton + shader texture2D fix in the follow-up commit.

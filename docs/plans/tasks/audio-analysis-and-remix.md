@@ -301,3 +301,57 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** tsc clean for touched files, eslint 0 errors (the
   misused-promises warnings moved with the handlers, unchanged),
   35 remix vitest pass - pure move.
+
+### T-AUD-14 - Expose full analysis payload on Audio Analysis page + key/chroma for all backends
+- **Status:** done
+- **Goal:** Surface every meaningful backend analysis field in the UI and
+  close the gap where only the tools/ pipeline emitted key detection and
+  Tier 2 chroma.
+- **What changed:**
+  - ``audio_analyzer.py``: new ``_key_and_chroma_features`` (Krumhansl/
+    Schneider key templates + 0.5 s dominant-pitch-class frames, same
+    algorithm as ``tools/audio_agent_profile.py``) wired into all three
+    ``AudioAnalysisResult`` construction sites (sonara, madmom,
+    ``analyze_from_audio``/librosa+CUDA); new ``key_analysis`` dataclass
+    field; failures degrade to None rather than sinking the analysis.
+  - ``audio_analysis.py``: ``_build_analysis_result`` emits
+    ``estimated_key``/``key_confidence``/``key_confidence_r``/
+    ``key_runner_up``/``key_runner_up_r``/``chroma_frames``;
+    ``ANALYSIS_SCHEMA_VERSION`` bumped 2 -> 3 (v2 sonara results lack
+    the fields entirely, so they must re-analyze).
+  - ``audio.py``: ``AudioAnalysisResult`` pydantic model gained
+    ``metadata``, ``relative_path``, ``downbeat_times``, ``spectral``,
+    the four spectral curves - all previously dropped by
+    ``extra="ignore"`` on fresh ``/analyze`` responses while cached
+    by-filename reads served them (inconsistent payload by path;
+    ``relative_path`` loss also broke the audio-file URL fallback).
+  - Frontend ``services/api/audio.ts``: ``AudioAnalysisResult`` gained
+    the key/chroma/schema/computed_on fields and a typed ``sonara``
+    metadata block (LUFS, dynamic range, RMS, onset density).
+  - ``AnalysisCards.tsx``: second card row - Key (+confidence, runner-up,
+    chroma-tracked note), Loudness (LUFS + dynamic range), Spectrum
+    (rolloff/bandwidth/zcr means), Suggestions (kinetic preset, theme
+    seed, viz alternates) - each rendered only when data exists;
+    provenance line (backend - computed_on - schema vN); tempo card
+    notes a capped beat grid, duration card shows downbeat count.
+  - ``sectionCoalescer.ts``: fixed crash on first section
+    (``last`` is undefined on empty accumulator) that threw
+    "Cannot read properties of undefined (reading ''type'')" through
+    the error boundary whenever sections rendered.
+  - ``AudioAnalysisPage.tsx`` subtitle now mentions key.
+- **Files:** packages/backend/app/services/audio_analyzer.py,
+  packages/backend/app/api/{audio,audio_analysis}.py,
+  packages/backend/tests/test_analysis_schema_version.py,
+  packages/frontend/src/services/api/audio.ts,
+  features/audio-analysis/{AudioAnalysisPage.tsx,
+  components/AnalysisCards.tsx, utils/sectionCoalescer.ts}
+- **Verification:** live ``ensure-analysis`` on Take the Crown ->
+  sonara, schema v3, key E major (0.731, runner-up E minor - matches
+  the librosa-produced analysis of the same track), 248 chroma frames,
+  -17.9 LUFS, spectral block, relative_path all present. Playwright:
+  page renders Key/Loudness/Spectrum/Suggestions cards + provenance,
+  sections display without crashing. 92 backend audio tests pass;
+  ruff clean; tsc -b clean; eslint 0 errors. Also repaired a syntax
+  error in uncommitted ``ollama_tools.py`` WIP (stray ``]`` closing the
+  tools list mid-dict) that had taken the whole backend down.
+- **Last session:** Devin, 2026-11-06

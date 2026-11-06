@@ -957,3 +957,38 @@ class OllamaToolsMixin:
         except Exception as e:
             logger.warning(f"Failed to list media files: {e}")
             return f"Media list unavailable: {e}"
+
+    # ------------------------------------------------------------------
+    # HTTP Helper Methods
+    # ------------------------------------------------------------------
+
+    async def _http_get(self, path: str) -> dict[str, Any]:
+        """Make a GET request to the backend API."""
+        from ..core.config import config as _cfg
+        backend_url = _cfg.backend_url
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{backend_url}{path}",
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status != 200:
+                    error = await resp.text()
+                    raise RuntimeError(f"Backend GET {path} failed: {resp.status} - {error}")
+                return await resp.json()
+
+    async def _http_post(self, path: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Make a POST request to the backend API."""
+        from ..core.config import config as _cfg
+        backend_url = _cfg.backend_url
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{backend_url}{path}",
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as resp:
+                if resp.status != 200:
+                    error = await resp.text()
+                    raise RuntimeError(f"Backend POST {path} failed: {resp.status} - {error}")
+                return await resp.json()

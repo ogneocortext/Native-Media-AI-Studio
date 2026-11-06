@@ -51,7 +51,9 @@ AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
 #
 # v2: added key detection (estimated_key, key_confidence, key_confidence_r,
 #     key_runner_up, key_runner_up_r). Results stamped v1 or lower are stale.
-ANALYSIS_SCHEMA_VERSION = 2
+# v3: every analyzer backend (sonara/madmom/librosa) now emits key detection
+#     and Tier 2 chroma_frames; v2 sonara results lack them entirely.
+ANALYSIS_SCHEMA_VERSION = 3
 
 
 def _is_downbeat(index: int, beats_per_bar: int = 4) -> bool:
@@ -228,6 +230,15 @@ def _build_analysis_result(
         "relative_path": _relative_audio_path(file_path),
         "job_id": unique_id,
         "metadata": result.metadata,
+        # Key detection + Tier 2 chroma, produced by every analyzer backend
+        # (audio_analyzer._key_and_chroma_features). Absent only when that
+        # extraction failed; consumers treat missing as "no key data".
+        "estimated_key": (result.key_analysis or {}).get("estimated_key"),
+        "key_confidence": (result.key_analysis or {}).get("key_confidence"),
+        "key_confidence_r": (result.key_analysis or {}).get("key_confidence_r"),
+        "key_runner_up": (result.key_analysis or {}).get("key_runner_up"),
+        "key_runner_up_r": (result.key_analysis or {}).get("key_runner_up_r"),
+        "chroma_frames": (result.key_analysis or {}).get("chroma_frames"),
         # Timing contract for frontend + Remotion + AI agents
         "timing_contract": {
             "filename": file_path.name,

@@ -343,8 +343,25 @@ class AudioAnalysisResult(BaseModel):
     # analyses stored before it existed simply lack the key.
     chroma_frames: dict | None = None
     stored_path: str | None = None
+    # Output-relative path (e.g. "audio/track.wav") — the only safe input for
+    # /api/audio/file/*. Undeclared until now, so fresh /analyze responses
+    # dropped it under extra="ignore" and the frontend fell back to the
+    # absolute stored_path, which that route cannot serve.
+    relative_path: str | None = None
     job_id: str | None = None
     beats_truncated: bool = False  # True when beat_times hit the response cap
+    downbeat_times: list[float] = []
+    # Aggregate spectral summary + per-frame spectral curves emitted by the
+    # analyzer. Same extra="ignore" trap as relative_path: undeclared fields
+    # were stripped from fresh /analyze responses but present on cached
+    # by-filename reads, so the UI showed different data depending on path.
+    spectral: dict | None = None
+    spectral_centroid: list[float] = []
+    spectral_rolloff: list[float] = []
+    spectral_bandwidth: list[float] = []
+    zero_crossing_rate: list[float] = []
+    # Analyzer provenance block (backend name, sonara loudness/dynamics, etc.)
+    metadata: dict | None = None
     # Timing contract (shared with frontend + Remotion + AI agents)
     timing_contract: dict | None = None
     # Suggested visualization parameters for AI/agent-driven presets

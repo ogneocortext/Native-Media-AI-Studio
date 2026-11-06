@@ -37,9 +37,9 @@ def _stale_mod():
     return mod
 
 
-def test_current_version_is_two():
+def test_current_version_is_three():
     """Guard the bump itself, so the version cannot drift silently."""
-    assert _schema_mod().ANALYSIS_SCHEMA_VERSION == 2
+    assert _schema_mod().ANALYSIS_SCHEMA_VERSION == 3
 
 
 def test_stamp_marks_an_analysis_current():

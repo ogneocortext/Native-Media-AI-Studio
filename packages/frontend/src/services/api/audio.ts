@@ -195,6 +195,24 @@ export interface AudioAnalysisResult {
   spectral_rolloff?: number[];
   spectral_bandwidth?: number[];
   zero_crossing_rate?: number[];
+  // Key detection (schema v2+). key_confidence is the clamped display value;
+  // key_confidence_r is the raw correlation used by the chroma->hue mapper.
+  estimated_key?: string | null;
+  key_confidence?: number | null;
+  key_confidence_r?: number | null;
+  key_runner_up?: string | null;
+  key_runner_up_r?: number | null;
+  // Tier 2 chroma: per-frame 12-bin pitch-class vectors for the visualizer.
+  // Consumed by useKeyPalette; kept out of the analysis UI (large arrays).
+  chroma_frames?: {
+    fps?: number;
+    t0?: number;
+    pc?: number[];
+    conf?: number[];
+    [key: string]: unknown;
+  } | null;
+  schema_version?: number;
+  computed_on?: string | null;
   suggested_visualization?: string;
   suggested_visualization_confidence?: number;
   suggested_visualization_candidates?: { value: string; confidence: number }[];
@@ -208,6 +226,16 @@ export interface AudioAnalysisResult {
     duration_samples?: number;
     hop_length?: number;
     frame_length?: number;
+    sonara?: {
+      loudness_lufs?: number;
+      rms_mean?: number;
+      rms_max?: number;
+      dynamic_range_db?: number;
+      bpm_raw?: number;
+      n_beats?: number;
+      onset_density?: number;
+      [key: string]: unknown;
+    };
     [key: string]: unknown;
   };
 }
