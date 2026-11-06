@@ -22,10 +22,12 @@ class NMAStemRouterNode:
     def INPUT_TYPES(cls):  # noqa: N802
         return {
             "required": {
-                "stems": ("AUDIO_STEMS",),
                 "stem_type": (["vocals", "drums", "bass", "other"],),
                 "channel": (["color", "motion", "opacity", "scale"],),
                 "gain": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.1}),
+            },
+            "optional": {
+                "stems": ("AUDIO_STEMS",),
             },
         }
 

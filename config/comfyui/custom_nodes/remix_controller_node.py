@@ -20,11 +20,13 @@ class NMARemixControllerNode:
     def INPUT_TYPES(cls):  # noqa: N802
         return {
             "required": {
-                "layers": ("REMIX_LAYERS",),
                 "layer_index": ("INT", {"default": 0, "min": 0, "max": 1000}),
                 "gain_db": ("FLOAT", {"default": 0.0, "min": -24.0, "max": 24.0, "step": 0.5}),
                 "key_shift": ("FLOAT", {"default": 0.0, "min": -12.0, "max": 12.0, "step": 1.0}),
                 "crossfade": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1}),
+            },
+            "optional": {
+                "layers": ("REMIX_LAYERS",),
             },
         }
 

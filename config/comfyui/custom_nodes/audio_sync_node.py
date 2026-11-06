@@ -22,7 +22,6 @@ class NMAAudioSyncNode:
     def INPUT_TYPES(cls):  # noqa: N802  # ComfyUI convention uses uppercase
         return {
             "required": {
-                "audio_analysis": ("AUDIO_ANALYSIS",),
                 "section_index": ("INT", {"default": 0, "min": 0, "max": 1000}),
                 "beat_multiplier": (
                     "FLOAT",
@@ -30,6 +29,7 @@ class NMAAudioSyncNode:
                 ),
             },
             "optional": {
+                "audio_analysis": ("AUDIO_ANALYSIS",),
                 "energy_curve": ("ENERGY_CURVE",),
             },
         }

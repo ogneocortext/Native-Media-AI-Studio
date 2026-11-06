@@ -12,7 +12,6 @@
   "2": {
     "class_type": "NMAAudioSyncNode",
     "inputs": {
-      "audio_analysis": ["audio_analysis", 0],
       "section_index": 0,
       "beat_multiplier": 1.0
     }

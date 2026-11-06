@@ -12,7 +12,6 @@
   "2": {
     "class_type": "NMARemixControllerNode",
     "inputs": {
-      "layers": ["remix_layers", 0],
       "layer_index": 0,
       "gain_db": 0.0,
       "key_shift": 0.0,
