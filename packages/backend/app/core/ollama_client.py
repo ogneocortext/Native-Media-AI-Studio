@@ -79,22 +79,24 @@ async def list_models(timeout: float = 10) -> list[dict] | None:
 
     Distinguishes connection-refused (Ollama not running) from HTTP errors so
     callers can surface the right message to the user.
-    """
+
+    Bounded by ``asyncio.timeout(timeout)``."""
     try:
         session = await get_shared_session()
-        async with session.get(
-            ollama_url("/api/tags"),
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                logger.warning(
-                    "Ollama /api/tags returned HTTP %s; is the server at %s reachable?",
-                    resp.status,
-                    ollama_url(),
-                )
-                return None
-            data = await resp.json()
-            return data.get("models", [])
+        async with asyncio.timeout(timeout):
+            async with session.get(
+                ollama_url("/api/tags"),
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    logger.warning(
+                        "Ollama /api/tags returned HTTP %s; is the server at %s reachable?",
+                        resp.status,
+                        ollama_url(),
+                    )
+                    return None
+                data = await resp.json()
+                return data.get("models", [])
     except aiohttp.ClientConnectorError as e:
         logger.warning(
             "Ollama /api/tags connection refused: Ollama server may not be running at %s (%s)",
@@ -189,7 +191,8 @@ async def get_model_capabilities(model: str, timeout: float = 8) -> list[str] | 
 
     Returns None rather than an empty list when the call fails, so callers can tell
     "this model has no capabilities" from "we could not ask".
-    """
+
+    Bounded by ``asyncio.timeout(timeout)``."""
     if not (model or "").strip():
         return None
     now = time.monotonic()
@@ -198,15 +201,16 @@ async def get_model_capabilities(model: str, timeout: float = 8) -> list[str] | 
         return list(hit[1])
     try:
         session = await get_shared_session()
-        async with session.post(
-            ollama_url("/api/show"),
-            json={"model": model},
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                logger.debug("Ollama /api/show %s -> HTTP %s", model, resp.status)
-                return None
-            data = await resp.json(content_type=None)
+        async with asyncio.timeout(timeout):
+            async with session.post(
+                ollama_url("/api/show"),
+                json={"model": model},
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    logger.debug("Ollama /api/show %s -> HTTP %s", model, resp.status)
+                    return None
+                data = await resp.json(content_type=None)
     except (TimeoutError, aiohttp.ClientError, ValueError) as exc:
         logger.debug("Ollama /api/show failed for %s: %s", model, exc)
         return None
@@ -331,21 +335,23 @@ async def embed_text_raw(
     No warm-up, no fallback, no logging — the raw primitive. Used by
     :func:`embed_text` (which adds warm-up/fallback) and by :func:`_embed_warmup`.
     Returns the embedding vector or None on failure.
-    """
+
+    Bounded by ``asyncio.timeout(timeout)``."""
     if not (text or "").strip():
         return None
     try:
         session = await get_shared_session()
-        async with session.post(
-            ollama_url("/api/embed"),
-            json={"model": model, "input": text},
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            embs = data.get("embeddings") or [data.get("embedding")]
-            return embs[0] if embs and embs[0] is not None else None
+        async with asyncio.timeout(timeout):
+            async with session.post(
+                ollama_url("/api/embed"),
+                json={"model": model, "input": text},
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+                embs = data.get("embeddings") or [data.get("embedding")]
+                return embs[0] if embs and embs[0] is not None else None
     except Exception as e:
         logger.debug("Ollama /api/embed failed for %s: %s", model, e)
         return None
@@ -374,7 +380,8 @@ async def embed_text(
         expected_dim: If set, reject embeddings whose dimension doesn't match.
             This prevents silently storing wrong-dimension vectors (e.g. a
             512-dim fallback model's output into a 768-dim index).
-    """
+
+    Bounded by ``asyncio.timeout(timeout)`` per candidate model."""
     if not (text or "").strip():
         return None
 
@@ -431,7 +438,8 @@ async def embed_text_batch_concurrent(
         timeout: Request timeout in seconds.
         expected_dim: If set, reject embeddings whose dimension doesn't match.
             Prevents silently storing wrong-dimension vectors.
-    """
+
+    Each individual embed call is bounded by ``asyncio.timeout(timeout)``."""
     if not texts:
         return []
 
@@ -485,7 +493,8 @@ async def chat_content(
             Passed as the top-level ``think`` key. Use ``False`` to disable
             thinking on thinking-capable models -- measured ~65x faster on
             section-labeling tasks (39.5s -> 0.6s on gemma4:e2b-it-qat).
-    """
+
+    Bounded by ``asyncio.timeout(timeout)``."""
     payload: dict[str, Any] = {
         "model": model or config.default_model,
         "messages": messages,
@@ -496,15 +505,16 @@ async def chat_content(
     payload.update(extra or {})
     try:
         session = await get_shared_session()
-        async with session.post(
-            ollama_url("/api/chat"),
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            return (data.get("message", {}).get("content") or "").strip() or None
+        async with asyncio.timeout(timeout):
+            async with session.post(
+                ollama_url("/api/chat"),
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+                return (data.get("message", {}).get("content") or "").strip() or None
     except Exception as e:
         logger.debug("Ollama /api/chat failed: %s", e)
         return None
@@ -530,7 +540,8 @@ async def generate_content(
             Note: /api/generate does not honor ``think`` reliably for Qwen3.5/
             DeepSeek models -- prefer ``/api/chat`` with ``think=False`` for
             those. See docs/knowledge-library/ollama-thinking-structured-outputs.md.
-    """
+
+    Bounded by ``asyncio.timeout(timeout)``."""
     payload: dict[str, Any] = {
         "model": model,
         "prompt": prompt,
@@ -541,15 +552,16 @@ async def generate_content(
     payload.update(extra or {})
     try:
         session = await get_shared_session()
-        async with session.post(
-            ollama_url("/api/generate"),
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            return (data.get("response", "") or "").strip() or None
+        async with asyncio.timeout(timeout):
+            async with session.post(
+                ollama_url("/api/generate"),
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json()
+                return (data.get("response", "") or "").strip() or None
     except Exception as e:
         logger.debug("Ollama /api/generate failed: %s", e)
         return None

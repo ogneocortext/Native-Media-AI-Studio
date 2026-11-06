@@ -2059,3 +2059,27 @@
   can use `/healthz` for fast liveness. ComfyUI workflow JSONs are now directly
   submit-able to `POST /prompt`. `check-import-cycles.py` clean; ruff clean;
   ESLint 0 errors; all 3 workflow JSONs valid.
+
+### D75 - Backend timeout guards + TanStack Query server state (2026-11-06)
+
+- **Status:** Decided
+- **Context:** ComfyUI and Ollama calls used per-request `aiohttp.ClientTimeout`
+  but lacked an outer deadline, so a wedged worker could hang the caller
+  indefinitely. The frontend hand-rolled polling intervals in Zustand stores
+  (healthStore polls VRAM every 15s, ComfyUI every 30s) with no caching,
+  deduping, or background refetching for server data.
+- **Decision:** Added `asyncio.timeout(timeout)` wrappers around every ComfyUI
+  and Ollama client call in `app/core/comfyui_client.py` and
+  `app/core/ollama_client.py`, in addition to the existing per-request
+  `aiohttp.ClientTimeout`. Added TanStack Query v5 to the frontend
+  (`services/queryClient.ts`, `QueryProvider` in `main.tsx`, `useHealthQuery`
+  in `services/api/health.ts`) as the server-state layer, complementing Zustand
+  (which retains client/UI state and SSE/granular polling).
+- **Files:** `app/core/comfyui_client.py`, `app/core/ollama_client.py`,
+  `packages/frontend/src/services/queryClient.ts`,
+  `packages/frontend/src/main.tsx`,
+  `packages/frontend/src/services/api/health.ts`,
+  `packages/frontend/package.json`
+- **Consequences:** No caller can hang indefinitely on ComfyUI/Ollama.
+  TanStack Query provides caching, deduping, retry, and background refetching
+  for server data. `tsc -b` clean; `ruff check` clean; ESLint 0 errors.

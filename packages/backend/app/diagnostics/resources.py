@@ -940,8 +940,11 @@ async def resource_monitoring_loop(interval_seconds: float = 30.0):
     # grew to 125k rows / ~417 MB because of it. Elapsed time is what the
     # retention window actually means, so measure that.
     next_gpu_prune = next_prune_time()
+    cycle = 0
+    proc = psutil.Process()
 
     while True:
+        cycle += 1
         try:
             warnings = await resource_monitor.check_all()
             if warnings:
@@ -958,6 +961,21 @@ async def resource_monitoring_loop(interval_seconds: float = 30.0):
                         next_gpu_prune = next_prune_time()
             except Exception as _e:
                 logger.debug(f"GPU telemetry log skipped: {_e}")
+            # Backend footprint, every ~5 min: a slow climb in tasks,
+            # threads, handles, or RSS is the earliest leak signal.
+            if cycle % 10 == 0:
+                try:
+                    logger.info(
+                        "Backend footprint: tasks=%d threads=%d handles=%d "
+                        "rss_mb=%d sse_clients=%d",
+                        len(asyncio.all_tasks()),
+                        proc.num_threads(),
+                        proc.num_handles(),
+                        proc.memory_info().rss // (1024 * 1024),
+                        await sse_manager.connection_count(),
+                    )
+                except Exception as _e:
+                    logger.debug(f"Footprint log skipped: {_e}")
         except Exception as e:
             logger.error(f"Error in resource monitoring loop: {e}")
 

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { QueryProvider } from "./services/queryClient";
 import "./styles/globals.css";
 import { applyTheme, getStoredTheme } from "./utils/theme";
 import { installDebugFetch } from "./services/debugApi";
@@ -39,7 +40,11 @@ async function initApp() {
 
   const rootEl = document.getElementById("root");
   if (!rootEl) throw new Error("DOM element #root not found — cannot mount React app");
-  createRoot(rootEl).render(<App />);
+  createRoot(rootEl).render(
+    <QueryProvider>
+      <App />
+    </QueryProvider>,
+  );
 }
 
 void initApp();

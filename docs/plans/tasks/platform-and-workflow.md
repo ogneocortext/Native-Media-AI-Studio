@@ -763,3 +763,16 @@ Rules: `docs/plans/tasks/README.md`
   ruff clean. Ollama itself verified healthy: v0.40.14, 11 models,
   llama3.2:3b generate OK in ~8s cold.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-26 - Backend footprint logging + dead DB cleanup
+- **Status:** done
+- **Goal:** Resource-leak audit follow-ups.
+- **What changed:** `resource_monitoring_loop` now logs backend footprint
+  every ~5 min (asyncio tasks, threads, handles, RSS, SSE client count
+  via existing `sse_manager.connection_count()`) - a slow climb in any
+  of these is the earliest leak signal. Audit found no active leak;
+  deleted ~0.87 GB of `storage/studio.pre-migrate-*.db` backups from the
+  Nov 2 migration (live `studio.db` untouched at 22 MB).
+- **Files:** diagnostics/resources.py.
+- **Verification:** 16 resource/SSE tests pass; ruff clean.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

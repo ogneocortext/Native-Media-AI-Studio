@@ -35,6 +35,7 @@
     "@remotion/media-utils": "4.0.539",
     "@remotion/renderer": "4.0.539",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@theatre/core": "^0.7.2",
     "@theatre/studio": "0.7.2",
     "animejs": "^4.5.0",

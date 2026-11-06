@@ -1,6 +1,8 @@
 import { getApiBase, withDirectBackendFallback } from "./core";
 import type { AggregateHealth, SystemHealth, ServiceStatus } from "./core";
 import { fetchWithTimeout } from "../fetchWithTimeout";
+import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "../queryClient";
 
 /** Ping the backend (liveness probe). */
 export async function ping(): Promise<{ status: string }> {
@@ -44,4 +46,39 @@ export async function getServiceStatus(): Promise<ServiceStatus> {
       }),
     "/api/services/status",
   );
+}
+
+/**
+ * TanStack Query hook for backend aggregate health.
+ *
+ * Refetches every 5s while the page is visible, caches for 30s, retries once.
+ * Complements the Zustand healthStore (which owns SSE + granular polling);
+ * this hook is for components that just need the latest aggregate health
+ * without hand-rolling their own polling interval.
+ *
+ * @param enabled - Set false to disable automatic fetching.
+ */
+export function useHealthQuery(enabled = true) {
+  return useQuery({
+    queryKey: ["health", "aggregate"],
+    queryFn: healthCheck,
+    enabled,
+    staleTime: 5_000,
+    gcTime: 30_000,
+    retry: 1,
+    refetchInterval: 5_000,
+  });
+}
+
+/**
+ * Prefetch aggregate health so the first render has data.
+ * Call this from a component that mounts before any `useHealthQuery` consumer,
+ * or from a route loader.
+ */
+export function prefetchHealth() {
+  return queryClient.prefetchQuery({
+    queryKey: ["health", "aggregate"],
+    queryFn: healthCheck,
+    staleTime: 5_000,
+  });
 }
