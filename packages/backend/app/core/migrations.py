@@ -699,6 +699,26 @@ def _migrate_v21(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v22(conn: sqlite3.Connection):
+    """Add content-hash and duplicate tracking columns to audio_files.
+
+    ``content_hash`` stores the full sha256 of the audio bytes so exact
+    duplicates can be grouped regardless of filename; ``duplicate_of``
+    points a redundant row at its canonical filename (NULL = canonical).
+    Filename hash prefixes only exist for uploaded files and are 8 chars,
+    so they cannot serve as a content identity for the whole library.
+    Idempotent: existing columns are left alone.
+    """
+    for column, ddl in (
+        ("content_hash", "ALTER TABLE audio_files ADD COLUMN content_hash TEXT"),
+        ("duplicate_of", "ALTER TABLE audio_files ADD COLUMN duplicate_of TEXT"),
+    ):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -814,6 +834,8 @@ def init_db(db_path: Path | None = None):
                         _migrate_v20(conn)
                     if current_version < 21:
                         _migrate_v21(conn)
+                    if current_version < 22:
+                        _migrate_v22(conn)
 
                     set_schema_version(conn, SCHEMA_VERSION)
                     logger.info("Database initialized at version %d", SCHEMA_VERSION)
