@@ -61,7 +61,7 @@ Walk the smoothed curve by arc length for constant ground speed. Aim at a real p
 the curve rather than its next vertex. Derive roll from the change in look-ahead bearing so the
 camera banks into a turn instead of twitching left and right.
 
-For landscape routes, `packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/scripts/prep-cesium-path.mjs` also clips, resamples, smooths and dampens a
+For landscape routes, `packages/frontend/.claude/skills/remotion-maps/techniques/cesium/scripts/prep-cesium-path.mjs` also clips, resamples, smooths and dampens a
 GeoJSON centerline before the component applies its final curve smoothing.
 
 
@@ -86,4 +86,4 @@ GeoJSON centerline before the component applies its final curve smoothing.
 - `assets/cesium-path.json` — sample landscape route.
 - `assets/city-path.json` — sample city route.
 - `assets/sample-river.geojson` — sample path-preparation input.
-- `packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/packages/frontend/.claude/skills/remotion-best-practices/remotion-maps/techniques/cesium/scripts/prep-cesium-path.mjs` — dependency-free landscape route preparation.
+- `packages/frontend/.claude/skills/remotion-maps/techniques/cesium/scripts/prep-cesium-path.mjs` — dependency-free landscape route preparation.
