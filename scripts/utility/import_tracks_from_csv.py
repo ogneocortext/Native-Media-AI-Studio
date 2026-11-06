@@ -13,8 +13,8 @@ sys.path.insert(0, str(backend_dir()))
 from app.core.database import delete_track, get_tracks, init_db, save_track  # noqa: E402
 
 CSV_PATH = (
-    Path(__file__).resolve().parent.parent
-    / 'docs' / 'track-prompts-lyrics.csv'
+    Path(__file__).resolve().parents[2]
+    / 'config' / 'track-prompts-lyrics.csv'
 )
 
 

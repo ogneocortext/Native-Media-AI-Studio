@@ -196,7 +196,7 @@ The field also has a "Show background image" toggle for A/B compare without relo
 - **3D stage, Blender MCP, EEVEE vs Cycles, VRAM:** `GPU_PIPELINE.md`
 - **YouTube titles, thumbnails, Shorts safe zones:** `youtube-optimization.md` (vault)
 - **Prompt formula `<75 words`:** `prompt-engineering.md`
-- **API:** `docs/api/API_REFERENCE.md` (`POST /audio/analyze`, `POST /video/generate-section` → `GET /jobs/{id}`)
+- **API:** `docs/guides/API_REFERENCE.md` (`POST /audio/analyze`, `POST /video/generate-section` → `GET /jobs/{id}`)
 - **Live reactive 3D preview:** "Three.js Studio" section above
 
 *For Classic tabbed workflow details, open `knowledge-library/music-video-production.md` in Obsidian — this guide intentionally does not repeat it.*

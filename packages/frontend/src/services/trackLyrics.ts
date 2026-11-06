@@ -1,6 +1,6 @@
 /**
  * Track prompt and lyrics data from HappyShrimp CSV.
- * Parsed from docs/track-prompts-lyrics.csv
+ * Parsed from config/track-prompts-lyrics.csv
  */
 
 import { fetchTracks, type APITrack } from "./api";
@@ -84,7 +84,7 @@ function mapAPITrackToLyricsData(track: APITrack, index: number): TrackLyricsDat
   };
 }
 
-// Embedded CSV data (from docs/track-prompts-lyrics.csv)
+// Embedded CSV data (from config/track-prompts-lyrics.csv)
 const CSV_DATA = `"#","Track Name","Prompt","Lyrics (key excerpt/theme)"
 "1","The Signal Breaking Through the Noise","A melancholic yet euphoric 136 BPM Progressive Trance song about surviving grief and silence and finding your own frequency — infinite dawn landscape, electric blue horizon. Smooth breathy female lead, whispered male vocal in breakdown, four-on-the-floor kick, supersaw chords, minor-key arpeggiator lead","Structure: Verse–Verse–Pre-Chorus–Chorus(""I am the signal breaking through the noise..."")–Breakdown–Build-Up–Verse–Final Chorus"
 "2","The Signal breaking through the Noise (variation)","Same prompt as #1","Same lyrics as #1"

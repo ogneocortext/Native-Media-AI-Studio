@@ -90,7 +90,7 @@ Deletes are soft where the UI supports it: a removed file goes to trash first an
 
 > [!warning] Endpoint removed (corrected 2026-11-05)
 > The `GET /api/outputs/duplicates/groups` endpoint documented below no longer
-> exists (see `docs/api/API_REFERENCE.md`). Frontend duplicate UI remains but
+> exists (see `docs/guides/API_REFERENCE.md`). Frontend duplicate UI remains but
 > cannot call the backend. Treat this section as historical/pending a decision
 > to re-implement or remove.
 

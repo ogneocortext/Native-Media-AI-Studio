@@ -1,8 +1,8 @@
 """Check that repo-relative path references point at real files.
 
 The defect that motivated this: a batch of files was moved
-(docs/track-prompts-lyrics.csv -> config/, docs/knowledge-library/*.json
--> config/docs-data/) without updating a single reader. The index-based
+(a runtime CSV out of docs/ into config/, docs-data JSON out of
+docs/knowledge-library/) without updating a single reader. The index-based
 checkers (check-repo-layout, check-docs-map) enumerate `git ls-files`,
 so they were blind to the unstaged move; it surfaced much later as six
 404 API routes and two crashed gates. This checker reads file *content*

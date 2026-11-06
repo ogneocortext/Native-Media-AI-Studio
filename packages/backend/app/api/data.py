@@ -512,7 +512,7 @@ def import_tracks(body: ImportTracksRequest):
 @router.post("/tracks/import-csv")
 def import_tracks_from_csv(body: ImportTracksFromCsvRequest):
     """Import tracks from the CSV file."""
-    csv_path = PROJECT_ROOT / "docs" / "track-prompts-lyrics.csv"
+    csv_path = PROJECT_ROOT / "config" / "track-prompts-lyrics.csv"
 
     if not csv_path.exists():
         raise HTTPException(status_code=404, detail="CSV file not found")

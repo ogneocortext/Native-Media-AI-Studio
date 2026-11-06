@@ -122,7 +122,7 @@ curl http://localhost:11434/api/generate -d '{"model":"gemma3:4b","prompt":"Desc
 5. **Render:** `Cycles 128 samples ~30s/frame` or `EEVEE Next 64 TAA ~2s/frame` — see Performance table.
 6. **Encode:** `POST /api/video/generate-section` with `audio_path` from step 1 → `MUSIC_VIDEO` job → `FFmpeg geq=...:cb=...:cr=...,format=yuv420p` (fixed `handler.py:213` colon bug) → `output/video/*.mp4`.
 
-## API Endpoints (no duplication — see `docs/api/API_REFERENCE.md` for full spec)
+## API Endpoints (no duplication — see `docs/guides/API_REFERENCE.md` for full spec)
 
 | Endpoint | Desc |
 |---|---|
@@ -196,4 +196,4 @@ torch==2.14.0+cu126
 - **File ops:** `FILE_MANAGEMENT.md` (covers, rename, duplicates)
 - **YouTube Shorts safe zones / titles:** `knowledge-library/youtube-optimization.md`
 - **Prompt formula:** `knowledge-library/prompt-engineering.md`
-- **API:** `docs/api/API_REFERENCE.md`
+- **API:** `docs/guides/API_REFERENCE.md`

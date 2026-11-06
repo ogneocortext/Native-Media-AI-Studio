@@ -89,7 +89,7 @@ array; via `-File` pass one name or `all`).
 | go-media     | 3848 | FFmpeg post-processing worker      |
 | go-ports     | 3851 | Port availability checker          |
 
-API reference: `docs/api/`. The route surface is guarded by
+API reference: `docs/guides/API_REFERENCE.md`. The route surface is guarded by
 `tools/snapshot-audio-routes.py`.
 
 ## Changes

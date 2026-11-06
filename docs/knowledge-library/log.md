@@ -48,7 +48,7 @@ Key corrections:
 - Fixed broken cross-reference in `gemini-blender-3d-audio-reactive-2026-10-02/README.md`
 - Added superseded/resolved banners to historical notes (`dependency-wiring-analysis.md`, `REORG_PLAN.md`, `LANGUAGE_SERVER_ISSUES.md`, `REFACTOR_NOTES.md`)
 
-**API and architecture (`docs/api/`, `docs/architecture/`):**
+**API and architecture (`docs/guides/`, `docs/architecture/`):**
 - `API_REFERENCE.md` — updated route prefixes (ComfyUI `/api/services/comfyui`, transcription `/api/transcription/`), corrected endpoint paths, added/updated endpoint documentation
 - `decision-log.md` — corrected stale frontend build-target wording; repository now has decisions through D68
 - `provider-notes.md` — updated Ollama version to `0.40.14` and endpoint behavior

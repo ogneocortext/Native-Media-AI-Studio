@@ -1,9 +1,14 @@
 # Docs Cleanup Plan — 2026-10
 
-**Status:** Partially executed — C2, C3, C4 done (2026-10-22+);
-C1 and C5 remain open. **Update 2026-11-05:** `docs/ux-audit/` no
-longer exists; its two files live in `docs/ux/` alongside the O2/O4
-outputs, so C2 is complete.
+**Status:** Partially executed — C1, C2, C3, C4 done; C5 remains open.
+**Update 2026-11-05:** `docs/ux-audit/` no longer exists; its two files
+live in `docs/ux/` alongside the O2/O4 outputs, so C2 is complete.
+**Update 2026-11-06:** C1 resolved — the CSV moved to
+`config/track-prompts-lyrics.csv` (not `suno-templates/` as proposed;
+`config/` is where runtime data already lives), `data.py` and
+`scripts/utility/import_tracks_from_csv.py` updated. The frontend's
+byte-identical copy stays at `packages/frontend/public/` because Vite
+serves fetches from `public/` only.
 **Origin:** a 2026-10-21 survey of the `docs/` tree against the
 directory map in `docs/README.md`, with every claim grep-verified
 against the codebase before it was written down.
@@ -12,7 +17,15 @@ item explicitly says so (C3).
 
 ---
 
-## C1 — `docs/track-prompts-lyrics.csv` is runtime data living in docs/
+## C1 — `track-prompts-lyrics.csv` was runtime data living in docs/ — ✅ DONE 2026-11-06
+
+Resolved by moving to `config/track-prompts-lyrics.csv` (option (a),
+different target directory). `packages/backend/app/api/data.py` now
+reads `PROJECT_ROOT / "config" / "track-prompts-lyrics.csv"` and
+`scripts/utility/import_tracks_from_csv.py` resolves
+`parents[2] / 'config' / ...`. The frontend fetches are unaffected —
+they read the separate byte-identical copy Vite serves from
+`packages/frontend/public/`.
 
 - **Evidence:** the backend reads it from a **hardcoded path** —
   `packages/backend/app/api/data.py:512`:

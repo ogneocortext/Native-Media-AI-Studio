@@ -678,7 +678,7 @@ wrong-interpreter failure; `--list` prints the lanes and the resolved tools.
 Every gate has a timeout (pytest 300 s, build 600 s, e2e 900 s) and the child tree
 is killed on expiry, so a wedged gate reports a failure instead of hanging.
 
-Individual gates, for iterating on one area: `pnpm test:unit` (frontend unit, vitest), `pnpm test` (Playwright E2E), `pytest` (backend), `pnpm lint`/`pnpm format` (frontend), `ruff check`/`ruff format` (backend), `python tools/check-all.py` (docs/hygiene), `python tools/clean-caches.py --dry-run`. Full detail in `docs/TESTING_WORKFLOWS.md`.
+Individual gates, for iterating on one area: `pnpm test:unit` (frontend unit, vitest), `pnpm test` (Playwright E2E), `pytest` (backend), `pnpm lint`/`pnpm format` (frontend), `ruff check`/`ruff format` (backend), `python tools/check-all.py` (docs/hygiene), `python tools/clean-caches.py --dry-run`. Full detail in `docs/guides/TESTING_WORKFLOWS.md`.
 
 Auto-fix where supported: `python tools/run-gates.py --only ruff lint --fix` runs ruff `--fix` and eslint `--fix` to correct violations in place before reporting. Individual checkers also support `--fix`: `python tools/validate-knowledge-tags.py --fix` (CRLF → LF) and `python tools/check-path-references.py --fix` (replace dangling path refs with suggested new paths).
 

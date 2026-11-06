@@ -94,6 +94,6 @@ If a real second-engine requirement ever appears, that is the checklist.
 ## Related
 
 - `docs/architecture/decision-log.md` — **D44** (this decision).
-- `docs/TESTING_WORKFLOWS.md` — which suites exist and what they cover.
+- `docs/guides/TESTING_WORKFLOWS.md` — which suites exist and what they cover.
 - `docs/architecture/visualizer.md` — the module map new visualizer logic
   belongs in (D14).

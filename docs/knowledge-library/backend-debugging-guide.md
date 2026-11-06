@@ -521,7 +521,7 @@ mock output was still written on service failure (42 such files remain under
 
 ## Future Improvements
 
-1. ~~**WebSocket Progress** - Replace polling with WebSocket for real-time updates~~ ✅ **Done (2026-09): SSE `GET /api/events`** replaces polling + legacy WebSocket — see `docs/api/API_REFERENCE.md` §Real-Time Events and `packages/backend/app/sse/handler.py`
+1. ~~**WebSocket Progress** - Replace polling with WebSocket for real-time updates~~ ✅ **Done (2026-09): SSE `GET /api/events`** replaces polling + legacy WebSocket — see `docs/guides/API_REFERENCE.md` §Real-Time Events and `packages/backend/app/sse/handler.py`
 2. **Batch Generation** - Support multiple seeds in one request
 3. **Image-to-Image** - Add img2img support
 4. **Inpainting** - Add mask-based inpainting

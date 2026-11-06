@@ -17,7 +17,7 @@ type: concept
 > [!info] Purpose
 > The one place that explains how this repo's Playwright suite is laid out,
 > how to write a spec that survives, and which October 2026 Playwright
-> practices to adopt. Companion to `docs/TESTING_WORKFLOWS.md` §0 (which owns
+> practices to adopt. Companion to `docs/guides/TESTING_WORKFLOWS.md` §0 (which owns
 > the runner-safety numbers) and
 > `docs/knowledge-library/e2e-test-plan-2026.md` (which owns the pipeline
 > strategy). This document owns the *craft*.

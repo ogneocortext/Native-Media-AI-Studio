@@ -369,6 +369,31 @@ Rules: `docs/plans/tasks/README.md`
   ``/api/health`` returns 200.
 - **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
 
+### T-PLT-12 — Reorganize docs/ root and relocate runtime CSV out of docs
+- **Status:** done
+- **Goal:** `docs/` root had 9 loose files and a one-file `api/` directory;
+  `track-prompts-lyrics.csv` was runtime data living in docs (cleanup-plan
+  item C1, open since 2026-10).
+- **What changed:**
+  - The singleton `docs/api/` directory's `API_REFERENCE.md` → `docs/guides/`
+    (directory removed);
+    all `docs/api/` references updated in README, guides, knowledge-library.
+  - `SYSTEM_REQUIREMENTS.md` → `docs/setup/`; `TESTING_WORKFLOWS.md` →
+    `docs/guides/`; `ENHANCEMENT_RECOMMENDATIONS.md` → `docs/plans/`;
+    path-qualified references updated in AGENTS.md, SETUP_SUMMARY,
+    browser-support, playwright-e2e-2026, docs/README map.
+  - `track-prompts-lyrics.csv` → `config/` (runtime data, not docs);
+    readers updated: `api/data.py` import-csv path,
+    `scripts/utility/import_tracks_from_csv.py` (also fixed a pre-existing
+    wrong parent depth), `trackLyrics.ts` comments. Frontend untouched —
+    it reads the byte-identical Vite `public/` copy.
+  - `docs-cleanup-2026-10.md` C1 marked done; checker docstring reworded.
+- **Files:** see What changed; `docs/README.md` directory map synced.
+- **Acceptance:** `check-path-references.py` clean (2755 refs);
+  `check-all.py --changed` 6/6 pass; `config/track-prompts-lyrics.csv`
+  exists and backend path resolves.
+- **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
+
 ### T-PLT-XX - Consolidate duplicates and delete dead modules
 - **Status:** done
 - **Goal:** Streamline the codebase after the decomposition pass - remove
