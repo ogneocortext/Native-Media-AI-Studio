@@ -350,3 +350,5 @@ tools/model-reliability/snapshots/
 p a c k a g e s / b a c k e n d / s t u d i o - d a t a / 
  
  
+# Cline local skills junction -> .kilo/skills (machine-local, not for commit)
+/.cline/
