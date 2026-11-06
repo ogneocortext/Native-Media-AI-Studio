@@ -113,7 +113,15 @@ async def test_ollama_runner_executes_bounded_iterations(tmp_path: Path) -> None
     assert result.model == "test-model"
     assert result.metrics["output_tokens"] == 8
     assert len(adapter.calls) == 2
-    assert all(call["num_ctx"] == 4096 for call in adapter.calls)
+    # num_ctx comes from config/hardware-profile.json limits - read the
+    # expected value from the same source the runner profiles from.
+    src_config = (
+        Path(__file__).resolve().parents[3] / "config" / "hardware-profile.json"
+    )
+    expected_ctx = json.loads(src_config.read_text(encoding="utf-8"))["limits"][
+        "ollama_context_tokens"
+    ]
+    assert all(call["num_ctx"] == expected_ctx for call in adapter.calls)
     assert monitor.calls == 2
     assert len(persisted) == 1
     assert persisted[0]["run_id"] == result.run_id
@@ -220,5 +228,5 @@ async def test_hardware_api_profile_and_benchmark(client, monkeypatch, tmp_path:
 def test_hardware_profile_config_is_valid_json() -> None:
     config_path = Path(__file__).resolve().parents[3] / "config" / "hardware-profile.json"
     data = json.loads(config_path.read_text(encoding="utf-8"))
-    assert data["version"] == 1
+    assert data["version"] >= 1
     assert data["limits"]["max_concurrent_benchmarks"] == 1

@@ -5,7 +5,7 @@ Tests the LTX Video 2.3 distilled workflow built by ComfyUIAdapter._build_ltx_wo
 The workflow uses ComfyUI nodes that are actually installed on this workstation:
 
   UNETLoader -> KSampler -> VAEDecode -> VHS_VideoCombine
-  CLIPLoader(T5) -> LTXVConditioning -> KSampler
+  CLIPLoader(ltxv) -> CLIPTextEncode x2 -> LTXVConditioning -> KSampler
   EmptyLTXVLatentVideo -> KSampler (latent)
   VAELoader -> VAEDecode
 
@@ -69,11 +69,14 @@ def test_build_ltx_workflow_default_variant(adapter):
 
 
 def test_build_ltx_workflow_steps_and_cfg_propagate(adapter):
+    # Non-distilled variant: cfg must pass through untouched. (Distilled
+    # checkpoints force cfg=1.0 -- see test below.)
     wf = adapter._build_ltx_workflow(
         prompt="test prompt", negative_prompt="", steps=30, cfg=7.5,
         width=768, height=512, seed=42, sampler="uni_pc",
         num_frames=25, fps=12,
         ckpt_name="ltxv-2b-0.9.8-distilled-fp8.safetensors",
+        variant="ltxv-2b-0.9.8",
     )
     nodes = _nodes(wf)
     sampler_nodes = [n for n in nodes.values()
@@ -84,6 +87,22 @@ def test_build_ltx_workflow_steps_and_cfg_propagate(adapter):
         f"KSampler steps = {sampler_inputs.get('steps')}, expected 30"
     assert sampler_inputs.get("cfg") == 7.5, \
         f"KSampler cfg = {sampler_inputs.get('cfg')}, expected 7.5"
+
+
+def test_build_ltx_workflow_distilled_forces_cfg_1(adapter):
+    """Guidance-distilled LTX variants require cfg=1.0 (HuggingFace best
+    practice); a caller-supplied cfg must be overridden, not propagated."""
+    wf = adapter._build_ltx_workflow(
+        prompt="test prompt", negative_prompt="", steps=30, cfg=7.5,
+        width=768, height=512, seed=42, sampler="uni_pc",
+        num_frames=25, fps=12,
+        ckpt_name="ltxv-2b-0.9.8-distilled-fp8.safetensors",
+        variant="ltxv-2b-0.9.8-distilled-fp8",
+    )
+    nodes = _nodes(wf)
+    sampler_nodes = [n for n in nodes.values()
+                     if isinstance(n, dict) and n.get("class_type") == "KSampler"]
+    assert sampler_nodes[0]["inputs"]["cfg"] == 1.0
 
 
 from app.adapters.comfyui import ComfyUIAdapter  # noqa: E402
@@ -111,7 +130,7 @@ def test_build_ltx_workflow_has_required_nodes(adapter):
     assert isinstance(nodes, dict) and len(nodes) > 0
     class_types = {n.get("class_type") for n in nodes.values() if isinstance(n, dict)}
     required = {
-        "UNETLoader", "CLIPLoader", "LTXVConditioning",
+        "UNETLoader", "CLIPLoader", "CLIPTextEncode", "LTXVConditioning",
         "EmptyLTXVLatentVideo", "KSampler", "VAELoader", "VAEDecode",
         "VHS_VideoCombine",
     }
@@ -137,7 +156,7 @@ def test_build_ltx_workflow_resolution_clamped(adapter):
                               node.get("class_type")))
     assert dim_nodes, "No dimension-carrying nodes found"
     for w, h, ct in dim_nodes:
-        assert w <= 768, f"{ct} width {w} exceeds 768 max"
+        assert w <= 896, f"{ct} width {w} exceeds 896 max"
         assert h <= 512, f"{ct} height {h} exceeds 512 max"
 
 

@@ -34,6 +34,9 @@ filterwarnings = [
     "error::PendingDeprecationWarning",
     "error::pytest.PytestRemovedIn10Warning",
     "default::pytest.PytestUnraisableExceptionWarning",
+    # starlette.testclient still references the deprecated anyio.abc.BlockingPortal
+    # alias; anyio>=4.16 warns on it. Third-party deprecation, not our code.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
 ]
 tmp_path_retention_policy = "none"
 

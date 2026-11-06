@@ -41,6 +41,10 @@ def _mgr():
     m._comfyui_models_loaded = True
     m._music_gen_running = False
     m._audio_analysis_running = False
+    m._atomic_chat_loaded = False
+    m._work_lane = asyncio.Lock()
+    m._work_lane_holder = None
+    m._work_lane_waiters = 0
     m._lock = asyncio.Lock()
     m.MIN_VRAM_FOR_AUDIO = 1200
     m.MIN_VRAM_FOR_MUSIC = 6144

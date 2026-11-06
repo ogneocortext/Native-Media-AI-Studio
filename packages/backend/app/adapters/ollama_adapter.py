@@ -410,6 +410,15 @@ Generate 3-8 scenes based on the input theme or concept."""
                 },
                 "reasoning_content": message.get("reasoning_content", ""),
                 "done": result.get("done", True),
+                # Inference counters -- hardware_benchmark and the
+                # "last inference took N tokens" display read these;
+                # dropping them made eval_count silently absent.
+                "eval_count": result.get("eval_count"),
+                "prompt_eval_count": result.get("prompt_eval_count"),
+                "total_duration": result.get("total_duration"),
+                "load_duration": result.get("load_duration"),
+                "eval_duration": result.get("eval_duration"),
+                "done_reason": result.get("done_reason"),
             }
 
     async def _stream_chat(self, payload: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:

@@ -544,7 +544,7 @@ class ComfyUIAdapter(BaseAdapter):
             lt_frames = lt_frames - ((lt_frames - 1) % 4)
             if not ckpt_name:
                 ckpt_name = self._get_available_ltx_checkpoint()
-            t5_name, vae_name = "t5-xxl-fp8.safetensors", "LTX23_video_vae.safetensors"
+            t5_name, vae_name = "t5-xxl-fp8.safetensors", "LTX23_video_vae_bf16.safetensors"
 
             workflow = self._build_ltx_workflow(
                 prompt_text,
@@ -1097,12 +1097,11 @@ class ComfyUIAdapter(BaseAdapter):
         offloaded, VAE decode uses tiling, latents snap to 4n+1 frames
         (LTX VAE patch grid), resolution clamped to 768x512 max.
 
-        Node graph (ComfyUI-LTX-Video custom nodes):
-          UNETLoader -> LTXVConditioning <- CLIPLoader(T5)
-          UNETLoader -> KSampler -> VAEDecode <- LTXVConditioning
+        Node graph (native comfy_extras LTXV nodes + VideoHelperSuite):
+          UNETLoader -> KSampler
+          CLIPLoader(ltxv) -> CLIPTextEncode x2 -> LTXVConditioning -> KSampler
           EmptyLTXVLatentVideo -> KSampler (latent)
-          VAELoader -> VAEDecode (vae)
-          VAEDecode -> VHS_VideoCombine -> output MP4
+          VAELoader -> VAEDecode -> VHS_VideoCombine -> output MP4
         """
         # Resolve checkpoint: explicit ckpt_name first, then fall back to any
         # LTX checkpoint discoverable on the connected ComfyUI.
@@ -1154,22 +1153,37 @@ class ComfyUIAdapter(BaseAdapter):
                     "class_type": "CLIPLoader",
                     "inputs": {
                         "clip_name": t5_name,
-                        "type": "ltx",
+                        "type": "ltxv",
                     },
                 },
-                # 3: Encode positive + negative prompts.
+                # 3+4: Encode positive + negative prompts to CONDITIONING.
+                # LTXVConditioning does NOT take raw text -- it retimes
+                # existing conditioning, so CLIPTextEncode nodes are required.
                 "3": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {
+                        "clip": ["2", 0],
+                        "text": prompt,
+                    },
+                },
+                "4": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {
+                        "clip": ["2", 0],
+                        "text": negative_prompt,
+                    },
+                },
+                # 5: Apply frame-rate conditioning (native comfy_extras node).
+                "5": {
                     "class_type": "LTXVConditioning",
                     "inputs": {
-                        "positive_prompt": prompt,
-                        "negative_prompt": negative_prompt,
-                        "clip": ["2", 0],
-                        "force_offload": True,
+                        "positive": ["3", 0],
+                        "negative": ["4", 0],
+                        "frame_rate": float(fps),
                     },
                 },
-                # 4: Sample -- creates correctly-shaped LTX latents from embeds.
-                # shift=5.0 is the Kijai-recommended default for LTX T2V.
-                "4": {
+                # 6: Create correctly-shaped LTX latents.
+                "6": {
                     "class_type": "EmptyLTXVLatentVideo",
                     "inputs": {
                         "width": lt_width,
@@ -1178,49 +1192,49 @@ class ComfyUIAdapter(BaseAdapter):
                         "batch_size": 1,
                     },
                 },
-                # 5: Sample -- creates correctly-shaped LTX latents from embeds.
-                "5": {
+                # 7: Sample.
+                "7": {
                     "class_type": "KSampler",
                     "inputs": {
                         "model": ["1", 0],
-                        "positive": ["3", 0],
-                        "negative": ["3", 1],
-                        "latent_image": ["4", 0],
+                        "positive": ["5", 0],
+                        "negative": ["5", 1],
+                        "latent_image": ["6", 0],
                         "seed": seed,
                         "steps": steps,
                         "cfg": cfg,
-                        "sampler_name": "euler",
+                        "sampler_name": sampler,
                         "scheduler": "normal",
                         "denoise": 1.0,
                     },
                 },
-                # 6: Load VAE.
-                "6": {
+                # 8: Load VAE.
+                "8": {
                     "class_type": "VAELoader",
                     "inputs": {
                         "vae_name": vae_name,
                     },
                 },
-                # 7: Decode latent to images. Plain (untiled) VAEDecode avoids
+                # 9: Decode latent to images. Plain (untiled) VAEDecode avoids
                 # the tile-seam color bleeding / saturation artifacts reported by
                 # Lightricks (see #470) and the community (white grid seams).
                 # Resolution is clamped to 768x512, so untiled decode fits 8GB.
-                "7": {
+                "9": {
                     "class_type": "VAEDecode",
                     "inputs": {
-                        "vae": ["6", 0],
-                        "samples": ["5", 0],
+                        "vae": ["8", 0],
+                        "samples": ["7", 0],
                     },
                 },
-                # 8: Combine frames to MP4.
-                "8": {
+                # 10: Combine frames to MP4.
+                "10": {
                     "class_type": "VHS_VideoCombine",
                     "inputs": {
-                        "images": ["7", 0],
+                        "images": ["9", 0],
                         "frame_rate": fps,
                         "loop_count": 0,
                         "filename_prefix": "NativeMediaAI_LTX",
-                        "format": "video/mp4",
+                        "format": "video/h264-mp4",
                         "pingpong": False,
                         "save_output": True,
                     },
@@ -1438,7 +1452,7 @@ class ComfyUIAdapter(BaseAdapter):
                         "frame_rate": fps,
                         "loop_count": 0,
                         "filename_prefix": "NativeMediaAI_WanI2V",
-                        "format": "video/mp4",
+                        "format": "video/h264-mp4",
                         "pingpong": False,
                         "save_output": True,
                     },
@@ -1545,51 +1559,68 @@ class ComfyUIAdapter(BaseAdapter):
                 # 2: Load T5-XXL text encoder (CPU offloaded on 8GB).
                 "2": {
                     "class_type": "CLIPLoader",
-                    "inputs": {"clip_name": t5_name, "type": "ltx"},
+                    "inputs": {"clip_name": t5_name, "type": "ltxv"},
                 },
-                # 3: Encode positive + negative prompts.
+                # 3+4: Encode prompts to CONDITIONING (see T2V builder --
+                # LTXVConditioning retimes conditioning, it does not encode text).
                 "3": {
-                    "class_type": "LTXVConditioning",
+                    "class_type": "CLIPTextEncode",
                     "inputs": {
-                        "positive_prompt": enhanced_prompt,
-                        "negative_prompt": negative_prompt,
                         "clip": ["2", 0],
-                        "force_offload": True,
+                        "text": enhanced_prompt,
                     },
                 },
-                # 4: Load the start image.
                 "4": {
-                    "class_type": "LoadImage",
-                    "inputs": {"image": image_filename},
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {
+                        "clip": ["2", 0],
+                        "text": negative_prompt,
+                    },
                 },
-                # 5: Encode image to latents.
+                # 5: Apply frame-rate conditioning.
                 "5": {
-                    "class_type": "VAEEncode",
-                    "inputs": {"vae": ["6", 0], "pixels": ["4", 0]},
+                    "class_type": "LTXVConditioning",
+                    "inputs": {
+                        "positive": ["3", 0],
+                        "negative": ["4", 0],
+                        "frame_rate": float(fps),
+                    },
                 },
-                # 6: Load VAE.
+                # 6: Load VAE (needed by both LTXVImgToVideo and VAEDecode).
                 "6": {
                     "class_type": "VAELoader",
                     "inputs": {"vae_name": vae_name},
                 },
-                # 7: Create latent video from the image latents.
+                # 7: Load the start image.
                 "7": {
-                    "class_type": "EmptyLTXVLatentVideo",
+                    "class_type": "LoadImage",
+                    "inputs": {"image": image_filename},
+                },
+                # 8: Build the I2V latent + conditioned embeds from the image.
+                # (Replaces the old VAEEncode+EmptyLTXVLatentVideo pair, whose
+                # encoded image was never wired into the sampler.)
+                "8": {
+                    "class_type": "LTXVImgToVideo",
                     "inputs": {
+                        "positive": ["5", 0],
+                        "negative": ["5", 1],
+                        "vae": ["6", 0],
+                        "image": ["7", 0],
                         "width": lt_width,
                         "height": lt_height,
                         "length": lt_frames,
                         "batch_size": 1,
+                        "strength": 1.0,
                     },
                 },
-                # 8: KSampler with denoise < 1.0 (image-to-video).
-                "8": {
+                # 9: KSampler with denoise < 1.0 (image-to-video).
+                "9": {
                     "class_type": "KSampler",
                     "inputs": {
                         "model": ["1", 0],
-                        "positive": ["3", 0],
-                        "negative": ["3", 1],
-                        "latent_image": ["7", 0],
+                        "positive": ["8", 0],
+                        "negative": ["8", 1],
+                        "latent_image": ["8", 2],
                         "seed": seed,
                         "steps": steps,
                         "cfg": cfg,
@@ -1598,20 +1629,20 @@ class ComfyUIAdapter(BaseAdapter):
                         "denoise": denoise,
                     },
                 },
-                # 9: Decode latent to images.
-                "9": {
-                    "class_type": "VAEDecode",
-                    "inputs": {"vae": ["6", 0], "samples": ["8", 0]},
-                },
-                # 10: Combine frames to MP4.
+                # 10: Decode latent to images.
                 "10": {
+                    "class_type": "VAEDecode",
+                    "inputs": {"vae": ["6", 0], "samples": ["9", 0]},
+                },
+                # 11: Combine frames to MP4.
+                "11": {
                     "class_type": "VHS_VideoCombine",
                     "inputs": {
-                        "images": ["9", 0],
+                        "images": ["10", 0],
                         "frame_rate": fps,
                         "loop_count": 0,
                         "filename_prefix": "NativeMediaAI_LTXI2V",
-                        "format": "video/mp4",
+                        "format": "video/h264-mp4",
                         "pingpong": False,
                         "save_output": True,
                     },
