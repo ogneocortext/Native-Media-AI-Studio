@@ -238,7 +238,12 @@ export function AgentChat() {
             break;
 
           case "content": {
-            const text = typeof event.data === "string" ? event.data : String(event.data);
+            const raw =
+              typeof event.data === "string"
+                ? JSON.parse(event.data)
+                : event.data;
+            const data = raw as { content?: string; thinking?: string };
+            const text = data?.content ?? (typeof event.data === "string" ? event.data : JSON.stringify(event.data));
             if (!assistantMessageId) {
               const newId = Math.random().toString(36).slice(2);
               assistantMessageId = newId;
@@ -277,19 +282,21 @@ export function AgentChat() {
             }
             break;
           }
-
           case "tool_result": {
             const raw =
-              typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-            // Backend tool_result events may have different shapes; normalize
-            const result: ExecuteToolResponse =
-              raw.success !== undefined
-                ? (raw as ExecuteToolResponse)
-                : { success: true, result: raw };
-            const toolName = (raw as any).tool_name || (raw as any).name || "unknown";
-            const success = result.success ?? false;
-            const error = result.error;
-            const resultData = result.result;
+              typeof event.data === "string"
+                ? JSON.parse(event.data)
+                : event.data;
+            // Backend sends {"name": "...", "result": {...}} for tool results
+            const toolName = (raw as any).name || (raw as any).tool_name || "unknown";
+            const resultData = (raw as any).result;
+            // result may be an ExecuteToolResponse {success, error, result} or raw data
+            const execResult: ExecuteToolResponse =
+              resultData && typeof resultData === "object" && "success" in resultData
+                ? (resultData as ExecuteToolResponse)
+                : { success: true, result: resultData };
+            const success = execResult.success ?? false;
+            const error = execResult.error;
 
             // Extract media paths for inline rendering
             const mediaUrls = extractMediaPaths(resultData).map((p) => getOutputUrl(p));
@@ -328,7 +335,6 @@ export function AgentChat() {
             }
             break;
           }
-
           case "done": {
             // Stream complete
             break;
