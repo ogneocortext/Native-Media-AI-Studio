@@ -238,7 +238,11 @@ export function GeometricViz({
         // Rolloff-capped emissive: the pre-2026 linear gains clipped
         // the core to a featureless white disc under bloom.
         m.emissiveIntensity =
-          0.6 + rolloff(bass * vizParams.glowIntensity * 2 + beatPulse.current * 1.4 + features.onset * 2, 1.1);
+          0.6 +
+          rolloff(
+            bass * vizParams.glowIntensity * 2 + beatPulse.current * 1.4 + features.onset * 2,
+            1.1,
+          );
         // Lightness is a perceptual channel, so the bass drive goes
         // through gamma (vizMotion): raw linear energy clips early and
         // leaves quiet verses flat. beatPulse is an envelope, not a

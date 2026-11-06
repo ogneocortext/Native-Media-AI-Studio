@@ -14,6 +14,7 @@ from typing import Any
 @dataclass
 class PromptRow:
     """Typed representation of a prompts table row."""
+
     id: str
     name: str
     prompt_type: str
@@ -31,6 +32,7 @@ class PromptRow:
 @dataclass
 class AudioFileRow:
     """Typed representation of an audio_files table row."""
+
     id: str
     filename: str
     original_name: str
@@ -51,6 +53,7 @@ class AudioFileRow:
 @dataclass
 class AIVisualRow:
     """Typed representation of an ai_visuals table row."""
+
     id: str
     prompt_id: str | None
     style_id: str
@@ -76,6 +79,7 @@ class AIVisualRow:
 @dataclass
 class SessionRow:
     """Typed representation of a generation_sessions table row."""
+
     id: str
     audio_id: str | None
     music_prompt_id: str | None
@@ -94,6 +98,7 @@ class SessionRow:
 @dataclass
 class TrackRow:
     """Typed representation of a tracks table row."""
+
     id: str
     filename: str
     artist: str
@@ -116,6 +121,7 @@ class TrackRow:
 @dataclass
 class VizPresetRow:
     """Typed representation of a visualization_presets table row."""
+
     id: str
     track_name: str
     track_hash: str
@@ -139,6 +145,7 @@ class VizPresetRow:
 @dataclass
 class SystemResourceRow:
     """Typed representation of a system_resources table row."""
+
     id: int
     timestamp: str
     gpu_name: str | None
@@ -157,6 +164,7 @@ class SystemResourceRow:
 @dataclass
 class OllamaModelRow:
     """Typed representation of an ollama_models table row."""
+
     id: str
     model_name: str
     model_size: int | None
@@ -172,6 +180,7 @@ class OllamaModelRow:
 @dataclass
 class OllamaAnalysisRow:
     """Typed representation of an ollama_analysis_responses table row."""
+
     id: str
     track_name: str
     track_filename: str

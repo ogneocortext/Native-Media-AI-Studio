@@ -25,8 +25,8 @@ export function EnergyChart(_props: { data: EnergyPoint[] }) {
         <span className="text-xs text-muted">0 (quiet) – 1 (intense)</span>
       </div>
       <p className="text-xs text-muted">
-        Shows relative audio intensity over time. Higher peaks are good
-        candidates for visual emphasis or beat-synced events.
+        Shows relative audio intensity over time. Higher peaks are good candidates for visual
+        emphasis or beat-synced events.
       </p>
       <div className="h-32 bg-surface/50 rounded-lg overflow-hidden">
         {/* Chart implementation would go here */}

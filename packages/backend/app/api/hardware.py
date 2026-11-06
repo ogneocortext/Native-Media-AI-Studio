@@ -40,7 +40,9 @@ async def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
         return await _runner.run(request)
     except Exception as exc:
         logger.exception("Unable to start hardware benchmark")
-        raise HTTPException(status_code=503, detail=f"Benchmark service unavailable: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Benchmark service unavailable: {exc}"
+        ) from exc
 
 
 @router.get("/benchmarks", response_model=list[dict[str, Any]])
@@ -61,7 +63,9 @@ async def benchmark_history(
         )
     except Exception as exc:
         logger.exception("Unable to read benchmark history")
-        raise HTTPException(status_code=500, detail=f"Benchmark history unavailable: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Benchmark history unavailable: {exc}"
+        ) from exc
 
 
 @router.get("/benchmarks/{run_id}", response_model=dict[str, Any])

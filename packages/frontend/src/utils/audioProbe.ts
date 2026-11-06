@@ -78,11 +78,16 @@ export async function probeAudioFile(file: File): Promise<AudioProbeResult> {
             channels: decoded.numberOfChannels,
             sampleRate: decoded.sampleRate,
           };
-          void ctx.close().catch(() => { void 0; });
+          void ctx.close().catch(() => {
+            void 0;
+          });
           return result;
         } finally {
           // decodeAudioData may leave context running on failure paths
-          if (ctx.state !== "closed") void ctx.close().catch(() => { void 0; });
+          if (ctx.state !== "closed")
+            void ctx.close().catch(() => {
+              void 0;
+            });
         }
       }
     }

@@ -280,8 +280,7 @@ export function PostFX({
     const section = (lrcSyncRef?.current ?? lrcSync)?.currentSection;
     const sectionGain = getSectionMotionIntensity(section);
     const onsetEnv = audioData.current.onset ?? 0;
-    const kaleidoTarget =
-      kaleidoBase * (0.5 + 0.5 * sectionGain) * (0.6 + 0.4 * onsetEnv);
+    const kaleidoTarget = kaleidoBase * (0.5 + 0.5 * sectionGain) * (0.6 + 0.4 * onsetEnv);
     const uK = fx.kaleido.uniforms;
     uK.uIntensity.value += (kaleidoTarget - uK.uIntensity.value) * 0.08;
     uK.uFold.value = kaleido?.fold ?? 8;

@@ -36,9 +36,7 @@ def save_track(
     instead of creating a duplicate entry.
     """
     with get_db() as conn:
-        existing = conn.execute(
-            "SELECT id FROM tracks WHERE filename = ?", (filename,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM tracks WHERE filename = ?", (filename,)).fetchone()
         if existing:
             return existing["id"]
 
@@ -76,9 +74,7 @@ def save_track(
 def get_track(track_id: str) -> dict[str, Any] | None:
     """Get a track by ID."""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM tracks WHERE id = ?", (track_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM tracks WHERE id = ?", (track_id,)).fetchone()
         if row:
             return _row_to_track(row)
     return None
@@ -116,8 +112,14 @@ def get_tracks(
 def update_track(track_id: str, **kwargs: Any) -> None:
     """Update a track."""
     allowed_fields = {
-        "music_prompt", "lyrics", "visual_style", "visual_prompt",
-        "status", "tags", "comfyui_visual_ids", "output_path",
+        "music_prompt",
+        "lyrics",
+        "visual_style",
+        "visual_prompt",
+        "status",
+        "tags",
+        "comfyui_visual_ids",
+        "output_path",
     }
 
     updates = {k: v for k, v in kwargs.items() if k in allowed_fields}

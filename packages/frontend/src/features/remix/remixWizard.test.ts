@@ -80,7 +80,15 @@ describe("buildWizardSlots", () => {
     const slots = buildWizardSlots(input({ goal: "blend" }));
 
     expect(slots).toHaveLength(2);
-    expect(slots[0].layers.map((l) => l.stem)).toEqual(["vocals", "drums", "bass", "other", "drums", "bass", "other"]);
+    expect(slots[0].layers.map((l) => l.stem)).toEqual([
+      "vocals",
+      "drums",
+      "bass",
+      "other",
+      "drums",
+      "bass",
+      "other",
+    ]);
     expect(slots[0].layers.filter((l) => l.stem === "vocals")).toHaveLength(1);
   });
 
@@ -88,7 +96,13 @@ describe("buildWizardSlots", () => {
     const slots = buildWizardSlots(input({ goal: "intro" }));
 
     expect(slots[0].layers.map((l) => l.stem)).toEqual(["drums", "bass", "other"]);
-    expect(slots[1].layers.map((l) => l.stem)).toEqual(["vocals", "drums", "bass", "other", "vocals"]);
+    expect(slots[1].layers.map((l) => l.stem)).toEqual([
+      "vocals",
+      "drums",
+      "bass",
+      "other",
+      "vocals",
+    ]);
   });
 
   it("repeats the structure for a longer arrangement", () => {
@@ -118,7 +132,9 @@ describe("buildWizardSlots", () => {
     const slots = buildWizardSlots(input({ songB: null, goal: "swap" }));
 
     expect(slots).toHaveLength(2);
-    expect(slots.flatMap((s) => s.layers).every((l) => l.track === "SunoV6Mini-Ad-Nauseam")).toBe(true);
+    expect(slots.flatMap((s) => s.layers).every((l) => l.track === "SunoV6Mini-Ad-Nauseam")).toBe(
+      true,
+    );
   });
 });
 

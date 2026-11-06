@@ -26,6 +26,7 @@ from app.core.database import get_db
 @dataclass
 class AgentMemoryEntry:
     """A curated memory entry (semantic memory)."""
+
     id: str
     entry_type: str  # 'pattern' | 'failure' | 'api_note' | 'env_const' | 'learning'
     title: str
@@ -41,6 +42,7 @@ class AgentMemoryEntry:
 @dataclass
 class AgentEpisode:
     """One completed agent episode (episodic memory)."""
+
     id: str
     session_id: str
     goal: str
@@ -102,8 +104,7 @@ class AgentMemoryService:
         # still being useful for a small model.
         keywords = [k.strip().lower() for k in goal.split() if len(k) > 3]
         like_conditions = " OR ".join(
-            "LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(tags) LIKE ?"
-            for _ in keywords
+            "LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(tags) LIKE ?" for _ in keywords
         )
         params: list[str | float] = []
         for kw in keywords:
@@ -187,10 +188,18 @@ class AgentMemoryService:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    eid, session_id, goal, approach, result,
-                    1 if success else 0, duration_ms,
-                    json.dumps(tools_used), error_message,
-                    llm_driver, iterations, now,
+                    eid,
+                    session_id,
+                    goal,
+                    approach,
+                    result,
+                    1 if success else 0,
+                    duration_ms,
+                    json.dumps(tools_used),
+                    error_message,
+                    llm_driver,
+                    iterations,
+                    now,
                 ),
             )
         return eid
@@ -215,9 +224,14 @@ class AgentMemoryService:
                 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
                 (
-                    eid, entry_type, title, content,
-                    json.dumps(tags or []), credit_score,
-                    now, now,
+                    eid,
+                    entry_type,
+                    title,
+                    content,
+                    json.dumps(tags or []),
+                    credit_score,
+                    now,
+                    now,
                 ),
             )
         return eid

@@ -63,11 +63,13 @@ def audio_list() -> list[dict[str, Any]]:
     if AUDIO_DIR.exists():
         for f in sorted(AUDIO_DIR.rglob("*")):
             if f.is_file() and not f.name.startswith("."):
-                files.append({
-                    "filename": f.name,
-                    "relative_path": f.relative_to(AUDIO_DIR).as_posix(),
-                    "size_bytes": f.stat().st_size,
-                })
+                files.append(
+                    {
+                        "filename": f.name,
+                        "relative_path": f.relative_to(AUDIO_DIR).as_posix(),
+                        "size_bytes": f.stat().st_size,
+                    }
+                )
     return files
 
 
@@ -79,11 +81,13 @@ def media_list() -> list[dict[str, Any]]:
         if d.exists():
             for f in sorted(d.rglob("*")):
                 if f.is_file() and not f.name.startswith("."):
-                    files.append({
-                        "filename": f.name,
-                        "relative_path": f.relative_to(OUTPUT_DIR).as_posix(),
-                        "size_bytes": f.stat().st_size,
-                    })
+                    files.append(
+                        {
+                            "filename": f.name,
+                            "relative_path": f.relative_to(OUTPUT_DIR).as_posix(),
+                            "size_bytes": f.stat().st_size,
+                        }
+                    )
     return files
 
 
@@ -132,12 +136,12 @@ async def run_llm_loop(
     audio_files = audio_list()
     media_files = media_list()
 
-    inventory_audio = "\n".join(
-        f"  - {f['filename']} ({f['relative_path']})" for f in audio_files
-    ) or "  (none)"
-    inventory_media = "\n".join(
-        f"  - {f['filename']} ({f['relative_path']})" for f in media_files
-    ) or "  (none)"
+    inventory_audio = (
+        "\n".join(f"  - {f['filename']} ({f['relative_path']})" for f in audio_files) or "  (none)"
+    )
+    inventory_media = (
+        "\n".join(f"  - {f['filename']} ({f['relative_path']})" for f in media_files) or "  (none)"
+    )
 
     grounded_system = system_prompt + INVENTORY_RULE.format(
         audio_list=inventory_audio,
@@ -164,11 +168,13 @@ async def run_llm_loop(
         content = assistant_msg.get("content", "") or ""
         tool_calls = assistant_msg.get("tool_calls") or []
 
-        messages.append({
-            "role": "assistant",
-            "content": content,
-            **({"tool_calls": tool_calls} if tool_calls else {}),
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": content,
+                **({"tool_calls": tool_calls} if tool_calls else {}),
+            }
+        )
 
         all_tool_calls.extend(tool_calls)
 
@@ -193,11 +199,13 @@ async def run_llm_loop(
             # --- Problem 3: tool ordering enforcement --------------------
             ordering_error = _check_tool_ordering(name, called_tools)
             if ordering_error:
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "content": ordering_error,
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": ordering_error,
+                    }
+                )
                 called_tools.add(name)
                 continue
 
@@ -216,12 +224,14 @@ async def run_llm_loop(
                     "note": "execute_tool not provided; call not dispatched",
                 }
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.get("id", ""),
-                "name": name,
-                "content": json.dumps(tool_result),
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "name": name,
+                    "content": json.dumps(tool_result),
+                }
+            )
 
     # Max iterations reached without a final answer
     last_content = messages[-1].get("content", "") if messages else ""

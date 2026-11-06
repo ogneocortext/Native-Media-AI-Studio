@@ -36,7 +36,9 @@ describe("lintVideoPrompt", () => {
   });
 
   it("returns all checks passing for a well-formed prompt", () => {
-    const result = lintVideoPrompt("Close-up of a warrior at low angle, golden hour lighting, cinematic mood");
+    const result = lintVideoPrompt(
+      "Close-up of a warrior at low angle, golden hour lighting, cinematic mood",
+    );
     expect(result.score).toBe(5);
     expect(result.checks.every((c) => c.pass)).toBe(true);
   });

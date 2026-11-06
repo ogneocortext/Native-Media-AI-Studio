@@ -30,8 +30,8 @@ async def create_job(request: JobCreateRequest) -> Job:
 async def list_jobs(
     status: str | None = Query(
         None,
-        description="Filter by status (pending, queued, running, completed, failed, cancelled)"
-    )
+        description="Filter by status (pending, queued, running, completed, failed, cancelled)",
+    ),
 ) -> list[Job]:
     """List all jobs, optionally filtered by status."""
     if status:
@@ -112,17 +112,11 @@ async def cancel_job(job_id: str) -> dict:
 
     # Check if job can be cancelled (pending, queued, or running)
     if job.status not in (JobStatus.PENDING, JobStatus.QUEUED, JobStatus.RUNNING):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot cancel job with status: {job.status}"
-        )
+        raise HTTPException(status_code=400, detail=f"Cannot cancel job with status: {job.status}")
 
     success = await queue_manager.cancel_job(job_id)
     if not success:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot cancel job with status: {job.status}"
-        )
+        raise HTTPException(status_code=400, detail=f"Cannot cancel job with status: {job.status}")
 
     return {"success": True, "message": "Job cancelled", "job_id": job_id}
 
@@ -141,15 +135,13 @@ async def retry_job(job_id: str) -> Job:
 
     if existing_job.status not in (JobStatus.FAILED, JobStatus.DEAD):
         raise HTTPException(
-            status_code=400,
-            detail=f"Cannot retry job with status: {existing_job.status}"
+            status_code=400, detail=f"Cannot retry job with status: {existing_job.status}"
         )
 
     job = await queue_manager.retry_job(job_id, manual=True)
     if not job:
         raise HTTPException(
-            status_code=400,
-            detail=f"Cannot retry job with status: {existing_job.status}"
+            status_code=400, detail=f"Cannot retry job with status: {existing_job.status}"
         )
 
     # queue_manager.retry_job already broadcast the "job.queued" event

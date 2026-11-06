@@ -41,19 +41,14 @@ import {
   VIGNETTE_ALPHA_CEILING,
   type Canvas2DMode,
 } from "./canvas2dModeBudget";
-import {
-  type Shockwave,
-  drawShockwaves,
-  spawnShockwave,
-  updateShockwaves,
-} from "./shockwaves";
-import {
-  type IdleParticle,
-  drawIdleParticles,
-  updateIdleParticles,
-} from "./idleParticles";
+import { type Shockwave, drawShockwaves, spawnShockwave, updateShockwaves } from "./shockwaves";
+import { type IdleParticle, drawIdleParticles, updateIdleParticles } from "./idleParticles";
 import { type Particle } from "./particles";
-import { getVisualizerMode, type VisualizerModeRenderContext, type VisualizerModeState } from "./visualizerModeRegistry";
+import {
+  getVisualizerMode,
+  type VisualizerModeRenderContext,
+  type VisualizerModeState,
+} from "./visualizerModeRegistry";
 import { createSpectralFluxOnset, type SpectralFluxOnset } from "./spectralFlux";
 import { QualityGovernor } from "./qualityGovernor";
 import { renderMode, type BarModeContext, type BarModeState } from "./canvas2dModes";
@@ -180,8 +175,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
     lrcSyncAtHolder.current = lrcSyncAt;
     // Measured per-frame band energies, from the same endpoint the shader lane
     // reads; null on tracks without a spectral timeline (the modelled tier).
-    const { sampleAtTime: sampleSpectralTimeline, loading: spectralLoading } =
-      useSpectralTimeline(trackFile ?? null, 24);
+    const { sampleAtTime: sampleSpectralTimeline, loading: spectralLoading } = useSpectralTimeline(
+      trackFile ?? null,
+      24,
+    );
 
     // Smooth section palette transitions
     const currentPaletteRef = useRef<string[]>([]);
@@ -386,8 +383,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
       offCanvas.style.display = "none";
       offCanvas.width = canvas.width;
       offCanvas.height = canvas.height;
-      const offCtx: CanvasRenderingContext2D | null =
-        offCanvas.getContext("2d", { alpha: false });
+      const offCtx: CanvasRenderingContext2D | null = offCanvas.getContext("2d", { alpha: false });
 
       // Draw to the offscreen buffer, then blit to the visible canvas at the
       // end of each frame (tear-free rendering).
@@ -437,7 +433,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // Prefer blended live+analysis energy for visual punch; fall back to raw
         // analyzed energy only when the blended value is actually invalid (NaN /
         // Infinity), not when it is legitimately 0 during silence.
-        const effectiveEnergy = Number.isFinite(d.energy) ? d.energy : d.analyzedEnergy ?? 0;
+        const effectiveEnergy = Number.isFinite(d.energy) ? d.energy : (d.analyzedEnergy ?? 0);
         // T-VIZ-19 — structure-first dynamics: section intensity (build vs
         // drop) scales the motion vocabulary's amplitude without a mode
         // switch. Unknown/absent sections get neutral 1.
@@ -652,8 +648,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           updateIdleParticles(idleParticles, w, h, motionScale, rand);
           drawIdleParticles(drawCtx, idleParticles, dpr);
           const idlePulse =
-            phraseFlash * 0.3 +
-            Math.sin(nowMs() * 0.002 * motionScale) * 0.08 * motionScale;
+            phraseFlash * 0.3 + Math.sin(nowMs() * 0.002 * motionScale) * 0.08 * motionScale;
           const t = nowMs() * 0.001;
           const breathe = 0.55 + Math.sin(t * 0.8) * 0.15;
           drawCtx.textAlign = "center";
@@ -667,7 +662,11 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           drawCtx.globalAlpha = 0.45 + idlePulse * 0.5;
           drawCtx.fillStyle = colors[1] || "#a5b4fc";
           drawCtx.font = `${12 * dpr}px system-ui, sans-serif`;
-          drawCtx.fillText("pick a track above — visuals react to the beat", w / 2, h / 2 + 20 * dpr);
+          drawCtx.fillText(
+            "pick a track above — visuals react to the beat",
+            w / 2,
+            h / 2 + 20 * dpr,
+          );
           drawCtx.globalAlpha = 1;
           // Blit offscreen buffer to visible canvas for idle frame too.
           ctx.drawImage(offCanvas, 0, 0);
@@ -779,16 +778,12 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // fallback for unanalysed audio, and virtual/export frames keep
         // their own beat flag since no onset detector runs there.
         const phaseEnv = beatPhaseEnvelope(d.beatPhase);
-        const beatEnv =
-          phaseEnv ??
-          (isVirtual ? (d.beat ? 1 : 0) : (onset?.envelope ?? 0));
+        const beatEnv = phaseEnv ?? (isVirtual ? (d.beat ? 1 : 0) : (onset?.envelope ?? 0));
         // Grid-lock the beat accent itself: with a phase grid, `beat`
         // fires on the phase wrap instead of waiting for flux detection,
         // so mode accents land on the beat, not one latency after it.
         const dCtx: AudioData =
-          typeof d.beatPhase === "number"
-            ? { ...d, beat: d.beatPhase < 0.1 }
-            : d;
+          typeof d.beatPhase === "number" ? { ...d, beat: d.beatPhase < 0.1 } : d;
 
         // Render via registry (Chrome 157+ HTML-in-Canvas compatible). Looks up
         // the mode render function from the registry; falls back to legacy
@@ -796,7 +791,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         const modeDef = getVisualizerMode(mode);
         const modeRenderFn = modeDef
           ? modeDef.render
-          : ((_ctx2: CanvasRenderingContext2D, ctxInfo2: VisualizerModeRenderContext) => {
+          : (_ctx2: CanvasRenderingContext2D, ctxInfo2: VisualizerModeRenderContext) => {
               // Legacy renderMode expects a BarModeContext/BarModeState pair.
               // ctxInfo2 already carries every BarModeContext field; the state
               // object must be the persistent barModeState, not a per-frame
@@ -819,47 +814,51 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
                 particles.length = 0;
                 particles.push(...barModeState.particles);
               }
-            });
-        modeRenderFn(drawCtx, {
-          ctx: drawCtx,
-          dpr,
-          w,
-          h,
-          canvas: canvasRef.current,
-          d: dCtx,
-          syncLineProgress: sync?.lineProgress ?? 0,
-          sectionProgress: sync?.sectionProgress ?? 0,
-          // T-VIZ-21 — lyric line + section for kinetic-type and future
-          // lyric-driven modes. `sync` is the full LrcSyncData (live ref,
-          // prop snapshot, or deterministic lrcSyncAt for virtual frames).
-          lyric: sync?.currentLine ?? null,
-          lyricProgress: sync?.lineProgress ?? 0,
-          sectionName: section,
-          colors,
-          perceptualScale: perceptualScale as "bark" | "erb" | "mel" | "linear",
-          // T-VIZ-15: modes receive the enveloped bands, never raw freq.
-          freq: envelope.bands,
-          // T-VIZ-16: decaying spectral-flux onset envelope (0..1) from the
-          // unsmoothed transient analyser — isolated hits, not band energy.
-          onset: onset?.envelope ?? 0,
-          // T-VIZ-19 — phase-locked beat envelope (0..1); beats land on the
-          // analysed grid, flux onset is the unanalysed fallback.
-          beatEnv,
-          wave,
-          bg: bgColor,
-          nowMs,
-          analyser: analyserRef.current,
-          motionScale,
-          phraseFlash,
-          energyMod,
-          analyzedPunch,
-          isDownbeat: audioData.current.isDownbeat ?? false,
-          rand,
-          getGradients,
-        }, {
-          smoothed,
-          particles: particles as unknown as VisualizerModeState["particles"],
-        });
+            };
+        modeRenderFn(
+          drawCtx,
+          {
+            ctx: drawCtx,
+            dpr,
+            w,
+            h,
+            canvas: canvasRef.current,
+            d: dCtx,
+            syncLineProgress: sync?.lineProgress ?? 0,
+            sectionProgress: sync?.sectionProgress ?? 0,
+            // T-VIZ-21 — lyric line + section for kinetic-type and future
+            // lyric-driven modes. `sync` is the full LrcSyncData (live ref,
+            // prop snapshot, or deterministic lrcSyncAt for virtual frames).
+            lyric: sync?.currentLine ?? null,
+            lyricProgress: sync?.lineProgress ?? 0,
+            sectionName: section,
+            colors,
+            perceptualScale: perceptualScale as "bark" | "erb" | "mel" | "linear",
+            // T-VIZ-15: modes receive the enveloped bands, never raw freq.
+            freq: envelope.bands,
+            // T-VIZ-16: decaying spectral-flux onset envelope (0..1) from the
+            // unsmoothed transient analyser — isolated hits, not band energy.
+            onset: onset?.envelope ?? 0,
+            // T-VIZ-19 — phase-locked beat envelope (0..1); beats land on the
+            // analysed grid, flux onset is the unanalysed fallback.
+            beatEnv,
+            wave,
+            bg: bgColor,
+            nowMs,
+            analyser: analyserRef.current,
+            motionScale,
+            phraseFlash,
+            energyMod,
+            analyzedPunch,
+            isDownbeat: audioData.current.isDownbeat ?? false,
+            rand,
+            getGradients,
+          },
+          {
+            smoothed,
+            particles: particles as unknown as VisualizerModeState["particles"],
+          },
+        );
 
         // Blit offscreen buffer to visible canvas (tear-free rendering).
         ctx.drawImage(offCanvas, 0, 0);
@@ -891,7 +890,15 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // A torn-down component must not leave an API pointing at its closures.
         if (frameAccurateApiRef) frameAccurateApiRef.current = null;
       };
-    }, [isPlaying, mode, bgColor, analyserRef, audioData, frameAccurateApiRef, sampleSpectralTimeline]);
+    }, [
+      isPlaying,
+      mode,
+      bgColor,
+      analyserRef,
+      audioData,
+      frameAccurateApiRef,
+      sampleSpectralTimeline,
+    ]);
 
     return (
       <div
@@ -907,7 +914,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         {/* HTML-in-Canvas rendered content when Chrome 157+, DOM overlay fallback when Chrome 156 */}
         <HtmlCanvasRenderer canvas={canvasRef.current} x={0} y={0}>
           <div className="text-white/80 text-[24px] font-semibold leading-tight text-center w-full">
-            <span className="block mb-2">{lrcSyncLive?.current?.currentSection.toUpperCase() ?? "—"}</span>
+            <span className="block mb-2">
+              {lrcSyncLive?.current?.currentSection.toUpperCase() ?? "—"}
+            </span>
             <span className="block text-[18px]">{lrcSyncLive?.current?.sectionProgress}</span>
           </div>
         </HtmlCanvasRenderer>

@@ -99,7 +99,9 @@ def estimate_generation_time(
     return {
         "estimated_seconds": round(estimated_seconds, 1),
         "estimated_minutes": round(estimated_seconds / 60, 1),
-        "estimated_end_time": (datetime.now(UTC) + timedelta(seconds=estimated_seconds)).isoformat().replace("+00:00", "Z"),
+        "estimated_end_time": (datetime.now(UTC) + timedelta(seconds=estimated_seconds))
+        .isoformat()
+        .replace("+00:00", "Z"),
         "sec_per_frame": round(sec_per_frame, 1),
         "total_frames": total_frames,
         "factors": {
@@ -168,7 +170,9 @@ def load_cloud_pricing() -> dict[str, Any]:
         raw = pricing_path.read_text(encoding="utf-8")
         _CLOUD_PRICING = json.loads(raw)
     except FileNotFoundError:
-        logger.warning("cloud_pricing.json not found at %s -- cloud costs will be unavailable", pricing_path)
+        logger.warning(
+            "cloud_pricing.json not found at %s -- cloud costs will be unavailable", pricing_path
+        )
         _CLOUD_PRICING = {"models": {}, "defaults": {"currency": "USD", "unit": "per_second"}}
     except json.JSONDecodeError as exc:
         logger.error("Failed to parse cloud_pricing.json: %s", exc)
@@ -176,9 +180,7 @@ def load_cloud_pricing() -> dict[str, Any]:
     return _CLOUD_PRICING
 
 
-def _resolve_cloud_price(
-    model_name: str, cloud_price_per_second: float | None
-) -> float | None:
+def _resolve_cloud_price(model_name: str, cloud_price_per_second: float | None) -> float | None:
     """Resolve cloud $/sec. Cloud pricing is opt-in per request (D9):
 
     an explicit ``cloud_price_per_second`` is honored; otherwise returns

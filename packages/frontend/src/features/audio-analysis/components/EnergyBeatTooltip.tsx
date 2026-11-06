@@ -23,8 +23,7 @@ export const EnergyBeatTooltip = ({
       <p className="text-xs font-semibold text-foreground">Time: {data.time.toFixed(1)}s</p>
       <p className="text-xs text-muted">
         Energy: {energyPct}% (
-        {data.energy > 0.6 ? "intense" : data.energy > 0.3 ? "moderate" : "quiet"}
-        )
+        {data.energy > 0.6 ? "intense" : data.energy > 0.3 ? "moderate" : "quiet"})
       </p>
     </div>
   );

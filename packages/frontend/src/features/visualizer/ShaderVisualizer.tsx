@@ -26,11 +26,7 @@ import type { AudioData, StemAnalysisData } from "./types";
 import type { StemName } from "./components/StemMixer";
 import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionPreset } from "./sectionStateMachine";
-import {
-  getWarpPreset,
-  nextWarpPresetId,
-  type WarpPresetId,
-} from "./warpPresets";
+import { getWarpPreset, nextWarpPresetId, type WarpPresetId } from "./warpPresets";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import {
   AudioReactivityProcessor,
@@ -84,12 +80,18 @@ async function readFxFromApi(): Promise<ShaderFxValues | null> {
         const next: ShaderFxValues = {
           speed: typeof candidate.speed === "number" ? candidate.speed : DEFAULT_SHADER_FX.speed,
           brightness:
-            typeof candidate.brightness === "number" ? candidate.brightness : DEFAULT_SHADER_FX.brightness,
+            typeof candidate.brightness === "number"
+              ? candidate.brightness
+              : DEFAULT_SHADER_FX.brightness,
           contrast:
-            typeof candidate.contrast === "number" ? candidate.contrast : DEFAULT_SHADER_FX.contrast,
+            typeof candidate.contrast === "number"
+              ? candidate.contrast
+              : DEFAULT_SHADER_FX.contrast,
           hue: typeof candidate.hue === "number" ? candidate.hue : DEFAULT_SHADER_FX.hue,
           saturation:
-            typeof candidate.saturation === "number" ? candidate.saturation : DEFAULT_SHADER_FX.saturation,
+            typeof candidate.saturation === "number"
+              ? candidate.saturation
+              : DEFAULT_SHADER_FX.saturation,
         };
         return next;
       }
@@ -321,7 +323,9 @@ export function ShaderVisualizer({
   // per track, so it lives in its own ref rather than in uniformsRef: the rAF
   // loop reassigns uniformsRef.current wholesale every frame and would discard
   // these values if they were part of that object.
-  const { palette: keyPaletteState, unavailable: keyUnavailable } = useKeyPalette(trackFile || null);
+  const { palette: keyPaletteState, unavailable: keyUnavailable } = useKeyPalette(
+    trackFile || null,
+  );
   const keyPaletteRef = useRef(keyPaletteState);
   keyPaletteRef.current = keyPaletteState;
   const userSelectedPreset = useRef(false);
@@ -376,7 +380,11 @@ export function ShaderVisualizer({
   // endpoint addresses files by their stored name, and every uploaded file is
   // hash-prefixed (see the CHANGELOG's content-addressed naming). Passing
   // `trackName` here 404'd for all of them.
-  const { sampleAtTime: sampleSpectral, loading: spectralLoading, error: spectralError } = useSpectralTimeline(trackFile, 24);
+  const {
+    sampleAtTime: sampleSpectral,
+    loading: spectralLoading,
+    error: spectralError,
+  } = useSpectralTimeline(trackFile, 24);
   const sectionPresetRef = useRef(getSectionPreset("verse"));
   const lastSectionRef = useRef<string>("");
   const warpPresetIdRef = useRef<WarpPresetId>("deepCalm");
@@ -433,9 +441,7 @@ export function ShaderVisualizer({
       const live = audioData.current;
       // Plan 2.9 — virtual frames freeze every live input: the frame
       // must be a pure function of the analysis timeline at `elapsed`.
-      const d = isVirtual
-        ? { ...live, beat: false, bass: 0, mid: 0, treble: 0, energy: 0 }
-        : live;
+      const d = isVirtual ? { ...live, beat: false, bass: 0, mid: 0, treble: 0, energy: 0 } : live;
       const sync = lrcSyncLive?.current ?? lrcSyncPropRef.current;
       if (isVirtual) {
         phraseFlash = 0;
@@ -506,16 +512,14 @@ export function ShaderVisualizer({
             elapsed,
           );
       if (liveFrame) prevLiveRmsRef.current = liveFrame.rms;
-      const spectral =
-        sampleSpectral(elapsed) ?? liveFrame;
+      const spectral = sampleSpectral(elapsed) ?? liveFrame;
       // Plan 2.9 — virtual frames read the section from the analysis
       // timeline at the virtual time, never the live LRC sync: a live
       // section change mid-export would make two runs diverge.
       const analysisSections = analysisDataRef.current?.sections;
       const sectionType =
         isVirtual && analysisSections && analysisSections.length > 0
-          ? (analysisSections.find((s) => elapsed >= s.start && elapsed < s.end)
-              ?.type ?? "verse")
+          ? (analysisSections.find((s) => elapsed >= s.start && elapsed < s.end)?.type ?? "verse")
           : (sync?.currentSection ?? "verse");
 
       if (sectionType && sectionType !== lastSectionRef.current) {
@@ -549,10 +553,7 @@ export function ShaderVisualizer({
       // the 120 BPM + live-onset fallback.
       const processor = reactivityProcessorRef.current;
       const analysis = analysisDataRef.current;
-      const bpm =
-        analysis?.tempo_bpm && analysis.tempo_bpm > 0
-          ? analysis.tempo_bpm
-          : 120;
+      const bpm = analysis?.tempo_bpm && analysis.tempo_bpm > 0 ? analysis.tempo_bpm : 120;
       const beatTimes = analysis?.beat_times ?? [];
       // Plan 2.2: map the reactivity triad (sensitivity /
       // attack / release / beat response) plus the HUD's gain
@@ -629,7 +630,8 @@ export function ShaderVisualizer({
       // near-zero and at loud moments it hits the preset's full strength.
       const currentWarpPreset = getWarpPreset(warpPresetIdRef.current);
       const feedbackSwirl = currentWarpPreset.swirl * currentWarpPreset.audioGains.bass * baseBass;
-      const feedbackRadial = currentWarpPreset.radial * currentWarpPreset.audioGains.energy * baseEnergy;
+      const feedbackRadial =
+        currentWarpPreset.radial * currentWarpPreset.audioGains.energy * baseEnergy;
 
       uniformsRef.current = {
         bass: reactivityUniforms
@@ -738,11 +740,21 @@ export function ShaderVisualizer({
 
   const handleFxChange = useCallback((key: keyof ShaderFxValues, value: number) => {
     switch (key) {
-      case "speed": setFxSpeed(value); break;
-      case "brightness": setFxBrightness(value); break;
-      case "contrast": setFxContrast(value); break;
-      case "hue": setFxHue(value); break;
-      case "saturation": setFxSaturation(value); break;
+      case "speed":
+        setFxSpeed(value);
+        break;
+      case "brightness":
+        setFxBrightness(value);
+        break;
+      case "contrast":
+        setFxContrast(value);
+        break;
+      case "hue":
+        setFxHue(value);
+        break;
+      case "saturation":
+        setFxSaturation(value);
+        break;
     }
   }, []);
 
@@ -809,7 +821,13 @@ export function ShaderVisualizer({
         onPresetChange={handlePresetChange}
         showFx={showFx}
         onFxOpenChange={onFxOpenChange}
-        fx={{ speed: fxSpeed, brightness: fxBrightness, contrast: fxContrast, hue: fxHue, saturation: fxSaturation }}
+        fx={{
+          speed: fxSpeed,
+          brightness: fxBrightness,
+          contrast: fxContrast,
+          hue: fxHue,
+          saturation: fxSaturation,
+        }}
         onFxChange={handleFxChange}
         warpPreset={warpPin ?? "auto"}
         onWarpPresetChange={handleWarpPresetChange}
@@ -821,12 +839,18 @@ export function ShaderVisualizer({
           {trackName} · {SHADER_PRESET_INFO[preset].name}
         </span>
         {keyUnavailable && (
-          <span className="text-[10px] text-amber-300 bg-amber-900/40 px-1.5 py-0.5 rounded border border-amber-500/30" title="This track hasn't been analyzed yet — open Audio Analysis to generate beat/key data for sharper visuals.">
+          <span
+            className="text-[10px] text-amber-300 bg-amber-900/40 px-1.5 py-0.5 rounded border border-amber-500/30"
+            title="This track hasn't been analyzed yet — open Audio Analysis to generate beat/key data for sharper visuals."
+          >
             needs analysis
           </span>
         )}
         {spectralError && (
-          <span className="text-[10px] text-rose-300 bg-rose-900/40 px-1.5 py-0.5 rounded border border-rose-500/30" title={`Spectral timeline failed: ${spectralError}`}>
+          <span
+            className="text-[10px] text-rose-300 bg-rose-900/40 px-1.5 py-0.5 rounded border border-rose-500/30"
+            title={`Spectral timeline failed: ${spectralError}`}
+          >
             timeline error
           </span>
         )}

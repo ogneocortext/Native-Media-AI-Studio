@@ -104,19 +104,12 @@ export function sampleCameraTransition(
       fp[1] + (tp[1] - fp[1]) * k,
       fp[2] + (tp[2] - fp[2]) * k,
     ],
-    target: [
-      ft[0] + (tt[0] - ft[0]) * k,
-      ft[1] + (tt[1] - ft[1]) * k,
-      ft[2] + (tt[2] - ft[2]) * k,
-    ],
+    target: [ft[0] + (tt[0] - ft[0]) * k, ft[1] + (tt[1] - ft[1]) * k, ft[2] + (tt[2] - ft[2]) * k],
   };
 }
 
 /** True while a transition is still in flight. */
-export function isTransitionActive(
-  state: CameraTransitionState | null,
-  nowSec: number,
-): boolean {
+export function isTransitionActive(state: CameraTransitionState | null, nowSec: number): boolean {
   if (!state) return false;
   return nowSec - state.startSec < state.durationSec;
 }
@@ -162,11 +155,7 @@ export function computeModePose(input: ModePoseInput): CameraPose {
     case "orbit": {
       const a = elapsedSec * 0.25;
       return {
-        position: [
-          Math.sin(a) * 8 + shakeX,
-          3 + Math.sin(a * 0.5) * 0.6 + shakeY,
-          Math.cos(a) * 8,
-        ],
+        position: [Math.sin(a) * 8 + shakeX, 3 + Math.sin(a * 0.5) * 0.6 + shakeY, Math.cos(a) * 8],
         target: [0, 0.5, 0],
       };
     }
@@ -174,11 +163,7 @@ export function computeModePose(input: ModePoseInput): CameraPose {
       const t = (elapsedSec % 8) / 8;
       const k = ease("travel-balanced", t);
       return {
-        position: [
-          currentPosition[0],
-          3 - k * 0.8 + shakeY,
-          10 - k * 6,
-        ],
+        position: [currentPosition[0], 3 - k * 0.8 + shakeY, 10 - k * 6],
         target: [0, 0.5, 0],
       };
     }
@@ -189,11 +174,7 @@ export function computeModePose(input: ModePoseInput): CameraPose {
       // on the live position before sampling, so the pose
       // simply carries it (and the look target is fixed).
       return {
-        position: [
-          currentPosition[0],
-          currentPosition[1],
-          currentPosition[2],
-        ],
+        position: [currentPosition[0], currentPosition[1], currentPosition[2]],
         target: [0, 0.5, 0],
       };
     }

@@ -159,10 +159,7 @@ function brightnessAt(analysis: AudioAnalysisData, tSec: number): number {
   const curve = analysis.spectral_centroid;
   if (!curve?.length) return 0.5;
   const progress = analysis.duration_seconds > 0 ? tSec / analysis.duration_seconds : 0;
-  const index = Math.max(
-    0,
-    Math.min(curve.length - 1, Math.floor(progress * (curve.length - 1))),
-  );
+  const index = Math.max(0, Math.min(curve.length - 1, Math.floor(progress * (curve.length - 1))));
   return Math.min(1, Math.max(0, (curve[index] ?? 0) / 8000));
 }
 
@@ -246,7 +243,8 @@ const IN_BAND_TILT_DB_PER_OCTAVE = 3;
  * three flat plateaus. Brightness only tilts the *modelled* tier: in the
  * measured tier the timeline's own band energies already carry the shape.
  */
-function fillSpectrumBins(  bins: Uint8Array,
+function fillSpectrumBins(
+  bins: Uint8Array,
   bandEnergy: { sub: number; mid: number; high: number },
   tiltCenter: "low" | "flat",
   binCount: number,
@@ -362,9 +360,7 @@ export function deterministicAudioFrame(input: DeterministicFrameInput): Determi
   const measured = measuredBandsFromFrame(spectralFrame);
   const duration = analysis && analysis.duration_seconds > 0 ? analysis.duration_seconds : 1;
   const t = analysis ? Math.min(tSec, duration) : tSec;
-  const analyzedEnergy = analysis
-    ? getEnergyAtTime(analysis.energy_curve, duration, t)
-    : 0;
+  const analyzedEnergy = analysis ? getEnergyAtTime(analysis.energy_curve, duration, t) : 0;
 
   const bandEnergy = measured
     ? { sub: measured.sub, mid: measured.mid, high: measured.high }
@@ -384,7 +380,8 @@ export function deterministicAudioFrame(input: DeterministicFrameInput): Determi
   // the shape, so a tilt would only distort them. Without one, brightness is
   // the only spectral measurement available — a bright track gets a near-flat
   // spectrum, a dark one leans low, which is where the energy actually is.
-  const tiltCenter = measured || !analysis ? "flat" : brightnessAt(analysis, t) > 0.5 ? "flat" : "low";
+  const tiltCenter =
+    measured || !analysis ? "flat" : brightnessAt(analysis, t) > 0.5 ? "flat" : "low";
 
   const bins = new Uint8Array(binCount);
   fillSpectrumBins(bins, bandEnergy, tiltCenter, binCount, sampleRate);

@@ -32,7 +32,9 @@ export function OrbitalParticles({
     stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
 
     const beatTarget =
-      audioData.current.beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
+      audioData.current.beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5
+        ? 1.0
+        : 0.0;
     beatPulse.current = attackRelease(beatPulse.current, beatTarget, 0.35, 0.88, dt60);
     const snap =
       audioData.current.beatPhase != null
@@ -53,14 +55,20 @@ export function OrbitalParticles({
       shockRef.current.scale.setScalar(sScale);
       const sm = shockRef.current.material as THREE.MeshStandardMaterial;
       sm.opacity = (1 - beatPulse.current) * 0.35 + stemEnergyRef.current.drums * 0.15;
-      sm.emissiveIntensity = rolloff((1 - beatPulse.current) * 4 + stemEnergyRef.current.drums * 1.2, 1.0);
+      sm.emissiveIntensity = rolloff(
+        (1 - beatPulse.current) * 4 + stemEnergyRef.current.drums * 1.2,
+        1.0,
+      );
       sm.color.setHSL(
         energyHue(features.energy) - features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.1,
         0.9,
         0.5,
       );
       sm.emissive.setHSL(
-        energyHue(features.energy) + 0.05 - features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.08,
+        energyHue(features.energy) +
+          0.05 -
+          features.brightness * 0.2 +
+          stemEnergyRef.current.vocals * 0.08,
         1.0,
         0.4,
       );
@@ -132,9 +140,7 @@ export function EnergyWaves({
     const suckTarget = beat || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
     suckRef.current = attackRelease(suckRef.current, suckTarget, 0.4, 0.95, dt60);
     const snap =
-      audioData.current.beatPhase != null
-        ? beatSnap(audioData.current.beatPhase)
-        : suckRef.current;
+      audioData.current.beatPhase != null ? beatSnap(audioData.current.beatPhase) : suckRef.current;
     const eHue = energyHue(energy);
 
     if (!sceneFrozen)
@@ -145,7 +151,10 @@ export function EnergyWaves({
       const ds = 0.3 + bass * 0.4 + snap * 0.5 + stemEnergyRef.current.other * 0.2;
       drainRef.current.scale.setScalar(ds);
       const dm = drainRef.current.material as THREE.MeshStandardMaterial;
-      dm.emissiveIntensity = rolloff(2 + bass * 4 + peak * 3 + stemEnergyRef.current.drums * 1.5, 1.0);
+      dm.emissiveIntensity = rolloff(
+        2 + bass * 4 + peak * 3 + stemEnergyRef.current.drums * 1.5,
+        1.0,
+      );
     }
 
     if (funnelRef.current) {
@@ -174,7 +183,10 @@ export function EnergyWaves({
       const gs = 0.5 + bass * 0.6 + peak * 0.4 + snap * 0.3 + stemEnergyRef.current.vocals * 0.2;
       glowRef.current.scale.setScalar(gs);
       const gm = glowRef.current.material as THREE.MeshStandardMaterial;
-      gm.emissiveIntensity = rolloff(1 + bass * 3 + peak * 2 + stemEnergyRef.current.drums * 1, 1.0);
+      gm.emissiveIntensity = rolloff(
+        1 + bass * 3 + peak * 2 + stemEnergyRef.current.drums * 1,
+        1.0,
+      );
       gm.color.setHSL(eHue + 0.05, 0.9, 0.5);
     }
   });

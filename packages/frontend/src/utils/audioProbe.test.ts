@@ -22,8 +22,7 @@ describe("getFileExtension", () => {
 });
 
 describe("isAudioFile", () => {
-  const makeFile = (name: string, type: string): File =>
-    new File([""], name, { type });
+  const makeFile = (name: string, type: string): File => new File([""], name, { type });
 
   it("returns true when type starts with audio/", () => {
     expect(isAudioFile(makeFile("song.mp3", "audio/mpeg"))).toBe(true);

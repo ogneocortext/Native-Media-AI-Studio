@@ -37,11 +37,7 @@ export function FileGrid({
   onToggleFavorite,
 }: FileGridProps) {
   if (files.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted">
-        No files found matching your criteria
-      </div>
-    );
+    return <div className="text-center py-8 text-muted">No files found matching your criteria</div>;
   }
 
   const renderCard = (file: MediaFile) => {
@@ -64,20 +60,14 @@ export function FileGrid({
         onGenerateThumbnail={onGenerateThumbnail}
         collisionNames={collisionNames}
         className={
-          viewMode === "list"
-            ? "flex items-center gap-3 p-2 hover:bg-black/40 rounded"
-            : undefined
+          viewMode === "list" ? "flex items-center gap-3 p-2 hover:bg-black/40 rounded" : undefined
         }
       />
     );
   };
 
   if (viewMode === "list") {
-    return (
-      <div className="divide-y divide-white/5">
-        {files.map(renderCard)}
-      </div>
-    );
+    return <div className="divide-y divide-white/5">{files.map(renderCard)}</div>;
   }
 
   return (

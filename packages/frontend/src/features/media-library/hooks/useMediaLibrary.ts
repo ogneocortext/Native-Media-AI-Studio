@@ -52,7 +52,11 @@ export interface MediaLibraryOrg {
   toggleFavorite: (relativePath: string) => Promise<void>;
   isFavorite: (relativePath: string) => boolean;
   createCollection: (name: string, coverPath?: string | null) => Promise<Collection>;
-  updateCollection: (collectionId: string, name: string, coverPath?: string | null) => Promise<Collection>;
+  updateCollection: (
+    collectionId: string,
+    name: string,
+    coverPath?: string | null,
+  ) => Promise<Collection>;
   deleteCollection: (collectionId: string) => Promise<void>;
   addItemToCollection: (collectionId: string, relativePath: string) => Promise<void>;
   removeItemFromCollection: (collectionId: string, relativePath: string) => Promise<void>;
@@ -73,9 +77,7 @@ export function useMediaLibrary(): MediaLibraryOrg {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [trash, setTrash] = useState<TrashItem[]>([]);
-  const [itemCollections, setItemCollections] = useState<
-    Map<string, Collection[]>
-  >(new Map());
+  const [itemCollections, setItemCollections] = useState<Map<string, Collection[]>>(new Map());
   const [itemTags, setItemTags] = useState<Map<string, Tag[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,56 +116,50 @@ export function useMediaLibrary(): MediaLibraryOrg {
 
   // ---------- Favorites ----------
 
-  const toggleFavorite = useCallback(
-    async (relativePath: string) => {
-      const wasFav = favoritesRef.current.has(relativePath);
-      // Optimistic update
-      setFavorites((prev) => {
-        const next = new Set(prev);
-        if (wasFav) next.delete(relativePath);
-        else next.add(relativePath);
-        return next;
-      });
-      try {
-        const result = await toggleMediaFavorite(relativePath);
-        if (result.favorited !== !wasFav) {
-          // Server disagreed; revert
-          setFavorites((prev) => {
-            const next = new Set(prev);
-            if (result.favorited) next.add(relativePath);
-            else next.delete(relativePath);
-            return next;
-          });
-        }
-      } catch (e) {
-        // Revert on error
+  const toggleFavorite = useCallback(async (relativePath: string) => {
+    const wasFav = favoritesRef.current.has(relativePath);
+    // Optimistic update
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (wasFav) next.delete(relativePath);
+      else next.add(relativePath);
+      return next;
+    });
+    try {
+      const result = await toggleMediaFavorite(relativePath);
+      if (result.favorited !== !wasFav) {
+        // Server disagreed; revert
         setFavorites((prev) => {
           const next = new Set(prev);
-          if (wasFav) next.add(relativePath);
+          if (result.favorited) next.add(relativePath);
           else next.delete(relativePath);
           return next;
         });
-        throw e;
       }
-    },
-    []
-  );
+    } catch (e) {
+      // Revert on error
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (wasFav) next.add(relativePath);
+        else next.delete(relativePath);
+        return next;
+      });
+      throw e;
+    }
+  }, []);
 
   const isFavorite = useCallback(
     (relativePath: string) => favorites.has(relativePath),
-    [favorites]
+    [favorites],
   );
 
   // ---------- Collections ----------
 
-  const createNewCollection = useCallback(
-    async (name: string, coverPath?: string | null) => {
-      const created = await createCollection({ name, cover_path: coverPath });
-      setCollections((prev) => [created, ...prev]);
-      return created;
-    },
-    []
-  );
+  const createNewCollection = useCallback(async (name: string, coverPath?: string | null) => {
+    const created = await createCollection({ name, cover_path: coverPath });
+    setCollections((prev) => [created, ...prev]);
+    return created;
+  }, []);
 
   const updateExistingCollection = useCallback(
     async (collectionId: string, name: string, coverPath?: string | null) => {
@@ -171,21 +167,16 @@ export function useMediaLibrary(): MediaLibraryOrg {
         name,
         cover_path: coverPath,
       });
-      setCollections((prev) =>
-        prev.map((c) => (c.id === collectionId ? updated : c))
-      );
+      setCollections((prev) => prev.map((c) => (c.id === collectionId ? updated : c)));
       return updated;
     },
-    []
+    [],
   );
 
-  const deleteExistingCollection = useCallback(
-    async (collectionId: string) => {
-      await deleteCollection(collectionId);
-      setCollections((prev) => prev.filter((c) => c.id !== collectionId));
-    },
-    []
-  );
+  const deleteExistingCollection = useCallback(async (collectionId: string) => {
+    await deleteCollection(collectionId);
+    setCollections((prev) => prev.filter((c) => c.id !== collectionId));
+  }, []);
 
   const addItemToCollectionById = useCallback(
     async (collectionId: string, relativePath: string) => {
@@ -200,7 +191,7 @@ export function useMediaLibrary(): MediaLibraryOrg {
         return next;
       });
     },
-    [collectionsById]
+    [collectionsById],
   );
 
   const removeItemFromCollectionById = useCallback(
@@ -212,37 +203,31 @@ export function useMediaLibrary(): MediaLibraryOrg {
         if (items) {
           next.set(
             relativePath,
-            items.filter((c) => c.id !== collectionId)
+            items.filter((c) => c.id !== collectionId),
           );
         }
         return next;
       });
     },
-    []
+    [],
   );
 
-  const loadItemCollections = useCallback(
-    async (relativePath: string) => {
-      const items = await listItemCollections(relativePath);
-      setItemCollections((prev) => {
-        const next = new Map(prev);
-        next.set(relativePath, items);
-        return next;
-      });
-    },
-    []
-  );
+  const loadItemCollections = useCallback(async (relativePath: string) => {
+    const items = await listItemCollections(relativePath);
+    setItemCollections((prev) => {
+      const next = new Map(prev);
+      next.set(relativePath, items);
+      return next;
+    });
+  }, []);
 
   // ---------- Tags ----------
 
-  const createNewTag = useCallback(
-    async (name: string, color?: string) => {
-      const created = await createTag({ name, color });
-      setTags((prev) => [...prev, created]);
-      return created;
-    },
-    []
-  );
+  const createNewTag = useCallback(async (name: string, color?: string) => {
+    const created = await createTag({ name, color });
+    setTags((prev) => [...prev, created]);
+    return created;
+  }, []);
 
   const addTagToItemById = useCallback(
     async (relativePath: string, tagId: string) => {
@@ -257,79 +242,63 @@ export function useMediaLibrary(): MediaLibraryOrg {
         return next;
       });
     },
-    [tagsById]
+    [tagsById],
   );
 
-  const removeTagFromItemById = useCallback(
-    async (relativePath: string, tagId: string) => {
-      await removeItemTag(relativePath, tagId);
-      setItemTags((prev) => {
-        const next = new Map(prev);
-        const items = next.get(relativePath);
-        if (items) {
-          next.set(
-            relativePath,
-            items.filter((t) => t.id !== tagId)
-          );
-        }
-        return next;
-      });
-    },
-    []
-  );
+  const removeTagFromItemById = useCallback(async (relativePath: string, tagId: string) => {
+    await removeItemTag(relativePath, tagId);
+    setItemTags((prev) => {
+      const next = new Map(prev);
+      const items = next.get(relativePath);
+      if (items) {
+        next.set(
+          relativePath,
+          items.filter((t) => t.id !== tagId),
+        );
+      }
+      return next;
+    });
+  }, []);
 
   const setTagsForItem = useCallback(
     async (relativePath: string, tagIds: string[]) => {
       await setMediaItemTags(relativePath, tagIds);
-      const tagList = tags
-        .filter((t) => tagIds.includes(t.id));
+      const tagList = tags.filter((t) => tagIds.includes(t.id));
       setItemTags((prev) => {
         const next = new Map(prev);
         next.set(relativePath, tagList);
         return next;
       });
     },
-    [tags]
+    [tags],
   );
 
-  const loadItemTags = useCallback(
-    async (relativePath: string) => {
-      const tagList = await listItemTags(relativePath);
-      setItemTags((prev) => {
-        const next = new Map(prev);
-        next.set(relativePath, tagList);
-        return next;
-      });
-    },
-    []
-  );
+  const loadItemTags = useCallback(async (relativePath: string) => {
+    const tagList = await listItemTags(relativePath);
+    setItemTags((prev) => {
+      const next = new Map(prev);
+      next.set(relativePath, tagList);
+      return next;
+    });
+  }, []);
 
   // ---------- Trash ----------
 
-  const moveToTrashByPath = useCallback(
-    async (relativePath: string, retentionDays = 30) => {
-      const trashed = await moveItemToTrash(relativePath, retentionDays);
-      setTrash((prev) => [trashed, ...prev]);
-      return trashed;
-    },
-    []
-  );
+  const moveToTrashByPath = useCallback(async (relativePath: string, retentionDays = 30) => {
+    const trashed = await moveItemToTrash(relativePath, retentionDays);
+    setTrash((prev) => [trashed, ...prev]);
+    return trashed;
+  }, []);
 
-  const restoreTrashItem = useCallback(
-    async (relativePath: string) => {
-      await restoreFromTrash(relativePath);
-      setTrash((prev) => prev.filter((t) => t.relative_path !== relativePath));
-    },
-    []
-  );
+  const restoreTrashItem = useCallback(async (relativePath: string) => {
+    await restoreFromTrash(relativePath);
+    setTrash((prev) => prev.filter((t) => t.relative_path !== relativePath));
+  }, []);
 
-  const purgeTrashItem = useCallback(
-    async (relativePath: string) => {
-      await purgeFromTrash(relativePath);
-      setTrash((prev) => prev.filter((t) => t.relative_path !== relativePath));
-    },
-    []
-  );
+  const purgeTrashItem = useCallback(async (relativePath: string) => {
+    await purgeFromTrash(relativePath);
+    setTrash((prev) => prev.filter((t) => t.relative_path !== relativePath));
+  }, []);
 
   const emptyTrashAll = useCallback(async () => {
     await emptyTrash();

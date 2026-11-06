@@ -186,7 +186,7 @@ export function InspectorTab({
                       className="w-full h-full object-cover"
                       loading="lazy"
                       onError={(e) => {
-                        (e.currentTarget).style.display = "none";
+                        e.currentTarget.style.display = "none";
                       }}
                     />
                   </button>
@@ -222,7 +222,9 @@ export function InspectorTab({
                     setTextureGenError(err instanceof Error ? err.message : "Generation failed");
                   }
                 }}
-                disabled={!texturePrompt.trim() || generatingTexture || !object || !onGenerateTexture}
+                disabled={
+                  !texturePrompt.trim() || generatingTexture || !object || !onGenerateTexture
+                }
                 className="px-2 py-1 text-xs rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white"
               >
                 {generatingTexture ? "Generating…" : "Generate"}
@@ -247,7 +249,10 @@ export function InspectorTab({
             e.preventDefault();
             setDragOver(false);
             const file = e.dataTransfer.files[0];
-            if (file && (file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|webp|gif)$/i))) {
+            if (
+              file &&
+              (file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|webp|gif)$/i))
+            ) {
               const url = URL.createObjectURL(file);
               onUpdate(object.id, { textureUrl: url });
             }

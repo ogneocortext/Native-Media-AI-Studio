@@ -113,14 +113,7 @@ export function updateAndDrawParticles(
   }
 
   // Center glow — radial gradient from bass/phraseFlash-driven color to transparent
-  const grd = ctx.createRadialGradient(
-    w / 2,
-    h / 2,
-    0,
-    w / 2,
-    h / 2,
-    Math.min(w, h) * 0.3,
-  );
+  const grd = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.min(w, h) * 0.3);
   // Alpha byte is clamped to a byte: phraseFlash/bass are nominally 0..1 but
   // an out-of-range energy value must not emit a 3-char hex suffix.
   const alphaByte = Math.floor(Math.min(255, Math.max(0, phraseFlash * 40 + bass * 60)))

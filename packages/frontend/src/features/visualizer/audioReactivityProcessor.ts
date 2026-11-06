@@ -294,11 +294,9 @@ export class AudioReactivityProcessor {
     const prev = this.config;
     this.config = { ...prev, ...patch };
     const attackWasDefault =
-      prev.attackSmoothing === undefined ||
-      prev.attackSmoothing === prev.smoothing;
+      prev.attackSmoothing === undefined || prev.attackSmoothing === prev.smoothing;
     const releaseWasDefault =
-      prev.releaseSmoothing === undefined ||
-      prev.releaseSmoothing === prev.smoothing;
+      prev.releaseSmoothing === undefined || prev.releaseSmoothing === prev.smoothing;
     if (patch.smoothing !== undefined) {
       if (attackWasDefault) {
         this.attackAlpha = patch.smoothing;
@@ -383,8 +381,7 @@ export class AudioReactivityProcessor {
     } else {
       const windowSec = this.config.anticipationWindowSec ?? 0.12;
       const toDownbeat = this.beatWave.timeToNextDownbeat(frame.time, beatTimes);
-      this.smoothed.anticipation =
-        windowSec > 0 ? clamp01(1 - toDownbeat / windowSec) : 0;
+      this.smoothed.anticipation = windowSec > 0 ? clamp01(1 - toDownbeat / windowSec) : 0;
     }
     this.smoothed.bpm = this.lastBpm;
   }

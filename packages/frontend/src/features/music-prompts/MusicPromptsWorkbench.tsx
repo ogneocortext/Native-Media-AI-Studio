@@ -25,7 +25,11 @@ export function MusicPromptsWorkbench() {
 
   return (
     <div className="space-y-4">
-      <nav role="tablist" aria-label="Music prompt tools" className="flex gap-1 border-b border-gray-800">
+      <nav
+        role="tablist"
+        aria-label="Music prompt tools"
+        className="flex gap-1 border-b border-gray-800"
+      >
         {TABS.map((t) => (
           <button
             key={t.id}

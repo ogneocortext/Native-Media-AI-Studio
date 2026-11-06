@@ -28,7 +28,7 @@ async def _run_subprocess(args: list[str], **kwargs) -> subprocess.CompletedProc
 # Resolved via core.paths so config.comfyui_output_dir is honored.
 COMFYUI_DIR = comfyui_dir()
 COMFYUI_MAIN = COMFYUI_DIR / "main.py"
-DEFAULT_PORT = getattr(config, 'comfyui_port', 8188)
+DEFAULT_PORT = getattr(config, "comfyui_port", 8188)
 
 # ComfyUI MUST run in its own dedicated environment. Using the project venv or
 # sys.executable risks inheriting a parent bootstrapped from another project
@@ -192,8 +192,11 @@ class ComfyUIManager:
             # Get current commit
             commit = subprocess.run(
                 [git_exe, "log", "--oneline", "-1"],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, cwd=str(COMFYUI_DIR)
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                cwd=str(COMFYUI_DIR),
             )
             if commit.returncode == 0:
                 result["commit"] = commit.stdout.strip()
@@ -201,8 +204,11 @@ class ComfyUIManager:
             # Get tag/describe
             describe = subprocess.run(
                 [git_exe, "describe", "--tags", "--always"],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, cwd=str(COMFYUI_DIR)
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                cwd=str(COMFYUI_DIR),
             )
             if describe.returncode == 0:
                 result["version"] = describe.stdout.strip()
@@ -210,28 +216,34 @@ class ComfyUIManager:
             # Get branch
             branch = subprocess.run(
                 [git_exe, "branch", "--show-current"],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, cwd=str(COMFYUI_DIR)
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                cwd=str(COMFYUI_DIR),
             )
             if branch.returncode == 0:
                 result["branch"] = branch.stdout.strip()
 
             # Check if behind remote
-            subprocess.run(
-                [git_exe, "fetch", "--quiet"],
-                capture_output=True, cwd=str(COMFYUI_DIR)
-            )
+            subprocess.run([git_exe, "fetch", "--quiet"], capture_output=True, cwd=str(COMFYUI_DIR))
             ahead_behind = subprocess.run(
                 [git_exe, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, cwd=str(COMFYUI_DIR)
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                cwd=str(COMFYUI_DIR),
             )
             if ahead_behind.returncode != 0:
                 # Fall back for repos without an upstream branch configured
                 ahead_behind = subprocess.run(
                     [git_exe, "rev-list", "--left-right", "--count", "HEAD...origin/master"],
-                    encoding="utf-8", errors="replace",
-                    capture_output=True, text=True, cwd=str(COMFYUI_DIR)
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    text=True,
+                    cwd=str(COMFYUI_DIR),
                 )
             if ahead_behind.returncode == 0:
                 parts = ahead_behind.stdout.strip().split("\t")
@@ -270,7 +282,11 @@ class ComfyUIManager:
                 ],
                 capture_output=True,
             )
-            stdout = result.stdout.decode("utf-8", errors="replace").strip() if isinstance(result.stdout, bytes) else (result.stdout or "").strip()
+            stdout = (
+                result.stdout.decode("utf-8", errors="replace").strip()
+                if isinstance(result.stdout, bytes)
+                else (result.stdout or "").strip()
+            )
             output = stdout
 
             if "cuda_available: True" in output:
@@ -278,10 +294,7 @@ class ComfyUIManager:
             else:
                 # stderr not captured separately by _run_subprocess; use
                 # returncode + stdout for diagnostics instead.
-                detail = (
-                    f"torch={output or '<no stdout>'} "
-                    f"rc={result.returncode} exe={python_exe}"
-                )
+                detail = f"torch={output or '<no stdout>'} rc={result.returncode} exe={python_exe}"
                 logger.warning("ComfyUI CUDA check failed: %s", detail)
                 return {
                     "available": False,
@@ -338,9 +351,12 @@ class ComfyUIManager:
                 "message": str(e),
             }
         cmd = [
-            python_exe, str(COMFYUI_MAIN),
-            "--port", str(port),
-            "--preview-method", "auto",
+            python_exe,
+            str(COMFYUI_MAIN),
+            "--port",
+            str(port),
+            "--preview-method",
+            "auto",
             "--lowvram",
         ]
         cmd.extend(EXTRA_ARGS)
@@ -362,7 +378,8 @@ class ComfyUIManager:
             # stdout is still discarded to avoid log spam from normal ComfyUI output.
             self._process = subprocess.Popen(
                 cmd,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8",
+                errors="replace",
                 cwd=str(COMFYUI_DIR),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
@@ -515,13 +532,29 @@ class ComfyUIManager:
 
         try:
             proc = await _run_subprocess(
-                [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file), "--upgrade"],
+                [
+                    str(venv_python),
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    str(requirements_file),
+                    "--upgrade",
+                ],
                 capture_output=True,
             )
 
             result["success"] = proc.returncode == 0
-            result["output"] = proc.stdout.decode("utf-8", errors="replace").strip()[-500:] if isinstance(proc.stdout, bytes) else proc.stdout.strip()[-500:]
-            result["errors"] = proc.stderr.decode("utf-8", errors="replace").strip()[-500:] if isinstance(proc.stderr, bytes) else proc.stderr.strip()[-500:]
+            result["output"] = (
+                proc.stdout.decode("utf-8", errors="replace").strip()[-500:]
+                if isinstance(proc.stdout, bytes)
+                else proc.stdout.strip()[-500:]
+            )
+            result["errors"] = (
+                proc.stderr.decode("utf-8", errors="replace").strip()[-500:]
+                if isinstance(proc.stderr, bytes)
+                else proc.stderr.strip()[-500:]
+            )
             result["python"] = str(venv_python)
         except Exception as e:
             result["message"] = str(e)
@@ -570,8 +603,16 @@ class ComfyUIManager:
                 cwd=str(node_dir),
                 capture_output=True,
             )
-            stdout = pull.stdout.decode("utf-8", errors="replace").strip() if isinstance(pull.stdout, bytes) else (pull.stdout or "").strip()
-            stderr = pull.stderr.decode("utf-8", errors="replace").strip() if isinstance(pull.stderr, bytes) else (pull.stderr or "").strip()
+            stdout = (
+                pull.stdout.decode("utf-8", errors="replace").strip()
+                if isinstance(pull.stdout, bytes)
+                else (pull.stdout or "").strip()
+            )
+            stderr = (
+                pull.stderr.decode("utf-8", errors="replace").strip()
+                if isinstance(pull.stderr, bytes)
+                else (pull.stderr or "").strip()
+            )
 
             if pull.returncode != 0:
                 failed.append(f"{node_dir.name}: git pull failed ({stderr or stdout})")
@@ -580,14 +621,32 @@ class ComfyUIManager:
             # pip upgrade if requirements.txt exists
             if requirements_file.exists():
                 pip = await _run_subprocess(
-                    [str(venv_python), "-m", "pip", "install", "-r", str(requirements_file), "--upgrade"],
+                    [
+                        str(venv_python),
+                        "-m",
+                        "pip",
+                        "install",
+                        "-r",
+                        str(requirements_file),
+                        "--upgrade",
+                    ],
                     capture_output=True,
                 )
-                pip_stdout = pip.stdout.decode("utf-8", errors="replace").strip() if isinstance(pip.stdout, bytes) else (pip.stdout or "").strip()
-                pip_stderr = pip.stderr.decode("utf-8", errors="replace").strip() if isinstance(pip.stderr, bytes) else (pip.stderr or "").strip()
+                pip_stdout = (
+                    pip.stdout.decode("utf-8", errors="replace").strip()
+                    if isinstance(pip.stdout, bytes)
+                    else (pip.stdout or "").strip()
+                )
+                pip_stderr = (
+                    pip.stderr.decode("utf-8", errors="replace").strip()
+                    if isinstance(pip.stderr, bytes)
+                    else (pip.stderr or "").strip()
+                )
 
                 if pip.returncode != 0:
-                    failed.append(f"{node_dir.name}: pip upgrade failed ({pip_stderr or pip_stdout})")
+                    failed.append(
+                        f"{node_dir.name}: pip upgrade failed ({pip_stderr or pip_stdout})"
+                    )
                     continue
 
             updated.append(node_dir.name)
@@ -702,7 +761,9 @@ class ComfyUIManager:
             output = stdout.decode("utf-8", errors="replace").strip()
             errors = stderr.decode("utf-8", errors="replace").strip()
 
-            logger.info("Git pull result: returncode=%d, output=%s", pull_result.returncode, output[:200])
+            logger.info(
+                "Git pull result: returncode=%d, output=%s", pull_result.returncode, output[:200]
+            )
 
             if pull_result.returncode != 0:
                 return {
@@ -750,6 +811,7 @@ class ComfyUIManager:
         except Exception as e:
             logger.error("Error updating ComfyUI: %s", e, exc_info=True)
             import traceback
+
             tb = traceback.format_exc()
             return {
                 "success": False,
@@ -809,6 +871,7 @@ class ComfyUIManager:
 
         from ..core import comfyui_client as _cu
         from ..core.config import config
+
         base_url = config.comfyui_url
 
         # Legacy helper only -- sanitize the section label used in the output
@@ -846,7 +909,12 @@ class ComfyUIManager:
             },
             "5": {
                 "class_type": "EmptyLatentImage",
-                "inputs": {"width": width, "height": height, "batch_size": 1, "length": duration * 24},
+                "inputs": {
+                    "width": width,
+                    "height": height,
+                    "batch_size": 1,
+                    "length": duration * 24,
+                },
             },
             "6": {
                 "class_type": "CLIPTextEncode",
@@ -887,13 +955,21 @@ class ComfyUIManager:
                                     # Download the video
                                     try:
                                         data = await _cu.fetch_view_bytes(
-                                            base_url, video_path, video_subfolder,
-                                            session=session, timeout=60,
+                                            base_url,
+                                            video_path,
+                                            video_subfolder,
+                                            session=session,
+                                            timeout=60,
                                         )
                                     except RuntimeError:
                                         continue
                                     ext = Path(video_path).suffix or ".mp4"
-                                    output_path = PROJECT_ROOT / "output" / "video" / f"{safe_section}_{prompt_id[:8]}{ext}"
+                                    output_path = (
+                                        PROJECT_ROOT
+                                        / "output"
+                                        / "video"
+                                        / f"{safe_section}_{prompt_id[:8]}{ext}"
+                                    )
                                     output_path.parent.mkdir(parents=True, exist_ok=True)
                                     if not output_path.resolve().is_relative_to(
                                         (PROJECT_ROOT / "output" / "video").resolve()

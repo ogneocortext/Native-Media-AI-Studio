@@ -473,9 +473,7 @@ def _design_peaking(
     return b, a
 
 
-def _apply_filter_ba(
-    samples: np.ndarray, b: np.ndarray, a: np.ndarray
-) -> np.ndarray:
+def _apply_filter_ba(samples: np.ndarray, b: np.ndarray, a: np.ndarray) -> np.ndarray:
     """Apply a BA (direct-form II) filter per channel."""
     if samples.ndim == 1:
         return scipy_signal.lfilter(b, a, samples).astype(np.float32)
@@ -504,9 +502,7 @@ def _apply_compressor(
     win = max(int(0.01 * sample_rate), 1)
     mono = np.mean(samples, axis=1) if samples.ndim == 2 else samples
     n = len(mono)
-    rms = np.sqrt(
-        np.convolve(mono**2, np.ones(win) / win, mode="same") + 1e-12
-    )
+    rms = np.sqrt(np.convolve(mono**2, np.ones(win) / win, mode="same") + 1e-12)
     env_db = 20.0 * np.log10(np.maximum(rms, 1e-10))
 
     # Gain reduction: when env > threshold, reduce by (env - thresh) * (1 - 1/ratio).
@@ -562,7 +558,9 @@ def _apply_finishing_chain(
 
     for stage, freq in board:
         if stage == "highpass":
-            sos = scipy_signal.butter(2, min(freq / (sample_rate / 2), 0.99), btype="high", output="sos")
+            sos = scipy_signal.butter(
+                2, min(freq / (sample_rate / 2), 0.99), btype="high", output="sos"
+            )
             samples = _apply_sos(samples, sos)
         elif stage == "lowshelf":
             b, a = _design_lowshelf(sample_rate, freq, -sub_cut_db, FINISHING_LOW_SHELF_Q)

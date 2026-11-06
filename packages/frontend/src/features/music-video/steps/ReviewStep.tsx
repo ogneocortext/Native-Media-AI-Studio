@@ -1,26 +1,6 @@
 import { useState } from "react";
 import { AudioTransport } from "../../../components/audio";
-import {
-  
-  
-  
-  
-  Play,
-  
-  Download,
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  CheckCircle2,
-  
-  
-} from "lucide-react";
+import { Play, Download, CheckCircle2 } from "lucide-react";
 import type { AudioAnalysis } from "../types";
 
 export function ReviewStep({
@@ -45,7 +25,7 @@ export function ReviewStep({
           </p>
         </div>
         <span className="hidden md:inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 shrink-0">
-          <CheckCircle2 size={12} />           {generatedSections.length || (analysis?.sections.length ?? 0)}{" "}
+          <CheckCircle2 size={12} /> {generatedSections.length || (analysis?.sections.length ?? 0)}{" "}
           sections
         </span>
       </div>
@@ -73,7 +53,9 @@ export function ReviewStep({
           </div>
         ))}
       </div>
-      {audioUrl && <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />}
+      {audioUrl && (
+        <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />
+      )}
       <button
         onClick={() => setShowExport(true)}
         className="mt-3 w-full md:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl flex items-center gap-2 font-semibold mx-auto"

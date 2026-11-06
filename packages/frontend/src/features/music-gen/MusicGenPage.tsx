@@ -123,19 +123,11 @@ export function MusicGenPage() {
               </span>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={startService}
-                disabled={busy}
-                className={DS.btnPrimary}
-              >
+              <button onClick={startService} disabled={busy} className={DS.btnPrimary}>
                 <Play size={14} />
                 Start
               </button>
-              <button
-                onClick={stopService}
-                disabled={busy}
-                className={DS.btnSecondary}
-              >
+              <button onClick={stopService} disabled={busy} className={DS.btnSecondary}>
                 <Square size={14} />
                 Stop
               </button>

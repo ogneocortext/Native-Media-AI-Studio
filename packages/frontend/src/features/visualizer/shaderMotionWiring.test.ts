@@ -127,7 +127,7 @@ describe("shader motion composition — onset moves the camera", () => {
     for (let i = 0; i < 30; i++) {
       resolveMotion(
         buildShaderMotionInput({
-          nowSec: (i / 60),
+          nowSec: i / 60,
           dtSec: 1 / 60,
           bpm: 120,
           spectral: FRAME,

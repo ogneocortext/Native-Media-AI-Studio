@@ -3,6 +3,7 @@ Dynamic port manager - handles port discovery and assignment.
 Avoids conflicts with other running services.
 Implements the dynamic port resolution system per Guidelines.md section 4.1.
 """
+
 import asyncio
 import json
 import logging
@@ -63,7 +64,7 @@ class PortManager:
 
     def _save_state(self):
         """Save port state to storage"""
-        with open(self._state_file, 'w') as f:
+        with open(self._state_file, "w") as f:
             json.dump(self._ports, f, indent=2)
 
     def is_port_available(self, port: int, host: str = "127.0.0.1") -> bool:
@@ -78,7 +79,7 @@ class PortManager:
 
     async def _check_port_via_go_ports(self, port: int) -> bool | None:
         """Query go-ports for port availability. Returns True/False, or None if go-ports is unreachable."""
-        go_ports_url = getattr(config, 'go_ports_url', '')
+        go_ports_url = getattr(config, "go_ports_url", "")
         if not go_ports_url:
             return None
         try:
@@ -104,7 +105,9 @@ class PortManager:
         for offset in range(max_attempts):
             port = start_port + offset
             go_ports_result = await self._check_port_via_go_ports(port)
-            available = go_ports_result if go_ports_result is not None else self.is_port_available(port)
+            available = (
+                go_ports_result if go_ports_result is not None else self.is_port_available(port)
+            )
             if available:
                 return port
         raise RuntimeError(f"No available ports found from {start_port}")
@@ -129,12 +132,7 @@ class PortManager:
 
         try:
             # Minimal HTTP/1.1 GET to the health endpoint.
-            request = (
-                "GET /api/health HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            )
+            request = "GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
             writer.write(request.encode())
             await writer.drain()
 
@@ -172,15 +170,16 @@ class PortManager:
         try:
             # Use netstat to find processes on the port
             result = subprocess.run(
-                ['netstat', '-ano'],
-                encoding="utf-8", errors="replace",
+                ["netstat", "-ano"],
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=10,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
 
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if f":{port}" in line and "LISTENING" in line:
                     parts = line.split()
                     if len(parts) >= 5:
@@ -190,7 +189,11 @@ class PortManager:
                                 continue  # never kill ourselves
                             # Check if it's a Python process
                             if self._is_python_process(pid):
-                                logger.warning("Killing orphaned Python process (PID: %d) on port %d", pid, port)
+                                logger.warning(
+                                    "Killing orphaned Python process (PID: %d) on port %d",
+                                    pid,
+                                    port,
+                                )
                                 self._kill_process(pid)
                                 killed = True
                         except (ValueError, IndexError):
@@ -208,31 +211,33 @@ class PortManager:
         try:
             # Get process name on Windows
             result = subprocess.run(
-                ['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'],
-                encoding="utf-8", errors="replace",
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
 
             if result.returncode == 0:
                 process_info = result.stdout.strip().lower()
                 # Check for python.exe or pythonw.exe
-                return 'python' in process_info
+                return "python" in process_info
 
             # Fallback: try wmic
             result = subprocess.run(
-                ['wmic', 'process', 'where', f'ProcessId={pid}', 'get', 'name'],
-                encoding="utf-8", errors="replace",
+                ["wmic", "process", "where", f"ProcessId={pid}", "get", "name"],
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 text=True,
                 timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
 
             if result.returncode == 0:
-                return 'python' in result.stdout.lower()
+                return "python" in result.stdout.lower()
 
         except Exception:
             pass
@@ -243,10 +248,10 @@ class PortManager:
         """Kill a process by PID"""
         try:
             subprocess.run(
-                ['taskkill', '/PID', str(pid), '/F'],
+                ["taskkill", "/PID", str(pid), "/F"],
                 capture_output=True,
                 timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
         except Exception as e:
             logger.warning(f"Failed to kill process {pid}: {e}")
@@ -265,7 +270,9 @@ class PortManager:
         """
         # Step 1: Try default port first -- prefer go-ports if available
         go_ports_result = await self._check_port_via_go_ports(default_port)
-        port_available = go_ports_result if go_ports_result is not None else self.is_port_available(default_port)
+        port_available = (
+            go_ports_result if go_ports_result is not None else self.is_port_available(default_port)
+        )
         if port_available:
             self._ports[service] = default_port
             self._save_state()
@@ -293,7 +300,11 @@ class PortManager:
 
             # Check again after cleanup
             go_ports_result = await self._check_port_via_go_ports(default_port)
-            port_available = go_ports_result if go_ports_result is not None else self.is_port_available(default_port)
+            port_available = (
+                go_ports_result
+                if go_ports_result is not None
+                else self.is_port_available(default_port)
+            )
             if port_available:
                 self._ports[service] = default_port
                 self._save_state()
@@ -400,7 +411,7 @@ class PortManager:
 
         # newline="\n" keeps the file LF-only so we don't churn a tracked,
         # LF-committed file with CRLF byte changes on every backend boot.
-        with open(self._config_file, 'w', newline="\n") as f:
+        with open(self._config_file, "w", newline="\n") as f:
             json.dump(merged, f, indent=2)
             f.write("\n")
 

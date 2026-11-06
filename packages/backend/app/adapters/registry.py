@@ -239,9 +239,7 @@ class AdapterRegistry:
         try:
             await adapter.close()
         except Exception:
-            logger.warning(
-                "adapter.close_failed", adapter=getattr(adapter, "name", "?")
-            )
+            logger.warning("adapter.close_failed", adapter=getattr(adapter, "name", "?"))
 
     def set_mock_mode(self, *, enabled: bool):
         """Enable or disable mock mode for all adapters.

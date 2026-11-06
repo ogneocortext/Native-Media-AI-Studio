@@ -136,14 +136,15 @@ export function useVisualizerLifecycle({
     setCharacterVisible,
     setModeFade,
   } = setters;
+  const { audioElRef, audioElapsedRef, prevModeRef, testStateRef, prevTestState } = refs;
   const {
-    audioElRef,
-    audioElapsedRef,
-    prevModeRef,
-    testStateRef,
-    prevTestState,
-  } = refs;
-  const { togglePlayPause, cycleVizMode, toggleFocusMode, toggleOverlay, handleAnalyzeTrack, handleSelectLibraryTrack } = api;
+    togglePlayPause,
+    cycleVizMode,
+    toggleFocusMode,
+    toggleOverlay,
+    handleAnalyzeTrack,
+    handleSelectLibraryTrack,
+  } = api;
 
   // DEV-ONLY keyboard shortcuts: Ctrl+Shift+T toggles the test panel,
   // Ctrl+Shift+A analyzes the selected track. Not reachable in production
@@ -175,8 +176,7 @@ export function useVisualizerLifecycle({
   const handleLoopToggle = useCallback(() => {
     const el = audioElRef.current;
     const duration = el?.duration;
-    if (!el || duration === undefined || !Number.isFinite(duration) || duration <= 0)
-      return;
+    if (!el || duration === undefined || !Number.isFinite(duration) || duration <= 0) return;
     const now = audioElapsedRef.current;
     if (loopRegion) {
       setLoopRegion(null);
@@ -197,9 +197,7 @@ export function useVisualizerLifecycle({
   // paint over the always-mounted 3D canvas, so scan in reverse DOM
   // order — ties resolve to the canvas on top.
   const captureFrame = useCallback(() => {
-    const canvases = Array.from(
-      document.querySelectorAll<HTMLCanvasElement>(".viz-page canvas"),
-    );
+    const canvases = Array.from(document.querySelectorAll<HTMLCanvasElement>(".viz-page canvas"));
     let best: HTMLCanvasElement | null = null;
     let bestArea = 0;
     for (let i = canvases.length - 1; i >= 0; i--) {

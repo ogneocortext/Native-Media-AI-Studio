@@ -153,9 +153,7 @@ class BlenderService:
         Returns:
             Result dictionary from Blender.
         """
-        logger.info(
-            "Blender service: Assigning %s to %s", material_name, object_name
-        )
+        logger.info("Blender service: Assigning %s to %s", material_name, object_name)
         return await self._adapter.set_material(object_name, material_name)
 
     # ------------------------------------------------------------------

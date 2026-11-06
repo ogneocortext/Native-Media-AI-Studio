@@ -130,7 +130,10 @@ describe("1. anticipation-contract", () => {
     expect(justAfter.snapped).toBe(true);
     expect(justAfter.scale).toBeGreaterThan(DEFAULT_ANTICIPATION.minScale);
     // Past the release window it is fully at rest and no longer "snapping".
-    const later = anticipationContract(4.0 + DEFAULT_ANTICIPATION.snapOutDurationMs / 1000 + 0.01, beat);
+    const later = anticipationContract(
+      4.0 + DEFAULT_ANTICIPATION.snapOutDurationMs / 1000 + 0.01,
+      beat,
+    );
     expect(later.snapped).toBe(false);
     expect(later.scale).toBeCloseTo(1, 6);
   });
@@ -148,7 +151,7 @@ describe("2. squash-impact", () => {
   it("is anisotropic, not a uniform zoom", () => {
     // The amateur tell this move exists to fix: uniform XYZ scale on a kick
     // reads as a 2D camera zoom, not as mass.
-    const [, y, ] = squashImpact(0);
+    const [, y] = squashImpact(0);
     const [x, , z] = squashImpact(0);
     expect(x).toBeCloseTo(z, 9);
     expect(y).not.toBeCloseTo(x, 3);
@@ -273,7 +276,7 @@ describe("5. orbital-ratchet", () => {
   it("steps forward by stepAngle per hit", () => {
     const one = orbitalRatchet(0.0, 1);
     const two = orbitalRatchet(0.0, 2);
-    expect(two - one).toBeCloseTo(2 * Math.PI / 32, 9);
+    expect(two - one).toBeCloseTo((2 * Math.PI) / 32, 9);
   });
 
   it("advances as hats accumulate", () => {
@@ -510,7 +513,7 @@ describe("impulse-decay trigger (amateur tell #1)", () => {
   it("always stays within [0,1]", () => {
     const t = new ImpulseTrigger();
     for (let i = 0; i < 300; i++) {
-      const v = t.update(i % 7 === 0 ? 1 : i % 13 / 13, dt, i * dt);
+      const v = t.update(i % 7 === 0 ? 1 : (i % 13) / 13, dt, i * dt);
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(1);
       expect(Number.isNaN(v)).toBe(false);
@@ -579,9 +582,7 @@ describe("sectionMotionProfile", () => {
   });
 
   it("is case- and whitespace-insensitive", () => {
-    expect(sectionMotionProfile("  chorus ").label).toBe(
-      sectionMotionProfile("CHORUS").label,
-    );
+    expect(sectionMotionProfile("  chorus ").label).toBe(sectionMotionProfile("CHORUS").label);
   });
 
   it("falls back to verse for unknown or missing labels", () => {

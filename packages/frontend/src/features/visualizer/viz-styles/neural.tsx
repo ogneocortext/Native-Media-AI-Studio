@@ -142,7 +142,10 @@ export function FrequencyRings({
       // Scale pulses dramatically on beats + onset
       const baseScale = 0.06 + freq * 0.15;
       const beatScale =
-        beatPulse.current * 0.4 + features.onset * 0.3 + stemEnergyRef.current.drums * 0.2 + snap * 0.25;
+        beatPulse.current * 0.4 +
+        features.onset * 0.3 +
+        stemEnergyRef.current.drums * 0.2 +
+        snap * 0.25;
       node.scale.setScalar(baseScale + beatScale);
       if (isWebGPU && nodeMat) {
         updateAudioReactiveMaterialTSL(
@@ -155,7 +158,13 @@ export function FrequencyRings({
         // Rolloff-capped emissive so loud frames keep node detail
         m.emissiveIntensity =
           0.3 +
-          rolloff(freq * vizParams.glowIntensity * 3 + beatPulse.current * 2 + features.onset * 2.5 + stemEnergyRef.current.drums * 1.5, 1.0);
+          rolloff(
+            freq * vizParams.glowIntensity * 3 +
+              beatPulse.current * 2 +
+              features.onset * 2.5 +
+              stemEnergyRef.current.drums * 1.5,
+            1.0,
+          );
         // Energy-driven color: hue follows the cool→warm field
         m.color.setHSL(
           eHue +
@@ -164,10 +173,16 @@ export function FrequencyRings({
             features.brightness * 0.2 +
             stemEnergyRef.current.vocals * 0.12,
           0.9,
-          0.5 + gammaDrive(features.brightness) * 0.2 + gammaDrive(stemEnergyRef.current.other) * 0.1,
+          0.5 +
+            gammaDrive(features.brightness) * 0.2 +
+            gammaDrive(stemEnergyRef.current.other) * 0.1,
         );
         m.emissive.setHSL(
-          eHue + 0.05 + freq * 0.2 + features.brightness * 0.15 + stemEnergyRef.current.vocals * 0.08,
+          eHue +
+            0.05 +
+            freq * 0.2 +
+            features.brightness * 0.15 +
+            stemEnergyRef.current.vocals * 0.08,
           1.0,
           0.4 + beatPulse.current * 0.4,
         );
@@ -224,7 +239,10 @@ export function FrequencyRings({
       } else {
         const sm = shockRef.current.material as THREE.MeshStandardMaterial;
         sm.opacity = (1 - beatPulse.current) * 0.4 + stemEnergyRef.current.drums * 0.2;
-        sm.emissiveIntensity = rolloff((1 - beatPulse.current) * 3 + stemEnergyRef.current.drums * 2, 1.0);
+        sm.emissiveIntensity = rolloff(
+          (1 - beatPulse.current) * 3 + stemEnergyRef.current.drums * 2,
+          1.0,
+        );
         sm.color.setHSL(eHue + 0.15, 0.9, 0.55);
       }
     }

@@ -18,11 +18,7 @@ interface DuplicatesPanelProps {
   onRefetch: () => void;
 }
 
-export function DuplicatesPanel({
-  isOpen,
-  onClose,
-  onRefetch,
-}: DuplicatesPanelProps) {
+export function DuplicatesPanel({ isOpen, onClose, onRefetch }: DuplicatesPanelProps) {
   if (!isOpen) return null;
 
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
@@ -67,14 +63,14 @@ export function DuplicatesPanel({
         })
         .finally(() => setDeleting(false));
     },
-    [onRefetch, findDuplicates]
+    [onRefetch, findDuplicates],
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === "Escape") onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   const totalWasted = groups.reduce((sum, g) => sum + g.wasted_bytes, 0);
@@ -97,23 +93,15 @@ export function DuplicatesPanel({
             <AlertTriangle size={20} className="text-yellow-400" />
             Duplicate Groups
           </h3>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-white"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="text-muted hover:text-white" aria-label="Close">
             <X size={18} />
           </button>
         </div>
 
-        {loading && (
-          <div className="p-8 text-center text-muted">Scanning for duplicates…</div>
-        )}
+        {loading && <div className="p-8 text-center text-muted">Scanning for duplicates…</div>}
 
         {!loading && groups.length === 0 && (
-          <div className="p-8 text-center text-muted">
-            No exact duplicates found.
-          </div>
+          <div className="p-8 text-center text-muted">No exact duplicates found.</div>
         )}
 
         {!loading && groups.length > 0 && (
@@ -122,24 +110,17 @@ export function DuplicatesPanel({
               <span className="text-xs font-semibold text-muted">
                 {groups.length} group{groups.length !== 1 ? "s" : " found"}
               </span>
-              <span className="text-xs text-yellow-400 font-mono">
-                {totalWasted} bytes wasted
-              </span>
+              <span className="text-xs text-yellow-400 font-mono">{totalWasted} bytes wasted</span>
             </div>
 
             {groups.map((group, gi) => (
-              <div
-                key={gi}
-                className="border border-white/10 rounded-lg p-3 bg-black/40"
-              >
+              <div key={gi} className="border border-white/10 rounded-lg p-3 bg-black/40">
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <span className="text-xs text-yellow-400 font-mono">
                       #{group.hash.slice(0, 12)}
                     </span>
-                    <span className="ml-2 text-xs text-muted">
-                      • {group.files.length} files
-                    </span>
+                    <span className="ml-2 text-xs text-muted">• {group.files.length} files</span>
                   </div>
                   <button
                     onClick={() => keepOldestDeleteRest(group)}
@@ -157,11 +138,7 @@ export function DuplicatesPanel({
                 </div>
                 <div className="text-xs text-gray-400 space-y-1 ml-4">
                   {group.files.map((fp, fi) => (
-                    <div
-                      key={fi}
-                      className="flex items-center gap-2 truncate"
-                      title={fp}
-                    >
+                    <div key={fi} className="flex items-center gap-2 truncate" title={fp}>
                       {fi === 0 ? (
                         <span className="text-green-400 text-[10px]">▸ keep</span>
                       ) : (

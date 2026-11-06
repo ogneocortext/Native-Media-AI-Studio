@@ -42,19 +42,39 @@ class MusicPromptBrief(BaseModel):
     genre: str = Field("", max_length=200)
     mood: str = Field("", max_length=200)
     tempo: str = Field("", max_length=100)
-    key: str = Field("", max_length=50, description="Musical key, e.g. G major / D minor (Lyria, MiniMax)")
+    key: str = Field(
+        "", max_length=50, description="Musical key, e.g. G major / D minor (Lyria, MiniMax)"
+    )
     vocal: str = Field("", max_length=200)
     instruments: str = Field("", max_length=300)
     language: str = Field("English", max_length=50)
-    dialect: str = Field("General American", max_length=100, description="Sung dialect, e.g. General American, Southern American, AAVE")
-    tricky_words: str = Field("", max_length=500, description="Comma-separated words that stumbled before -- model respells or replaces them")
+    dialect: str = Field(
+        "General American",
+        max_length=100,
+        description="Sung dialect, e.g. General American, Southern American, AAVE",
+    )
+    tricky_words: str = Field(
+        "",
+        max_length=500,
+        description="Comma-separated words that stumbled before -- model respells or replaces them",
+    )
     duration: str = Field("", max_length=100)
     extra: str = Field("", max_length=1000)
     exclude: str = Field("", max_length=300, description="Suno Exclude Styles / things to avoid")
-    use_case: str = Field("", max_length=300, description="Where the track will be used (loop, film, game, ...)")
-    instrumental: bool = Field(default=False, description="No vocals: lyrics empty, prompt carries the arrangement")
-    timeline: bool = Field(default=False, description="Lyria 3.5: timestamp [mm:ss] timeline for video scoring")
-    lyric_style: str = Field("", max_length=200, description="Lyric writing style: poetic, conversational, storytelling, minimal, fragmented, narrative, or a genre like melodic rap / alt R&B / phonk / pop / drill / afrobeat / country / latin / indie folk / edm")
+    use_case: str = Field(
+        "", max_length=300, description="Where the track will be used (loop, film, game, ...)"
+    )
+    instrumental: bool = Field(
+        default=False, description="No vocals: lyrics empty, prompt carries the arrangement"
+    )
+    timeline: bool = Field(
+        default=False, description="Lyria 3.5: timestamp [mm:ss] timeline for video scoring"
+    )
+    lyric_style: str = Field(
+        "",
+        max_length=200,
+        description="Lyric writing style: poetic, conversational, storytelling, minimal, fragmented, narrative, or a genre like melodic rap / alt R&B / phonk / pop / drill / afrobeat / country / latin / indie folk / edm",
+    )
 
 
 class MusicPromptRequest(BaseModel):
@@ -146,14 +166,14 @@ async def generate(req: MusicPromptRequest) -> dict[str, Any]:
     char counts, platform, model_used, spec.
     """
     if req.platform not in SUPPORTED_PLATFORMS:
-        raise HTTPException(400, f"Unknown platform '{req.platform}'. Use one of {list(SUPPORTED_PLATFORMS)}")
+        raise HTTPException(
+            400, f"Unknown platform '{req.platform}'. Use one of {list(SUPPORTED_PLATFORMS)}"
+        )
     model = (req.model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
     if len(model) > 100 or any(c in model for c in (";", "&", "|", "`", "$", "\n")):
         raise HTTPException(400, "Invalid model name")
     try:
-        return await generate_music_prompt(
-            req.platform, req.brief.model_dump(), model=model
-        )
+        return await generate_music_prompt(req.platform, req.brief.model_dump(), model=model)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:  # pragma: no cover - runtime Ollama failure
@@ -176,9 +196,7 @@ async def analyze_reference(file: UploadFile = File(...)) -> AnalyzeReferenceRes
     -- never a 500. The frontend can still pre-fill the form from manual fields.
     """
     if not ANALYZE_SCRIPT.exists():
-        return AnalyzeReferenceResponse(
-            error="analyze script not available on this server"
-        )
+        return AnalyzeReferenceResponse(error="analyze script not available on this server")
 
     # Stream upload to a temp file with a size cap.
     digest = hashlib.sha256()
@@ -213,25 +231,19 @@ async def analyze_reference(file: UploadFile = File(...)) -> AnalyzeReferenceRes
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, _stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=120
-            )
+            stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         except TimeoutError:
             proc.kill()
             await proc.wait()
             return AnalyzeReferenceResponse(error="Analysis timed out")
 
         if proc.returncode != 0:
-            return AnalyzeReferenceResponse(
-                error=f"Analyzer failed (exit {proc.returncode})"
-            )
+            return AnalyzeReferenceResponse(error=f"Analyzer failed (exit {proc.returncode})")
 
         try:
             res = json.loads(stdout.decode("utf-8").strip())
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            return AnalyzeReferenceResponse(
-                error=f"Failed to parse analysis output: {exc}"
-            )
+            return AnalyzeReferenceResponse(error=f"Failed to parse analysis output: {exc}")
 
         band_energy = res.get("band_energy_pct") or {}
         return AnalyzeReferenceResponse(

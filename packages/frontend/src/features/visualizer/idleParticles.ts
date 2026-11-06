@@ -63,13 +63,7 @@ export function updateIdleParticles(
     p.x += p.vx * motionScale;
     p.y += p.vy * motionScale;
     p.life -= 0.002 * motionScale;
-    if (
-      p.life <= 0 ||
-      p.x < -20 ||
-      p.x > w + 20 ||
-      p.y < -20 ||
-      p.y > h + 20
-    ) {
+    if (p.life <= 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
       particles.splice(i, 1);
     }
   }

@@ -116,9 +116,7 @@ def _write_preview_meta(wav_path: Path, warnings: list[str]) -> None:
     ``warnings: []`` for a recipe whose first render warned, which is a
     different answer for the same input.
     """
-    _preview_meta_path(wav_path).write_text(
-        json.dumps({"warnings": warnings}), encoding="utf-8"
-    )
+    _preview_meta_path(wav_path).write_text(json.dumps({"warnings": warnings}), encoding="utf-8")
 
 
 def _read_preview_warnings(wav_path: Path) -> list[str]:
@@ -226,7 +224,9 @@ def _near_silent_detail(layer: RemixLayer, rms: float, bar_seconds: float) -> di
     }
 
 
-def _masking_warnings(slot_index: int, layers: list[RemixLayer]) -> tuple[list[str], list[dict[str, Any]]]:
+def _masking_warnings(
+    slot_index: int, layers: list[RemixLayer]
+) -> tuple[list[str], list[dict[str, Any]]]:
     """Frequency-slotting warnings (knowledge: mashup-arrangement-theory section4).
 
     Two layers in the same band mask each other: louder but muddier, not
@@ -254,7 +254,10 @@ def _masking_warnings(slot_index: int, layers: list[RemixLayer]) -> tuple[list[s
             }
         )
     other = by_stem.get("other", [])
-    if len(other) >= 2 and max(lyr.gain_db for lyr in other) - min(lyr.gain_db for lyr in other) <= 6.0:
+    if (
+        len(other) >= 2
+        and max(lyr.gain_db for lyr in other) - min(lyr.gain_db for lyr in other) <= 6.0
+    ):
         refs = " + ".join(f"{lyr.track}/other" for lyr in other)
         warnings.append(
             f"slot {slot_index + 1}: two 'other' stems at similar gain ({refs}) -- "

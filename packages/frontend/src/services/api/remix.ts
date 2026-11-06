@@ -289,9 +289,7 @@ export async function draftRemixFromPrompt(
  * with `awaitRemixJob`, or cancel it with `cancelRemixJob` - the job
  * id is what makes a 7-23 s render stoppable.
  */
-export async function startBuildRemix(
-  recipe: RemixRecipeSpec,
-): Promise<RemixJobAccepted> {
+export async function startBuildRemix(recipe: RemixRecipeSpec): Promise<RemixJobAccepted> {
   const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/build`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -343,14 +341,8 @@ export async function getRemixJob(jobId: string): Promise<RemixJobStatus> {
 
 /** Recent jobs, newest first. */
 export async function listRemixJobs(): Promise<RemixJobStatus[]> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/jobs`,
-    { timeout: 10000 },
-  );
-  const body = await unwrap<{ jobs: RemixJobStatus[] }>(
-    res,
-    "Failed to list remix jobs",
-  );
+  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/jobs`, { timeout: 10000 });
+  const body = await unwrap<{ jobs: RemixJobStatus[] }>(res, "Failed to list remix jobs");
   return body.jobs;
 }
 
@@ -396,11 +388,7 @@ export class RemixCancelledError extends Error {
 export async function awaitRemixJob(jobId: string): Promise<RemixJobStatus> {
   for (;;) {
     const status = await getRemixJob(jobId);
-    if (
-      status.state !== "queued" &&
-      status.state !== "running" &&
-      status.state !== "cancelling"
-    ) {
+    if (status.state !== "queued" && status.state !== "running" && status.state !== "cancelling") {
       return status;
     }
     // The backend caps a wedged job and reports it failed, and a
@@ -499,11 +487,7 @@ export async function enhanceRemix(
  * means the current one. The backend 404s an unknown version rather than
  * answering with the current render, so a stale button fails loudly.
  */
-export function remixFileUrl(
-  name: string,
-  which: StemName | "master",
-  version?: number,
-): string {
+export function remixFileUrl(name: string, which: StemName | "master", version?: number): string {
   const base = `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/file/${which}`;
   return version ? `${base}?version=${version}` : base;
 }

@@ -85,9 +85,7 @@ def increment_visualization_preset_usage(preset_id: str) -> None:
 def delete_visualization_preset(preset_id: str) -> bool:
     """Delete a visualization preset. Returns True if deleted."""
     with get_db() as conn:
-        cursor = conn.execute(
-            "DELETE FROM visualization_presets WHERE id = ?", (preset_id,)
-        )
+        cursor = conn.execute("DELETE FROM visualization_presets WHERE id = ?", (preset_id,))
         return cursor.rowcount > 0
 
 
@@ -100,9 +98,7 @@ def get_all_visualization_presets() -> list[dict]:
         return [_row_to_viz_preset(row) for row in rows]
 
 
-def find_similar_preset(
-    track_name: str, mood_tags: list, genre_tags: list
-) -> dict | None:
+def find_similar_preset(track_name: str, mood_tags: list, genre_tags: list) -> dict | None:
     """Find a similar preset based on track characteristics."""
     if not mood_tags and not genre_tags:
         return None

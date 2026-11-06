@@ -488,7 +488,9 @@ export function Sidebar() {
         return overall === "degraded" ? "Degraded" : "Online";
       case "offline":
         return "Offline";
-      case "unknown": { throw new Error('Not implemented yet: "unknown" case') }
+      case "unknown": {
+        throw new Error('Not implemented yet: "unknown" case');
+      }
       default:
         return "Unknown";
     }

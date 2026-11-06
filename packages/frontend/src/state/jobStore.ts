@@ -6,9 +6,7 @@
 import { create } from "zustand";
 import { useMemo } from "react";
 import { fetchPortConfig } from "../services/portConfig";
-import type {
-  Job,
-  QueueStats} from "../services/api";
+import type { Job, QueueStats } from "../services/api";
 import {
   fetchJobs,
   fetchQueueStats,
@@ -115,10 +113,7 @@ export const useJobStore = create<JobState>((set, get) => ({
 
       // allSettled: one failed call doesn't abort the other — we refresh what
       // we can and report the rest.
-      const [jobsResult, statsResult] = await Promise.allSettled([
-        fetchJobs(),
-        fetchQueueStats(),
-      ]);
+      const [jobsResult, statsResult] = await Promise.allSettled([fetchJobs(), fetchQueueStats()]);
 
       if (jobsResult.status === "fulfilled") {
         get().setJobs(jobsResult.value);
@@ -321,7 +316,7 @@ function handleSSEMessage(
   // Route to toast based on priority
   const shouldToast = priority === "urgent" || priority === "high";
   if (shouldToast) {
-    const jobStatus = (nestedJob?.status ?? data.status) ?? eventName;
+    const jobStatus = nestedJob?.status ?? data.status ?? eventName;
     const toastType = priority === "urgent" ? "error" : "success";
     const toastMessage =
       typeof nestedJob?.message === "string"
@@ -358,15 +353,15 @@ function handleSSEMessage(
       {
         // Prefer the full nested job object when present, otherwise the flat fields
         const updates: Partial<Job> = nestedJob ?? {
-              status: data.status as JobStatus,
-              progress: data.progress as number,
-              message: data.message as string,
-              error: data.error as string,
-              started_at: data.started_at as string,
-              completed_at: data.completed_at as string,
-              result: data.result as Record<string, unknown>,
-              output_path: data.output_path as string,
-            };
+          status: data.status as JobStatus,
+          progress: data.progress as number,
+          message: data.message as string,
+          error: data.error as string,
+          started_at: data.started_at as string,
+          completed_at: data.completed_at as string,
+          result: data.result as Record<string, unknown>,
+          output_path: data.output_path as string,
+        };
         updates.id = jobId;
 
         // Update the job with the new data
@@ -433,10 +428,7 @@ export const useSelectedJob = () => {
   const selectedJobId = useJobStore((state) => state.selectedJobId);
   // useMemo so components re-render only when the selected job actually changes,
   // not on every store update.
-  return useMemo(
-    () => jobs.find((j) => j.id === selectedJobId) ?? null,
-    [jobs, selectedJobId],
-  );
+  return useMemo(() => jobs.find((j) => j.id === selectedJobId) ?? null, [jobs, selectedJobId]);
 };
 
 /** Subscribe to all job actions (stable reference, doesn't re-render on state change) */

@@ -119,12 +119,8 @@ class SpectralBandAnalyzer:
         self.sub_env = BandEnvelope(attack=attack, decay=decay)
         self.mid_env = BandEnvelope(attack=attack, decay=decay)
         self.high_env = BandEnvelope(attack=attack, decay=decay)
-        self.sub_transient = TransientDetector(
-            threshold=transient_threshold, decay=transient_decay
-        )
-        self.mid_transient = TransientDetector(
-            threshold=transient_threshold, decay=transient_decay
-        )
+        self.sub_transient = TransientDetector(threshold=transient_threshold, decay=transient_decay)
+        self.mid_transient = TransientDetector(threshold=transient_threshold, decay=transient_decay)
         self.high_transient = TransientDetector(
             threshold=transient_threshold, decay=transient_decay
         )
@@ -147,9 +143,15 @@ class SpectralBandAnalyzer:
         mid_mask = (freqs >= MID_BAND[0]) & (freqs < MID_BAND[1])
         high_mask = (freqs >= HIGH_BAND[0]) & (freqs < HIGH_BAND[1])
 
-        sub_energy = np.mean(stft[sub_mask, :], axis=0) if np.any(sub_mask) else np.zeros(stft.shape[1])
-        mid_energy = np.mean(stft[mid_mask, :], axis=0) if np.any(mid_mask) else np.zeros(stft.shape[1])
-        high_energy = np.mean(stft[high_mask, :], axis=0) if np.any(high_mask) else np.zeros(stft.shape[1])
+        sub_energy = (
+            np.mean(stft[sub_mask, :], axis=0) if np.any(sub_mask) else np.zeros(stft.shape[1])
+        )
+        mid_energy = (
+            np.mean(stft[mid_mask, :], axis=0) if np.any(mid_mask) else np.zeros(stft.shape[1])
+        )
+        high_energy = (
+            np.mean(stft[high_mask, :], axis=0) if np.any(high_mask) else np.zeros(stft.shape[1])
+        )
 
         sub_energy = self._normalize(sub_energy)
         mid_energy = self._normalize(mid_energy)
@@ -160,9 +162,7 @@ class SpectralBandAnalyzer:
         )[0]
         centroid = self._normalize(centroid)
 
-        rms = librosa.feature.rms(
-            S=stft, hop_length=self.hop_length, frame_length=self.n_fft
-        )[0]
+        rms = librosa.feature.rms(S=stft, hop_length=self.hop_length, frame_length=self.n_fft)[0]
         rms = self._normalize(rms)
 
         n_frames = stft.shape[1]

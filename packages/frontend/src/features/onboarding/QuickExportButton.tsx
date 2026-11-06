@@ -29,9 +29,7 @@ export function QuickExportButton({
   return (
     <div className="flex flex-col items-center gap-2">
       {clipStart !== null && (
-        <p className="text-xs text-white/50">
-          We&apos;ll clip the biggest 10 seconds.
-        </p>
+        <p className="text-xs text-white/50">We&apos;ll clip the biggest 10 seconds.</p>
       )}
       <button
         type="button"

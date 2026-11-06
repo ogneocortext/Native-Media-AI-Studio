@@ -89,11 +89,61 @@ export interface BusChannelState {
 }
 
 export const DEFAULT_BUS_STATE: Record<BusName, BusChannelState> = {
-  vocals: { volume: 0.9, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -18, compressorRatio: 3, compressorAttack: 15, compressorRelease: 150 },
-  drums: { volume: 0.85, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -16, compressorRatio: 6, compressorAttack: 2, compressorRelease: 80 },
-  bass: { volume: 0.9, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -14, compressorRatio: 4, compressorAttack: 15, compressorRelease: 150 },
-  other: { volume: 0.75, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -18, compressorRatio: 3, compressorAttack: 15, compressorRelease: 150 },
-  master: { volume: 0.85, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -6, compressorRatio: 2, compressorAttack: 5, compressorRelease: 120 },
+  vocals: {
+    volume: 0.9,
+    pan: 0,
+    muted: false,
+    solo: false,
+    eqBands: [],
+    compressorThreshold: -18,
+    compressorRatio: 3,
+    compressorAttack: 15,
+    compressorRelease: 150,
+  },
+  drums: {
+    volume: 0.85,
+    pan: 0,
+    muted: false,
+    solo: false,
+    eqBands: [],
+    compressorThreshold: -16,
+    compressorRatio: 6,
+    compressorAttack: 2,
+    compressorRelease: 80,
+  },
+  bass: {
+    volume: 0.9,
+    pan: 0,
+    muted: false,
+    solo: false,
+    eqBands: [],
+    compressorThreshold: -14,
+    compressorRatio: 4,
+    compressorAttack: 15,
+    compressorRelease: 150,
+  },
+  other: {
+    volume: 0.75,
+    pan: 0,
+    muted: false,
+    solo: false,
+    eqBands: [],
+    compressorThreshold: -18,
+    compressorRatio: 3,
+    compressorAttack: 15,
+    compressorRelease: 150,
+  },
+  master: {
+    volume: 0.85,
+    pan: 0,
+    muted: false,
+    solo: false,
+    eqBands: [],
+    compressorThreshold: -6,
+    compressorRatio: 2,
+    compressorAttack: 5,
+    compressorRelease: 120,
+  },
 };
 
 // ─── Meter readings ─────────────────────────────────────────────────────────
@@ -180,7 +230,13 @@ export interface StemChannel {
   name: StemName;
   source: MediaElementAudioSourceNode | null;
   input: GainNode | null;
-  eq: { input: GainNode; output: GainNode; filters: BiquadFilterNode[]; setBands: (b: EQBand[]) => void; dispose: () => void } | null;
+  eq: {
+    input: GainNode;
+    output: GainNode;
+    filters: BiquadFilterNode[];
+    setBands: (b: EQBand[]) => void;
+    dispose: () => void;
+  } | null;
   compressor: DynamicsCompressorNode | null;
   fader: GainNode | null;
   pan: StereoPannerNode | null;
@@ -192,7 +248,13 @@ export interface StemChannel {
 export interface BusChannel {
   name: BusName;
   input: GainNode | null;
-  eq: { input: GainNode; output: GainNode; filters: BiquadFilterNode[]; setBands: (b: EQBand[]) => void; dispose: () => void } | null;
+  eq: {
+    input: GainNode;
+    output: GainNode;
+    filters: BiquadFilterNode[];
+    setBands: (b: EQBand[]) => void;
+    dispose: () => void;
+  } | null;
   compressor: DynamicsCompressorNode | null;
   fader: GainNode | null;
   pan: StereoPannerNode | null;

@@ -71,7 +71,9 @@ class UnityAdapter(BaseBridgeAdapter):
             startup_timeout: Seconds to wait for the bridge to become ready.
             health_timeout: Seconds to wait for health check responses.
         """
-        repo_root = Path(__file__).resolve().parents[3]  # packages/backend/app/adapters -> repo root
+        repo_root = (
+            Path(__file__).resolve().parents[3]
+        )  # packages/backend/app/adapters -> repo root
         script = bridge_script or repo_root / DEFAULT_BRIDGE_SCRIPT
         command = ["node", str(script)]
 
@@ -220,7 +222,9 @@ class UnityAdapter(BaseBridgeAdapter):
             command: Unity command name.
             parameters: Command parameters.
         """
-        return await self.execute("unity_command", {"command": command, "parameters": parameters or {}})
+        return await self.execute(
+            "unity_command", {"command": command, "parameters": parameters or {}}
+        )
 
     # ------------------------------------------------------------------
     # Bridge interface implementation
@@ -254,7 +258,10 @@ class UnityAdapter(BaseBridgeAdapter):
                 "paused": False,
             }
         if cmd == "create_scene":
-            return {"success": True, "path": params.get("path", "untitled") if params else "untitled"}
+            return {
+                "success": True,
+                "path": params.get("path", "untitled") if params else "untitled",
+            }
         if cmd == "create_gameobject":
             return {
                 "success": True,

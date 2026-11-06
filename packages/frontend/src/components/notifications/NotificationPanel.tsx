@@ -70,15 +70,9 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
         <span className="notification-panel-count">{items.length} items</span>
       </div>
       <div className="notification-panel-list">
-        {items.length === 0 && (
-          <div className="notification-panel-empty">No notifications yet</div>
-        )}
+        {items.length === 0 && <div className="notification-panel-empty">No notifications yet</div>}
         {items.map((item) => (
-          <NotificationItem
-            key={item.id}
-            item={item}
-            onRead={() => handleNavigate(item.id)}
-          />
+          <NotificationItem key={item.id} item={item} onRead={() => handleNavigate(item.id)} />
         ))}
       </div>
     </div>

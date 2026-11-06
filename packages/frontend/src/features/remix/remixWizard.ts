@@ -81,7 +81,11 @@ function vocalsLayer(input: WizardInput): EditableLayer | null {
   return layer;
 }
 
-function instrumentLayer(track: string, stems: EditableLayer["stem"][], stem: EditableLayer["stem"]) {
+function instrumentLayer(
+  track: string,
+  stems: EditableLayer["stem"][],
+  stem: EditableLayer["stem"],
+) {
   return stems.includes(stem) ? newEditableLayer(track, stem) : null;
 }
 
@@ -118,7 +122,9 @@ export function buildWizardSlots(input: WizardInput): EditableSlot[] {
       // The first slot opens without vocals, whatever the length.
       const instrumental = index === 0;
       const layers = instrumental
-        ? input.stemsA.filter((stem) => stem !== "vocals").map((stem) => newEditableLayer(input.songA, stem))
+        ? input.stemsA
+            .filter((stem) => stem !== "vocals")
+            .map((stem) => newEditableLayer(input.songA, stem))
         : [...input.stemsA.map((stem) => newEditableLayer(input.songA, stem))];
       if (!instrumental && vocals) layers.push(vocals);
       slots.push({ bars, crossfade_bars: crossfade, layers });
@@ -135,7 +141,9 @@ export function buildWizardSlots(input: WizardInput): EditableSlot[] {
 /** A name for the wizard's arrangement, one step ahead of what exists. */
 export function wizardName(songA: string, songB: string | null): string {
   const short = (track: string) => track.split(/[-_]/).filter(Boolean).slice(-2).join("-");
-  return songB ? `mashup-${short(songA)}-${short(songB)}`.toLowerCase() : `mashup-${short(songA)}`.toLowerCase();
+  return songB
+    ? `mashup-${short(songA)}-${short(songB)}`.toLowerCase()
+    : `mashup-${short(songA)}`.toLowerCase();
 }
 
 /** The summary the wizard shows before applying, as plain lines. */

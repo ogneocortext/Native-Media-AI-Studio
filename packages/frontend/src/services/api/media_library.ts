@@ -37,42 +37,29 @@ export interface FavoriteToggleResponse {
   favorited: boolean;
 }
 
-export async function listMediaFavorites(
-  limit = 200
-): Promise<string[]> {
-  
+export async function listMediaFavorites(limit = 200): Promise<string[]> {
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/favorites?limit=${encodeURIComponent(
-      String(limit)
-    )}`,
-    { timeout: 15000 }
+    `${MEDIA_LIBRARY_BASE}/favorites?limit=${encodeURIComponent(String(limit))}`,
+    { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to list favorites");
   return (await res.json()) as string[];
 }
 
-export async function isMediaFavorite(
-  relativePath: string
-): Promise<boolean> {
-  
+export async function isMediaFavorite(relativePath: string): Promise<boolean> {
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/favorites/${encodeURIComponent(
-      relativePath
-    )}/status`,
-    { timeout: 15000 }
+    `${MEDIA_LIBRARY_BASE}/favorites/${encodeURIComponent(relativePath)}/status`,
+    { timeout: 15000 },
   );
   if (!res.ok) return false;
   const data = (await res.json()) as { favorited: boolean };
   return !!data.favorited;
 }
 
-export async function toggleMediaFavorite(
-  relativePath: string
-): Promise<FavoriteToggleResponse> {
-  
+export async function toggleMediaFavorite(relativePath: string): Promise<FavoriteToggleResponse> {
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/favorites/${encodeURIComponent(relativePath)}`,
-    { method: "POST", timeout: 15000 }
+    { method: "POST", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to toggle favorite");
   return (await res.json()) as FavoriteToggleResponse;
@@ -88,19 +75,12 @@ export interface CreateCollectionRequest {
 }
 
 export async function listCollections(): Promise<Collection[]> {
-  
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections`,
-    { timeout: 15000 }
-  );
+  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/collections`, { timeout: 15000 });
   if (!res.ok) throw new Error("Failed to list collections");
   return (await res.json()) as Collection[];
 }
 
-export async function createCollection(
-  body: CreateCollectionRequest
-): Promise<Collection> {
-  
+export async function createCollection(body: CreateCollectionRequest): Promise<Collection> {
   const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/collections`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -111,13 +91,10 @@ export async function createCollection(
   return (await res.json()) as Collection;
 }
 
-export async function getCollectionDetail(
-  collectionId: string
-): Promise<CollectionDetail> {
-  
+export async function getCollectionDetail(collectionId: string): Promise<CollectionDetail> {
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}`,
-    { timeout: 15000 }
+    { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to get collection");
   return (await res.json()) as CollectionDetail;
@@ -125,9 +102,8 @@ export async function getCollectionDetail(
 
 export async function updateCollection(
   collectionId: string,
-  body: CreateCollectionRequest
+  body: CreateCollectionRequest,
 ): Promise<Collection> {
-  
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}`,
     {
@@ -135,30 +111,24 @@ export async function updateCollection(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       timeout: 15000,
-    }
+    },
   );
   if (!res.ok) throw new Error("Failed to update collection");
   return (await res.json()) as Collection;
 }
 
 export async function deleteCollection(collectionId: string): Promise<void> {
-  
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}`,
-    { method: "DELETE", timeout: 15000 }
+    { method: "DELETE", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to delete collection");
 }
 
-export async function listCollectionItems(
-  collectionId: string
-): Promise<string[]> {
-  
+export async function listCollectionItems(collectionId: string): Promise<string[]> {
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(
-      collectionId
-    )}/items`,
-    { timeout: 15000 }
+    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}/items`,
+    { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to list collection items");
   return (await res.json()) as string[];
@@ -166,46 +136,37 @@ export async function listCollectionItems(
 
 export async function addItemToCollection(
   collectionId: string,
-  relativePath: string
+  relativePath: string,
 ): Promise<void> {
-  
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(
-      collectionId
-    )}/items`,
+    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}/items`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ relative_path: relativePath }),
       timeout: 15000,
-    }
+    },
   );
   if (!res.ok) throw new Error("Failed to add item to collection");
 }
 
 export async function removeItemFromCollection(
   collectionId: string,
-  relativePath: string
+  relativePath: string,
 ): Promise<void> {
-  
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(
-      collectionId
+      collectionId,
     )}/items/${encodeURIComponent(relativePath)}`,
-    { method: "DELETE", timeout: 15000 }
+    { method: "DELETE", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to remove item from collection");
 }
 
-export async function listItemCollections(
-  relativePath: string
-): Promise<Collection[]> {
-  
+export async function listItemCollections(relativePath: string): Promise<Collection[]> {
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(
-      relativePath
-    )}/collections`,
-    { timeout: 15000 }
+    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(relativePath)}/collections`,
+    { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to list item collections");
   return (await res.json()) as Collection[];
@@ -221,7 +182,6 @@ export interface CreateTagRequest {
 }
 
 export async function listTags(): Promise<Tag[]> {
-  
   const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/tags`, {
     timeout: 15000,
   });
@@ -230,7 +190,6 @@ export async function listTags(): Promise<Tag[]> {
 }
 
 export async function createTag(body: CreateTagRequest): Promise<Tag> {
-  
   const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -242,53 +201,39 @@ export async function createTag(body: CreateTagRequest): Promise<Tag> {
 }
 
 export async function listTagItems(tagId: string): Promise<string[]> {
-  
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/tags/${encodeURIComponent(tagId)}/items`,
-    { timeout: 15000 }
+    { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to list tag items");
   return (await res.json()) as string[];
 }
 
-export async function listItemTags(
-  relativePath: string
-): Promise<Tag[]> {
-  
+export async function listItemTags(relativePath: string): Promise<Tag[]> {
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(
-      relativePath
-    )}/tags`,
-    { timeout: 15000 }
+    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(relativePath)}/tags`,
+    { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to list item tags");
   return (await res.json()) as Tag[];
 }
 
-export async function addItemTag(
-  relativePath: string,
-  tagId: string
-): Promise<void> {
-  
+export async function addItemTag(relativePath: string, tagId: string): Promise<void> {
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(
-      relativePath
+      relativePath,
     )}/tags/${encodeURIComponent(tagId)}`,
-    { method: "POST", timeout: 15000 }
+    { method: "POST", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to add tag to item");
 }
 
-export async function removeItemTag(
-  relativePath: string,
-  tagId: string
-): Promise<void> {
-  
+export async function removeItemTag(relativePath: string, tagId: string): Promise<void> {
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(
-      relativePath
+      relativePath,
     )}/tags/${encodeURIComponent(tagId)}`,
-    { method: "DELETE", timeout: 15000 }
+    { method: "DELETE", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to remove tag from item");
 }
@@ -298,11 +243,7 @@ export interface SetItemTagsRequest {
   tag_ids: string[];
 }
 
-export async function setItemTags(
-  relativePath: string,
-  tagIds: string[]
-): Promise<Tag[]> {
-  
+export async function setItemTags(relativePath: string, tagIds: string[]): Promise<Tag[]> {
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(relativePath)}/tags`,
     {
@@ -310,7 +251,7 @@ export async function setItemTags(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ relative_paths: [relativePath], tag_ids: tagIds }),
       timeout: 15000,
-    }
+    },
   );
   if (!res.ok) throw new Error("Failed to set item tags");
   const data = (await res.json()) as { tags: Tag[] };
@@ -327,26 +268,22 @@ export interface MoveToTrashRequest {
 
 export async function moveItemToTrash(
   relativePath: string,
-  retentionDays = 30
+  retentionDays = 30,
 ): Promise<TrashItem> {
-  
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/trash?retention_days=${encodeURIComponent(
-      String(retentionDays)
-    )}`,
+    `${MEDIA_LIBRARY_BASE}/trash?retention_days=${encodeURIComponent(String(retentionDays))}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ relative_path: relativePath }),
       timeout: 15000,
-    }
+    },
   );
   if (!res.ok) throw new Error("Failed to move item to trash");
   return (await res.json()) as TrashItem;
 }
 
 export async function listTrash(): Promise<TrashItem[]> {
-  
   const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/trash`, {
     timeout: 15000,
   });
@@ -354,15 +291,10 @@ export async function listTrash(): Promise<TrashItem[]> {
   return (await res.json()) as TrashItem[];
 }
 
-export async function restoreFromTrash(
-  relativePath: string
-): Promise<boolean> {
-  
+export async function restoreFromTrash(relativePath: string): Promise<boolean> {
   const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/trash/${encodeURIComponent(
-      relativePath
-    )}/restore`,
-    { method: "POST", timeout: 15000 }
+    `${MEDIA_LIBRARY_BASE}/trash/${encodeURIComponent(relativePath)}/restore`,
+    { method: "POST", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to restore item from trash");
   const data = (await res.json()) as { restored: boolean };
@@ -370,20 +302,18 @@ export async function restoreFromTrash(
 }
 
 export async function purgeFromTrash(relativePath: string): Promise<void> {
-  
   const res = await fetchWithTimeout(
     `${MEDIA_LIBRARY_BASE}/trash/${encodeURIComponent(relativePath)}`,
-    { method: "DELETE", timeout: 15000 }
+    { method: "DELETE", timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to purge item from trash");
 }
 
 export async function emptyTrash(): Promise<number> {
-  
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/trash`,
-    { method: "DELETE", timeout: 15000 }
-  );
+  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/trash`, {
+    method: "DELETE",
+    timeout: 15000,
+  });
   if (!res.ok) throw new Error("Failed to empty trash");
   const data = (await res.json()) as { removed: number };
   return data.removed ?? 0;

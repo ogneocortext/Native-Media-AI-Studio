@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Ollama load/unload (sync -> async wrappers)
 # ---------------------------------------------------------------------------
 
+
 def _unload_ollama_models_sync() -> list[str]:
     """Synchronous helper to unload Ollama models. Returns list of unloaded model names."""
     import urllib.request
@@ -49,11 +50,13 @@ def _unload_ollama_models_sync() -> list[str]:
     # torn down, so a read timeout is expected and not an error.
     for model_name in loaded_models:
         try:
-            data = json.dumps({
-                "model": model_name,
-                "prompt": " ",
-                "keep_alive": 0,
-            }).encode()
+            data = json.dumps(
+                {
+                    "model": model_name,
+                    "prompt": " ",
+                    "keep_alive": 0,
+                }
+            ).encode()
             req = urllib.request.Request(
                 ollama_url("/api/generate"),
                 data=data,
@@ -67,7 +70,9 @@ def _unload_ollama_models_sync() -> list[str]:
             logger.info("VRAM Manager: Unloaded Ollama model: %s", model_name)
         except (TimeoutError, OSError) as exc:
             # Expected: Ollama closes the connection while evicting.
-            logger.debug("VRAM Manager: Unload of %s completed (connection closed): %s", model_name, exc)
+            logger.debug(
+                "VRAM Manager: Unload of %s completed (connection closed): %s", model_name, exc
+            )
         except Exception as exc:
             logger.warning("VRAM Manager: Failed to unload Ollama model %s: %s", model_name, exc)
 
@@ -87,19 +92,23 @@ def _reload_ollama_models_sync(model_name: str) -> bool:
     import urllib.request
 
     from ..core.config import config as _cfg
+
     # Don't infinite-pin models; respect OLLAMA_KEEP_ALIVE
     if "llama" in model_name.lower() and model_name != _cfg.default_model:
         logger.info(
-            "VRAM Manager: Skipping reload of non-default llama model %s "
-            "(default is %s)", model_name, _cfg.default_model
+            "VRAM Manager: Skipping reload of non-default llama model %s (default is %s)",
+            model_name,
+            _cfg.default_model,
         )
         return False
     keep_alive = os.environ.get("OLLAMA_KEEP_ALIVE", "5m")
-    data = json.dumps({
-        "model": model_name,
-        "prompt": " ",
-        "keep_alive": keep_alive,
-    }).encode()
+    data = json.dumps(
+        {
+            "model": model_name,
+            "prompt": " ",
+            "keep_alive": keep_alive,
+        }
+    ).encode()
 
     req = urllib.request.Request(
         ollama_url("/api/generate"),
@@ -122,6 +131,7 @@ async def _reload_ollama_models(model_name: str) -> bool:
 # ---------------------------------------------------------------------------
 # Atomic Chat load/unload
 # ---------------------------------------------------------------------------
+
 
 def _unload_atomic_chat_models_sync() -> list[str]:
     """Unload Atomic Chat's resident model via Ollama's API.
@@ -149,9 +159,7 @@ def _unload_atomic_chat_models_sync() -> list[str]:
 
     for name in unloaded:
         try:
-            data = json.dumps(
-                {"model": name, "prompt": " ", "keep_alive": 0}
-            ).encode()
+            data = json.dumps({"model": name, "prompt": " ", "keep_alive": 0}).encode()
             req = urllib.request.Request(
                 ollama_url("/api/generate"),
                 data=data,
@@ -161,17 +169,15 @@ def _unload_atomic_chat_models_sync() -> list[str]:
             # 2s is enough; Ollama closes the connection while evicting.
             with urllib.request.urlopen(req, timeout=2):
                 pass
-            logger.info(
-                "VRAM Manager: Unloaded Atomic Chat model: %s", name
-            )
+            logger.info("VRAM Manager: Unloaded Atomic Chat model: %s", name)
         except (TimeoutError, OSError) as exc:
             logger.debug(
-                "VRAM Manager: Atomic Chat unload of %s completed (connection closed): %s", name, exc
+                "VRAM Manager: Atomic Chat unload of %s completed (connection closed): %s",
+                name,
+                exc,
             )
         except Exception as exc:
-            logger.warning(
-                "VRAM Manager: Failed to unload Atomic Chat model %s: %s", name, exc
-            )
+            logger.warning("VRAM Manager: Failed to unload Atomic Chat model %s: %s", name, exc)
 
     return unloaded
 
@@ -181,9 +187,7 @@ async def _unload_atomic_chat_models() -> list[str]:
     return await asyncio.to_thread(_unload_atomic_chat_models_sync)
 
 
-def _load_model_for_backend_sync(
-    backend: str, model: str
-) -> bool:
+def _load_model_for_backend_sync(backend: str, model: str) -> bool:
     """Load a model for a given backend via Ollama's API.
 
     Both Ollama and Atomic Chat load models through Ollama's `/api/generate`
@@ -201,16 +205,13 @@ def _load_model_for_backend_sync(
     # Sanitize: never load a non-default llama as the resident model
     if "llama" in model.lower() and model != _cfg.default_model:
         logger.info(
-            "VRAM Manager: Skipping load of non-default llama model %s "
-            "(default is %s)",
+            "VRAM Manager: Skipping load of non-default llama model %s (default is %s)",
             model,
             _cfg.default_model,
         )
         return False
 
-    data = json.dumps(
-        {"model": model, "prompt": " ", "keep_alive": keep_alive}
-    ).encode()
+    data = json.dumps({"model": model, "prompt": " ", "keep_alive": keep_alive}).encode()
 
     req = urllib.request.Request(
         ollama_url("/api/generate"),
@@ -222,9 +223,7 @@ def _load_model_for_backend_sync(
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             resp.read()
-        logger.info(
-            "VRAM Manager: Loaded model %s for backend %s", model, backend
-        )
+        logger.info("VRAM Manager: Loaded model %s for backend %s", model, backend)
         return True
     except Exception as exc:
         logger.warning(
@@ -244,6 +243,7 @@ async def _load_model_for_backend(backend: str, model: str) -> bool:
 # ---------------------------------------------------------------------------
 # ComfyUI model management
 # ---------------------------------------------------------------------------
+
 
 def _comfyui_queue_depth_sync() -> tuple[int, int]:
     """Return (running, pending) prompt counts. Zeros if ComfyUI is unreachable.
@@ -291,9 +291,7 @@ def _unload_comfyui_models_sync() -> dict[str, Any]:
         }
 
     try:
-        payload = json.dumps(
-            {"unload_models": True, "free_memory": True}
-        ).encode()
+        payload = json.dumps({"unload_models": True, "free_memory": True}).encode()
         req = urllib.request.Request(
             comfyui_url("/free"),
             data=payload,
@@ -326,6 +324,7 @@ async def _comfyui_is_idle() -> bool:
 # ---------------------------------------------------------------------------
 # Combined offload
 # ---------------------------------------------------------------------------
+
 
 def _offload_backend_models_sync() -> dict[str, list[str]]:
     """Unload ALL models from both Ollama and Atomic Chat backends.

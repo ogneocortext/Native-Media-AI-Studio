@@ -1,4 +1,5 @@
 """Database operations for job queue."""
+
 import asyncio
 import json
 import logging
@@ -39,10 +40,13 @@ class JobDatabaseManager:
                     raise
                 last_exc = exc
                 if attempt < DB_WRITE_MAX_RETRIES - 1:
-                    delay = DB_WRITE_BASE_DELAY * (2 ** attempt)
+                    delay = DB_WRITE_BASE_DELAY * (2**attempt)
                     logger.warning(
                         "DB write locked on attempt %d/%d, retrying in %.2fs: %s",
-                        attempt + 1, DB_WRITE_MAX_RETRIES, delay, exc,
+                        attempt + 1,
+                        DB_WRITE_MAX_RETRIES,
+                        delay,
+                        exc,
                     )
                     time.sleep(delay)
         raise last_exc
@@ -64,7 +68,10 @@ class JobDatabaseManager:
                 )
                 logger.warning(
                     "Slow DB query (%.3fs): %s ... params(%d) [%s]",
-                    elapsed, label or sql[:80], len(params), shape,
+                    elapsed,
+                    label or sql[:80],
+                    len(params),
+                    shape,
                 )
 
     @staticmethod
@@ -75,6 +82,7 @@ class JobDatabaseManager:
         transaction so they commit atomically. This reduces the per-statement
         open/commit overhead and is the preferred path for bulk updates.
         """
+
         def _run():
             with get_db() as conn:
                 for sql, params in statements:
@@ -147,10 +155,10 @@ class JobDatabaseManager:
             with get_db() as conn:
                 JobDatabaseManager._timed_execute(
                     conn,
-                    '''
+                    """
                     INSERT INTO jobs (id, job_type, status, created_at, progress, message, params, retry_count, max_retries, output_path, priority)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''',
+                    """,
                     (
                         job.id,
                         job.job_type.value if isinstance(job.job_type, JobType) else job.job_type,
@@ -174,7 +182,7 @@ class JobDatabaseManager:
     def get_job(job_id: str) -> Job | None:
         """Get a job by ID."""
         with get_db() as conn:
-            row = conn.execute('SELECT * FROM jobs WHERE id = ?', (job_id,)).fetchone()
+            row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
             if row:
                 return JobDatabaseManager._row_to_job(row)
         return None
@@ -183,7 +191,7 @@ class JobDatabaseManager:
     def get_all_jobs() -> list[Job]:
         """Get all jobs sorted by creation time (newest first)."""
         with get_db() as conn:
-            rows = conn.execute('SELECT * FROM jobs ORDER BY created_at DESC').fetchall()
+            rows = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
             return [JobDatabaseManager._row_to_job(row) for row in rows]
 
     @staticmethod
@@ -192,7 +200,7 @@ class JobDatabaseManager:
         status_value = status.value if isinstance(status, JobStatus) else status
         with get_db() as conn:
             rows = conn.execute(
-                'SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC',
+                "SELECT * FROM jobs WHERE status = ? ORDER BY created_at DESC",
                 (status_value,),
             ).fetchall()
             return [JobDatabaseManager._row_to_job(row) for row in rows]
@@ -200,17 +208,29 @@ class JobDatabaseManager:
     # Columns that may be updated via update_job (prevents arbitrary SQL fragments)
     # ``created_at`` and ``job_type`` are intentionally excluded: they are
     # immutable once set and allowing updates risks data inconsistency.
-    _UPDATABLE_COLUMNS = frozenset({
-        'status', 'started_at', 'completed_at',
-        'progress', 'message', 'error', 'result', 'params', 'output_path',
-        'retry_count', 'max_retries', 'priority',
-    })
+    _UPDATABLE_COLUMNS = frozenset(
+        {
+            "status",
+            "started_at",
+            "completed_at",
+            "progress",
+            "message",
+            "error",
+            "result",
+            "params",
+            "output_path",
+            "retry_count",
+            "max_retries",
+            "priority",
+        }
+    )
 
     @staticmethod
     def update_job(job_id: str, **kwargs) -> Job | None:
         """Update job fields."""
         kwargs = {
-            key: value for key, value in kwargs.items()
+            key: value
+            for key, value in kwargs.items()
             if key in JobDatabaseManager._UPDATABLE_COLUMNS
         }
         if not kwargs:
@@ -219,13 +239,13 @@ class JobDatabaseManager:
         set_clauses = []
         values = []
         for key, value in kwargs.items():
-            if key == 'status' and isinstance(value, JobStatus):
+            if key == "status" and isinstance(value, JobStatus):
                 value = value.value
-            if key == 'job_type' and isinstance(value, JobType):
+            if key == "job_type" and isinstance(value, JobType):
                 value = value.value
-            if key in ('result', 'params') and isinstance(value, dict):
+            if key in ("result", "params") and isinstance(value, dict):
                 value = json.dumps(value)
-            if key in ('started_at', 'completed_at') and isinstance(value, datetime):
+            if key in ("started_at", "completed_at") and isinstance(value, datetime):
                 value = value.isoformat()
             set_clauses.append(f"{key} = ?")
             values.append(value)
@@ -236,7 +256,7 @@ class JobDatabaseManager:
             with get_db() as conn:
                 JobDatabaseManager._timed_execute(
                     conn,
-                    f'UPDATE jobs SET {", ".join(set_clauses)} WHERE id = ?',
+                    f"UPDATE jobs SET {', '.join(set_clauses)} WHERE id = ?",
                     values,
                     label="update_job",
                 )
@@ -252,7 +272,7 @@ class JobDatabaseManager:
             with get_db() as conn:
                 cursor = JobDatabaseManager._timed_execute(
                     conn,
-                    'DELETE FROM jobs WHERE id = ?',
+                    "DELETE FROM jobs WHERE id = ?",
                     (job_id,),
                     label="delete_job",
                 )
@@ -313,19 +333,21 @@ class JobDatabaseManager:
     def _row_to_job(row) -> Job:
         """Convert a database row to a Job model."""
         return Job(
-            id=row['id'],
-            job_type=JobType(row['job_type']),
-            status=JobStatus(row['status']),
-            created_at=datetime.fromisoformat(row['created_at']),
-            started_at=datetime.fromisoformat(row['started_at']) if row['started_at'] else None,
-            completed_at=datetime.fromisoformat(row['completed_at']) if row['completed_at'] else None,
-            progress=row['progress'],
-            message=row['message'] or '',
-            error=row['error'],
-            result=json.loads(row['result']) if row['result'] else None,
-            params=json.loads(row['params']),
-            output_path=row['output_path'],
-            retry_count=row['retry_count'],
-            max_retries=row['max_retries'],
-            priority=row['priority'] if 'priority' in row.keys() else 0,
+            id=row["id"],
+            job_type=JobType(row["job_type"]),
+            status=JobStatus(row["status"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
+            completed_at=datetime.fromisoformat(row["completed_at"])
+            if row["completed_at"]
+            else None,
+            progress=row["progress"],
+            message=row["message"] or "",
+            error=row["error"],
+            result=json.loads(row["result"]) if row["result"] else None,
+            params=json.loads(row["params"]),
+            output_path=row["output_path"],
+            retry_count=row["retry_count"],
+            max_retries=row["max_retries"],
+            priority=row["priority"] if "priority" in row.keys() else 0,
         )

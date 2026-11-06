@@ -94,21 +94,21 @@ export function HtmlCanvasRenderer({
   // When HTML-in-Canvas is supported, children are drawn into canvas each
   // frame — no overlay needed. Still need to mount children so they exist
   // in the DOM for drawHtmlIntoCanvas to read from, but keep them hidden.
-      return (
-        <div
-          ref={elementRef}
-          style={{
-            position: "absolute",
-            left: x,
-            y,
-            width: width ?? canvas?.offsetWidth,
-            height: height ?? canvas?.offsetHeight,
-            pointerEvents: "none",
-            zIndex: 10,
-            visibility: "hidden",
-          }}
-        >
-          {children}
-        </div>
-      );
+  return (
+    <div
+      ref={elementRef}
+      style={{
+        position: "absolute",
+        left: x,
+        y,
+        width: width ?? canvas?.offsetWidth,
+        height: height ?? canvas?.offsetHeight,
+        pointerEvents: "none",
+        zIndex: 10,
+        visibility: "hidden",
+      }}
+    >
+      {children}
+    </div>
+  );
 }

@@ -79,8 +79,7 @@ def log_gpu_telemetry(snapshot: dict, processes: list[dict] | None = None) -> in
 
 
 def get_gpu_history(
-    since_ms: int | None = None, limit: int = 2000, *,
-    include_processes: bool = False
+    since_ms: int | None = None, limit: int = 2000, *, include_processes: bool = False
 ) -> list[dict]:
     """Fetch GPU telemetry points. since_ms filters ts_ms >= value. Ordered asc for charting."""
     q = "SELECT * FROM gpu_telemetry"
@@ -191,9 +190,7 @@ def cleanup_old_gpu_telemetry(keep_days: int = 14, *, vacuum: bool = True) -> in
     if deleted:
         import logging as _logging
 
-        _logging.info(
-            "Cleaned up %d GPU telemetry rows older than %d days", deleted, keep_days
-        )
+        _logging.info("Cleaned up %d GPU telemetry rows older than %d days", deleted, keep_days)
     return deleted
 
 

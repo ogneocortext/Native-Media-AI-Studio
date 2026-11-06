@@ -39,8 +39,16 @@ describe("selectVizMode", () => {
 
   it("picks shader for FX-heavy genres", () => {
     for (const genre of [
-      "synthwave", "retro", "neon", "outrun", "cyberpunk", "phonk",
-      "drift", "trap metal", "trap-metal", "grime",
+      "synthwave",
+      "retro",
+      "neon",
+      "outrun",
+      "cyberpunk",
+      "phonk",
+      "drift",
+      "trap metal",
+      "trap-metal",
+      "grime",
     ]) {
       expect(selectVizMode("some track", genre)).toBe("shader");
     }

@@ -1101,9 +1101,9 @@ export function importPresetFromString(json: string): VisualPreset | null {
     if (!Array.isArray(keyframes) || keyframes.length === 0) return null;
     for (const kf of keyframes) {
       if (!isObject(kf)) return null;
-      if (typeof (kf).at !== "number") return null;
-      if (!isNumberTuple((kf).position)) return null;
-      if (!isNumberTuple((kf).target)) return null;
+      if (typeof kf.at !== "number") return null;
+      if (!isNumberTuple(kf.position)) return null;
+      if (!isNumberTuple(kf.target)) return null;
     }
 
     return p as unknown as VisualPreset;
@@ -1134,7 +1134,9 @@ function applyCameraEasing(easing: CameraKeyframe["easing"], t: number): number 
     case "easeInOut":
       return clamped < 0.5 ? 2 * clamped * clamped : 1 - Math.pow(-2 * clamped + 2, 2) / 2;
     case "linear":
-    case undefined: { throw new Error('Not implemented yet: undefined case') }
+    case undefined: {
+      throw new Error("Not implemented yet: undefined case");
+    }
     default:
       return clamped;
   }

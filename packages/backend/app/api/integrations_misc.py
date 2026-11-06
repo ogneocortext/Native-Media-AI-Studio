@@ -38,8 +38,11 @@ async def get_cuda_status() -> dict:
         # Check nvidia-smi for GPU info
         result = await run_subprocess_thread(
             ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
-            encoding="utf-8", errors="replace",
-            capture_output=True, text=True, timeout=10
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split(", ")
@@ -49,8 +52,11 @@ async def get_cuda_status() -> dict:
         # Check CUDA toolkit version
         result = await run_subprocess_thread(
             ["nvcc", "--version"],
-            encoding="utf-8", errors="replace",
-            capture_output=True, text=True, timeout=10
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             for line in result.stdout.split("\n"):
@@ -72,6 +78,7 @@ async def get_cuda_status() -> dict:
 
 class TrackAnalysisRequest(BaseModel):
     """Request for Ollama-powered track analysis"""
+
     track_name: str
     prompt: str
     lyrics: str
@@ -80,6 +87,7 @@ class TrackAnalysisRequest(BaseModel):
 
 class CudaAnalyzeAudioRequest(BaseModel):
     """Request for CUDA-accelerated audio frequency analysis."""
+
     audio_url: str
 
 
@@ -143,9 +151,9 @@ Respond with ONLY the complete HTML code, no explanation."""
                 "model": model_name,
                 "prompt": analysis_prompt,
                 "stream": True,
-                "options": {"temperature": 0.7}
+                "options": {"temperature": 0.7},
             },
-            timeout=aiohttp.ClientTimeout(total=120)
+            timeout=aiohttp.ClientTimeout(total=120),
         ) as resp:
             if resp.status == 200:
                 full_response = ""
@@ -156,7 +164,11 @@ Respond with ONLY the complete HTML code, no explanation."""
                             data = json.loads(line_str)
                             chunk = data.get("response", "")
                             full_response += chunk
-                            yield {"type": "streaming", "chunk": chunk, "done": data.get("done", False)}
+                            yield {
+                                "type": "streaming",
+                                "chunk": chunk,
+                                "done": data.get("done", False),
+                            }
                         except json.JSONDecodeError:
                             pass
 
@@ -164,18 +176,20 @@ Respond with ONLY the complete HTML code, no explanation."""
                 html_code = strip_code_fences(full_response)
 
                 # Save to database
-                save_visualization_preset({
-                    "track_name": request.track_name,
-                    "track_hash": track_hash,
-                    "preset_name": f"{request.track_name} (AI)",
-                    "visualization_style": "custom",
-                    "params": {},
-                    "ollama_model": model_name,
-                    "prompt": request.prompt,
-                    "lyrics": request.lyrics,
-                    "bpm": request.bpm,
-                    "html": html_code,
-                })
+                save_visualization_preset(
+                    {
+                        "track_name": request.track_name,
+                        "track_hash": track_hash,
+                        "preset_name": f"{request.track_name} (AI)",
+                        "visualization_style": "custom",
+                        "params": {},
+                        "ollama_model": model_name,
+                        "prompt": request.prompt,
+                        "lyrics": request.lyrics,
+                        "bpm": request.bpm,
+                        "html": html_code,
+                    }
+                )
 
                 yield {"type": "complete", "html": html_code}
             else:
@@ -286,20 +300,23 @@ Respond with ONLY the JSON object, no explanation."""
         if response_text:
             # Parse JSON from response
             import json
+
             params = json.loads(strip_code_fences(response_text))
 
             # Save to database for future reuse
-            save_visualization_preset({
-                "track_name": request.track_name,
-                "track_hash": track_hash,
-                "preset_name": f"{request.track_name} (AI)",
-                "visualization_style": params.get("visualization_style", "geometric"),
-                "params": params,
-                "ollama_model": model_name,
-                "prompt": request.prompt,
-                "lyrics": request.lyrics,
-                "bpm": request.bpm,
-            })
+            save_visualization_preset(
+                {
+                    "track_name": request.track_name,
+                    "track_hash": track_hash,
+                    "preset_name": f"{request.track_name} (AI)",
+                    "visualization_style": params.get("visualization_style", "geometric"),
+                    "params": params,
+                    "ollama_model": model_name,
+                    "prompt": request.prompt,
+                    "lyrics": request.lyrics,
+                    "bpm": request.bpm,
+                }
+            )
 
             return {
                 "success": True,
@@ -308,17 +325,9 @@ Respond with ONLY the JSON object, no explanation."""
                 "model_used": model_name,
                 "cached": False,
             }
-        return {
-            "success": False,
-            "error": "Ollama returned no response",
-            "source": "fallback"
-        }
+        return {"success": False, "error": "Ollama returned no response", "source": "fallback"}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "source": "fallback"
-        }
+        return {"success": False, "error": str(e), "source": "fallback"}
 
 
 @router.post("/cuda/analyze-audio")
@@ -339,6 +348,7 @@ async def cuda_analyze_audio(body: CudaAnalyzeAudioRequest) -> dict:
         import urllib.request
 
         import cupy as cp
+
         audio_data = urllib.request.urlopen(audio_url).read()
 
         # Convert to numpy array (simplified - real implementation would decode audio)

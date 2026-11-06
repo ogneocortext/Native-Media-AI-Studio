@@ -42,10 +42,7 @@ export function useMediaFiles() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithTimeout(
-        "/api/outputs",
-        { timeout: 15000 }
-      );
+      const res = await fetchWithTimeout("/api/outputs", { timeout: 15000 });
       if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
       const data = await res.json();
       const outputFiles: MediaFile[] = data.outputs ?? [];
@@ -56,13 +53,13 @@ export function useMediaFiles() {
         file_type: f.file_type || "unknown",
         size_bytes: f.size_bytes ?? f.size ?? 0,
         created_at: f.created_at || new Date().toISOString(),
-        modified_at: (f.modified_at ?? f.modified_time) ?? null,
+        modified_at: f.modified_at ?? f.modified_time ?? null,
         cover_image: f.cover_image ?? null,
         has_cover: f.has_cover ?? false,
         metadata: f.metadata ?? null,
         job_id: f.job_id ?? null,
         size: f.size_bytes ?? f.size ?? 0,
-        modified_time: (f.modified_at ?? f.modified_time) ?? undefined,
+        modified_time: f.modified_at ?? f.modified_time ?? undefined,
         duration: f.duration_seconds ?? f.duration,
         loudness: f.loudness_lufs ?? f.loudness,
         waveform: f.waveform,

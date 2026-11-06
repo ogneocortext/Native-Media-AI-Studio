@@ -142,9 +142,7 @@ async def favorite_status(
     return {"relative_path": relative_path, "favorited": is_media_favorite(relative_path)}
 
 
-@router.post(
-    "/favorites/{relative_path:path}", response_model=FavoriteToggleResponse
-)
+@router.post("/favorites/{relative_path:path}", response_model=FavoriteToggleResponse)
 async def toggle_favorite(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> FavoriteToggleResponse:
@@ -209,9 +207,7 @@ async def delete_collection_endpoint(
         raise HTTPException(status_code=404, detail="Collection not found")
 
 
-@router.get(
-    "/collections/{collection_id}/items", response_model=list[str]
-)
+@router.get("/collections/{collection_id}/items", response_model=list[str])
 async def list_collection_items(
     collection_id: str = PathParam(..., description="Collection ID"),
 ) -> list[str]:
@@ -221,9 +217,7 @@ async def list_collection_items(
     return get_items_in_collection(collection_id)
 
 
-@router.post(
-    "/collections/{collection_id}/items", status_code=204
-)
+@router.post("/collections/{collection_id}/items", status_code=204)
 async def add_collection_item(
     body: CollectionItemAction,
     collection_id: str = PathParam(..., description="Collection ID"),
@@ -234,9 +228,7 @@ async def add_collection_item(
     add_item_to_collection(collection_id, body.relative_path)
 
 
-@router.delete(
-    "/collections/{collection_id}/items/{relative_path:path}", status_code=204
-)
+@router.delete("/collections/{collection_id}/items/{relative_path:path}", status_code=204)
 async def remove_collection_item(
     collection_id: str = PathParam(..., description="Collection ID"),
     relative_path: str = PathParam(..., description="Library relative_path"),
@@ -247,9 +239,7 @@ async def remove_collection_item(
     remove_item_from_collection(collection_id, relative_path)
 
 
-@router.get(
-    "/items/{relative_path:path}/collections", response_model=list[CollectionResponse]
-)
+@router.get("/items/{relative_path:path}/collections", response_model=list[CollectionResponse])
 async def list_item_collections(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> list[CollectionResponse]:
@@ -283,22 +273,16 @@ async def list_tag_items(
     return get_items_with_tag(tag_id)
 
 
-@router.get(
-    "/items/{relative_path:path}/tags", response_model=ItemTagsResponse
-)
+@router.get("/items/{relative_path:path}/tags", response_model=ItemTagsResponse)
 async def list_item_tags(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> ItemTagsResponse:
     """Return tags assigned to a media item."""
     tags = get_tags_for_item(relative_path)
-    return ItemTagsResponse(
-        relative_path=relative_path, tags=[TagResponse(**t) for t in tags]
-    )
+    return ItemTagsResponse(relative_path=relative_path, tags=[TagResponse(**t) for t in tags])
 
 
-@router.post(
-    "/items/{relative_path:path}/tags/{tag_id}", status_code=204
-)
+@router.post("/items/{relative_path:path}/tags/{tag_id}", status_code=204)
 async def add_item_tag(
     tag_id: str = PathParam(..., description="Tag ID"),
     relative_path: str = PathParam(..., description="Library relative_path"),
@@ -307,9 +291,7 @@ async def add_item_tag(
     add_tag_to_item(relative_path, tag_id)
 
 
-@router.delete(
-    "/items/{relative_path:path}/tags/{tag_id}", status_code=204
-)
+@router.delete("/items/{relative_path:path}/tags/{tag_id}", status_code=204)
 async def remove_item_tag(
     tag_id: str = PathParam(..., description="Tag ID"),
     relative_path: str = PathParam(..., description="Library relative_path"),
@@ -318,9 +300,7 @@ async def remove_item_tag(
     remove_tag_from_item(relative_path, tag_id)
 
 
-@router.put(
-    "/items/{relative_path:path}/tags", response_model=ItemTagsResponse
-)
+@router.put("/items/{relative_path:path}/tags", response_model=ItemTagsResponse)
 async def set_item_tags_endpoint(
     body: BulkTagsRequest,
     relative_path: str = PathParam(..., description="Library relative_path"),
@@ -328,9 +308,7 @@ async def set_item_tags_endpoint(
     """Replace an item's tags with exactly the given tag IDs."""
     set_item_tags(relative_path, body.tag_ids)
     tags = get_tags_for_item(relative_path)
-    return ItemTagsResponse(
-        relative_path=relative_path, tags=[TagResponse(**t) for t in tags]
-    )
+    return ItemTagsResponse(relative_path=relative_path, tags=[TagResponse(**t) for t in tags])
 
 
 # ---------------------------------------------------------------------------
@@ -338,9 +316,7 @@ async def set_item_tags_endpoint(
 # ---------------------------------------------------------------------------
 
 
-@router.post(
-    "/trash", response_model=TrashItemResponse, status_code=201
-)
+@router.post("/trash", response_model=TrashItemResponse, status_code=201)
 async def move_item_to_trash(
     body: CollectionItemAction,
     retention_days: int = Query(30, ge=1, le=365),
@@ -350,13 +326,16 @@ async def move_item_to_trash(
     ok = move_to_trash(body.relative_path, file_type, retention_days=retention_days)
     if not ok:
         raise HTTPException(status_code=400, detail="Could not trash item")
-    item = next(
-        (t for t in list_trash() if t["relative_path"] == body.relative_path), None
-    )
-    return TrashItemResponse(**item) if item else TrashItemResponse(
-        relative_path=body.relative_path, file_type=file_type,
-        deleted_at=datetime.now(UTC).isoformat(),
-        expires_at=(datetime.now(UTC) + timedelta(days=retention_days)).isoformat(),
+    item = next((t for t in list_trash() if t["relative_path"] == body.relative_path), None)
+    return (
+        TrashItemResponse(**item)
+        if item
+        else TrashItemResponse(
+            relative_path=body.relative_path,
+            file_type=file_type,
+            deleted_at=datetime.now(UTC).isoformat(),
+            expires_at=(datetime.now(UTC) + timedelta(days=retention_days)).isoformat(),
+        )
     )
 
 
@@ -378,9 +357,7 @@ async def purge_expired_trash_endpoint() -> TrashEmptyResponse:
     return TrashEmptyResponse(removed=removed)
 
 
-@router.post(
-    "/trash/{relative_path:path}/restore", response_model=TrashRestoreResponse
-)
+@router.post("/trash/{relative_path:path}/restore", response_model=TrashRestoreResponse)
 async def restore_item(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> TrashRestoreResponse:
@@ -389,9 +366,7 @@ async def restore_item(
     return TrashRestoreResponse(relative_path=relative_path, restored=restored)
 
 
-@router.delete(
-    "/trash/{relative_path:path}", status_code=204
-)
+@router.delete("/trash/{relative_path:path}", status_code=204)
 async def purge_item(
     relative_path: str = PathParam(..., description="Library relative_path"),
 ) -> None:

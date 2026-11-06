@@ -57,7 +57,10 @@ export function Dashboard() {
 
   const hasOutputs = recentOutputs.length > 0;
   const hasActiveJobs = jobs.some(
-    (j) => j.status === JobStatus.PENDING || j.status === JobStatus.QUEUED || j.status === JobStatus.RUNNING,
+    (j) =>
+      j.status === JobStatus.PENDING ||
+      j.status === JobStatus.QUEUED ||
+      j.status === JobStatus.RUNNING,
   );
 
   const handleDelete = async (e: React.MouseEvent, output: (typeof recentOutputs)[0]) => {
@@ -370,11 +373,17 @@ export function Dashboard() {
 
       <p className="text-center text-[11px] text-muted mt-6">
         Looking for something else?{" "}
-        <button onClick={async () => navigate("/music-video-wizard")} className="underline hover:text-white">
+        <button
+          onClick={async () => navigate("/music-video-wizard")}
+          className="underline hover:text-white"
+        >
           Music Video Wizard
         </button>{" "}
         or{" "}
-        <button onClick={async () => navigate("/visualizer")} className="underline hover:text-white">
+        <button
+          onClick={async () => navigate("/visualizer")}
+          className="underline hover:text-white"
+        >
           Visualizer
         </button>{" "}
         — hidden from this view on purpose.

@@ -71,9 +71,9 @@ export const BUS_LABELS: Record<BusName, string> = {
 /** Bus color accents for the mixer UI. */
 export const BUS_COLORS: Record<BusName, string> = {
   vocals: "#8b5cf6", // violet
-  drums: "#f59e0b",  // amber
-  bass: "#3b82f6",   // blue
-  other: "#10b981",  // emerald
+  drums: "#f59e0b", // amber
+  bass: "#3b82f6", // blue
+  other: "#10b981", // emerald
   master: "#ef4444", // red
 };
 

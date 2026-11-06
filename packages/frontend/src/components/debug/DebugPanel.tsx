@@ -144,7 +144,8 @@ export function DebugPanel() {
                 {entry.durationMs ? `${entry.durationMs}ms` : "-"}
               </span>
               <span className="text-gray-500 w-20 text-right font-mono">
-                {entry.requestSize != null ? formatBytes(entry.requestSize) : "-"} &rarr; {entry.responseSize != null ? formatBytes(entry.responseSize) : "-"}
+                {entry.requestSize != null ? formatBytes(entry.requestSize) : "-"} &rarr;{" "}
+                {entry.responseSize != null ? formatBytes(entry.responseSize) : "-"}
               </span>
             </div>
           ))}

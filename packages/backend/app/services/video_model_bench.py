@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 WORKFLOW_DIR = PROJECT_ROOT / "tools" / "mcp" / "comfyui-workflows"
-BENCHMARK_OUTPUT = PROJECT_ROOT / "docs" / "knowledge-library" / "benchmarks" / "video-model-8gb-2026.json"
+BENCHMARK_OUTPUT = (
+    PROJECT_ROOT / "docs" / "knowledge-library" / "benchmarks" / "video-model-8gb-2026.json"
+)
 
 # ---------------------------------------------------------------------------
 # Test matrix from video-model-test-protocol-2026.md
@@ -143,7 +145,9 @@ TEST_MATRIX = [
 # ---------------------------------------------------------------------------
 
 
-def _ltxv_2b_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int) -> dict[str, Any]:
+def _ltxv_2b_workflow(
+    model_file: str, width: int, height: int, frames: int, fps: int, seed: int
+) -> dict[str, Any]:
     return {
         "prompt": {
             "1": {
@@ -205,7 +209,15 @@ def _ltxv_2b_workflow(model_file: str, width: int, height: int, frames: int, fps
     }
 
 
-def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int, model_format: str = "safetensors") -> dict[str, Any]:
+def _ltx_workflow(
+    model_file: str,
+    width: int,
+    height: int,
+    frames: int,
+    fps: int,
+    seed: int,
+    model_format: str = "safetensors",
+) -> dict[str, Any]:
     if model_format == "gguf":
         unet_node = {
             "1": {
@@ -296,7 +308,9 @@ def _ltx_workflow(model_file: str, width: int, height: int, frames: int, fps: in
     return workflow
 
 
-def _mochi_workflow(model_file: str, width: int, height: int, frames: int, fps: int, seed: int) -> dict[str, Any]:
+def _mochi_workflow(
+    model_file: str, width: int, height: int, frames: int, fps: int, seed: int
+) -> dict[str, Any]:
     return {
         "prompt": {
             "1": {
@@ -361,6 +375,7 @@ def _mochi_workflow(model_file: str, width: int, height: int, frames: int, fps: 
 # ---------------------------------------------------------------------------
 # VRAM measurement
 # ---------------------------------------------------------------------------
+
 
 class VramSampler:
     """Background VRAM sampler that records the peak while generation runs.
@@ -432,6 +447,7 @@ def measure_peak_vram_mb(duration_s: float, poll_interval_s: float = 1.0) -> int
 # ComfyUI interaction
 # ---------------------------------------------------------------------------
 
+
 def _run_async(coro):
     import asyncio
 
@@ -439,7 +455,11 @@ def _run_async(coro):
         return asyncio.run(coro)
     except RuntimeError as exc:
         msg = str(exc).lower()
-        if "no current event loop" in msg or "cannot be called from" in msg or "already running" in msg:
+        if (
+            "no current event loop" in msg
+            or "cannot be called from" in msg
+            or "already running" in msg
+        ):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -449,7 +469,9 @@ def _run_async(coro):
         raise
 
 
-async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int = 900) -> dict[str, Any]:
+async def _submit_and_wait(
+    workflow: dict[str, Any], base_url: str, timeout: int = 900
+) -> dict[str, Any]:
     """Submit a workflow and wait for completion. Returns history entry."""
     import asyncio
 
@@ -493,7 +515,11 @@ async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int
                         }
             await asyncio.sleep(poll_interval)
 
-        return {"error": f"Timed out after {timeout}s", "prompt_id": prompt_id, "last_status": last_status}
+        return {
+            "error": f"Timed out after {timeout}s",
+            "prompt_id": prompt_id,
+            "last_status": last_status,
+        }
     finally:
         await session.close()
 
@@ -501,6 +527,7 @@ async def _submit_and_wait(workflow: dict[str, Any], base_url: str, timeout: int
 # ---------------------------------------------------------------------------
 # Benchmark runner
 # ---------------------------------------------------------------------------
+
 
 def load_existing_results(path: Path = BENCHMARK_OUTPUT) -> list[dict[str, Any]]:
     if path.exists():
@@ -526,8 +553,7 @@ def _run_key(record: dict[str, Any]) -> str:
     CLI-built entries may omit it while ``run_benchmark_entry`` always writes it.
     """
     core = "|".join(
-        str(record.get(field, ""))
-        for field in ("model", "resolution", "frames", "precision")
+        str(record.get(field, "")) for field in ("model", "resolution", "frames", "precision")
     )
     return f"{core}|{record.get('format') or 'safetensors'}"
 
@@ -547,7 +573,9 @@ def upsert_result(results: list[dict[str, Any]], record: dict[str, Any]) -> list
     return results
 
 
-def run_benchmark_entry(entry: dict[str, Any], base_url: str, *, dry_run: bool = False) -> dict[str, Any]:
+def run_benchmark_entry(
+    entry: dict[str, Any], base_url: str, *, dry_run: bool = False
+) -> dict[str, Any]:
     model = entry["model"]
     width = entry["width"]
     height = entry["height"]
@@ -564,7 +592,9 @@ def run_benchmark_entry(entry: dict[str, Any], base_url: str, *, dry_run: bool =
             model_file = f"ltx-2.3-22b-dev-{precision}.gguf"
         else:
             model_file = f"ltx-video-2.3-{precision}.safetensors"
-        workflow = _ltx_workflow(model_file, width, height, frames, fps, seed=0, model_format=model_format)
+        workflow = _ltx_workflow(
+            model_file, width, height, frames, fps, seed=0, model_format=model_format
+        )
     elif model in ("mochi_1", "mochi_2"):
         model_file = f"mochi-{model.split('_')[1]}-{precision}.safetensors"
         workflow = _mochi_workflow(model_file, width, height, frames, fps, seed=0)
@@ -647,7 +677,9 @@ def parse_resolution(res_str: str) -> tuple[int, int]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Video model 8GB benchmark")
     ap.add_argument("--dry-run", action="store_true", help="Validate workflows without submitting")
-    ap.add_argument("--model", choices=["ltxv_2b", "ltx_2_3", "mochi_1", "mochi_2"], help="Model to test")
+    ap.add_argument(
+        "--model", choices=["ltxv_2b", "ltx_2_3", "mochi_1", "mochi_2"], help="Model to test"
+    )
     ap.add_argument("--resolution", type=parse_resolution, help="WxH, e.g. 512x512")
     ap.add_argument("--frames", type=int, default=24, help="Frame count (default 24)")
     ap.add_argument("--all", action="store_true", help="Run full matrix")
@@ -668,7 +700,8 @@ def main(argv: list[str] | None = None) -> int:
         entries = TEST_MATRIX
     else:
         entries = [
-            e for e in TEST_MATRIX
+            e
+            for e in TEST_MATRIX
             if e["model"] == args.model
             and (args.resolution is None or (e["width"], e["height"]) == args.resolution)
             and (args.precision is None or e.get("precision") == args.precision)
@@ -700,7 +733,13 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("Skipping %s -- already succeeded", entry_key)
             continue
 
-        logger.info("Benchmarking %s @ %s/%dfps %s", entry["model"], entry["resolution"], entry["fps"], entry["precision"])
+        logger.info(
+            "Benchmarking %s @ %s/%dfps %s",
+            entry["model"],
+            entry["resolution"],
+            entry["fps"],
+            entry["precision"],
+        )
         rec = run_benchmark_entry(entry, args.comfyui_url, dry_run=args.dry_run)
         upsert_result(results, rec)
         save_results(results, output_path)

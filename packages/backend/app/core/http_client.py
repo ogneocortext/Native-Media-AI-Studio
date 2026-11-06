@@ -120,6 +120,7 @@ class HTTPClientMixin:
 # Backwards compatibility helpers
 # These make it easier to migrate from requests
 
+
 class ResponseCompat:
     """Wrapper to provide requests-like response interface"""
 

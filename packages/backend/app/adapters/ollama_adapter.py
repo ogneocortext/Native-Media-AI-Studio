@@ -82,7 +82,10 @@ Respond ONLY with valid JSON in this exact format:
 Generate 3-8 scenes based on the input theme or concept."""
 
     def __init__(
-        self, base_url: str | None = None, *, mock_mode: bool = False,
+        self,
+        base_url: str | None = None,
+        *,
+        mock_mode: bool = False,
     ):
         """
         Initialize the Ollama adapter.
@@ -92,11 +95,13 @@ Generate 3-8 scenes based on the input theme or concept."""
             mock_mode: If True, skip service checks and use mock generation
         """
         from ..core.config import config as _cfg
+
         _base = base_url or _cfg.ollama_url
         super().__init__(_base, "Ollama", mock_mode=mock_mode)
         self._available_models: list[str] = []
         try:
             from ..core.config import config as _cfg
+
             _def = _cfg.default_model
         except Exception:
             _def = "gemma4:e2b-it-qat"
@@ -114,13 +119,16 @@ Generate 3-8 scenes based on the input theme or concept."""
             "keyframes": [],
         }
 
-    def set_activity(self, model: str, task: str = "generate", description: str = "", timeout: float = 180) -> None:
+    def set_activity(
+        self, model: str, task: str = "generate", description: str = "", timeout: float = 180
+    ) -> None:
         """Register that a model is actively processing a task.
 
         Args:
             timeout: Max seconds before this task is considered stale (default 10 min).
         """
         import time
+
         self._active_tasks[model] = {
             "task": task,
             "description": description[:120],
@@ -135,6 +143,7 @@ Generate 3-8 scenes based on the input theme or concept."""
     def get_activity(self) -> dict[str, dict[str, Any]]:
         """Get all currently active tasks, purging any that exceeded their timeout."""
         import time
+
         now = time.time()
         result = {}
         stale = []
@@ -173,7 +182,10 @@ Generate 3-8 scenes based on the input theme or concept."""
                     except Exception:
                         self._available_models = []
                     if self._status != AdapterStatus.AVAILABLE:
-                        logger.info("Ollama is now online (%d models available)", len(self._available_models))
+                        logger.info(
+                            "Ollama is now online (%d models available)",
+                            len(self._available_models),
+                        )
                     self._last_health_log = None
                     self.set_status(AdapterStatus.AVAILABLE)
                     return True
@@ -241,7 +253,9 @@ Generate 3-8 scenes based on the input theme or concept."""
                     try:
                         requested = int(options["num_ctx"])
                         if requested > 8192:
-                            logger.warning("generate num_ctx %d capped to 8192 for 8GB VRAM", requested)
+                            logger.warning(
+                                "generate num_ctx %d capped to 8192 for 8GB VRAM", requested
+                            )
                             options["num_ctx"] = 8192
                     except Exception:
                         pass
@@ -309,7 +323,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         options.update(kwargs)
 
         if tools and not self._supports_tools(model):
-            logger.warning("Model %s is not known to support tools; sending without tool definitions", model)
+            logger.warning(
+                "Model %s is not known to support tools; sending without tool definitions", model
+            )
             tools = None
         if "num_ctx" not in options:
             options["num_ctx"] = 8192
@@ -317,7 +333,9 @@ Generate 3-8 scenes based on the input theme or concept."""
             try:
                 requested = int(options["num_ctx"])
                 if requested > 8192:
-                    logger.warning("num_ctx %d requested -- capping to 8192 for 8GB VRAM", requested)
+                    logger.warning(
+                        "num_ctx %d requested -- capping to 8192 for 8GB VRAM", requested
+                    )
                     options["num_ctx"] = 8192
             except Exception:
                 pass
@@ -349,8 +367,13 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         # Track last used model for VRAM manager
         self._last_model = model
-        logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, think=%s [route=ollama]",
-                     model, stream, len(tools) if tools else 0, think)
+        logger.info(
+            "Ollama chat request: model=%s, stream=%s, tools=%d, think=%s [route=ollama]",
+            model,
+            stream,
+            len(tools) if tools else 0,
+            think,
+        )
 
         if stream:
             return self._stream_chat(payload)
@@ -371,9 +394,11 @@ Generate 3-8 scenes based on the input theme or concept."""
                 logger.error("Ollama non-stream error: status=%d, error=%s", resp.status, error)
                 raise RuntimeError(f"Ollama error: {error}")
             result = await resp.json()
-            logger.info("Ollama non-stream complete: content_len=%d, tool_calls=%d",
-                         len(result.get("message", {}).get("content", "")),
-                         len(result.get("message", {}).get("tool_calls", [])))
+            logger.info(
+                "Ollama non-stream complete: content_len=%d, tool_calls=%d",
+                len(result.get("message", {}).get("content", "")),
+                len(result.get("message", {}).get("tool_calls", [])),
+            )
             message = result.get("message", {}) or {}
             return {
                 "model": result.get("model", model),
@@ -445,7 +470,10 @@ Generate 3-8 scenes based on the input theme or concept."""
     # ------------------------------------------------------------------
 
     async def generate_storyboard(
-        self, theme: str, model: str = "gemma4:e2b-it-qat", num_scenes: int = 5,
+        self,
+        theme: str,
+        model: str = "gemma4:e2b-it-qat",
+        num_scenes: int = 5,
         *,
         use_structured_output: bool = True,
         num_ctx: int | None = None,

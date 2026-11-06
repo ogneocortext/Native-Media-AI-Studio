@@ -290,7 +290,12 @@ export function buildStoryboard(
     analysis?.duration_seconds ?? (lyrics.length ? lyrics[lyrics.length - 1].end + 5 : 0);
   const energy = analysis?.energy_curve;
 
-  interface Run { section: string; lines: LyricLine[]; start: number; end: number }
+  interface Run {
+    section: string;
+    lines: LyricLine[];
+    start: number;
+    end: number;
+  }
   const runs: Run[] = [];
 
   if (lyrics.length) {

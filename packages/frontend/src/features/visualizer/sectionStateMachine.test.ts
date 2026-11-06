@@ -102,15 +102,9 @@ describe("getAllSectionPresets", () => {
 
 describe("getSectionMotionIntensity (T-VIZ-19)", () => {
   it("ranks drops above choruses above verses above outros", () => {
-    expect(getSectionMotionIntensity("drop")).toBeGreaterThan(
-      getSectionMotionIntensity("chorus"),
-    );
-    expect(getSectionMotionIntensity("chorus")).toBeGreaterThan(
-      getSectionMotionIntensity("verse"),
-    );
-    expect(getSectionMotionIntensity("verse")).toBeGreaterThan(
-      getSectionMotionIntensity("outro"),
-    );
+    expect(getSectionMotionIntensity("drop")).toBeGreaterThan(getSectionMotionIntensity("chorus"));
+    expect(getSectionMotionIntensity("chorus")).toBeGreaterThan(getSectionMotionIntensity("verse"));
+    expect(getSectionMotionIntensity("verse")).toBeGreaterThan(getSectionMotionIntensity("outro"));
   });
 
   it("is case-insensitive and neutral for unknown/absent sections", () => {

@@ -194,7 +194,10 @@ def get_connection() -> sqlite3.Connection:
         while pool:
             conn = pool.pop()
             # Recycle connections that are too old.
-            if time.monotonic() - _connection_created_at.pop(id(conn), 0) > CONNECTION_MAX_AGE_SECONDS:
+            if (
+                time.monotonic() - _connection_created_at.pop(id(conn), 0)
+                > CONNECTION_MAX_AGE_SECONDS
+            ):
                 try:
                     conn.close()
                 except sqlite3.Error:

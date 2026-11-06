@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  ANTICIPATION_SEC,
-  LANDING_SEC,
-  beatPhraseScale,
-} from "./beatPhrasing";
+import { ANTICIPATION_SEC, LANDING_SEC, beatPhraseScale } from "./beatPhrasing";
 import { ease } from "./easing";
 
 /**

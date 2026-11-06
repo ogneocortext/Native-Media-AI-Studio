@@ -43,9 +43,9 @@ describe("stripHashPrefixes", () => {
   });
 
   it("stacks: strips three prefixes", () => {
-    expect(
-      stripHashPrefixes("a19680f6_3a2337e6_1bc4ab02_Learning How to Stay.mp3"),
-    ).toBe("Learning How to Stay.mp3");
+    expect(stripHashPrefixes("a19680f6_3a2337e6_1bc4ab02_Learning How to Stay.mp3")).toBe(
+      "Learning How to Stay.mp3",
+    );
   });
 
   it("is case-insensitive on the hash", () => {
@@ -120,9 +120,7 @@ describe("audioDisplayName", () => {
 
 describe("audioRefFor", () => {
   it("prefers the folder-aware relative_path", () => {
-    expect(audioRefFor(file("track.m4a", "Suno-V6-Mini/track.m4a"))).toBe(
-      "Suno-V6-Mini/track.m4a",
-    );
+    expect(audioRefFor(file("track.m4a", "Suno-V6-Mini/track.m4a"))).toBe("Suno-V6-Mini/track.m4a");
   });
 
   it("normalises Windows separators to POSIX", () => {
@@ -197,9 +195,7 @@ describe("isUnnamedFile", () => {
 
 describe("unnamedFileLabel / audioEntryLabel", () => {
   it("labels a uuid-named file readably", () => {
-    expect(unnamedFileLabel("ec2c167538d44391af7d14d57fede26d.wav")).toBe(
-      "Unnamed track ec2c16",
-    );
+    expect(unnamedFileLabel("ec2c167538d44391af7d14d57fede26d.wav")).toBe("Unnamed track ec2c16");
   });
 
   it("keeps two unnamed files distinguishable", () => {
@@ -216,9 +212,9 @@ describe("unnamedFileLabel / audioEntryLabel", () => {
     // `e75f3538_36a7f033...wav` strips its 8-hex upload prefix, leaving a bare
     // 32-hex content hash with no title. The raw basename isn't pure hash, so
     // isUnnamedFile misses it, but the rendered label must not be a wall of hex.
-    expect(
-      audioEntryLabel(file("e75f3538_36a7f033b69348398f1d43ace69be207.wav")),
-    ).toBe("Unnamed track 36a7f0");
+    expect(audioEntryLabel(file("e75f3538_36a7f033b69348398f1d43ace69be207.wav"))).toBe(
+      "Unnamed track 36a7f0",
+    );
   });
 });
 
@@ -324,9 +320,7 @@ describe("preset variants", () => {
   });
 
   it("labels a variant with both preset and source so options never collide", () => {
-    expect(variantLabel({ source: "Still I Rise", preset: "warm" })).toBe(
-      "warm — Still I Rise",
-    );
+    expect(variantLabel({ source: "Still I Rise", preset: "warm" })).toBe("warm — Still I Rise");
     // Two variants of different tracks must not render identically.
     expect(variantOptionLabel("Still I Rise [warm].wav")).not.toBe(
       variantOptionLabel("Take the Crown [warm].wav"),
@@ -392,12 +386,7 @@ describe("grouping", () => {
   });
 
   it("counts every entry exactly once", () => {
-    const entries = [
-      e("a.wav"),
-      e("a [warm].wav"),
-      e("b.wav"),
-      e("orphan [x].wav"),
-    ];
+    const entries = [e("a.wav"), e("a [warm].wav"), e("b.wav"), e("orphan [x].wav")];
     expect(countGroupedEntries(groupAudioEntries(entries))).toBe(entries.length);
   });
 

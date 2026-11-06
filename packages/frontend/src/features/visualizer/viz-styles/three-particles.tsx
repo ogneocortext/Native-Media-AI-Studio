@@ -76,8 +76,7 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
     // bursts synced to the grid — not a flat stream.
     const burstTarget = d.beat ? 1.0 : 0.0;
     burstRef.current = attackRelease(burstRef.current, burstTarget, 0.3, 0.9, dt60);
-    const snap =
-      d.beatPhase != null ? beatSnap(d.beatPhase) : burstRef.current;
+    const snap = d.beatPhase != null ? beatSnap(d.beatPhase) : burstRef.current;
     // Energy-driven palette: cool white-gold at rest →
     // warm amber when loud.
     const eHue = energyHue(d.energy);
@@ -100,7 +99,8 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
       emission.rateOverTime = 100 + snap * 400;
     }
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.2 * (1 + d.bass + snap * 0.5 + stemEnergyRef.current.bass * 0.3);
+      groupRef.current.rotation.y +=
+        delta * 0.2 * (1 + d.bass + snap * 0.5 + stemEnergyRef.current.bass * 0.3);
       groupRef.current.rotation.x += delta * 0.1 * d.mid + stemEnergyRef.current.vocals * 0.05;
     }
     // Central sphere pulses on the beat (2026): the

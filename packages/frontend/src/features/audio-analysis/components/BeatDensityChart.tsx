@@ -26,7 +26,11 @@ export function buildBeatDensity(
   for (const beat of beats) {
     const bar = Math.floor(beat / BEATS_PER_BAR);
     const existing = barMap.get(bar) ?? { count: 0, section: "", energy: 0 };
-    barMap.set(bar, { count: existing.count + 1, section: existing.section, energy: existing.energy });
+    barMap.set(bar, {
+      count: existing.count + 1,
+      section: existing.section,
+      energy: existing.energy,
+    });
   }
 
   // Assign sections and energy
@@ -62,8 +66,8 @@ export function BeatDensityChart(_props: { data: BeatDensityPoint[] }) {
         <span className="text-xs text-muted">4 beats per bar</span>
       </div>
       <p className="text-xs text-muted">
-        Shows how many beats fall in each measure. Taller bars = more rhythmic
-        activity; shorter bars = sparser sections. Colored by song section.
+        Shows how many beats fall in each measure. Taller bars = more rhythmic activity; shorter
+        bars = sparser sections. Colored by song section.
       </p>
       <div className="h-32 bg-surface/50 rounded-lg overflow-hidden">
         {/* Chart implementation would go here */}

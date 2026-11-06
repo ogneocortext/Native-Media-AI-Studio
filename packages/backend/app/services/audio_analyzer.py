@@ -56,6 +56,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def _import_shared_audio():
     from tools.lib.audio import analyze_beats, load_audio, save_beat_data  # type: ignore[import]
+
     return load_audio, analyze_beats, save_beat_data
 
 
@@ -203,7 +204,9 @@ def snap_beats_to_onsets(
         peak = int(np.argmax(seg))
         if seg[peak] > floor:
             snapped.append(
-                round(float(librosa.frames_to_time([lo + peak], sr=sr, hop_length=hop_length)[0]), 3)
+                round(
+                    float(librosa.frames_to_time([lo + peak], sr=sr, hop_length=hop_length)[0]), 3
+                )
             )
         else:
             snapped.append(t)
@@ -233,7 +236,7 @@ def detect_meter(beat_times: list[float]) -> int:
         # Downbeats occur every bpb beats
         if len(intervals) < bpb:
             continue
-        db_intervals = intervals[bpb - 1::bpb]
+        db_intervals = intervals[bpb - 1 :: bpb]
         if db_intervals.size < 2:
             continue
         db_median = float(np.median(db_intervals))
@@ -364,10 +367,18 @@ class AudioAnalyzer:
         frame_length = self.frame_length
         rms = librosa.feature.rms(y=y, hop_length=hop_length, frame_length=frame_length)[0]
         rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
-        zcr = librosa.feature.zero_crossing_rate(y=y, hop_length=hop_length, frame_length=frame_length)[0]
-        centroid = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)[0]
-        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)[0]
-        bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)[0]
+        zcr = librosa.feature.zero_crossing_rate(
+            y=y, hop_length=hop_length, frame_length=frame_length
+        )[0]
+        centroid = librosa.feature.spectral_centroid(
+            y=y, sr=sr, hop_length=hop_length, n_fft=frame_length
+        )[0]
+        rolloff = librosa.feature.spectral_rolloff(
+            y=y, sr=sr, hop_length=hop_length, n_fft=frame_length
+        )[0]
+        bandwidth = librosa.feature.spectral_bandwidth(
+            y=y, sr=sr, hop_length=hop_length, n_fft=frame_length
+        )[0]
         return WaveformFeatures(
             sample_rate=int(sr),
             duration_seconds=float(len(y) / sr),
@@ -416,7 +427,8 @@ class AudioAnalyzer:
         meter = detect_meter(beat_times)
         downbeat_times = downbeat_times_from_beats(beat_times, meter)
         downbeat_frames = [
-            int(f) for f in librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length)
+            int(f)
+            for f in librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length)
             if f < len(beat_frames)
         ]
 
@@ -487,14 +499,14 @@ class AudioAnalyzer:
             onset_times=onset_times,
             downbeat_frames=[
                 int(f)
-                for f in librosa.time_to_frames(
-                    downbeats, sr=sr, hop_length=self.hop_length
-                )
+                for f in librosa.time_to_frames(downbeats, sr=sr, hop_length=self.hop_length)
                 if f < len(beat_frames)
             ],
             downbeat_times=downbeats,
             # sonara's own confidence when reported, else measured stability
-            confidence=float(result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)),
+            confidence=float(
+                result.get("bpm_confidence") or beat_confidence(beat_times, tempo_val)
+            ),
         )
 
     def _sonara_beats_from_signal(self, y, sr: int) -> BeatFeatures:
@@ -543,20 +555,28 @@ class AudioAnalyzer:
             if median_interval > 0:
                 tempo_val = 60.0 / median_interval
 
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length)
+        onset_env = librosa.onset.onset_strength(
+            y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length
+        )
         onset_frames = librosa.onset.onset_detect(
             onset_envelope=onset_env, sr=sr, hop_length=self.hop_length, units="frames"
         ).tolist()
-        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+        onset_times = librosa.frames_to_time(
+            onset_frames, sr=sr, hop_length=self.hop_length
+        ).tolist()
 
         return BeatFeatures(
             tempo_bpm=round(float(tempo_val), 1),
-            beat_frames=librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist(),
+            beat_frames=librosa.time_to_frames(
+                beat_times, sr=sr, hop_length=self.hop_length
+            ).tolist(),
             beat_times=beat_times,
             onset_frames=onset_frames,
             onset_times=onset_times,
             confidence=beat_confidence(beat_times, tempo_val),
-            downbeat_frames=librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length).tolist(),
+            downbeat_frames=librosa.time_to_frames(
+                downbeat_times, sr=sr, hop_length=self.hop_length
+            ).tolist(),
             downbeat_times=downbeat_times,
         )
 
@@ -632,9 +652,7 @@ class AudioAnalyzer:
     def _analyze_librosa(self, audio_path: str, job_id: str | None = None) -> AudioAnalysisResult:
         """Original librosa analysis path (preserved as default)."""
         if not LIBROSA_AVAILABLE:
-            raise RuntimeError(
-                "librosa not installed. Install with: pip install librosa soundfile"
-            )
+            raise RuntimeError("librosa not installed. Install with: pip install librosa soundfile")
 
         job_id = job_id or str(uuid.uuid4())
 
@@ -680,8 +698,12 @@ class AudioAnalyzer:
 
             # librosa supplies the waveform/onset features; madmom-infer owns
             # beats, downbeats, and tempo.
-            beat_frames = librosa.time_to_frames(beat_times, sr=sr, hop_length=self.hop_length).tolist()
-            downbeat_frames = librosa.time_to_frames(downbeat_times, sr=sr, hop_length=self.hop_length).tolist()
+            beat_frames = librosa.time_to_frames(
+                beat_times, sr=sr, hop_length=self.hop_length
+            ).tolist()
+            downbeat_frames = librosa.time_to_frames(
+                downbeat_times, sr=sr, hop_length=self.hop_length
+            ).tolist()
 
             # Compute tempo from beat intervals when madmom does not provide it.
             tempo_val = 0.0
@@ -694,11 +716,15 @@ class AudioAnalyzer:
             # Real onsets (librosa) -- previously the downbeats were reported as
             # onsets, which conflated two different musical events. Downbeats now
             # travel in their own fields.
-            onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length)
+            onset_env = librosa.onset.onset_strength(
+                y=y, sr=sr, hop_length=self.hop_length, n_fft=self.frame_length
+            )
             onset_frames = librosa.onset.onset_detect(
                 onset_envelope=onset_env, sr=sr, hop_length=self.hop_length, units="frames"
             ).tolist()
-            onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length).tolist()
+            onset_times = librosa.frames_to_time(
+                onset_frames, sr=sr, hop_length=self.hop_length
+            ).tolist()
 
             return AudioAnalysisResult(
                 job_id=job_id,
@@ -846,6 +872,7 @@ class AudioAnalyzer:
         if output_path is None:
             return self._save_to_json(result)
         import json
+
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -977,6 +1004,7 @@ def analyze_with_cuda(
     cuda_ok = False
     try:
         from .cuda import cuda_audio, cuda_available
+
         if cuda_available():
             result = dict(cuda_audio.analyze(y))
             result["cuda"] = True

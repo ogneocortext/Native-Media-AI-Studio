@@ -7,7 +7,6 @@
  * The registry is the single source of truth for mode metadata.
  */
 
-
 /**
  * Canonical parameter shape accepted by every mode render function.
  */
@@ -72,7 +71,15 @@ export interface VisualizerModeRenderContext {
  */
 export interface VisualizerModeState {
   barValues?: number[];
-  particles?: { x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }[];
+  particles?: {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    color: string;
+    life: number;
+  }[];
   [key: string]: unknown;
 }
 

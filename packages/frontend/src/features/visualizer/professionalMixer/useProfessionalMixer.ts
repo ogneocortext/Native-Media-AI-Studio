@@ -50,7 +50,14 @@ interface InternalBus {
   eqInput: GainNode;
   eq: EQInstance;
   eqOutput: GainNode;
-  compressorReturn: { input: GainNode; output: GainNode; node: DynamicsCompressorNode; setState: (p: Partial<CompressorState>) => void; getState: () => CompressorState; dispose: () => void };
+  compressorReturn: {
+    input: GainNode;
+    output: GainNode;
+    node: DynamicsCompressorNode;
+    setState: (p: Partial<CompressorState>) => void;
+    getState: () => CompressorState;
+    dispose: () => void;
+  };
   fader: GainNode;
   pan: StereoPannerNode;
   analyser: AnalyserNode;
@@ -64,7 +71,14 @@ interface InternalStem {
   input: GainNode;
   eq: EQInstance;
   eqOutput: GainNode;
-  compressorReturn: { input: GainNode; output: GainNode; node: DynamicsCompressorNode; setState: (p: Partial<CompressorState>) => void; getState: () => CompressorState; dispose: () => void };
+  compressorReturn: {
+    input: GainNode;
+    output: GainNode;
+    node: DynamicsCompressorNode;
+    setState: (p: Partial<CompressorState>) => void;
+    getState: () => CompressorState;
+    dispose: () => void;
+  };
   fader: GainNode;
   pan: StereoPannerNode;
   analyser: AnalyserNode;
@@ -89,10 +103,10 @@ export function useProfessionalMixer({
     drums: { rms: 0, peak: 0, dBFS: -60 },
     bass: { rms: 0, peak: 0, dBFS: -60 },
     other: { rms: 0, peak: 0, dBFS: -60 },
-    "vocals_0": { rms: 0, peak: 0, dBFS: -60 },
-    "drums_0": { rms: 0, peak: 0, dBFS: -60 },
-    "bass_0": { rms: 0, peak: 0, dBFS: -60 },
-    "other_0": { rms: 0, peak: 0, dBFS: -60 },
+    vocals_0: { rms: 0, peak: 0, dBFS: -60 },
+    drums_0: { rms: 0, peak: 0, dBFS: -60 },
+    bass_0: { rms: 0, peak: 0, dBFS: -60 },
+    other_0: { rms: 0, peak: 0, dBFS: -60 },
     master: { rms: 0, peak: 0, dBFS: -60 },
   }));
 
@@ -106,7 +120,14 @@ export function useProfessionalMixer({
     input: GainNode;
     eq: EQInstance;
     eqOutput: GainNode;
-    compressor: { input: GainNode; output: GainNode; node: DynamicsCompressorNode; setState: (p: Partial<CompressorState>) => void; getState: () => CompressorState; dispose: () => void };
+    compressor: {
+      input: GainNode;
+      output: GainNode;
+      node: DynamicsCompressorNode;
+      setState: (p: Partial<CompressorState>) => void;
+      getState: () => CompressorState;
+      dispose: () => void;
+    };
     fader: GainNode;
     pan: StereoPannerNode;
     analyser: AnalyserNode;
@@ -123,7 +144,9 @@ export function useProfessionalMixer({
   useEffect(() => {
     try {
       localStorage.setItem("professionalMixer:snapshot", JSON.stringify(snapshot));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [snapshot]);
 
   // Load persisted snapshot on mount.
@@ -136,221 +159,234 @@ export function useProfessionalMixer({
           setSnapshot(parsed);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const getOrCreateCtx = useCallback(() => {
     if (!ctxRef.current) {
-      const ctx = sharedAudioContext ?? new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx =
+        sharedAudioContext ?? new (window.AudioContext || (window as any).webkitAudioContext)();
       ctxRef.current = ctx;
     }
     return ctxRef.current;
   }, [sharedAudioContext]);
 
   // ─── Master section ────────────────────────────────────────────────────────
-  const buildMaster = useCallback((ctx: AudioContext) => {
-    const input = ctx.createGain();
-    const eq = createEQ(ctx, []);
-    const eqOutput = ctx.createGain();
-    eq.input.connect(eqOutput);
-    eqOutput.connect(input); // EQ is parallel-bridged via output→input (pre-fader)
+  const buildMaster = useCallback(
+    (ctx: AudioContext) => {
+      const input = ctx.createGain();
+      const eq = createEQ(ctx, []);
+      const eqOutput = ctx.createGain();
+      eq.input.connect(eqOutput);
+      eqOutput.connect(input); // EQ is parallel-bridged via output→input (pre-fader)
 
-    const compressor = createCompressor(ctx, MASTER_COMPRESSOR_DEFAULT);
-    compressor.input.connect(compressor.output);
+      const compressor = createCompressor(ctx, MASTER_COMPRESSOR_DEFAULT);
+      compressor.input.connect(compressor.output);
 
-    const fader = ctx.createGain();
-    fader.gain.value = snapshot.master.volume;
+      const fader = ctx.createGain();
+      fader.gain.value = snapshot.master.volume;
 
-    const pan = ctx.createStereoPanner();
-    pan.pan.value = 0;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = 0;
 
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.6;
-    const meterBuf = new Uint8Array(analyser.frequencyBinCount);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
+      const meterBuf = new Uint8Array(analyser.frequencyBinCount);
 
-    // FX returns
-    const convolver = ctx.createConvolver();
-    convolver.buffer = generateImpulseResponse(ctx, 1.8, 0.4);
-    const reverbReturn = ctx.createGain();
-    reverbReturn.gain.value = 0.15;
-    convolver.connect(reverbReturn);
-    reverbReturn.connect(input);
+      // FX returns
+      const convolver = ctx.createConvolver();
+      convolver.buffer = generateImpulseResponse(ctx, 1.8, 0.4);
+      const reverbReturn = ctx.createGain();
+      reverbReturn.gain.value = 0.15;
+      convolver.connect(reverbReturn);
+      reverbReturn.connect(input);
 
-    const delay = ctx.createDelay(0.05);
-    delay.delayTime.value = 0.025;
-    const delayGain = ctx.createGain();
-    delayGain.gain.value = 0.12;
-    delay.connect(delayGain);
-    delayGain.connect(input);
+      const delay = ctx.createDelay(0.05);
+      delay.delayTime.value = 0.025;
+      const delayGain = ctx.createGain();
+      delayGain.gain.value = 0.12;
+      delay.connect(delayGain);
+      delayGain.connect(input);
 
-    // Graph: bus outputs → input → [reverbReturn / delayReturn / eqOutput] → compressor → fader → pan → analyser → destination
-    // eqOutput already feeds input above
-    input.connect(compressor.input);
-    compressor.output.connect(fader);
-    fader.connect(pan);
-    pan.connect(analyser);
-    pan.connect(ctx.destination);
+      // Graph: bus outputs → input → [reverbReturn / delayReturn / eqOutput] → compressor → fader → pan → analyser → destination
+      // eqOutput already feeds input above
+      input.connect(compressor.input);
+      compressor.output.connect(fader);
+      fader.connect(pan);
+      pan.connect(analyser);
+      pan.connect(ctx.destination);
 
-    const master = {
-      input,
-      eq,
-      eqOutput,
-      compressor,
-      fader,
-      pan,
-      analyser,
-      meterBuf,
-      reverbReturn,
-      delayReturn: delayGain,
-      state: { ...snapshot.master },
-    };
+      const master = {
+        input,
+        eq,
+        eqOutput,
+        compressor,
+        fader,
+        pan,
+        analyser,
+        meterBuf,
+        reverbReturn,
+        delayReturn: delayGain,
+        state: { ...snapshot.master },
+      };
 
-    // Apply stored state
-    master.fader.gain.value = master.state.volume;
-    if (master.state.eqBands.length) master.eq.setBands(master.state.eqBands);
-    master.compressor.setState({
-      threshold: master.state.compressorThreshold,
-      ratio: master.state.compressorRatio,
-      attack: master.state.compressorAttack,
-      release: master.state.compressorRelease,
-    });
+      // Apply stored state
+      master.fader.gain.value = master.state.volume;
+      if (master.state.eqBands.length) master.eq.setBands(master.state.eqBands);
+      master.compressor.setState({
+        threshold: master.state.compressorThreshold,
+        ratio: master.state.compressorRatio,
+        attack: master.state.compressorAttack,
+        release: master.state.compressorRelease,
+      });
 
-    return master;
-  }, [snapshot.master]);
+      return master;
+    },
+    [snapshot.master],
+  );
 
   // ─── Bus section ───────────────────────────────────────────────────────────
-  const buildBus = useCallback((ctx: AudioContext, name: BusName): InternalBus => {
-    const state = snapshot.buses[name] ?? DEFAULT_MIXER_SNAPSHOT.buses[name];
+  const buildBus = useCallback(
+    (ctx: AudioContext, name: BusName): InternalBus => {
+      const state = snapshot.buses[name] ?? DEFAULT_MIXER_SNAPSHOT.buses[name];
 
-    const input = ctx.createGain();
-    const eq = createEQ(ctx, state.eqBands);
-    const eqOutput = ctx.createGain();
-    eq.input.connect(eqOutput);
+      const input = ctx.createGain();
+      const eq = createEQ(ctx, state.eqBands);
+      const eqOutput = ctx.createGain();
+      eq.input.connect(eqOutput);
 
-    const compressor = createCompressor(ctx, {
-      threshold: state.compressorThreshold,
-      ratio: state.compressorRatio,
-      attack: state.compressorAttack,
-      release: state.compressorRelease,
-    });
-    compressor.input.connect(compressor.output);
+      const compressor = createCompressor(ctx, {
+        threshold: state.compressorThreshold,
+        ratio: state.compressorRatio,
+        attack: state.compressorAttack,
+        release: state.compressorRelease,
+      });
+      compressor.input.connect(compressor.output);
 
-    const fader = ctx.createGain();
-    fader.gain.value = state.volume;
+      const fader = ctx.createGain();
+      fader.gain.value = state.volume;
 
-    const pan = ctx.createStereoPanner();
-    pan.pan.value = state.pan;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = state.pan;
 
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.6;
-    const meterBuf = new Uint8Array(analyser.frequencyBinCount);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
+      const meterBuf = new Uint8Array(analyser.frequencyBinCount);
 
-    // Graph: stems route here → input → eq → compressor → fader → pan → analyser → master input
-    eqOutput.connect(compressor.input);
-    compressor.output.connect(fader);
-    fader.connect(pan);
-    pan.connect(analyser);
+      // Graph: stems route here → input → eq → compressor → fader → pan → analyser → master input
+      eqOutput.connect(compressor.input);
+      compressor.output.connect(fader);
+      fader.connect(pan);
+      pan.connect(analyser);
 
-    return {
-      name,
-      input,
-      eqInput: eq.input,
-      eq,
-      eqOutput,
-      compressorReturn: compressor,
-      fader,
-      pan,
-      analyser,
-      meterBuf,
-      state,
-    };
-  }, [snapshot.buses]);
+      return {
+        name,
+        input,
+        eqInput: eq.input,
+        eq,
+        eqOutput,
+        compressorReturn: compressor,
+        fader,
+        pan,
+        analyser,
+        meterBuf,
+        state,
+      };
+    },
+    [snapshot.buses],
+  );
 
   // ─── Stem channel strip ────────────────────────────────────────────────────
-  const buildStemChannel = useCallback((
-    ctx: AudioContext,
-    name: StemName,
-    url: string,
-  ): InternalStem => {
-    const state = (snapshot.strips as Record<string, ChannelStripState>)[name] ?? DEFAULT_STRIP_STATE;
+  const buildStemChannel = useCallback(
+    (ctx: AudioContext, name: StemName, url: string): InternalStem => {
+      const state =
+        (snapshot.strips as Record<string, ChannelStripState>)[name] ?? DEFAULT_STRIP_STATE;
 
-    const el = new Audio();
-    el.crossOrigin = "anonymous";
-    el.src = url;
-    el.preload = "auto";
+      const el = new Audio();
+      el.crossOrigin = "anonymous";
+      el.src = url;
+      el.preload = "auto";
 
-    let source: MediaElementAudioSourceNode;
-    try {
-      source = ctx.createMediaElementSource(el);
-    } catch {
-      // Already connected — dispose old one first
-      const existing = internalStemsRef.current.get(name);
-      if (existing?.source) {
-        try { existing.source.disconnect(); } catch { /* ignore */ }
+      let source: MediaElementAudioSourceNode;
+      try {
+        source = ctx.createMediaElementSource(el);
+      } catch {
+        // Already connected — dispose old one first
+        const existing = internalStemsRef.current.get(name);
+        if (existing?.source) {
+          try {
+            existing.source.disconnect();
+          } catch {
+            /* ignore */
+          }
+        }
+        source = ctx.createMediaElementSource(el);
       }
-      source = ctx.createMediaElementSource(el);
-    }
 
-    const input = ctx.createGain();
-    input.gain.value = state.muted ? 0 : 1;
+      const input = ctx.createGain();
+      input.gain.value = state.muted ? 0 : 1;
 
-    const eq = createEQ(ctx, state.eqBands);
-    const eqOutput = ctx.createGain();
+      const eq = createEQ(ctx, state.eqBands);
+      const eqOutput = ctx.createGain();
 
-    const compressor = createCompressor(ctx, {
-      threshold: state.compressorThreshold,
-      ratio: state.compressorRatio,
-      attack: state.compressorAttack,
-      release: state.compressorRelease,
-    });
-    compressor.input.connect(compressor.output);
+      const compressor = createCompressor(ctx, {
+        threshold: state.compressorThreshold,
+        ratio: state.compressorRatio,
+        attack: state.compressorAttack,
+        release: state.compressorRelease,
+      });
+      compressor.input.connect(compressor.output);
 
-    const fader = ctx.createGain();
-    fader.gain.value = state.volume;
+      const fader = ctx.createGain();
+      fader.gain.value = state.volume;
 
-    const pan = ctx.createStereoPanner();
-    pan.pan.value = state.pan;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = state.pan;
 
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.6;
-    const meterBuf = new Uint8Array(analyser.frequencyBinCount);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
+      const meterBuf = new Uint8Array(analyser.frequencyBinCount);
 
-    // FX sends
-    const reverbSend = ctx.createGain();
-    reverbSend.gain.value = state.reverbSend;
-    const delaySend = ctx.createGain();
-    delaySend.gain.value = state.delaySend;
+      // FX sends
+      const reverbSend = ctx.createGain();
+      reverbSend.gain.value = state.reverbSend;
+      const delaySend = ctx.createGain();
+      delaySend.gain.value = state.delaySend;
 
-    // Graph: source → input → eq → compressor → fader → pan → analyser
-    //                   └→ reverbSend └→ delaySend (both → FX returns in bus/master)
-    source.connect(input);
-    input.connect(eq.input);
-    eq.output.connect(eqOutput);
-    eqOutput.connect(compressor.input);
-    compressor.output.connect(fader);
-    fader.connect(pan);
-    pan.connect(analyser);
+      // Graph: source → input → eq → compressor → fader → pan → analyser
+      //                   └→ reverbSend └→ delaySend (both → FX returns in bus/master)
+      source.connect(input);
+      input.connect(eq.input);
+      eq.output.connect(eqOutput);
+      eqOutput.connect(compressor.input);
+      compressor.output.connect(fader);
+      fader.connect(pan);
+      pan.connect(analyser);
 
-    return {
-      name,
-      source,
-      input,
-      eq,
-      eqOutput,
-      compressorReturn: compressor,
-      fader,
-      pan,
-      analyser,
-      meterBuf,
-      reverbSend,
-      delaySend,
-      element: el,
-      state,
-    };
-  }, [snapshot.strips]);
+      return {
+        name,
+        source,
+        input,
+        eq,
+        eqOutput,
+        compressorReturn: compressor,
+        fader,
+        pan,
+        analyser,
+        meterBuf,
+        reverbSend,
+        delaySend,
+        element: el,
+        state,
+      };
+    },
+    [snapshot.strips],
+  );
 
   // ─── Rebuild entire graph when stems change ────────────────────────────────
   const rebuild = useCallback(() => {
@@ -362,37 +398,129 @@ export function useProfessionalMixer({
 
     // Dispose old
     internalStemsRef.current.forEach((s) => {
-      try { s.element.pause(); } catch { /* ignore */ }
-      try { s.source?.disconnect(); } catch { /* ignore */ }
-      try { s.input.disconnect(); } catch { /* ignore */ }
-      try { s.eq.dispose(); } catch { /* ignore */ }
-      try { s.compressorReturn.dispose(); } catch { /* ignore */ }
-      try { s.fader.disconnect(); } catch { /* ignore */ }
-      try { s.pan.disconnect(); } catch { /* ignore */ }
-      try { s.analyser.disconnect(); } catch { /* ignore */ }
-      try { s.reverbSend.disconnect(); } catch { /* ignore */ }
-      try { s.delaySend.disconnect(); } catch { /* ignore */ }
+      try {
+        s.element.pause();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.source?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.input.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.eq.dispose();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.compressorReturn.dispose();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.fader.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.pan.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.analyser.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.reverbSend.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        s.delaySend.disconnect();
+      } catch {
+        /* ignore */
+      }
     });
     internalStemsRef.current.clear();
 
     internalBusesRef.current.forEach((b) => {
-      try { b.input.disconnect(); } catch { /* ignore */ }
-      try { b.eq.dispose(); } catch { /* ignore */ }
-      try { b.compressorReturn.dispose(); } catch { /* ignore */ }
-      try { b.fader.disconnect(); } catch { /* ignore */ }
-      try { b.pan.disconnect(); } catch { /* ignore */ }
-      try { b.analyser.disconnect(); } catch { /* ignore */ }
+      try {
+        b.input.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        b.eq.dispose();
+      } catch {
+        /* ignore */
+      }
+      try {
+        b.compressorReturn.dispose();
+      } catch {
+        /* ignore */
+      }
+      try {
+        b.fader.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        b.pan.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        b.analyser.disconnect();
+      } catch {
+        /* ignore */
+      }
     });
     internalBusesRef.current.clear();
 
     if (masterRef.current) {
-      try { masterRef.current.input.disconnect(); } catch { /* ignore */ }
-      try { masterRef.current.eq.dispose(); } catch { /* ignore */ }
-      try { masterRef.current.compressor.dispose(); } catch { /* ignore */ }
-      try { masterRef.current.fader.disconnect(); } catch { /* ignore */ }
-      try { masterRef.current.pan.disconnect(); } catch { /* ignore */ }
-      try { masterRef.current.analyser.disconnect(); } catch { /* ignore */ }
-      try { masterRef.current.reverbReturn.disconnect(); } catch { /* ignore */ }
+      try {
+        masterRef.current.input.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        masterRef.current.eq.dispose();
+      } catch {
+        /* ignore */
+      }
+      try {
+        masterRef.current.compressor.dispose();
+      } catch {
+        /* ignore */
+      }
+      try {
+        masterRef.current.fader.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        masterRef.current.pan.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        masterRef.current.analyser.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        masterRef.current.reverbReturn.disconnect();
+      } catch {
+        /* ignore */
+      }
     }
     masterRef.current = null;
 
@@ -453,11 +581,14 @@ export function useProfessionalMixer({
     return count;
   }, [snapshot.strips, snapshot.buses]);
 
-  const isChannelAudible = useCallback((isMuted: boolean, isSolo: boolean): boolean => {
-    const soloCount = computeSoloCount();
-    if (soloCount > 0) return isSolo; // only soloed channels pass
-    return !isMuted;
-  }, [computeSoloCount]);
+  const isChannelAudible = useCallback(
+    (isMuted: boolean, isSolo: boolean): boolean => {
+      const soloCount = computeSoloCount();
+      if (soloCount > 0) return isSolo; // only soloed channels pass
+      return !isMuted;
+    },
+    [computeSoloCount],
+  );
 
   // ─── Actions ──────────────────────────────────────────────────────────────
   const setStripVolume = useCallback((name: StemName, v: number) => {
@@ -467,7 +598,8 @@ export function useProfessionalMixer({
         strips: { ...prev.strips, [name]: { ...prev.strips[name], volume: clamp(v, 0, 1) } },
       };
       const ch = internalStemsRef.current.get(name);
-      if (ch?.fader) ch.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current?.currentTime ?? 0, 0.02);
+      if (ch?.fader)
+        ch.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current?.currentTime ?? 0, 0.02);
       return next;
     });
   }, []);
@@ -479,7 +611,8 @@ export function useProfessionalMixer({
         strips: { ...prev.strips, [name]: { ...prev.strips[name], pan: clamp(p, -1, 1) } },
       };
       const ch = internalStemsRef.current.get(name);
-      if (ch?.pan) ch.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current?.currentTime ?? 0, 0.02);
+      if (ch?.pan)
+        ch.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current?.currentTime ?? 0, 0.02);
       return next;
     });
   }, []);
@@ -515,7 +648,10 @@ export function useProfessionalMixer({
     setSnapshot((prev) => {
       const next = {
         ...prev,
-        strips: { ...prev.strips, [name]: { ...prev.strips[name], eqBands: bands.map((b) => ({ ...b })) } },
+        strips: {
+          ...prev.strips,
+          [name]: { ...prev.strips[name], eqBands: bands.map((b) => ({ ...b })) },
+        },
       };
       const ch = internalStemsRef.current.get(name);
       ch?.eq.setBands(bands);
@@ -540,20 +676,23 @@ export function useProfessionalMixer({
     });
   }, []);
 
-  const setStripSend = useCallback((name: StemName, send: "reverbSend" | "delaySend", v: number) => {
-    setSnapshot((prev) => {
-      const next = {
-        ...prev,
-        strips: { ...prev.strips, [name]: { ...prev.strips[name], [send]: clamp(v, 0, 1) } },
-      };
-      const ch = internalStemsRef.current.get(name);
-      if (ch) {
-        const gainNode = send === "reverbSend" ? ch.reverbSend : ch.delaySend;
-        gainNode.gain.setTargetAtTime(clamp(v, 0, 1), ctxRef.current?.currentTime ?? 0, 0.02);
-      }
-      return next;
-    });
-  }, []);
+  const setStripSend = useCallback(
+    (name: StemName, send: "reverbSend" | "delaySend", v: number) => {
+      setSnapshot((prev) => {
+        const next = {
+          ...prev,
+          strips: { ...prev.strips, [name]: { ...prev.strips[name], [send]: clamp(v, 0, 1) } },
+        };
+        const ch = internalStemsRef.current.get(name);
+        if (ch) {
+          const gainNode = send === "reverbSend" ? ch.reverbSend : ch.delaySend;
+          gainNode.gain.setTargetAtTime(clamp(v, 0, 1), ctxRef.current?.currentTime ?? 0, 0.02);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const setRouting = useCallback((stem: StemName, bus: BusName) => {
     setSnapshot((prev) => {
@@ -562,7 +701,11 @@ export function useProfessionalMixer({
       const ch = internalStemsRef.current.get(stem);
       const targetBus = internalBusesRef.current.get(bus);
       if (ch?.analyser && targetBus?.input) {
-        try { ch.analyser.disconnect(); } catch { /* ignore */ }
+        try {
+          ch.analyser.disconnect();
+        } catch {
+          /* ignore */
+        }
         ch.analyser.connect(targetBus.input);
       }
       return next;
@@ -572,18 +715,26 @@ export function useProfessionalMixer({
   // Bus actions
   const setBusVolume = useCallback((name: BusName, v: number) => {
     setSnapshot((prev) => {
-      const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], volume: clamp(v, 0, 1) } } };
+      const next = {
+        ...prev,
+        buses: { ...prev.buses, [name]: { ...prev.buses[name], volume: clamp(v, 0, 1) } },
+      };
       const bus = internalBusesRef.current.get(name);
-      if (bus?.fader) bus.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current?.currentTime ?? 0, 0.02);
+      if (bus?.fader)
+        bus.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current?.currentTime ?? 0, 0.02);
       return next;
     });
   }, []);
 
   const setBusPan = useCallback((name: BusName, p: number) => {
     setSnapshot((prev) => {
-      const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], pan: clamp(p, -1, 1) } } };
+      const next = {
+        ...prev,
+        buses: { ...prev.buses, [name]: { ...prev.buses[name], pan: clamp(p, -1, 1) } },
+      };
       const bus = internalBusesRef.current.get(name);
-      if (bus?.pan) bus.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current?.currentTime ?? 0, 0.02);
+      if (bus?.pan)
+        bus.pan.pan.setTargetAtTime(clamp(p, -1, 1), ctxRef.current?.currentTime ?? 0, 0.02);
       return next;
     });
   }, []);
@@ -591,10 +742,17 @@ export function useProfessionalMixer({
   const toggleBusMute = useCallback((name: BusName) => {
     setSnapshot((prev) => {
       const nextMuted = !prev.buses[name].muted;
-      const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], muted: nextMuted } } };
+      const next = {
+        ...prev,
+        buses: { ...prev.buses, [name]: { ...prev.buses[name], muted: nextMuted } },
+      };
       const bus = internalBusesRef.current.get(name);
       if (bus?.fader) {
-        bus.fader.gain.setTargetAtTime(nextMuted ? 0 : bus.state.volume, ctxRef.current?.currentTime ?? 0, 0.02);
+        bus.fader.gain.setTargetAtTime(
+          nextMuted ? 0 : bus.state.volume,
+          ctxRef.current?.currentTime ?? 0,
+          0.02,
+        );
       }
       return next;
     });
@@ -603,14 +761,23 @@ export function useProfessionalMixer({
   const toggleBusSolo = useCallback((name: BusName) => {
     setSnapshot((prev) => {
       const nextSolo = !prev.buses[name].solo;
-      const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], solo: nextSolo } } };
+      const next = {
+        ...prev,
+        buses: { ...prev.buses, [name]: { ...prev.buses[name], solo: nextSolo } },
+      };
       return next;
     });
   }, []);
 
   const setBusEQ = useCallback((name: BusName, bands: EQBand[]) => {
     setSnapshot((prev) => {
-      const next = { ...prev, buses: { ...prev.buses, [name]: { ...prev.buses[name], eqBands: bands.map((b) => ({ ...b })) } } };
+      const next = {
+        ...prev,
+        buses: {
+          ...prev.buses,
+          [name]: { ...prev.buses[name], eqBands: bands.map((b) => ({ ...b })) },
+        },
+      };
       const bus = internalBusesRef.current.get(name);
       bus?.eq.setBands(bands);
       return next;
@@ -639,14 +806,21 @@ export function useProfessionalMixer({
     setSnapshot((prev) => {
       const next = { ...prev, master: { ...prev.master, volume: clamp(v, 0, 1) } };
       if (masterRef.current?.fader) {
-        masterRef.current.fader.gain.setTargetAtTime(clamp(v, 0.001, 1), ctxRef.current?.currentTime ?? 0, 0.02);
+        masterRef.current.fader.gain.setTargetAtTime(
+          clamp(v, 0.001, 1),
+          ctxRef.current?.currentTime ?? 0,
+          0.02,
+        );
       }
       return next;
     });
   }, []);
 
   const setMasterEQ = useCallback((bands: EQBand[]) => {
-    setSnapshot((prev) => ({ ...prev, master: { ...prev.master, eqBands: bands.map((b) => ({ ...b })) } }));
+    setSnapshot((prev) => ({
+      ...prev,
+      master: { ...prev.master, eqBands: bands.map((b) => ({ ...b })) },
+    }));
     masterRef.current?.eq.setBands(bands);
   }, []);
 
@@ -818,11 +992,7 @@ export function useProfessionalMixer({
 
 // ─── IR generator (used by master for reverb return) ────────────────────────
 
-function generateImpulseResponse(
-  ctx: AudioContext,
-  duration: number,
-  decay: number,
-): AudioBuffer {
+function generateImpulseResponse(ctx: AudioContext, duration: number, decay: number): AudioBuffer {
   const rate = ctx.sampleRate;
   const length = Math.floor(rate * duration);
   const buffer = ctx.createBuffer(2, length, rate);

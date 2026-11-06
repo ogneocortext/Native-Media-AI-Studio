@@ -98,7 +98,8 @@ class IdleMonitor:
             if idle > IDLE_TIMEOUT_SECONDS:
                 logger.info(
                     "Idle timeout: %s has been idle for %.0fs, unloading",
-                    name, idle,
+                    name,
+                    idle,
                 )
                 await self._unload_adapter(adapter)
 

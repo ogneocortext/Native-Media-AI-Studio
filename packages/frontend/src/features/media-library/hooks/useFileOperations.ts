@@ -6,10 +6,7 @@ export function useFileOperations() {
   const [isOperating, setIsOperating] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
 
-  const handleDelete = async (
-    _filename: string,
-    relativePath: string
-  ): Promise<boolean> => {
+  const handleDelete = async (_filename: string, relativePath: string): Promise<boolean> => {
     setIsOperating(true);
     setOperationError(null);
     try {
@@ -26,7 +23,7 @@ export function useFileOperations() {
   };
 
   const handleBulkDelete = async (
-    paths: string[]
+    paths: string[],
   ): Promise<{ deleted: number; failed: number }> => {
     setIsOperating(true);
     setOperationError(null);
@@ -50,19 +47,16 @@ export function useFileOperations() {
   const handleRename = async (
     _filename: string,
     relativePath: string,
-    newName: string
+    newName: string,
   ): Promise<boolean> => {
     setIsOperating(true);
     setOperationError(null);
     try {
-      await fetchWithTimeout(
-        `/api/outputs/${encodeURIComponent(relativePath)}/rename`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ new_name: newName }),
-        }
-      );
+      await fetchWithTimeout(`/api/outputs/${encodeURIComponent(relativePath)}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_name: newName }),
+      });
       return true;
     } catch (e) {
       setOperationError(e instanceof Error ? e.message : "Rename failed");
@@ -72,9 +66,7 @@ export function useFileOperations() {
     }
   };
 
-  const handleProbe = async (
-    filename: string
-  ): Promise<MediaProbeResponse | null> => {
+  const handleProbe = async (filename: string): Promise<MediaProbeResponse | null> => {
     setIsOperating(true);
     setOperationError(null);
     try {

@@ -34,6 +34,7 @@ def _check_dimension(v: int) -> int:
 
 class VideoModelVariant(StrEnum):
     """Precision / packaging variant for a video generation checkpoint."""
+
     FP16 = "fp16"
     GGUF_Q4 = "gguf_q4"
     GGUF_Q5 = "gguf_q5"
@@ -154,7 +155,9 @@ class VideoGenerationRequest(BaseModel):
     # Wan 2.2 GGUF additions
     model_variant: VideoModelVariant = VideoModelVariant.STANDARD
     ckpt_name: str = ""  # explicit checkpoint override for Wan/other pipelines
-    image_path: str | None = None  # image-to-video: path to input image (uploaded via /api/integrations/comfyui/upload-image)
+    image_path: str | None = (
+        None  # image-to-video: path to input image (uploaded via /api/integrations/comfyui/upload-image)
+    )
     image_role: str | None = None  # I2V role: "first_frame", "inspiration", or "editing_target"
     camera_motion: str = "none"  # camera move: "none", "push_in", "pull_out", "pan_left", "pan_right", "tilt_up", "tilt_down", "zoom_in", "orbit"
     motion_strength: float = 5.0  # 1-10 motion intensity for I2V
@@ -191,7 +194,11 @@ class VideoGenerationRequest(BaseModel):
 
     def to_adapter_params(self) -> dict:
         """Single conversion from video request to adapter params."""
-        variant = self.model_variant.value if hasattr(self.model_variant, "value") else str(self.model_variant)
+        variant = (
+            self.model_variant.value
+            if hasattr(self.model_variant, "value")
+            else str(self.model_variant)
+        )
         params: dict[str, Any] = {
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,

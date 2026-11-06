@@ -19,10 +19,7 @@ import { RemixPanel } from "./RemixPanel";
 import { ArrowLeft, Wand2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMemo } from "react";
-import {
-  peekPendingTrack,
-  setPendingTrack,
-} from "../../utils/pendingTrack";
+import { peekPendingTrack, setPendingTrack } from "../../utils/pendingTrack";
 
 export function RemixPage() {
   const navigate = useNavigate();
@@ -47,9 +44,8 @@ export function RemixPage() {
           <span>Remix / Mashup</span>
         </div>
         <p className="page-subtitle">
-          Build a mashup from stems of different songs - drums from one track,
-          vocals from another. Key shifts are explicit; detected keys are shown
-          as unreliable advisories only.
+          Build a mashup from stems of different songs - drums from one track, vocals from another.
+          Key shifts are explicit; detected keys are shown as unreliable advisories only.
         </p>
         {pendingTrack && (
           <button

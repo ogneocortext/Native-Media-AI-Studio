@@ -32,12 +32,7 @@ export function getUsageLabel(percent: number): string {
  * banner, Services card, and badges agree — previously "available" fell
  * through every healthy check and a live Ollama rendered as "unreachable".
  */
-const HEALTHY_ADAPTER_STATUSES = new Set([
-  "connected",
-  "online",
-  "healthy",
-  "available",
-]);
+const HEALTHY_ADAPTER_STATUSES = new Set(["connected", "online", "healthy", "available"]);
 
 const WARNING_ADAPTER_STATUSES = new Set(["degraded", "warning", "busy"]);
 

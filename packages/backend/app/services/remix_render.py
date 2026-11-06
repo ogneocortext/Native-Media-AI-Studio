@@ -255,7 +255,12 @@ def build_mix_report(mixed: dict[str, np.ndarray]) -> dict[str, Any]:
         mix_buf = clipped if mix_buf is None else mix_buf + clipped
     mix_peak = float(np.max(np.abs(mix_buf))) if mix_buf is not None and mix_buf.size else 0.0
     from . import stem_remixer
-    mix_stats = stem_remixer._ebur128_stats(np.clip(mix_buf, -1.0, 1.0), REMIX_SR) if mix_buf is not None else {"integrated_lufs": None, "true_peak_dbfs": None}
+
+    mix_stats = (
+        stem_remixer._ebur128_stats(np.clip(mix_buf, -1.0, 1.0), REMIX_SR)
+        if mix_buf is not None
+        else {"integrated_lufs": None, "true_peak_dbfs": None}
+    )
     return {
         "stems": stems,
         "mix": {
@@ -288,13 +293,19 @@ def render_remix(
     from . import stem_remixer
 
     cache = stem_remixer._SourceCache(recipe.target_bpm)
-    mixed, plan, warnings, stretch_ratios = stem_remixer._mix_recipe(recipe, cache, should_cancel, progress_cb)
+    mixed, plan, warnings, stretch_ratios = stem_remixer._mix_recipe(
+        recipe, cache, should_cancel, progress_cb
+    )
     calibration = cache.calibration_report()
     for ref, rec in calibration.items():
         if rec["measured_lufs"] is None:
-            warnings.append(f"{ref}: loudness calibration skipped (ffmpeg/measurement failed) -- layer renders uncalibrated")
+            warnings.append(
+                f"{ref}: loudness calibration skipped (ffmpeg/measurement failed) -- layer renders uncalibrated"
+            )
         elif rec["clamped"]:
-            warnings.append(f"{ref}: calibration {rec['offset_db']:+.1f} dB hit the +/-{CALIBRATION_MAX_DB:.0f} dB clamp -- source is unusually quiet/loud, check the stem")
+            warnings.append(
+                f"{ref}: calibration {rec['offset_db']:+.1f} dB hit the +/-{CALIBRATION_MAX_DB:.0f} dB clamp -- source is unusually quiet/loud, check the stem"
+            )
     total_n = plan["total_n"]
 
     out_dir = stem_remixer.REMIX_DIR / name

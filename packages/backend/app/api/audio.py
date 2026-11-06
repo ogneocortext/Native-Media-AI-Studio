@@ -677,7 +677,9 @@ async def get_beat_map(
     try:
         _check_backend_available(backend)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Backend {backend} not available: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Backend {backend} not available: {exc}"
+        ) from exc
 
     from ..services.audio_analyzer import AudioAnalyzer
 
@@ -956,9 +958,7 @@ async def get_spectral_timeline(
 
     # Disk cache keyed by (path, params); the stored fingerprint (mtime+size)
     # invalidates automatically if the file is replaced in place.
-    cache_key = hashlib.sha1(
-        f"{normalized}|{fps}|{sr}|{hop_length}|{n_fft}".encode()
-    ).hexdigest()
+    cache_key = hashlib.sha1(f"{normalized}|{fps}|{sr}|{hop_length}|{n_fft}".encode()).hexdigest()
     cache_path = SPECTRAL_CACHE_DIR / f"{cache_key}.json"
     try:
         st = audio_path.stat()
@@ -977,9 +977,7 @@ async def get_spectral_timeline(
     # Decode + full-track STFT are CPU-bound and used to run inline in the
     # event loop, freezing every other request for seconds.
     y, sr_loaded = await asyncio.to_thread(load_audio, str(audio_path), sr)
-    raw_frames = await asyncio.to_thread(
-        analyze_audio_bands, y, sr_loaded, hop_length, n_fft
-    )
+    raw_frames = await asyncio.to_thread(analyze_audio_bands, y, sr_loaded, hop_length, n_fft)
 
     from tools.export_spectral_timeline import resample_timeline_to_fps
 
@@ -1226,7 +1224,9 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
             )
             await _apply_llm_sections(analysis_result, result, rms_for_llm)
         except Exception as e:
-            logger.warning("LLM section refinement failed for ensure-analysis: %s", e, exc_info=True)
+            logger.warning(
+                "LLM section refinement failed for ensure-analysis: %s", e, exc_info=True
+            )
 
         # Save the analysis file (index.json is not written; see analyze_audio).
         analysis_file = ANALYSIS_DIR / f"{unique_id}_analysis.json"

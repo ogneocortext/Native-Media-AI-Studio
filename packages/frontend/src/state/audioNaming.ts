@@ -95,7 +95,7 @@ export function audioRefFor(file: AudioLibraryFile): string {
 /** The leading 8-hex content hash, used to disambiguate same-named tracks. */
 export function shortHashOf(file: AudioLibraryFile | string): string {
   const raw = typeof file === "string" ? file : file.filename;
-  return (/^[0-9a-f]{8}/i.exec(raw))?.[0] ?? "";
+  return /^[0-9a-f]{8}/i.exec(raw)?.[0] ?? "";
 }
 
 /**
@@ -213,17 +213,10 @@ export const VARIANT_CLOSE = "]";
  * preserved from the source unless `extension` overrides it, which matters
  * because a 48 kHz WAV rendered from an .m4a should not silently become one.
  */
-export function variantFileName(
-  sourceName: string,
-  presetId: string,
-  extension?: string,
-): string {
+export function variantFileName(sourceName: string, presetId: string, extension?: string): string {
   const base = sourceName.split("/").pop() ?? sourceName;
   const stem = stripAudioExtension(stripHashPrefixes(base));
-  const ext =
-    extension ??
-    (new RegExp(EXTENSION_GROUP, "i").exec(base))?.[1] ??
-    "wav";
+  const ext = extension ?? new RegExp(EXTENSION_GROUP, "i").exec(base)?.[1] ?? "wav";
   // Brackets inside a preset id would make the marker ambiguous, so they are
   // collapsed rather than silently producing a name that parses back wrong.
   const safePreset = presetId.replace(/[[\]]/g, "").trim();

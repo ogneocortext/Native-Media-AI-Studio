@@ -206,9 +206,7 @@ class UnityService:
         Returns:
             Result dictionary from Unity.
         """
-        logger.info(
-            "Unity service: Syncing audio %s to scene %s", audio_path, scene_path
-        )
+        logger.info("Unity service: Syncing audio %s to scene %s", audio_path, scene_path)
 
         # Load or create the scene
         await self.create_scene(scene_path)

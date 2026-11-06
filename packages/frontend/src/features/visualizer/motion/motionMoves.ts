@@ -190,8 +190,7 @@ export interface SquashParams {
  *  inflation on every kick. The number wins; this expression makes the
  *  volume-preservation property hold for any `compressionY` rather than only
  *  for the one default. */
-export const volumePreservingFlare = (compressionY: number): number =>
-  1 / Math.sqrt(compressionY);
+export const volumePreservingFlare = (compressionY: number): number => 1 / Math.sqrt(compressionY);
 
 /**
  * Defaults from the spec. `flareXZ` is derived from `compressionY` rather than
@@ -215,10 +214,7 @@ export const DEFAULT_SQUASH: SquashParams = {
  * The returned triple always satisfies `x·y·z ≈ 1` — that is the whole point,
  * so it is asserted in the unit test rather than trusted.
  */
-export function squashImpact(
-  tSec: number,
-  params: SquashParams = DEFAULT_SQUASH,
-): Vec3 {
+export function squashImpact(tSec: number, params: SquashParams = DEFAULT_SQUASH): Vec3 {
   const compressionY = params.compressionY > 0 ? params.compressionY : 0.75;
   // `flareXZ` is the *peak* flare (at t=0) and is honoured there; at later
   // times the flare is derived from the live scaleY so volume stays conserved.
@@ -265,10 +261,7 @@ export function squashImpact(
  * 1 must mean "full impact". Volume is conserved at every value, as with
  * `squashImpact`.
  */
-export function squashFromImpulse(
-  impulse: number,
-  params: SquashParams = DEFAULT_SQUASH,
-): Vec3 {
+export function squashFromImpulse(impulse: number, params: SquashParams = DEFAULT_SQUASH): Vec3 {
   const amount = clamp01(impulse);
   const compressionY = params.compressionY > 0 ? params.compressionY : 0.75;
   const scaleY = 1 - (1 - compressionY) * amount;
@@ -382,9 +375,7 @@ export function snareBackpedal(
   // Negated: the camera recoils *away* from its rest pose (down its own view
   // vector) and is then pulled back. A positive first excursion would be a
   // lurch toward the subject, which is the opposite of the move.
-  return (
-    -params.kickbackDistance * dampedHarmonic(tSec, params.gamma, params.omega) * envelope
-  );
+  return -params.kickbackDistance * dampedHarmonic(tSec, params.gamma, params.omega) * envelope;
 }
 
 // ---------------------------------------------------------------------------
@@ -479,10 +470,7 @@ export function subBassSwell(
   // ungated level rather than a channel stuck at the attack floor.
   const elapsedMs = Number.isFinite(tSec) ? tSec * 1000 : Number.POSITIVE_INFINITY;
   const windowMs = elapsedMs < params.attackTimeMs ? params.attackTimeMs : params.releaseTimeMs;
-  const envelope =
-    Number.isFinite(elapsedMs) && windowMs > 0
-      ? clamp01(elapsedMs / windowMs)
-      : 1;
+  const envelope = Number.isFinite(elapsedMs) && windowMs > 0 ? clamp01(elapsedMs / windowMs) : 1;
 
   // `|| 0` normalises -0 to 0 so a silent passage returns exactly {0, 0} rather
   // than {-0, -0}, which fails a strict deep-equal against the neutral pose.
@@ -694,7 +682,7 @@ export function focalBreathing(
   const cameraZ = params.fixedSubjectDistance * (fov / params.minFOV - 1);
   return { fov, cameraZ };
 }
-  // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Sectional easing palette applied to a channel (spec §2, implementation step 4)
 // ---------------------------------------------------------------------------
 

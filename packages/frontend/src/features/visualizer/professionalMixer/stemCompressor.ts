@@ -9,9 +9,9 @@
 
 export interface CompressorState {
   threshold: number; // dB, -60…0
-  ratio: number;      // 1…20
-  attack: number;     // ms, 0…100
-  release: number;    // ms, 10…1000
+  ratio: number; // 1…20
+  attack: number; // ms, 0…100
+  release: number; // ms, 10…1000
 }
 
 const DEFAULT_COMPRESSOR: CompressorState = {
@@ -79,9 +79,21 @@ export function createCompressor(
     setState: applyState,
     getState: () => ({ ...state }),
     dispose() {
-      try { input.disconnect(); } catch { /* ignore */ }
-      try { output.disconnect(); } catch { /* ignore */ }
-      try { node.disconnect(); } catch { /* ignore */ }
+      try {
+        input.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        output.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        node.disconnect();
+      } catch {
+        /* ignore */
+      }
     },
   };
 }

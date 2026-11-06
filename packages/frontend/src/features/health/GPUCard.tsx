@@ -1,11 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  CpuIcon,
-  MemoryStick,
-  Activity,
-  Thermometer,
-  RefreshCw,
-} from "lucide-react";
+import { CpuIcon, MemoryStick, Activity, Thermometer, RefreshCw } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
 import { getApiBaseUrl } from "../../services/portConfig";
@@ -104,22 +98,14 @@ export function GPUCard() {
           onOffload={handleOffloadOllama}
           onReload={handleReloadOllama}
         />
-        <ModelPill
-          label="Atomic Chat"
-          loaded={manager?.atomic_chat_loaded === true}
-          hasData
-        />
+        <ModelPill label="Atomic Chat" loaded={manager?.atomic_chat_loaded === true} hasData />
         <ModelPill
           label="ComfyUI"
           loaded={manager?.comfyui_models_loaded === true}
           busy={manager?.comfyui_busy === true}
           hasData
         />
-        <ModelPill
-          label="Music Gen"
-          loaded={manager?.music_gen_running === true}
-          hasData
-        />
+        <ModelPill label="Music Gen" loaded={manager?.music_gen_running === true} hasData />
       </div>
     </div>
   ) : null;
@@ -327,9 +313,7 @@ function ModelPill({ label, loaded, busy, hasData, onOffload, onReload }: ModelP
         </span>
       )}
       {!hasData && (
-        <span className="text-[10px] text-muted/50 flex items-center gap-1">
-          No data
-        </span>
+        <span className="text-[10px] text-muted/50 flex items-center gap-1">No data</span>
       )}
       <div className="flex gap-1">
         {canOffload && (
@@ -350,9 +334,7 @@ function ModelPill({ label, loaded, busy, hasData, onOffload, onReload }: ModelP
             Reload
           </button>
         )}
-        {!canOffload && !canReload && (
-          <span className="text-[10px] text-muted/50">—</span>
-        )}
+        {!canOffload && !canReload && <span className="text-[10px] text-muted/50">—</span>}
       </div>
     </div>
   );

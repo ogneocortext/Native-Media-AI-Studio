@@ -133,9 +133,7 @@ async def bridge_nodes() -> dict:
     """Get list of configured custom nodes."""
     return {
         "nodes": comfyui_bridge.get_configured_nodes(),
-        "available_files": [
-            str(p.name) for p in comfyui_bridge.get_available_node_files()
-        ],
+        "available_files": [str(p.name) for p in comfyui_bridge.get_available_node_files()],
     }
 
 
@@ -193,13 +191,15 @@ def _list_dir(directory: Path) -> list[dict]:
             rel = f.relative_to(directory)
         except ValueError:
             continue
-        entries.append({
-            "name": f.name,
-            "path": str(rel).replace("\\", "/"),
-            "size_mb": round(f.stat().st_size / (1024 * 1024), 2),
-            "type": f.suffix.lstrip(".") or "file",
-            "modified": f.stat().st_mtime,
-        })
+        entries.append(
+            {
+                "name": f.name,
+                "path": str(rel).replace("\\", "/"),
+                "size_mb": round(f.stat().st_size / (1024 * 1024), 2),
+                "type": f.suffix.lstrip(".") or "file",
+                "modified": f.stat().st_mtime,
+            }
+        )
     return entries
 
 

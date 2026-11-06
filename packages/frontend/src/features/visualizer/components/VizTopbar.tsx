@@ -7,10 +7,7 @@
  */
 import { FolderOpen, ListVideo, Music } from "lucide-react";
 import type { LibraryFile } from "../visualizerHelpers";
-import {
-  audioRefForFile,
-  optionLabelForFile,
-} from "../visualizerHelpers";
+import { audioRefForFile, optionLabelForFile } from "../visualizerHelpers";
 import type { AudioAnalysisData } from "../types";
 
 interface VizTopbarProps {
@@ -135,11 +132,7 @@ export function VizTopbar({
           </button>
         )}
         <span id="viz-analyze-status" className="sr-only" aria-live="polite">
-          {analyzing
-            ? "Analyzing track…"
-            : currentAnalysisData
-            ? "Analysis complete"
-            : ""}
+          {analyzing ? "Analyzing track…" : currentAnalysisData ? "Analysis complete" : ""}
         </span>
         {currentFilename && preset && (
           <span

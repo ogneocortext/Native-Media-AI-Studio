@@ -58,7 +58,7 @@ export function ServiceStatusCard({ hook }: ServiceStatusCardProps) {
                   ? value
                     ? "Yes"
                     : "No"
-                  : String(value).split(/[\\/]/).pop() ?? String(value)}
+                  : (String(value).split(/[\\/]/).pop() ?? String(value))}
               </span>
             </div>
           ))}

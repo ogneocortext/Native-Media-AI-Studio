@@ -33,7 +33,9 @@ export function useNavigationMetrics() {
   const navigate = useReactRouterNavigate();
   const location = useLocation();
   const navigateStartTime = useRef<number | null>(null);
-  const pendingNavigation = useRef<{ fromPath: string; toPath: string; startTime: number } | null>(null);
+  const pendingNavigation = useRef<{ fromPath: string; toPath: string; startTime: number } | null>(
+    null,
+  );
   const [lastNavigation, setLastNavigation] = useState<NavigationSample | null>(null);
 
   // Track when a route change completes (render commit)
@@ -58,7 +60,7 @@ export function useNavigationMetrics() {
         sample.toPath,
         sample.navigateMs,
         sample.renderMs,
-        sample.totalMs
+        sample.totalMs,
       );
       setLastNavigation(sample);
 
@@ -77,7 +79,7 @@ export function useNavigationMetrics() {
 
       return navigate(to, options);
     },
-    [navigate, location.pathname]
+    [navigate, location.pathname],
   );
 
   return { navigate: wrappedNavigate, lastNavigation };

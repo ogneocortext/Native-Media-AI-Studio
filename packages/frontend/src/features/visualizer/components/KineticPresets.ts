@@ -651,10 +651,7 @@ export function estimateWordTiming(
 }
 
 /** Find current word index based on elapsed time */
-export function findCurrentWord(
-  words: { start: number; end: number }[],
-  elapsed: number,
-): number {
+export function findCurrentWord(words: { start: number; end: number }[], elapsed: number): number {
   for (let i = 0; i < words.length; i++) {
     if (elapsed >= words[i].start && elapsed < words[i].end) {
       return i;

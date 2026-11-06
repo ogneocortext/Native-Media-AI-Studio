@@ -65,7 +65,9 @@ export function GpuMonitorPage() {
         const hasOllama = processes.some((p) => /ollama|llama-server/i.test(p.name));
         setInferenceEngine(s.atomic_chat_enabled && !hasOllama ? "Atomic Chat" : "Ollama");
       })
-      .catch(() => { void 0; });
+      .catch(() => {
+        void 0;
+      });
     return () => {
       cancelled = true;
     };
@@ -172,7 +174,7 @@ export function GpuMonitorPage() {
       const snapshotProcs = (gpu.processes ?? []).map((p) => ({
         pid: p.pid,
         name: p.name,
-        mem_mb: (p.used_mb ?? 0),
+        mem_mb: p.used_mb ?? 0,
       }));
       const hasSnapshotMemory = snapshotProcs.some((p) => p.mem_mb > 0);
       setProcesses(hasSnapshotMemory ? snapshotProcs : procs.processes || []);

@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/lyrics", tags=["Lyrics"])
 # Data Models
 # =============================================================================
 
+
 class LyricWordInput(BaseModel):
     word: str
     start_time: float
@@ -57,12 +58,14 @@ class LyricLineInput(BaseModel):
 
 class LyricsInput(BaseModel):
     """Full lyrics data for a track."""
+
     lines: list[LyricLineInput]
     source: str = "manual"  # manual, lrc_import, transcription
 
 
 class LRCImportRequest(BaseModel):
     """Import from LRC format text."""
+
     track_id: str
     lrc_content: str
 
@@ -71,12 +74,15 @@ class LRCImportRequest(BaseModel):
 # API Endpoints
 # =============================================================================
 
+
 @router.get("/track/{track_id}")
 async def get_lyrics(track_id: str):
     """Get all lyric lines for a track, ordered by start time."""
     with get_db() as conn:
         # Verify track exists
-        track = conn.execute("SELECT id, title, artist FROM tracks WHERE id = ?", (track_id,)).fetchone()
+        track = conn.execute(
+            "SELECT id, title, artist FROM tracks WHERE id = ?", (track_id,)
+        ).fetchone()
         if not track:
             raise HTTPException(404, "Track not found")
 
@@ -107,24 +113,31 @@ async def get_lyrics(track_id: str):
             if line["data"]:
                 try:
                     import json
+
                     animation_data = json.loads(line["data"])
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-            result.append({
-                "id": line["id"],
-                "start_time": line["start_time"],
-                "end_time": line["end_time"],
-                "text": line["text"],
-                "section": line["section"],
-                "sort_order": line["sort_order"],
-                "animation": animation_data.get("animation", {}),
-                "transition": animation_data.get("transition", {}),
-                "words": [
-                    {"word": w["word"], "start_time": w["start_time"], "end_time": w["end_time"]}
-                    for w in words
-                ],
-            })
+            result.append(
+                {
+                    "id": line["id"],
+                    "start_time": line["start_time"],
+                    "end_time": line["end_time"],
+                    "text": line["text"],
+                    "section": line["section"],
+                    "sort_order": line["sort_order"],
+                    "animation": animation_data.get("animation", {}),
+                    "transition": animation_data.get("transition", {}),
+                    "words": [
+                        {
+                            "word": w["word"],
+                            "start_time": w["start_time"],
+                            "end_time": w["end_time"],
+                        }
+                        for w in words
+                    ],
+                }
+            )
 
         return {
             "track_id": track_id,
@@ -153,16 +166,29 @@ async def save_lyrics(track_id: str, lyrics: LyricsInput):
         for i, line in enumerate(lyrics.lines):
             line_id = str(uuid.uuid4())
             # Store animation and transition in the data column
-            data = json.dumps({
-                "animation": line.animation,
-                "transition": line.transition,
-            })
+            data = json.dumps(
+                {
+                    "animation": line.animation,
+                    "transition": line.transition,
+                }
+            )
             conn.execute(
                 """
                 INSERT INTO lyrics_lines (id, track_id, start_time, end_time, text, section, sort_order, data, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (line_id, track_id, line.start_time, line.end_time, line.text, line.section, i, data, now, now),
+                (
+                    line_id,
+                    track_id,
+                    line.start_time,
+                    line.end_time,
+                    line.text,
+                    line.section,
+                    i,
+                    data,
+                    now,
+                    now,
+                ),
             )
 
             # Insert words if provided
@@ -214,7 +240,17 @@ async def import_lrc(request: LRCImportRequest):
                 INSERT INTO lyrics_lines (id, track_id, start_time, end_time, text, section, sort_order, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (line_id, request.track_id, line["start_time"], line["end_time"], line["text"], line.get("section", ""), i, now, now),
+                (
+                    line_id,
+                    request.track_id,
+                    line["start_time"],
+                    line["end_time"],
+                    line["text"],
+                    line.get("section", ""),
+                    i,
+                    now,
+                    now,
+                ),
             )
 
         return {"status": "imported", "track_id": request.track_id, "lines_count": len(lines)}
@@ -280,14 +316,13 @@ async def get_tracks_with_lyrics():
 # Visual Preset API
 # =============================================================================
 
+
 @router.get("/visual-preset/{track_id}")
 async def get_visual_preset(track_id: str):
     """Get visual preset for a track."""
 
     with get_db() as conn:
-        track = conn.execute(
-            "SELECT visual_style FROM tracks WHERE id = ?", (track_id,)
-        ).fetchone()
+        track = conn.execute("SELECT visual_style FROM tracks WHERE id = ?", (track_id,)).fetchone()
         if not track:
             raise HTTPException(404, "Track not found")
 
@@ -329,7 +364,7 @@ async def get_lyrics_by_filename(filename: str):
 
         if not track:
             # Try matching without hash prefix (e.g., "e02f6ccf_OriginalName.mp3" -> "OriginalName.mp3")
-            clean_name = re.sub(r'^[0-9a-f]{8}_', '', filename)
+            clean_name = re.sub(r"^[0-9a-f]{8}_", "", filename)
             track = conn.execute(
                 "SELECT id FROM tracks WHERE filename = ? ORDER BY created_at DESC LIMIT 1",
                 (clean_name,),

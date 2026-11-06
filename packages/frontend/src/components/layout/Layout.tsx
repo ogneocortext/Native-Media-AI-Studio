@@ -4,10 +4,7 @@ import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
 import { useUIStore } from "../../state/uiStore";
 import { useHealthStore } from "../../state/healthStore";
 import { useJobStore } from "../../state/jobStore";
-import {
-  connectNotificationSSE,
-  disconnectNotificationSSE,
-} from "../../state/notificationStore";
+import { connectNotificationSSE, disconnectNotificationSSE } from "../../state/notificationStore";
 import { NotificationBell } from "../notifications/NotificationBell";
 import { ConnectionStatusDot } from "../notifications/ConnectionStatusDot";
 import pkg from "../../../package.json";

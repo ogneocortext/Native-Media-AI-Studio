@@ -114,8 +114,7 @@ def corroborate(
         primary_name = PRIMARY_ESTIMATOR
         primary = usable[primary_name]
         agreeing = sorted(
-            n for n, v in usable.items()
-            if n != primary_name and agree(v, primary, tolerance)
+            n for n, v in usable.items() if n != primary_name and agree(v, primary, tolerance)
         )
         contradicting = sorted(set(usable) - {primary_name} - set(agreeing))
         note = primary_name + "=" + format(primary, ".2f")
@@ -137,7 +136,7 @@ def corroborate(
     names = sorted(usable)
     best: tuple[float, list[str]] | None = None
     for i, a_name in enumerate(names):
-        for b_name in names[i + 1:]:
+        for b_name in names[i + 1 :]:
             a, b = usable[a_name], usable[b_name]
             if not agree(a, b, tolerance):
                 continue
@@ -155,8 +154,11 @@ def corroborate(
             "rejected": invalid,
             "confidence": "none",
             "reason": (
-                str(PRIMARY_ESTIMATOR) + " unavailable and no two estimators agree within "
-                + format(tolerance * 100, ".0f") + "%: " + detail
+                str(PRIMARY_ESTIMATOR)
+                + " unavailable and no two estimators agree within "
+                + format(tolerance * 100, ".0f")
+                + "%: "
+                + detail
             ),
         }
 
@@ -169,8 +171,11 @@ def corroborate(
         "rejected": sorted(set(usable) - set(supporters)) + invalid,
         "confidence": "low",
         "reason": (
-            str(PRIMARY_ESTIMATOR) + " unavailable; best available agreement is "
-            + supporters_text + " at " + format(bpm, ".2f")
+            str(PRIMARY_ESTIMATOR)
+            + " unavailable; best available agreement is "
+            + supporters_text
+            + " at "
+            + format(bpm, ".2f")
             + " (low confidence - octave errors cannot be detected without the primary)"
         ),
     }

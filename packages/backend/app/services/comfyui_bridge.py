@@ -131,7 +131,8 @@ class ComfyUIBridge:
         if not self.custom_nodes_source.exists():
             return []
         return sorted(
-            p for p in self.custom_nodes_source.glob("*.py")
+            p
+            for p in self.custom_nodes_source.glob("*.py")
             if p.is_file() and p.name != "__init__.py"
         )
 
@@ -328,7 +329,9 @@ class ComfyUIBridge:
 
         # Check custom nodes source
         if not self.custom_nodes_source.exists():
-            issues.append("Custom nodes source directory not found: " + str(self.custom_nodes_source))
+            issues.append(
+                "Custom nodes source directory not found: " + str(self.custom_nodes_source)
+            )
 
         # Check configured nodes have source files
         for node in self.get_configured_nodes():
@@ -337,9 +340,7 @@ class ComfyUIBridge:
             if source_file:
                 candidate = self.custom_nodes_source / source_file
                 if not candidate.exists():
-                    issues.append(
-                        f"Source file not found for node '{node_name}': {source_file}"
-                    )
+                    issues.append(f"Source file not found for node '{node_name}': {source_file}")
 
         # Check workflow files exist
         for wf in self.get_workflows():
@@ -364,11 +365,13 @@ class ComfyUIBridge:
         linked_nodes = []
         for node_name in self._linked_nodes:
             target = self.comfyui_custom_nodes_dir / node_name
-            linked_nodes.append({
-                "name": node_name,
-                "linked": target.exists() or target.is_symlink(),
-                "path": str(target),
-            })
+            linked_nodes.append(
+                {
+                    "name": node_name,
+                    "linked": target.exists() or target.is_symlink(),
+                    "path": str(target),
+                }
+            )
 
         return {
             "bridge_enabled": self.bridge_enabled(),

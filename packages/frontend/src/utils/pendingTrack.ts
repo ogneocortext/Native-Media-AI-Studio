@@ -34,10 +34,7 @@ const KEY_SOURCE = "__pendingRemixRecipeSource";
  * something else". Without it the panel re-seeds its source selectors and silently
  * discards the arrangement the user asked to reopen.
  */
-export function setPendingRemixRecipe(
-  recipe: RemixRecipeSpec,
-  sourceTrack?: string | null,
-): void {
+export function setPendingRemixRecipe(recipe: RemixRecipeSpec, sourceTrack?: string | null): void {
   const w = getWindow();
   if (w) {
     w.__pendingRemixRecipe = recipe;

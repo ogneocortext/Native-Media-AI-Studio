@@ -6,10 +6,7 @@
  */
 import type { AudioAnalysisData } from "./types";
 import type { VisualPreset } from "./aiPresetCatalog";
-import {
-  normalizeSearchText,
-  includesToken,
-} from "./visualPresets";
+import { normalizeSearchText, includesToken } from "./visualPresets";
 import {
   isUnnamedFile,
   stripAudioExtension,
@@ -29,7 +26,7 @@ export interface LibraryFile {
 
 /** Canonical backend reference for a library file (POSIX, subfolder-aware). */
 export function audioRefForFile(f: LibraryFile): string {
-  return ((f.relative_path ?? f.path) ?? f.filename).replace(/\\/g, "/");
+  return (f.relative_path ?? f.path ?? f.filename).replace(/\\/g, "/");
 }
 
 /** Strip any folder prefix: "Suno-V6-Mini/track.m4a" → "track.m4a". */

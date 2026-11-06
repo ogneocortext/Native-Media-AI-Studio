@@ -199,5 +199,7 @@ export function useAudioAnalysisWorker({
     () => Boolean(enabled && workerRef.current && !failedRef.current),
     [enabled],
   );
-  return enabled && !failedRef.current ? { data: dataRef, send, reset, destroy, isAvailable } : null;
+  return enabled && !failedRef.current
+    ? { data: dataRef, send, reset, destroy, isAvailable }
+    : null;
 }

@@ -59,25 +59,37 @@ def _acquire_migration_lock(conn: sqlite3.Connection) -> bool:
         expires_at = now + MIGRATION_LOCK_TTL_SECONDS
         holder = f"{os.getpid()}:{time.time()}"
         try:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO migration_lock (id, holder, acquired_at, expires_at)
                 VALUES (1, ?, ?, ?)
-            """, (holder, datetime.fromtimestamp(now).isoformat(), datetime.fromtimestamp(expires_at).isoformat()))
+            """,
+                (
+                    holder,
+                    datetime.fromtimestamp(now).isoformat(),
+                    datetime.fromtimestamp(expires_at).isoformat(),
+                ),
+            )
             return True
         except sqlite3.IntegrityError:
             # Lock already exists: check if it's expired
-            row = conn.execute(
-                "SELECT expires_at FROM migration_lock WHERE id = 1"
-            ).fetchone()
+            row = conn.execute("SELECT expires_at FROM migration_lock WHERE id = 1").fetchone()
             if row:
                 expires = datetime.fromisoformat(row["expires_at"]).timestamp()
                 if now > expires:
                     # Lock expired: steal it
-                    conn.execute("""
+                    conn.execute(
+                        """
                         UPDATE migration_lock
                         SET holder = ?, acquired_at = ?, expires_at = ?
                         WHERE id = 1
-                    """, (holder, datetime.fromtimestamp(now).isoformat(), datetime.fromtimestamp(expires_at).isoformat()))
+                    """,
+                        (
+                            holder,
+                            datetime.fromtimestamp(now).isoformat(),
+                            datetime.fromtimestamp(expires_at).isoformat(),
+                        ),
+                    )
                     return True
             return False
     except sqlite3.Error:
@@ -747,7 +759,8 @@ def init_db(db_path: Path | None = None):
                 if not _acquire_migration_lock(conn):
                     logger.warning(
                         "Another process holds the migration lock; skipping migrations. "
-                        "Lock TTL is %d seconds.", MIGRATION_LOCK_TTL_SECONDS
+                        "Lock TTL is %d seconds.",
+                        MIGRATION_LOCK_TTL_SECONDS,
                     )
                     return
 
@@ -808,8 +821,7 @@ def init_db(db_path: Path | None = None):
                     # --- Integrity check after migration (best practice) ---
                     if not _run_integrity_check(conn):
                         raise sqlite3.DatabaseError(
-                            "PRAGMA integrity_check failed after migration; "
-                            "database may be corrupt"
+                            "PRAGMA integrity_check failed after migration; database may be corrupt"
                         )
 
                 finally:
@@ -838,15 +850,19 @@ def init_db(db_path: Path | None = None):
             if "database is locked" not in str(exc).lower():
                 raise
             if attempt < INIT_DB_MAX_RETRIES - 1:
-                delay = INIT_DB_BASE_DELAY * (2 ** attempt)
+                delay = INIT_DB_BASE_DELAY * (2**attempt)
                 logger.warning(
                     "Database locked on init attempt %d/%d, retrying in %.1fs: %s",
-                    attempt + 1, INIT_DB_MAX_RETRIES, delay, exc,
+                    attempt + 1,
+                    INIT_DB_MAX_RETRIES,
+                    delay,
+                    exc,
                 )
                 time.sleep(delay)
             else:
                 logger.error(
                     "Database initialization failed after %d attempts: %s",
-                    INIT_DB_MAX_RETRIES, exc,
+                    INIT_DB_MAX_RETRIES,
+                    exc,
                 )
                 raise

@@ -44,6 +44,7 @@ router = APIRouter(prefix="/api/outputs", tags=["Outputs"])
 # Listing
 # ---------------------------------------------------------------------------
 
+
 @router.get("", response_model=OutputsResponse)
 async def list_outputs(
     file_type: str | None = Query(None, description="Filter by file type (image, video, audio)"),
@@ -80,7 +81,8 @@ async def list_outputs(
     if search:
         search_lower = search.lower()
         all_outputs = [
-            o for o in all_outputs
+            o
+            for o in all_outputs
             if search_lower in o.filename.lower()
             or (o.metadata and search_lower in str(o.metadata).lower())
         ]
@@ -90,7 +92,8 @@ async def list_outputs(
         try:
             df = datetime.fromisoformat(date_from)
             all_outputs = [
-                o for o in all_outputs
+                o
+                for o in all_outputs
                 if o.created_at and datetime.fromisoformat(o.created_at) >= df
             ]
         except (ValueError, TypeError):
@@ -99,7 +102,8 @@ async def list_outputs(
         try:
             dt = datetime.fromisoformat(date_to)
             all_outputs = [
-                o for o in all_outputs
+                o
+                for o in all_outputs
                 if o.created_at and datetime.fromisoformat(o.created_at) <= dt
             ]
         except (ValueError, TypeError):
@@ -145,6 +149,7 @@ async def list_outputs_by_type(
 # Bulk delete
 # ---------------------------------------------------------------------------
 
+
 @router.post("/bulk-delete")
 async def bulk_delete(body: BulkDeleteRequest) -> dict:
     """Delete multiple files at once (for duplicates cleanup)."""
@@ -181,6 +186,7 @@ async def bulk_delete(body: BulkDeleteRequest) -> dict:
 # ---------------------------------------------------------------------------
 # Delete single file
 # ---------------------------------------------------------------------------
+
 
 @router.delete("/{file_path:path}")
 async def delete_output(file_path: str) -> dict:
@@ -219,6 +225,7 @@ async def delete_output(file_path: str) -> dict:
 # ---------------------------------------------------------------------------
 # Rename
 # ---------------------------------------------------------------------------
+
 
 @router.post("/{file_path:path}/rename")
 async def rename_output(file_path: str, body: RenameRequest) -> dict:
@@ -276,6 +283,7 @@ async def rename_output(file_path: str, body: RenameRequest) -> dict:
 # ---------------------------------------------------------------------------
 # Thumbnails
 # ---------------------------------------------------------------------------
+
 
 @router.post("/regenerate-thumbnails")
 async def regenerate_thumbnails() -> dict:

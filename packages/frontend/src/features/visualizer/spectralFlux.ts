@@ -104,10 +104,7 @@ export function createSpectralFluxOnset(binCount = 1024): SpectralFluxOnset {
       // Onset: flux clears the adaptive threshold. Envelope strength is
       // proportional to how far past threshold the flux went, capped.
       if (flux > threshold) {
-        const strength = Math.min(
-          1,
-          (flux - threshold) / ENVELOPE_SATURATION + 0.35,
-        );
+        const strength = Math.min(1, (flux - threshold) / ENVELOPE_SATURATION + 0.35);
         if (strength > env) env = strength;
       }
 

@@ -85,14 +85,8 @@ export function beatPhraseScale(input: BeatPhraseInput): BeatPhraseResult {
   // than MAX_ANTICIPATION_SHARE of the window, and the landing
   // never spills into it — the three phases tile the beat
   // window exactly at any tempo.
-  const anticipationSec = Math.min(
-    ANTICIPATION_SEC,
-    beatWindowSec * MAX_ANTICIPATION_SHARE,
-  );
-  const landingSec = Math.min(
-    LANDING_SEC,
-    beatWindowSec - anticipationSec,
-  );
+  const anticipationSec = Math.min(ANTICIPATION_SEC, beatWindowSec * MAX_ANTICIPATION_SHARE);
+  const landingSec = Math.min(LANDING_SEC, beatWindowSec - anticipationSec);
   const holdValue = 1 + amplitude;
   const lowValue = 1 - amplitude * ANTICIPATION_DEPTH_RATIO;
   const timeToNextBeat = beatWindowSec - timeSinceLastBeat;

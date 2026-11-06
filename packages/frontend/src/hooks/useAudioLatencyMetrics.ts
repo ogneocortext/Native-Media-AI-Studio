@@ -32,7 +32,7 @@ export function useAudioLatencyMetrics(audioCtx: AudioContext | null) {
 
     const updateMetrics = () => {
       const outputLatency = estimateOutputLatency(audioCtx);
-      const baseLatency = (audioCtx).baseLatency ?? 0;
+      const baseLatency = audioCtx.baseLatency ?? 0;
       const totalLatency = outputLatency + baseLatency;
 
       setMetrics({

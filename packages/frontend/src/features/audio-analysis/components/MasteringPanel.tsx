@@ -63,9 +63,7 @@ const MASTER_TARGET_CHIPS = Object.keys(MASTER_TARGETS) as MasterTarget[];
  *  returns an absolute path whose separators depend on the host OS (Windows
  *  paths come back with backslashes). /api/audio/file/mastered/<name> serves
  *  that directory, so only the base filename survives into the URL. */
-function masteredBasename(
-  masteredPath: string | null | undefined,
-): string | null {
+function masteredBasename(masteredPath: string | null | undefined): string | null {
   if (!masteredPath) return null;
   const name = masteredPath.split(/[/\\]/).pop();
   return name ?? null;
@@ -80,10 +78,7 @@ function lufsDeltaStr(lufs: number | null, target: number): string {
 }
 
 /** Directional arrow for a band-energy delta: ↓ = reduced, ↑ = increased, — = unchanged. */
-function bandDeltaArrow(
-  before: number | null,
-  after: number | null,
-): string {
+function bandDeltaArrow(before: number | null, after: number | null): string {
   if (before == null || after == null) return "—";
   const d = after - before;
   if (Math.abs(d) < 0.5) return "—";
@@ -91,10 +86,7 @@ function bandDeltaArrow(
 }
 
 /** Directional color class for a band-energy delta. */
-function bandDeltaColor(
-  before: number | null,
-  after: number | null,
-): string {
+function bandDeltaColor(before: number | null, after: number | null): string {
   if (before == null || after == null) return "text-gray-500";
   const d = after - before;
   if (Math.abs(d) < 0.5) return "text-gray-500";
@@ -117,8 +109,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
   const [finishing, setFinishing] = useState(false);
   const [subCutDb, setSubCutDb] = useState(3);
   const [presenceDb, setPresenceDb] = useState(2.5);
-  const [selectedFinishPreset, setSelectedFinishPreset] =
-    useState<string | null>(null);
+  const [selectedFinishPreset, setSelectedFinishPreset] = useState<string | null>(null);
   const [finishingExpanded, setFinishingExpanded] = useState(false);
 
   const [measuring, setMeasuring] = useState(false);
@@ -213,22 +204,17 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
   }, []);
 
   /** Apply a finish preset: updates both sliders and clears the custom preset selection. */
-  const applyFinishPreset = useCallback(
-    (label: string, subCut: number, presence: number) => {
-      setSubCutDb(subCut);
-      setPresenceDb(presence);
-      setSelectedFinishPreset(label);
-      setFinishing(true);
-    },
-    [],
-  );
+  const applyFinishPreset = useCallback((label: string, subCut: number, presence: number) => {
+    setSubCutDb(subCut);
+    setPresenceDb(presence);
+    setSelectedFinishPreset(label);
+    setFinishing(true);
+  }, []);
 
   const hasResult = result?.mastered_path != null;
   const masteredUrl = useMemo(() => {
     const name = masteredBasename(result?.mastered_path);
-    return name
-      ? `${getApiBase()}/api/audio/file/mastered/${encodeURIComponent(name)}`
-      : null;
+    return name ? `${getApiBase()}/api/audio/file/mastered/${encodeURIComponent(name)}` : null;
   }, [result]);
 
   return (
@@ -254,8 +240,8 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
         )}
       </div>
       <p className={DS.textXs + " mb-3 text-gray-400"}>
-        Normalize loudness to a delivery target, true-peak limit, then export
-        a mastered copy with a before/after QC report.
+        Normalize loudness to a delivery target, true-peak limit, then export a mastered copy with a
+        before/after QC report.
       </p>
 
       {/* Track selection */}
@@ -272,12 +258,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
               reset();
               setGainTrimDb(0);
             }}
-            disabled={
-              libraryLoading ||
-              tracks.length === 0 ||
-              measuring ||
-              mastering
-            }
+            disabled={libraryLoading || tracks.length === 0 || measuring || mastering}
             className={DS.select}
             aria-label="Mastering track"
           >
@@ -293,17 +274,11 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           <button
             onClick={handleMeasure}
             disabled={measuring || mastering || !selectedTrack}
-            className={`${DS.btnSecondarySm} ${
-              measuring ? "opacity-60 cursor-not-allowed" : ""
-            }`}
+            className={`${DS.btnSecondarySm} ${measuring ? "opacity-60 cursor-not-allowed" : ""}`}
             aria-busy={measuring}
             title="Measure loudness (LUFS / true peak / LRA) without writing"
           >
-            {measuring ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Zap size={14} />
-            )}
+            {measuring ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
             Measure
           </button>
         </div>
@@ -357,9 +332,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
               </div>
             </div>
             <div className="space-y-2">
-              <label className={DS.textLabel}>
-                True-peak ceiling ({ceilingDb} dBTP)
-              </label>
+              <label className={DS.textLabel}>True-peak ceiling ({ceilingDb} dBTP)</label>
               <input
                 type="range"
                 min="-6"
@@ -383,9 +356,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                 />
                 Tone fixes (de-mud + presence)
               </label>
-              <span className={DS.textXs + " text-gray-500"}>
-                ~300 Hz HPF + 4 kHz shelf
-              </span>
+              <span className={DS.textXs + " text-gray-500"}>~300 Hz HPF + 4 kHz shelf</span>
             </div>
           </div>
 
@@ -396,9 +367,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                 onClick={() => setFinishingExpanded(!finishingExpanded)}
                 className="rounded border-gray-600 bg-gray-700 text-xs px-2 py-1 hover:bg-gray-600"
                 aria-label={
-                  finishingExpanded
-                    ? "Collapse finishing options"
-                    : "Expand finishing options"
+                  finishingExpanded ? "Collapse finishing options" : "Expand finishing options"
                 }
               >
                 {finishingExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -409,16 +378,11 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
             {/* Collapsible finishing options — always in DOM, hidden when collapsed */}
             <div
               className={`space-y-2 pt-2 border-t border-gray-700/30 ${
-                !finishingExpanded
-                  ? "opacity-0 pointer-events-none h-0 overflow-hidden"
-                  : ""
+                !finishingExpanded ? "opacity-0 pointer-events-none h-0 overflow-hidden" : ""
               }`}
             >
               <label
-                className={
-                  DS.textLabel +
-                  " flex items-center gap-1 cursor-pointer select-none"
-                }
+                className={DS.textLabel + " flex items-center gap-1 cursor-pointer select-none"}
               >
                 <input
                   type="checkbox"
@@ -494,9 +458,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                     disabled={!finishing}
                     aria-label="Sub cut"
                   />
-                  <span className={DS.textXs + " text-gray-500"}>
-                    {subCutDb} dB
-                  </span>
+                  <span className={DS.textXs + " text-gray-500"}>{subCutDb} dB</span>
                 </div>
                 <div className="space-y-2">
                   <label className={DS.textLabel}>Presence lift (dB)</label>
@@ -514,9 +476,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                     disabled={!finishing}
                     aria-label="Presence lift"
                   />
-                  <span className={DS.textXs + " text-gray-500"}>
-                    {presenceDb} dB
-                  </span>
+                  <span className={DS.textXs + " text-gray-500"}>{presenceDb} dB</span>
                 </div>
               </div>
             </div>
@@ -527,9 +487,8 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           <div className="space-y-2">
             <label className={DS.textLabel + " flex items-center justify-between"}>
               <span>
-                Manual trim (
-                {gainTrimDb > 0 ? "+" : ""}{gainTrimDb} dB · after normalization
-                )
+                Manual trim ({gainTrimDb > 0 ? "+" : ""}
+                {gainTrimDb} dB · after normalization )
               </span>
               <button
                 onClick={() => setGainTrimDb(0)}
@@ -559,9 +518,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
               onClick={handleMaster}
               disabled={mastering || !selectedTrack}
               className={`${DS.btnPrimary} ${
-                mastering || !selectedTrack
-                  ? "opacity-60 cursor-not-allowed"
-                  : ""
+                mastering || !selectedTrack ? "opacity-60 cursor-not-allowed" : ""
               } w-full`}
               aria-busy={mastering}
               title="Apply gain/tone/limit and write a mastered copy (the backend measures the source itself)"
@@ -594,12 +551,9 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                       : "—"}
                   </p>
                   <p className={DS.statSub}>
-                    TP{" "}
-                    {before?.true_peak_dbtp != null
-                      ? before.true_peak_dbtp.toFixed(1)
-                      : "—"} dBTP{" · "}
-                    LRA{" "}
-                    {before?.lra_lu != null ? before.lra_lu.toFixed(1) : "—"} LU
+                    TP {before?.true_peak_dbtp != null ? before.true_peak_dbtp.toFixed(1) : "—"}{" "}
+                    dBTP{" · "}
+                    LRA {before?.lra_lu != null ? before.lra_lu.toFixed(1) : "—"} LU
                   </p>
                 </div>
                 <div className={DS.statCard + " border-green-500/30 bg-green-500/5"}>
@@ -613,19 +567,16 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                     TP{" "}
                     {result?.after?.true_peak_dbtp != null
                       ? result.after.true_peak_dbtp.toFixed(1)
-                      : "—"} dBTP{" · "}
-                    LRA{" "}
-                    {result?.after?.lra_lu != null
-                      ? result.after.lra_lu.toFixed(1)
-                      : "—"} LU
+                      : "—"}{" "}
+                    dBTP{" · "}
+                    LRA {result?.after?.lra_lu != null ? result.after.lra_lu.toFixed(1) : "—"} LU
                   </p>
                 </div>
               </div>
               {result?.applied && (
                 <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
                   <span>
-                    Gain{" "}
-                    {result.applied.gain_db >= 0 ? "+" : ""}{" "}
+                    Gain {result.applied.gain_db >= 0 ? "+" : ""}{" "}
                     {result.applied.gain_db.toFixed(1)} dB
                     {result.applied.gain_trim_db
                       ? ` ${
@@ -641,42 +592,40 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                     )}
                   </span>
                   <span>· Ceiling {result.applied.ceiling_dbtp} dBTP</span>
-                  <span>
-                    · Tone {result.applied.tone_fixes ? "on" : "off"}
-                  </span>
+                  <span>· Tone {result.applied.tone_fixes ? "on" : "off"}</span>
                   {result.applied.finishing && (
                     <>
                       <span>· Finishing on</span>
                       <span>· Sub cut {result.applied.sub_cut_db} dB</span>
-                      <span>
-                        · Presence {result.applied.presence_db} dB
-                      </span>
+                      <span>· Presence {result.applied.presence_db} dB</span>
                     </>
                   )}
                   {result.applied.band_energy && (
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted">
-                      <span className={`flex items-center gap-1 ${bandDeltaColor(
-                        result.applied.band_energy.before.sub_db,
-                        result.applied.band_energy.after.sub_db,
-                      )}`}>
+                      <span
+                        className={`flex items-center gap-1 ${bandDeltaColor(
+                          result.applied.band_energy.before.sub_db,
+                          result.applied.band_energy.after.sub_db,
+                        )}`}
+                      >
                         {bandDeltaArrow(
                           result.applied.band_energy.before.sub_db,
                           result.applied.band_energy.after.sub_db,
                         )}
-                        Sub{" "}
-                        {result.applied.band_energy.before.sub_db} →{" "}
+                        Sub {result.applied.band_energy.before.sub_db} →{" "}
                         {result.applied.band_energy.after.sub_db} dB
                       </span>
-                      <span className={`flex items-center gap-1 ${bandDeltaColor(
-                        result.applied.band_energy.before.presence_db,
-                        result.applied.band_energy.after.presence_db,
-                      )}`}>
+                      <span
+                        className={`flex items-center gap-1 ${bandDeltaColor(
+                          result.applied.band_energy.before.presence_db,
+                          result.applied.band_energy.after.presence_db,
+                        )}`}
+                      >
                         {bandDeltaArrow(
                           result.applied.band_energy.before.presence_db,
                           result.applied.band_energy.after.presence_db,
                         )}
-                        Presence{" "}
-                        {result.applied.band_energy.before.presence_db} →{" "}
+                        Presence {result.applied.band_energy.before.presence_db} →{" "}
                         {result.applied.band_energy.after.presence_db} dB
                       </span>
                     </div>
@@ -694,11 +643,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
                     <Download size={14} /> Open mastered
                   </a>
                 )}
-                <button
-                  onClick={reset}
-                  className={DS.btnSecondarySm}
-                  title="Clear QC report"
-                >
+                <button onClick={reset} className={DS.btnSecondarySm} title="Clear QC report">
                   Clear
                 </button>
               </div>

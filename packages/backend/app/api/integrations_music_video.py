@@ -23,6 +23,7 @@ router = APIRouter(tags=["Integrations-MusicVideo"])
 
 class BeatMarker(BaseModel):
     """Beat marker for music video synchronization"""
+
     time: float
     intensity: str = "medium"  # low, medium, high
     type: str = "beat"  # beat, drop, break, transition
@@ -31,6 +32,7 @@ class BeatMarker(BaseModel):
 
 class MusicVideoStyle(BaseModel):
     """Visual style configuration for music video"""
+
     template_id: str
     name: str
     prompt: str
@@ -43,6 +45,7 @@ class MusicVideoStyle(BaseModel):
 
 class MusicVideoRequest(BaseModel):
     """Request for music video generation with beat-synced visuals"""
+
     audio_path: str
     style: MusicVideoStyle
     beat_markers: list[BeatMarker] = []
@@ -59,6 +62,7 @@ class MusicVideoRequest(BaseModel):
 
 class PreviewGenerationRequest(BaseModel):
     """Request for generating a short preview (5s draft)"""
+
     audio_path: str
     style: MusicVideoStyle
     beat_markers: list[BeatMarker] = []
@@ -137,7 +141,12 @@ async def generate_music_video(request: MusicVideoRequest):
     Generate a music video with beat-synced visuals using ComfyUI.
     Creates a video that reacts to audio beats and follows the specified visual style.
     """
-    logger.info("Video generation requested: style=%s, duration=%s, quality=%s", request.style.template_id, request.duration, request.quality)
+    logger.info(
+        "Video generation requested: style=%s, duration=%s, quality=%s",
+        request.style.template_id,
+        request.duration,
+        request.quality,
+    )
 
     adapter = adapter_registry.get("comfyui")
     fail_fast = request.on_source_failure == "fail"
@@ -179,8 +188,14 @@ async def generate_music_video(request: MusicVideoRequest):
 
     # Estimate generation time
     num_frames = request.num_frames or int(target_duration * request.fps)
-    time_estimate = estimate_generation_time(steps, width, height, num_frames, request.fps, request.motion_module)
-    logger.info("Estimated generation time: %s seconds (%s min)", time_estimate["estimated_seconds"], time_estimate["estimated_minutes"])
+    time_estimate = estimate_generation_time(
+        steps, width, height, num_frames, request.fps, request.motion_module
+    )
+    logger.info(
+        "Estimated generation time: %s seconds (%s min)",
+        time_estimate["estimated_seconds"],
+        time_estimate["estimated_minutes"],
+    )
 
     # Check VRAM availability. A shortfall degrades to the deterministic
     # FFmpeg path the same way a missing adapter does (Q2 plan section4) -- the
@@ -189,9 +204,14 @@ async def generate_music_video(request: MusicVideoRequest):
     if not vram_result["available"]:
         if fail_fast:
             logger.error("Video generation failed: insufficient VRAM - %s", vram_result["message"])
-            raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
+            raise HTTPException(
+                status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}"
+            )
         if not degraded:
-            logger.warning("Insufficient VRAM (%s) -- queuing degraded visualization job", vram_result["message"])
+            logger.warning(
+                "Insufficient VRAM (%s) -- queuing degraded visualization job",
+                vram_result["message"],
+            )
             degraded = True
             degraded_reason = f"Insufficient VRAM: {vram_result['message']}"
         else:
@@ -235,7 +255,9 @@ async def generate_music_video(request: MusicVideoRequest):
 
     logger.info(
         "Video generation job queued: job_id=%s, estimated=%ss, degraded=%s",
-        job.id, time_estimate["estimated_seconds"], degraded,
+        job.id,
+        time_estimate["estimated_seconds"],
+        degraded,
     )
 
     response = {
@@ -275,7 +297,9 @@ async def generate_style_preview(style_id: str) -> dict:
         vram_result = await ensure_vram_available(required_mb=2048)
         if not vram_result["available"]:
             logger.warning("Insufficient VRAM for style preview: %s", vram_result["message"])
-            raise HTTPException(status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}")
+            raise HTTPException(
+                status_code=503, detail=f"Insufficient VRAM: {vram_result['message']}"
+            )
 
         # Generate preview image (low res, fast)
         preview_params = {
@@ -327,7 +351,14 @@ async def get_job_progress(job_id: str) -> dict:
 
         remaining_seconds = max(0, estimated_seconds - elapsed) if estimated_seconds > 0 else 0
         # Render ETA in UTC to match the trailing "Z" (Zulu/UTC) suffix.
-        end_time = (datetime.now(UTC).replace(tzinfo=None) + timedelta(seconds=remaining_seconds)).isoformat() + "Z" if remaining_seconds > 0 else None
+        end_time = (
+            (
+                datetime.now(UTC).replace(tzinfo=None) + timedelta(seconds=remaining_seconds)
+            ).isoformat()
+            + "Z"
+            if remaining_seconds > 0
+            else None
+        )
 
         return {
             "job_id": job_id,
@@ -352,6 +383,7 @@ async def get_job_progress(job_id: str) -> dict:
 
 class QuickVideoPreviewRequest(BaseModel):
     """Quick preview request for testing video generation."""
+
     prompt: str = ""
     negative_prompt: str = "blurry, low quality"
     steps: int = 10
@@ -404,7 +436,9 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
     num_frames = max(8, int(request.duration * fps))
 
     # Estimate time
-    time_estimate = estimate_generation_time(request.steps, width, height, num_frames, fps, request.model)
+    time_estimate = estimate_generation_time(
+        request.steps, width, height, num_frames, fps, request.model
+    )
 
     # Section suffix was already handled in handler, but also append here for preview prompt
     from ..services.music_video_handler import _enhance_prompt_for_section
@@ -443,7 +477,9 @@ async def generate_video_preview(request: QuickVideoPreviewRequest) -> dict:
         )
     )
 
-    logger.info("Video preview job queued: %s, estimated %ss", job.id, time_estimate["estimated_seconds"])
+    logger.info(
+        "Video preview job queued: %s, estimated %ss", job.id, time_estimate["estimated_seconds"]
+    )
 
     return {
         "success": True,

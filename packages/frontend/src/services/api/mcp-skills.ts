@@ -72,10 +72,9 @@ export async function skillsList(): Promise<SkillInfo[]> {
  */
 export async function skillsGet(uri: string): Promise<SkillContent> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/mcp/skills/get?uri=${encodeURIComponent(uri)}`,
-    { timeout: 15000 },
-  );
+  const res = await fetchWithTimeout(`${base}/api/mcp/skills/get?uri=${encodeURIComponent(uri)}`, {
+    timeout: 15000,
+  });
   if (!res.ok) throw new Error(`Failed to get skill (${res.status})`);
   return res.json();
 }
@@ -118,9 +117,7 @@ export interface ExecuteToolResponse {
   error?: string;
 }
 
-export async function executeTool(
-  request: ExecuteToolRequest,
-): Promise<ExecuteToolResponse> {
+export async function executeTool(request: ExecuteToolRequest): Promise<ExecuteToolResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/mcp/execute-tool`, {
     method: "POST",

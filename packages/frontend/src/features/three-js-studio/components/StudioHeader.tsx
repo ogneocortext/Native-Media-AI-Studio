@@ -204,7 +204,9 @@ export function StudioHeader({
           onClick={onTogglePerformanceMode}
           className={`p-2.5 rounded-lg transition-all hover:scale-105 active:scale-95 ${performanceMode ? "bg-amber-600 text-white shadow-lg shadow-amber-500/20" : "bg-white/5 hover:bg-white/10"}`}
           title={performanceMode ? "Performance mode ON (reduced effects)" : "Performance mode OFF"}
-          aria-label={performanceMode ? "Performance mode ON (reduced effects)" : "Performance mode OFF"}
+          aria-label={
+            performanceMode ? "Performance mode ON (reduced effects)" : "Performance mode OFF"
+          }
         >
           <Zap size={14} />
         </button>

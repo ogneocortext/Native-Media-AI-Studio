@@ -89,19 +89,14 @@ export function AdvancedSettings({
           <input
             type="number"
             value={batchCount}
-            onChange={(e) =>
-              onBatchCountChange(Math.max(1, Math.min(10, Number(e.target.value))))
-            }
+            onChange={(e) => onBatchCountChange(Math.max(1, Math.min(10, Number(e.target.value))))}
             min={1}
             max={10}
             className={DS.inputSm}
           />
         </div>
         <div className="flex items-end">
-          <button
-            onClick={onRandomSeed}
-            className={`${DS.btnSecondary} px-3 text-xs`}
-          >
+          <button onClick={onRandomSeed} className={`${DS.btnSecondary} px-3 text-xs`}>
             <X size={14} /> Random
           </button>
         </div>
@@ -109,12 +104,12 @@ export function AdvancedSettings({
 
       <div className="flex items-center justify-between mt-3">
         <label className="text-xs text-muted">Vertical first?</label>
-          <input
-            type="checkbox"
-            checked={verticalFirst}
-            onChange={(e) => onVerticalFirstChange(e.target.checked)}
-            className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500"
-          />
+        <input
+          type="checkbox"
+          checked={verticalFirst}
+          onChange={(e) => onVerticalFirstChange(e.target.checked)}
+          className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500"
+        />
       </div>
       <div className="flex items-center justify-between mt-1">
         <label className="text-xs text-muted">Scheduler</label>
@@ -132,8 +127,8 @@ export function AdvancedSettings({
         {scheduler === "normal"
           ? "Tip: Start at 20 steps, re-render keepers at 25–30."
           : scheduler === "mm_sd15"
-          ? "Tip: AnimateDiff SD 1.5 — 49–97 frames (2–4s) per clip."
-          : "Tip: AnimateDiff LoRA — camera movements (zoom, pan)."}
+            ? "Tip: AnimateDiff SD 1.5 — 49–97 frames (2–4s) per clip."
+            : "Tip: AnimateDiff LoRA — camera movements (zoom, pan)."}
       </p>
     </div>
   );

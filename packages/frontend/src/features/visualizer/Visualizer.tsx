@@ -36,22 +36,14 @@ import {
   setPendingRemixOpen,
 } from "../../utils/pendingTrack";
 import { Canvas } from "@react-three/fiber";
-import {
-  AlertCircle,
-  Wand2,
-} from "lucide-react";
+import { AlertCircle, Wand2 } from "lucide-react";
 import { ensureAnalysis, getStemsAnalysis } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioFileBrowser } from "./components/AudioFileBrowser";
 import { AudioLatencyCard } from "../../components/AudioLatencyCard";
-import type {
-  AudioData,
-} from "./types";
+import type { AudioData } from "./types";
 import { useUIStore } from "../../state/uiStore";
-import {
-  Canvas2DVisualizer,
-  type Canvas2DFrameAccurateApi,
-} from "./Canvas2DVisualizer";
+import { Canvas2DVisualizer, type Canvas2DFrameAccurateApi } from "./Canvas2DVisualizer";
 import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
@@ -77,9 +69,7 @@ import { VizAudioBar } from "./components/VizAudioBar";
 import { VizMixerTab } from "./components/VizMixerTab";
 import { VizPlayhead } from "./components/VizPlayhead";
 import { PresetFileUpload } from "./components/PresetFileUpload";
-import {
-  matchReactivityGenrePreset,
-} from "./reactivityGenrePresets";
+import { matchReactivityGenrePreset } from "./reactivityGenrePresets";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UploadPrompt } from "./components/UploadPrompt";
 import { AIVisualizerPrompt } from "./components/AIVisualizerPrompt";
@@ -119,81 +109,136 @@ import {
 export function Visualizer() {
   const {
     // Colors
-    bgColor, setBgColor,
-    meshColor, setMeshColor,
+    bgColor,
+    setBgColor,
+    meshColor,
+    setMeshColor,
     // Demo
-    demoEnabled, setDemoEnabled,
+    demoEnabled,
+    setDemoEnabled,
     // Audio
-    audioUrl, setAudioUrl,
-    currentFilename, setCurrentFilename,
-    isPlaying, setIsPlaying,
-    isPaused, setIsPaused,
-    error, setError,
+    audioUrl,
+    setAudioUrl,
+    currentFilename,
+    setCurrentFilename,
+    isPlaying,
+    setIsPlaying,
+    isPaused,
+    setIsPaused,
+    error,
+    setError,
     // Live audio
-    liveAudioData, setLiveAudioData,
+    liveAudioData,
+    setLiveAudioData,
     // Render
-    adaptiveDpr, setAdaptiveDpr,
-    renderStats, setRenderStats,
-    aiEnhancing, setAiEnhancing,
+    adaptiveDpr,
+    setAdaptiveDpr,
+    renderStats,
+    setRenderStats,
+    aiEnhancing,
+    setAiEnhancing,
     // UI overlays
-    openOverlay, setOpenOverlay,
+    openOverlay,
+    setOpenOverlay,
     // Presets
-    activeVisualPresetId, setActiveVisualPresetId,
-    activeShaderPreset, setActiveShaderPreset,
+    activeVisualPresetId,
+    setActiveVisualPresetId,
+    activeShaderPreset,
+    setActiveShaderPreset,
     // Reactivity
-    reactivityGain, setReactivityGain,
-    frequencyFocus, setFrequencyFocus,
-    reactivityTriad, setReactivityTriad,
-    activeGenrePresetId, setActiveGenrePresetId,
+    reactivityGain,
+    setReactivityGain,
+    frequencyFocus,
+    setFrequencyFocus,
+    reactivityTriad,
+    setReactivityTriad,
+    activeGenrePresetId,
+    setActiveGenrePresetId,
     // Mixer
-    stemsMixerState, setStemsMixerState,
+    stemsMixerState,
+    setStemsMixerState,
     proMixerMeters,
-    useProMixer, setUseProMixer,
+    useProMixer,
+    setUseProMixer,
     // Playback
-    elapsed, setElapsed,
-    audioDuration, setAudioDuration,
+    elapsed,
+    setElapsed,
+    audioDuration,
+    setAudioDuration,
     // Viz mode
-    vizMode, setVizMode,
-    canvas2DMode, setCanvas2DMode,
-    sceneFrozen, setSceneFrozen,
-    prefersReducedMotion, setPrefersReducedMotion,
+    vizMode,
+    setVizMode,
+    canvas2DMode,
+    setCanvas2DMode,
+    sceneFrozen,
+    setSceneFrozen,
+    prefersReducedMotion,
+    setPrefersReducedMotion,
     // Timing refs
-    lastBeatIdxRef, lastBeatAtRef,
-    lastAudioDataAtRef, last3DUiUpdateRef,
+    lastBeatIdxRef,
+    lastBeatAtRef,
+    lastAudioDataAtRef,
+    last3DUiUpdateRef,
     // Test harness
-    testStateRef, prevTestState,
+    testStateRef,
+    prevTestState,
     // Visibility
-    visualsVisible, setVisualsVisible,
-    lyricsVisible, setLyricsVisible,
-    characterVisible, setCharacterVisible,
+    visualsVisible,
+    setVisualsVisible,
+    lyricsVisible,
+    setLyricsVisible,
+    characterVisible,
+    setCharacterVisible,
     // Dev panels/modals
-    showTestPanel, setShowTestPanel,
-    showAnimDemo, setShowAnimDemo,
-    showTheatreStudio, setShowTheatreStudio,
-    showExportModal, setShowExportModal,
-    showAudioBrowser, setShowAudioBrowser,
+    showTestPanel,
+    setShowTestPanel,
+    showAnimDemo,
+    setShowAnimDemo,
+    showTheatreStudio,
+    setShowTheatreStudio,
+    showExportModal,
+    setShowExportModal,
+    showAudioBrowser,
+    setShowAudioBrowser,
     // Pending track / loop
-    pendingTrack, setPendingTrack,
-    loopAnchor, setLoopAnchor,
-    loopRegion, setLoopRegion,
+    pendingTrack,
+    setPendingTrack,
+    loopAnchor,
+    setLoopAnchor,
+    loopRegion,
+    setLoopRegion,
     // Kinetic / style / scale / preset
-    kineticPreset, setKineticPreset,
-    visualizationStyle, setVisualizationStyle,
-    perceptualScale, setPerceptualScale,
-    loadedPreset, setLoadedPreset,
+    kineticPreset,
+    setKineticPreset,
+    visualizationStyle,
+    setVisualizationStyle,
+    perceptualScale,
+    setPerceptualScale,
+    loadedPreset,
+    setLoadedPreset,
     // Library / analysis / stem data (moved out of local state)
-    csvContent, setCsvContent,
-    vizParams, setVizParams,
-    trackMetadata, setTrackMetadata,
-    analysisData, setAnalysisData,
-    stemsData, setStemsData,
-    analyzing, setAnalyzing,
+    csvContent,
+    setCsvContent,
+    vizParams,
+    setVizParams,
+    trackMetadata,
+    setTrackMetadata,
+    analysisData,
+    setAnalysisData,
+    stemsData,
+    setStemsData,
+    analyzing,
+    setAnalyzing,
     // Canvas / renderer state
-    rendererReady, setRendererReady,
-    rendererBackend, setRendererBackend,
+    rendererReady,
+    setRendererReady,
+    rendererBackend,
+    setRendererBackend,
     // Lyrics + mode crossfade
-    lyrics, setLyrics,
-    modeFade, setModeFade,
+    lyrics,
+    setLyrics,
+    modeFade,
+    setModeFade,
   } = useVisualizerState();
   const demoBpm = 120;
   // Shared media-library source. `LibraryFile` consumers still work because the
@@ -255,10 +300,7 @@ export function Visualizer() {
       setChromeVisible(true);
       return;
     }
-    chromeIdleTimer.current = window.setTimeout(
-      () => setChromeVisible(false),
-      2600,
-    );
+    chromeIdleTimer.current = window.setTimeout(() => setChromeVisible(false), 2600);
     return () => window.clearTimeout(chromeIdleTimer.current);
   }, [isPlaying, chromePinned]);
 
@@ -266,10 +308,7 @@ export function Visualizer() {
     setChromeVisible(true);
     window.clearTimeout(chromeIdleTimer.current);
     if (isPlaying && !chromePinned) {
-      chromeIdleTimer.current = window.setTimeout(
-        () => setChromeVisible(false),
-        2600,
-      );
+      chromeIdleTimer.current = window.setTimeout(() => setChromeVisible(false), 2600);
     }
   }, [isPlaying, chromePinned]);
 
@@ -434,7 +473,7 @@ export function Visualizer() {
   // Handle Canvas onCreated
   const handleCanvasCreated = useCallback(({ gl }: { gl: any }) => {
     gl.toneMappingExposure = 0.8;
-    if ((gl)?.isWebGPURenderer) {
+    if (gl?.isWebGPURenderer) {
       // WebGPU renderer (Three.js r185) handles tone mapping via TSL node materials;
       // ACESFilmicToneMapping is supported on both backends.
       try {
@@ -470,87 +509,81 @@ export function Visualizer() {
     exportProgress,
     startFrameAccurateExport,
   } = useVisualizerRecording(containerRef, setError, () =>
-    vizMode === "2d"
-      ? canvas2dFrameAccurateApiRef.current
-      : shaderFrameAccurateApiRef.current,
+    vizMode === "2d" ? canvas2dFrameAccurateApiRef.current : shaderFrameAccurateApiRef.current,
   );
   // Track selection: file picker, library dropdown and pending-track handoff.
   // Owned by useTrackSelection (T-VIZ-10); the component only wires JSX to it.
-  const {
-    handleFile,
-    handleSelectLibraryTrack,
-    deriveTrackMeta,
-    resetAudioDerivedState,
-  } = useTrackSelection({
-    state: {
-      analysisData,
-      trackMetadata,
-      vizMode,
-      pendingTrack,
-      libraryFiles,
-    },
-    setters: {
-      setError,
-      setCurrentFilename,
-      setAudioUrl,
-      setDemoEnabled,
-      setIsPaused,
-      setActiveVisualPresetId,
-      setLoopRegion,
-      setLoopAnchor,
-      setAnalyzing,
-      setTrackMetadata,
-      setLyrics,
-      setLyricsVisible,
-      setKineticPreset,
-      setReactivityTriad,
-      setFrequencyFocus,
-      setReactivityGain,
-      setActiveGenrePresetId,
-      setVizParams,
-      setBgColor,
-      setMeshColor,
-      setVisualizationStyle,
-      setVizMode,
-      setLiveAudioData,
-      setPendingTrack,
-      setElapsed,
-      setAnalysisData,
-      setModeFade,
-    },
-    refs: {
-      audioElRef,
-      objectUrlRef,
-      liveAudioDataRef,
-      lastBeatIdxRef,
-      lastBeatAtRef,
-      last3DUiUpdateRef,
-      lrcSyncLiveRef,
-      audioElapsedRef,
-      userPickedGenrePresetRef,
-      userPickedVizModeRef,
-      visualPresetLockRef,
-    },
-    api: {
-      ensureAnalysis,
-      ensureAudioContext,
-      cleanTrackName,
-      encodeAudioRef,
-      audioRefForFile,
-      showToast,
-      selectPresetForTrack,
-      matchReactivityGenrePreset,
-      resolveTrackVisualProfile,
-      selectVisualPreset,
-      visualizationStyleToPresetId,
-      visualPresets,
-      buildTunedPreset,
-      selectVizMode,
-      toAnalysisData,
-      resetClock,
-      resetGraph,
-    },
-  });
+  const { handleFile, handleSelectLibraryTrack, deriveTrackMeta, resetAudioDerivedState } =
+    useTrackSelection({
+      state: {
+        analysisData,
+        trackMetadata,
+        vizMode,
+        pendingTrack,
+        libraryFiles,
+      },
+      setters: {
+        setError,
+        setCurrentFilename,
+        setAudioUrl,
+        setDemoEnabled,
+        setIsPaused,
+        setActiveVisualPresetId,
+        setLoopRegion,
+        setLoopAnchor,
+        setAnalyzing,
+        setTrackMetadata,
+        setLyrics,
+        setLyricsVisible,
+        setKineticPreset,
+        setReactivityTriad,
+        setFrequencyFocus,
+        setReactivityGain,
+        setActiveGenrePresetId,
+        setVizParams,
+        setBgColor,
+        setMeshColor,
+        setVisualizationStyle,
+        setVizMode,
+        setLiveAudioData,
+        setPendingTrack,
+        setElapsed,
+        setAnalysisData,
+        setModeFade,
+      },
+      refs: {
+        audioElRef,
+        objectUrlRef,
+        liveAudioDataRef,
+        lastBeatIdxRef,
+        lastBeatAtRef,
+        last3DUiUpdateRef,
+        lrcSyncLiveRef,
+        audioElapsedRef,
+        userPickedGenrePresetRef,
+        userPickedVizModeRef,
+        visualPresetLockRef,
+      },
+      api: {
+        ensureAnalysis,
+        ensureAudioContext,
+        cleanTrackName,
+        encodeAudioRef,
+        audioRefForFile,
+        showToast,
+        selectPresetForTrack,
+        matchReactivityGenrePreset,
+        resolveTrackVisualProfile,
+        selectVisualPreset,
+        visualizationStyleToPresetId,
+        visualPresets,
+        buildTunedPreset,
+        selectVizMode,
+        toAnalysisData,
+        resetClock,
+        resetGraph,
+      },
+    });
   // Playback clock, seek and blob-URL lifecycle (T-VIZ-11).
   const { togglePlayPause, cycleVizMode, handlePlayheadClick } = useVisualizerPlayback({
     state: { isPlaying, audioUrl },
@@ -693,7 +726,9 @@ export function Visualizer() {
     fetch("/track-prompts-lyrics.csv")
       .then(async (r) => r.text())
       .then(setCsvContent)
-      .catch(() => { void 0; });
+      .catch(() => {
+        void 0;
+      });
   }, []);
 
   // Track/audio side-effects: lazy stems fetch, auto-play on select, and
@@ -713,10 +748,7 @@ export function Visualizer() {
     api: { getStemsAnalysis },
   });
 
-
-
   // (was: always-on loop re-rendering ~12fps when idle).
-
 
   // A-B loop and lifecycle handlers now live in useVisualizerLifecycle (T-VIZ-13).
 
@@ -757,37 +789,37 @@ export function Visualizer() {
                 })}
               </select>
             </label>
+            <label>
+              Mode
+              <select
+                aria-label="Visualization mode"
+                value={vizMode}
+                onChange={(e) => {
+                  userPickedVizModeRef.current = true;
+                  setVizMode(e.target.value as any);
+                }}
+              >
+                <option value="shader">FX</option>
+                <option value="2d">2D</option>
+                <option value="3d">3D</option>
+              </select>
+            </label>
+            {vizMode === "2d" && (
               <label>
-                Mode
+                2D Mode
                 <select
-                  aria-label="Visualization mode"
-                  value={vizMode}
-                  onChange={(e) => {
-                    userPickedVizModeRef.current = true;
-                    setVizMode(e.target.value as any);
-                  }}
+                  aria-label="2D canvas mode"
+                  value={canvas2DMode}
+                  onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
                 >
-                  <option value="shader">FX</option>
-                  <option value="2d">2D</option>
-                  <option value="3d">3D</option>
+                  {CANVAS_2D_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {CANVAS_2D_MODE_LABELS[m]}
+                    </option>
+                  ))}
                 </select>
               </label>
-              {vizMode === "2d" && (
-                <label>
-                  2D Mode
-                  <select
-                    aria-label="2D canvas mode"
-                    value={canvas2DMode}
-                    onChange={(e) => setCanvas2DMode(e.target.value as Canvas2DMode)}
-                  >
-                    {CANVAS_2D_MODES.map((m) => (
-                      <option key={m} value={m}>
-                        {CANVAS_2D_MODE_LABELS[m]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
+            )}
             <button onClick={() => setShowTestPanel(false)}>Close</button>
           </div>
           <pre className="viz-test-state">
@@ -808,9 +840,7 @@ export function Visualizer() {
           </pre>
         </div>
       )}
-      <header
-        className={`viz-topbar${openOverlay !== null ? " viz-topbar--overlay" : ""}`}
-      >
+      <header className={`viz-topbar${openOverlay !== null ? " viz-topbar--overlay" : ""}`}>
         <VizTopbar
           openOverlay={openOverlay !== null}
           currentFilename={currentFilename}
@@ -894,7 +924,7 @@ export function Visualizer() {
           prefersReducedMotion={prefersReducedMotion}
           onToggleReducedMotion={() => setPrefersReducedMotion((p) => !p)}
         />
-</header>
+      </header>
 
       <AnimationDemo visible={showAnimDemo} onClose={() => setShowAnimDemo(false)} />
       <TheatreStudioPanel
@@ -949,11 +979,7 @@ export function Visualizer() {
       <div className="viz-content">
         {/* Mode crossfade overlay */}
         <div className="viz-mode-fade" style={{ opacity: modeFade }} />
-        <div
-          className="viz-canvas-wrap"
-          ref={containerRef}
-          onPointerMove={revealStageChrome}
-        >
+        <div className="viz-canvas-wrap" ref={containerRef} onPointerMove={revealStageChrome}>
           {!audioUrl && !currentFilename && (
             <VizEmptyState
               libraryFiles={libraryFiles}
@@ -1094,9 +1120,7 @@ export function Visualizer() {
                   lrcSyncAt={(t) => {
                     const { lyrics: liveLyrics, sectionBounds: liveBounds } =
                       liveTimingRefs.current;
-                    return liveLyrics.length
-                      ? computeLrcSync(liveLyrics, t, liveBounds)
-                      : null;
+                    return liveLyrics.length ? computeLrcSync(liveLyrics, t, liveBounds) : null;
                   }}
                   analysisData={currentAnalysisData}
                   trackFile={currentFilename ?? null}
@@ -1123,7 +1147,7 @@ export function Visualizer() {
                 <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
               )}
             </>
-          )         : (
+          ) : (
             <div className="viz-layer-hidden" style={{ background: bgColor }}>
               <span className="viz-layer-hidden-label">Visuals hidden</span>
             </div>
@@ -1274,9 +1298,7 @@ export function Visualizer() {
                 onOpenRemixStudio={openRemixStudio}
               />
             ),
-            eq: currentFilename ? (
-              <EqualizerPanel title="Master EQ" eqRef={eqRef} />
-            ) : null,
+            eq: currentFilename ? <EqualizerPanel title="Master EQ" eqRef={eqRef} /> : null,
             ai: (
               <div className="viz-inspector-ai">
                 <PresetFileUpload

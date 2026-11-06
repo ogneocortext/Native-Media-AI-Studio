@@ -495,7 +495,11 @@ describe("noise", () => {
     // Regression: JS `%` keeps the dividend's sign, and the sin()*43758
     // products span roughly +/-43758, so a bare `% 1` returned about half its
     // samples negative. A noise field must never go below 0.
-    for (const [x, y, t] of [[1.5, 2.5, 0], [0.1, 0.9, 3], [-4.2, 7.7, 11]]) {
+    for (const [x, y, t] of [
+      [1.5, 2.5, 0],
+      [0.1, 0.9, 3],
+      [-4.2, 7.7, 11],
+    ]) {
       const v = valueNoise(x, y, t);
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThan(1);
@@ -623,8 +627,12 @@ describe("perceptual scales", () => {
     const barCount = 16;
     const freqLen = 512;
     for (let i = 1; i < barCount; i++) {
-      expect(barkFreqMap(i, barCount, freqLen)).toBeGreaterThan(barkFreqMap(i - 1, barCount, freqLen));
-      expect(melFreqMap(i, barCount, freqLen)).toBeGreaterThan(melFreqMap(i - 1, barCount, freqLen));
+      expect(barkFreqMap(i, barCount, freqLen)).toBeGreaterThan(
+        barkFreqMap(i - 1, barCount, freqLen),
+      );
+      expect(melFreqMap(i, barCount, freqLen)).toBeGreaterThan(
+        melFreqMap(i - 1, barCount, freqLen),
+      );
     }
   });
 

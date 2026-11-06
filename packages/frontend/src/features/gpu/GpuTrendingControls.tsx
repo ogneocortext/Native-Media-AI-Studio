@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { RangeId } from "./gpuConstants";
 import { RANGE_OPTIONS } from "./gpuConstants";
-import type { calcStats} from "./gpuHelpers";
+import type { calcStats } from "./gpuHelpers";
 import { trendIcon } from "./gpuHelpers";
 
 interface TrendingControlsProps {

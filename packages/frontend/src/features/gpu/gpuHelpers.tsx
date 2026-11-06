@@ -211,16 +211,14 @@ export function ChartTooltip({ active, payload, label }: ChartTipProps) {
   const ms = typeof label === "number" ? label : payload[0]?.payload?.time;
   return (
     <div
-      style={
-        {
-          background: "rgba(13,14,19,0.97)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 10,
-          fontSize: 12,
-          padding: "8px 10px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-        }
-      }
+      style={{
+        background: "rgba(13,14,19,0.97)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 10,
+        fontSize: 12,
+        padding: "8px 10px",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+      }}
     >
       {typeof ms === "number" && (
         <p style={{ color: "#e5e7eb", fontSize: 11, marginBottom: 6, whiteSpace: "nowrap" }}>

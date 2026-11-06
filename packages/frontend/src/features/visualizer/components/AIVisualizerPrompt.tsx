@@ -1,15 +1,30 @@
 import { useState, useCallback, useEffect } from "react";
-import { Sparkles, Wand2, Check, Loader2, RefreshCw, ChevronDown, Music2, Shield, Eye, AlertCircle, Zap, Palette, Code2 } from "lucide-react";
-import { generateVisualizerPreset, generateVisualizerPresetAtomic, getOllamaModels, getBenchmarkResults } from "../../../services/api";
+import {
+  Sparkles,
+  Wand2,
+  Check,
+  Loader2,
+  RefreshCw,
+  ChevronDown,
+  Music2,
+  Shield,
+  Eye,
+  AlertCircle,
+  Zap,
+  Palette,
+  Code2,
+} from "lucide-react";
+import {
+  generateVisualizerPreset,
+  generateVisualizerPresetAtomic,
+  getOllamaModels,
+  getBenchmarkResults,
+} from "../../../services/api";
 import type { AIGeneratedPreset, OllamaModel, OllamaBenchmarkResult } from "../../../services/api";
 import type { VisualPreset } from "../aiPresetCatalog";
 import { AIPresetGallery } from "./AIPresetGallery";
 
-const TOOL_CAPABLE_MODELS = [
-  "llama3.1:8b",
-  "gemma4:e2b-it-qat",
-  "qwen3.5:4b",
-];
+const TOOL_CAPABLE_MODELS = ["llama3.1:8b", "gemma4:e2b-it-qat", "qwen3.5:4b"];
 
 interface TrackMeta {
   bpm?: number;
@@ -46,7 +61,7 @@ export function AIVisualizerPrompt({
       .then(async (data) => {
         if (data.length) {
           setModels(data);
-          
+
           // Fetch benchmarks in parallel
           let benchMap: Record<string, OllamaBenchmarkResult> = {};
           try {
@@ -78,7 +93,9 @@ export function AIVisualizerPrompt({
           else if (sorted[0]) setModel(sorted[0].name);
         }
       })
-      .catch(() => { void 0; });
+      .catch(() => {
+        void 0;
+      });
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -232,16 +249,54 @@ export function AIVisualizerPrompt({
                             setShowModelPicker(false);
                           }}
                         >
-                          <span>{m.name}{m.verified ? " ✅" : " ⚠️"}{badge}</span>
-                          {isBest && <span className="viz-ai-badge" style={{color:"#fbbf24"}} title="Best">★ Best</span>}
-                          {m.verified && <span className="viz-ai-badge" title="Verified"><Shield /></span>}
-                          {!m.verified && m.broken_reason && <span className="viz-ai-badge" title={m.broken_reason}><AlertCircle /></span>}
-                          {m.verified_features?.includes("visualizer") && <span className="viz-ai-badge" title="Visualizer"><Palette /></span>}
-                          {m.verified_features?.includes("blender") && <span className="viz-ai-badge" title="Blender"><Code2 /></span>}
-                          {m.supportsVision && <span className="viz-ai-badge" title="Vision"><Eye /></span>}
-                          {m.supportsTools && <span className="viz-ai-badge" title="Tools"><Zap /></span>}
+                          <span>
+                            {m.name}
+                            {m.verified ? " ✅" : " ⚠️"}
+                            {badge}
+                          </span>
+                          {isBest && (
+                            <span
+                              className="viz-ai-badge"
+                              style={{ color: "#fbbf24" }}
+                              title="Best"
+                            >
+                              ★ Best
+                            </span>
+                          )}
+                          {m.verified && (
+                            <span className="viz-ai-badge" title="Verified">
+                              <Shield />
+                            </span>
+                          )}
+                          {!m.verified && m.broken_reason && (
+                            <span className="viz-ai-badge" title={m.broken_reason}>
+                              <AlertCircle />
+                            </span>
+                          )}
+                          {m.verified_features?.includes("visualizer") && (
+                            <span className="viz-ai-badge" title="Visualizer">
+                              <Palette />
+                            </span>
+                          )}
+                          {m.verified_features?.includes("blender") && (
+                            <span className="viz-ai-badge" title="Blender">
+                              <Code2 />
+                            </span>
+                          )}
+                          {m.supportsVision && (
+                            <span className="viz-ai-badge" title="Vision">
+                              <Eye />
+                            </span>
+                          )}
+                          {m.supportsTools && (
+                            <span className="viz-ai-badge" title="Tools">
+                              <Zap />
+                            </span>
+                          )}
                           {m.performance?.vision_latency_sec && (
-                            <span className="viz-ai-vram">👁 ~{m.performance.vision_latency_sec}s</span>
+                            <span className="viz-ai-vram">
+                              👁 ~{m.performance.vision_latency_sec}s
+                            </span>
                           )}
                         </button>
                       );
@@ -292,11 +347,7 @@ export function AIVisualizerPrompt({
             ))}
           </div>
           <div className="viz-ai-preview-actions">
-            <button
-              data-testid="viz-ai-apply"
-              className="viz-ai-apply-btn"
-              onClick={handleApply}
-            >
+            <button data-testid="viz-ai-apply" className="viz-ai-apply-btn" onClick={handleApply}>
               <Check size={14} />
               <span>Apply</span>
             </button>

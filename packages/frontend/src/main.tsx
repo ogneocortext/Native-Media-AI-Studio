@@ -12,12 +12,16 @@ applyTheme(getStoredTheme());
 const origWarn = console.warn;
 const origError = console.error;
 console.warn = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && (args[0].includes('@theatre/studio') || args[0].includes('THREE.Clock: This module has been deprecated')))
+  if (
+    typeof args[0] === "string" &&
+    (args[0].includes("@theatre/studio") ||
+      args[0].includes("THREE.Clock: This module has been deprecated"))
+  )
     return;
   origWarn.apply(console, args);
 };
 console.error = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && args[0].includes('@theatre/studio')) return;
+  if (typeof args[0] === "string" && args[0].includes("@theatre/studio")) return;
   origError.apply(console, args);
 };
 
@@ -35,9 +39,7 @@ async function initApp() {
 
   const rootEl = document.getElementById("root");
   if (!rootEl) throw new Error("DOM element #root not found — cannot mount React app");
-  createRoot(rootEl).render(
-    <App />,
-  );
+  createRoot(rootEl).render(<App />);
 }
 
 void initApp();

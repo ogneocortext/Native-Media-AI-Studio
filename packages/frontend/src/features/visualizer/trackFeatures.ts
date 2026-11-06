@@ -109,7 +109,9 @@ export function updateTrackFeatures(
   const progress = t / duration;
 
   // Energy from curve
-  const energy = cachedEnergy ? cachedEnergy[Math.min(Math.floor(progress * cachedEnergy.length), cachedEnergy.length - 1)] : 0.5;
+  const energy = cachedEnergy
+    ? cachedEnergy[Math.min(Math.floor(progress * cachedEnergy.length), cachedEnergy.length - 1)]
+    : 0.5;
 
   // Onset detection (within 80ms window)
   const onsetT = Math.round(t * 100);
@@ -148,14 +150,10 @@ export function updateTrackFeatures(
   const rolloffVal = cachedRolloff?.[specIdx];
   const bandwidthVal = cachedBandwidth?.[specIdx];
   const zcrVal = cachedZCR?.[specIdx];
-  const brightness =
-    specIdx >= 0 && centroidVal ? Math.min(1, centroidVal / 8000) : 0.5;
-  const rolloff =
-    specIdx >= 0 && rolloffVal ? Math.min(1, rolloffVal / 12000) : 0.5;
-  const bandwidth =
-    specIdx >= 0 && bandwidthVal ? Math.min(1, bandwidthVal / 4000) : 0.5;
-  const noisiness =
-    specIdx >= 0 && zcrVal ? Math.min(1, zcrVal / 0.5) : 0.5;
+  const brightness = specIdx >= 0 && centroidVal ? Math.min(1, centroidVal / 8000) : 0.5;
+  const rolloff = specIdx >= 0 && rolloffVal ? Math.min(1, rolloffVal / 12000) : 0.5;
+  const bandwidth = specIdx >= 0 && bandwidthVal ? Math.min(1, bandwidthVal / 4000) : 0.5;
+  const noisiness = specIdx >= 0 && zcrVal ? Math.min(1, zcrVal / 0.5) : 0.5;
 
   // Downbeat detection (within 150ms window of backend downbeat times)
   const downbeatT = Math.round(t * 100);

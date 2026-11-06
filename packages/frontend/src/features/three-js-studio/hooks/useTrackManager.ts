@@ -47,8 +47,17 @@ export function useTrackManager({
   useEffect(() => {
     setTracksLoading(sharedLoading);
     setTracksError(sharedError);
-    setLibraryTracks(sharedLibrary.map((f) => ({ filename: f.filename, optionLabel: f.optionLabel })));
-  }, [sharedLibrary, sharedLoading, sharedError, setLibraryTracks, setTracksLoading, setTracksError]);
+    setLibraryTracks(
+      sharedLibrary.map((f) => ({ filename: f.filename, optionLabel: f.optionLabel })),
+    );
+  }, [
+    sharedLibrary,
+    sharedLoading,
+    sharedError,
+    setLibraryTracks,
+    setTracksLoading,
+    setTracksError,
+  ]);
 
   // Fetch metadata (BPM/duration) for selected track only
   useEffect(() => {
@@ -86,7 +95,9 @@ export function useTrackManager({
     if (wasPlaying && audioElementRef.current) {
       setIsAudioPlaying(false);
       setTimeout(() => {
-        audioElementRef.current?.play().catch(() => { void 0; });
+        audioElementRef.current?.play().catch(() => {
+          void 0;
+        });
       }, 50);
     }
   };

@@ -70,9 +70,7 @@ export function HealthPage() {
   const [comfyuiLoading, setComfyuiLoading] = useState(false);
   const [comfyuiAction, setComfyuiAction] = useState<string | null>(null);
   const [vramStatus, setVramStatus] = useState<Record<string, unknown> | null>(null);
-  const [actionLog, setActionLog] = useState<
-    { time: string; message: string; type: string }[]
-  >([]);
+  const [actionLog, setActionLog] = useState<{ time: string; message: string; type: string }[]>([]);
   const [pendingHighVram, setPendingHighVram] = useState<number | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -110,7 +108,9 @@ export function HealthPage() {
 
   // Fetch ComfyUI status on mount so the card renders when data is available
   useEffect(() => {
-    fetchComfyUI().catch(() => { void 0; });
+    fetchComfyUI().catch(() => {
+      void 0;
+    });
   }, [fetchComfyUI]);
 
   // Sync VRAM status from granular store
@@ -277,18 +277,14 @@ export function HealthPage() {
   // a literal "connected|online|healthy" list wrongly flagged "available".
   const adapterEntries = Object.entries(serviceStatus?.adapters ?? {});
   const unreachableAdapters = adapterEntries
-    .filter(
-      ([, s]) => !isHealthyAdapterStatus(s) && !isWarningAdapterStatus(s),
-    )
+    .filter(([, s]) => !isHealthyAdapterStatus(s) && !isWarningAdapterStatus(s))
     .map(([name]) => name.replace(/_/g, " "));
   const degradedAdapters = adapterEntries
     .filter(([, s]) => isWarningAdapterStatus(s))
     .map(([name]) => name.replace(/_/g, " "));
   const hostStatus = health?.status ?? "unknown";
   const overallHealth =
-    unreachableAdapters.length > 0 || degradedAdapters.length > 0
-      ? "degraded"
-      : hostStatus;
+    unreachableAdapters.length > 0 || degradedAdapters.length > 0 ? "degraded" : hostStatus;
   const overallDetail =
     unreachableAdapters.length > 0
       ? `${unreachableAdapters.join(", ")} ${unreachableAdapters.length === 1 ? "is" : "are"} unreachable`
@@ -672,11 +668,7 @@ function AccessibilityAuditCard() {
         <p className="text-sm text-muted">
           Run WCAG 2.1 AA checks against the current page using axe-core.
         </p>
-        <button
-          onClick={runAudit}
-          disabled={running}
-          className="btn btn-primary"
-        >
+        <button onClick={runAudit} disabled={running} className="btn btn-primary">
           {running ? (
             <>
               <Loader2 size={16} className="animate-spin" /> Running...
@@ -707,10 +699,7 @@ function AccessibilityAuditCard() {
             {result.violations.length > 0 && (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {result.violations.map((v) => (
-                  <div
-                    key={v.id}
-                    className={`p-3 rounded-lg border ${impactColor(v.impact)}`}
-                  >
+                  <div key={v.id} className={`p-3 rounded-lg border ${impactColor(v.impact)}`}>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold uppercase">{v.impact}</span>
                       <span className="text-sm font-medium">{v.id}</span>

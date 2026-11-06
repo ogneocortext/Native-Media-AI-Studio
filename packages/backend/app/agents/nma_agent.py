@@ -61,24 +61,21 @@ class NMAAgent:
     All state is persisted to output/agent-state/ for agent handoffs.
     """
 
-    def __init__(self, session_id: str | None = None,
-                 api_base: str = "http://127.0.0.1:8000"):
-        self.session_id = session_id or (
-            f"nma-agent-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
-        )
+    def __init__(self, session_id: str | None = None, api_base: str = "http://127.0.0.1:8000"):
+        self.session_id = session_id or (f"nma-agent-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}")
         self.trace_id = uuid.uuid4().hex[:16]
         self.state = AgentState(self.session_id).load()
         self.api = NMAApiClient(api_base)
         # Per-dependency circuit breakers
         self._breakers: dict[str, CircuitBreaker] = {}
-        self._log(f"Agent session started: {self.session_id}"
-                  f" (trace={self.trace_id})")
+        self._log(f"Agent session started: {self.session_id} (trace={self.trace_id})")
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _log(self, message: str, level: str = "info",
-             *, step: str | None = None, **extra: Any) -> None:
+    def _log(
+        self, message: str, level: str = "info", *, step: str | None = None, **extra: Any
+    ) -> None:
         """Log a message to stdout and agent state."""
         timestamp = datetime.now(UTC).strftime("%H:%M:%S")
         print(f"[{timestamp}] [NMAAgent] {message}")
@@ -92,10 +89,15 @@ class NMAAgent:
         self.state.update(phase=phase)
         self._log(f"Phase: {phase}")
 
-    async def _api_call(self, fn, *args, context: str = "",
-                        idempotency_key: str | None = None,
-                        circuit_name: str | None = None,
-                        **kwargs: Any) -> dict | None:
+    async def _api_call(
+        self,
+        fn,
+        *args,
+        context: str = "",
+        idempotency_key: str | None = None,
+        circuit_name: str | None = None,
+        **kwargs: Any,
+    ) -> dict | None:
         """Wrap an API call with retry + circuit breaker +
         error classification."""
         cb = None
@@ -115,13 +117,16 @@ class NMAAgent:
                 context=context or fn.__name__,
             )
         except NMAApiError as e:
-            self._log(f"API error: {e}", "error",
-                      step=context, retryable=e.retryable,
-                      status_code=e.status_code)
+            self._log(
+                f"API error: {e}",
+                "error",
+                step=context,
+                retryable=e.retryable,
+                status_code=e.status_code,
+            )
             return None
         except Exception as e:
-            self._log(f"Unexpected error: {e}", "error",
-                      step=context, retryable=False)
+            self._log(f"Unexpected error: {e}", "error", step=context, retryable=False)
             return None
 
     # ------------------------------------------------------------------
@@ -135,7 +140,8 @@ class NMAAgent:
         # Upload first if it's a local file path
         if Path(audio_file).exists():
             upload_result = await self._api_call(
-                self.api.audio_upload, audio_file,
+                self.api.audio_upload,
+                audio_file,
                 context="audio_upload",
                 idempotency_key=make_idempotency_key(
                     tenant=self.session_id,
@@ -150,7 +156,8 @@ class NMAAgent:
             filename = audio_file
 
         analysis = await self._api_call(
-            self.api.audio_analyze, filename,
+            self.api.audio_analyze,
+            filename,
             context="audio_analyze",
             idempotency_key=make_idempotency_key(
                 tenant=self.session_id,
@@ -171,8 +178,7 @@ class NMAAgent:
         )
         return analysis
 
-    async def generate_music(self, style: str = "cinematic",
-                             lyrics: str = "") -> dict | None:
+    async def generate_music(self, style: str = "cinematic", lyrics: str = "") -> dict | None:
         """Phase 2: Generate music using ACE-Step."""
         self._phase("generating")
         self._log(f"Generating music: style={style}")
@@ -182,11 +188,11 @@ class NMAAgent:
             self.api.music_gen_status,
             context="music_gen_status",
         )
-        if status is None or not status.get("services", {}).get("ace",
-                                                                False):
+        if status is None or not status.get("services", {}).get("ace", False):
             self._log("Starting ACE-Step service...", "warning")
             start_result = await self._api_call(
-                self.api.music_gen_start, "ace",
+                self.api.music_gen_start,
+                "ace",
                 context="music_gen_start",
                 idempotency_key=make_idempotency_key(
                     tenant=self.session_id,
@@ -199,7 +205,9 @@ class NMAAgent:
                 return None
 
         result = await self._api_call(
-            self.api.music_gen_generate, style, lyrics,
+            self.api.music_gen_generate,
+            style,
+            lyrics,
             context="music_gen_generate",
             idempotency_key=make_idempotency_key(
                 tenant=self.session_id,
@@ -214,14 +222,14 @@ class NMAAgent:
         audio_url = self.api.music_gen_audio(output_name)
 
         self.state.add_generated_asset(
-            "audio", audio_url,
+            "audio",
+            audio_url,
             {"style": style, "lyrics": lyrics},
         )
         self._log(f"Music generated: {audio_url}")
         return {"name": output_name, "url": audio_url, "result": result}
 
-    async def create_plan(self, analysis: dict,
-                          music_result: dict | None = None) -> dict | None:
+    async def create_plan(self, analysis: dict, music_result: dict | None = None) -> dict | None:
         """Phase 3: Create a music video production plan."""
         self._phase("planning")
         self._log("Creating music video production plan")
@@ -253,7 +261,8 @@ class NMAAgent:
 
         # Preview the recipe first
         preview = await self._api_call(
-            self.api.remix_preview, recipe,
+            self.api.remix_preview,
+            recipe,
             context="remix_preview",
             idempotency_key=make_idempotency_key(
                 tenant=self.session_id,
@@ -265,8 +274,7 @@ class NMAAgent:
             return None
 
         self.state.update(plan=recipe)
-        self._log(f"Plan created: {len(sections)} sections, "
-                  f"{duration}s duration")
+        self._log(f"Plan created: {len(sections)} sections, {duration}s duration")
         return {"recipe": recipe, "preview": preview}
 
     async def build_remix(self, recipe: dict | None = None) -> dict | None:
@@ -282,7 +290,8 @@ class NMAAgent:
 
         # Preview first
         preview = await self._api_call(
-            self.api.remix_preview, recipe,
+            self.api.remix_preview,
+            recipe,
             context="remix_preview",
             idempotency_key=make_idempotency_key(
                 tenant=self.session_id,
@@ -300,7 +309,8 @@ class NMAAgent:
 
         # Build
         result = await self._api_call(
-            self.api.remix_build, recipe,
+            self.api.remix_build,
+            recipe,
             context="remix_build",
             idempotency_key=make_idempotency_key(
                 tenant=self.session_id,
@@ -313,7 +323,8 @@ class NMAAgent:
 
         remix_name = recipe.get("name", "mashup")
         enhance_result = await self._api_call(
-            self.api.remix_enhance, remix_name,
+            self.api.remix_enhance,
+            remix_name,
             context="remix_enhance",
             idempotency_key=make_idempotency_key(
                 tenant=self.session_id,
@@ -323,12 +334,12 @@ class NMAAgent:
         )
 
         self.state.add_generated_asset(
-            "remix", result,
+            "remix",
+            result,
             {"preview": preview, "enhanced": enhance_result is not None},
         )
         self._log(f"Remix built: {remix_name}")
-        return {"result": result, "preview": preview,
-                "enhanced": enhance_result}
+        return {"result": result, "preview": preview, "enhanced": enhance_result}
 
     # ------------------------------------------------------------------
     # Full pipeline
@@ -356,8 +367,7 @@ class NMAAgent:
         self._log("NMA Agent: Music Video Pipeline Started")
         self._log("=" * 60)
 
-        result: dict[str, Any] = {"session_id": self.session_id,
-                                  "phases": {}}
+        result: dict[str, Any] = {"session_id": self.session_id, "phases": {}}
 
         # Step 1: Analyze
         analysis = await self.analyze_audio(audio_file)
@@ -631,7 +641,9 @@ class NMAAgent:
         "audio_list": lambda self: self.api.audio_list(),
         "music_gen_status": lambda self: self.api.music_gen_status(),
         "music_gen_start": lambda self, engine="ace": self.api.music_gen_start(engine),
-        "music_gen_generate": lambda self, style, lyrics="", output_name=None: self.api.music_gen_generate(style, lyrics, output_name),
+        "music_gen_generate": lambda self, style, lyrics="", output_name=None: (
+            self.api.music_gen_generate(style, lyrics, output_name)
+        ),
         "remix_list": lambda self: self.api.remix_list(),
         "remix_preview": lambda self, recipe: self.api.remix_preview(recipe),
         "remix_build": lambda self, recipe: self.api.remix_build(recipe),
@@ -690,18 +702,21 @@ class NMAAgent:
             system_prompt = base_system_prompt
 
         if audio_file:
-            history.append({
+            history.append(
+                {
+                    "role": "user",
+                    "content": f"The audio file to work with is: {audio_file}",
+                }
+            )
+
+        history.append(
+            {
                 "role": "user",
-                "content": f"The audio file to work with is: {audio_file}",
-            })
+                "content": goal,
+            }
+        )
 
-        history.append({
-            "role": "user",
-            "content": goal,
-        })
-
-        self.state.update(llm_iterations=0, llm_aborted=False,
-                          llm_tool_calls=[])
+        self.state.update(llm_iterations=0, llm_aborted=False, llm_tool_calls=[])
 
         start_ms = datetime.now(UTC).timestamp() * 1000
 
@@ -748,8 +763,7 @@ class NMAAgent:
                     result=content or "",
                     success=True,
                     duration_ms=int(end_ms - start_ms),
-                    tools_used=[tc.get("function", {}).get("name", "")
-                                for tc in tool_call_log],
+                    tools_used=[tc.get("function", {}).get("name", "") for tc in tool_call_log],
                     llm_driver="atomic_chat",
                     iterations=iteration + 1,
                 )
@@ -784,21 +798,27 @@ class NMAAgent:
                     self._log(f"LLM tool call: {fn_name}({fn_args}) -> ok")
 
                     # Feed result back as a tool message
-                    history.append({
-                        "role": "tool",
-                        "content": json.dumps(result) if not isinstance(result, str) else result,
-                        "tool_call_id": tc.get("id", ""),
-                    })
+                    history.append(
+                        {
+                            "role": "tool",
+                            "content": json.dumps(result)
+                            if not isinstance(result, str)
+                            else result,
+                            "tool_call_id": tc.get("id", ""),
+                        }
+                    )
                 except Exception as e:  # noqa: BLE001
                     call_record["result"] = None
                     call_record["error"] = str(e)
                     self._log(f"LLM tool call failed: {fn_name} -> {e}", "error")
 
-                    history.append({
-                        "role": "tool",
-                        "content": json.dumps({"error": str(e)}),
-                        "tool_call_id": tc.get("id", ""),
-                    })
+                    history.append(
+                        {
+                            "role": "tool",
+                            "content": json.dumps({"error": str(e)}),
+                            "tool_call_id": tc.get("id", ""),
+                        }
+                    )
 
                 tool_call_log.append(call_record)
 
@@ -815,8 +835,7 @@ class NMAAgent:
             result="Max iterations reached without goal completion",
             success=False,
             duration_ms=int(end_ms - start_ms),
-            tools_used=[tc.get("function", {}).get("name", "")
-                        for tc in tool_call_log],
+            tools_used=[tc.get("function", {}).get("name", "") for tc in tool_call_log],
             error_message="max_iterations_exceeded",
             llm_driver="atomic_chat",
             iterations=max_iters,
@@ -834,15 +853,13 @@ async def run_pipeline(
     audio_file: str,
     style: str = "cinematic",
     lyrics: str = "",
-        session_id: str | None = None,
-        *,
-        build_remix: bool = True,
+    session_id: str | None = None,
+    *,
+    build_remix: bool = True,
 ) -> dict[str, Any]:
     """Convenience function to run the full pipeline."""
     agent = NMAAgent(session_id=session_id)
     try:
-        return await agent.create_music_video(
-            audio_file, style, lyrics, build_remix
-        )
+        return await agent.create_music_video(audio_file, style, lyrics, build_remix)
     finally:
         await agent.close()

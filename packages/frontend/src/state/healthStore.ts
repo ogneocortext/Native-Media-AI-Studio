@@ -7,11 +7,7 @@
 
 import { create } from "zustand";
 import { fetchPortConfig } from "../services/portConfig";
-import type {
-  AggregateHealth,
-  AdapterHealth,
-  SystemHealth,
-  ServiceStatus} from "../services/api";
+import type { AggregateHealth, AdapterHealth, SystemHealth, ServiceStatus } from "../services/api";
 import {
   healthCheck,
   getSystemHealth,
@@ -111,7 +107,7 @@ async function syncAtomicChat(enable: boolean): Promise<void> {
         type: "info",
         duration: 6000,
         key: `atomic-chat-${enable ? "enabled" : "disabled"}`,
-      }
+      },
     );
   } catch {
     // Silently fail — settings sync is best-effort
@@ -368,7 +364,12 @@ let vramPollInterval: ReturnType<typeof setInterval> | null = null;
 export function startVRAMPolling(intervalMs = 15000) {
   if (vramPollInterval) clearInterval(vramPollInterval);
   vramPollInterval = setInterval(() => {
-    useHealthStore.getState().fetchVRAMStatus().catch(() => { void 0; });
+    useHealthStore
+      .getState()
+      .fetchVRAMStatus()
+      .catch(() => {
+        void 0;
+      });
   }, intervalMs);
 }
 
@@ -393,7 +394,12 @@ let comfyuiPollInterval: ReturnType<typeof setInterval> | null = null;
 export function startComfyUIPolling(intervalMs = 30000) {
   if (comfyuiPollInterval) clearInterval(comfyuiPollInterval);
   comfyuiPollInterval = setInterval(() => {
-    useHealthStore.getState().fetchComfyUIStatus().catch(() => { void 0; });
+    useHealthStore
+      .getState()
+      .fetchComfyUIStatus()
+      .catch(() => {
+        void 0;
+      });
   }, intervalMs);
 }
 
@@ -445,7 +451,8 @@ export const useSystemHealth = () => useHealthStore((state) => state.systemHealt
 export const useServiceStatus = () => useHealthStore((state) => state.serviceStatus);
 
 /** Subscribe to ComfyUI loading/action state only */
-export const useComfyUILoading = () => useHealthStore((state) => ({
-  loading: state.comfyuiLoading,
-  action: state.comfyuiAction,
-}));
+export const useComfyUILoading = () =>
+  useHealthStore((state) => ({
+    loading: state.comfyuiLoading,
+    action: state.comfyuiAction,
+  }));

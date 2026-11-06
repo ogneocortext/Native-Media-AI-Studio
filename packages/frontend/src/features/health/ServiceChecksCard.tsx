@@ -89,9 +89,7 @@ export function ServiceChecksCard() {
                   <div className="w-2 h-2 rounded-full shrink-0 bg-gray-600" />
                   <span className="text-sm text-white capitalize">{service}</span>
                 </div>
-                <span className="flex items-center gap-1 text-xs text-gray-600">
-                  not checked
-                </span>
+                <span className="flex items-center gap-1 text-xs text-gray-600">not checked</span>
               </div>
             );
           }

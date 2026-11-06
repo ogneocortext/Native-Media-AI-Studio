@@ -98,9 +98,10 @@ export function BusChannel({
           className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-75"
           style={{
             height: `${Math.min(100, meter.rms * 250)}%`,
-            background: meter.dBFS > -6
-              ? "linear-gradient(to top, #ef4444, #f59e0b)"
-              : `linear-gradient(to top, ${accent}88, ${accent}44)`,
+            background:
+              meter.dBFS > -6
+                ? "linear-gradient(to top, #ef4444, #f59e0b)"
+                : `linear-gradient(to top, ${accent}88, ${accent}44)`,
           }}
         />
         <div
@@ -180,7 +181,9 @@ export function BusChannel({
             master: "Bus Comp",
             limiter: "Limiter",
           }).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
+            <option key={key} value={key}>
+              {label}
+            </option>
           ))}
         </select>
       </div>

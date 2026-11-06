@@ -47,17 +47,40 @@ def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
         buf = np.repeat(buf, 2, axis=0)
     try:
         proc = subprocess.run(
-            [ffmpeg, "-hide_banner", "-loglevel", "info",
-             "-f", "f32le", "-ac", "2", "-ar", str(sr), "-i", "pipe:0",
-             "-af", "ebur128=framelog=verbose:peak=true", "-f", "null", "-"],
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "info",
+                "-f",
+                "f32le",
+                "-ac",
+                "2",
+                "-ar",
+                str(sr),
+                "-i",
+                "pipe:0",
+                "-af",
+                "ebur128=framelog=verbose:peak=true",
+                "-f",
+                "null",
+                "-",
+            ],
             input=np.ascontiguousarray(buf.T).tobytes(),
-            capture_output=True, timeout=120,
+            capture_output=True,
+            timeout=120,
         )
     except Exception:
         return None
-    stderr = proc.stderr.decode("utf-8", "replace") if isinstance(proc.stderr, bytes) else (proc.stderr or "")
+    stderr = (
+        proc.stderr.decode("utf-8", "replace")
+        if isinstance(proc.stderr, bytes)
+        else (proc.stderr or "")
+    )
     out: dict[str, float | None] = {"integrated_lufs": None, "true_peak_dbfs": None}
-    m = re.search(r"Integrated loudness:\s*\n\s*I:\s*([+-]?\d+(?:\.\d+)?)\s*LUFS", stderr, re.IGNORECASE)
+    m = re.search(
+        r"Integrated loudness:\s*\n\s*I:\s*([+-]?\d+(?:\.\d+)?)\s*LUFS", stderr, re.IGNORECASE
+    )
     if m:
         out["integrated_lufs"] = float(m.group(1))
     # The summary prints "True peak:" on its own line, then "Peak: -x.x dBFS".
@@ -201,8 +224,11 @@ class _SourceCache:
                 if lufs is not None:
                     raw = LOUDNESS_ANCHOR_LUFS - lufs
                     clamped = max(-CALIBRATION_MAX_DB, min(CALIBRATION_MAX_DB, raw))
-                    record = {"offset_db": clamped, "measured_lufs": round(lufs, 2),
-                              "clamped": abs(clamped - raw) > 1e-9}
+                    record = {
+                        "offset_db": clamped,
+                        "measured_lufs": round(lufs, 2),
+                        "clamped": abs(clamped - raw) > 1e-9,
+                    }
             except Exception:
                 pass
             self._calibration[key] = record

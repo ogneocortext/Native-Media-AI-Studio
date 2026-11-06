@@ -1,25 +1,5 @@
 import { AudioTransport } from "../../../components/audio";
-import {
-  
-  Music,
-  Wand2,
-  
-  
-  ChevronRight,
-  
-  
-  
-  Layers,
-  
-  Lightbulb,
-  Target,
-  
-  Eye,
-  
-  
-  
-  
-} from "lucide-react";
+import { Music, Wand2, ChevronRight, Layers, Lightbulb, Target, Eye } from "lucide-react";
 import type { AudioAnalysis } from "../types";
 import { VISUAL_TREATMENTS } from "../types";
 /* Section-type → colour class. Module scope: rebuilding this object inside the

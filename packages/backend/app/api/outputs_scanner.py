@@ -112,9 +112,21 @@ def _get_dir_mtime() -> float:
 def _build_media_stem_set(dir_path: Path) -> dict[Path, set[str]]:
     """Pre-compute {parent_dir: set_of_media_stems} for O(1) sidecar lookups."""
     media_exts = {
-        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus",
-        ".m4a", ".aac", ".wma", ".mp4", ".webm", ".mov",
-        ".mkv", ".m4v", ".avi",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".oga",
+        ".opus",
+        ".m4a",
+        ".aac",
+        ".wma",
+        ".mp4",
+        ".webm",
+        ".mov",
+        ".mkv",
+        ".m4v",
+        ".avi",
     }
     stems_by_dir: dict[Path, set[str]] = {}
     try:
@@ -153,9 +165,21 @@ def _is_cover_sidecar(file_path: Path, media_stems: set[str] | None = None) -> b
                     and sibling.stem == stem
                     and sibling.suffix.lower()
                     in {
-                        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus",
-                        ".m4a", ".aac", ".wma", ".mp4", ".webm", ".mov",
-                        ".mkv", ".m4v", ".avi",
+                        ".mp3",
+                        ".wav",
+                        ".flac",
+                        ".ogg",
+                        ".oga",
+                        ".opus",
+                        ".m4a",
+                        ".aac",
+                        ".wma",
+                        ".mp4",
+                        ".webm",
+                        ".mov",
+                        ".mkv",
+                        ".m4v",
+                        ".avi",
                     }
                 ):
                     return True
@@ -286,11 +310,17 @@ def _scan_with_cache() -> list[OutputFile]:
             # Skip broken renders: 1x1 placeholder PNGs (70 bytes) and tiny files
             # These are failed ComfyUI outputs that clutter the library with red thumbnails
             if stat.st_size < 1024 and file_path.suffix.lower() in (
-                ".png", ".jpg", ".jpeg", ".webp",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
             ):
                 continue
             if stat.st_size < 10240 and file_path.suffix.lower() in (
-                ".gif", ".mp4", ".webm", ".mov",
+                ".gif",
+                ".mp4",
+                ".webm",
+                ".mov",
             ):
                 continue
 

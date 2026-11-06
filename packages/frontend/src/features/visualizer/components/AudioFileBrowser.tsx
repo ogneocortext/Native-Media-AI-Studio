@@ -42,10 +42,7 @@ export function AudioFileBrowser({ onClose, onSelect }: AudioFileBrowserProps) {
     );
   }, [entries, query]);
 
-  const handleSelect = useCallback(
-    (entry: AudioLibraryEntry) => onSelect(entry.ref),
-    [onSelect],
-  );
+  const handleSelect = useCallback((entry: AudioLibraryEntry) => onSelect(entry.ref), [onSelect]);
 
   return (
     <div className="viz-file-browser-backdrop" onClick={onClose}>
@@ -82,9 +79,7 @@ export function AudioFileBrowser({ onClose, onSelect }: AudioFileBrowserProps) {
             />
           </div>
           <span className="viz-file-browser-count">
-            {isLoading
-              ? "Loading…"
-              : `${filtered.length} file${filtered.length !== 1 ? "s" : ""}`}
+            {isLoading ? "Loading…" : `${filtered.length} file${filtered.length !== 1 ? "s" : ""}`}
           </span>
         </div>
 
@@ -113,9 +108,7 @@ export function AudioFileBrowser({ onClose, onSelect }: AudioFileBrowserProps) {
         )}
 
         {!isLoading && !error && filtered.length === 0 && (
-          <div className="viz-file-browser-empty">
-            Nothing matches "{query}"
-          </div>
+          <div className="viz-file-browser-empty">Nothing matches "{query}"</div>
         )}
 
         {!isLoading && !error && filtered.length > 0 && (
@@ -128,13 +121,9 @@ export function AudioFileBrowser({ onClose, onSelect }: AudioFileBrowserProps) {
                   onClick={() => handleSelect(entry)}
                   aria-label={`Play ${entry.displayName}`}
                 >
-                  <span className="viz-file-browser-card-name">
-                    {entry.displayName}
-                  </span>
+                  <span className="viz-file-browser-card-name">{entry.displayName}</span>
                   {entry.folder && (
-                    <span className="viz-file-browser-card-folder">
-                      {entry.folder}
-                    </span>
+                    <span className="viz-file-browser-card-folder">{entry.folder}</span>
                   )}
                   <span className="viz-file-browser-card-meta">
                     <Clock size={12} />
@@ -150,9 +139,7 @@ export function AudioFileBrowser({ onClose, onSelect }: AudioFileBrowserProps) {
           <a href="/audio-analysis" className="viz-file-browser-foot-link">
             Open Audio Analysis →
           </a>
-          <span className="viz-file-browser-foot-note">
-            Select a track to start the visualizer
-          </span>
+          <span className="viz-file-browser-foot-note">Select a track to start the visualizer</span>
         </div>
       </div>
     </div>

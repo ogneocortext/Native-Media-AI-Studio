@@ -40,15 +40,9 @@ export interface MediaLibraryViewProps {
 }
 
 export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
-  const { files: allFiles, loading: filesLoading, error, refetch: refetchFiles } =
-    useMediaFiles();
-  const {
-    handleBulkDelete,
-    handleRename,
-    handleProbe,
-    isOperating,
-    setOperationError,
-  } = useFileOperations();
+  const { files: allFiles, loading: filesLoading, error, refetch: refetchFiles } = useMediaFiles();
+  const { handleBulkDelete, handleRename, handleProbe, isOperating, setOperationError } =
+    useFileOperations();
   const {
     favorites,
     collections,
@@ -124,9 +118,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
     displayNameCounts.set(d, (displayNameCounts.get(d) ?? 0) + 1);
   }
   const collisionNames = new Set(
-    [...displayNameCounts.entries()]
-      .filter(([, c]) => c > 1)
-      .map(([n]) => n),
+    [...displayNameCounts.entries()].filter(([, c]) => c > 1).map(([n]) => n),
   );
 
   const filesForView =
@@ -171,10 +163,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   const handleFindDuplicates = async () => {
     setDuplicatesLoading(true);
     try {
-      const res = await fetchWithTimeout(
-        "/api/outputs/duplicates/groups?quick=true",
-        { timeout: 30000 },
-      );
+      const res = await fetchWithTimeout("/api/outputs/duplicates/groups?quick=true", {
+        timeout: 30000,
+      });
       if (!res.ok) {
         throw new Error(`Duplicate scan failed (${res.status})`);
       }
@@ -277,14 +268,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [
-    filter.query,
-    filter.fileType,
-    filter.tagFilter,
-    filter.sortBy,
-    filter.sortOrder,
-    view,
-  ]);
+  }, [filter.query, filter.fileType, filter.tagFilter, filter.sortBy, filter.sortOrder, view]);
 
   const loading = filesLoading || orgLoading;
   const combinedError = error ?? orgError;
@@ -297,8 +281,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
       : defaultFileType === "audio"
         ? "Audio Library"
         : "Media Library";
-  const pageIcon =
-    defaultFileType === "video" ? <Video size={22} /> : <Music size={22} />;
+  const pageIcon = defaultFileType === "video" ? <Video size={22} /> : <Music size={22} />;
   const pageSubtitle =
     defaultFileType === "video"
       ? "Browse and manage video files in output/ — play, rename, delete, duplicates, favorites, collections, tags, and trash."
@@ -481,18 +464,13 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             onSelect={toggleSelect}
             onDelete={handleDeleteFile}
             onRename={(file) => {
-              const newName = window.prompt(
-                `Rename "${file.filename}"`,
-                file.filename,
-              );
+              const newName = window.prompt(`Rename "${file.filename}"`, file.filename);
               if (newName && newName !== file.filename) {
                 void handleRenameFile(file, newName);
               }
             }}
             onSendToWizard={(file) => {
-              window.dispatchEvent(
-                new CustomEvent("send-to-wizard", { detail: { file } }),
-              );
+              window.dispatchEvent(new CustomEvent("send-to-wizard", { detail: { file } }));
             }}
             selectedPaths={selectedPaths}
             favoritedPaths={favorites}
@@ -637,21 +615,26 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             <div className="space-y-2 text-sm text-muted">
               <p>File Type: {selectedFile.file_type}</p>
               <p>Size: {formatFileSize(selectedFile.size_bytes ?? selectedFile.size ?? 0)}</p>
-              <p>Modified: {formatDateTime((selectedFile.modified_at ?? selectedFile.modified_time) ?? "")}</p>
+              <p>
+                Modified:{" "}
+                {formatDateTime(selectedFile.modified_at ?? selectedFile.modified_time ?? "")}
+              </p>
               {selectedFile.has_cover && selectedFile.cover_image && (
                 <p className="text-green-400">Cover art extracted</p>
               )}
-              {selectedFile.analysis && (
-                <p className="text-green-400">Analysis: Available</p>
-              )}
-              <p>Favorited: {favorites.has(selectedFile.relative_path || selectedFile.filename) ? "Yes" : "No"}</p>
+              {selectedFile.analysis && <p className="text-green-400">Analysis: Available</p>}
+              <p>
+                Favorited:{" "}
+                {favorites.has(selectedFile.relative_path || selectedFile.filename) ? "Yes" : "No"}
+              </p>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted uppercase tracking-wider">Tags</span>
-                  {itemTags.get(selectedFile.relative_path || selectedFile.filename)?.length === 0 && (
-                    <span className="text-xs text-gray-500">none</span>
-                  )}
+                  <span className="text-xs font-medium text-muted uppercase tracking-wider">
+                    Tags
+                  </span>
+                  {itemTags.get(selectedFile.relative_path || selectedFile.filename)?.length ===
+                    0 && <span className="text-xs text-gray-500">none</span>}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {itemTags.get(selectedFile.relative_path || selectedFile.filename)?.map((tag) => (
@@ -707,38 +690,41 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted uppercase tracking-wider">Collections</span>
-                  {itemCollections.get(selectedFile.relative_path || selectedFile.filename)?.length === 0 && (
-                    <span className="text-xs text-gray-500">none</span>
-                  )}
+                  <span className="text-xs font-medium text-muted uppercase tracking-wider">
+                    Collections
+                  </span>
+                  {itemCollections.get(selectedFile.relative_path || selectedFile.filename)
+                    ?.length === 0 && <span className="text-xs text-gray-500">none</span>}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {itemCollections.get(selectedFile.relative_path || selectedFile.filename)?.map((c) => (
-                    <span
-                      key={c.id}
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-900/30 text-xs text-blue-300 border border-blue-700/50"
-                    >
-                      <span className="font-medium">{c.name}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleRemoveFromCollection(selectedFile, c.id);
-                        }}
-                        className="text-blue-400 hover:text-blue-300 ml-1"
-                        title="Remove from collection"
+                  {itemCollections
+                    .get(selectedFile.relative_path || selectedFile.filename)
+                    ?.map((c) => (
+                      <span
+                        key={c.id}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-900/30 text-xs text-blue-300 border border-blue-700/50"
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        <span className="font-medium">{c.name}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleRemoveFromCollection(selectedFile, c.id);
+                          }}
+                          className="text-blue-400 hover:text-blue-300 ml-1"
+                          title="Remove from collection"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
                   {collections.length > 0 && (
                     <select
                       id="add-to-collection"
                       className="w-32 text-xs bg-black/40 border border-gray-600 rounded px-2 py-1 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
                       onChange={(e) => {
-                        const collectionId = (e.target).value;
+                        const collectionId = e.target.value;
                         if (!collectionId) return;
-                        (e.target).value = "";
+                        e.target.value = "";
                         void handleAddToCollection(selectedFile, collectionId);
                       }}
                     >

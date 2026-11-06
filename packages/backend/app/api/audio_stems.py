@@ -423,9 +423,7 @@ async def check_stem_phase_mono(track_name: str, stem_name: str):
     track_name = urllib.parse.unquote(track_name)
     stem_name = urllib.parse.unquote(stem_name)
     if stem_name not in set(source_separation.STEM_NAMES):
-        raise HTTPException(
-            status_code=400, detail="stem_name must be vocals|drums|bass|other"
-        )
+        raise HTTPException(status_code=400, detail="stem_name must be vocals|drums|bass|other")
 
     safe_track = re.sub(r"[^A-Za-z0-9_\- .()\[\]]", "", track_name).strip()
     if not safe_track or ".." in safe_track:

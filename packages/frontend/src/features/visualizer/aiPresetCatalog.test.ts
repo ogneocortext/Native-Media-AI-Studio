@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type {
-  VisualPreset} from "./aiPresetCatalog";
+import type { VisualPreset } from "./aiPresetCatalog";
 import {
   getPresetById,
   getPresetsByTag,
@@ -9,7 +8,7 @@ import {
   importPresetFromString,
   getConfigAtTime,
   DEFAULT_VISUAL_PRESET,
-  PRESET_LIBRARY
+  PRESET_LIBRARY,
 } from "./aiPresetCatalog";
 
 describe("getPresetById", () => {

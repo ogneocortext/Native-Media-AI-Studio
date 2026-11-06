@@ -19,7 +19,9 @@ import {
 
 describe("parseLrcContent", () => {
   it("parses timestamps and skips metadata tags", () => {
-    const lrc = ["[ti:Title]", "[ar:Artist]", "[00:12.50]Hello world", "[00:15.750]Second"].join("\n");
+    const lrc = ["[ti:Title]", "[ar:Artist]", "[00:12.50]Hello world", "[00:15.750]Second"].join(
+      "\n",
+    );
     const lines = parseLrcContent(lrc);
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatchObject({ start: 12.5, text: "Hello world" });
@@ -84,7 +86,9 @@ describe("parseLrc", () => {
   });
 
   it("skips the full metadata tag list including offset", () => {
-    const lrc = ["[ar:A]", "[ti:T]", "[al:L]", "[offset:100]", "[by:x]", "[00:01.00]Real"].join("\n");
+    const lrc = ["[ar:A]", "[ti:T]", "[al:L]", "[offset:100]", "[by:x]", "[00:01.00]Real"].join(
+      "\n",
+    );
     const lines = parseLrc(lrc);
     expect(lines).toHaveLength(1);
     expect(lines[0].text).toBe("Real");
@@ -189,9 +193,7 @@ describe("parseLyricsFromCsv", () => {
   });
 
   it("falls back to the legacy format when normalized finds nothing", () => {
-    const legacy = [
-      '"1","Song A","a prompt","""verse line one / verse line two"""',
-    ].join("\n");
+    const legacy = ['"1","Song A","a prompt","""verse line one / verse line two"""'].join("\n");
     const lines = parseLyricsFromCsv(legacy, "Song A", 10);
     expect(lines.length).toBeGreaterThan(0);
     expect(lines.every((l) => l.section === "VERSE")).toBe(true);

@@ -14,7 +14,10 @@ import { usePanelCollapsed } from "../usePanelCollapsed";
 
 export interface EqualizerPanelProps {
   /** Main track EQ instance, if any. */
-  eqRef?: React.MutableRefObject<{ setBands: (bands: EQBand[]) => void; applyPreset: (name: string) => void } | null>;
+  eqRef?: React.MutableRefObject<{
+    setBands: (bands: EQBand[]) => void;
+    applyPreset: (name: string) => void;
+  } | null>;
   /** Controlled band state for stems or external ownership. */
   bands?: EQBand[];
   onChange?: (bands: EQBand[]) => void;
@@ -164,7 +167,10 @@ export function EqualizerPanel({
   );
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-3" data-testid="equalizer-panel">
+    <div
+      className="rounded-xl border border-white/10 bg-black/30 p-3"
+      data-testid="equalizer-panel"
+    >
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -200,60 +206,63 @@ export function EqualizerPanel({
 
       <div id="equalizer-panel-body" hidden={!bodyOpen} className="mt-2">
         {presetNames.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {presetNames.map((name) => {
-            const isActive = currentPreset === name;
-            return (
-              <button
-                key={name}
-                onClick={() => handlePreset(name)}
-                className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                  isActive
-                    ? "bg-violet-500 text-white border-violet-400"
-                    : "bg-violet-600/20 hover:bg-violet-600/40 text-violet-200 border-transparent"
-                }`}
-                aria-pressed={isActive}
-                title={isActive ? `${name} (active)` : `Apply ${name} preset`}
-              >
-                {name}
-              </button>
-            );
-          })}
-        </div>
-      )}
+          <div className="flex flex-wrap gap-1 mb-2">
+            {presetNames.map((name) => {
+              const isActive = currentPreset === name;
+              return (
+                <button
+                  key={name}
+                  onClick={() => handlePreset(name)}
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                    isActive
+                      ? "bg-violet-500 text-white border-violet-400"
+                      : "bg-violet-600/20 hover:bg-violet-600/40 text-violet-200 border-transparent"
+                  }`}
+                  aria-pressed={isActive}
+                  title={isActive ? `${name} (active)` : `Apply ${name} preset`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-      {bands.length === 0 ? (
-        <p className="text-[10px] text-muted">Select a preset or add a band to shape tone.</p>
-      ) : (
-        <div className="grid grid-cols-1 gap-2">
-          {bands.map((band, idx) => (
-            <div key={band.id ?? idx} className="flex items-center gap-2">
-              <span className="w-12 text-[10px] text-muted" title={`${band.type} @ ${band.frequency} Hz, Q=${band.Q}`}>
-                {bandLabel(band, idx)}
-              </span>
-              <input
-                type="range"
-                min={EQ_MIN_DB}
-                max={EQ_MAX_DB}
-                step={0.5}
-                value={band.gain}
-                onChange={(e) => handleBandChange(idx, { gain: parseFloat(e.target.value) })}
-                className="flex-1 h-1 accent-emerald-400"
-                aria-label={`${BAND_LABELS[idx] ?? band.id} gain`}
-              />
-              <span className="w-10 text-[10px] text-right text-muted">
-                {band.gain > 0 ? "+" : ""}
-                {band.gain.toFixed(1)} dB
-              </span>
-              <button
-                onClick={() => handleRemoveBand(idx)}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
+        {bands.length === 0 ? (
+          <p className="text-[10px] text-muted">Select a preset or add a band to shape tone.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2">
+            {bands.map((band, idx) => (
+              <div key={band.id ?? idx} className="flex items-center gap-2">
+                <span
+                  className="w-12 text-[10px] text-muted"
+                  title={`${band.type} @ ${band.frequency} Hz, Q=${band.Q}`}
+                >
+                  {bandLabel(band, idx)}
+                </span>
+                <input
+                  type="range"
+                  min={EQ_MIN_DB}
+                  max={EQ_MAX_DB}
+                  step={0.5}
+                  value={band.gain}
+                  onChange={(e) => handleBandChange(idx, { gain: parseFloat(e.target.value) })}
+                  className="flex-1 h-1 accent-emerald-400"
+                  aria-label={`${BAND_LABELS[idx] ?? band.id} gain`}
+                />
+                <span className="w-10 text-[10px] text-right text-muted">
+                  {band.gain > 0 ? "+" : ""}
+                  {band.gain.toFixed(1)} dB
+                </span>
+                <button
+                  onClick={() => handleRemoveBand(idx)}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

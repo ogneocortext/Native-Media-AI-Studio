@@ -24,7 +24,7 @@ def strip_code_fences(text: str) -> str:
     first_nl = cleaned.find("\n")
     if first_nl == -1:
         return ""
-    cleaned = cleaned[first_nl + 1:]
+    cleaned = cleaned[first_nl + 1 :]
     # Drop everything from the closing fence onward (if present)
     closing = cleaned.find("```")
     if closing != -1:

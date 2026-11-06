@@ -175,18 +175,15 @@ export function useVisualizerPlayback({
     });
   }, []);
 
-  const handlePlayheadClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const el = audioElRef.current;
-      if (!el) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const duration = el.duration;
-      if (!Number.isFinite(duration) || duration <= 0) return;
-      el.currentTime = pct * duration;
-    },
-    [],
-  );
+  const handlePlayheadClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = audioElRef.current;
+    if (!el) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const duration = el.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    el.currentTime = pct * duration;
+  }, []);
 
   return { togglePlayPause, cycleVizMode, handlePlayheadClick };
 }

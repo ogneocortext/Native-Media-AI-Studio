@@ -22,7 +22,7 @@ import {
 import { StatusBadge, ProgressBar } from "../../components/common";
 import type { Job, JobStep } from "@shared/types";
 import { JobStatus } from "@shared/types";
-import { getApiBase } from "../../services/api";
+import { getOutputUrl } from "../../utils/url";
 import { calculateEta, formatElapsed } from "../../utils/eta";
 
 /**
@@ -48,9 +48,7 @@ function StepRow({ step }: { step: JobStep }) {
         {step.name}
       </span>
       {step.status === "running" && step.progress > 0 && (
-        <span className="text-primary ml-auto">
-          {(step.progress * 100).toFixed(0)}%
-        </span>
+        <span className="text-primary ml-auto">{(step.progress * 100).toFixed(0)}%</span>
       )}
     </div>
   );
@@ -125,6 +123,136 @@ function AudioWaveform({ progress }: { progress: number }) {
   );
 }
 
+type OutputKind = "video" | "image" | "audio" | "file";
+
+const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "mkv", "avi"]);
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"]);
+const AUDIO_EXTS = new Set(["mp3", "wav", "flac", "ogg", "m4a", "aac", "opus"]);
+
+function outputKind(filename: string): OutputKind {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (VIDEO_EXTS.has(ext)) return "video";
+  if (IMAGE_EXTS.has(ext)) return "image";
+  if (AUDIO_EXTS.has(ext)) return "audio";
+  return "file";
+}
+
+/**
+ * Job output paths arrive in several shapes: project-relative
+ * ("output/video/x.mp4"), absolute ("D:\\...\\output\\video\\x.mp4"),
+ * output-dir-relative ("video/x.mp4"), or already servable
+ * ("/output/..." or a full URL). Reduce any of them to a URL the backend's
+ * `/output` static mount can serve.
+ */
+function resolveJobOutput(
+  raw: string,
+): { url: string; filename: string; kind: OutputKind } | null {
+  if (!raw) return null;
+  const normalized = raw.replace(/\\/g, "/");
+  const filename = normalized.split("/").pop() ?? "";
+  if (!filename) return null;
+
+  let url: string;
+  if (/^https?:\/\//i.test(normalized) || normalized.startsWith("/output/")) {
+    url = normalized;
+  } else {
+    const idx = normalized.toLowerCase().lastIndexOf("/output/");
+    const rel =
+      idx >= 0
+        ? normalized.slice(idx + "/output/".length)
+        : normalized.toLowerCase().startsWith("output/")
+          ? normalized.slice("output/".length)
+          : normalized;
+    url = getOutputUrl(rel);
+  }
+  return { url, filename, kind: outputKind(filename) };
+}
+
+/**
+ * Renders the completed job's output inline: a video player for video
+ * files, an image thumbnail for images, an audio element for audio, and a
+ * link for everything else. Falls back to the Open/Download row if the
+ * media element fails to load.
+ */
+function JobOutputPreview({ job }: { job: Job }) {
+  const raw = String(
+    job.output_path ?? (job.result?.output_path as string | undefined) ?? "",
+  );
+  const out = resolveJobOutput(raw);
+  if (!out) return null;
+  const { url, filename, kind } = out;
+  const isPreview = /preview/i.test(filename);
+  const kindLabel =
+    kind === "video" ? (isPreview ? "Preview" : "Video")
+    : kind === "image" ? "Image"
+    : kind === "audio" ? "Audio"
+    : "File";
+
+  return (
+    <div className="mt-3">
+      {kind === "video" && (
+        <video
+          controls
+          preload="metadata"
+          className="w-full h-auto max-h-[40vh] sm:max-h-[240px] rounded-lg border border-border bg-black object-contain"
+          src={url}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+          aria-label={`Video for job ${job.id.slice(0, 8)}`}
+        />
+      )}
+      {kind === "image" && (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+          <img
+            src={url}
+            alt={`Output for job ${job.id.slice(0, 8)}`}
+            loading="lazy"
+            className="max-h-48 w-auto max-w-full rounded-lg border border-border object-contain bg-black/30"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        </a>
+      )}
+      {kind === "audio" && (
+        <audio
+          controls
+          preload="none"
+          src={url}
+          className="w-full h-9"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <div className="flex gap-2 mt-2">
+        <a
+          href={url}
+          download={filename}
+          className="btn btn-secondary p-2 text-xs flex items-center gap-1"
+          title={`Download ${kindLabel.toLowerCase()}`}
+        >
+          <Download size={14} /> Download
+        </a>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-secondary p-2 text-xs flex items-center gap-1"
+          title="Open in new tab"
+        >
+          <ExternalLink size={14} /> Open
+        </a>
+        <span className="text-xs text-muted flex items-center gap-1">
+          {kind === "video" && <Play size={12} />}
+          {kindLabel} · {filename}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function JobRow({
   job,
   index,
@@ -157,9 +285,7 @@ export function JobRow({
   // breakdown; a completed job shows a 100% bar; a failed job shows how many
   // attempts it has burned.
   const isRunning = job.status === JobStatus.RUNNING;
-  const eta = isRunning
-    ? calculateEta(job.started_at, job.progress, job.status)
-    : null;
+  const eta = isRunning ? calculateEta(job.started_at, job.progress, job.status) : null;
   const steps = job.steps && job.steps.length > 0 ? job.steps : null;
   // Completed jobs show a full 100% progress bar
   const completedProgress = isCompleted ? 1 : job.progress;
@@ -247,9 +373,7 @@ export function JobRow({
             <p className="text-xs text-muted mt-1">
               {job.status === JobStatus.RETRYING ? "Retrying" : "Retries"}: attempt{" "}
               {job.retry_count + 1} of {job.max_retries + 1}
-              {job.status === JobStatus.RETRYING && job.message
-                ? ` · ${job.message}`
-                : ""}
+              {job.status === JobStatus.RETRYING && job.message ? ` · ${job.message}` : ""}
             </p>
           )}
           {job.message && <p className="text-sm text-muted mt-1">{job.message}</p>}
@@ -258,80 +382,7 @@ export function JobRow({
               Output: {job.output_path.split(/[\\/]/).pop()}
             </p>
           )}
-          {isCompleted &&
-            !!(
-              (job.output_path ??
-              ((job.result)?.output_path as string)) ||
-              ""
-            ) &&
-            (() => {
-              const raw = ((job.output_path ??
-                ((job.result)?.output_path as string)) ||
-                "");
-              // Extract filename from absolute Windows path or relative
-              const filename = raw.split(/[\\/]/).pop() ?? "";
-              if (!filename) return null;
-              // Try to determine subfolder from path
-              const isPreview = raw.includes("previews") || filename.includes("preview");
-              const videoUrl = `${getApiBase()}/output/${isPreview ? "previews" : "video"}/${filename}`;
-              const isMp4 = filename.toLowerCase().endsWith(".mp4");
-              return (
-                <div className="mt-3">
-                  {isMp4 ? (
-                    <video
-                      controls
-                      preload="metadata"
-                      className="w-full h-auto max-h-[40vh] sm:max-h-[240px] rounded-lg border border-border bg-black object-contain"
-                      style={{ maxHeight: 240 }}
-                      src={videoUrl}
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = "none";
-                        const fallback = document.createElement("a");
-                        fallback.href = videoUrl;
-                        fallback.target = "_blank";
-                        fallback.rel = "noopener noreferrer";
-                        fallback.className = "text-xs text-link hover:underline flex items-center gap-1";
-                        fallback.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Video unavailable — try downloading</span>`;
-                        target.parentElement?.appendChild(fallback);
-                      }}
-                      aria-label={`Video for job ${job.id.slice(0, 8)}`}
-                    />
-                  ) : (
-                    <a
-                      href={videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-link hover:underline flex items-center gap-1"
-                    >
-                      <ExternalLink size={12} /> View output
-                    </a>
-                  )}
-                  <div className="flex gap-2 mt-2">
-                    <a
-                      href={videoUrl}
-                      download={filename}
-                      className="btn btn-secondary p-2 text-xs flex items-center gap-1"
-                      title="Download video"
-                    >
-                      <Download size={14} /> Download
-                    </a>
-                    <a
-                      href={videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-secondary p-2 text-xs flex items-center gap-1"
-                      title="Open in new tab"
-                    >
-                      <ExternalLink size={14} /> Open
-                    </a>
-                    <span className="text-xs text-muted flex items-center gap-1">
-                      <Play size={12} /> {isPreview ? "Preview" : "Video"} · {filename}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
+          {isCompleted && <JobOutputPreview job={job} />}
         </div>
       </div>
 

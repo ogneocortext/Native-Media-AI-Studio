@@ -75,7 +75,9 @@ class MoviePyRenderer(VideoRenderer):
         mods = self._load()
         if spec.kind == "color":
             r, g, b = self._hex_to_rgb(spec.color)
-            clip = mods["ColorClip"](size=(spec.width, spec.height), color=(r, g, b), duration=spec.duration)
+            clip = mods["ColorClip"](
+                size=(spec.width, spec.height), color=(r, g, b), duration=spec.duration
+            )
             clip = mods["CompositeVideoClip"]([clip])
             clip.write_videofile(str(out), fps=spec.fps, verbose=False, logger=None)
         else:

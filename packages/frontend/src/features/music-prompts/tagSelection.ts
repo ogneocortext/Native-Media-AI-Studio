@@ -11,7 +11,8 @@
  *  string stops being pasteable in any useful sense. */
 export const MAX_SELECTED_TAGS = 100;
 
-const matches = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+const matches = (a: string, b: string): boolean =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /**
  * Click-to-toggle a tag in the selection.
@@ -36,7 +37,10 @@ export function toggleTag(selection: readonly string[], tag: string): string[] {
  * sort or alphabetise this.
  */
 export function tagStringFor(selection: readonly string[]): string {
-  return selection.map((t) => t.trim()).filter(Boolean).join(", ");
+  return selection
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 /**
@@ -51,7 +55,6 @@ export function unfilledRelated(
 ): string[] {
   return related.filter((t) => !selection.some((s) => matches(s, t)));
 }
-
 
 /**
  * How a tag is attested in Suno community use, as decided by the backend.
@@ -77,7 +80,9 @@ export function badgeFor(tier: AttestationTier | undefined): string | null {
     case 2:
       return "community-used";
     case 3:
-    case undefined: { return null; }
+    case undefined: {
+      return null;
+    }
     default:
       // Tier 3 and anything unknown: no badge. Absence of evidence is not evidence.
       return null;

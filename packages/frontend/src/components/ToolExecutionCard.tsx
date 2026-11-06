@@ -40,9 +40,7 @@ export function ToolExecutionCard() {
     }
   });
 
-  const sortedTools = Array.from(toolStats.entries()).sort(
-    (a, b) => b[1].duration - a[1].duration
-  );
+  const sortedTools = Array.from(toolStats.entries()).sort((a, b) => b[1].duration - a[1].duration);
 
   const getLatencyColor = (ms: number) => {
     if (ms < 1000) return "text-emerald-400";
@@ -59,9 +57,7 @@ export function ToolExecutionCard() {
               <div className="text-xs text-gray-300 truncate" title={tool}>
                 {tool}
               </div>
-              <div className="text-[10px] text-gray-500">
-                {stats.count} executions
-              </div>
+              <div className="text-[10px] text-gray-500">{stats.count} executions</div>
             </div>
             <div className="flex items-center gap-3">
               {stats.errors > 0 && (

@@ -161,8 +161,12 @@ export function AIVisualsPanel({
     error?: string;
   } | null>(null);
   const [progressSub, setProgressSub] = useState<(() => void) | null>(null);
-  const [outputFiles, setOutputFiles] = useState<{ name: string; path: string; size_mb: number; type: string; modified: number }[]>([]);
-  const [inputFiles, setInputFiles] = useState<{ name: string; path: string; size_mb: number; type: string; modified: number }[]>([]);
+  const [outputFiles, setOutputFiles] = useState<
+    { name: string; path: string; size_mb: number; type: string; modified: number }[]
+  >([]);
+  const [inputFiles, setInputFiles] = useState<
+    { name: string; path: string; size_mb: number; type: string; modified: number }[]
+  >([]);
 
   // Clean up WebSocket subscription on unmount or prompt change
   useEffect(() => {
@@ -355,7 +359,11 @@ export function AIVisualsPanel({
       // Subscribe to real-time progress via WebSocket
       const unsubscribe = subscribeToProgress(result.prompt_id, (update) => {
         setProgress(update);
-        if (update.status === "completed" || update.status === "error" || update.status === "interrupted") {
+        if (
+          update.status === "completed" ||
+          update.status === "error" ||
+          update.status === "interrupted"
+        ) {
           unsubscribe();
           setProgressSub(null);
           setCurrentPromptId(null);
@@ -373,7 +381,11 @@ export function AIVisualsPanel({
         attempts++;
 
         // If WebSocket already reported completion, stop polling
-        if (progress?.status === "completed" || progress?.status === "error" || progress?.status === "interrupted") {
+        if (
+          progress?.status === "completed" ||
+          progress?.status === "error" ||
+          progress?.status === "interrupted"
+        ) {
           break;
         }
 
@@ -673,7 +685,9 @@ export function AIVisualsPanel({
               {progress.status}
             </span>
             {progress.step && progress.total_steps && (
-              <span>{progress.step}/{progress.total_steps}</span>
+              <span>
+                {progress.step}/{progress.total_steps}
+              </span>
             )}
           </div>
           {progress.step && progress.total_steps && (
@@ -684,9 +698,7 @@ export function AIVisualsPanel({
               />
             </div>
           )}
-          {progress.error && (
-            <p className="text-[10px] text-red-400">{progress.error}</p>
-          )}
+          {progress.error && <p className="text-[10px] text-red-400">{progress.error}</p>}
         </div>
       )}
 
@@ -814,9 +826,17 @@ export function AIVisualsPanel({
                   <span className="text-gray-600">{f.size_mb} MB</span>
                   <button
                     onClick={() => {
-                      if (f.type === "png" || f.type === "jpg" || f.type === "jpeg" || f.type === "webp") {
+                      if (
+                        f.type === "png" ||
+                        f.type === "jpg" ||
+                        f.type === "jpeg" ||
+                        f.type === "webp"
+                      ) {
                         const url = getComfyuiUrl();
-                        window.open(`${url}/view?filename=${encodeURIComponent(f.name)}&type=output`, "_blank");
+                        window.open(
+                          `${url}/view?filename=${encodeURIComponent(f.name)}&type=output`,
+                          "_blank",
+                        );
                       }
                     }}
                     className="text-blue-400 hover:text-blue-300 text-[9px]"
@@ -856,16 +876,20 @@ export function AIVisualsPanel({
         </summary>
         <div className="space-y-3 pt-2">
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Audio (WAV/MP3/OGG)</label>
+            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+              Audio (WAV/MP3/OGG)
+            </label>
             <input
               type="file"
               accept=".wav,.mp3,.ogg,.m4a,.flac,.aac"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  uploadAudio(file).then(() => void refreshLibrary()).catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : "Audio upload failed");
-                  });
+                  uploadAudio(file)
+                    .then(() => void refreshLibrary())
+                    .catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : "Audio upload failed");
+                    });
                   e.target.value = "";
                 }
               }}
@@ -873,7 +897,9 @@ export function AIVisualsPanel({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Video (MP4/WebM/MOV)</label>
+            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+              Video (MP4/WebM/MOV)
+            </label>
             <input
               type="file"
               accept=".mp4,.webm,.mov,.avi,.mkv,.m4v"
@@ -890,8 +916,8 @@ export function AIVisualsPanel({
             />
           </div>
           <p className="text-[10px] text-gray-500">
-            Uploaded files appear in ComfyUI's input/ directory and can be
-            referenced by LoadAudio / LoadVideo nodes.
+            Uploaded files appear in ComfyUI's input/ directory and can be referenced by LoadAudio /
+            LoadVideo nodes.
           </p>
         </div>
       </details>

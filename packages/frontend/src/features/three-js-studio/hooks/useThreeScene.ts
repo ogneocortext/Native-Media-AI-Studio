@@ -11,7 +11,6 @@ import type { SectionDriverHandle } from "./useTrackMetadata";
 import type { UseThreeSceneOptions, UseThreeSceneResult } from "./types";
 import { mountThreeScene } from "./mountThreeScene";
 
-
 export function useThreeScene({
   canvasRef,
   containerRef,
@@ -83,9 +82,7 @@ export function useThreeScene({
   const sectionCameraModeRef = useRef<CameraMode | null>(null);
   // Scene lights + their authored colors, captured at scene build so
   // a section's palette shift can hue-rotate against the base.
-  const sectionLightsRef = useRef<
-    { light: THREE.Light; baseColor: THREE.Color }[] | null
-  >(null);
+  const sectionLightsRef = useRef<{ light: THREE.Light; baseColor: THREE.Color }[] | null>(null);
   // F5: deterministic-export clock hijack. While `active`, the loop
   // takes delta/elapsed from the export driver instead of the
   // THREE.Timer, and the live rAF driver is quiesced for the whole
@@ -94,8 +91,12 @@ export function useThreeScene({
   const exportClockRef = useRef({ active: false, t: 0, dt: 0 });
   const exportActiveRef = useRef(false);
   const frameRunnerRef = useRef<(() => void) | null>(null);
-  const renderAtTimeRef = useRef<(tSec: number, dtSec: number) => void>(() => { void 0; });
-  const resetDeterministicRef = useRef<() => void>(() => { void 0; });
+  const renderAtTimeRef = useRef<(tSec: number, dtSec: number) => void>(() => {
+    void 0;
+  });
+  const resetDeterministicRef = useRef<() => void>(() => {
+    void 0;
+  });
   // Particle layout at scene build, so an export can start from a
   // known state instead of wherever the live drift left them.
   const initialParticlePositionsRef = useRef<Float32Array | null>(null);
@@ -236,24 +237,66 @@ export function useThreeScene({
   useEffect(
     () =>
       mountThreeScene({
-        canvasRef, containerRef, sceneRef, rendererRef, cameraRef,
-        objectsMapRef, particlesRef, clockRef, bloomPassRef,
-        bloomComposerRef, finalComposerRef, composerRef, caPassRef,
-        grainPassRef, vignettePassRef, shakeRef,
-        analyserRef, audioFreqArrayRef, threeRef, lastUiUpdateRef,
-        frameCountRef, characterMixersRef, animationRef, controlsRef,
-        cameraTransitionRef, lastCameraModeRef, beatPhraseRef,
-        sectionDriverRef, getPlayheadSecRef, sectionCameraModeRef,
-        sectionLightsRef, exportClockRef, exportActiveRef,
-        frameRunnerRef, renderAtTimeRef, resetDeterministicRef,
-        initialParticlePositionsRef, onSelectObjectRef,
-        pointerHandlersRef, objectsRef, beatSyncRef,
-        bpmRef, cameraModeRef, isPlayingRef, isAudioPlayingRef,
-        particleConfigRef, sceneConfigRef, activeAudioDrivenRef,
-        animationTimeRef, beatActiveRef, keyframeTracksRef,
-        getCurrentBeatRef, renderPlayingRef, generatedSceneUpdateRef,
-        createMeshForObject, disposeEntry, setSceneLoading, setBeatActive,
-        onAnimationTimeChange, animationDuration,
+        canvasRef,
+        containerRef,
+        sceneRef,
+        rendererRef,
+        cameraRef,
+        objectsMapRef,
+        particlesRef,
+        clockRef,
+        bloomPassRef,
+        bloomComposerRef,
+        finalComposerRef,
+        composerRef,
+        caPassRef,
+        grainPassRef,
+        vignettePassRef,
+        shakeRef,
+        analyserRef,
+        audioFreqArrayRef,
+        threeRef,
+        lastUiUpdateRef,
+        frameCountRef,
+        characterMixersRef,
+        animationRef,
+        controlsRef,
+        cameraTransitionRef,
+        lastCameraModeRef,
+        beatPhraseRef,
+        sectionDriverRef,
+        getPlayheadSecRef,
+        sectionCameraModeRef,
+        sectionLightsRef,
+        exportClockRef,
+        exportActiveRef,
+        frameRunnerRef,
+        renderAtTimeRef,
+        resetDeterministicRef,
+        initialParticlePositionsRef,
+        onSelectObjectRef,
+        pointerHandlersRef,
+        objectsRef,
+        beatSyncRef,
+        bpmRef,
+        cameraModeRef,
+        isPlayingRef,
+        isAudioPlayingRef,
+        particleConfigRef,
+        sceneConfigRef,
+        activeAudioDrivenRef,
+        animationTimeRef,
+        beatActiveRef,
+        keyframeTracksRef,
+        getCurrentBeatRef,
+        renderPlayingRef,
+        generatedSceneUpdateRef,
+        createMeshForObject,
+        disposeEntry,
+        setSceneLoading,
+        setBeatActive,
+        onAnimationTimeChange,
+        animationDuration,
       }),
     [createMeshForObject],
   );
@@ -285,9 +328,9 @@ export function useThreeScene({
             }
           } else {
             mesh.visible = obj.visible;
-            mesh.position.set(...(obj.position));
-            mesh.rotation.set(...(obj.rotation));
-            mesh.scale.set(...(obj.scale));
+            mesh.position.set(...obj.position);
+            mesh.rotation.set(...obj.rotation);
+            mesh.scale.set(...obj.scale);
             if (
               obj.type === "character" &&
               obj.modelUrl &&
@@ -531,8 +574,7 @@ export function useThreeScene({
     setSceneLoading,
     // F5: the export entry points. Both are ref-backed, so they are
     // safe no-ops before the scene effect runs.
-    renderAtTime: (tSec: number, dtSec: number) =>
-      renderAtTimeRef.current(tSec, dtSec),
+    renderAtTime: (tSec: number, dtSec: number) => renderAtTimeRef.current(tSec, dtSec),
     beginDeterministicRun: () => {
       exportActiveRef.current = true;
       resetDeterministicRef.current();

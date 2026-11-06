@@ -16,8 +16,10 @@
 import { Suspense, lazy } from "react";
 import { DS } from "../../styles/designSystem";
 
-const MasteringPanel = lazy(
-  async () => import("../audio-analysis/components/MasteringPanel").then((mod) => ({ default: mod.MasteringPanel })),
+const MasteringPanel = lazy(async () =>
+  import("../audio-analysis/components/MasteringPanel").then((mod) => ({
+    default: mod.MasteringPanel,
+  })),
 );
 
 export function MasteringPage() {
@@ -44,8 +46,8 @@ export function MasteringPage() {
           <h1 className="text-lg font-semibold">Mastering</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Measure loudness and master library tracks to a delivery loudness
-          target (Spotify, Apple, Competitive, Amazon) with a QC report.
+          Measure loudness and master library tracks to a delivery loudness target (Spotify, Apple,
+          Competitive, Amazon) with a QC report.
         </p>
         <div className="h-1 w-full bg-border" />
         <Suspense fallback={<div className="h-64 animate-pulse" />}>

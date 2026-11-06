@@ -14,6 +14,7 @@ Extracted for size, not behaviour. tools/snapshot-audio-routes.py --check is
 still the guard for the route surface, and note it cannot see this kind of
 change at all: nothing here was a route.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,15 +73,23 @@ def _check_backend_available(backend: str) -> None:
         MADMOM_AVAILABLE,
         SONARA_AVAILABLE,
     )
+
     backend = (backend or "sonara").lower()
     if backend == "sonara" and not SONARA_AVAILABLE:
         raise HTTPException(status_code=503, detail="sonara not installed. Run: pip install sonara")
     if backend == "madmom" and not MADMOM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="madmom-infer not installed. Run: pip install madmom-infer")
+        raise HTTPException(
+            status_code=503, detail="madmom-infer not installed. Run: pip install madmom-infer"
+        )
     if backend == "librosa" and not LIBROSA_AVAILABLE:
-        raise HTTPException(status_code=503, detail="librosa not installed. Run: pip install librosa soundfile")
+        raise HTTPException(
+            status_code=503, detail="librosa not installed. Run: pip install librosa soundfile"
+        )
     if backend not in ("sonara", "madmom", "librosa"):
-        raise HTTPException(status_code=400, detail=f"Unknown backend: {backend}. Choose sonara, madmom, or librosa.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown backend: {backend}. Choose sonara, madmom, or librosa.",
+        )
 
 
 def _downsample_curve(curve, max_points):
@@ -156,14 +165,19 @@ def _build_analysis_result(
 
     # Downsample each curve exactly once and reuse it everywhere it appears.
     envelope = [round(float(v), 4) for v in _downsample_curve(envelope_full, _ENVELOPE_POINTS)]
-    energy_curve = [round(float(v), 4) for v in _downsample_curve(envelope_full, _ENERGY_CURVE_POINTS)]
+    energy_curve = [
+        round(float(v), 4) for v in _downsample_curve(envelope_full, _ENERGY_CURVE_POINTS)
+    ]
 
     beat_times = [round(float(t), 3) for t in beat_times_full[:_MAX_BEATS]]
     beats_truncated = len(beat_times_full) > _MAX_BEATS
     downbeat_times = (
-        [round(float(t), 3) for t in (result.beats.downbeat_times or [])[:1000]] if result.beats else []
+        [round(float(t), 3) for t in (result.beats.downbeat_times or [])[:1000]]
+        if result.beats
+        else []
     )
     from ..services.audio_analyzer import detect_meter
+
     meter = detect_meter(beat_times_full) if beat_times_full else 4
     spectral_summary = _spectral_summary(result)
 
@@ -190,9 +204,7 @@ def _build_analysis_result(
         # Consumers that only need timbre summary should continue using ``spectral``.
         "spectral_centroid": [
             round(float(v), 3)
-            for v in _downsample_curve(
-                list(result.waveform.centroid or []), _SPECTRAL_POINTS
-            )
+            for v in _downsample_curve(list(result.waveform.centroid or []), _SPECTRAL_POINTS)
         ],
         "spectral_rolloff": [
             round(float(v), 3)
@@ -243,7 +255,9 @@ def _build_analysis_result(
         # Visualization hints for AI/agent-driven preset generation
         "suggested_visualization": viz_suggestion.get("value"),
         "suggested_visualization_confidence": round(viz_suggestion.get("confidence", 0.0), 3),
-        "suggested_visualization_candidates": _visualization_candidates(tempo, duration, sections, envelope_full, spectral_summary),
+        "suggested_visualization_candidates": _visualization_candidates(
+            tempo, duration, sections, envelope_full, spectral_summary
+        ),
         "suggested_kinetic_preset": kinetic_suggestion.get("value"),
         "suggested_kinetic_preset_confidence": round(kinetic_suggestion.get("confidence", 0.0), 3),
         "suggested_theme_seed": theme_suggestion.get("value"),
@@ -289,7 +303,13 @@ def _spectral_summary(result) -> dict:
     return {k: v for k, v in summary.items() if v is not None}
 
 
-def _suggest_visualization(tempo: float, duration: float, sections: list[dict], energy_curve: list[float], spectral: dict | None = None) -> dict:
+def _suggest_visualization(
+    tempo: float,
+    duration: float,
+    sections: list[dict],
+    energy_curve: list[float],
+    spectral: dict | None = None,
+) -> dict:
     """Suggest a visualization style based on track characteristics.
 
     Returns ``{"value": str, "confidence": float}`` so callers can weight the
@@ -302,8 +322,12 @@ def _suggest_visualization(tempo: float, duration: float, sections: list[dict], 
     # Spectral brightness: high centroid + rolloff -> bright/aggressive styles
     centroid_mean = spectral.get("centroid_mean")
     rolloff_mean = spectral.get("rolloff_mean")
-    is_bright = (centroid_mean is not None and centroid_mean > 3000) or (rolloff_mean is not None and rolloff_mean > 8000)
-    is_dark = (centroid_mean is not None and centroid_mean < 1500) and (rolloff_mean is not None and rolloff_mean < 5000)
+    is_bright = (centroid_mean is not None and centroid_mean > 3000) or (
+        rolloff_mean is not None and rolloff_mean > 8000
+    )
+    is_dark = (centroid_mean is not None and centroid_mean < 1500) and (
+        rolloff_mean is not None and rolloff_mean < 5000
+    )
 
     if avg_energy > 0.65 and tempo > 135:
         return {"value": "geometric", "confidence": 0.85}
@@ -448,10 +472,7 @@ def _generate_sections_from_analysis(
         # Build a coarse onset-density histogram over the track.
         num_bins = max(4, min(32, int(duration / 5)))
         bin_dur = duration / num_bins
-        onset_counts = [
-            _onset_density(i * bin_dur, (i + 1) * bin_dur)
-            for i in range(num_bins)
-        ]
+        onset_counts = [_onset_density(i * bin_dur, (i + 1) * bin_dur) for i in range(num_bins)]
         max_onset = max(onset_counts) if onset_counts else 1
 
         # Energy derivative (frame-to-frame delta, absolute)
@@ -512,8 +533,13 @@ def _generate_sections_from_analysis(
 
         def _boundary_score(idx: int) -> float:
             prev = abs(all_energies[idx] - all_energies[idx - 1]) if idx > 0 else 0.0
-            nxt = abs(all_energies[idx] - all_energies[idx + 1]) if idx < len(all_energies) - 1 else 0.0
+            nxt = (
+                abs(all_energies[idx] - all_energies[idx + 1])
+                if idx < len(all_energies) - 1
+                else 0.0
+            )
             return prev + nxt
+
         interior.sort(key=_boundary_score, reverse=True)
         for idx in interior[:6]:
             keep.append(merged[idx])
@@ -570,14 +596,22 @@ def _generate_sections_from_analysis(
                 typ = "verse"
                 confidence = 0.75
 
-        ui_energy = round(min(1.0, max(0.05, (norm * 0.7 + 0.3) if typ in ("chorus", "drop") else norm * 0.6 + 0.2)), 3)
-        sections.append({
-            "type": typ,
-            "start": round(float(s), 2),
-            "end": round(float(e), 2),
-            "energy": ui_energy,
-            "confidence": round(min(1.0, confidence), 2),
-        })
+        ui_energy = round(
+            min(
+                1.0,
+                max(0.05, (norm * 0.7 + 0.3) if typ in ("chorus", "drop") else norm * 0.6 + 0.2),
+            ),
+            3,
+        )
+        sections.append(
+            {
+                "type": typ,
+                "start": round(float(s), 2),
+                "end": round(float(e), 2),
+                "energy": ui_energy,
+                "confidence": round(min(1.0, confidence), 2),
+            }
+        )
 
     # Ensure chronological and non-overlapping
     for i in range(1, len(sections)):
@@ -626,6 +660,7 @@ async def _section_models_installed(default_model: str) -> list[str]:
     order. Falls back to the static list if the tag query fails.
     """
     from ..core import ollama_client as _oc
+
     try:
         installed = await _oc.list_models(timeout=5)
         if installed is None:
@@ -666,6 +701,7 @@ async def _generate_sections_llm(
     user = f"tempo: {tempo:.1f} BPM, beats: {beat_count}, duration: {duration:.1f}s, energy: [{energy_str}]{' lyrics: ' + lyrics_hint[:200] if lyrics_hint else ''}"
     from ..core import ollama_client as _oc
     from ..core.text import strip_code_fences
+
     for model in await _section_models_installed(app_config.default_model):
         try:
             # think=false is the single biggest win in this call. Measured on
@@ -702,14 +738,24 @@ async def _generate_sections_llm(
                     if not isinstance(s, dict):
                         continue
                     typ = str(s.get("type", "verse")).lower()
-                    if typ not in ("intro", "verse", "chorus", "bridge", "outro", "pre-chorus", "drop"):
+                    if typ not in (
+                        "intro",
+                        "verse",
+                        "chorus",
+                        "bridge",
+                        "outro",
+                        "pre-chorus",
+                        "drop",
+                    ):
                         typ = "verse"
-                    out.append({
-                        "type": typ,
-                        "start": round(float(s.get("start", 0)), 2),
-                        "end": round(float(s.get("end", duration)), 2),
-                        "energy": round(max(0.05, min(1.0, float(s.get("energy", 0.5)))), 3),
-                    })
+                    out.append(
+                        {
+                            "type": typ,
+                            "start": round(float(s.get("start", 0)), 2),
+                            "end": round(float(s.get("end", duration)), 2),
+                            "energy": round(max(0.05, min(1.0, float(s.get("energy", 0.5)))), 3),
+                        }
+                    )
                 if not out:
                     continue
                 out.sort(key=operator.itemgetter("start"))

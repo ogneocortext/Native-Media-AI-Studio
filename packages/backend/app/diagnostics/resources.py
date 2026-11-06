@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ResourceType(StrEnum):
     """Types of resources to monitor"""
+
     MEMORY = "memory"
     VRAM = "vram"
     DISK = "disk"
@@ -27,6 +28,7 @@ class ResourceType(StrEnum):
 
 class WarningLevel(StrEnum):
     """Severity levels for resource warnings"""
+
     WARNING = "warning"
     CRITICAL = "critical"
 
@@ -34,6 +36,7 @@ class WarningLevel(StrEnum):
 @dataclass
 class ResourceThresholds:
     """Thresholds for resource warnings"""
+
     # Memory thresholds (percentage)
     memory_warning: float = 80.0
     memory_critical: float = 90.0
@@ -80,6 +83,7 @@ class ResourceMonitor:
         # Try gpustat first (easier to use)
         try:
             import gpustat  # noqa: F401  # availability probe, not used directly
+
             self._gpustat_available = True
             logger.info("GPU monitoring enabled via gpustat")
         except ImportError:
@@ -88,6 +92,7 @@ class ResourceMonitor:
         # Always initialize NVML as fallback/for snapshots (even if gpustat available)
         try:
             import pynvml
+
             pynvml.nvmlInit()
             self._nvml_available = True
             if not self._gpustat_available:
@@ -107,7 +112,7 @@ class ResourceMonitor:
                 "message": f"System memory critical: {mem.percent:.1f}% used",
                 "current_value": mem.percent,
                 "threshold": self.thresholds.memory_critical,
-                "unit": "percent"
+                "unit": "percent",
             }
         elif mem.percent >= self.thresholds.memory_warning:
             return {
@@ -116,14 +121,14 @@ class ResourceMonitor:
                 "message": f"System memory high: {mem.percent:.1f}% used",
                 "current_value": mem.percent,
                 "threshold": self.thresholds.memory_warning,
-                "unit": "percent"
+                "unit": "percent",
             }
         return None
 
     async def check_disk(self) -> dict[str, Any] | None:
         """Check disk usage"""
         try:
-            disk = psutil.disk_usage('.')
+            disk = psutil.disk_usage(".")
             percent = disk.percent
 
             if percent >= self.thresholds.disk_critical:
@@ -133,7 +138,7 @@ class ResourceMonitor:
                     "message": f"Disk space critical: {percent:.1f}% used",
                     "current_value": percent,
                     "threshold": self.thresholds.disk_critical,
-                    "unit": "percent"
+                    "unit": "percent",
                 }
             elif percent >= self.thresholds.disk_warning:
                 return {
@@ -142,7 +147,7 @@ class ResourceMonitor:
                     "message": f"Disk space low: {percent:.1f}% used",
                     "current_value": percent,
                     "threshold": self.thresholds.disk_warning,
-                    "unit": "percent"
+                    "unit": "percent",
                 }
         except Exception as e:
             logger.warning(f"Failed to check disk usage: {e}")
@@ -187,16 +192,13 @@ class ResourceMonitor:
             return None
 
         # gpustat provides utilization and temperature alongside memory.
-        gpu_util = getattr(gpu, 'utilization', 0) or 0
-        temperature = getattr(gpu, 'temperature', 0) or 0
+        gpu_util = getattr(gpu, "utilization", 0) or 0
+        temperature = getattr(gpu, "temperature", 0) or 0
 
         # Only escalate to critical if VRAM is extreme AND GPU is busy or hot.
-        is_critical = (
-            percent >= self.thresholds.vram_critical
-            and (
-                gpu_util >= self.thresholds.vram_critical_utilization
-                or temperature >= self.thresholds.vram_critical_temperature
-            )
+        is_critical = percent >= self.thresholds.vram_critical and (
+            gpu_util >= self.thresholds.vram_critical_utilization
+            or temperature >= self.thresholds.vram_critical_temperature
         )
 
         if is_critical:
@@ -212,7 +214,7 @@ class ResourceMonitor:
                     "total_mb": memory_total,
                     "gpu_utilization": gpu_util,
                     "temperature_c": temperature,
-                }
+                },
             }
         elif percent >= self.thresholds.vram_warning:
             return {
@@ -227,7 +229,7 @@ class ResourceMonitor:
                     "total_mb": memory_total,
                     "gpu_utilization": gpu_util,
                     "temperature_c": temperature,
-                }
+                },
             }
         return None
 
@@ -263,12 +265,9 @@ class ResourceMonitor:
             temperature = 0
 
         # Only escalate to critical if VRAM is extreme AND GPU is busy or hot.
-        is_critical = (
-            percent >= self.thresholds.vram_critical
-            and (
-                gpu_util >= self.thresholds.vram_critical_utilization
-                or temperature >= self.thresholds.vram_critical_temperature
-            )
+        is_critical = percent >= self.thresholds.vram_critical and (
+            gpu_util >= self.thresholds.vram_critical_utilization
+            or temperature >= self.thresholds.vram_critical_temperature
         )
 
         if is_critical:
@@ -284,7 +283,7 @@ class ResourceMonitor:
                     "total_mb": memory_total,
                     "gpu_utilization": gpu_util,
                     "temperature_c": temperature,
-                }
+                },
             }
         elif percent >= self.thresholds.vram_warning:
             return {
@@ -299,7 +298,7 @@ class ResourceMonitor:
                     "total_mb": memory_total,
                     "gpu_utilization": gpu_util,
                     "temperature_c": temperature,
-                }
+                },
             }
         return None
 
@@ -312,11 +311,18 @@ class ResourceMonitor:
 
         try:
             import subprocess
+
             result = subprocess.run(
-                ["nvidia-smi", "--query-compute-apps=pid,used_memory,process_name",
-                 "--format=csv,noheader"],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, timeout=5
+                [
+                    "nvidia-smi",
+                    "--query-compute-apps=pid,used_memory,process_name",
+                    "--format=csv,noheader",
+                ],
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0 and result.stdout.strip():
                 for line in result.stdout.strip().split("\n"):
@@ -333,12 +339,14 @@ class ResourceMonitor:
                                     memory_available = True
                                 except ValueError:
                                     pass
-                            processes.append({
-                                "pid": pid,
-                                "used_mb": mem_mb,
-                                "name": name or "unknown",
-                                "kind": "compute",
-                            })
+                            processes.append(
+                                {
+                                    "pid": pid,
+                                    "used_mb": mem_mb,
+                                    "name": name or "unknown",
+                                    "kind": "compute",
+                                }
+                            )
                         except ValueError:
                             pass
         except Exception:
@@ -347,6 +355,7 @@ class ResourceMonitor:
         if not processes and self._nvml_available:
             try:
                 import pynvml
+
                 handle = pynvml.nvmlDeviceGetHandleByIndex(0)
                 try:
                     procs = pynvml.nvmlDeviceGetComputeRunningProcesses_v2(handle)
@@ -355,11 +364,13 @@ class ResourceMonitor:
                         mem_mb = (mem // (1024 * 1024)) if mem and mem > 0 else None
                         if mem_mb and mem_mb > 0:
                             memory_available = True
-                        processes.append({
-                            "pid": p.pid,
-                            "used_mb": mem_mb,
-                            "kind": "compute",
-                        })
+                        processes.append(
+                            {
+                                "pid": p.pid,
+                                "used_mb": mem_mb,
+                                "kind": "compute",
+                            }
+                        )
                     gfx = pynvml.nvmlDeviceGetGraphicsRunningProcesses_v2(handle)
                     for p in gfx:
                         mem = p.usedGpuMemory
@@ -367,20 +378,25 @@ class ResourceMonitor:
                         if mem_mb and mem_mb > 0:
                             memory_available = True
                         if not any(existing["pid"] == p.pid for existing in processes):
-                            processes.append({
-                                "pid": p.pid,
-                                "used_mb": mem_mb,
-                                "kind": "graphics",
-                            })
+                            processes.append(
+                                {
+                                    "pid": p.pid,
+                                    "used_mb": mem_mb,
+                                    "kind": "graphics",
+                                }
+                            )
                 except Exception:
                     try:
                         import pynvml
+
                         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
                         for p in pynvml.nvmlDeviceGetComputeRunningProcesses(handle):
                             processes.append({"pid": p.pid, "used_mb": None, "kind": "compute"})
                         for p in pynvml.nvmlDeviceGetGraphicsRunningProcesses(handle):
                             if not any(existing["pid"] == p.pid for existing in processes):
-                                processes.append({"pid": p.pid, "used_mb": None, "kind": "graphics"})
+                                processes.append(
+                                    {"pid": p.pid, "used_mb": None, "kind": "graphics"}
+                                )
                     except Exception:
                         pass
             except Exception:
@@ -389,10 +405,14 @@ class ResourceMonitor:
         if not memory_available:
             try:
                 import subprocess
+
                 result = subprocess.run(
                     ["nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader"],
-                    encoding="utf-8", errors="replace",
-                    capture_output=True, text=True, timeout=5
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     for line in result.stdout.strip().split("\n"):
@@ -416,10 +436,14 @@ class ResourceMonitor:
             return processes
         try:
             import subprocess
+
             result = subprocess.run(
                 ["nvidia-smi", "--query-compute-apps=pid,process_name", "--format=csv,noheader"],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, timeout=5
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 name_map = {}
@@ -454,11 +478,14 @@ class ResourceMonitor:
         if self._win32pdh_available is None:
             try:
                 import win32pdh  # noqa: F401
+
                 self._win32pdh_available = True
             except ImportError:
                 self._win32pdh_available = False
-                logger.debug("win32pdh not available; GPU process memory via "
-                             "Windows Performance Counters will be disabled")
+                logger.debug(
+                    "win32pdh not available; GPU process memory via "
+                    "Windows Performance Counters will be disabled"
+                )
         if self._win32pdh_available:
             processes.extend(self._query_win32pdh_gpu_processes())
 
@@ -491,18 +518,12 @@ class ResourceMonitor:
             # Query all available counters for better accuracy
             hq = win32pdh.OpenQuery()
             try:
-                hc = win32pdh.AddCounter(
-                    hq, r"\GPU Process Memory(*)\Dedicated Usage"
-                )
+                hc = win32pdh.AddCounter(hq, r"\GPU Process Memory(*)\Dedicated Usage")
                 try:
                     win32pdh.CollectQueryData(hq)
-                    items = win32pdh.GetFormattedCounterArray(
-                        hc, win32pdh.PDH_FMT_LONG
-                    )
+                    items = win32pdh.GetFormattedCounterArray(hc, win32pdh.PDH_FMT_LONG)
                     for instance, mem_bytes in items.items():
-                        pid_str = (
-                            instance.split("_")[1] if "_" in instance else None
-                        )
+                        pid_str = instance.split("_")[1] if "_" in instance else None
                         if not pid_str:
                             continue
                         try:
@@ -513,9 +534,7 @@ class ResourceMonitor:
                             continue
                         mem_mb = max(0, mem_bytes // (1024 * 1024))
                         name = self._get_process_name(pid)
-                        processes.append(
-                            {"pid": pid, "name": name, "mem_mb": mem_mb}
-                        )
+                        processes.append({"pid": pid, "name": name, "mem_mb": mem_mb})
                 finally:
                     win32pdh.RemoveCounter(hc)
             finally:
@@ -527,12 +546,14 @@ class ResourceMonitor:
 
     async def _get_ollama_vram_usage(self) -> int:
         """Query Ollama API for loaded model size in MB. Returns 0 if unavailable."""
+
         def _sync_fetch() -> int:
             try:
                 import json
                 import urllib.request
 
                 from ..core.urls import ollama_url
+
                 req = urllib.request.Request(ollama_url("/api/ps"))
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     data = json.loads(resp.read())
@@ -557,11 +578,18 @@ class ResourceMonitor:
                 # ClassVar: ctypes reads _fields_ off the class itself; the
                 # annotation keeps RUF012 (mutable class default) quiet
                 # without weakening the rule for the rest of the file.
-                _fields_: ClassVar = [("dwSize", ctypes.c_ulong), ("cntUsage", ctypes.c_ulong),
-                            ("th32ProcessID", ctypes.c_ulong), ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
-                            ("th32ModuleID", ctypes.c_ulong), ("cntThreads", ctypes.c_ulong),
-                            ("th32ParentProcessID", ctypes.c_ulong), ("pcPriClassBase", ctypes.c_long),
-                            ("dwFlags", ctypes.c_ulong), ("szExeFile", ctypes.c_char * 260)]
+                _fields_: ClassVar = [
+                    ("dwSize", ctypes.c_ulong),
+                    ("cntUsage", ctypes.c_ulong),
+                    ("th32ProcessID", ctypes.c_ulong),
+                    ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                    ("th32ModuleID", ctypes.c_ulong),
+                    ("cntThreads", ctypes.c_ulong),
+                    ("th32ParentProcessID", ctypes.c_ulong),
+                    ("pcPriClassBase", ctypes.c_long),
+                    ("dwFlags", ctypes.c_ulong),
+                    ("szExeFile", ctypes.c_char * 260),
+                ]
 
             TH32CS_SNAPPROCESS = 0x00000002
             hSnapshot = ctypes.windll.kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
@@ -599,8 +627,10 @@ class ResourceMonitor:
         # Primary: NVML (pynvml/gpustat)  # noqa: ERA001 - section label, not disabled code
         if self._nvml_available:
             try:
+
                 def _nvml_snapshot():
                     import pynvml
+
                     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
 
                     mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
@@ -615,7 +645,9 @@ class ResourceMonitor:
                         "memory_used_mb": mem.used // (1024 * 1024),
                         "memory_free_mb": mem.free // (1024 * 1024),
                         "memory_total_mb": mem.total // (1024 * 1024),
-                        "memory_percent": round((mem.used / mem.total) * 100, 1) if mem.total else 0,
+                        "memory_percent": round((mem.used / mem.total) * 100, 1)
+                        if mem.total
+                        else 0,
                         "gpu_utilization": util.gpu,
                         "memory_controller_utilization": util.memory,
                         "temperature_c": temp,
@@ -640,13 +672,15 @@ class ResourceMonitor:
                                     attributed = True
                                     break
                             if not attributed:
-                                snap.setdefault("processes", []).append({
-                                    "pid": 0,
-                                    "used_mb": ollama_vram,
-                                    "name": "ollama (model)",
-                                    "kind": "compute",
-                                    "enriched": "ollama-api",
-                                })
+                                snap.setdefault("processes", []).append(
+                                    {
+                                        "pid": 0,
+                                        "used_mb": ollama_vram,
+                                        "name": "ollama (model)",
+                                        "kind": "compute",
+                                        "enriched": "ollama-api",
+                                    }
+                                )
                             snap["memory_available"] = True
                             logger.info("Ollama VRAM enrichment applied: %s MB", ollama_vram)
                     except Exception as _e:
@@ -709,14 +743,21 @@ class ResourceMonitor:
             import time
             from pathlib import Path
 
-            for sub in ["output/video", "output/previews", "output/generated_3d", "output/audio_analysis"]:
+            for sub in [
+                "output/video",
+                "output/previews",
+                "output/generated_3d",
+                "output/audio_analysis",
+            ]:
                 p = Path(__file__).resolve().parents[3] / sub
                 if p.exists():
                     for f in p.iterdir():
                         try:
                             if time.time() - f.stat().st_mtime > 7 * 86400 and f.is_file():
                                 # Keep at least 5 most recent
-                                files = sorted(p.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)
+                                files = sorted(
+                                    p.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True
+                                )
                                 if f not in files[:5]:
                                     f.unlink()
                                     actions.append(f"removed old {f.name}")
@@ -731,6 +772,7 @@ class ResourceMonitor:
 
             if psutil.virtual_memory().percent >= 85:
                 from ..services.vram_adapters import _unload_ollama_models
+
                 unloaded = await _unload_ollama_models()
                 if unloaded:
                     actions.append(f"offloaded ollama: {', '.join(unloaded)}")
@@ -767,20 +809,24 @@ class ResourceMonitor:
 
         # VRAM Manager: Check and prevent OOM
         from ..services.vram_manager import vram_manager
+
         oom_prevention = await vram_manager.check_and_prevent_oom()
         if oom_prevention:
-            warnings.append({
-                "type": "vram",
-                "level": "critical",
-                "message": f"VRAM OOM prevention triggered: {oom_prevention['action']}",
-                "action": oom_prevention,
-            })
+            warnings.append(
+                {
+                    "type": "vram",
+                    "level": "critical",
+                    "message": f"VRAM OOM prevention triggered: {oom_prevention['action']}",
+                    "action": oom_prevention,
+                }
+            )
 
         return warnings
 
     async def broadcast_warnings(self, warnings: list[dict[str, Any]]):
         """Broadcast resource warnings via SSE, throttled to max once per 60s per resource type."""
         import time as _time
+
         now = _time.time()
         for warning in warnings:
             resource_type = warning["type"]
@@ -790,9 +836,9 @@ class ResourceMonitor:
 
             # Broadcast if level changed, became critical, or enough time passed since last broadcast
             should_broadcast = (
-                last_level != level or
-                level == WarningLevel.CRITICAL or
-                (now - last_broadcast) >= self._broadcast_interval_seconds
+                last_level != level
+                or level == WarningLevel.CRITICAL
+                or (now - last_broadcast) >= self._broadcast_interval_seconds
             )
 
             if should_broadcast:
@@ -822,6 +868,7 @@ class ResourceMonitor:
         if self._nvml_available:
             try:
                 import pynvml
+
                 pynvml.nvmlShutdown()
                 self._nvml_available = False
                 logger.debug("ResourceMonitor: NVML shutdown complete")
@@ -883,11 +930,10 @@ async def resource_monitoring_loop(interval_seconds: float = 30.0):
                 snap = await resource_monitor.get_gpu_snapshot()
                 if snap.get("available"):
                     from ..core.database import cleanup_old_gpu_telemetry, log_gpu_telemetry
+
                     await asyncio.to_thread(log_gpu_telemetry, snap)
                     if prunes_due(next_gpu_prune):
-                        await asyncio.to_thread(
-                            cleanup_old_gpu_telemetry, GPU_TELEMETRY_KEEP_DAYS
-                        )
+                        await asyncio.to_thread(cleanup_old_gpu_telemetry, GPU_TELEMETRY_KEEP_DAYS)
                         next_gpu_prune = next_prune_time()
             except Exception as _e:
                 logger.debug(f"GPU telemetry log skipped: {_e}")

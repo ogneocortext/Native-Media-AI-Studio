@@ -46,7 +46,9 @@ describe("analysisCache", () => {
 
   it("keys entries per filename so slashes survive", () => {
     saveCachedAnalysis("Suno-V6-Mini/song.m4a", analysisFixture(), storage);
-    expect(analysisEntryKey("Suno-V6-Mini/song.m4a")).toContain(encodeURIComponent("Suno-V6-Mini/song.m4a"));
+    expect(analysisEntryKey("Suno-V6-Mini/song.m4a")).toContain(
+      encodeURIComponent("Suno-V6-Mini/song.m4a"),
+    );
     expect(loadCachedAnalyses(storage)["Suno-V6-Mini/song.m4a"]).toBeDefined();
   });
 

@@ -65,7 +65,9 @@ def _run_ffmpeg(args: list[str], timeout: int = 600) -> tuple[bool, str]:
         return False, "ffmpeg not found on PATH"
     cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", *args]
     try:
-        proc = subprocess.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(
+            cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=timeout
+        )
         ok = proc.returncode == 0
         return ok, "" if ok else (proc.stderr or "").strip()[-800:]
     except subprocess.TimeoutExpired:
@@ -84,13 +86,20 @@ async def probe_duration(video_path: Path) -> float | None:
         try:
             proc = subprocess.run(
                 [
-                    ffprobe, "-v", "error",
-                    "-show_entries", "format=duration",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    ffprobe,
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
                     str(video_path),
                 ],
-                encoding="utf-8", errors="replace",
-                capture_output=True, text=True, timeout=30,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             return float(proc.stdout.strip())
         except Exception:
@@ -149,22 +158,44 @@ async def _derive_vertical(src: Path, dst: Path, total: float) -> MatrixArtifact
     # Keep full height, take a 9/16-of-height-wide center band, scale to 1080x1920.
     vf = "crop=ih*9/16:ih,scale=1080:1920:flags=lanczos"
     args = [
-        "-i", str(src),
-        "-vf", vf,
-        "-c:v", "libx264", "-crf", "18", "-preset", "veryfast",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-        "-c:a", "aac", "-b:a", "192k",
+        "-i",
+        str(src),
+        "-vf",
+        vf,
+        "-c:v",
+        "libx264",
+        "-crf",
+        "18",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
         str(dst),
     ]
     ok, err = await asyncio.to_thread(_run_ffmpeg, args)
     if not ok:
         raise RuntimeError(f"vertical derivation failed: {err}")
     dur = await probe_duration(dst) or total
-    return MatrixArtifact("vertical", str(dst), _relative(dst), 1080, 1920, round(dur, 3),
-                          notes="center 9:16 crop of master, lanczos")
+    return MatrixArtifact(
+        "vertical",
+        str(dst),
+        _relative(dst),
+        1080,
+        1920,
+        round(dur, 3),
+        notes="center 9:16 crop of master, lanczos",
+    )
 
 
-async def _derive_loop(src: Path, dst: Path, loop_seconds: float, start: float, start_note: str) -> MatrixArtifact:
+async def _derive_loop(
+    src: Path, dst: Path, loop_seconds: float, start: float, start_note: str
+) -> MatrixArtifact:
     """Spotify-Canvas-style 3-8s loop, video-only, H.264 yuv420p.
 
     Loop start lands on a beat/section boundary (see _beat_aligned_start);
@@ -172,39 +203,70 @@ async def _derive_loop(src: Path, dst: Path, loop_seconds: float, start: float, 
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
     args = [
-        "-ss", f"{start:.3f}",
-        "-t", f"{loop_seconds:.3f}",
-        "-i", str(src),
+        "-ss",
+        f"{start:.3f}",
+        "-t",
+        f"{loop_seconds:.3f}",
+        "-i",
+        str(src),
         "-an",  # Canvas loops are video-only per ImgTool 2026 spec
-        "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-        "-r", "30",
+        "-c:v",
+        "libx264",
+        "-crf",
+        "20",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-r",
+        "30",
         str(dst),
     ]
     ok, err = await asyncio.to_thread(_run_ffmpeg, args)
     if not ok:
         raise RuntimeError(f"loop derivation failed: {err}")
     dur = await probe_duration(dst) or loop_seconds
-    return MatrixArtifact("loop", str(dst), _relative(dst), 0, 0, round(dur, 3),
-                          notes=f"{loop_seconds:.1f}s loop, {start_note}")
+    return MatrixArtifact(
+        "loop",
+        str(dst),
+        _relative(dst),
+        0,
+        0,
+        round(dur, 3),
+        notes=f"{loop_seconds:.1f}s loop, {start_note}",
+    )
 
 
 async def _derive_thumbnail(src: Path, dst: Path, at_second: float, variant: str) -> MatrixArtifact:
     """1280x720 JPG thumbnail variant (A/B/C) for YouTube CTR testing."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     args = [
-        "-ss", f"{max(0.0, at_second):.3f}",
-        "-i", str(src),
-        "-frames:v", "1",
-        "-vf", "scale=1280:720:flags=lanczos",
-        "-q:v", "2",
+        "-ss",
+        f"{max(0.0, at_second):.3f}",
+        "-i",
+        str(src),
+        "-frames:v",
+        "1",
+        "-vf",
+        "scale=1280:720:flags=lanczos",
+        "-q:v",
+        "2",
         str(dst),
     ]
     ok, err = await asyncio.to_thread(_run_ffmpeg, args)
     if not ok:
         raise RuntimeError(f"thumbnail '{variant}' failed: {err}")
-    return MatrixArtifact("thumbnail", str(dst), _relative(dst), 1280, 720, 0.0,
-                          notes=f"variant {variant} @ {at_second:.1f}s")
+    return MatrixArtifact(
+        "thumbnail",
+        str(dst),
+        _relative(dst),
+        1280,
+        720,
+        0.0,
+        notes=f"variant {variant} @ {at_second:.1f}s",
+    )
 
 
 async def build_export_matrix(
@@ -253,7 +315,9 @@ async def build_export_matrix(
     # 2) Canvas loop (beat-aligned start)
     try:
         start, start_note = _beat_aligned_start(total, loop_seconds, beat_times, sections)
-        loop = await _derive_loop(src, VIDEO_DIR / f"{stem}_loop.mp4", loop_seconds, start, start_note)
+        loop = await _derive_loop(
+            src, VIDEO_DIR / f"{stem}_loop.mp4", loop_seconds, start, start_note
+        )
         result.artifacts.append(loop)
     except Exception as exc:
         logger.warning("Export matrix loop failed for %s: %s", stem, exc)
@@ -277,7 +341,9 @@ async def build_export_matrix(
                         peak_idx = idx_s + rms_energy[idx_s:idx_e].index(local_max)
                         raw_target = (peak_idx / max(len(rms_energy) - 1, 1)) * total
             at = min(raw_target, max(0.0, total - 0.2)) if total else 0.0
-            thumb = await _derive_thumbnail(src, IMAGE_DIR / f"{stem}_thumb_{variant}.jpg", at, variant)
+            thumb = await _derive_thumbnail(
+                src, IMAGE_DIR / f"{stem}_thumb_{variant}.jpg", at, variant
+            )
             result.artifacts.append(thumb)
         except Exception as exc:
             logger.warning("Export matrix thumbnail %s failed for %s: %s", variant, stem, exc)
@@ -300,7 +366,9 @@ async def build_export_matrix(
         try:
             worker_result = await go_write_sidecar(stem, manifest_data, filename=mpath.stem)
             if worker_result is None or not worker_result.get("written"):
-                mpath.write_text(json.dumps(manifest_data, indent=2, ensure_ascii=False), encoding="utf-8")
+                mpath.write_text(
+                    json.dumps(manifest_data, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
             result.manifest_path = str(mpath)
         except OSError as exc:
             logger.warning("Manifest write failed: %s", exc)

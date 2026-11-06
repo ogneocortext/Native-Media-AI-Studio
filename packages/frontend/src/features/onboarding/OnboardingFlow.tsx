@@ -46,11 +46,7 @@ import {
 } from "./onboardingState";
 
 /** Named analysis stages — never a bare percentage. */
-const ANALYSIS_STAGES = [
-  "Listening…",
-  "Finding the beat…",
-  "Reading the energy…",
-];
+const ANALYSIS_STAGES = ["Listening…", "Finding the beat…", "Reading the energy…"];
 
 export interface OnboardingFlowProps {
   /** Called when the user leaves the path for the full studio. */
@@ -141,9 +137,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
         }
       }
       if (!filename) {
-        setState((s) =>
-          analysisFailed(s, "That file couldn't be read.", "Choose another track"),
-        );
+        setState((s) => analysisFailed(s, "That file couldn't be read.", "Choose another track"));
         return;
       }
       await runAnalysis(filename, token);
@@ -178,12 +172,10 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
         duration: CLIP_SECONDS,
         method: "visualization",
         audio_filename: state.filename,
-        visualization: state.suggestion
-          ? { mode: state.suggestion.visualization }
-          : undefined,
+        visualization: state.suggestion ? { mode: state.suggestion.visualization } : undefined,
       });
       if (!res.success || !res.job_id) {
-        throw new Error((res.error ?? res.message) ?? "The render did not start");
+        throw new Error(res.error ?? res.message ?? "The render did not start");
       }
       const outputPath = await pollJob(res.job_id);
       setState((s) => renderSucceeded(s, outputPath));
@@ -225,9 +217,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
       {state.step === "add" && (
         <section
           className={`rounded-xl border-2 border-dashed p-8 text-center transition ${
-            dragOver
-              ? "border-violet-400 bg-violet-500/10"
-              : "border-white/15 bg-white/[0.02]"
+            dragOver ? "border-violet-400 bg-violet-500/10" : "border-white/15 bg-white/[0.02]"
           }`}
           onDragOver={(e) => {
             e.preventDefault();
@@ -267,10 +257,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
 
             {!libLoading && libraryOptions.length > 0 && (
               <div className="mt-4 w-full max-w-sm">
-                <label
-                  htmlFor="onboarding-library"
-                  className="block text-xs text-white/50 mb-1"
-                >
+                <label htmlFor="onboarding-library" className="block text-xs text-white/50 mb-1">
                   …or pick one already in your library
                 </label>
                 <select
@@ -370,12 +357,11 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
       {state.step === "rendering" && (
         <section className="py-10 text-center" data-testid="onboarding-rendering">
           <p className="text-white/70">
-            {["Rendering frames…", "Mixing the audio…", "Finishing…"][
-              Math.min(
-                Math.floor((Date.now() / 1000) % 3),
-                2,
-              )
-            ]}
+            {
+              ["Rendering frames…", "Mixing the audio…", "Finishing…"][
+                Math.min(Math.floor((Date.now() / 1000) % 3), 2)
+              ]
+            }
           </p>
         </section>
       )}
@@ -396,9 +382,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           data-testid="onboarding-error"
         >
           <p className="text-white/85 mb-1">{state.error}</p>
-          {state.errorFix && (
-            <p className="text-sm text-white/60 mb-4">{state.errorFix}</p>
-          )}
+          {state.errorFix && <p className="text-sm text-white/60 mb-4">{state.errorFix}</p>}
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -527,7 +511,7 @@ async function pollJob(jobId: string, maxWaitSeconds = 180): Promise<string> {
     const job = await res.json();
     if (job.status === "completed") {
       const path: string =
-        (job.output_path ?? job.result?.output_path) ?? `output/video/${jobId}.mp4`;
+        job.output_path ?? job.result?.output_path ?? `output/video/${jobId}.mp4`;
       return toOutputUrl(path);
     }
     if (job.status === "failed" || job.status === "dead") {

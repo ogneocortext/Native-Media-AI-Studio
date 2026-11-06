@@ -1,25 +1,13 @@
 import { useState, useMemo } from "react";
 import { lintVideoPrompt } from "../../../utils/promptLint";
 import {
-  
   Music,
   Wand2,
   Sparkles,
-  
   ChevronRight,
-  
-  
-  
-  
   Smartphone,
-  
-  
   Sliders,
-  
   FileWarning,
-  
-  
-  
 } from "lucide-react";
 import type { GenerationConfig } from "../types";
 const SHOT_SIZES = ["Extreme Wide", "Wide", "Medium", "Close-up", "Extreme Close-up"];
@@ -163,9 +151,8 @@ export function ConfigureStep({
                     Lip-sync chorus close-ups
                   </span>
                   <span className="block text-[11px] text-gray-400 mt-0.5">
-                    Runs local MuseTalk (no cloud) on rendered chorus sections after
-                    generation. Needs model weights + vocals stem; fails safe when
-                    unconfigured.
+                    Runs local MuseTalk (no cloud) on rendered chorus sections after generation.
+                    Needs model weights + vocals stem; fails safe when unconfigured.
                   </span>
                 </span>
               </label>

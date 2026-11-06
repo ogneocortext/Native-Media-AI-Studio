@@ -73,17 +73,10 @@ interface ConfirmDialogState {
  * Clicking a row opens this instead of doing nothing — the data the model
  * already carries was just never surfaced together.
  */
-function JobDetailModal({
-  job,
-  onClose,
-}: {
-  job: Job;
-  onClose: () => void;
-}) {
+function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
   const params = job.params as Record<string, unknown> | undefined;
   const steps = job.steps && job.steps.length > 0 ? job.steps : null;
-  const statusLabel = (s: string) =>
-    s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const statusLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <div
@@ -96,18 +89,12 @@ function JobDetailModal({
       >
         <div className="flex items-start justify-between p-6 border-b border-gray-800">
           <div>
-            <h3 className="text-lg font-bold text-white">
-              {job.job_type.replace(/_/g, " ")}
-            </h3>
+            <h3 className="text-lg font-bold text-white">{job.job_type.replace(/_/g, " ")}</h3>
             <p className="text-xs text-muted mt-1">
               ID {job.id} · {statusLabel(job.status)}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-white p-1"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="text-muted hover:text-white p-1" aria-label="Close">
             <XCircle size={20} />
           </button>
         </div>
@@ -120,10 +107,7 @@ function JobDetailModal({
               <li className="flex items-start gap-3 text-sm">
                 <span className="w-2 h-2 mt-1.5 rounded-full bg-primary shrink-0" />
                 <div>
-                  <p className="text-muted">
-                    Created{" "}
-                    {new Date(job.created_at).toLocaleString()}
-                  </p>
+                  <p className="text-muted">Created {new Date(job.created_at).toLocaleString()}</p>
                 </div>
               </li>
               {job.started_at && (
@@ -140,9 +124,7 @@ function JobDetailModal({
                 <li className="flex items-start gap-3 text-sm">
                   <span
                     className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${
-                      job.status === JobStatus.COMPLETED
-                        ? "bg-success-text"
-                        : "bg-error-text"
+                      job.status === JobStatus.COMPLETED ? "bg-success-text" : "bg-error-text"
                     }`}
                   />
                   <div>
@@ -189,9 +171,7 @@ function JobDetailModal({
           {/* Error */}
           {job.error && (
             <div>
-              <h4 className="text-sm font-semibold text-error-text mb-2">
-                Error
-              </h4>
+              <h4 className="text-sm font-semibold text-error-text mb-2">Error</h4>
               <pre className="text-xs text-muted bg-error/5 border border-error/20 rounded-lg p-3 whitespace-pre-wrap break-words">
                 {job.error}
               </pre>
@@ -201,9 +181,7 @@ function JobDetailModal({
           {/* Params */}
           {params && Object.keys(params).length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-white mb-2">
-                Parameters
-              </h4>
+              <h4 className="text-sm font-semibold text-white mb-2">Parameters</h4>
               <pre className="text-xs text-muted bg-muted/10 border border-border rounded-lg p-3 overflow-x-auto">
                 {JSON.stringify(params, null, 2)}
               </pre>
@@ -211,17 +189,11 @@ function JobDetailModal({
           )}
 
           {/* Output */}
-          {(job.output_path ??
-            ((job.result)?.output_path as
-              string)) && (
+          {(job.output_path ?? (job.result?.output_path as string)) && (
             <div>
-              <h4 className="text-sm font-semibold text-white mb-2">
-                Output
-              </h4>
+              <h4 className="text-sm font-semibold text-white mb-2">Output</h4>
               <p className="text-xs text-muted break-all">
-                {((job.output_path ??
-                  (job.result)?.output_path) as
-                  string)}
+                {(job.output_path ?? job.result?.output_path) as string}
               </p>
             </div>
           )}
@@ -264,7 +236,11 @@ export function Queue() {
   // (SSE is managed centrally by Layout.tsx).
   useEffect(() => {
     void fetchJobs();
-    fetchQueueMetrics().then(setMetrics).catch(() => { void 0; });
+    fetchQueueMetrics()
+      .then(setMetrics)
+      .catch(() => {
+        void 0;
+      });
   }, [fetchJobs]);
 
   // Auto-refresh jobs every 5 seconds when enabled.
@@ -277,8 +253,14 @@ export function Queue() {
       return;
     }
     refreshIntervalRef.current = setInterval(() => {
-      fetchJobs().catch(() => { void 0; });
-      fetchQueueMetrics().then(setMetrics).catch(() => { void 0; });
+      fetchJobs().catch(() => {
+        void 0;
+      });
+      fetchQueueMetrics()
+        .then(setMetrics)
+        .catch(() => {
+          void 0;
+        });
     }, 5000);
     return () => {
       if (refreshIntervalRef.current) {
@@ -296,67 +278,77 @@ export function Queue() {
         !query ||
         job.id.toLowerCase().includes(query) ||
         job.job_type.toLowerCase().includes(query) ||
-        (job.message.toLowerCase().includes(query)) ||
-        (job.error?.toLowerCase().includes(query));
+        job.message.toLowerCase().includes(query) ||
+        job.error?.toLowerCase().includes(query);
       const matchesStatus = !statusFilter || job.status === statusFilter;
       return matchesQuery && matchesStatus;
     });
   }, [jobs, searchQuery, statusFilter]);
 
-  const handleCancel = useCallback((id: string) => {
-    setConfirmDialog({
-      title: "Cancel Job",
-      message: "Are you sure you want to cancel this job? Progress will be lost.",
-      confirmLabel: "Cancel Job",
-      onConfirm: async () => {
-        setConfirmDialog(null);
-        setActionLoading(id);
-        try {
-          await cancelJob(id);
-          showToast("Job cancelled", "info");
-        } catch (e) {
-          console.error("Failed to cancel job:", e);
-          showToast("Failed to cancel job", "error");
-        } finally {
-          setActionLoading(null);
-        }
-      },
-    });
-  }, [cancelJob]);
+  const handleCancel = useCallback(
+    (id: string) => {
+      setConfirmDialog({
+        title: "Cancel Job",
+        message: "Are you sure you want to cancel this job? Progress will be lost.",
+        confirmLabel: "Cancel Job",
+        onConfirm: async () => {
+          setConfirmDialog(null);
+          setActionLoading(id);
+          try {
+            await cancelJob(id);
+            showToast("Job cancelled", "info");
+          } catch (e) {
+            console.error("Failed to cancel job:", e);
+            showToast("Failed to cancel job", "error");
+          } finally {
+            setActionLoading(null);
+          }
+        },
+      });
+    },
+    [cancelJob],
+  );
 
-  const handleRetry = useCallback(async (id: string) => {
-    setActionLoading(id);
-    try {
-      await retryJob(id);
-      showToast("Job re-queued", "success");
-    } catch (e) {
-      console.error("Failed to retry job:", e);
-      showToast("Failed to retry job", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  }, [retryJob]);
+  const handleRetry = useCallback(
+    async (id: string) => {
+      setActionLoading(id);
+      try {
+        await retryJob(id);
+        showToast("Job re-queued", "success");
+      } catch (e) {
+        console.error("Failed to retry job:", e);
+        showToast("Failed to retry job", "error");
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [retryJob],
+  );
 
-  const handleDelete = useCallback((id: string) => {
-    setConfirmDialog({
-      title: "Delete Job",
-      message: "This will permanently delete this job and its output. This action cannot be undone.",
-      confirmLabel: "Delete",
-      onConfirm: async () => {
-        setConfirmDialog(null);
-        setActionLoading(id);
-        try {
-          await deleteJob(id);
-          showToast("Job deleted", "success");
-        } catch (e) {
-          console.error("Failed to delete job:", e);
-          showToast("Failed to delete job", "error");
-        } finally {
-          setActionLoading(null);
-        }
-      },
-    });
-  }, [deleteJob]);
+  const handleDelete = useCallback(
+    (id: string) => {
+      setConfirmDialog({
+        title: "Delete Job",
+        message:
+          "This will permanently delete this job and its output. This action cannot be undone.",
+        confirmLabel: "Delete",
+        onConfirm: async () => {
+          setConfirmDialog(null);
+          setActionLoading(id);
+          try {
+            await deleteJob(id);
+            showToast("Job deleted", "success");
+          } catch (e) {
+            console.error("Failed to delete job:", e);
+            showToast("Failed to delete job", "error");
+          } finally {
+            setActionLoading(null);
+          }
+        },
+      });
+    },
+    [deleteJob],
+  );
 
   const handleClearCompleted = useCallback(() => {
     const count = stats?.completed ?? 0;
@@ -576,7 +568,9 @@ export function Queue() {
             <p className="text-sm text-muted">Jobs / min</p>
           </Card>
           <Card className="text-center">
-            <p className={`text-2xl font-bold ${metrics.dead_letter_count > 0 ? "text-error-text" : "text-muted"}`}>
+            <p
+              className={`text-2xl font-bold ${metrics.dead_letter_count > 0 ? "text-error-text" : "text-muted"}`}
+            >
               {metrics.dead_letter_count}
             </p>
             <p className="text-sm text-muted">Dead Letter</p>
@@ -594,17 +588,19 @@ export function Queue() {
                 <h3 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
                   Currently Running
                 </h3>
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
-                   onClick={() => setSelectedJob(runningJob)}
-                   role="button"
-                   tabIndex={0}
-                   aria-label={`View details for ${runningJob.job_type.replace(/_/g, " ")} job`}
-                   onKeyDown={(e) => {
-                     if (e.key === "Enter" || e.key === " ") {
-                       e.preventDefault();
-                       setSelectedJob(runningJob);
-                     }
-                   }}>
+                <div
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+                  onClick={() => setSelectedJob(runningJob)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View details for ${runningJob.job_type.replace(/_/g, " ")} job`}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedJob(runningJob);
+                    }
+                  }}
+                >
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <div className="p-2 bg-primary/10 rounded-full shrink-0">
                       <Play size={20} className="text-primary" />
@@ -694,11 +690,7 @@ export function Queue() {
           </div>
         ) : (
           <EmptyState
-            title={
-              searchQuery || statusFilter
-                ? "No matching jobs"
-                : "No jobs in queue"
-            }
+            title={searchQuery || statusFilter ? "No matching jobs" : "No jobs in queue"}
             description={
               searchQuery || statusFilter
                 ? "Try adjusting your search or filter criteria."
@@ -714,12 +706,7 @@ export function Queue() {
         )}
       </Card>
 
-      {selectedJob && (
-        <JobDetailModal
-          job={selectedJob}
-          onClose={() => setSelectedJob(null)}
-        />
-      )}
+      {selectedJob && <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} />}
 
       {confirmDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

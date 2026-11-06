@@ -58,6 +58,7 @@ def _resolve_safe_path(path: str) -> tuple[Path | None, str | None]:
 # Probe
 # =============================================================================
 
+
 class ProbeResponse(BaseModel):
     path: str
     relative_path: str | None = None
@@ -91,6 +92,7 @@ async def probe(
 # =============================================================================
 # Loudness
 # =============================================================================
+
 
 class LoudnessResponse(BaseModel):
     path: str
@@ -131,6 +133,7 @@ async def loudness(
 # Waveform
 # =============================================================================
 
+
 class WaveformResponse(BaseModel):
     path: str
     relative_path: str | None = None
@@ -168,6 +171,7 @@ async def waveform(
 # =============================================================================
 # Thumbnail at timestamp
 # =============================================================================
+
 
 class ThumbnailRequest(BaseModel):
     path: str = Field(..., description="Absolute or relative path under output/")
@@ -210,6 +214,7 @@ async def thumbnail(body: ThumbnailRequest, request: Request) -> ThumbnailRespon
 # =============================================================================
 # Cover regeneration
 # =============================================================================
+
 
 class CoverRegenerateResponse(BaseModel):
     path: str

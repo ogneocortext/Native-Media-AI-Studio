@@ -50,16 +50,8 @@ describe("camera transition blend", () => {
     // Past the boundary by a hair: the exact boundary
     // value can land a float-ulp short of the duration
     // and return one final (essentially-target) pose.
-    expect(
-      sampleCameraTransition(
-        state,
-        10 + CAMERA_TRANSITION_SEC + 1e-6,
-        TARGET,
-      ),
-    ).toBeNull();
-    expect(
-      sampleCameraTransition(state, 10 + CAMERA_TRANSITION_SEC + 1, TARGET),
-    ).toBeNull();
+    expect(sampleCameraTransition(state, 10 + CAMERA_TRANSITION_SEC + 1e-6, TARGET)).toBeNull();
+    expect(sampleCameraTransition(state, 10 + CAMERA_TRANSITION_SEC + 1, TARGET)).toBeNull();
   });
 
   it("blends the midpoint with the travel-balanced anchor", () => {
@@ -120,12 +112,8 @@ describe("camera transition blend", () => {
     const state = beginCameraTransition(FROM, 10);
     expect(isTransitionActive(null, 10)).toBe(false);
     expect(isTransitionActive(state, 10)).toBe(true);
-    expect(isTransitionActive(state, 10 + CAMERA_TRANSITION_SEC - 0.01)).toBe(
-      true,
-    );
-    expect(isTransitionActive(state, 10 + CAMERA_TRANSITION_SEC + 1e-6)).toBe(
-      false,
-    );
+    expect(isTransitionActive(state, 10 + CAMERA_TRANSITION_SEC - 0.01)).toBe(true);
+    expect(isTransitionActive(state, 10 + CAMERA_TRANSITION_SEC + 1e-6)).toBe(false);
   });
 });
 

@@ -264,10 +264,7 @@ export interface EnvelopeStage {
  * `frequencyBinCount` (fftSize / 2); `sampleRate` maps bins to Hz so each
  * bin gets its group's attack/release lambdas.
  */
-export function createEnvelopeStage(
-  freqLength: number,
-  sampleRate = 44100,
-): EnvelopeStage {
+export function createEnvelopeStage(freqLength: number, sampleRate = 44100): EnvelopeStage {
   const length = Math.max(1, freqLength);
   const binHz = sampleRate / (2 * length);
   const attackLambda = new Float64Array(length);
@@ -281,11 +278,7 @@ export function createEnvelopeStage(
   const centroidLambda = dampLambda(CENTROID_K);
   const state = new Float64Array(length);
   const bands = new Uint8Array(length);
-  const advance = (
-    readTarget: (i: number) => number,
-    rawLen: number,
-    dt: number,
-  ) => {
+  const advance = (readTarget: (i: number) => number, rawLen: number, dt: number) => {
     const n = Math.min(length, rawLen);
     let sum = 0;
     let weighted = 0;
@@ -294,12 +287,7 @@ export function createEnvelopeStage(
       sum += target * 255;
       weighted += i * target * 255;
       const rising = target > state[i];
-      state[i] = damp(
-        state[i],
-        target,
-        rising ? attackLambda[i] : releaseLambda[i],
-        dt,
-      );
+      state[i] = damp(state[i], target, rising ? attackLambda[i] : releaseLambda[i], dt);
       bands[i] = Math.round(clamp(state[i], 0, 1) * 255);
     }
     for (let i = n; i < length; i++) {
@@ -318,10 +306,14 @@ export function createEnvelopeStage(
       advance((i) => raw[i] / 255, raw.length, dt);
     },
     stepNorm(raw: ArrayLike<number>, dt: number) {
-      advance((i) => {
-        const v = raw[i];
-        return Number.isFinite(v) ? clamp(v, 0, 1) : 0;
-      }, raw.length, dt);
+      advance(
+        (i) => {
+          const v = raw[i];
+          return Number.isFinite(v) ? clamp(v, 0, 1) : 0;
+        },
+        raw.length,
+        dt,
+      );
     },
     reset() {
       state.fill(0);
@@ -384,7 +376,11 @@ function parseColorRgb(color: string): [number, number, number] | null {
   const hexMatch = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
   if (hexMatch) {
     let h = hexMatch[1];
-    if (h.length === 3) h = h.split("").map((ch) => ch + ch).join("");
+    if (h.length === 3)
+      h = h
+        .split("")
+        .map((ch) => ch + ch)
+        .join("");
     return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
   }
   const m = /^rgba?\(([^)]+)\)/.exec(trimmed);

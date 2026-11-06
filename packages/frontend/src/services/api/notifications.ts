@@ -87,9 +87,9 @@ export async function subscribePush(
   return res.json();
 }
 
-export async function unsubscribePush(
-  subscription: { endpoint: string },
-): Promise<{ status: string }> {
+export async function unsubscribePush(subscription: {
+  endpoint: string;
+}): Promise<{ status: string }> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/notifications/push/unsubscribe`, {
     method: "POST",

@@ -61,6 +61,7 @@ def _register_nvidia_dll_dirs() -> None:
     if os.name != "nt":
         return
     import sys
+
     nvidia = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
     for sub in ("cublas", "cudnn", "cuda_nvrtc"):
         bin_dir = nvidia / sub / "bin"
@@ -79,6 +80,7 @@ def _whisper_device_config() -> tuple[str, str]:
     """
     try:
         import torch
+
         if not torch.cuda.is_available():
             return "cpu", "int8"
         major, _minor = torch.cuda.get_device_capability()
@@ -112,6 +114,7 @@ def get_model(model_size: str = DEFAULT_MODEL_SIZE):
 # ---------------------------------------------------------------------------
 # Transcription logic
 # ---------------------------------------------------------------------------
+
 
 def transcribe_audio(
     audio_path: str,
@@ -151,12 +154,14 @@ def transcribe_audio(
         }
         if segment.words:
             for word in segment.words:
-                seg_data["words"].append({
-                    "word": word.word.strip(),
-                    "start": round(word.start, 3),
-                    "end": round(word.end, 3),
-                    "probability": round(word.probability, 3),
-                })
+                seg_data["words"].append(
+                    {
+                        "word": word.word.strip(),
+                        "start": round(word.start, 3),
+                        "end": round(word.end, 3),
+                        "probability": round(word.probability, 3),
+                    }
+                )
         result["segments"].append(seg_data)
 
     return result
@@ -173,7 +178,9 @@ def result_to_lrc(result: dict) -> str:
         [mm:ss.xx]<mm:ss.xx> word <mm:ss.xx> word ...
     """
     lines = []
-    lines.extend((f"[ti:{result.get('filename', '')}]", f"[lang:{result.get('language', 'unknown')}]", ""))
+    lines.extend(
+        (f"[ti:{result.get('filename', '')}]", f"[lang:{result.get('language', 'unknown')}]", "")
+    )
 
     for seg in result["segments"]:
         # Convert seconds to mm:ss.xx
@@ -223,6 +230,7 @@ def result_to_word_level_lrc(result: dict) -> str:
 # ---------------------------------------------------------------------------
 # File paths
 # ---------------------------------------------------------------------------
+
 
 def get_audio_path(filename: str) -> Path | None:
     """Resolve audio file path from filename.

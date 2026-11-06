@@ -82,7 +82,7 @@ export function AnimationDemo({ visible, onClose }: Props) {
     if (!svgRef.current) return;
     const paths = svgRef.current.querySelectorAll("path");
     paths.forEach((path) => {
-      const length = (path).getTotalLength();
+      const length = path.getTotalLength();
       path.style.strokeDasharray = `${length}`;
       path.style.strokeDashoffset = `${length}`;
     });

@@ -53,7 +53,9 @@ async def related_tags(
     A miss here is a normal user action (searching, then asking about a tag with
     no related set), so it is reported as an empty result rather than an error.
     """
-    known = tag in treblo_tag_picker.all_tags() or bool(treblo_tag_picker.related_tags(tag, limit=1))
+    known = tag in treblo_tag_picker.all_tags() or bool(
+        treblo_tag_picker.related_tags(tag, limit=1)
+    )
     if not known and not treblo_tag_picker.related_tags(tag, limit=1):
         return {"tag": tag, "related": []}
     return {"tag": tag, "related": treblo_tag_picker.related_tags(tag, limit=limit)}

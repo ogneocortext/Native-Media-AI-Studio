@@ -22,10 +22,7 @@
  * analyzer genre list against them (case-insensitive, substring).
  */
 
-import type {
-  FrequencyFocus,
-  ReactivityTriad,
-} from "./audioReactivityProcessor";
+import type { FrequencyFocus, ReactivityTriad } from "./audioReactivityProcessor";
 
 export interface ReactivityGenrePreset {
   id: string;
@@ -94,11 +91,7 @@ export function matchReactivityGenrePreset(
     const needle = raw.toLowerCase().trim();
     if (!needle) continue;
     for (const preset of REACTIVITY_GENRE_PRESETS) {
-      if (
-        preset.genres.some(
-          (kw) => needle.includes(kw) || kw.includes(needle),
-        )
-      ) {
+      if (preset.genres.some((kw) => needle.includes(kw) || kw.includes(needle))) {
         return preset;
       }
     }

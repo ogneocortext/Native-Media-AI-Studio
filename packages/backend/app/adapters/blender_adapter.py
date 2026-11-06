@@ -71,7 +71,9 @@ class BlenderAdapter(BaseBridgeAdapter):
             startup_timeout: Seconds to wait for the bridge to become ready.
             health_timeout: Seconds to wait for health check responses.
         """
-        repo_root = Path(__file__).resolve().parents[3]  # packages/backend/app/adapters -> repo root
+        repo_root = (
+            Path(__file__).resolve().parents[3]
+        )  # packages/backend/app/adapters -> repo root
         script = bridge_script or repo_root / DEFAULT_BRIDGE_SCRIPT
         command = ["node", str(script)]
 
@@ -252,7 +254,9 @@ class BlenderAdapter(BaseBridgeAdapter):
             command: Blender command name.
             parameters: Command parameters.
         """
-        return await self.execute("blender_command", {"command": command, "parameters": parameters or {}})
+        return await self.execute(
+            "blender_command", {"command": command, "parameters": parameters or {}}
+        )
 
     # ------------------------------------------------------------------
     # Bridge interface implementation
@@ -291,7 +295,9 @@ class BlenderAdapter(BaseBridgeAdapter):
             return {
                 "success": True,
                 "output": params.get("output") if params else None,
-                "frames": params.get("frame_end", 1) - params.get("frame_start", 0) + 1 if params else 1,
+                "frames": params.get("frame_end", 1) - params.get("frame_start", 0) + 1
+                if params
+                else 1,
             }
         if cmd == "create_material":
             return {

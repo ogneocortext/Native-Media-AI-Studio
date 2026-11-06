@@ -1,6 +1,7 @@
 """
 Health monitoring and diagnostics.
 """
+
 import asyncio
 import logging
 import platform
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def get_windows_version() -> str:
     """Get the correct Windows display version (e.g., Windows 11 Pro)."""
-    if sys.platform != 'win32':
+    if sys.platform != "win32":
         return platform.version()
 
     # On Windows, platform.version() returns the NT kernel version (e.g., "10.0.22631")
@@ -46,7 +47,10 @@ def get_windows_version() -> str:
         # Try to get the edition (Pro, Home, etc.)
         try:
             import winreg
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+            )
             edition, _ = winreg.QueryValueEx(key, "DisplayEdition")
             product_name, _ = winreg.QueryValueEx(key, "ProductName")
             winreg.CloseKey(key)
@@ -55,7 +59,10 @@ def get_windows_version() -> str:
             # Fallback: try EditionID
             try:
                 import winreg
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
+
+                key = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+                )
                 edition_id, _ = winreg.QueryValueEx(key, "EditionID")
                 winreg.CloseKey(key)
                 return f"Windows {display_name} {edition_id}"
@@ -67,6 +74,7 @@ def get_windows_version() -> str:
 
 class ServiceHealth(StrEnum):
     """Service health states"""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     OFFLINE = "offline"
@@ -121,7 +129,7 @@ class HealthMonitor:
     def _get_disk_info(self) -> dict[str, Any]:
         """Get disk information"""
         try:
-            disk = psutil.disk_usage('.')
+            disk = psutil.disk_usage(".")
             return {
                 "total_gb": round(disk.total / (1024**3), 2),
                 "free_gb": round(disk.free / (1024**3), 2),
@@ -141,17 +149,19 @@ class HealthMonitor:
                 "name": name,
                 "status": ServiceHealth.OFFLINE.value,
                 "error": "Adapter not found",
-                "url": url
+                "url": url,
             }
 
         try:
             is_healthy = await adapter.health_check()
             error = None
-            if hasattr(adapter, 'get_last_error'):
+            if hasattr(adapter, "get_last_error"):
                 error = adapter.get_last_error()
             return {
                 "name": name,
-                "status": ServiceHealth.HEALTHY.value if is_healthy else ServiceHealth.OFFLINE.value,
+                "status": ServiceHealth.HEALTHY.value
+                if is_healthy
+                else ServiceHealth.OFFLINE.value,
                 "url": adapter.base_url,
                 "adapter_name": adapter.name,
                 "error": error,
@@ -161,7 +171,7 @@ class HealthMonitor:
                 "name": name,
                 "status": ServiceHealth.OFFLINE.value,
                 "url": adapter.base_url if adapter else url,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def check_service_with_timing(self, name: str, url: str | None = None) -> dict[str, Any]:
@@ -175,7 +185,7 @@ class HealthMonitor:
                 "status": ServiceHealth.OFFLINE.value,
                 "error": "Adapter not found",
                 "url": url,
-                "response_time_ms": None
+                "response_time_ms": None,
             }
 
         # ComfyUI can be slow to respond when rendering at 100% GPU -- give it more time
@@ -186,11 +196,13 @@ class HealthMonitor:
             is_healthy = await asyncio.wait_for(adapter.health_check(), timeout=timeout)
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             error = None
-            if hasattr(adapter, 'get_last_error'):
+            if hasattr(adapter, "get_last_error"):
                 error = adapter.get_last_error()
             return {
                 "name": name,
-                "status": ServiceHealth.HEALTHY.value if is_healthy else ServiceHealth.OFFLINE.value,
+                "status": ServiceHealth.HEALTHY.value
+                if is_healthy
+                else ServiceHealth.OFFLINE.value,
                 "url": adapter.base_url,
                 "adapter_name": adapter.name,
                 "response_time_ms": response_time_ms,
@@ -204,7 +216,7 @@ class HealthMonitor:
                 "url": adapter.base_url if adapter else url,
                 "adapter_name": adapter.name if adapter else None,
                 "error": "Health check timed out",
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             }
         except Exception as e:
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -214,7 +226,7 @@ class HealthMonitor:
                 "url": adapter.base_url if adapter else url,
                 "adapter_name": adapter.name if adapter else None,
                 "error": str(e),
-                "response_time_ms": response_time_ms
+                "response_time_ms": response_time_ms,
             }
 
     async def check_all_services(self, config: Any) -> dict[str, Any]:
@@ -257,7 +269,7 @@ class HealthMonitor:
         try:
             check_results = await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True),
-                timeout=10.0  # Global timeout for all adapter checks
+                timeout=10.0,  # Global timeout for all adapter checks
             )
         except TimeoutError:
             # If global timeout fires, mark all as offline
@@ -266,7 +278,7 @@ class HealthMonitor:
                     "status": ServiceHealth.OFFLINE.value,
                     "url": adapters[name].base_url,
                     "response_time_ms": 10000.0,
-                    "error": "Health check timed out"
+                    "error": "Health check timed out",
                 }
             return results
 
@@ -286,7 +298,7 @@ class HealthMonitor:
             results[adapter_name] = {
                 "status": result["status"],
                 "url": result["url"],
-                "response_time_ms": result.get("response_time_ms")
+                "response_time_ms": result.get("response_time_ms"),
             }
 
         return results
@@ -304,8 +316,11 @@ class HealthMonitor:
         """
         # Check if we have a recent cached result
         now = datetime.now()
-        if (self._cached_health and self._last_check and
-            (now - self._last_check).total_seconds() < self._cache_ttl_seconds):
+        if (
+            self._cached_health
+            and self._last_check
+            and (now - self._last_check).total_seconds() < self._cache_ttl_seconds
+        ):
             return self._cached_health
 
         # Get adapter health with response times
@@ -329,12 +344,16 @@ class HealthMonitor:
             "backend": "online",  # Backend is online if it responds to health check
             "adapters": adapters_health,
             "overall": overall,
-            "timestamp": now.isoformat()
+            "timestamp": now.isoformat(),
         }
         self._last_check = now
 
-        logger.debug("Health check: status=%s, overall=%s, adapters=%s",
-                     status, overall, {k: v.get("status") for k, v in adapters_health.items()})
+        logger.debug(
+            "Health check: status=%s, overall=%s, adapters=%s",
+            status,
+            overall,
+            {k: v.get("status") for k, v in adapters_health.items()},
+        )
 
         return self._cached_health
 

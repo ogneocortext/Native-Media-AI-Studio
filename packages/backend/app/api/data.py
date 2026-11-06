@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/data", tags=["Data"])
 
 class CreatePromptRequest(BaseModel):
     """Request body for creating a prompt."""
+
     name: str = ""
     prompt_type: str = "visual_generation"
     text: str = ""
@@ -30,6 +31,7 @@ class CreatePromptRequest(BaseModel):
 
 class SaveVisualRequest(BaseModel):
     """Request body for saving AI visual metadata."""
+
     style_id: str = ""
     filename: str = ""
     stored_path: str = ""
@@ -47,6 +49,7 @@ class SaveVisualRequest(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     """Request body for creating a generation session."""
+
     audio_id: str | None = None
     music_prompt_id: str | None = None
     config: dict | None = None
@@ -54,17 +57,20 @@ class CreateSessionRequest(BaseModel):
 
 class UpdateSessionRequest(BaseModel):
     """Request body for updating a generation session (allows extra fields)."""
+
     model_config = ConfigDict(extra="allow")
 
 
 class SetPreferenceRequest(BaseModel):
     """Request body for setting a user preference."""
+
     value: Any = None
     category: str = "general"
 
 
 class CreateTrackRequest(BaseModel):
     """Request body for creating a track record."""
+
     filename: str = ""
     title: str = ""
     artist: str = ""
@@ -80,11 +86,13 @@ class CreateTrackRequest(BaseModel):
 
 class UpdateTrackRequest(BaseModel):
     """Request body for updating a track (allows extra fields)."""
+
     model_config = ConfigDict(extra="allow")
 
 
 class ImportTracksRequest(BaseModel):
     """Request body for importing tracks from a directory."""
+
     directory: str
 
 
@@ -94,6 +102,7 @@ class ImportTracksFromCsvRequest(BaseModel):
 
 class SaveGeneratedSceneRequest(BaseModel):
     """Request body for saving generated scene code."""
+
     code: str
     track: str = "unknown"
     model: str = "unknown"
@@ -101,12 +110,14 @@ class SaveGeneratedSceneRequest(BaseModel):
 
 class CleanupIncompleteScenesRequest(BaseModel):
     """Request body for cleaning up incomplete scene files."""
+
     track: str = ""
     keep: int = 3
 
 
 class SaveOllamaAnalysisRequest(BaseModel):
     """Request body for saving an Ollama analysis response."""
+
     track_name: str = ""
     html_response: str = ""
     raw_response: str = ""
@@ -149,19 +160,21 @@ def list_prompts(
 # "Prompt not found").
 # =============================================================================
 
+
 class SavePromptHistoryRequest(BaseModel):
     """Request body for saving one prompt version / repair entry."""
+
     track_filename: str = ""
     section: str = "full"
     section_index: int = -1
     prompt: str = ""
     negative_prompt: str = ""
     parent_id: str | None = None
-    action: str = "create"       # create | repair | restore | import
+    action: str = "create"  # create | repair | restore | import
     repair_reason: str = ""
     failure_notes: str = ""
     generation_params: dict | None = None
-    outcome: str = "draft"       # draft | generated | failed | approved
+    outcome: str = "draft"  # draft | generated | failed | approved
 
 
 @router.get("/prompt-history")
@@ -171,9 +184,7 @@ def list_prompt_history(
     limit: int = 100,
 ):
     """List prompt-history entries (newest first), optionally filtered."""
-    return database.get_prompt_history(
-        track_filename=track_filename, section=section, limit=limit
-    )
+    return database.get_prompt_history(track_filename=track_filename, section=section, limit=limit)
 
 
 @router.get("/prompt-history/{entry_id}/chain")
@@ -216,12 +227,14 @@ def list_saved_scenes():
         if filename.endswith(".js"):
             filepath = output_dir / filename
             stat = filepath.stat()
-            scenes.append({
-                "filename": filename,
-                "path": str(filepath),
-                "size": stat.st_size,
-                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            })
+            scenes.append(
+                {
+                    "filename": filename,
+                    "path": str(filepath),
+                    "size": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
     return {"scenes": scenes}
 
 
@@ -484,6 +497,7 @@ def import_tracks(body: ImportTracksRequest):
             duration = 0
             try:
                 from mutagen.mp3 import MP3
+
                 audio = MP3(filepath)
                 duration = audio.info.length
             except Exception:
@@ -541,9 +555,19 @@ def import_tracks_from_csv(body: ImportTracksFromCsvRequest):
 
             # Determine artist
             artist = ""
-            if any(kw in track_name for kw in ["Signal", "Before the Fade", "Still I Rise",
-                                                  "Borrowed Flame", "Won't Ride", "Take the Crown",
-                                                  "Built by Fire", "System Override"]):
+            if any(
+                kw in track_name
+                for kw in [
+                    "Signal",
+                    "Before the Fade",
+                    "Still I Rise",
+                    "Borrowed Flame",
+                    "Won't Ride",
+                    "Take the Crown",
+                    "Built by Fire",
+                    "System Override",
+                ]
+            ):
                 artist = "NeoCortext"
             elif "Learning How to Stay" in track_name:
                 artist = "NeoCortext"
@@ -607,7 +631,9 @@ def cleanup_incomplete_scenes(body: CleanupIncompleteScenesRequest):
     for filename in output_dir.iterdir():
         if filename.name.endswith(".js") and filename.name.startswith(safe_track):
             stat = filename.stat()
-            matching.append({"filename": filename.name, "path": str(filename), "size": stat.st_size})
+            matching.append(
+                {"filename": filename.name, "path": str(filename), "size": stat.st_size}
+            )
 
     # Sort by size (largest first), keep top N, delete the rest
     matching.sort(key=operator.itemgetter("size"), reverse=True)
@@ -623,6 +649,7 @@ def cleanup_incomplete_scenes(body: CleanupIncompleteScenesRequest):
 
 
 # Ollama Analysis Response Endpoints
+
 
 @router.post("/ollama-analysis")
 def save_ollama_analysis(body: SaveOllamaAnalysisRequest):

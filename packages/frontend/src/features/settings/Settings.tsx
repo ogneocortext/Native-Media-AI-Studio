@@ -13,7 +13,19 @@
  * decision-log D6); the frontend falls back to 5174 when 5173 is occupied, the
  * backend to 8001 when 8000 is occupied. Do not hardcode ports in this page.
  */
-import { Check, FolderOpen, Link2, Save, Server, Workflow, Moon, Sun, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  Check,
+  FolderOpen,
+  Link2,
+  Save,
+  Server,
+  Workflow,
+  Moon,
+  Sun,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { Card, StatusBadge } from "../../components/common";
 
@@ -104,11 +116,14 @@ export function Settings() {
     void loadSettings();
   }, []);
 
-  const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    setHasUnsavedChanges(true);
-    setSaved(false);
-  }, []);
+  const updateSetting = useCallback(
+    <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+      setSettings((prev) => ({ ...prev, [key]: value }));
+      setHasUnsavedChanges(true);
+      setSaved(false);
+    },
+    [],
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -145,7 +160,10 @@ export function Settings() {
 
   const testConnection = async (url: string, type: "comfyui" | "ollama") => {
     const key = `${type}-${url}`;
-    setConnectionTests((prev) => ({ ...prev, [key]: { status: "testing", message: "Testing..." } }));
+    setConnectionTests((prev) => ({
+      ...prev,
+      [key]: { status: "testing", message: "Testing..." },
+    }));
     try {
       const data: IntegrationStatus = await getIntegrationStatus(type);
       setConnectionTests((prev) => ({
@@ -266,12 +284,14 @@ export function Settings() {
               </div>
               {connectionTests[`comfyui-${settings.comfyui_url}`].status === "success" && (
                 <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-                  <CheckCircle2 size={12} /> {connectionTests[`comfyui-${settings.comfyui_url}`].message}
+                  <CheckCircle2 size={12} />{" "}
+                  {connectionTests[`comfyui-${settings.comfyui_url}`].message}
                 </p>
               )}
               {connectionTests[`comfyui-${settings.comfyui_url}`].status === "error" && (
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                  <AlertCircle size={12} /> {connectionTests[`comfyui-${settings.comfyui_url}`].message}
+                  <AlertCircle size={12} />{" "}
+                  {connectionTests[`comfyui-${settings.comfyui_url}`].message}
                 </p>
               )}
               <p className="text-xs text-muted mt-1">
@@ -358,12 +378,14 @@ export function Settings() {
               </div>
               {connectionTests[`ollama-${settings.ollama_url}`].status === "success" && (
                 <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-                  <CheckCircle2 size={12} /> {connectionTests[`ollama-${settings.ollama_url}`].message}
+                  <CheckCircle2 size={12} />{" "}
+                  {connectionTests[`ollama-${settings.ollama_url}`].message}
                 </p>
               )}
               {connectionTests[`ollama-${settings.ollama_url}`].status === "error" && (
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                  <AlertCircle size={12} /> {connectionTests[`ollama-${settings.ollama_url}`].message}
+                  <AlertCircle size={12} />{" "}
+                  {connectionTests[`ollama-${settings.ollama_url}`].message}
                 </p>
               )}
               <p className="text-xs text-muted mt-1">Base Ollama server for LLM text generation</p>
@@ -433,14 +455,12 @@ export function Settings() {
                 </div>
                 {connectionTests["atomic-chat"].status === "success" && (
                   <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-                    <CheckCircle2 size={12} />{" "}
-                    {connectionTests["atomic-chat"].message}
+                    <CheckCircle2 size={12} /> {connectionTests["atomic-chat"].message}
                   </p>
                 )}
                 {connectionTests["atomic-chat"].status === "error" && (
                   <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                    <AlertCircle size={12} />{" "}
-                    {connectionTests["atomic-chat"].message}
+                    <AlertCircle size={12} /> {connectionTests["atomic-chat"].message}
                   </p>
                 )}
                 <p className="text-xs text-muted mt-1">
@@ -520,7 +540,7 @@ export function Settings() {
               className="select"
               aria-label="Log level"
               value={settings.log_level}
-                onChange={(e) => updateSetting("log_level", e.target.value)}
+              onChange={(e) => updateSetting("log_level", e.target.value)}
             >
               <option value="DEBUG">Debug</option>
               <option value="INFO">Info</option>
@@ -678,10 +698,7 @@ function NotificationPreferencesCard() {
             />
           </div>
         )}
-        <PushNotificationRow
-          preferences={preferences}
-          setPreferences={setPreferences}
-        />
+        <PushNotificationRow preferences={preferences} setPreferences={setPreferences} />
         <button
           className={`btn w-full ${saved ? "btn-primary" : "btn-secondary"}`}
           onClick={handleSave}
@@ -768,9 +785,9 @@ function PushNotificationRow({
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
       subscription ??= await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: base64ToUint8Array(vapidKey),
-        });
+        userVisibleOnly: true,
+        applicationServerKey: base64ToUint8Array(vapidKey),
+      });
       // toJSON() already yields the standard PushSubscriptionJSON wire format
       // (base64url keys) — pass it through rather than decode/re-encode
       // round-trips, which also risk a stack overflow spreading large key arrays.
@@ -840,11 +857,7 @@ function PushNotificationRow({
       <div className="flex items-center gap-2">
         {status && <span className="text-xs text-muted">{status}</span>}
         {preferences.push.subscribed ? (
-          <button
-            className="btn btn-secondary text-xs"
-            onClick={unsubscribe}
-            disabled={loading}
-          >
+          <button className="btn btn-secondary text-xs" onClick={unsubscribe} disabled={loading}>
             {loading ? "..." : "Disable"}
           </button>
         ) : (

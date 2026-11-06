@@ -59,7 +59,9 @@ export function AudioLatencyCard({ audioCtxRef }: AudioLatencyCardProps) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Total Latency</span>
-          <span className={`text-sm font-bold tabular-nums ${getLatencyColor(metrics.totalLatency)}`}>
+          <span
+            className={`text-sm font-bold tabular-nums ${getLatencyColor(metrics.totalLatency)}`}
+          >
             {metrics.totalLatency.toFixed(1)} ms
           </span>
         </div>
@@ -77,9 +79,7 @@ export function AudioLatencyCard({ audioCtxRef }: AudioLatencyCardProps) {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Sample Rate</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {metrics.sampleRate} Hz
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{metrics.sampleRate} Hz</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">State</span>

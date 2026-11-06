@@ -103,7 +103,7 @@ export function InstancedParticles({
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
-          uniforms: {
+        uniforms: {
           uTexture: { value: getParticleTex() },
           uTime: { value: 0 },
           uBass: { value: 0 },

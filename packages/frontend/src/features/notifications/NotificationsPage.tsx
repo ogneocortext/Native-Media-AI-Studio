@@ -14,7 +14,9 @@ function notificationTitle(item: NotificationItem): string {
       const status = typeof data?.status === "string" ? data.status : "changed";
       return `System health: ${status}`;
     }
-    case null: { throw new Error('Not implemented yet: null case') }
+    case null: {
+      throw new Error("Not implemented yet: null case");
+    }
     default:
       break;
   }
@@ -111,18 +113,14 @@ export function NotificationsPage() {
             >
               <div className="notification-item-full-body">
                 <div className="notification-item-full-head">
-                  <span className="notification-item-type-chip">
-                    {item.type ?? "event"}
-                  </span>
+                  <span className="notification-item-type-chip">{item.type ?? "event"}</span>
                   {item.timestamp && (
                     <span className="notification-item-meta">
                       {new Date(item.timestamp).toLocaleString()}
                     </span>
                   )}
                 </div>
-                <div className="notification-item-message">
-                  {notificationTitle(item)}
-                </div>
+                <div className="notification-item-message">{notificationTitle(item)}</div>
                 {summary.length > 0 && (
                   <div className="notification-item-summary">{summary.join(" · ")}</div>
                 )}

@@ -89,10 +89,7 @@ describe("onboarding state machine", () => {
   });
 
   it("retries from the error branch back into analysis, keeping the track", () => {
-    let s = analysisFailed(
-      trackSelected(INITIAL_STATE, "track.wav"),
-      "boom",
-    );
+    let s = analysisFailed(trackSelected(INITIAL_STATE, "track.wav"), "boom");
     s = retry(s);
     expect(s.step).toBe("analyzing");
     expect(s.filename).toBe("track.wav");
@@ -107,11 +104,15 @@ describe("onboarding state machine", () => {
 
   it("startOver resets everything", () => {
     let s = renderSucceeded(
-      renderStarted(lookAccepted(analysisSucceeded(
-        trackSelected(INITIAL_STATE, "t.wav"),
-        { text: "r", visualization: "v", confidence: 1 },
-        { start: 0, end: 10 },
-      ))),
+      renderStarted(
+        lookAccepted(
+          analysisSucceeded(
+            trackSelected(INITIAL_STATE, "t.wav"),
+            { text: "r", visualization: "v", confidence: 1 },
+            { start: 0, end: 10 },
+          ),
+        ),
+      ),
       "/out.mp4",
     );
     expect(s.step).toBe("done");
@@ -130,11 +131,15 @@ describe("onboarding state machine", () => {
 
   it("allows rendering to start from the error branch (retry the render)", () => {
     const s = renderFailed(
-      renderStarted(lookAccepted(analysisSucceeded(
-        trackSelected(INITIAL_STATE, "t.wav"),
-        { text: "r", visualization: "v", confidence: 1 },
-        { start: 0, end: 10 },
-      ))),
+      renderStarted(
+        lookAccepted(
+          analysisSucceeded(
+            trackSelected(INITIAL_STATE, "t.wav"),
+            { text: "r", visualization: "v", confidence: 1 },
+            { start: 0, end: 10 },
+          ),
+        ),
+      ),
       "encoder died",
     );
     expect(s.step).toBe("error");

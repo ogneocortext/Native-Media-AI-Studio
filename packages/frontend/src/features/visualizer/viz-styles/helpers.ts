@@ -79,19 +79,20 @@ export function getStemEnergy(
 ): { vocals: number; drums: number; bass: number; other: number } {
   if (!stems) return { vocals: 0, drums: 0, bass: 0, other: 0 };
 
-  function sampleOne(
-    curve: number[] | undefined,
-    duration: number | undefined,
-  ): number {
-    if (!curve || curve.length === 0 || !Number.isFinite(elapsed) || !duration || duration <= 0) return 0;
-    const idx = Math.min(curve.length - 1, Math.max(0, Math.floor((elapsed / duration) * curve.length)));
+  function sampleOne(curve: number[] | undefined, duration: number | undefined): number {
+    if (!curve || curve.length === 0 || !Number.isFinite(elapsed) || !duration || duration <= 0)
+      return 0;
+    const idx = Math.min(
+      curve.length - 1,
+      Math.max(0, Math.floor((elapsed / duration) * curve.length)),
+    );
     return Math.min(1, Math.max(0, curve[idx] ?? 0));
   }
 
   return {
     vocals: sampleOne(stems.vocals?.energy_curve, stems.vocals?.duration),
-    drums:  sampleOne(stems.drums?.energy_curve,  stems.drums?.duration),
-    bass:   sampleOne(stems.bass?.energy_curve,   stems.bass?.duration),
-    other:  sampleOne(stems.other?.energy_curve,  stems.other?.duration),
+    drums: sampleOne(stems.drums?.energy_curve, stems.drums?.duration),
+    bass: sampleOne(stems.bass?.energy_curve, stems.bass?.duration),
+    other: sampleOne(stems.other?.energy_curve, stems.other?.duration),
   };
 }

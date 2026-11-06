@@ -204,7 +204,10 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
       mainGainRef.current = null;
       eqRef.current = null;
       sourceRef.current = null;
-      if (ctx) ctx.close().catch(() => { void 0; });
+      if (ctx)
+        ctx.close().catch(() => {
+          void 0;
+        });
     };
   }, []);
 

@@ -129,7 +129,10 @@ interface GenerationPreset {
   name: string;
   description: string;
   icon: React.ReactNode;
-  settings: Pick<GenerationOptions, "steps" | "cfgScale" | "width" | "height" | "sampler" | "scheduler">;
+  settings: Pick<
+    GenerationOptions,
+    "steps" | "cfgScale" | "width" | "height" | "sampler" | "scheduler"
+  >;
   color: string;
 }
 
@@ -139,7 +142,14 @@ const presets: GenerationPreset[] = [
     name: "Quick Preview",
     description: "Fast iteration, low quality",
     icon: <Zap size={16} />,
-    settings: { steps: 10, cfgScale: 5, width: 512, height: 512, sampler: "Euler a", scheduler: "normal" },
+    settings: {
+      steps: 10,
+      cfgScale: 5,
+      width: 512,
+      height: 512,
+      sampler: "Euler a",
+      scheduler: "normal",
+    },
     color: "amber",
   },
   {
@@ -147,7 +157,14 @@ const presets: GenerationPreset[] = [
     name: "Standard",
     description: "Balanced speed and quality",
     icon: <Square size={16} />,
-    settings: { steps: 30, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras", scheduler: "karras" },
+    settings: {
+      steps: 30,
+      cfgScale: 6,
+      width: 768,
+      height: 512,
+      sampler: "DPM++ 2M Karras",
+      scheduler: "karras",
+    },
     color: "blue",
   },
   {
@@ -155,7 +172,14 @@ const presets: GenerationPreset[] = [
     name: "High Quality",
     description: "Detailed, slower generation",
     icon: <Gem size={16} />,
-    settings: { steps: 40, cfgScale: 6, width: 768, height: 512, sampler: "DPM++ 2M Karras", scheduler: "karras" },
+    settings: {
+      steps: 40,
+      cfgScale: 6,
+      width: 768,
+      height: 512,
+      sampler: "DPM++ 2M Karras",
+      scheduler: "karras",
+    },
     color: "purple",
   },
   {
@@ -163,7 +187,14 @@ const presets: GenerationPreset[] = [
     name: "Portrait",
     description: "512 x 768 — vertical images",
     icon: <RectangleVertical size={16} />,
-    settings: { steps: 25, cfgScale: 7, width: 512, height: 768, sampler: "Euler a", scheduler: "normal" },
+    settings: {
+      steps: 25,
+      cfgScale: 7,
+      width: 512,
+      height: 768,
+      sampler: "Euler a",
+      scheduler: "normal",
+    },
     color: "pink",
   },
   {
@@ -171,7 +202,14 @@ const presets: GenerationPreset[] = [
     name: "Landscape",
     description: "768 x 512 — wide images",
     icon: <RectangleHorizontal size={16} />,
-    settings: { steps: 25, cfgScale: 7, width: 768, height: 512, sampler: "Euler a", scheduler: "normal" },
+    settings: {
+      steps: 25,
+      cfgScale: 7,
+      width: 768,
+      height: 512,
+      sampler: "Euler a",
+      scheduler: "normal",
+    },
     color: "emerald",
   },
   {
@@ -179,7 +217,14 @@ const presets: GenerationPreset[] = [
     name: "Maximum",
     description: "Best quality, very slow",
     icon: <Crown size={16} />,
-    settings: { steps: 50, cfgScale: 7, width: 1024, height: 1024, sampler: "DPM++ 2M", scheduler: "karras" },
+    settings: {
+      steps: 50,
+      cfgScale: 7,
+      width: 1024,
+      height: 1024,
+      sampler: "DPM++ 2M",
+      scheduler: "karras",
+    },
     color: "red",
   },
 ];
@@ -251,13 +296,17 @@ export function ImageGeneration() {
   const [promptId, setPromptId] = useState<string | null>(null);
   const [models, setModels] = useState<CheckpointModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
-  const [comfyUiStatus, setComfyUiStatus] = useState<{ running: boolean; port?: number } | null>(null);
+  const [comfyUiStatus, setComfyUiStatus] = useState<{ running: boolean; port?: number } | null>(
+    null,
+  );
 
   // Fetch ComfyUI status so we can show a Start button inline when it's offline.
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch("/api/services/comfyui/status", { signal: AbortSignal.timeout(5000) });
+        const res = await fetch("/api/services/comfyui/status", {
+          signal: AbortSignal.timeout(5000),
+        });
         if (res.ok) {
           const data = await res.json();
           setComfyUiStatus({ running: data.running ?? false, port: data.port });
@@ -299,7 +348,9 @@ export function ImageGeneration() {
           );
         }
       })
-      .catch(() => { void 0; })
+      .catch(() => {
+        void 0;
+      })
       .finally(() => setLoadingModels(false));
   }, []);
 
@@ -525,9 +576,8 @@ export function ImageGeneration() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-amber-200">ComfyUI is offline</p>
             <p className="text-xs text-amber-300/80">
-              Image generation will fail until ComfyUI is running on port{
-                comfyUiStatus.port ? ` ${comfyUiStatus.port}` : ""
-              }.
+              Image generation will fail until ComfyUI is running on port
+              {comfyUiStatus.port ? ` ${comfyUiStatus.port}` : ""}.
             </p>
           </div>
           <button
@@ -701,7 +751,9 @@ export function ImageGeneration() {
                   className="rounded border-gray-600 bg-gray-700 text-violet-500 focus:ring-violet-500"
                 />
                 <label className="text-sm text-foreground">LLM prompt enrichment</label>
-                <span className="text-xs text-muted ml-2">Uses Ollama to expand your prompt before generation</span>
+                <span className="text-xs text-muted ml-2">
+                  Uses Ollama to expand your prompt before generation
+                </span>
               </div>
             </div>
           </Card>
@@ -724,9 +776,7 @@ export function ImageGeneration() {
               ].map((ratio) => (
                 <button
                   key={ratio.label}
-                  onClick={() =>
-                    setOptions({ ...options, width: ratio.w, height: ratio.h })
-                  }
+                  onClick={() => setOptions({ ...options, width: ratio.w, height: ratio.h })}
                   className={`p-2 rounded-lg border text-center transition-all duration-200 text-xs font-medium ${
                     options.width === ratio.w && options.height === ratio.h
                       ? "border-accent bg-accent/20 text-accent shadow-sm"

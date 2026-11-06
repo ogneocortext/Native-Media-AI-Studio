@@ -74,7 +74,12 @@ export function FractalViz({
       if (!ring) return;
       const freq = i % 3 === 0 ? bass : i % 3 === 1 ? mid : treble;
       const scale =
-        0.5 + i * 0.7 + freq * 0.5 + beatPulse.current * 0.3 + snap * 0.4 + stemEnergyRef.current.bass * 0.25;
+        0.5 +
+        i * 0.7 +
+        freq * 0.5 +
+        beatPulse.current * 0.3 +
+        snap * 0.4 +
+        stemEnergyRef.current.bass * 0.25;
       ring.scale.setScalar(scale);
       ring.rotation.x =
         rotRef.current * (i + 1) * 0.3 +
@@ -96,7 +101,12 @@ export function FractalViz({
         const m = ring.material as THREE.MeshStandardMaterial;
         m.emissiveIntensity =
           0.3 +
-          rolloff(freq * vizParams.glowIntensity * 2 + beatPulse.current * 1.5 + stemEnergyRef.current.drums * 0.8, 1.0);
+          rolloff(
+            freq * vizParams.glowIntensity * 2 +
+              beatPulse.current * 1.5 +
+              stemEnergyRef.current.drums * 0.8,
+            1.0,
+          );
         m.color.setHSL(
           eHue + i * 0.05 + features.brightness * 0.2 + stemEnergyRef.current.vocals * 0.08,
           0.8,

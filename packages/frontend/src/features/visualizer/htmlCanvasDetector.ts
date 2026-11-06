@@ -110,10 +110,7 @@ export async function detectHtmlInCanvasSupport(): Promise<boolean> {
   htmlInCanvasProbe = (async () => {
     try {
       // Check for drawHTML method on CanvasRenderingContext2D
-      if (
-        typeof document === "undefined" ||
-        !document.createElement("canvas").getContext
-      ) {
+      if (typeof document === "undefined" || !document.createElement("canvas").getContext) {
         return false;
       }
 

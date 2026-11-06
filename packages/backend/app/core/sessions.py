@@ -53,9 +53,15 @@ def get_session(session_id: str) -> dict[str, Any] | None:
 def update_session(session_id: str, **kwargs: Any) -> None:
     """Update a generation session."""
     allowed_fields = {
-        "status", "config", "selected_visuals", "output_path",
-        "total_frames", "generated_frames", "estimated_time_seconds",
-        "actual_time_seconds", "completed_at",
+        "status",
+        "config",
+        "selected_visuals",
+        "output_path",
+        "total_frames",
+        "generated_frames",
+        "estimated_time_seconds",
+        "actual_time_seconds",
+        "completed_at",
     }
 
     updates = {k: v for k, v in kwargs.items() if k in allowed_fields}

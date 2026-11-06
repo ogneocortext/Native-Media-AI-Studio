@@ -27,9 +27,7 @@ export function MasterChannel({
   return (
     <div className="flex flex-col items-center gap-1 p-2 rounded-xl border border-red-500/20 bg-red-950/10 min-w-[72px]">
       {/* Header */}
-      <span className="text-[11px] font-bold uppercase tracking-wider text-red-400">
-        Master
-      </span>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-red-400">Master</span>
 
       {/* VU Meter */}
       <div className="w-4 h-28 bg-white/5 rounded-full overflow-hidden relative">
@@ -38,11 +36,12 @@ export function MasterChannel({
           className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-75"
           style={{
             height: `${Math.min(100, meter.rms * 250)}%`,
-            background: meter.dBFS > -3
-              ? "linear-gradient(to top, #ef4444, #dc2626)"
-              : meter.dBFS > -12
-                ? "linear-gradient(to top, #f59e0b, #ef4444)"
-                : "linear-gradient(to top, #22c55e88, #22c55e44)",
+            background:
+              meter.dBFS > -3
+                ? "linear-gradient(to top, #ef4444, #dc2626)"
+                : meter.dBFS > -12
+                  ? "linear-gradient(to top, #f59e0b, #ef4444)"
+                  : "linear-gradient(to top, #22c55e88, #22c55e44)",
           }}
         />
         {/* Peak hold */}
@@ -51,8 +50,16 @@ export function MasterChannel({
           style={{ bottom: `${Math.min(100, meter.peak * 250)}%` }}
         />
         {/* -12dB / -6dB marks */}
-        <div className="absolute left-0 right-0 h-px bg-white/20" style={{ bottom: "20%" }} title="-12 dBFS" />
-        <div className="absolute left-0 right-0 h-px bg-white/20" style={{ bottom: "40%" }} title="-6 dBFS" />
+        <div
+          className="absolute left-0 right-0 h-px bg-white/20"
+          style={{ bottom: "20%" }}
+          title="-12 dBFS"
+        />
+        <div
+          className="absolute left-0 right-0 h-px bg-white/20"
+          style={{ bottom: "40%" }}
+          title="-6 dBFS"
+        />
       </div>
 
       {/* Volume fader */}

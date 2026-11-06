@@ -172,17 +172,11 @@ def load_config() -> AppConfig:
         data["comfyui_port"] = ports_data.get("comfyui_port", 8188)
         data["video_editor_port"] = ports_data.get("video_editor_port", 8080)
         data["ollama_url"] = ports_data.get("ollama_url", "http://127.0.0.1:11434")
-        data["atomic_chat_url"] = ports_data.get(
-            "atomic_chat_url", "http://127.0.0.1:1337"
-        )
-        data["go_dashboard_url"] = ports_data.get(
-            "go_dashboard_url", "http://127.0.0.1:3847"
-        )
+        data["atomic_chat_url"] = ports_data.get("atomic_chat_url", "http://127.0.0.1:1337")
+        data["go_dashboard_url"] = ports_data.get("go_dashboard_url", "http://127.0.0.1:3847")
         data["go_media_url"] = ports_data.get("go_media_url", "http://127.0.0.1:3848")
         data["go_worker_url"] = ports_data.get("go_worker_url", "http://127.0.0.1:3849")
-        data["go_gateway_url"] = ports_data.get(
-            "go_gateway_url", "http://127.0.0.1:3850"
-        )
+        data["go_gateway_url"] = ports_data.get("go_gateway_url", "http://127.0.0.1:3850")
         data["go_ports_url"] = ports_data.get("go_ports_url", "http://127.0.0.1:3851")
 
     # atomic_chat_enabled is a user feature flag saved to settings.json via

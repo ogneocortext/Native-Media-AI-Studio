@@ -74,7 +74,9 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
       }
       onApplyPreset(preset);
       // bump usage count
-      fetch(`/api/integrations/ollama/visualizer/preset/${p.track_hash}`).catch(() => { void 0; });
+      fetch(`/api/integrations/ollama/visualizer/preset/${p.track_hash}`).catch(() => {
+        void 0;
+      });
       showToast(`Applied "${p.preset_name}"`, "success");
     },
     [onApplyPreset],

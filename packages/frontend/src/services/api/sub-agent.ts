@@ -70,9 +70,7 @@ export interface SubAgentEvent {
   timestamp?: string;
 }
 
-export async function runSubAgentTask(
-  request: SubAgentRunRequest,
-): Promise<SubAgentRunResponse> {
+export async function runSubAgentTask(request: SubAgentRunRequest): Promise<SubAgentRunResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/sub-agent/run`, {
     method: "POST",
@@ -102,9 +100,7 @@ export async function cancelSubAgentTask(
   return res.json();
 }
 
-export async function getSubAgentTaskStatus(
-  taskId: string,
-): Promise<SubAgentTask> {
+export async function getSubAgentTaskStatus(taskId: string): Promise<SubAgentTask> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/sub-agent/status/${taskId}`, {
     timeout: 10000,

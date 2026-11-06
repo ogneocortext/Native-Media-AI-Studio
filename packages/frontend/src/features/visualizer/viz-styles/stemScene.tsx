@@ -80,8 +80,7 @@ export function StemScene({
     // scene is never empty on an unseparated track.
     const stem = getStemEnergy(stems, elapsed);
     const hasStems =
-      stems != null &&
-      (stems.vocals ?? stems.drums ?? stems.bass ?? stems.other) != null;
+      stems != null && (stems.vocals ?? stems.drums ?? stems.bass ?? stems.other) != null;
     const eDrums = hasStems ? stem.drums : Math.min(1, d.treble * 0.8 + d.energy * 0.3);
     const eBass = hasStems ? stem.bass : d.bass;
     const eVocals = hasStems ? stem.vocals : d.mid;
@@ -110,7 +109,9 @@ export function StemScene({
     }
     if (vocalWireRef.current) {
       vocalWireRef.current.scale.copy(vocalRef.current?.scale ?? vocalWireRef.current.scale);
-      vocalWireRef.current.rotation.copy(vocalRef.current?.rotation ?? vocalWireRef.current.rotation);
+      vocalWireRef.current.rotation.copy(
+        vocalRef.current?.rotation ?? vocalWireRef.current.rotation,
+      );
     }
 
     // ── Drums: percussive blocks striking in a staggered arc ──────────────

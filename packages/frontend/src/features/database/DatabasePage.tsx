@@ -217,11 +217,7 @@ export function DatabasePage() {
           </p>
         </div>
         <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
-          {loading ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <RefreshCw size={16} />
-          )}
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
@@ -353,8 +349,8 @@ export function DatabasePage() {
           </div>
         ) : (
           <p className="text-sm text-muted">
-            Quick check scans the schema and b-tree structure; the full check walks every page
-            and can take considerably longer on a large file.
+            Quick check scans the schema and b-tree structure; the full check walks every page and
+            can take considerably longer on a large file.
           </p>
         )}
       </Card>
@@ -384,7 +380,10 @@ export function DatabasePage() {
           </div>
           {lastRun ? (
             <div className="text-xs text-muted">
-              Last run: <span className="text-white">{ACTION_LABELS[lastRun.action as DatabaseMaintenanceAction] ?? lastRun.action}</span>{" "}
+              Last run:{" "}
+              <span className="text-white">
+                {ACTION_LABELS[lastRun.action as DatabaseMaintenanceAction] ?? lastRun.action}
+              </span>{" "}
               in {lastRun.duration_ms} ms
               {lastRun.freed_bytes > 0 && <> · freed {formatBytes(lastRun.freed_bytes)}</>}
               {pruned !== null && <> · removed {pruned.toLocaleString()} rows</>}
@@ -393,8 +392,8 @@ export function DatabasePage() {
             </div>
           ) : (
             <p className="text-xs text-muted">
-              VACUUM rewrites the database file; the pruners delete rows outside their
-              retention window. Every action is safe to re-run.
+              VACUUM rewrites the database file; the pruners delete rows outside their retention
+              window. Every action is safe to re-run.
             </p>
           )}
         </div>

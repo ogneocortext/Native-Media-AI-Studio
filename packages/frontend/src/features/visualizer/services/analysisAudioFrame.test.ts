@@ -43,7 +43,17 @@ function analysis(over: Partial<AudioAnalysisData> = {}): AudioAnalysisData {
 
 /** One sampled spectral frame: what `useSpectralTimeline` hands over. */
 function spectralFrame(over: Partial<SpectralFrame> = {}): SpectralFrame {
-  return { frame: 0, time: 0, sub: 0.8, mid: 0.2, high: 0.05, transient: 1, centroid: 0.1, rms: 0.6, ...over };
+  return {
+    frame: 0,
+    time: 0,
+    sub: 0.8,
+    mid: 0.2,
+    high: 0.05,
+    transient: 1,
+    centroid: 0.1,
+    rms: 0.6,
+    ...over,
+  };
 }
 
 /** Mean byte inside a band, in the analyser's 0..255 unit. */
@@ -312,7 +322,7 @@ describe("synthWaveform", () => {
     const crossings = (b: Uint8Array) => {
       let n = 0;
       for (let i = 1; i < b.length; i++) {
-        if ((b[i - 1] < 128) !== (b[i] < 128)) n++;
+        if (b[i - 1] < 128 !== b[i] < 128) n++;
       }
       return n;
     };

@@ -1,4 +1,5 @@
 """HyperFrames API routes."""
+
 from __future__ import annotations
 
 import logging
@@ -16,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/hyperframes", tags=["HyperFrames"])
 
-HYPERFRAMES_PROJECT = Path(__file__).resolve().parents[4] / "tools" / "hyperframes-built-this-from-a-dream"
+HYPERFRAMES_PROJECT = (
+    Path(__file__).resolve().parents[4] / "tools" / "hyperframes-built-this-from-a-dream"
+)
 # HyperFrames CLI invocation.
 #
 # npx downloads and executes arbitrary code from the npm registry with no
@@ -80,7 +83,8 @@ async def _run_hyperframes_async(args: list[str], cwd: Path | None = None) -> di
     try:
         proc = await run_subprocess_thread(
             cmd,
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             cwd=str(cwd or HYPERFRAMES_PROJECT),
             capture_output=True,
             text=True,
@@ -105,6 +109,7 @@ async def _run_hyperframes_async(args: list[str], cwd: Path | None = None) -> di
 
 class CompileStoryboardRequest(BaseModel):
     """Request to compile a storyboard into a HyperFrames composition."""
+
     storyboard: dict[str, Any]
     name: str = Field(default="storyboard", min_length=1, max_length=80)
     title: str | None = None
@@ -147,7 +152,8 @@ async def hyperframes_status() -> dict[str, Any]:
     try:
         proc = await run_subprocess_thread(
             _hyperframes_cmd(["--version"]),
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             text=True,
             timeout=30,
@@ -196,7 +202,8 @@ async def hyperframes_preview() -> dict[str, Any]:
     try:
         proc = await run_subprocess_thread(
             _hyperframes_cmd(["preview"]),
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             cwd=str(HYPERFRAMES_PROJECT),
             capture_output=True,
             text=True,
@@ -239,12 +246,18 @@ async def hyperframes_render(
     out = Path(output or str(HYPERFRAMES_CACHE_DIR / "render.mp4"))
     args = [
         "render",
-        "--composition", composition,
-        "--format", format,
-        "--fps", str(fps),
-        "--quality", quality,
-        "--workers", workers,
-        "--output", str(out),
+        "--composition",
+        composition,
+        "--format",
+        format,
+        "--fps",
+        str(fps),
+        "--quality",
+        quality,
+        "--workers",
+        workers,
+        "--output",
+        str(out),
     ]
     env = os.environ.copy()
     env["HYPERFRAMES_EXTRACT_CACHE_DIR"] = str(HYPERFRAMES_CACHE_DIR)

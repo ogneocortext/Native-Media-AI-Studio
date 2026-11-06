@@ -35,12 +35,14 @@ import json
 import logging
 import math
 import operator
+import re
 import sqlite3
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from typing import Any
 
-from ..core.config import config
+from ..core.config import PROJECT_ROOT, config
 from ..core.connection import DB_PATH
 from ..core.ollama_client import embed_text, embed_text_batch_concurrent
 from .doc_search_index import tokenize as bm25_tokenize
@@ -51,16 +53,22 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-EMBED_MODEL = config.embedding_model          # nomic-embed-text:v1.5
-RERANK_MODEL = "BAAI/bge-reranker-v2-m3"      # cross-encoder reranker (HuggingFace ID)
-VECTOR_MODEL_ALT = "embeddinggemma-2:270m"    # alternative embedder
+EMBED_MODEL = config.embedding_model  # nomic-embed-text:v1.5
+RERANK_MODEL = "BAAI/bge-reranker-v2-m3"  # cross-encoder reranker (HuggingFace ID)
+VECTOR_MODEL_ALT = "embeddinggemma-2:270m"  # alternative embedder
 
-CHUNK_SIZE = 512          # tokens per chunk (respects embedding context)
-CHUNK_OVERLAP = 64        # token overlap between chunks
-RRF_K = 60                # RRF constant (standard; within 4 MRR points of optimal)
-TOP_K_CANDIDATES = 50     # per-retriever depth before fusion/rerank (sweet spot: 50-100)
-TOP_K_FINAL = 5           # final results after rerank (research: 3-5 is optimal for LLM context)
-EMBED_DIM = 768           # nomic-embed-text / bge-reranker output dim
+CHUNK_SIZE = 512  # tokens per chunk (respects embedding context)
+CHUNK_OVERLAP = 64  # token overlap between chunks
+RRF_K = 60  # RRF constant (standard; within 4 MRR points of optimal)
+TOP_K_CANDIDATES = 50  # per-retriever depth before fusion/rerank (sweet spot: 50-100)
+TOP_K_FINAL = 5  # final results after rerank (research: 3-5 is optimal for LLM context)
+EMBED_DIM = 768  # nomic-embed-text / bge-reranker output dim
+
+# Docs corpus roots shared with the retrieval API. Kept in the service layer
+# so services never import from app.api (layering rule: api -> services, never
+# the reverse). _scan_docs_for_indexing lives here for the same reason.
+DOCS_ROOT = PROJECT_ROOT / "docs"
+VAULT_ROOT = DOCS_ROOT / "knowledge-library"
 
 # -- Cross-encoder tuning ----------------------------------------------------
 
@@ -142,7 +150,12 @@ def _get_reranker() -> tuple[object, object] | None:
     On first successful load, runs a warm-up inference to avoid cold-start
     latency spikes on the first real query.
     """
-    global _reranker_model, _reranker_tokenizer, _reranker_device, _reranker_available, _reranker_warmed_up
+    global \
+        _reranker_model, \
+        _reranker_tokenizer, \
+        _reranker_device, \
+        _reranker_available, \
+        _reranker_warmed_up
 
     if _reranker_model is not None:
         return _reranker_model, _reranker_tokenizer
@@ -192,13 +205,13 @@ def _get_reranker() -> tuple[object, object] | None:
             _reranker_warmup(_reranker_model, _reranker_tokenizer, _reranker_device)
             _reranker_warmed_up = True
         except Exception as warm_exc:
-            logger.warning(
-                "Reranker warm-up failed (non-fatal): %s", warm_exc
-            )
+            logger.warning("Reranker warm-up failed (non-fatal): %s", warm_exc)
 
         logger.info(
             "Reranker loaded: %s (device=%s, warmed_up=%s)",
-            RERANK_MODEL, _reranker_device, _reranker_warmed_up,
+            RERANK_MODEL,
+            _reranker_device,
+            _reranker_warmed_up,
         )
         return _reranker_model, _reranker_tokenizer
     except Exception as exc:
@@ -236,9 +249,7 @@ def _sigmoid(x: float) -> float:
     return math.exp(x) / (1.0 + math.exp(x))
 
 
-def _rerank_cross_encoder(
-    query: str, candidates: list[tuple[str, str]]
-) -> list[tuple[str, float]]:
+def _rerank_cross_encoder(query: str, candidates: list[tuple[str, str]]) -> list[tuple[str, float]]:
     """Score (query, passage) pairs jointly with a cross-encoder.
 
     A cross-encoder reads the query and passage together and emits a
@@ -294,10 +305,100 @@ def _rerank_cross_encoder(
                 # Two-logit head (query / relevance): take the difference.
                 row = logits[:, -1] - logits[:, 0]
             scores.extend(float(x) for x in row.cpu().tolist())
-
     scored = [(cid, s) for (cid, _), s in zip(candidates, scores, strict=True)]
     scored.sort(key=lambda kv: -kv[1])
     return scored
+
+
+def _scan_docs_for_indexing() -> list[dict[str, Any]]:
+    """Scan docs corpus and return chunk-ready entries.
+
+    Lives in the service layer (not ``app.api.retrieval``) so that
+    :meth:`RetrievalIndex.compute_content_hash` can call it without importing
+    from ``app.api``, which would invert the api -> services layering and
+    create an import cycle.
+    """
+    entries: list[dict[str, Any]] = []
+    if not DOCS_ROOT.exists():
+        return entries
+
+    seen: set[str] = set()
+    for p in list(DOCS_ROOT.rglob("*.md")) + list(VAULT_ROOT.glob("*.md")):
+        if ".obsidian" in p.parts:
+            continue
+        if "node_modules" in p.parts:
+            continue
+        key = p.resolve().as_posix()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        try:
+            rel = p.relative_to(DOCS_ROOT).as_posix()
+            in_vault = (
+                p.is_relative_to(VAULT_ROOT)
+                if hasattr(p, "is_relative_to")
+                else str(p).startswith(str(VAULT_ROOT))
+            )
+            try:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+                # Strip frontmatter for cleaner indexing
+                body = text
+                if text.startswith("---"):
+                    end = text.find("\n---", 3)
+                    if end != -1:
+                        body = text[end + 4 :].lstrip("\n")
+                # Title from first H1 or filename
+                m = re.search(r"^#\s+(.+)", body, re.MULTILINE)
+                title = (
+                    m.group(1).strip()[:80]
+                    if m
+                    else p.stem.replace("-", " ").replace("_", " ").title()
+                )
+                tags: list[str] = []
+                # Extract tags from frontmatter
+                if text.startswith("---"):
+                    end = text.find("\n---", 3)
+                    if end != -1:
+                        fm = text[3:end]
+                        for line in fm.splitlines():
+                            if line.strip().startswith("tags:"):
+                                v = line.split(":", 1)[1].strip()
+                                if v.startswith("["):
+                                    v = v.strip("[]")
+                                    tags = [
+                                        x.strip().strip('"').strip("'")
+                                        for x in v.split(",")
+                                        if x.strip()
+                                    ]
+                                else:
+                                    tags = [v.strip().strip('"').strip("'")]
+                                break
+
+                # Detect superseded documents by checking for superseded banner
+                is_superseded = "superseded" in text.lower() or "superseded" in body.lower()
+            except Exception:
+                continue
+
+            chunks = _split_text_into_chunks(body)
+            for i, chunk_text in enumerate(chunks):
+                entries.append(
+                    {
+                        "chunk_id": _chunk_id(rel, i),
+                        "doc_path": rel,
+                        "doc_title": title,
+                        "chunk_index": i,
+                        "text": chunk_text,
+                        "in_vault": in_vault,
+                        "tags": tags,
+                        "is_superseded": is_superseded,
+                    }
+                )
+        except Exception:
+            continue
+
+    return entries
+
 
 # ---------------------------------------------------------------------------
 # In-memory index (rebuilt on startup / reindex)
@@ -307,6 +408,7 @@ def _rerank_cross_encoder(
 @dataclass
 class IndexedChunk:
     """One indexed document chunk."""
+
     id: str
     doc_path: str
     doc_title: str
@@ -403,8 +505,6 @@ class RetrievalIndex:
         Re-scans the docs corpus and hashes all chunk texts. Returns a stable
         hex digest that changes when any doc is added, removed, or modified.
         """
-        from ..api.retrieval import _scan_docs_for_indexing
-
         entries = _scan_docs_for_indexing()
         # Sort by chunk_id for deterministic ordering
         entries.sort(key=operator.itemgetter("chunk_id"))
@@ -436,7 +536,9 @@ class RetrievalIndex:
 
     # -- BM25 search --------------------------------------------------------
 
-    def bm25_search(self, query: str, limit: int = TOP_K_CANDIDATES) -> list[tuple[str, float, set[str]]]:
+    def bm25_search(
+        self, query: str, limit: int = TOP_K_CANDIDATES
+    ) -> list[tuple[str, float, set[str]]]:
         """Return [(chunk_id, score, matched_terms)] ranked by BM25."""
         q_terms = bm25_tokenize(query)
         if not q_terms:
@@ -479,7 +581,8 @@ class RetrievalIndex:
         if not q_emb:
             logger.warning(
                 "Vector search unavailable: embedding model %s returned no vector "
-                "(or wrong dimension); falling back to BM25-only results", model,
+                "(or wrong dimension); falling back to BM25-only results",
+                model,
             )
             return []
 
@@ -492,7 +595,9 @@ class RetrievalIndex:
             if len(emb) != EMBED_DIM:
                 logger.warning(
                     "Stored embedding for %s has %d dims, expected %d; skipping",
-                    cid, len(emb), EMBED_DIM,
+                    cid,
+                    len(emb),
+                    EMBED_DIM,
                 )
                 continue
             d_norm = math.sqrt(sum(x * x for x in emb)) or 1.0
@@ -582,9 +687,7 @@ class RetrievalIndex:
 
             return scored or [(cid, 0.0) for cid, _ in candidates]
         except Exception as exc:
-            logger.warning(
-                "Reranker failed for query %r: %s; returning input order", query, exc
-            )
+            logger.warning("Reranker failed for query %r: %s; returning input order", query, exc)
             return [(cid, 0.0) for cid, _ in candidates]
 
     async def _mmr_rerank(
@@ -616,9 +719,7 @@ class RetrievalIndex:
         embeddings = await embed_text_batch_concurrent(
             candidate_texts, model=self._index_model or EMBED_MODEL
         )
-        emb_map: dict[str, list[float] | None] = dict(
-            zip(candidate_texts, embeddings, strict=True)
-        )
+        emb_map: dict[str, list[float] | None] = dict(zip(candidate_texts, embeddings, strict=True))
 
         def _cosine_sim(a: list[float] | None, b: list[float] | None) -> float:
             if not a or not b:
@@ -716,7 +817,9 @@ class RetrievalIndex:
         ranked_cids = sorted(fused, key=fused.get, reverse=True)[:TOP_K_CANDIDATES]
 
         # 3. Rerank
-        candidate_texts = [(cid, self._chunks[cid].text) for cid in ranked_cids if cid in self._chunks]
+        candidate_texts = [
+            (cid, self._chunks[cid].text) for cid in ranked_cids if cid in self._chunks
+        ]
         reranked = await self.rerank(query, candidate_texts)
 
         # 4. MMR diversification after rerank (per ADR 0016/0017: rerank first,
@@ -738,15 +841,17 @@ class RetrievalIndex:
             if chunk.doc_path in seen_docs:
                 continue
             seen_docs.add(chunk.doc_path)
-            results.append({
-                "chunk_id": cid,
-                "doc_path": chunk.doc_path,
-                "doc_title": chunk.doc_title,
-                "chunk_index": chunk.chunk_index,
-                "text": chunk.text,
-                "rerank_score": round(rerank_score, 4),
-                "matched_terms": [],  # populated below if BM25 hit
-            })
+            results.append(
+                {
+                    "chunk_id": cid,
+                    "doc_path": chunk.doc_path,
+                    "doc_title": chunk.doc_title,
+                    "chunk_index": chunk.chunk_index,
+                    "text": chunk.text,
+                    "rerank_score": round(rerank_score, 4),
+                    "matched_terms": [],  # populated below if BM25 hit
+                }
+            )
 
         # Add matched terms from BM25 for explainability
         bm25_term_map: dict[str, set[str]] = {cid: terms for cid, _s, terms in bm25_results}
@@ -772,6 +877,7 @@ _B = 0.75
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _chunk_id(doc_path: str, chunk_index: int) -> str:
     """Stable chunk id from doc path + index."""
     return hashlib.sha1(f"{doc_path}#{chunk_index}".encode()).hexdigest()[:16]
@@ -782,7 +888,9 @@ def _is_vault_path(doc_path: str) -> bool:
     return "knowledge-library" in doc_path or "knowledge library" in doc_path.lower()
 
 
-def _split_text_into_chunks(text: str, max_tokens: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+def _split_text_into_chunks(
+    text: str, max_tokens: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
+) -> list[str]:
     """
     Split text into chunks of approximately max_tokens, with overlap.
 
@@ -809,6 +917,7 @@ def _split_text_into_chunks(text: str, max_tokens: int = CHUNK_SIZE, overlap: in
 # ---------------------------------------------------------------------------
 # Persistence (SQLite)  # noqa: ERA001
 # ---------------------------------------------------------------------------
+
 
 async def persist_chunk_embeddings(chunks: list[IndexedChunk]) -> None:
     """Write chunk embeddings to SQLite for persistence across restarts."""
@@ -837,8 +946,15 @@ async def persist_chunk_embeddings(chunks: list[IndexedChunk]) -> None:
                 (chunk_id, doc_path, doc_title, chunk_index, text, embedding, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (chunk.id, chunk.doc_path, chunk.doc_title, chunk.chunk_index,
-                 chunk.text, emb_bytes, now),
+                (
+                    chunk.id,
+                    chunk.doc_path,
+                    chunk.doc_title,
+                    chunk.chunk_index,
+                    chunk.text,
+                    emb_bytes,
+                    now,
+                ),
             )
         conn.commit()
     finally:
@@ -849,9 +965,7 @@ async def load_persisted_embeddings() -> dict[str, list[float]]:
     """Load persisted embeddings from SQLite."""
     conn = sqlite3.connect(str(DB_PATH))
     try:
-        rows = conn.execute(
-            "SELECT chunk_id, embedding FROM retrieval_chunks"
-        ).fetchall()
+        rows = conn.execute("SELECT chunk_id, embedding FROM retrieval_chunks").fetchall()
         return {cid: json.loads(emb.decode("utf-8")) for cid, emb in rows}
     finally:
         conn.close()

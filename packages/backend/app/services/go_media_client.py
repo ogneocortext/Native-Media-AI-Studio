@@ -99,7 +99,9 @@ async def extract_audio(input: str, output: str) -> dict[str, Any]:
     )
 
 
-async def generate_thumbnail(input: str, output: str, start: str = "00:00:01.000") -> dict[str, Any]:
+async def generate_thumbnail(
+    input: str, output: str, start: str = "00:00:01.000"
+) -> dict[str, Any]:
     """Extract a JPEG thumbnail from a video file."""
     return await process(
         input=input,
@@ -109,7 +111,9 @@ async def generate_thumbnail(input: str, output: str, start: str = "00:00:01.000
     )
 
 
-async def concat_clip(input: str, output: str, start: str = "00:00:01.000", duration: str = "00:00:05.000") -> dict[str, Any]:
+async def concat_clip(
+    input: str, output: str, start: str = "00:00:01.000", duration: str = "00:00:05.000"
+) -> dict[str, Any]:
     """Cut a segment from a video file."""
     return await process(
         input=input,
@@ -120,7 +124,9 @@ async def concat_clip(input: str, output: str, start: str = "00:00:01.000", dura
     )
 
 
-async def normalize_audio(input: str, output: str, duration: str = "00:00:05.000") -> dict[str, Any]:
+async def normalize_audio(
+    input: str, output: str, duration: str = "00:00:05.000"
+) -> dict[str, Any]:
     """Normalize loudness of a media file."""
     return await process(
         input=input,

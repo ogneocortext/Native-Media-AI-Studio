@@ -45,8 +45,7 @@ export const BeatDensityTooltip = ({
       </div>
       <p className="text-xs text-muted">
         Energy: {energyPct}% (
-        {data.energy > 0.6 ? "intense" : data.energy > 0.3 ? "moderate" : "quiet"}
-        )
+        {data.energy > 0.6 ? "intense" : data.energy > 0.3 ? "moderate" : "quiet"})
       </p>
     </div>
   );

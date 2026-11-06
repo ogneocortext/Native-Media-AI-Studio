@@ -79,7 +79,9 @@ function extractMediaPaths(obj: unknown): string[] {
 }
 
 function skillDisplayName(skillName: string): string {
-  return SKILL_LABELS[skillName] || skillName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  return (
+    SKILL_LABELS[skillName] || skillName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+  );
 }
 
 interface AgentMessage {
@@ -122,25 +124,19 @@ export function AgentChat() {
     }
   }
 
-  const addMessage = useCallback(
-    (msg: Omit<AgentMessage, "id" | "timestamp">) => {
-      const id = Math.random().toString(36).slice(2);
-      setMessages((prev) => [...prev, { ...msg, id, timestamp: new Date(), expanded: false }]);
-    },
-    [],
-  );
+  const addMessage = useCallback((msg: Omit<AgentMessage, "id" | "timestamp">) => {
+    const id = Math.random().toString(36).slice(2);
+    setMessages((prev) => [...prev, { ...msg, id, timestamp: new Date(), expanded: false }]);
+  }, []);
 
-  const appendToLastMessage = useCallback(
-    (content: string) => {
-      setMessages((prev) => {
-        if (prev.length === 0) return prev;
-        const last = prev[prev.length - 1];
-        const updated = { ...last, content: last.content + content };
-        return [...prev.slice(0, -1), updated];
-      });
-    },
-    [],
-  );
+  const appendToLastMessage = useCallback((content: string) => {
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      const updated = { ...last, content: last.content + content };
+      return [...prev.slice(0, -1), updated];
+    });
+  }, []);
 
   const updateLastMessage = useCallback(
     (updates: Partial<Omit<AgentMessage, "id" | "timestamp">>) => {
@@ -158,9 +154,7 @@ export function AgentChat() {
   }, [messages]);
 
   const toggleExpanded = useCallback((id: string) => {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, expanded: !m.expanded } : m)),
-    );
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, expanded: !m.expanded } : m)));
   }, []);
 
   const formatTimestamp = (date: Date) => {
@@ -282,12 +276,11 @@ export function AgentChat() {
             break;
 
           case "content": {
-            const raw =
-              typeof event.data === "string"
-                ? JSON.parse(event.data)
-                : event.data;
+            const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
             const data = raw as { content?: string; thinking?: string };
-            const text = data?.content ?? (typeof event.data === "string" ? event.data : JSON.stringify(event.data));
+            const text =
+              data?.content ??
+              (typeof event.data === "string" ? event.data : JSON.stringify(event.data));
             if (!assistantMessageId) {
               const newId = Math.random().toString(36).slice(2);
               assistantMessageId = newId;
@@ -328,10 +321,7 @@ export function AgentChat() {
           }
 
           case "tool_result": {
-            const raw =
-              typeof event.data === "string"
-                ? JSON.parse(event.data)
-                : event.data;
+            const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
             const toolName = (raw as any).name || (raw as any).tool_name || "unknown";
             const resultData = (raw as any).result;
             const execResult: ExecuteToolResponse =
@@ -419,9 +409,7 @@ export function AgentChat() {
     addMessage({ type: "error", content: "Request cancelled." });
   };
 
-  const skillsSummary = skills
-    .map((s) => `${s.name} (${s.tools.length} tools)`)
-    .join(", ");
+  const skillsSummary = skills.map((s) => `${s.name} (${s.tools.length} tools)`).join(", ");
 
   return (
     <Card className="h-full flex flex-col">
@@ -441,9 +429,7 @@ export function AgentChat() {
               </span>
             )}
           </div>
-          {skillsSummary && (
-            <p className="text-xs text-muted truncate">{skillsSummary}</p>
-          )}
+          {skillsSummary && <p className="text-xs text-muted truncate">{skillsSummary}</p>}
         </div>
 
         {/* Agent Context Panel (collapsible) */}
@@ -452,32 +438,36 @@ export function AgentChat() {
             onClick={() => setAgentInfoExpanded(!agentInfoExpanded)}
             className="flex items-center gap-2 w-full text-xs text-muted hover:text-primary transition-colors"
           >
-            {agentInfoExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            {agentInfoExpanded ? (
+              <ChevronDown className="w-3 h-3" />
+            ) : (
+              <ChevronRight className="w-3 h-3" />
+            )}
             <span>About this agent</span>
           </button>
           {agentInfoExpanded && (
             <div className="mt-2 p-2 bg-background/50 rounded text-xs text-muted/80 space-y-1">
               <p>
-                The agent uses Ollama with tool-calling to discover skills, execute tools,
-                and iterate until your task is complete.
+                The agent uses Ollama with tool-calling to discover skills, execute tools, and
+                iterate until your task is complete.
               </p>
               <p>
-                Images and videos generated by tools appear inline below each result.
-                Use the download button to save media files.
+                Images and videos generated by tools appear inline below each result. Use the
+                download button to save media files.
               </p>
             </div>
           )}
         </div>
 
         {/* Messages */}
-        <div
-          ref={messagesEndRef}
-          className="flex-1 overflow-y-auto p-4 space-y-4 bg-background"
-        >
+        <div ref={messagesEndRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-muted">
               <Activity className="w-12 h-12 mb-2 opacity-20" />
-              <p>Ask the agent to create visualizations, remix tracks, analyze audio, or plan 3D scenes.</p>
+              <p>
+                Ask the agent to create visualizations, remix tracks, analyze audio, or plan 3D
+                scenes.
+              </p>
             </div>
           )}
           {messages.map((msg) => {
@@ -490,19 +480,16 @@ export function AgentChat() {
             const isFinal = msg.type === "final";
 
             return (
-              <div
-                key={msg.id}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-              >
+              <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 <Card
                   className={`max-w-[85%] p-3 rounded-lg shadow-sm border ${
                     isUser
                       ? "bg-primary text-primary-foreground border-primary"
                       : isError
-                      ? "bg-destructive text-destructive-foreground border-destructive"
-                      : isToolCall || isToolResult
-                      ? "bg-muted text-muted-foreground border-muted/50"
-                      : "bg-background text-foreground border-border"
+                        ? "bg-destructive text-destructive-foreground border-destructive"
+                        : isToolCall || isToolResult
+                          ? "bg-muted text-muted-foreground border-muted/50"
+                          : "bg-background text-foreground border-border"
                   }`}
                 >
                   {/* Message header */}
@@ -513,17 +500,21 @@ export function AgentChat() {
                       {isToolCall && (
                         <>
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          <span className="text-purple-400">{skillDisplayName(msg.toolName || "")}</span>
+                          <span className="text-purple-400">
+                            {skillDisplayName(msg.toolName || "")}
+                          </span>
                         </>
                       )}
                       {isToolResult && (
                         <>
-                          {(msg.toolResult?.success ? (
+                          {msg.toolResult?.success ? (
                             <CheckCircle className="w-3 h-3 text-emerald-400" />
                           ) : (
                             <AlertCircle className="w-3 h-3 text-destructive" />
-                          ))}
-                          <span className={`text-xs ${msg.toolResult?.success ? "text-emerald-400" : "text-destructive"}`}>
+                          )}
+                          <span
+                            className={`text-xs ${msg.toolResult?.success ? "text-emerald-400" : "text-destructive"}`}
+                          >
                             {skillDisplayName(msg.toolName || "")}
                           </span>
                         </>
@@ -554,7 +545,11 @@ export function AgentChat() {
                         className="p-1 hover:bg-muted/50 rounded text-muted hover:text-primary transition-colors"
                         title={msg.expanded ? "Collapse" : "Expand"}
                       >
-                        {msg.expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        {msg.expanded ? (
+                          <ChevronDown className="w-3 h-3" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3" />
+                        )}
                       </button>
                     )}
                   </div>
@@ -591,7 +586,11 @@ export function AgentChat() {
                             className="text-xs text-primary hover:underline flex items-center gap-1"
                           >
                             {msg.expanded ? "Hide details" : "Show details"}
-                            {msg.expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            {msg.expanded ? (
+                              <ChevronDown className="w-3 h-3" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3" />
+                            )}
                           </button>
                           {msg.expanded && (
                             <div className="mt-2 p-2 bg-background/50 rounded overflow-x-auto whitespace-pre-wrap text-xs text-muted">
@@ -607,7 +606,10 @@ export function AgentChat() {
                   {msg.mediaUrls && msg.mediaUrls.length > 0 && (
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {msg.mediaUrls.map((url, idx) => (
-                        <div key={idx} className="rounded-lg overflow-hidden border border-muted/30 bg-background group">
+                        <div
+                          key={idx}
+                          className="rounded-lg overflow-hidden border border-muted/30 bg-background group"
+                        >
                           {isImagePath(url) ? (
                             <>
                               <img
@@ -632,7 +634,9 @@ export function AgentChat() {
                               {!isVideoPath(url) && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                                   <VideoIcon className="w-8 h-8 text-muted/50 mb-1" />
-                                  <span className="text-xs text-muted">Media: {url.split("/").pop()}</span>
+                                  <span className="text-xs text-muted">
+                                    Media: {url.split("/").pop()}
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -692,9 +696,8 @@ export function AgentChat() {
             )}
           </form>
           <p className="text-xs text-muted mt-1">
-            The agent uses Ollama with tool-calling to discover skills,
-            execute tools, and iterate until your task is complete.
-            Images and videos generated by tools appear inline below.
+            The agent uses Ollama with tool-calling to discover skills, execute tools, and iterate
+            until your task is complete. Images and videos generated by tools appear inline below.
           </p>
         </div>
       </div>

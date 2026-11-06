@@ -11,12 +11,8 @@
  *     (ctx: CanvasRenderingContext2D, ctxInfo: VisualizerModeRenderContext, state: VisualizerModeState) => void
  */
 
-import type {
-  VisualizerModeRenderContext} from "./visualizerModeRegistry";
-import {
-  createVisualizerModeDef,
-  registerVisualizerMode,
-} from "./visualizerModeRegistry";
+import type { VisualizerModeRenderContext } from "./visualizerModeRegistry";
+import { createVisualizerModeDef, registerVisualizerMode } from "./visualizerModeRegistry";
 
 // ---------------------------------------------------------------------------
 // Example: Simple pulse circle that grows on beat and decays.
@@ -66,8 +62,7 @@ export const exampleModeDef = createVisualizerModeDef({
   shortLabel: "Example",
   category: "abstract",
   render: renderExampleMode,
-  description:
-    "Example mode showing the API. Use this as a template for new modes.",
+  description: "Example mode showing the API. Use this as a template for new modes.",
   tags: ["example", "template"],
   defaultParams: {
     color: "#00ffff",

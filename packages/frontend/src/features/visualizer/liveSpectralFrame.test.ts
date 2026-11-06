@@ -11,10 +11,7 @@ import { synthesizeLiveFrame, BAND_EDGES } from "./liveSpectralFrame";
  */
 
 /** Minimal AnalyserNode stand-in: only what `synthesizeLiveFrame` reads. */
-function mockAnalyser(
-  bins: Uint8Array,
-  opts: { sampleRate?: number; fftSize?: number } = {},
-) {
+function mockAnalyser(bins: Uint8Array, opts: { sampleRate?: number; fftSize?: number } = {}) {
   const sampleRate = opts.sampleRate ?? 44100;
   const fftSize = opts.fftSize ?? 2048;
   return {

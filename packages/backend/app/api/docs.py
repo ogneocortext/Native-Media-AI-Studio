@@ -40,7 +40,9 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
                         # Handle list like "- tag" or "[a, b]"
                         if v.startswith("["):
                             v = v.strip("[]")
-                            meta[k] = [x.strip().strip('"').strip("'") for x in v.split(",") if x.strip()]
+                            meta[k] = [
+                                x.strip().strip('"').strip("'") for x in v.split(",") if x.strip()
+                            ]
                         elif not v:
                             # multiline list follows
                             continue
@@ -56,7 +58,10 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
                     # Only keep first block after tags:
                     m = re.search(r"tags:\s*\n((?:\s*-\s*.+\n)+)", fm)
                     if m:
-                        meta["tags"] = [x.strip().strip('"').strip("'").lstrip("- ").strip() for x in m.group(1).strip().splitlines()]
+                        meta["tags"] = [
+                            x.strip().strip('"').strip("'").lstrip("- ").strip()
+                            for x in m.group(1).strip().splitlines()
+                        ]
             return meta, body
     return {}, text
 
@@ -93,7 +98,11 @@ def _scan_docs() -> list[DocEntry]:
 
     # Walk docs, but skip hidden, node_modules, .obsidian internals
     seen: set[str] = set()
-    for p in list(DOCS_ROOT.rglob("*.md")) + list(VAULT_ROOT.glob("*.json")) + list(VAULT_ROOT.glob("*.canvas")):
+    for p in (
+        list(DOCS_ROOT.rglob("*.md"))
+        + list(VAULT_ROOT.glob("*.json"))
+        + list(VAULT_ROOT.glob("*.canvas"))
+    ):
         if ".obsidian" in p.parts:
             continue
         if "node_modules" in p.parts:
@@ -104,7 +113,11 @@ def _scan_docs() -> list[DocEntry]:
         seen.add(key)
         try:
             rel = p.relative_to(DOCS_ROOT).as_posix()
-            in_vault = p.is_relative_to(VAULT_ROOT) if hasattr(p, "is_relative_to") else str(p).startswith(str(VAULT_ROOT))
+            in_vault = (
+                p.is_relative_to(VAULT_ROOT)
+                if hasattr(p, "is_relative_to")
+                else str(p).startswith(str(VAULT_ROOT))
+            )
             vault_rel = p.relative_to(VAULT_ROOT).as_posix() if in_vault else rel
             # Quick frontmatter read for title/tags
             try:
@@ -112,6 +125,7 @@ def _scan_docs() -> list[DocEntry]:
                 # JSON / canvas files: extract title from JSON content
                 if p.suffix.lower() in (".json", ".canvas"):
                     import json
+
                     data = json.loads(text)
                     if p.suffix.lower() == ".canvas":
                         title = data.get("title") or "Knowledge Graph"
@@ -134,15 +148,17 @@ def _scan_docs() -> list[DocEntry]:
                 title = _title_from_path(p)
                 tags = []
                 aliases = []
-            entries.append(DocEntry(
-                path=rel,
-                vault_path=vault_rel,
-                title=title,
-                file_type="vault" if in_vault else "guide",
-                tags=tags if isinstance(tags, list) else [],
-                aliases=aliases if isinstance(aliases, list) else [],
-                in_vault=in_vault,
-            ))
+            entries.append(
+                DocEntry(
+                    path=rel,
+                    vault_path=vault_rel,
+                    title=title,
+                    file_type="vault" if in_vault else "guide",
+                    tags=tags if isinstance(tags, list) else [],
+                    aliases=aliases if isinstance(aliases, list) else [],
+                    in_vault=in_vault,
+                )
+            )
         except Exception:
             continue
 
@@ -163,12 +179,21 @@ async def list_docs(
         entries = [e for e in entries if e.in_vault]
     if search:
         q = search.lower()
-        entries = [e for e in entries if q in e.title.lower() or q in e.path.lower() or any(q in t.lower() for t in e.tags)]
+        entries = [
+            e
+            for e in entries
+            if q in e.title.lower() or q in e.path.lower() or any(q in t.lower() for t in e.tags)
+        ]
     return entries
 
 
 @router.get("/file", response_model=DocContent)
-async def get_doc_file(path: str = Query(..., description="Relative path from docs/ e.g. knowledge-library/index.md or guides/MUSIC_VIDEO_GUIDE.md")) -> DocContent:
+async def get_doc_file(
+    path: str = Query(
+        ...,
+        description="Relative path from docs/ e.g. knowledge-library/index.md or guides/MUSIC_VIDEO_GUIDE.md",
+    ),
+) -> DocContent:
     """Get raw markdown for a doc file."""
     # Sanitize
     clean = path.strip().lstrip("/").replace("\\", "/")
@@ -221,6 +246,7 @@ async def get_manifest():
     if not manifest_path.exists():
         raise HTTPException(status_code=404, detail="agent.manifest.json not found in vault")
     import json
+
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
@@ -231,6 +257,7 @@ async def get_prompts():
     if not prompts_path.exists():
         raise HTTPException(status_code=404, detail="prompts.json not found in vault")
     import json
+
     return json.loads(prompts_path.read_text(encoding="utf-8"))
 
 
@@ -241,6 +268,7 @@ async def get_codebase():
     if not codebase_path.exists():
         raise HTTPException(status_code=404, detail="codebase.json not found in vault")
     import json
+
     return json.loads(codebase_path.read_text(encoding="utf-8"))
 
 
@@ -251,6 +279,7 @@ async def get_api_registry():
     if not registry_path.exists():
         raise HTTPException(status_code=404, detail="api-registry.json not found in vault")
     import json
+
     return json.loads(registry_path.read_text(encoding="utf-8"))
 
 
@@ -261,6 +290,7 @@ async def get_mcp_registry():
     if not registry_path.exists():
         raise HTTPException(status_code=404, detail="mcp-registry.json not found in vault")
     import json
+
     return json.loads(registry_path.read_text(encoding="utf-8"))
 
 
@@ -287,10 +317,11 @@ async def agent_bootstrap():
     # System config
     try:
         from ..core.config import config
+
         ports = {
             "backend": config.backend_port,
             "frontend": config.frontend_port,
-            "comfyui": getattr(config, 'comfyui_port', 8188),
+            "comfyui": getattr(config, "comfyui_port", 8188),
         }
     except Exception:
         ports = {"backend": 8000, "frontend": 5173, "comfyui": 8188}
@@ -372,9 +403,7 @@ def get_doc_index() -> "DocIndex":
         )
     idx.finalize()
     _index_cache = (fp, idx)
-    logger.info(
-        "Doc search index built: %d docs, %d terms", idx.doc_count, idx.term_count
-    )
+    logger.info("Doc search index built: %d docs, %d terms", idx.doc_count, idx.term_count)
     return idx
 
 
@@ -421,7 +450,15 @@ async def get_project_structure(
 
         name = path.name
         # Skip hidden, node_modules, __pycache__, .git, venv
-        if name.startswith(".") or name in ("node_modules", "__pycache__", "venv", ".git", "dist", "build", ".next"):
+        if name.startswith(".") or name in (
+            "node_modules",
+            "__pycache__",
+            "venv",
+            ".git",
+            "dist",
+            "build",
+            ".next",
+        ):
             return None
 
         if path.is_file():
@@ -455,7 +492,13 @@ async def get_project_structure(
     # Add root-level files
     root_files = []
     for f in sorted(root.iterdir()):
-        if f.is_file() and f.name in ("README.md", "CHANGELOG.md", "Guidelines.md", "opencode.json", "package.json"):
+        if f.is_file() and f.name in (
+            "README.md",
+            "CHANGELOG.md",
+            "Guidelines.md",
+            "opencode.json",
+            "package.json",
+        ):
             root_files.append({"name": f.name, "type": "file", "size": f.stat().st_size})
     if root_files:
         structure["_root_files"] = root_files

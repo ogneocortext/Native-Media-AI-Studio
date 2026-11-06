@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { recipeToEditableSlots, newEditableLayer, matchSource, isFixtureSource, nextFreeName, timelineSegments } from "./remixRecipe";
+import {
+  recipeToEditableSlots,
+  newEditableLayer,
+  matchSource,
+  isFixtureSource,
+  nextFreeName,
+  timelineSegments,
+} from "./remixRecipe";
 import type { RemixRecipeSpec } from "../../services/api/remix";
 
 /**
@@ -100,7 +107,9 @@ describe("matchSource", () => {
   const tracks = ["demucs_test_input", "SunoV6Mini-Ad-Nauseam", "take-the-crown"];
 
   it("resolves a library path to its stem key", () => {
-    expect(matchSource("Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a", tracks)).toBe("SunoV6Mini-Ad-Nauseam");
+    expect(matchSource("Suno-V6-Mini/SunoV6Mini-Ad-Nauseam.m4a", tracks)).toBe(
+      "SunoV6Mini-Ad-Nauseam",
+    );
     expect(matchSource("SunoV6Mini-Ad-Nauseam.wav", tracks)).toBe("SunoV6Mini-Ad-Nauseam");
   });
 
@@ -161,7 +170,11 @@ describe("nextFreeName", () => {
 });
 // ─── A6: timeline segment widths ─────────────────────────────────────────
 
-const slotOf = (bars: number, crossfade: number, stems: ("drums" | "bass" | "vocals" | "other")[]) => ({
+const slotOf = (
+  bars: number,
+  crossfade: number,
+  stems: ("drums" | "bass" | "vocals" | "other")[],
+) => ({
   bars,
   crossfade_bars: crossfade,
   layers: stems.map((stem) => newEditableLayer("t", stem)),
@@ -189,7 +202,10 @@ describe("timelineSegments", () => {
   });
 
   it("skips empty slots rather than dividing by a bigger total", () => {
-    const segs = timelineSegments([slotOf(8, 0, ["drums"]), { bars: 4, crossfade_bars: 0, layers: [] }]);
+    const segs = timelineSegments([
+      slotOf(8, 0, ["drums"]),
+      { bars: 4, crossfade_bars: 0, layers: [] },
+    ]);
     expect(segs).toHaveLength(1);
     expect(segs[0].pct).toBeCloseTo(100, 6);
   });

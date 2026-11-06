@@ -143,16 +143,16 @@ class VRAMManager:
             self._ollama_loaded, self._atomic_chat_loaded = classify_resident_models(resident)
             # Track which model names are resident for idempotent switching.
             ollama_names = [m for m in resident if m.lower().startswith(("gemma4", "llama"))]
-            ac_names = [m for m in resident if m.lower().startswith("qwen3") or "qwen3_5" in m.lower()]
+            ac_names = [
+                m for m in resident if m.lower().startswith("qwen3") or "qwen3_5" in m.lower()
+            ]
             self._ollama_model_name = ollama_names[0] if ollama_names else None
             self._atomic_chat_model_name = ac_names[0] if ac_names else None
         except Exception as exc:
             logger.warning("VRAM resident state sync failed: %s", exc)
             # Leave flags unchanged on failure - safer than assuming wrong state
 
-    def set_queue_provider(
-        self, provider: Callable[[], Awaitable[list[Any]]] | None
-    ) -> None:
+    def set_queue_provider(self, provider: Callable[[], Awaitable[list[Any]]] | None) -> None:
         """Register the source of queued jobs for VRAM reservation accounting.
 
         Wired once in `main.py`, the composition root. Tests can inject a stub
@@ -170,12 +170,12 @@ class VRAMManager:
         # Constants live in vram_config.py; instance attributes mirror them so
         # tests can override (test_timing_and_resource_protocols).
         self.thresholds = {
-            "vram_warning": VRAM_WARNING,      # Start considering offload
-            "vram_critical": VRAM_CRITICAL,    # Must offload immediately
+            "vram_warning": VRAM_WARNING,  # Start considering offload
+            "vram_critical": VRAM_CRITICAL,  # Must offload immediately
             "vram_available": VRAM_AVAILABLE,  # Safe to reload Ollama
         }
 
-        self.MIN_VRAM_FOR_3D = MIN_VRAM_FOR_3D      # 4GB for Hunyuan3D-2mini
+        self.MIN_VRAM_FOR_3D = MIN_VRAM_FOR_3D  # 4GB for Hunyuan3D-2mini
         self.MIN_VRAM_FOR_MUSIC = MIN_VRAM_FOR_MUSIC  # ACE-Step needs 6 GB
         self.MIN_VRAM_FOR_AUDIO = MIN_VRAM_FOR_AUDIO  # CUDA audio spectral pass
         self.MIN_VRAM_FOR_LIPSYNC = MIN_VRAM_FOR_LIPSYNC  # MuseTalk v1.5 D42
@@ -193,6 +193,7 @@ class VRAMManager:
         """Initialize GPU monitoring libraries."""
         try:
             import gpustat  # noqa: F401  # availability probe, not used directly
+
             self._gpustat_available = True
             logger.info("VRAM Manager: GPU monitoring enabled via gpustat")
         except ImportError:
@@ -200,13 +201,14 @@ class VRAMManager:
 
         try:
             import pynvml
+
             pynvml.nvmlInit()
             self._nvml_available = True
             if not self._gpustat_available:
                 logger.info("VRAM Manager: GPU monitoring enabled via pynvml")
         except Exception as e:
             self._nvml_available = False
-            if not getattr(self, '_gpustat_available', False):
+            if not getattr(self, "_gpustat_available", False):
                 logger.warning("VRAM Manager: GPU monitoring not available: %s", e)
 
     @property
@@ -366,8 +368,12 @@ class VRAMManager:
                 }
 
             # Still not enough VRAM - check if we can safely offload to CPU
-            if (self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)) and self._can_safely_offload():
-                logger.info("VRAM Manager: Offloading backend models to CPU (system RAM sufficient)")
+            if (
+                self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)
+            ) and self._can_safely_offload():
+                logger.info(
+                    "VRAM Manager: Offloading backend models to CPU (system RAM sufficient)"
+                )
                 ollama_unloaded = await _unload_ollama_models()
                 ac_unloaded = await _unload_atomic_chat_models()
                 self._ollama_loaded = False
@@ -409,6 +415,7 @@ class VRAMManager:
         Returns True if enough VRAM became available, False if timeout.
         """
         import asyncio
+
         start = time.monotonic()
         while True:
             # Check before sleeping, not after. Sleeping first charged the full
@@ -418,8 +425,9 @@ class VRAMManager:
             # VRAM_POLL_INTERVAL.
             vram = await self.get_vram_status()
             if vram.get("free_mb", 0) >= self.MIN_VRAM_FOR_3D:
-                logger.info("VRAM Manager: VRAM freed up naturally (%dMB free)",
-                            vram.get("free_mb", 0))
+                logger.info(
+                    "VRAM Manager: VRAM freed up naturally (%dMB free)", vram.get("free_mb", 0)
+                )
                 return True
             remaining = self.VRAM_WAIT_TIMEOUT - (time.monotonic() - start)
             if remaining <= 0:
@@ -436,24 +444,32 @@ class VRAMManager:
         """
         try:
             import psutil
+
             mem = psutil.virtual_memory()
             free_mb = mem.available / (1024 * 1024)
             used_percent = mem.percent
 
             # Need enough free RAM for Ollama model (typically 3-7GB)
             if free_mb < self.MIN_SYSTEM_RAM_FOR_OFFLOAD:
-                logger.info("VRAM Manager: Cannot offload - insufficient system RAM "
-                            "(free=%dMB, need=%dMB)", int(free_mb), self.MIN_SYSTEM_RAM_FOR_OFFLOAD)
+                logger.info(
+                    "VRAM Manager: Cannot offload - insufficient system RAM (free=%dMB, need=%dMB)",
+                    int(free_mb),
+                    self.MIN_SYSTEM_RAM_FOR_OFFLOAD,
+                )
                 return False
 
             # Don't offload if system RAM is already heavily used
             if used_percent > self.MAX_SYSTEM_RAM_PERCENT:
-                logger.info("VRAM Manager: Cannot offload - system RAM too high (%.1f%%)",
-                            used_percent)
+                logger.info(
+                    "VRAM Manager: Cannot offload - system RAM too high (%.1f%%)", used_percent
+                )
                 return False
 
-            logger.info("VRAM Manager: Safe to offload (RAM free=%dMB, usage=%.1f%%)",
-                        int(free_mb), used_percent)
+            logger.info(
+                "VRAM Manager: Safe to offload (RAM free=%dMB, usage=%.1f%%)",
+                int(free_mb),
+                used_percent,
+            )
             return True
 
         except Exception as e:
@@ -481,16 +497,24 @@ class VRAMManager:
                 if free_mb > self.MIN_VRAM_FOR_3D:
                     logger.info("VRAM Manager: Reloading Ollama models (free=%dMB)", free_mb)
                     from ..core.config import config as _cfg2
+
                     last_model = _sanitize_model_name(
                         _resolve_last_model(_cfg2.default_model), _cfg2.default_model
                     )
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
-                    reload_result = {"action": "reload_ollama", "success": reload_ok, "model": last_model}
+                    reload_result = {
+                        "action": "reload_ollama",
+                        "success": reload_ok,
+                        "model": last_model,
+                    }
                     actions.append(reload_result)
                 else:
-                    logger.warning("VRAM Manager: Not enough VRAM to reload Ollama "
-                                   "(free=%dMB, need=%dMB)", free_mb, self.MIN_VRAM_FOR_3D)
+                    logger.warning(
+                        "VRAM Manager: Not enough VRAM to reload Ollama (free=%dMB, need=%dMB)",
+                        free_mb,
+                        self.MIN_VRAM_FOR_3D,
+                    )
 
             # Reload Atomic Chat model if it was offloaded
             if not self._atomic_chat_loaded:
@@ -499,18 +523,19 @@ class VRAMManager:
                     free_mb = vram.get("free_mb", 0)
                     if free_mb > self.MIN_VRAM_FOR_3D:
                         logger.info(
-                            "VRAM Manager: Reloading Atomic Chat model %s "
-                            "(free=%dMB)", last_ac_model, free_mb
+                            "VRAM Manager: Reloading Atomic Chat model %s (free=%dMB)",
+                            last_ac_model,
+                            free_mb,
                         )
-                        reload_ok = await _load_model_for_backend(
-                            "atomic_chat", last_ac_model
-                        )
+                        reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
                         self._atomic_chat_loaded = reload_ok
-                        actions.append({
-                            "action": "reload_atomic_chat",
-                            "success": reload_ok,
-                            "model": last_ac_model,
-                        })
+                        actions.append(
+                            {
+                                "action": "reload_atomic_chat",
+                                "success": reload_ok,
+                                "model": last_ac_model,
+                            }
+                        )
 
             return {
                 "success": True,
@@ -520,8 +545,9 @@ class VRAMManager:
                 "atomic_chat_loaded": self._atomic_chat_loaded,
             }
 
-    async def begin_music_generation(self, engine: str = "ace",
-                                     vram_budget_mb: int = 6144) -> dict[str, Any]:
+    async def begin_music_generation(
+        self, engine: str = "ace", vram_budget_mb: int = 6144
+    ) -> dict[str, Any]:
         """
         Signal that music generation is starting.
         Offloads Ollama and ComfyUI (if idle) if VRAM is tight.
@@ -534,8 +560,11 @@ class VRAMManager:
             Dict with status and actions taken
         """
         async with self._lock:
-            logger.info("VRAM Manager: Music generation starting (engine=%s, need=%dMB)",
-                        engine, vram_budget_mb)
+            logger.info(
+                "VRAM Manager: Music generation starting (engine=%s, need=%dMB)",
+                engine,
+                vram_budget_mb,
+            )
             self._current_workload = GPUWorkload.MUSIC_GENERATION
             self._music_gen_running = True
 
@@ -583,20 +612,24 @@ class VRAMManager:
                     }
 
             # Still not enough VRAM - offload both backend models
-            if (self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)) and self._can_safely_offload():
+            if (
+                self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)
+            ) and self._can_safely_offload():
                 logger.info("VRAM Manager: Offloading backend models for music generation")
                 ollama_unloaded = await _unload_ollama_models()
                 ac_unloaded = await _unload_atomic_chat_models()
                 self._ollama_loaded = False
                 self._atomic_chat_loaded = False
-                actions.append({
-                    "action": "offload_backend_models",
-                    "success": True,
-                    "models": {
-                        "ollama": ollama_unloaded,
-                        "atomic_chat": ac_unloaded,
-                    },
-                })
+                actions.append(
+                    {
+                        "action": "offload_backend_models",
+                        "success": True,
+                        "models": {
+                            "ollama": ollama_unloaded,
+                            "atomic_chat": ac_unloaded,
+                        },
+                    }
+                )
                 vram = await self.get_vram_status()
                 free_mb = vram.get("free_mb", 0)
                 if free_mb >= vram_budget_mb:
@@ -618,15 +651,19 @@ class VRAMManager:
                     logger.warning(
                         "VRAM Manager: %dMB free is below the %dMB music budget "
                         "and ComfyUI is busy; leaving its models loaded",
-                        free_mb, vram_budget_mb,
+                        free_mb,
+                        vram_budget_mb,
                     )
                 else:
                     logger.info("VRAM Manager: Offloading ComfyUI models for music generation")
                     comfy = await _unload_comfyui_models()
                     self._comfyui_models_loaded = False
-                    actions.append({
-                        "action": "offload_comfyui", **comfy,
-                    })
+                    actions.append(
+                        {
+                            "action": "offload_comfyui",
+                            **comfy,
+                        }
+                    )
                     vram = await self.get_vram_status()
                     free_mb = vram.get("free_mb", 0)
 
@@ -676,19 +713,28 @@ class VRAMManager:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_AUDIO:
                     try:
-                        logger.info("VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb)
+                        logger.info(
+                            "VRAM Manager: Reloading Ollama after music gen (free=%dMB)", free_mb
+                        )
                         from ..core.config import config as _cfg2
+
                         last_model = _resolve_ollama_model(_cfg2.default_model)
                         reload_ok = await _reload_ollama_models(last_model)
                         self._ollama_loaded = reload_ok
-                        actions.append({"action": "reload_ollama", "success": reload_ok, "model": last_model})
+                        actions.append(
+                            {"action": "reload_ollama", "success": reload_ok, "model": last_model}
+                        )
                     except Exception as e:
                         logger.warning("Failed to reload Ollama after music gen: %s", e)
-                        actions.append({"action": "reload_ollama", "success": False, "error": str(e)})
+                        actions.append(
+                            {"action": "reload_ollama", "success": False, "error": str(e)}
+                        )
                 else:
                     logger.info(
                         "VRAM Manager: Leaving Ollama offloaded after music gen "
-                        "(free=%dMB, need >%dMB to reload)", free_mb, self.MIN_VRAM_FOR_AUDIO
+                        "(free=%dMB, need >%dMB to reload)",
+                        free_mb,
+                        self.MIN_VRAM_FOR_AUDIO,
                     )
 
             # Reload Atomic Chat model if it was offloaded
@@ -698,30 +744,35 @@ class VRAMManager:
                     free_mb = vram.get("free_mb", 0)
                     if free_mb > self.MIN_VRAM_FOR_AUDIO:
                         logger.info(
-                            "VRAM Manager: Reloading Atomic Chat model %s "
-                            "(free=%dMB)", last_ac_model, free_mb
+                            "VRAM Manager: Reloading Atomic Chat model %s (free=%dMB)",
+                            last_ac_model,
+                            free_mb,
                         )
                     try:
-                        reload_ok = await _load_model_for_backend(
-                            "atomic_chat", last_ac_model
-                        )
+                        reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
                         self._atomic_chat_loaded = reload_ok
-                        actions.append({
-                            "action": "reload_atomic_chat",
-                            "success": reload_ok,
-                            "model": last_ac_model,
-                        })
+                        actions.append(
+                            {
+                                "action": "reload_atomic_chat",
+                                "success": reload_ok,
+                                "model": last_ac_model,
+                            }
+                        )
                     except Exception as e:
                         logger.warning("Failed to reload Atomic Chat after music gen: %s", e)
-                        actions.append({
-                            "action": "reload_atomic_chat",
-                            "success": False,
-                            "error": str(e),
-                        })
+                        actions.append(
+                            {
+                                "action": "reload_atomic_chat",
+                                "success": False,
+                                "error": str(e),
+                            }
+                        )
                     else:
                         logger.info(
                             "VRAM Manager: Leaving Atomic Chat offloaded after music gen "
-                            "(free=%dMB, need >%dMB to reload)", free_mb, self.MIN_VRAM_FOR_AUDIO
+                            "(free=%dMB, need >%dMB to reload)",
+                            free_mb,
+                            self.MIN_VRAM_FOR_AUDIO,
                         )
 
             return {
@@ -732,8 +783,7 @@ class VRAMManager:
                 "atomic_chat_loaded": self._atomic_chat_loaded,
             }
 
-    async def begin_lipsync_generation(self,
-                                       vram_budget_mb: int = 4096) -> dict[str, Any]:
+    async def begin_lipsync_generation(self, vram_budget_mb: int = 4096) -> dict[str, Any]:
         """
         Signal that local lip-sync (MuseTalk, D42) is starting.
         Offloads Ollama if VRAM is tight, mirroring begin_music_generation.
@@ -766,20 +816,24 @@ class VRAMManager:
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                 }
 
-            if (self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)) and self._can_safely_offload():
+            if (
+                self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)
+            ) and self._can_safely_offload():
                 logger.info("VRAM Manager: Offloading backend models for lip-sync")
                 ollama_unloaded = await _unload_ollama_models()
                 ac_unloaded = await _unload_atomic_chat_models()
                 self._ollama_loaded = False
                 self._atomic_chat_loaded = False
-                actions.append({
-                    "action": "offload_backend_models",
-                    "success": True,
-                    "models": {
-                        "ollama": ollama_unloaded,
-                        "atomic_chat": ac_unloaded,
-                    },
-                })
+                actions.append(
+                    {
+                        "action": "offload_backend_models",
+                        "success": True,
+                        "models": {
+                            "ollama": ollama_unloaded,
+                            "atomic_chat": ac_unloaded,
+                        },
+                    }
+                )
                 vram = await self.get_vram_status()
                 free_mb = vram.get("free_mb", 0)
                 if free_mb >= vram_budget_mb:
@@ -821,14 +875,19 @@ class VRAMManager:
             if not self._ollama_loaded:
                 free_mb = vram.get("free_mb", 0)
                 if free_mb > self.MIN_VRAM_FOR_LIPSYNC:
-                    logger.info("VRAM Manager: Reloading Ollama after lip-sync (free=%dMB)", free_mb)
+                    logger.info(
+                        "VRAM Manager: Reloading Ollama after lip-sync (free=%dMB)", free_mb
+                    )
                     from ..core.config import config as _cfg2
+
                     last_model = _sanitize_model_name(
                         _resolve_last_model(_cfg2.default_model), _cfg2.default_model
                     )
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
-                    actions.append({"action": "reload_ollama", "success": reload_ok, "model": last_model})
+                    actions.append(
+                        {"action": "reload_ollama", "success": reload_ok, "model": last_model}
+                    )
 
             # Reload Atomic Chat model if it was offloaded
             if not self._atomic_chat_loaded:
@@ -837,18 +896,19 @@ class VRAMManager:
                     free_mb = vram.get("free_mb", 0)
                     if free_mb > self.MIN_VRAM_FOR_LIPSYNC:
                         logger.info(
-                            "VRAM Manager: Reloading Atomic Chat model %s "
-                            "(free=%dMB)", last_ac_model, free_mb
+                            "VRAM Manager: Reloading Atomic Chat model %s (free=%dMB)",
+                            last_ac_model,
+                            free_mb,
                         )
-                        reload_ok = await _load_model_for_backend(
-                            "atomic_chat", last_ac_model
-                        )
+                        reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
                         self._atomic_chat_loaded = reload_ok
-                        actions.append({
-                            "action": "reload_atomic_chat",
-                            "success": reload_ok,
-                            "model": last_ac_model,
-                        })
+                        actions.append(
+                            {
+                                "action": "reload_atomic_chat",
+                                "success": reload_ok,
+                                "model": last_ac_model,
+                            }
+                        )
 
             return {
                 "success": True,
@@ -858,9 +918,7 @@ class VRAMManager:
                 "atomic_chat_loaded": self._atomic_chat_loaded,
             }
 
-    async def begin_audio_analysis(self,
-                                    vram_budget_mb: int | None = None
-                                    ) -> dict[str, Any]:
+    async def begin_audio_analysis(self, vram_budget_mb: int | None = None) -> dict[str, Any]:
         """
         Signal that GPU audio analysis is starting.
 
@@ -919,7 +977,8 @@ class VRAMManager:
                         "VRAM Manager: %dMB free is below the %dMB audio "
                         "budget but system RAM is too low to offload models "
                         "safely; proceeding (analysis may fall back to CPU)",
-                        free_mb, budget,
+                        free_mb,
+                        budget,
                     )
                 else:
                     logger.info("VRAM Manager: Offloading backend models for audio analysis")
@@ -927,13 +986,16 @@ class VRAMManager:
                     ac_unloaded = await _unload_atomic_chat_models()
                     self._ollama_loaded = False
                     self._atomic_chat_loaded = False
-                    actions.append({
-                        "action": "offload_backend_models", "success": True,
-                        "models": {
-                            "ollama": ollama_unloaded,
-                            "atomic_chat": ac_unloaded,
-                        },
-                    })
+                    actions.append(
+                        {
+                            "action": "offload_backend_models",
+                            "success": True,
+                            "models": {
+                                "ollama": ollama_unloaded,
+                                "atomic_chat": ac_unloaded,
+                            },
+                        }
+                    )
                     vram = await self.get_vram_status()
                     free_mb = vram.get("free_mb", 0)
 
@@ -947,15 +1009,19 @@ class VRAMManager:
                         "VRAM Manager: %dMB free is below the %dMB audio budget "
                         "and ComfyUI is busy; leaving its models loaded (the "
                         "CUDA pass may fall back to CPU)",
-                        free_mb, budget,
+                        free_mb,
+                        budget,
                     )
                 else:
                     logger.info("VRAM Manager: Offloading ComfyUI models for audio analysis")
                     comfy = await _unload_comfyui_models()
                     self._comfyui_models_loaded = False
-                    actions.append({
-                        "action": "offload_comfyui", **comfy,
-                    })
+                    actions.append(
+                        {
+                            "action": "offload_comfyui",
+                            **comfy,
+                        }
+                    )
                     vram = await self.get_vram_status()
                     free_mb = vram.get("free_mb", 0)
 
@@ -998,24 +1064,30 @@ class VRAMManager:
                 # useful afterwards.
                 if free_mb > self.MIN_VRAM_FOR_MUSIC:
                     logger.info(
-                        "VRAM Manager: Reloading Ollama after audio analysis "
-                        "(free=%dMB)", free_mb)
+                        "VRAM Manager: Reloading Ollama after audio analysis (free=%dMB)", free_mb
+                    )
                     from ..core.config import config as _cfg3
+
                     last_model = _sanitize_model_name(
                         _resolve_last_model(_cfg3.default_model), _cfg3.default_model
                     )
                     reload_ok = await _reload_ollama_models(last_model)
                     self._ollama_loaded = reload_ok
-                    actions.append({
-                        "action": "reload_ollama", "success": reload_ok,
-                        "model": last_model,
-                    })
+                    actions.append(
+                        {
+                            "action": "reload_ollama",
+                            "success": reload_ok,
+                            "model": last_model,
+                        }
+                    )
                 else:
                     # Leave it offloaded; the next workload to need VRAM will
                     # find it already unloaded rather than thrashing.
                     logger.info(
-                        "VRAM Manager: Leaving Ollama offloaded (free=%dMB, "
-                        "need >%dMB to reload)", free_mb, self.MIN_VRAM_FOR_MUSIC)
+                        "VRAM Manager: Leaving Ollama offloaded (free=%dMB, need >%dMB to reload)",
+                        free_mb,
+                        self.MIN_VRAM_FOR_MUSIC,
+                    )
 
             # Reload Atomic Chat model if it was offloaded
             if not self._atomic_chat_loaded:
@@ -1026,22 +1098,24 @@ class VRAMManager:
                         logger.info(
                             "VRAM Manager: Reloading Atomic Chat model %s "
                             "after audio analysis (free=%dMB)",
-                            last_ac_model, free_mb,
+                            last_ac_model,
+                            free_mb,
                         )
-                        reload_ok = await _load_model_for_backend(
-                            "atomic_chat", last_ac_model
-                        )
+                        reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
                         self._atomic_chat_loaded = reload_ok
-                        actions.append({
-                            "action": "reload_atomic_chat",
-                            "success": reload_ok,
-                            "model": last_ac_model,
-                        })
+                        actions.append(
+                            {
+                                "action": "reload_atomic_chat",
+                                "success": reload_ok,
+                                "model": last_ac_model,
+                            }
+                        )
                     else:
                         logger.info(
                             "VRAM Manager: Leaving Atomic Chat offloaded "
                             "(free=%dMB, need >%dMB to reload)",
-                            free_mb, self.MIN_VRAM_FOR_MUSIC,
+                            free_mb,
+                            self.MIN_VRAM_FOR_MUSIC,
                         )
 
             return {
@@ -1075,10 +1149,14 @@ class VRAMManager:
                 ac_unloaded = await _unload_atomic_chat_models()
                 self._ollama_loaded = False
                 self._atomic_chat_loaded = False
-                result = {"action": "emergency_offload", "success": True, "models": {
-                    "ollama": ollama_unloaded,
-                    "atomic_chat": ac_unloaded,
-                }}
+                result = {
+                    "action": "emergency_offload",
+                    "success": True,
+                    "models": {
+                        "ollama": ollama_unloaded,
+                        "atomic_chat": ac_unloaded,
+                    },
+                }
                 return {
                     "action": "emergency_offload",
                     "vram_percent": percent,
@@ -1087,8 +1165,11 @@ class VRAMManager:
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                 }
             else:
-                logger.warning("VRAM Manager: CRITICAL VRAM (%.1f%%) but cannot safely offload "
-                               "(system RAM insufficient)", percent)
+                logger.warning(
+                    "VRAM Manager: CRITICAL VRAM (%.1f%%) but cannot safely offload "
+                    "(system RAM insufficient)",
+                    percent,
+                )
                 return {
                     "action": "critical_vram_no_offload",
                     "vram_percent": percent,
@@ -1246,9 +1327,7 @@ class VRAMManager:
             },
         }
 
-    async def switch_backend_model(
-        self, backend: str, model: str
-    ) -> dict[str, Any]:
+    async def switch_backend_model(self, backend: str, model: str) -> dict[str, Any]:
         """Coordinated model switch across Ollama and Atomic Chat backends.
 
         On an 8 GB card, only one model can be resident at a time. When the
@@ -1270,9 +1349,7 @@ class VRAMManager:
             Dict with status, actions taken, and the newly resident model.
         """
         async with self._lock:
-            logger.info(
-                "VRAM Manager: switching backend=%s model=%s", backend, model
-            )
+            logger.info("VRAM Manager: switching backend=%s model=%s", backend, model)
             actions: list[dict[str, Any]] = []
 
             # Validate backend
@@ -1302,7 +1379,11 @@ class VRAMManager:
                     "atomic_chat_loaded": self._atomic_chat_loaded,
                     "message": f"Model {model} already loaded for Ollama",
                 }
-            if backend == "atomic_chat" and self._atomic_chat_loaded and self._atomic_chat_model_name == model:
+            if (
+                backend == "atomic_chat"
+                and self._atomic_chat_loaded
+                and self._atomic_chat_model_name == model
+            ):
                 return {
                     "success": True,
                     "backend": backend,
@@ -1365,6 +1446,7 @@ class VRAMManager:
         if self._nvml_available:
             try:
                 import pynvml
+
                 pynvml.nvmlShutdown()
                 self._nvml_available = False
                 logger.debug("VRAM Manager: NVML shutdown complete")

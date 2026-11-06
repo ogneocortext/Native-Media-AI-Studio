@@ -68,7 +68,7 @@ def _resolve_image(image: str) -> Path:
     if not p.is_absolute():
         if image.startswith("comfyui/"):
             comfy_out = comfyui_output_dir()
-            p = Path(comfy_out) / image[len("comfyui/"):]
+            p = Path(comfy_out) / image[len("comfyui/") :]
         else:
             p = PROJECT_ROOT / image
     p = p.resolve()
@@ -100,6 +100,7 @@ async def _list_upscale_models() -> list[str]:
     if not data:
         return []
     from ..core.comfyui_client import extract_combo_options
+
     return extract_combo_options(data.get("UpscaleModelLoader", {}), "model_name")
 
 
@@ -111,14 +112,20 @@ def _build_upscale_workflow(image_name: str, model: str, scale: int, filename_pr
     result is accepted as-is (ComfyUI ImageScale percent resizing is not
     uniform across versions), keeping the workflow minimal and robust.
     """
-    return {"prompt": {
-        "1": {"class_type": "LoadImage", "inputs": {"image": image_name}},
-        "2": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": model}},
-        "3": {"class_type": "ImageUpscaleWithModel",
-              "inputs": {"upscale_model": ["2", 0], "image": ["1", 0]}},
-        "5": {"class_type": "SaveImage",
-              "inputs": {"filename_prefix": filename_prefix, "images": ["3", 0]}},
-    }}
+    return {
+        "prompt": {
+            "1": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+            "2": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": model}},
+            "3": {
+                "class_type": "ImageUpscaleWithModel",
+                "inputs": {"upscale_model": ["2", 0], "image": ["1", 0]},
+            },
+            "5": {
+                "class_type": "SaveImage",
+                "inputs": {"filename_prefix": filename_prefix, "images": ["3", 0]},
+            },
+        }
+    }
 
 
 async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResult:
@@ -127,8 +134,10 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
     warnings: list[str] = []
 
     models = await _list_upscale_models()
-    chosen = model if model in models else next(
-        (m for m in models if "clearreality" in m.lower()), models[0] if models else None
+    chosen = (
+        model
+        if model in models
+        else next((m for m in models if "clearreality" in m.lower()), models[0] if models else None)
     )
     if not chosen:
         raise RuntimeError("ComfyUI has no upscale models installed in models/upscalers")
@@ -153,7 +162,9 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
         workflow = _build_upscale_workflow(load_name, chosen, scale, prefix)
 
         session = await _cu.get_shared_session()
-        prompt_id = await _cu.submit_prompt(config.comfyui_url, workflow, session=session, timeout=15)
+        prompt_id = await _cu.submit_prompt(
+            config.comfyui_url, workflow, session=session, timeout=15
+        )
 
         deadline = time.monotonic() + 600
         outputs: dict = {}
@@ -184,9 +195,7 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
             try:
                 await _cu.cancel_prompt(config.comfyui_url, prompt_id, session=session)
             except Exception as e:  # never mask the real failure
-                logger.warning(
-                    "Could not cancel abandoned upscale prompt %s: %s", prompt_id, e
-                )
+                logger.warning("Could not cancel abandoned upscale prompt %s: %s", prompt_id, e)
             raise
 
         for _node, out in outputs.items():
@@ -194,8 +203,11 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
                 params = _cu.view_params(
                     img["filename"], img.get("subfolder", ""), img.get("type", "output")
                 )
-                async with session.get(f"{config.comfyui_url}/view", params=params,
-                    timeout=aiohttp.ClientTimeout(total=60)) as r:
+                async with session.get(
+                    f"{config.comfyui_url}/view",
+                    params=params,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as r:
                     if r.status != 200:
                         continue
                     data = await r.read()
@@ -203,8 +215,11 @@ async def _upscale_via_comfyui(src: Path, model: str, scale: int) -> UpscaleResu
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     await asyncio.to_thread(dst.write_bytes, data)
                     return UpscaleResult(
-                        engine="comfyui", model=chosen, scale=scale,
-                        source=str(src), output_path=str(dst),
+                        engine="comfyui",
+                        model=chosen,
+                        scale=scale,
+                        source=str(src),
+                        output_path=str(dst),
                         relative_path=_relative(dst),
                         elapsed_s=round(time.perf_counter() - t0, 2),
                         warnings=warnings,
@@ -223,12 +238,20 @@ def _upscale_via_ffmpeg_sync(src: Path, dst: Path, scale: int) -> None:
     if not ffmpeg:
         raise RuntimeError("ffmpeg not found on PATH")
     cmd = [
-        ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(src),
-        "-vf", f"scale=iw*{scale}:ih*{scale}:flags=lanczos",
+        ffmpeg,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(src),
+        "-vf",
+        f"scale=iw*{scale}:ih*{scale}:flags=lanczos",
         str(dst),
     ]
-    proc = subprocess.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=300)
+    proc = subprocess.run(
+        cmd, encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=300
+    )
     if proc.returncode != 0 or not dst.exists():
         raise RuntimeError(f"FFmpeg upscale failed: {(proc.stderr or '')[-300:]}")
 
@@ -239,16 +262,20 @@ async def _upscale_via_ffmpeg(src: Path, scale: int) -> UpscaleResult:
     dst.parent.mkdir(parents=True, exist_ok=True)
     await asyncio.to_thread(_upscale_via_ffmpeg_sync, src, dst, scale)
     return UpscaleResult(
-        engine="ffmpeg", model="lanczos", scale=scale,
-        source=str(src), output_path=str(dst),
+        engine="ffmpeg",
+        model="lanczos",
+        scale=scale,
+        source=str(src),
+        output_path=str(dst),
         relative_path=_relative(dst),
         elapsed_s=round(time.perf_counter() - t0, 2),
         warnings=["ComfyUI unavailable -- pure lanczos resize (no AI super-resolution)"],
     )
 
 
-async def upscale_image(image: str, model: str = DEFAULT_MODEL, scale: int = 4,
-                        *, prefer_comfyui: bool = True) -> UpscaleResult:
+async def upscale_image(
+    image: str, model: str = DEFAULT_MODEL, scale: int = 4, *, prefer_comfyui: bool = True
+) -> UpscaleResult:
     """Upscale one image by `scale`x via ComfyUI AI model or FFmpeg fallback."""
     if scale not in (2, 4):
         raise ValueError("scale must be 2 or 4")

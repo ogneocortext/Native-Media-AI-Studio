@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  abInitial,
-  abMatches,
-  abPin,
-  abShowing,
-  type AbVariant,
-} from "./abCompare";
+import { abInitial, abMatches, abPin, abShowing, type AbVariant } from "./abCompare";
 import type { EditableSlot } from "./remixRecipe";
 
 function variant(overrides: Partial<AbVariant> = {}): AbVariant {

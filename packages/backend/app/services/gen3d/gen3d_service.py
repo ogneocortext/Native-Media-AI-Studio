@@ -201,7 +201,8 @@ class Gen3DService:
             # (checkpoints/triposr.ckpt); older docs used a triposr/ dir.
             ckpt_file = COMFYUI_DIR / "models" / "checkpoints" / "triposr.ckpt"
             self.model_dir = (
-                ckpt_file if ckpt_file.exists()
+                ckpt_file
+                if ckpt_file.exists()
                 else COMFYUI_DIR / "models" / "checkpoints" / "triposr"
             )
         elif self.backend == "stable_fast_3d":
@@ -223,15 +224,19 @@ class Gen3DService:
                 logger.warning(
                     "3D backend '%s' unavailable: ComfyUI node classes not registered "
                     "(custom node pack missing or import failed): %s",
-                    self.backend, ", ".join(missing_nodes),
+                    self.backend,
+                    ", ".join(missing_nodes),
                 )
                 self.available = False
         if self.available:
             logger.info("3D generation service ready: %s via ComfyUI", self.backend_name)
         else:
-            logger.warning("3D generation unavailable: backend=%s comfyui=%s model_exists=%s",
-                           self.backend, self.available,
-                           self.model_dir.exists() if self.model_dir else "n/a")
+            logger.warning(
+                "3D generation unavailable: backend=%s comfyui=%s model_exists=%s",
+                self.backend,
+                self.available,
+                self.model_dir.exists() if self.model_dir else "n/a",
+            )
 
     def _check_comfyui(self) -> bool:
         """Check if ComfyUI is running and accessible."""
@@ -297,6 +302,7 @@ class Gen3DService:
 
         import random as _rand
         import time as _time
+
         # ensure unique, filesystem-safe name -- previous truncated to 30 chars caused 4 identical prefixes
         base = self._sanitize_name(output_name or prompt[:40]) or "gen3d"
         # add seed + timestamp nonce to avoid Collisions when same prompt reused with same seed
@@ -307,6 +313,7 @@ class Gen3DService:
         try:
             # VRAM Management: Offload Ollama before 3D generation
             from ..vram_manager import vram_manager
+
             vram_result = await vram_manager.begin_3d_generation()
             logger.info("VRAM pre-3d generation: %s", vram_result)
 
@@ -324,6 +331,7 @@ class Gen3DService:
             logger.error("3D generation failed: %s", e, exc_info=True)
             # Ensure Ollama is reloaded even on error
             from ..vram_manager import vram_manager
+
             await vram_manager.end_3d_generation()
             return {"success": False, "error": str(e)}
 
@@ -360,6 +368,7 @@ class Gen3DService:
         try:
             # VRAM Management: Offload Ollama before 3D generation
             from ..vram_manager import vram_manager
+
             vram_result = await vram_manager.begin_3d_generation()
             logger.info("VRAM pre-3d generation: %s", vram_result)
 
@@ -376,12 +385,14 @@ class Gen3DService:
             logger.error("Image-to-3D generation failed: %s", e, exc_info=True)
             # Ensure Ollama is reloaded even on error
             from ..vram_manager import vram_manager
+
             await vram_manager.end_3d_generation()
             return {"success": False, "error": str(e)}
 
     def _sanitize_name(self, name: str) -> str:
         """Return a filesystem/prefix-safe token (alphanumeric, '-', '_')."""
         import re
+
         return re.sub(r"[^A-Za-z0-9\-_]", "_", name)[:64] or "gen3d"
 
     # Quality knobs for the 8GB GTX 1070 Ti. These are tuned for the fast variant:
@@ -406,26 +417,16 @@ class Gen3DService:
         proc_output_name = self._sanitize_name(output_name)
 
         if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
-            return self._build_hunyuan_text23d_workflow(
-                prompt, proc_output_name, steps, seed, cfg
-            )
+            return self._build_hunyuan_text23d_workflow(prompt, proc_output_name, steps, seed, cfg)
         elif self.backend == "triposr":
             # TripoSR is image-only; first render a concept image, then generate 3D
-            return self._build_triposr_text23d_workflow(
-                prompt, proc_output_name, seed
-            )
+            return self._build_triposr_text23d_workflow(prompt, proc_output_name, seed)
         elif self.backend == "stable_fast_3d":
-            return self._build_sf3d_text23d_workflow(
-                prompt, proc_output_name, seed
-            )
+            return self._build_sf3d_text23d_workflow(prompt, proc_output_name, seed)
         elif self.backend == "point_e":
-            return self._build_point_e_workflow(
-                prompt, proc_output_name, seed
-            )
+            return self._build_point_e_workflow(prompt, proc_output_name, seed)
         elif self.backend == "shap_e":
-            return self._build_shap_e_workflow(
-                prompt, proc_output_name, seed
-            )
+            return self._build_shap_e_workflow(prompt, proc_output_name, seed)
         else:
             raise ValueError(f"Unsupported backend for text-to-3D: {self.backend}")
 
@@ -558,7 +559,9 @@ class Gen3DService:
         """Build ComfyUI workflow: SD1.5 text-to-image, then TripoSR image-to-mesh."""
         enhanced_prompt = prompt
         if "white background" not in prompt.lower():
-            enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo"
+            enhanced_prompt = (
+                f"{prompt}, white background, isolated object, centered, product photo"
+            )
 
         return {
             # Stage 1: text -> image (SD1.5)
@@ -629,7 +632,9 @@ class Gen3DService:
         """Build ComfyUI workflow: SD1.5 text-to-image, then StableFast3D image-to-mesh."""
         enhanced_prompt = prompt
         if "white background" not in prompt.lower():
-            enhanced_prompt = f"{prompt}, white background, isolated object, centered, product photo"
+            enhanced_prompt = (
+                f"{prompt}, white background, isolated object, centered, product photo"
+            )
 
         return {
             # Stage 1: text -> image (SD1.5)
@@ -916,26 +921,42 @@ class Gen3DService:
                 logger.info("Copied .glb to: %s", dst)
             except Exception as e:
                 logger.warning("Could not copy .glb into outputs: %s", e)
-                return {"success": True, "prompt_id": prompt_id, "model_path": str(src),
-                        "warning": f"Mesh exported but could not be copied to backend outputs: {e}"}
+                return {
+                    "success": True,
+                    "prompt_id": prompt_id,
+                    "model_path": str(src),
+                    "warning": f"Mesh exported but could not be copied to backend outputs: {e}",
+                }
 
             # Post-process: decimate if mesh is too large
             decimate_result = self._decimate_if_needed(dst)
             # Apply chrome PBR if prompt looks metallic (fast variant is always untextured gray)
             # This turns the "alien gray blob" into the intended chrome look without needing the 2GB paint model
             try:
-                if any(k in dst.name.lower() for k in ("chrome", "robot", "metal")) or decimate_result.get("decimated") is not None:
+                if (
+                    any(k in dst.name.lower() for k in ("chrome", "robot", "metal"))
+                    or decimate_result.get("decimated") is not None
+                ):
                     chrome_res = self._apply_chrome_material(dst)
                     if chrome_res.get("success"):
                         logger.info("Applied chrome material to %s", dst.name)
             except Exception as e:
                 logger.debug("Chrome apply skipped: %s", e)
 
-            return {"success": True, "model_path": str(dst), "prompt_id": prompt_id, "decimate": decimate_result}
+            return {
+                "success": True,
+                "model_path": str(dst),
+                "prompt_id": prompt_id,
+                "decimate": decimate_result,
+            }
         # Source file not found -- surface what ComfyUI reported.
         logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
-        return {"success": True, "prompt_id": prompt_id, "model_path": str(OUTPUT_DIR / Path(image_path).name),
-                "warning": "Mesh exported but file could not be located in backend outputs."}
+        return {
+            "success": True,
+            "prompt_id": prompt_id,
+            "model_path": str(OUTPUT_DIR / Path(image_path).name),
+            "warning": "Mesh exported but file could not be located in backend outputs.",
+        }
 
     def _decimate_if_needed(self, glb_path: Path, target_faces: int = 50000) -> dict:
         """Decimate a GLB mesh if it exceeds the target face count.
@@ -956,13 +977,20 @@ class Gen3DService:
 
             result = subprocess.run(
                 [
-                    blender_exe, "--background", "--python", str(script_path),
-                    "--", str(glb_path), str(temp_output), str(target_faces)
+                    blender_exe,
+                    "--background",
+                    "--python",
+                    str(script_path),
+                    "--",
+                    str(glb_path),
+                    str(temp_output),
+                    str(target_faces),
                 ],
-                encoding="utf-8", errors="replace",
+                encoding="utf-8",
+                errors="replace",
                 capture_output=True,
                 text=True,
-                timeout=180  # 3 minutes max for large meshes
+                timeout=180,  # 3 minutes max for large meshes
             )
 
             if result.returncode == 0 and temp_output.exists():
@@ -981,19 +1009,21 @@ class Gen3DService:
                         "Decimated %s: %.1fMB -> %.1fMB",
                         glb_path.name,
                         original_size / 1024 / 1024,
-                        glb_path.stat().st_size / 1024 / 1024
+                        glb_path.stat().st_size / 1024 / 1024,
                     )
                     return {
                         "decimated": True,
                         "original_size_mb": round(original_size / 1024 / 1024, 1),
-                        "final_size_mb": round(glb_path.stat().st_size / 1024 / 1024, 1)
+                        "final_size_mb": round(glb_path.stat().st_size / 1024 / 1024, 1),
                     }
                 else:
                     # Decimated version is larger (shouldn't happen often)
                     temp_output.unlink(missing_ok=True)
                     return {"decimated": False, "reason": "decimated_larger"}
             else:
-                logger.warning("Decimation failed: %s", result.stderr[:500] if result.stderr else "unknown")
+                logger.warning(
+                    "Decimation failed: %s", result.stderr[:500] if result.stderr else "unknown"
+                )
                 return {"decimated": False, "reason": "blender_error"}
 
         except subprocess.TimeoutExpired:
@@ -1007,12 +1037,28 @@ class Gen3DService:
         """Apply chrome PBR material to an untextured GLB (fast variant is always gray)."""
         try:
             import subprocess
+
             blender_exe = r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
             script_path = Path(__file__).parent / "apply_chrome.py"
             if not script_path.exists():
                 return {"success": False, "reason": "script_not_found"}
             tmp = glb_path.with_suffix(".chrome.glb")
-            result = subprocess.run([blender_exe, "--background", "--python", str(script_path), "--", str(glb_path), str(tmp)], encoding="utf-8", errors="replace", capture_output=True, text=True, timeout=60)
+            result = subprocess.run(
+                [
+                    blender_exe,
+                    "--background",
+                    "--python",
+                    str(script_path),
+                    "--",
+                    str(glb_path),
+                    str(tmp),
+                ],
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
             if result.returncode == 0 and tmp.exists():
                 # replace original with chromed version
                 tmp.replace(glb_path)
@@ -1173,11 +1219,23 @@ class Gen3DService:
             "model_path": str(self.model_dir) if self.model_dir else "n/a",
             "model_exists": self.model_dir.exists() if self.model_dir else False,
             "output_dir": str(OUTPUT_DIR),
-            "generated_count": len(list(OUTPUT_DIR.glob("*.glb"))) + len(list(OUTPUT_DIR.glob("*.obj"))),
+            "generated_count": len(list(OUTPUT_DIR.glob("*.glb")))
+            + len(list(OUTPUT_DIR.glob("*.obj"))),
             "backend_health": self._backend_health(),
             "available_backends": list(MODEL_BACKENDS.keys()),
-            "text_to_3d_backends": ["point_e", "shap_e", "hunyuan3d_2mini", "hunyuan3d_2mv", "hunyuan3d_2gp_external"],
-            "image_to_3d_backends": ["hunyuan3d_2mini", "hunyuan3d_2mv", "triposr", "stable_fast_3d"],
+            "text_to_3d_backends": [
+                "point_e",
+                "shap_e",
+                "hunyuan3d_2mini",
+                "hunyuan3d_2mv",
+                "hunyuan3d_2gp_external",
+            ],
+            "image_to_3d_backends": [
+                "hunyuan3d_2mini",
+                "hunyuan3d_2mv",
+                "triposr",
+                "stable_fast_3d",
+            ],
             "knowledge_library": "docs/knowledge-library/text-to-3d-options-2026.md",
         }
 
@@ -1199,24 +1257,31 @@ class Gen3DService:
         if repatriated:
             logger.info(
                 "Repatriated %d orphaned 3D model(s) from ComfyUI output into %s",
-                repatriated, OUTPUT_DIR,
+                repatriated,
+                OUTPUT_DIR,
             )
 
         try:
-            for p in sorted(OUTPUT_DIR.rglob("*"), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
+            for p in sorted(
+                OUTPUT_DIR.rglob("*"),
+                key=lambda x: x.stat().st_mtime if x.exists() else 0,
+                reverse=True,
+            ):
                 if not p.is_file():
                     continue
                 if p.suffix.lower() not in {".glb", ".gltf"}:
                     continue
                 seen.add(p)
-                models.append({
-                    "filename": p.name,
-                    "path": str(p),
-                    "relative_path": p.relative_to(OUTPUT_DIR).as_posix(),
-                    "servable_url": f"/output/generated_3d/{p.name}",
-                    "size_bytes": p.stat().st_size,
-                    "modified": p.stat().st_mtime,
-                })
+                models.append(
+                    {
+                        "filename": p.name,
+                        "path": str(p),
+                        "relative_path": p.relative_to(OUTPUT_DIR).as_posix(),
+                        "servable_url": f"/output/generated_3d/{p.name}",
+                        "size_bytes": p.stat().st_size,
+                        "modified": p.stat().st_mtime,
+                    }
+                )
         except Exception as e:
             logger.warning("3D model scan failed for %s: %s", OUTPUT_DIR, e)
 

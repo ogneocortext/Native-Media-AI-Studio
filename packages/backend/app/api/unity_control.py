@@ -178,8 +178,14 @@ async def capture_scene(
     save_path: str = "output/unity_capture.png",
 ) -> dict[str, Any]:
     """Capture the Unity Scene View."""
-    if not save_path or ".." in save_path.replace("\\", "/").split("/") or Path(save_path).is_absolute():
-        raise HTTPException(status_code=400, detail="save_path must be a relative path without traversal")
+    if (
+        not save_path
+        or ".." in save_path.replace("\\", "/").split("/")
+        or Path(save_path).is_absolute()
+    ):
+        raise HTTPException(
+            status_code=400, detail="save_path must be a relative path without traversal"
+        )
     resp = await _proxy_or_direct(
         "/api/exec",
         method="POST",

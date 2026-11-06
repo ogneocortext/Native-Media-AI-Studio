@@ -1,6 +1,7 @@
 """
 Image generation job handler.
 """
+
 import base64
 import json
 import logging
@@ -57,6 +58,7 @@ class ImageGenerationHandler:
             adapter: ComfyUI adapter instance. If None, creates one with real service mode.
         """
         from ..adapters.comfyui import ComfyUIAdapter
+
         self.adapter = adapter or ComfyUIAdapter()
 
     async def process_job(self, job: Job) -> dict[str, Any]:
@@ -83,7 +85,7 @@ class ImageGenerationHandler:
             "output_path": output_files["image"],
             "sidecar_path": output_files["sidecar"],
             "seed": result.get("seed"),
-            "info": result.get("info")
+            "info": result.get("info"),
         }
 
     async def save_output(self, job: Job, result: dict[str, Any]) -> dict[str, str]:
@@ -155,15 +157,10 @@ class ImageGenerationHandler:
 
         sidecar_path = await self._persist_sidecar(job, sidecar_data, filename)
 
-        return {
-            "image": str(image_path),
-            "sidecar": str(sidecar_path)
-        }
+        return {"image": str(image_path), "sidecar": str(sidecar_path)}
 
     @staticmethod
-    async def _persist_sidecar(
-        job: Job, sidecar_data: dict[str, Any], filename: str
-    ) -> Path:
+    async def _persist_sidecar(job: Job, sidecar_data: dict[str, Any], filename: str) -> Path:
         """Write the sidecar next to its image and return where it actually is.
 
         Split out of `save_output` because keeping it inline pushed that
@@ -198,7 +195,9 @@ class ImageGenerationHandler:
         logger.warning(
             "go-worker reported writing sidecar for job %s but %s is absent; "
             "writing it directly at %s",
-            job.id, written, sidecar_path,
+            job.id,
+            written,
+            sidecar_path,
         )
         _write_sidecar(sidecar_path, sidecar_data)
         return sidecar_path

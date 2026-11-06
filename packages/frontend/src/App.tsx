@@ -36,7 +36,10 @@ const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: str
   );
 
 // Heavy pages loaded on-demand
-const MasteringPage = lazyNamed(async () => import("./features/mastering/MasteringPage"), "MasteringPage");
+const MasteringPage = lazyNamed(
+  async () => import("./features/mastering/MasteringPage"),
+  "MasteringPage",
+);
 const HealthPage = lazyNamed(async () => import("./features/health/HealthPage"), "HealthPage");
 const DataManagementPage = lazyNamed(
   async () => import("./features/data-management/DataManagementPage"),
@@ -82,7 +85,10 @@ const AudioAnalysisPage = lazyNamed(
 const AIToolsPage = lazyNamed(async () => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
 const OllamaChat = lazyNamed(async () => import("./features/ollama-chat/OllamaChat"), "OllamaChat");
 const AgentChat = lazyNamed(async () => import("./features/agent-chat/AgentChat"), "AgentChat");
-const SubAgentChat = lazyNamed(async () => import("./features/sub-agent/SubAgentChat"), "SubAgentChat");
+const SubAgentChat = lazyNamed(
+  async () => import("./features/sub-agent/SubAgentChat"),
+  "SubAgentChat",
+);
 const VideoGenerationPage = lazyNamed(
   async () => import("./features/video-generation/VideoGenerationPage"),
   "VideoGenerationPage",
@@ -97,7 +103,10 @@ const KineticTypographyPage = lazyNamed(
   "KineticTypographyPage",
 );
 const Preview = lazyNamed(async () => import("./features/preview/Preview"), "Preview");
-const GpuMonitorPage = lazyNamed(async () => import("./features/gpu/GpuMonitorPage"), "GpuMonitorPage");
+const GpuMonitorPage = lazyNamed(
+  async () => import("./features/gpu/GpuMonitorPage"),
+  "GpuMonitorPage",
+);
 const LogAnalyticsPage = lazyNamed(
   async () => import("./features/log-analytics/LogAnalytics"),
   "LogAnalytics",
@@ -124,21 +133,32 @@ const NotificationsPage = lazyNamed(
   "NotificationsPage",
 );
 const AnimationStudio = lazyNamed(
-  async () => import("./features/animation-studio/AnimationStudio"), "AnimationStudio",
+  async () => import("./features/animation-studio/AnimationStudio"),
+  "AnimationStudio",
 );
 const OnboardingPage = lazyNamed(
-  async () => import("./features/onboarding/OnboardingPage"), "OnboardingPage",
+  async () => import("./features/onboarding/OnboardingPage"),
+  "OnboardingPage",
 );
 
 // Register all lazy routes for preloading on hover
 registerRouteLoader("/create/music-video", () => import("./features/music-video/MusicVideoWizard"));
-registerRouteLoader("/create/video", () => import("./features/video-generation/VideoGenerationPage"));
+registerRouteLoader(
+  "/create/video",
+  () => import("./features/video-generation/VideoGenerationPage"),
+);
 registerRouteLoader("/create/3d", () => import("./features/three-js-studio/ThreeJSStudio"));
 registerRouteLoader("/create/image", () => import("./features/image-generation/ImageGeneration"));
-registerRouteLoader("/create/typography", () => import("./features/kinetic-typography/KineticTypographyPage"));
+registerRouteLoader(
+  "/create/typography",
+  () => import("./features/kinetic-typography/KineticTypographyPage"),
+);
 registerRouteLoader("/create/music", () => import("./features/music-gen/MusicGenPage"));
 registerRouteLoader("/create/remix", () => import("./features/remix/RemixPage"));
-registerRouteLoader("/create/animation", () => import("./features/animation-studio/AnimationStudio"));
+registerRouteLoader(
+  "/create/animation",
+  () => import("./features/animation-studio/AnimationStudio"),
+);
 registerRouteLoader("/create/unity", () => import("./features/unity-control/UnityControlPage"));
 registerRouteLoader("/create/hyperframes", () => import("./features/hyperframes/HyperFramesPage"));
 registerRouteLoader("/library", () => import("./features/media-library/MediaLibrary"));
@@ -152,16 +172,25 @@ registerRouteLoader("/analyze/chat", () => import("./features/ollama-chat/Ollama
 registerRouteLoader("/analyze/agent-chat", () => import("./features/agent-chat/AgentChat"));
 registerRouteLoader("/render/visualizer", () => import("./features/visualizer/Visualizer"));
 registerRouteLoader("/render/preview", () => import("./features/preview/Preview"));
-registerRouteLoader("/render/prompts", () => import("./features/music-prompts/MusicPromptsWorkbench"));
+registerRouteLoader(
+  "/render/prompts",
+  () => import("./features/music-prompts/MusicPromptsWorkbench"),
+);
 registerRouteLoader("/system", () => import("./features/dashboard/Dashboard"));
 registerRouteLoader("/system/queue", () => import("./features/queue/Queue"));
 registerRouteLoader("/system/settings", () => import("./features/settings/Settings"));
 registerRouteLoader("/system/health", () => import("./features/health/HealthPage"));
-registerRouteLoader("/system/data-management", () => import("./features/data-management/DataManagementPage"));
+registerRouteLoader(
+  "/system/data-management",
+  () => import("./features/data-management/DataManagementPage"),
+);
 registerRouteLoader("/system/database", () => import("./features/database/DatabasePage"));
 registerRouteLoader("/system/gpu", () => import("./features/gpu/GpuMonitorPage"));
 registerRouteLoader("/system/log-analytics", () => import("./features/log-analytics/LogAnalytics"));
-registerRouteLoader("/system/notifications", () => import("./features/notifications/NotificationsPage"));
+registerRouteLoader(
+  "/system/notifications",
+  () => import("./features/notifications/NotificationsPage"),
+);
 registerRouteLoader("/system/docs", () => import("./features/docs/DocsPage"));
 registerRouteLoader("/system/onboarding", () => import("./features/onboarding/OnboardingPage"));
 
@@ -243,27 +272,15 @@ function App() {
                   </FirstRunGate>,
                 )}
               />
-              <Route
-                path="/system/onboarding"
-                element={withErrorBoundary(<OnboardingPage />)}
-              />
+              <Route path="/system/onboarding" element={withErrorBoundary(<OnboardingPage />)} />
               <Route path="/system/queue" element={withErrorBoundary(<Queue />)} />
-              <Route
-                path="/system/settings"
-                element={withErrorBoundary(<Settings />)}
-              />
-              <Route
-                path="/system/health"
-                element={withErrorBoundary(<HealthPage />)}
-              />
+              <Route path="/system/settings" element={withErrorBoundary(<Settings />)} />
+              <Route path="/system/health" element={withErrorBoundary(<HealthPage />)} />
               <Route
                 path="/system/data-management"
                 element={withErrorBoundary(<DataManagementPage />)}
               />
-              <Route
-                path="/system/database"
-                element={withErrorBoundary(<DatabasePage />)}
-              />
+              <Route path="/system/database" element={withErrorBoundary(<DatabasePage />)} />
               <Route
                 path="/system/log-analytics"
                 element={withErrorBoundary(<LogAnalyticsPage />)}
@@ -273,28 +290,13 @@ function App() {
                 path="/system/notifications"
                 element={withErrorBoundary(<NotificationsPage />)}
               />
-              <Route
-                path="/system/docs"
-                element={withErrorBoundary(<DocsPage />)}
-              />
+              <Route path="/system/docs" element={withErrorBoundary(<DocsPage />)} />
 
               {/* Create */}
-              <Route
-                path="/create/music-video"
-                element={withErrorBoundary(<MusicVideoWizard />)}
-              />
-              <Route
-                path="/create/3d"
-                element={withErrorBoundary(<ThreeJSStudio />)}
-              />
-              <Route
-                path="/create/video"
-                element={withErrorBoundary(<VideoGenerationPage />)}
-              />
-              <Route
-                path="/create/image"
-                element={withErrorBoundary(<ImageGeneration />)}
-              />
+              <Route path="/create/music-video" element={withErrorBoundary(<MusicVideoWizard />)} />
+              <Route path="/create/3d" element={withErrorBoundary(<ThreeJSStudio />)} />
+              <Route path="/create/video" element={withErrorBoundary(<VideoGenerationPage />)} />
+              <Route path="/create/image" element={withErrorBoundary(<ImageGeneration />)} />
               <Route
                 path="/create/image-processing"
                 element={withErrorBoundary(<ImageProcessingPage />)}
@@ -303,76 +305,28 @@ function App() {
                 path="/create/typography"
                 element={withErrorBoundary(<KineticTypographyPage />)}
               />
-  <Route
-    path="/create/music"
-    element={withErrorBoundary(<MusicGenPage />)}
-  />
-  <Route
-    path="/create/remix"
-    element={withErrorBoundary(<RemixPage />)}
-  />
-              <Route
-                path="/create/animation"
-                element={withErrorBoundary(<AnimationStudio />)}
-              />
-              <Route
-                path="/create/unity"
-                element={withErrorBoundary(<UnityControlPage />)}
-              />
-              <Route
-                path="/create/hyperframes"
-                element={withErrorBoundary(<HyperFramesPage />)}
-              />
+              <Route path="/create/music" element={withErrorBoundary(<MusicGenPage />)} />
+              <Route path="/create/remix" element={withErrorBoundary(<RemixPage />)} />
+              <Route path="/create/animation" element={withErrorBoundary(<AnimationStudio />)} />
+              <Route path="/create/unity" element={withErrorBoundary(<UnityControlPage />)} />
+              <Route path="/create/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
 
               {/* Library */}
-              <Route
-                path="/library"
-                element={withErrorBoundary(<MediaLibrary />)}
-              />
-              <Route
-                path="/library/video"
-                element={withErrorBoundary(<VideoLibrary />)}
-              />
-              <Route
-                path="/library/audio"
-                element={withErrorBoundary(<AudioLibrary />)}
-              />
-              <Route
-                path="/library/storyboards"
-                element={withErrorBoundary(<StoryboardPage />)}
-              />
+              <Route path="/library" element={withErrorBoundary(<MediaLibrary />)} />
+              <Route path="/library/video" element={withErrorBoundary(<VideoLibrary />)} />
+              <Route path="/library/audio" element={withErrorBoundary(<AudioLibrary />)} />
+              <Route path="/library/storyboards" element={withErrorBoundary(<StoryboardPage />)} />
 
               {/* Analyze */}
-              <Route
-                path="/mastering"
-                element={withErrorBoundary(<MasteringPage />)}
-              />
-              <Route
-                path="/analyze/audio"
-                element={withErrorBoundary(<AudioAnalysisPage />)}
-              />
-              <Route
-                path="/analyze/ai"
-                element={withErrorBoundary(<AIToolsPage />)}
-              />
-              <Route
-                path="/analyze/chat"
-                element={withErrorBoundary(<OllamaChat />)}
-              />
-              <Route
-                path="/analyze/agent-chat"
-                element={withErrorBoundary(<AgentChat />)}
-              />
-              <Route
-                path="/analyze/agent"
-                element={withErrorBoundary(<SubAgentChat />)}
-              />
+              <Route path="/mastering" element={withErrorBoundary(<MasteringPage />)} />
+              <Route path="/analyze/audio" element={withErrorBoundary(<AudioAnalysisPage />)} />
+              <Route path="/analyze/ai" element={withErrorBoundary(<AIToolsPage />)} />
+              <Route path="/analyze/chat" element={withErrorBoundary(<OllamaChat />)} />
+              <Route path="/analyze/agent-chat" element={withErrorBoundary(<AgentChat />)} />
+              <Route path="/analyze/agent" element={withErrorBoundary(<SubAgentChat />)} />
 
               {/* Render */}
-              <Route
-                path="/render/visualizer"
-                element={withErrorBoundary(<Visualizer />)}
-              />
+              <Route path="/render/visualizer" element={withErrorBoundary(<Visualizer />)} />
               <Route path="/render/preview" element={withErrorBoundary(<Preview />)} />
               <Route path="/render/preview/:clipId" element={withErrorBoundary(<Preview />)} />
               <Route
@@ -386,7 +340,10 @@ function App() {
               {/* Backward-compatible redirects (old → new) */}
               <Route path="/onboarding" element={<Navigate to="/system/onboarding" replace />} />
               <Route path="/queue" element={<Navigate to="/system/queue" replace />} />
-              <Route path="/music-video-wizard" element={<Navigate to="/create/music-video" replace />} />
+              <Route
+                path="/music-video-wizard"
+                element={<Navigate to="/create/music-video" replace />}
+              />
               <Route path="/three-js-studio" element={<Navigate to="/create/3d" replace />} />
               <Route path="/audio-analysis" element={<Navigate to="/analyze/audio" replace />} />
               <Route path="/video-generation" element={<Navigate to="/create/video" replace />} />
@@ -402,16 +359,31 @@ function App() {
               <Route path="/music-gen" element={<Navigate to="/create/music" replace />} />
               <Route path="/settings" element={<Navigate to="/system/settings" replace />} />
               <Route path="/logs" element={<Navigate to="/system/log-analytics" replace />} />
-              <Route path="/log-analytics" element={<Navigate to="/system/log-analytics" replace />} />
+              <Route
+                path="/log-analytics"
+                element={<Navigate to="/system/log-analytics" replace />}
+              />
               <Route path="/health" element={<Navigate to="/system/health" replace />} />
-              <Route path="/data-management" element={<Navigate to="/system/data-management" replace />} />
+              <Route
+                path="/data-management"
+                element={<Navigate to="/system/data-management" replace />}
+              />
               <Route path="/database" element={<Navigate to="/system/database" replace />} />
-              <Route path="/kinetic-typography" element={<Navigate to="/create/typography" replace />} />
+              <Route
+                path="/kinetic-typography"
+                element={<Navigate to="/create/typography" replace />}
+              />
               <Route path="/gpu" element={<Navigate to="/system/gpu" replace />} />
               <Route path="/unity" element={<Navigate to="/create/unity" replace />} />
               <Route path="/preview" element={<Navigate to="/render/preview" replace />} />
-              <Route path="/notifications" element={<Navigate to="/system/notifications" replace />} />
-              <Route path="/animation-studio" element={<Navigate to="/create/animation" replace />} />
+              <Route
+                path="/notifications"
+                element={<Navigate to="/system/notifications" replace />}
+              />
+              <Route
+                path="/animation-studio"
+                element={<Navigate to="/create/animation" replace />}
+              />
 
               {/* Redirects for removed/merged routes */}
               <Route path="/music-video" element={<Navigate to="/create/music-video" replace />} />

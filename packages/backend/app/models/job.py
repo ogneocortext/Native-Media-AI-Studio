@@ -61,17 +61,20 @@ class Job(BaseModel):
     max_retries: int = Field(3, ge=0, le=100)
     priority: int = Field(0, description="Higher priority runs first; tie-break by created_at")
 
-    model_config = ConfigDict(use_enum_values=True, json_schema_extra={
-        "example": {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "job_type": "audio_analysis",
-            "status": "queued",
-            "progress": 0.0,
-            "params": {"audio_path": "/path/to/audio.wav", "section": "chorus"},
-            "priority": 5,
-            "max_retries": 3,
-        }
-    })
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_schema_extra={
+            "example": {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "job_type": "audio_analysis",
+                "status": "queued",
+                "progress": 0.0,
+                "params": {"audio_path": "/path/to/audio.wav", "section": "chorus"},
+                "priority": 5,
+                "max_retries": 3,
+            }
+        },
+    )
 
     @model_validator(mode="after")
     def _validate_retry_budget(self) -> "Job":
@@ -172,14 +175,16 @@ class JobCreateRequest(BaseModel):
     max_retries: int = Field(3, ge=0, le=100)
     priority: int = Field(0, description="Higher priority runs first; tie-break by created_at")
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "job_type": "audio_analysis",
-            "params": {"audio_path": "/path/to/audio.wav", "section": "chorus"},
-            "max_retries": 3,
-            "priority": 5,
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_type": "audio_analysis",
+                "params": {"audio_path": "/path/to/audio.wav", "section": "chorus"},
+                "max_retries": 3,
+                "priority": 5,
+            }
         }
-    })
+    )
 
 
 class JobUpdateRequest(BaseModel):

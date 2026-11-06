@@ -1,26 +1,6 @@
 import React, { useState, useRef } from "react";
 import { AudioTransport } from "../../../components/audio";
-import {
-  Upload,
-  Music,
-  
-  
-  
-  
-  
-  Loader2,
-  Zap,
-  
-  
-  Lightbulb,
-  
-  
-  
-  
-  CheckCircle2,
-  
-  
-} from "lucide-react";
+import { Upload, Music, Loader2, Zap, Lightbulb, CheckCircle2 } from "lucide-react";
 
 export function UploadStep({
   audioFile,
@@ -115,7 +95,9 @@ export function UploadStep({
             </>
           )}
         </div>
-        {audioUrl && <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />}
+        {audioUrl && (
+          <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />
+        )}
         {audioFile && (
           <button
             onClick={onNext}

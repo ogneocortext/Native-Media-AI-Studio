@@ -87,9 +87,8 @@ export function RemixWizard({
   };
   const built = buildWizardSlots(wiz);
   const vocalsBar =
-    built
-      .flatMap((s) => s.layers)
-      .find((l) => l.stem === "vocals" && l.track === wizB)?.source_start_bar ?? 0;
+    built.flatMap((s) => s.layers).find((l) => l.stem === "vocals" && l.track === wizB)
+      ?.source_start_bar ?? 0;
   const bVocals = wizB ? stemsFor(wizB).includes("vocals") : false;
 
   return (
@@ -153,29 +152,29 @@ export function RemixWizard({
 
       {step === 1 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] text-muted leading-relaxed">
-            What should the arrangement do?
-          </p>
-          {([
-            {
-              id: "swap" as WizardGoal,
-              label: "Drums under vocals",
-              detail: "Song A's drums and bass, with song B's vocals arriving",
-              needsBVocals: true,
-            },
-            {
-              id: "blend" as WizardGoal,
-              label: "Blend the two songs",
-              detail: "One slot holding both songs, song B without its vocals",
-              needsBVocals: false,
-            },
-            {
-              id: "intro" as WizardGoal,
-              label: "Intro, then the vocals",
-              detail: "An instrumental opening, then song B's vocals arrive",
-              needsBVocals: true,
-            },
-          ] as const).map((goal) => (
+          <p className="text-[10px] text-muted leading-relaxed">What should the arrangement do?</p>
+          {(
+            [
+              {
+                id: "swap" as WizardGoal,
+                label: "Drums under vocals",
+                detail: "Song A's drums and bass, with song B's vocals arriving",
+                needsBVocals: true,
+              },
+              {
+                id: "blend" as WizardGoal,
+                label: "Blend the two songs",
+                detail: "One slot holding both songs, song B without its vocals",
+                needsBVocals: false,
+              },
+              {
+                id: "intro" as WizardGoal,
+                label: "Intro, then the vocals",
+                detail: "An instrumental opening, then song B's vocals arrive",
+                needsBVocals: true,
+              },
+            ] as const
+          ).map((goal) => (
             <button
               key={goal.id}
               disabled={goal.needsBVocals && !bVocals}
@@ -211,7 +210,9 @@ export function RemixWizard({
                 aria-label={`${n} sections`}
                 onClick={() => setWizSlots(n)}
                 className={`px-1.5 py-0.5 rounded text-[10px] ${
-                  wizSlots === n ? "bg-amber-500/20 text-amber-100" : "bg-white/5 hover:bg-white/10 text-white"
+                  wizSlots === n
+                    ? "bg-amber-500/20 text-amber-100"
+                    : "bg-white/5 hover:bg-white/10 text-white"
                 }`}
               >
                 {n}
@@ -226,7 +227,9 @@ export function RemixWizard({
                 aria-label={`${n} bars each`}
                 onClick={() => setWizBars(n)}
                 className={`px-1.5 py-0.5 rounded text-[10px] ${
-                  wizBars === n ? "bg-amber-500/20 text-amber-100" : "bg-white/5 hover:bg-white/10 text-white"
+                  wizBars === n
+                    ? "bg-amber-500/20 text-amber-100"
+                    : "bg-white/5 hover:bg-white/10 text-white"
                 }`}
               >
                 {n}
@@ -234,8 +237,8 @@ export function RemixWizard({
             ))}
           </div>
           <p className="text-[9px] text-muted">
-            About {wizardDurationSec(wiz).toFixed(1)} s of audio,{" "}
-            {wiz.slotCount * wiz.barsPerSlot} bars in total.
+            About {wizardDurationSec(wiz).toFixed(1)} s of audio, {wiz.slotCount * wiz.barsPerSlot}{" "}
+            bars in total.
           </p>
         </div>
       )}
@@ -255,9 +258,9 @@ export function RemixWizard({
             <p className="flex items-start gap-1 text-[10px] text-amber-300/90 leading-relaxed">
               <AlertCircle size={10} className="mt-0.5 shrink-0" />
               <span>
-                Song B's vocals start at {(firstAudible[wizB ?? ""] ?? 0).toFixed(1)} s, so
-                they enter at bar {vocalsBar} — a vocals layer at bar 0 would render
-                digital silence and sound like a broken mixer.
+                Song B's vocals start at {(firstAudible[wizB ?? ""] ?? 0).toFixed(1)} s, so they
+                enter at bar {vocalsBar} — a vocals layer at bar 0 would render digital silence and
+                sound like a broken mixer.
               </span>
             </p>
           )}

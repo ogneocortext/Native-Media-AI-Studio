@@ -47,15 +47,24 @@ def _scenes(data: dict[str, Any]) -> list[dict[str, Any]]:
         if start < 0 or end <= start or start < previous_end - 0.001:
             raise ValueError(f"scene {index} has invalid or overlapping timing")
         previous_end = end
-        scenes.append({
-            "id": str(raw.get("id") or f"scene-{index + 1}"),
-            "title": str(raw.get("title") or raw.get("actTitle") or raw.get("section") or f"Scene {index + 1}"),
-            "description": str(raw.get("description") or raw.get("visual") or raw.get("hook") or ""),
-            "start": start,
-            "end": end,
-            "palette": raw.get("palette") if isinstance(raw.get("palette"), dict) else {},
-            "camera": raw.get("camera") if isinstance(raw.get("camera"), dict) else {},
-        })
+        scenes.append(
+            {
+                "id": str(raw.get("id") or f"scene-{index + 1}"),
+                "title": str(
+                    raw.get("title")
+                    or raw.get("actTitle")
+                    or raw.get("section")
+                    or f"Scene {index + 1}"
+                ),
+                "description": str(
+                    raw.get("description") or raw.get("visual") or raw.get("hook") or ""
+                ),
+                "start": start,
+                "end": end,
+                "palette": raw.get("palette") if isinstance(raw.get("palette"), dict) else {},
+                "camera": raw.get("camera") if isinstance(raw.get("camera"), dict) else {},
+            }
+        )
     if scenes:
         scenes[0]["start"] = 0.0
         for index in range(len(scenes) - 1):
@@ -64,7 +73,10 @@ def _scenes(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def build_hyperframes_audio_payload(
-    analysis: dict[str, Any], transcript: dict[str, Any] | None = None, fps: int = 30, bands: int = 16
+    analysis: dict[str, Any],
+    transcript: dict[str, Any] | None = None,
+    fps: int = 30,
+    bands: int = 16,
 ) -> dict[str, Any]:
     """Build deterministic, compact AUDIO_DATA from cached analysis + lyrics."""
     duration = float(analysis.get("duration_seconds") or analysis.get("duration") or 0)
@@ -86,24 +98,48 @@ def build_hyperframes_audio_payload(
     frames = []
     for index in range(total_frames):
         energy = energy_curve[min(index, len(energy_curve) - 1)] if energy_curve else 0.0
-        band_values = [max(0.0, min(1.0, energy * (1.0 - band / (bands * 1.6)))) for band in range(bands)]
-        frames.append({
-            "time": round(index / fps, 4), "rms": energy, "energy": energy,
-            "bands": band_values, "isBeat": index in beat_frames,
-            "isDownbeat": index in downbeat_frames,
-        })
-    return {"fps": fps, "duration": duration, "bands": bands, "totalFrames": total_frames,
-            "beat_times": beats, "downbeat_times": sorted(downbeats), "frames": frames,
-            "lyrics": lines}
+        band_values = [
+            max(0.0, min(1.0, energy * (1.0 - band / (bands * 1.6)))) for band in range(bands)
+        ]
+        frames.append(
+            {
+                "time": round(index / fps, 4),
+                "rms": energy,
+                "energy": energy,
+                "bands": band_values,
+                "isBeat": index in beat_frames,
+                "isDownbeat": index in downbeat_frames,
+            }
+        )
+    return {
+        "fps": fps,
+        "duration": duration,
+        "bands": bands,
+        "totalFrames": total_frames,
+        "beat_times": beats,
+        "downbeat_times": sorted(downbeats),
+        "frames": frames,
+        "lyrics": lines,
+    }
 
 
 def _json_script(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
 
 
-def _composition_html(title: str, duration: float, scenes: list[dict[str, Any]], audio: str | None, audio_data: dict[str, Any] | None = None) -> str:
+def _composition_html(
+    title: str,
+    duration: float,
+    scenes: list[dict[str, Any]],
+    audio: str | None,
+    audio_data: dict[str, Any] | None = None,
+) -> str:
     safe_audio = html.escape(audio, quote=True) if audio else ""
-    audio_tag = f'<audio data-hf-id="hf-storyboard-audio" src="{safe_audio}" data-start="0" data-duration="{duration:.3f}" preload="auto"></audio>' if safe_audio else ""
+    audio_tag = (
+        f'<audio data-hf-id="hf-storyboard-audio" src="{safe_audio}" data-start="0" data-duration="{duration:.3f}" preload="auto"></audio>'
+        if safe_audio
+        else ""
+    )
     audio_json = _json_script(audio_data) if audio_data else "null"
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1920, height=1080">
 <style>*{{box-sizing:border-box}}html,body{{margin:0;width:1920px;height:1080px;overflow:hidden;background:#050510;color:#fff;font-family:Inter,Arial,sans-serif}}#root{{position:relative;width:1920px;height:1080px;overflow:hidden;background:#050510}} .scene{{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 14%;opacity:0;background:radial-gradient(circle at 72% 45%,var(--primary) 0%,transparent 46%),linear-gradient(135deg,var(--base),#03040a 78%)}} .scene:before{{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.62),transparent 62%,rgba(0,0,0,.28));pointer-events:none}} .eyebrow{{position:relative;font-size:20px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:24px}} .title{{position:relative;font-size:44px;font-weight:600;letter-spacing:.04em;max-width:920px;margin:0 0 34px;color:rgba(255,255,255,.9)}} .description{{position:relative;font-size:64px;font-weight:800;line-height:1.08;letter-spacing:-.025em;max-width:1240px;text-wrap:balance;text-shadow:0 8px 35px rgba(0,0,0,.5)}} .motif{{position:absolute;right:12%;top:23%;width:420px;height:420px;border:1px solid var(--accent);border-radius:50%;opacity:.55;box-shadow:0 0 80px var(--primary),inset 0 0 60px var(--primary)}} .motif:before,.motif:after{{content:"";position:absolute;inset:44px;border:1px solid var(--accent);border-radius:50%}} .motif:after{{inset:130px}} .scene-number{{position:absolute;right:11%;bottom:15%;font-size:140px;font-weight:800;line-height:1;color:rgba(255,255,255,.055)}} .progress{{position:absolute;left:7%;right:7%;bottom:7%;height:3px;background:rgba(255,255,255,.14);z-index:5}} .progress span{{display:block;height:100%;width:0;background:#fff}}</style>
@@ -113,8 +149,11 @@ def _composition_html(title: str, duration: float, scenes: list[dict[str, Any]],
 
 
 def compile_storyboard(
-    storyboard: dict[str, Any], output_dir: str | Path, name: str = "storyboard",
-    title: str | None = None, audio_path: str | None = None,
+    storyboard: dict[str, Any],
+    output_dir: str | Path,
+    name: str = "storyboard",
+    title: str | None = None,
+    audio_path: str | None = None,
     audio_data: dict[str, Any] | None = None,
 ) -> CompiledStoryboard:
     """Validate and compile a storyboard into ``name.html`` plus ``name.json``."""
@@ -130,7 +169,13 @@ def compile_storyboard(
     output.mkdir(parents=True, exist_ok=True)
     composition_path = output / f"{safe_name}.html"
     manifest_path = output / f"{safe_name}.json"
-    manifest = {"title": title or str(storyboard.get("title") or storyboard.get("track") or name), "track": storyboard.get("track"), "duration": duration, "scene_count": len(scenes), "scenes": scenes}
+    manifest = {
+        "title": title or str(storyboard.get("title") or storyboard.get("track") or name),
+        "track": storyboard.get("track"),
+        "duration": duration,
+        "scene_count": len(scenes),
+        "scenes": scenes,
+    }
     resolved_audio = audio_path
     if audio_path:
         source = Path(audio_path)
@@ -144,6 +189,9 @@ def compile_storyboard(
             if source.resolve() != destination.resolve():
                 destination.write_bytes(source.read_bytes())
             resolved_audio = source.name
-    composition_path.write_text(_composition_html(manifest["title"], duration, scenes, resolved_audio, audio_data), encoding="utf-8")
+    composition_path.write_text(
+        _composition_html(manifest["title"], duration, scenes, resolved_audio, audio_data),
+        encoding="utf-8",
+    )
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     return CompiledStoryboard(composition_path, manifest_path, len(scenes), duration)

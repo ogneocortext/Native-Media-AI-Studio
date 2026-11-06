@@ -34,11 +34,16 @@ function formatTime(iso: string | null) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export function NotificationItem({ item, onRead }: { item: NotificationItem; onRead?: () => void }) {
+export function NotificationItem({
+  item,
+  onRead,
+}: {
+  item: NotificationItem;
+  onRead?: () => void;
+}) {
   const Icon = iconFor(item.type ?? "");
   const message =
-    (item.data?.message as string | undefined) ??
-    (item.type ? String(item.type) : "Notification");
+    (item.data?.message as string | undefined) ?? (item.type ? String(item.type) : "Notification");
 
   return (
     <div

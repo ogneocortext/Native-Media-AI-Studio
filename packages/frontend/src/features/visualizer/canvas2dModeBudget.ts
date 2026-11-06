@@ -210,7 +210,8 @@ export const MODE_BUDGETS: Record<Canvas2DMode, ModeBudget> = {
   },
   waveform: {
     effects: ["trails", "beatVignette"],
-    rationale: "Phosphor persistence is the classic waveform look; the vignette is halved and sits under it.",
+    rationale:
+      "Phosphor persistence is the classic waveform look; the vignette is halved and sits under it.",
     trailAlpha: 0x12,
     trailAlphaReduced: 0x08,
   },
@@ -253,8 +254,7 @@ export const MODE_BUDGETS: Record<Canvas2DMode, ModeBudget> = {
     // effectively getting two of each. Dropping the global flash and vignette
     // leaves its own, which is the point.
     effects: [],
-    rationale:
-      "Already draws its own beat-flash and vignette; the global stack doubled both.",
+    rationale: "Already draws its own beat-flash and vignette; the global stack doubled both.",
     ...NO_TRAILS,
   },
   "kinetic-type": {
@@ -308,9 +308,7 @@ export function allowsPhraseFlash(mode: string | null | undefined, hasLyrics: bo
  * legitimately declare three capabilities (`bars`) because which ones fire is
  * frame-dependent; what must never happen is three firing at once.
  */
-export function assertEffectBudget(
-  budgets: Record<string, ModeBudget> = MODE_BUDGETS,
-): void {
+export function assertEffectBudget(budgets: Record<string, ModeBudget> = MODE_BUDGETS): void {
   const failures: string[] = [];
 
   for (const [mode, budget] of Object.entries(budgets)) {
@@ -362,9 +360,7 @@ export function assertEffectBudget(
 }
 
 /** Modes with more declared effects than the cap. Diagnostic, not a failure. */
-export function findWideBudgetModes(
-  budgets: Record<string, ModeBudget> = MODE_BUDGETS,
-): string[] {
+export function findWideBudgetModes(budgets: Record<string, ModeBudget> = MODE_BUDGETS): string[] {
   return Object.entries(budgets)
     .filter(([, b]) => b.effects.length > MAX_EFFECTS)
     .map(([id]) => id);

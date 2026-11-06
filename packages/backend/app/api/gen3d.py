@@ -1,6 +1,7 @@
 """
 3D generation API routes.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +30,7 @@ class Gen3DGenerateRequest(BaseModel):
 async def gen3d_status() -> dict:
     """3D generation service status."""
     from ..services.gen3d.gen3d_service import gen3d_service
+
     return gen3d_service.get_status()
 
 
@@ -36,6 +38,7 @@ async def gen3d_status() -> dict:
 async def gen3d_models() -> list[dict]:
     """List generated 3D models (newest first) for the sidebar 'Recent Models' panel."""
     from ..services.gen3d.gen3d_service import gen3d_service
+
     return gen3d_service.list_models()
 
 
@@ -74,6 +77,7 @@ async def gen3d_generate_image(
     """
     if file.content_type not in ALLOWED_REF_IMAGE_TYPES:
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported image type {file.content_type}; use PNG, JPEG, or WebP",
@@ -103,6 +107,7 @@ async def gen3d_generate_image(
             )
     except ValueError as e:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=400, detail=str(e)) from e
     finally:
         if tmp_path is not None:

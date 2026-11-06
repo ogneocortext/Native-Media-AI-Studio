@@ -98,9 +98,7 @@ class HardwareBenchmarkRunner:
         self.comfyui_adapter = comfyui_adapter
         self.resource_monitor = resource_monitor
         self.persist_result = persist_result
-        self._semaphore = asyncio.Semaphore(
-            max(1, self.profile.limits.max_concurrent_benchmarks)
-        )
+        self._semaphore = asyncio.Semaphore(max(1, self.profile.limits.max_concurrent_benchmarks))
 
     async def run(self, request: BenchmarkRequest) -> BenchmarkResult:
         """Run a request while enforcing the configured concurrency limit."""
@@ -205,10 +203,7 @@ class HardwareBenchmarkRunner:
 
     async def _select_ollama_model(self, adapter: Any) -> str:
         models = await adapter.list_models()
-        names = [
-            item.get("name") if isinstance(item, dict) else str(item)
-            for item in models
-        ]
+        names = [item.get("name") if isinstance(item, dict) else str(item) for item in models]
         names = [name for name in names if name]
         if not names:
             raise RuntimeError("Ollama has no available models")
@@ -229,9 +224,7 @@ class HardwareBenchmarkRunner:
             if key not in {"messages", "model", "stream"}
         }
         chat_options.setdefault("num_ctx", self.profile.limits.ollama_context_tokens)
-        chat_options.setdefault(
-            "num_predict", self.profile.limits.ollama_max_output_tokens
-        )
+        chat_options.setdefault("num_predict", self.profile.limits.ollama_max_output_tokens)
         response = await asyncio.wait_for(
             adapter.chat(
                 messages=[
@@ -375,7 +368,11 @@ class HardwareBenchmarkRunner:
         if latencies:
             sorted_lat = sorted(latencies)
             mid = len(sorted_lat) // 2
-            median = (sorted_lat[mid] if len(sorted_lat) % 2 == 1 else (sorted_lat[mid - 1] + sorted_lat[mid]) / 2.0)
+            median = (
+                sorted_lat[mid]
+                if len(sorted_lat) % 2 == 1
+                else (sorted_lat[mid - 1] + sorted_lat[mid]) / 2.0
+            )
             q1 = sorted_lat[len(sorted_lat) // 4]
             q3 = sorted_lat[(len(sorted_lat) * 3) // 4]
             metrics["median_latency_ms"] = round(median, 2)
@@ -429,7 +426,10 @@ async def _cli_main() -> None:
     parser = argparse.ArgumentParser(description="Run a local Ollama or ComfyUI benchmark")
     parser.add_argument("--engine", required=True, choices=[item.value for item in BenchmarkEngine])
     parser.add_argument("--model")
-    parser.add_argument("--prompt", default="Explain the difference between a benchmark and a smoke test in three sentences.")
+    parser.add_argument(
+        "--prompt",
+        default="Explain the difference between a benchmark and a smoke test in three sentences.",
+    )
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=int)
     parser.add_argument("--profile", default=str(DEFAULT_PROFILE_PATH))

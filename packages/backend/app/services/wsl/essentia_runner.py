@@ -33,22 +33,31 @@ def main() -> int:
         if not track or not path or not os.path.exists(path):
             # Reported rather than skipped: a silent omission looks like a track
             # that was never asked about, which is how a broken bridge hides.
-            results.append({"track": track, "bpm": None, "confidence": None,
-                            "error": "missing or unreadable stem"})
+            results.append(
+                {
+                    "track": track,
+                    "bpm": None,
+                    "confidence": None,
+                    "error": "missing or unreadable stem",
+                }
+            )
             continue
         try:
             audio = MonoLoader(filename=path, sampleRate=44100)()
             extractor = RhythmExtractor2013(method="multifeature")
             out = extractor(audio)
-            results.append({
-                "track": track,
-                "bpm": float(out[0]),
-                "confidence": float(out[2]),
-                "error": None,
-            })
+            results.append(
+                {
+                    "track": track,
+                    "bpm": float(out[0]),
+                    "confidence": float(out[2]),
+                    "error": None,
+                }
+            )
         except Exception as exc:  # noqa: BLE001 - one bad track must not lose the batch
-            results.append({"track": track, "bpm": None, "confidence": None,
-                            "error": str(exc)[:160]})
+            results.append(
+                {"track": track, "bpm": None, "confidence": None, "error": str(exc)[:160]}
+            )
     json.dump({"results": results}, sys.stdout)
     return 0
 

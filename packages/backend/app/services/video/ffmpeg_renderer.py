@@ -75,7 +75,9 @@ class FFmpegRenderer(VideoRenderer):
                             pass
                         return -1, b"", b"FFmpeg timed out after 600s (thread fallback)"
 
-                returncode, stdout, stderr = await asyncio.wait_for(asyncio.to_thread(_run_ffmpeg), timeout=620)
+                returncode, stdout, stderr = await asyncio.wait_for(
+                    asyncio.to_thread(_run_ffmpeg), timeout=620
+                )
                 proc = None
         except TimeoutError:
             if "proc" in locals() and proc is not None:
@@ -106,7 +108,10 @@ class FFmpegRenderer(VideoRenderer):
                 render_s=round(time.perf_counter() - t0, 3),
                 size_bytes=out.stat().st_size if out.exists() else 0,
                 success=ok,
-                error=None if ok else (stderr or b"").decode(errors="replace")[-800:] or f"ffmpeg exited {returncode}",
+                error=None
+                if ok
+                else (stderr or b"").decode(errors="replace")[-800:]
+                or f"ffmpeg exited {returncode}",
                 notes="filter-graph",
             )
 
@@ -117,7 +122,10 @@ class FFmpegRenderer(VideoRenderer):
             render_s=round(time.perf_counter() - t0, 3),
             size_bytes=out.stat().st_size if out.exists() else 0,
             success=ok,
-            error=None if ok else (stderr or b"").decode(errors="replace")[-800:] or f"ffmpeg exited {proc.returncode}",
+            error=None
+            if ok
+            else (stderr or b"").decode(errors="replace")[-800:]
+            or f"ffmpeg exited {proc.returncode}",
             notes="filter-graph",
         )
 
@@ -126,7 +134,12 @@ class FFmpegRenderer(VideoRenderer):
         # Base video source per kind
         if spec.kind == "color":
             r, g, b = self._hex_to_rgb(spec.color)
-            video = ["-f", "lavfi", "-i", f"color=c=0x{r:02x}{g:02x}{b:02x}:s={spec.width}x{spec.height}:r={spec.fps}:d={spec.duration}"]
+            video = [
+                "-f",
+                "lavfi",
+                "-i",
+                f"color=c=0x{r:02x}{g:02x}{b:02x}:s={spec.width}x{spec.height}:r={spec.fps}:d={spec.duration}",
+            ]
         elif spec.kind == "frames":
             pattern = str(Path(spec.frames_dir) / spec.frame_pattern)
             video = ["-f", "image2", "-framerate", str(spec.fps), "-i", pattern]
@@ -143,7 +156,18 @@ class FFmpegRenderer(VideoRenderer):
         if has_audio:
             # Pin 192k like every other pipeline path -- bare `-c:a aac` falls
             # back to ffmpeg's ~128k default and needlessly caps render audio.
-            cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "192k", "-shortest", *venc]
+            cmd += [
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                *venc,
+            ]
         else:
             cmd += [*venc]
         cmd += [str(out)]

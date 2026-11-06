@@ -52,10 +52,7 @@ export interface WaveformResponse {
   error?: string | null;
 }
 
-export async function getMediaWaveform(
-  path: string,
-  maxPoints = 240,
-): Promise<WaveformResponse> {
+export async function getMediaWaveform(path: string, maxPoints = 240): Promise<WaveformResponse> {
   const base = getApiBase();
   const url = `${base}/api/media/waveform?path=${encodeURIComponent(path)}&max_points=${encodeURIComponent(String(maxPoints))}`;
   const res = await fetchWithTimeout(url, { timeout: 30000 });

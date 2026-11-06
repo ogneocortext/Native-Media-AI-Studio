@@ -85,10 +85,13 @@ class MusicVideoHandler:
     async def process_job(self, job: Job) -> dict[str, Any]:
         """Process a music video generation job."""
         import traceback as tb_module
+
         try:
             return await self._process_job_inner(job)
         except Exception as e:
-            logger.error("process_job failed for %s: %s\n%s", job.id, repr(e), tb_module.format_exc())
+            logger.error(
+                "process_job failed for %s: %s\n%s", job.id, repr(e), tb_module.format_exc()
+            )
             raise
 
     async def _process_job_inner(self, job: Job) -> dict[str, Any]:
@@ -96,8 +99,12 @@ class MusicVideoHandler:
 
         params = job.params
         # Check if this is a preview job (handle both string and enum comparison)
-        is_preview = job.job_type == "music_video_preview" or job.job_type == JobType.MUSIC_VIDEO_PREVIEW
-        logger.info("Processing job %s: is_preview=%s, job_type=%s", job.id, is_preview, job.job_type)
+        is_preview = (
+            job.job_type == "music_video_preview" or job.job_type == JobType.MUSIC_VIDEO_PREVIEW
+        )
+        logger.info(
+            "Processing job %s: is_preview=%s, job_type=%s", job.id, is_preview, job.job_type
+        )
 
         audio_path = params.get("audio_path")
         logger.info("audio_path: '%s', is_preview: %s", audio_path, is_preview)
@@ -118,7 +125,10 @@ class MusicVideoHandler:
         model_lower = model.lower()
         if method == "visualization" and is_wan_8gb_model(model):
             method = "comfyui_wan_gguf"
-        elif method == "visualization" and any(kw in model_lower for kw in ["mm_sd", "mm-stabilized", "motion", "animate", "ltx", "kandinsky"]):
+        elif method == "visualization" and any(
+            kw in model_lower
+            for kw in ["mm_sd", "mm-stabilized", "motion", "animate", "ltx", "kandinsky"]
+        ):
             method = "comfyui"
 
         # Update progress
@@ -174,11 +184,21 @@ class MusicVideoHandler:
                 duration_seconds = min(duration_seconds, 5)
                 resolution = "480p"  # Lower res for faster preview
                 fps = 12
-                res_map = {"480p": (832, 480), "720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
+                res_map = {
+                    "480p": (832, 480),
+                    "720p": (1280, 720),
+                    "1080p": (1920, 1080),
+                    "4k": (3840, 2160),
+                }
                 width, height = res_map.get(resolution, (832, 480))
         else:
             # Resolution to dimensions (full jobs)
-            res_map = {"480p": (832, 480), "720p": (1280, 720), "1080p": (1920, 1080), "4k": (3840, 2160)}
+            res_map = {
+                "480p": (832, 480),
+                "720p": (1280, 720),
+                "1080p": (1920, 1080),
+                "4k": (3840, 2160),
+            }
             width, height = res_map.get(resolution, (832, 480))
 
         await self._update_progress(job, 0.5, "Rendering video frames...")
@@ -196,7 +216,17 @@ class MusicVideoHandler:
 
         try:
             fallback_info = await self._render_with_ffmpeg(
-                job, ffmpeg_cmd, audio_path, output_path, width, height, fps, duration_seconds, analysis, viz_config, method
+                job,
+                ffmpeg_cmd,
+                audio_path,
+                output_path,
+                width,
+                height,
+                fps,
+                duration_seconds,
+                analysis,
+                viz_config,
+                method,
             )
         except Exception as e:
             logger.error("FFmpeg rendering failed for job %s: %s", job.id, str(e))
@@ -227,9 +257,8 @@ class MusicVideoHandler:
     async def _update_progress(self, job: Job, progress: float, message: str):
         """Update job progress via the queue manager."""
         from ..queue.manager import queue_manager
-        await queue_manager.update_job(
-            job.id, progress=progress, message=message
-        )
+
+        await queue_manager.update_job(job.id, progress=progress, message=message)
 
     def _find_ffmpeg(self) -> str | None:
         """Find ffmpeg executable."""
@@ -245,7 +274,7 @@ class MusicVideoHandler:
                                 target = pp.parent / target
                             if target.exists():
                                 cleaned = str(target)
-                                cleaned = cleaned.removeprefix('\\\\?\\')
+                                cleaned = cleaned.removeprefix("\\\\?\\")
                                 return cleaned
                         except Exception:
                             pass
@@ -254,13 +283,22 @@ class MusicVideoHandler:
                             if resolved.exists() and resolved.stat().st_size > 10000:
                                 # Strip \\?\ long-path prefix for asyncio compatibility
                                 cleaned = str(resolved)
-                                cleaned = cleaned.removeprefix('\\\\?\\')
+                                cleaned = cleaned.removeprefix("\\\\?\\")
                                 return cleaned
                         except Exception:
                             pass
                     if pp.exists() and pp.stat().st_size == 0:
                         try:
-                            gyan = list((Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages").glob("Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe"))
+                            gyan = list(
+                                (
+                                    Path.home()
+                                    / "AppData"
+                                    / "Local"
+                                    / "Microsoft"
+                                    / "WinGet"
+                                    / "Packages"
+                                ).glob("Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe")
+                            )
                             if gyan and gyan[0].exists():
                                 return str(gyan[0])
                         except Exception:
@@ -269,14 +307,18 @@ class MusicVideoHandler:
                     pass
                 # Clean any \\?\ prefix
                 cleaned_cmd = cmd
-                if isinstance(cleaned_cmd, str) and cleaned_cmd.startswith('\\\\?\\'):
+                if isinstance(cleaned_cmd, str) and cleaned_cmd.startswith("\\\\?\\"):
                     cleaned_cmd = cleaned_cmd[4:]
                 return cleaned_cmd
         try:
-            gyan = list((Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages").glob("Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe"))
+            gyan = list(
+                (Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages").glob(
+                    "Gyan.FFmpeg.Essentials*/ffmpeg-*/bin/ffmpeg.exe"
+                )
+            )
             if gyan and gyan[0].exists():
                 cleaned = str(gyan[0])
-                cleaned = cleaned.removeprefix('\\\\?\\')
+                cleaned = cleaned.removeprefix("\\\\?\\")
                 return cleaned
         except Exception:
             pass
@@ -310,9 +352,13 @@ class MusicVideoHandler:
         if method in ("comfyui", "comfyui_wan_gguf"):
             try:
                 if method == "comfyui":
-                    await self._render_with_comfyui(job, audio_path, output_path, width, height, duration, analysis)
+                    await self._render_with_comfyui(
+                        job, audio_path, output_path, width, height, duration, analysis
+                    )
                 else:
-                    await self._render_with_comfyui_wan_gguf(job, audio_path, output_path, width, height, duration, analysis)
+                    await self._render_with_comfyui_wan_gguf(
+                        job, audio_path, output_path, width, height, duration, analysis
+                    )
                 fallback_info["visual_source_used"] = method
                 return fallback_info
             except Exception as ai_exc:
@@ -333,10 +379,14 @@ class MusicVideoHandler:
                 )
                 logger.warning(
                     "AI render failed for job %s (%s) -- falling back to preset '%s' via FFmpeg: %s",
-                    job.id, method, preset, repr(ai_exc),
+                    job.id,
+                    method,
+                    preset,
+                    repr(ai_exc),
                 )
                 await self._update_progress(
-                    job, 0.5,
+                    job,
+                    0.5,
                     f"ComfyUI unavailable -- using {preset} fallback",
                 )
                 # Override viz_config so the FFmpeg path picks a style that matches
@@ -352,7 +402,20 @@ class MusicVideoHandler:
 
         # Encoding: use CRF for size/quality (was ultrafast -> 772MB for 4:24)
         # Add -t to respect requested duration (was rendering full 4:24 for every 5s request -> timeout)
-        vcodec_args = ["-c:v", "libx264", "-crf", "23", "-preset", "fast", "-pix_fmt", "yuv420p", "-maxrate", "8M", "-bufsize", "16M"]
+        vcodec_args = [
+            "-c:v",
+            "libx264",
+            "-crf",
+            "23",
+            "-preset",
+            "fast",
+            "-pix_fmt",
+            "yuv420p",
+            "-maxrate",
+            "8M",
+            "-bufsize",
+            "16M",
+        ]
         acodec_args = ["-c:a", "aac", "-b:a", "192k"]
         # Use -t to limit to requested duration (avoid 4:24 full render for 5s preview)
         duration_args = ["-t", str(duration)] if duration and duration < 60 else []
@@ -364,15 +427,20 @@ class MusicVideoHandler:
             cmd = [
                 ffmpeg_cmd,
                 "-y",
-                "-f", "lavfi",
-                "-i", f"testsrc=duration={duration}:size={width}x{height}:rate={fps}",
-                "-f", "lavfi",
-                "-i", f"sine=frequency=440:duration={duration}",
+                "-f",
+                "lavfi",
+                "-i",
+                f"testsrc=duration={duration}:size={width}x{height}:rate={fps}",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=frequency=440:duration={duration}",
                 *vcodec_args,
                 *acodec_args,
                 *duration_args,
                 "-shortest",
-                "-movflags", "+faststart",
+                "-movflags",
+                "+faststart",
                 str(output_path),
             ]
         elif style == "waveform":
@@ -382,31 +450,41 @@ class MusicVideoHandler:
                 ffmpeg_cmd,
                 "-y",
                 *input_args,
-                "-filter_complex", vf_filter,
-                "-map", "[vid]",
-                "-map", "0:a",
+                "-filter_complex",
+                vf_filter,
+                "-map",
+                "[vid]",
+                "-map",
+                "0:a",
                 *vcodec_args,
                 *acodec_args,
                 *duration_args,
                 "-shortest",
-                "-movflags", "+faststart",
+                "-movflags",
+                "+faststart",
                 str(output_path),
             ]
         elif style == "spectrum":
-            vf_filter = f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log[vid]"
+            vf_filter = (
+                f"[0:a]showspectrum=s={width}x{height}:mode=combined:color=intensity:scale=log[vid]"
+            )
             input_args = ["-i", audio_path]
             cmd = [
                 ffmpeg_cmd,
                 "-y",
                 *input_args,
-                "-filter_complex", vf_filter,
-                "-map", "[vid]",
-                "-map", "0:a",
+                "-filter_complex",
+                vf_filter,
+                "-map",
+                "[vid]",
+                "-map",
+                "0:a",
                 *vcodec_args,
                 *acodec_args,
                 *duration_args,
                 "-shortest",
-                "-movflags", "+faststart",
+                "-movflags",
+                "+faststart",
                 str(output_path),
             ]
         else:
@@ -423,14 +501,23 @@ class MusicVideoHandler:
                 "bridge": "#1e3a8a|#3b82f6|#93c5fd",  # low/blue
             }
             # Pick palette by explicit style, else by section energy
-            section = str(job.params.get("section", "")).lower() if isinstance(job.params.get("section"), str) else ""
+            section = (
+                str(job.params.get("section", "")).lower()
+                if isinstance(job.params.get("section"), str)
+                else ""
+            )
             if style in palettes:
                 palette = palettes[style]
             elif section in palettes:
                 palette = palettes[section]
             else:
                 # Fallback by energy: high->chorus, mid->verse, low->bridge
-                energy_peek = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
+                energy_peek = (
+                    float(analysis.get("energy_curve", [0.5])[0])
+                    if isinstance(analysis.get("energy_curve"), list)
+                    and analysis.get("energy_curve")
+                    else 0.5
+                )
                 if energy_peek > 0.65:
                     palette = palettes["chorus"]
                 elif energy_peek < 0.35:
@@ -438,7 +525,11 @@ class MusicVideoHandler:
                 else:
                     palette = palettes["abstract"]
 
-            energy = float(analysis.get("energy_curve", [0.5])[0]) if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve") else 0.5
+            energy = (
+                float(analysis.get("energy_curve", [0.5])[0])
+                if isinstance(analysis.get("energy_curve"), list) and analysis.get("energy_curve")
+                else 0.5
+            )
             # Map 0-1 energy -> 1.2-1.6 contrast, 1.4-1.9 saturation
             contrast = 1.2 + energy * 0.4
             saturation = 1.4 + energy * 0.5
@@ -449,14 +540,18 @@ class MusicVideoHandler:
                 ffmpeg_cmd,
                 "-y",
                 *input_args,
-                "-filter_complex", vf_filter,
-                "-map", "[vid]",
-                "-map", "0:a",
+                "-filter_complex",
+                vf_filter,
+                "-map",
+                "[vid]",
+                "-map",
+                "0:a",
                 *vcodec_args,
                 *acodec_args,
                 *duration_args,
                 "-shortest",
-                "-movflags", "+faststart",
+                "-movflags",
+                "+faststart",
                 str(output_path),
             ]
 
@@ -478,8 +573,11 @@ class MusicVideoHandler:
                 import subprocess as _sp
 
                 def _run_ffmpeg():
-                    result = _sp.run(cmd, encoding="utf-8", errors="replace", capture_output=True, text=True)
+                    result = _sp.run(
+                        cmd, encoding="utf-8", errors="replace", capture_output=True, text=True
+                    )
                     return result.returncode, result.stdout, result.stderr
+
                 returncode, stdout_text, stderr_text = await asyncio.to_thread(_run_ffmpeg)
                 # Mimic streaming progress: single update
                 await self._update_progress(job, 0.9, "FFmpeg finished (thread fallback)")
@@ -489,7 +587,9 @@ class MusicVideoHandler:
                     raise RuntimeError(f"FFmpeg failed: {tail}") from _ne
                 # Ensure output exists
                 if not Path(output_path).exists():
-                    raise RuntimeError(f"FFmpeg failed: output not created at {output_path}") from _ne
+                    raise RuntimeError(
+                        f"FFmpeg failed: output not created at {output_path}"
+                    ) from _ne
                 # Skip the rest of streaming logic - jump to completion
                 await self._update_progress(job, 1.0, "Music video complete (thread fallback)")
                 return fallback_info
@@ -529,7 +629,11 @@ class MusicVideoHandler:
                                 # Throttle updates: only every ~2% or 30 frames
                                 if prog - last_prog[0] >= 0.02 or frame % 30 == 0:
                                     last_prog[0] = prog
-                                    await self._update_progress(job, prog, f"Rendering frame {frame}/{total_frames} ({int(frac * 100)}%)")
+                                    await self._update_progress(
+                                        job,
+                                        prog,
+                                        f"Rendering frame {frame}/{total_frames} ({int(frac * 100)}%)",
+                                    )
                             except Exception:
                                 pass
                         else:
@@ -543,7 +647,11 @@ class MusicVideoHandler:
                                     prog = 0.5 + 0.5 * frac
                                     if prog - last_prog_t[0] >= 0.02:
                                         last_prog_t[0] = prog
-                                        await self._update_progress(job, prog, f"Rendering {int(secs)}s / {int(duration)}s ({int(frac * 100)}%)")
+                                        await self._update_progress(
+                                            job,
+                                            prog,
+                                            f"Rendering {int(secs)}s / {int(duration)}s ({int(frac * 100)}%)",
+                                        )
                                 except Exception:
                                     pass
 
@@ -557,7 +665,9 @@ class MusicVideoHandler:
                     process.kill()
                 except Exception:
                     pass
-                raise RuntimeError(f"FFmpeg rendering timed out after {max(duration * 3, 90)}s") from None
+                raise RuntimeError(
+                    f"FFmpeg rendering timed out after {max(duration * 3, 90)}s"
+                ) from None
 
             # Collect remaining stderr
             try:
@@ -585,12 +695,22 @@ class MusicVideoHandler:
 
         return fallback_info
 
-    async def _render_with_comfyui(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
+    async def _render_with_comfyui(
+        self,
+        job: Job,
+        audio_path: str,
+        output_path: Path,
+        width: int,
+        height: int,
+        duration: float,
+        analysis: dict,
+    ) -> None:
         """Render video using ComfyUI AnimateDiff for AI-generated content."""
         await self._update_progress(job, 0.5, "Generating video with ComfyUI AnimateDiff...")
 
         try:
             from ..adapters.registry import adapter_registry
+
             adapter = adapter_registry.get("comfyui")
             if not adapter:
                 raise RuntimeError("ComfyUI adapter not available")
@@ -599,13 +719,17 @@ class MusicVideoHandler:
                 job.params.get("prompt", "Music video visualization"),
                 str(job.params.get("section", "")).strip() or None,
             )
-            negative_prompt = job.params.get("negative_prompt", "blurry, bad quality, distorted, static")
+            negative_prompt = job.params.get(
+                "negative_prompt", "blurry, bad quality, distorted, static"
+            )
             steps = int(job.params.get("steps", 10))
             cfg_scale = float(job.params.get("cfg_scale", 7.0))
             fps = int(job.params.get("fps", 8))
             # Cap at 32 for AnimateDiff single-pass (verified live) -- handler caps,
             # adapter also warns, but don't let a 240-frame preview request OOM-fail.
-            num_frames = min(32, max(8, int(job.params.get("num_frames", max(8, int(duration * fps))))))
+            num_frames = min(
+                32, max(8, int(job.params.get("num_frames", max(8, int(duration * fps)))))
+            )
             seed = int(job.params.get("seed", -1))
             motion_lora = str(job.params.get("motion_lora", "")).strip()
             motion_lora_strength = float(job.params.get("motion_lora_strength", 0.8))
@@ -613,7 +737,9 @@ class MusicVideoHandler:
             raw_model = str(job.params.get("model", "")).lower()
             motion_module = ""
             if any(kw in raw_model for kw in ["mm_sd", "mm-stabilized", "motion"]):
-                motion_module = str(job.params.get("ckpt_name", job.params.get("model", ""))).strip()
+                motion_module = str(
+                    job.params.get("ckpt_name", job.params.get("model", ""))
+                ).strip()
 
             # Progress heartbeat -- ComfyUI sampling is opaque (no per-step callback),
             # so tick from 0.5->0.95 over the estimated time to avoid a frozen 14m bar.
@@ -629,34 +755,47 @@ class MusicVideoHandler:
                     frac = min(0.95, 0.5 + 0.45 * (elapsed / max(1, _est)))
                     est_steps = int(job.params.get("steps", 8) or 8)
                     est_frames = int(job.params.get("num_frames", 80) or 80)
-                    cur_step = min(est_steps, max(0, int(est_steps * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
-                    cur_frame = min(est_frames, max(0, int(est_frames * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
+                    cur_step = (
+                        min(est_steps, max(0, int(est_steps * (frac - 0.5) / 0.45)))
+                        if frac > 0.5
+                        else 0
+                    )
+                    cur_frame = (
+                        min(est_frames, max(0, int(est_frames * (frac - 0.5) / 0.45)))
+                        if frac > 0.5
+                        else 0
+                    )
                     job.params["current_step"] = cur_step
                     job.params["current_frame"] = cur_frame
-                    await self._update_progress(job, frac, f"Sampling... {int(elapsed)}s / ~{int(_est)}s")
+                    await self._update_progress(
+                        job, frac, f"Sampling... {int(elapsed)}s / ~{int(_est)}s"
+                    )
 
             _beat_task = asyncio.create_task(_beat())
             try:
-                result = await adapter.generate({
-                    "prompt": prompt,
-                    "negative_prompt": negative_prompt,
-                    "steps": steps,
-                    "cfg_scale": cfg_scale,
-                    "width": width,
-                    "height": height,
-                    "seed": seed,
-                    "sampler_name": "euler_ancestral",
-                    "video": True,
-                    "num_frames": num_frames,
-                    "fps": fps,
-                    "motion_module": motion_module,
-                    "motion_lora": motion_lora,
-                    "motion_lora_strength": motion_lora_strength,
-                })
+                result = await adapter.generate(
+                    {
+                        "prompt": prompt,
+                        "negative_prompt": negative_prompt,
+                        "steps": steps,
+                        "cfg_scale": cfg_scale,
+                        "width": width,
+                        "height": height,
+                        "seed": seed,
+                        "sampler_name": "euler_ancestral",
+                        "video": True,
+                        "num_frames": num_frames,
+                        "fps": fps,
+                        "motion_module": motion_module,
+                        "motion_lora": motion_lora,
+                        "motion_lora_strength": motion_lora_strength,
+                    }
+                )
 
                 video_path = result.get("video_path")
                 if video_path and Path(video_path).exists():
                     import shutil
+
                     shutil.move(str(video_path), str(output_path))
                 else:
                     raise RuntimeError("ComfyUI generation failed: no video path returned")
@@ -671,7 +810,16 @@ class MusicVideoHandler:
         except Exception as e:
             raise RuntimeError(f"ComfyUI generation failed: {e}") from e
 
-    async def _render_with_comfyui_wan_gguf(self, job: Job, audio_path: str, output_path: Path, width: int, height: int, duration: float, analysis: dict) -> None:
+    async def _render_with_comfyui_wan_gguf(
+        self,
+        job: Job,
+        audio_path: str,
+        output_path: Path,
+        width: int,
+        height: int,
+        duration: float,
+        analysis: dict,
+    ) -> None:
         """Render video using ComfyUI Wan 2.2 TI2V-5B GGUF for 8GB VRAM."""
         await self._update_progress(job, 0.5, "Generating video with Wan 2.2 TI2V-5B GGUF...")
 
@@ -687,17 +835,28 @@ class MusicVideoHandler:
                 frac = min(0.95, 0.5 + 0.45 * (elapsed / max(1, _est_wan)))
                 est_steps = int(job.params.get("steps", 8) or 8)
                 est_frames = int(job.params.get("num_frames", 80) or 80)
-                cur_step = min(est_steps, max(0, int(est_steps * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
-                cur_frame = min(est_frames, max(0, int(est_frames * (frac - 0.5) / 0.45))) if frac > 0.5 else 0
+                cur_step = (
+                    min(est_steps, max(0, int(est_steps * (frac - 0.5) / 0.45)))
+                    if frac > 0.5
+                    else 0
+                )
+                cur_frame = (
+                    min(est_frames, max(0, int(est_frames * (frac - 0.5) / 0.45)))
+                    if frac > 0.5
+                    else 0
+                )
                 job.params["current_step"] = cur_step
                 job.params["current_frame"] = cur_frame
-                await self._update_progress(job, frac, f"Sampling Wan... {int(elapsed)}s / ~{int(_est_wan)}s")
+                await self._update_progress(
+                    job, frac, f"Sampling Wan... {int(elapsed)}s / ~{int(_est_wan)}s"
+                )
 
         _beat_wan_task = asyncio.create_task(_beat_wan())
 
         try:
             from ..adapters.registry import adapter_registry
             from ..models.generation import VideoGenerationRequest
+
             adapter = adapter_registry.get("comfyui")
             if not adapter:
                 raise RuntimeError("ComfyUI adapter not available")
@@ -705,16 +864,24 @@ class MusicVideoHandler:
             fps = min(60, max(1, int(job.params.get("fps", 8))))
             # Cap frames at the adapter contract (256) -- longer requests
             # OOM even GGUF on 8GB; the mux loop repeats the clip to duration.
-            num_frames = min(256, max(8, int(job.params.get("num_frames", max(8, int(duration * fps))))))
+            num_frames = min(
+                256, max(8, int(job.params.get("num_frames", max(8, int(duration * fps)))))
+            )
             raw_variant = str(job.params.get("model_variant", "gguf_q4")).lower()
-            model_variant = raw_variant if raw_variant in ("fp16", "gguf_q4", "gguf_q5", "standard") else "standard"
+            model_variant = (
+                raw_variant
+                if raw_variant in ("fp16", "gguf_q4", "gguf_q5", "standard")
+                else "standard"
+            )
 
             vreq = VideoGenerationRequest(
                 prompt=_enhance_prompt_for_section(
                     job.params.get("prompt", "Music video visualization"),
                     str(job.params.get("section", "")).strip() or None,
                 ),
-                negative_prompt=job.params.get("negative_prompt", "blurry, bad quality, distorted, static"),
+                negative_prompt=job.params.get(
+                    "negative_prompt", "blurry, bad quality, distorted, static"
+                ),
                 steps=int(job.params.get("steps", 10)),
                 cfg_scale=float(job.params.get("cfg_scale", 7.0)),
                 width=width,
@@ -731,6 +898,7 @@ class MusicVideoHandler:
             video_path = result.get("video_path")
             if video_path and Path(video_path).exists():
                 import shutil
+
                 shutil.move(str(video_path), str(output_path))
             else:
                 raise RuntimeError("Wan GGUF generation failed: no video path returned")

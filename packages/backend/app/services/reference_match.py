@@ -52,7 +52,9 @@ except ImportError:
 _profile_cache: dict[str, np.ndarray] = {}
 
 
-def _bin_power(y: np.ndarray, sr: int, n_fft: int = 4096, hop: int = 2048) -> tuple[np.ndarray, np.ndarray]:
+def _bin_power(
+    y: np.ndarray, sr: int, n_fft: int = 4096, hop: int = 2048
+) -> tuple[np.ndarray, np.ndarray]:
     """Mean power per FFT bin, Hann-windowed. Numpy only (analysis path)."""
     mono = np.mean(y[:2].astype(np.float64), axis=0)
     if mono.shape[0] < n_fft:
@@ -98,9 +100,12 @@ def spectral_profile(y: np.ndarray, sr: int) -> np.ndarray:
     return profile_from_bin_power(freqs, power)
 
 
-def correction_gains_db(ref_profile: np.ndarray, target_profile: np.ndarray,
-                        strength: float = 0.5,
-                        max_correction_db: float = 6.0) -> np.ndarray:
+def correction_gains_db(
+    ref_profile: np.ndarray,
+    target_profile: np.ndarray,
+    strength: float = 0.5,
+    max_correction_db: float = 6.0,
+) -> np.ndarray:
     """Per-band correction in dB: smoothed, clamped, strength-scaled.
 
     Pure numpy -- the unit-testable core. Smoothing (3-point moving average
@@ -121,8 +126,9 @@ def _bin_gains_linear(freqs: np.ndarray, band_gains_db: np.ndarray) -> np.ndarra
     """Interpolate per-band dB gains to per-bin linear gains (log-freq)."""
     log_f = np.log2(np.maximum(freqs, 1.0))
     log_c = np.log2(BAND_CENTERS_HZ)
-    interp_db = np.interp(log_f, log_c, band_gains_db,
-                          left=band_gains_db[0], right=band_gains_db[-1])
+    interp_db = np.interp(
+        log_f, log_c, band_gains_db, left=band_gains_db[0], right=band_gains_db[-1]
+    )
     return (10.0 ** (interp_db / 20.0)).astype(np.float32)
 
 

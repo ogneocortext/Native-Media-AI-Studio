@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { renderBars, renderMirroredBars, renderStackedFrequencyBands, type BarModeContext, type BarModeState } from "./canvas2dModes";
+import {
+  renderBars,
+  renderMirroredBars,
+  renderStackedFrequencyBands,
+  type BarModeContext,
+  type BarModeState,
+} from "./canvas2dModes";
 
 /**
  * Regression coverage for the T-VIZ-38 bar fixes:

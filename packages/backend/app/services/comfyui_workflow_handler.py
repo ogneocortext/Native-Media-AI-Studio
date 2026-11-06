@@ -57,6 +57,7 @@ class ComfyUIWorkflowHandler:
         # Best-effort tail of comfyui.log for postmortem analysis.
         try:
             from ..core.comfyui_client import fetch_comfyui_log_tail
+
             log_tail = await fetch_comfyui_log_tail(str(adapter.base_url))
             if log_tail:
                 debug_payload["comfyui_log_tail"] = log_tail
@@ -85,15 +86,11 @@ class ComfyUIWorkflowHandler:
         # this the job would report an output_path that doesn't exist.
         image_b64 = result.get("image")
         if not image_b64:
-            raise RuntimeError(
-                f"ComfyUI returned no image data for prompt {prompt_id}"
-            )
+            raise RuntimeError(f"ComfyUI returned no image data for prompt {prompt_id}")
 
         output_dir = PROJECT_ROOT / "output" / "images"
         output_dir.mkdir(parents=True, exist_ok=True)
-        filename = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.png"
-        )
+        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.png"
         filepath = output_dir / filename
         filepath.write_bytes(base64.b64decode(image_b64))
 

@@ -51,15 +51,14 @@ def sanitize_filename(filename: str) -> str:
 def sanitize_subfolder(subfolder: str | None) -> str:
     """Normalize a subfolder, dropping ``.``/``..``/empty segments."""
     return "/".join(
-        p
-        for p in str(subfolder or "").replace("\\", "/").split("/")
-        if p not in ("", ".", "..")
+        p for p in str(subfolder or "").replace("\\", "/").split("/") if p not in ("", ".", "..")
     )
 
 
 # ---------------------------------------------------------------------------
 # ComfyUI directory layout
 # ---------------------------------------------------------------------------
+
 
 def comfyui_dir() -> Path:
     """Return the ComfyUI install root.

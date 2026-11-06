@@ -115,7 +115,13 @@ export function VinylDisc({
       } else {
         const m = discRef.current.material as THREE.MeshStandardMaterial;
         m.emissiveIntensity =
-          0.1 + rolloff(treble * vizParams.glowIntensity * 0.8 + stemEnergyRef.current.vocals * 0.3 + stemEnergyRef.current.other * 0.2, 0.8);
+          0.1 +
+          rolloff(
+            treble * vizParams.glowIntensity * 0.8 +
+              stemEnergyRef.current.vocals * 0.3 +
+              stemEnergyRef.current.other * 0.2,
+            0.8,
+          );
         m.roughness = 0.2 - peak * 0.1;
         m.metalness = 0.85;
         m.color.setHSL(eHue, 0.6, 0.08);

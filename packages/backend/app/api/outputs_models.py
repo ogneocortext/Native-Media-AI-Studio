@@ -55,13 +55,34 @@ def get_file_type(filename: str) -> str:
     """Determine file type from extension"""
     ext = Path(filename).suffix.lower()
     image_exts = {
-        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
-        ".svg", ".tiff", ".tif", ".avif", ".heic", ".heif",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".svg",
+        ".tiff",
+        ".tif",
+        ".avif",
+        ".heic",
+        ".heif",
     }
     video_exts = {".mp4", ".webm", ".avi", ".mov", ".mkv", ".m4v", ".ogv"}
     audio_exts = {
-        ".mp3", ".wav", ".flac", ".ogg", ".oga", ".opus",
-        ".m4a", ".aac", ".wma", ".aiff", ".aif", ".alac", ".amr",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".oga",
+        ".opus",
+        ".m4a",
+        ".aac",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".alac",
+        ".amr",
     }
     model_exts = {".glb", ".gltf", ".obj", ".fbx", ".ply", ".stl"}
 

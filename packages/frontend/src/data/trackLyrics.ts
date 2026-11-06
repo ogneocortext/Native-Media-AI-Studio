@@ -67,9 +67,7 @@ export async function fetchTrackLyricsIndex(): Promise<TrackLyricsIndex> {
 }
 
 /** Load one track's full lyric document by its index entry (or id). */
-export async function fetchTrackLyrics(
-  entry: TrackLyricsIndexEntry,
-): Promise<TrackLyricsDoc> {
+export async function fetchTrackLyrics(entry: TrackLyricsIndexEntry): Promise<TrackLyricsDoc> {
   return fetchJson<TrackLyricsDoc>(`${BASE}/${entry.file}`);
 }
 
@@ -84,10 +82,7 @@ export interface ToLyricLinesOptions {
  * Lines are distributed evenly across the track duration — ESTIMATED timing.
  * Empty docs (lyricsStatus "missing") yield an empty array.
  */
-export function toLyricLines(
-  doc: TrackLyricsDoc,
-  opts: ToLyricLinesOptions = {},
-): LyricLine[] {
+export function toLyricLines(doc: TrackLyricsDoc, opts: ToLyricLinesOptions = {}): LyricLine[] {
   const flat: { text: string; section: string }[] = [];
   for (const section of doc.sections ?? []) {
     for (const text of section.lines ?? []) {

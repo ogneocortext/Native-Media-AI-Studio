@@ -34,6 +34,7 @@ def _find_binary(name: str) -> str | None:
 # Probe
 # =============================================================================
 
+
 async def probe_media(file_path: str | Path) -> dict[str, Any]:
     """Return FFprobe metadata for *file_path* as a JSON-serializable dict.
 
@@ -93,6 +94,7 @@ def _sanitize_probe(data: dict[str, Any]) -> None:
 # =============================================================================
 # Loudness (EBU R128)
 # =============================================================================
+
 
 async def compute_loudness(file_path: str | Path) -> dict[str, Any]:
     """Compute integrated loudness (LUFS) using FFmpeg's ebur128 filter.
@@ -168,6 +170,7 @@ def _parse_ebur128(text: str) -> dict[str, Any]:
 # =============================================================================
 # Waveform (raw PCM -> RMS bucketing)
 # =============================================================================
+
 
 async def extract_waveform(
     file_path: str | Path,
@@ -256,6 +259,7 @@ async def extract_waveform(
 # Thumbnail at timestamp
 # =============================================================================
 
+
 async def extract_thumbnail_at_time(
     file_path: str | Path,
     time_sec: float = 1.0,
@@ -321,6 +325,7 @@ async def extract_thumbnail_at_time(
 # =============================================================================
 # Cover re-extraction (exposed as manual regeneration)
 # =============================================================================
+
 
 async def regenerate_cover(file_path: str | Path) -> str | None:
     """Force-re-extract embedded cover art, overwriting any existing sidecar.

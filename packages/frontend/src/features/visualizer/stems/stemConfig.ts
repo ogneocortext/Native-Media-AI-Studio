@@ -34,10 +34,34 @@ export interface StemDefinition {
 
 /** Canonical order — matches the backend so nothing drifts out of sync. */
 export const STEMS: StemDefinition[] = [
-  { key: "vocals", label: "Vocals", color: "bg-rose-400/70", role: "lyric kinetic", category: "lead" },
-  { key: "drums", label: "Drums", color: "bg-amber-400/70", role: "scale/pulse", category: "rhythm" },
-  { key: "bass", label: "Bass", color: "bg-emerald-400/70", role: "camera shake", category: "rhythm" },
-  { key: "other", label: "Other", color: "bg-sky-400/70", role: "palette shift", category: "harmony" },
+  {
+    key: "vocals",
+    label: "Vocals",
+    color: "bg-rose-400/70",
+    role: "lyric kinetic",
+    category: "lead",
+  },
+  {
+    key: "drums",
+    label: "Drums",
+    color: "bg-amber-400/70",
+    role: "scale/pulse",
+    category: "rhythm",
+  },
+  {
+    key: "bass",
+    label: "Bass",
+    color: "bg-emerald-400/70",
+    role: "camera shake",
+    category: "rhythm",
+  },
+  {
+    key: "other",
+    label: "Other",
+    color: "bg-sky-400/70",
+    role: "palette shift",
+    category: "harmony",
+  },
 ] as const;
 
 /** Stem keys in canonical order. */

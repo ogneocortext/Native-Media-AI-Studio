@@ -46,7 +46,9 @@
 }
 
 @keyframes viz-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* --- Loading overlay (3D mode, track loading) --- */
@@ -163,7 +165,9 @@
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: transform 0.15s, opacity 0.15s;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
 }
 
 .viz-empty-cta:hover {
@@ -664,7 +668,9 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   white-space: nowrap;
 }
 
@@ -741,7 +747,9 @@
   color: rgba(255, 255, 255, 0.65);
   font-size: 11px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .viz-inspector-mixer-toggle:hover {
@@ -778,7 +786,9 @@
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .viz-inspector-linkcard:hover {

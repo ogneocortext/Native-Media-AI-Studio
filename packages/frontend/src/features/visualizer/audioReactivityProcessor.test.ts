@@ -97,11 +97,7 @@ describe("AudioReactivityProcessor reactivity triad", () => {
     doubled.updateConfig({ sensitivity: 2.0 });
 
     unity.update(frame({ sub: 0.5, mid: 0.4, high: 0.3, rms: 0.6 }), [], 120);
-    doubled.update(
-      frame({ sub: 0.5, mid: 0.4, high: 0.3, rms: 0.6 }),
-      [],
-      120,
-    );
+    doubled.update(frame({ sub: 0.5, mid: 0.4, high: 0.3, rms: 0.6 }), [], 120);
 
     // First frame: smoothed = alpha * target, and the target
     // is exactly 2× — so the smoothed value is too.
@@ -148,16 +144,10 @@ describe("AudioReactivityProcessor reactivity triad", () => {
     processor.updateConfig({ smoothing: 0.2 });
     processor.update(frame({ sub: 1 }), [], 120);
     // Rising target still uses the explicit 0.9 attack.
-    expect(processor.getSmoothed().bass).toBeCloseTo(
-      0.5 + 0.9 * (1 - 0.5),
-      6,
-    );
+    expect(processor.getSmoothed().bass).toBeCloseTo(0.5 + 0.9 * (1 - 0.5), 6);
     processor.update(frame({ sub: 0 }), [], 120);
     // Falling target uses the re-keyed 0.2 release.
-    expect(processor.getSmoothed().bass).toBeCloseTo(
-      (0.5 + 0.9 * (1 - 0.5)) * 0.8,
-      6,
-    );
+    expect(processor.getSmoothed().bass).toBeCloseTo((0.5 + 0.9 * (1 - 0.5)) * 0.8, 6);
   });
 
   it("keeps unspecified keys on a partial updateConfig patch", () => {
@@ -170,10 +160,7 @@ describe("AudioReactivityProcessor reactivity triad", () => {
     // Sensitivity untouched by the gamma-only patch.
     processor.update(frame({ sub: 0.5 }), [], 120);
     // target 0.5, alpha 0.35: 0.175 + 0.35 * (0.5 - 0.175)
-    expect(processor.getUniforms().bass).toBeCloseTo(
-      0.175 + 0.35 * (0.5 - 0.175),
-      6,
-    );
+    expect(processor.getUniforms().bass).toBeCloseTo(0.175 + 0.35 * (0.5 - 0.175), 6);
   });
 });
 
@@ -186,10 +173,7 @@ describe("Plan 2.8 — beat anticipation", () => {
     const processor = new AudioReactivityProcessor(DEFAULT_REACTIVITY_CONFIG);
     // 50 ms before the downbeat at t=2.0.
     processor.update(frame({ time: 1.95 }), grid120, 120);
-    expect(processor.getUniforms().anticipation).toBeCloseTo(
-      1 - 0.05 / 0.12,
-      6,
-    );
+    expect(processor.getUniforms().anticipation).toBeCloseTo(1 - 0.05 / 0.12, 6);
     // Exactly on the downbeat: full pullback as the accent fires.
     processor.update(frame({ time: 2.0 }), grid120, 120);
     expect(processor.getUniforms().anticipation).toBeCloseTo(1, 6);
@@ -210,10 +194,7 @@ describe("Plan 2.8 — beat anticipation", () => {
     const processor = new AudioReactivityProcessor(DEFAULT_REACTIVITY_CONFIG);
     // 120 BPM, no grid: bars of 2 s from t=0. 100 ms before t=4.0.
     processor.update(frame({ time: 3.9 }), [], 120);
-    expect(processor.getUniforms().anticipation).toBeCloseTo(
-      1 - 0.1 / 0.12,
-      6,
-    );
+    expect(processor.getUniforms().anticipation).toBeCloseTo(1 - 0.1 / 0.12, 6);
   });
 
   it("stays at 0 when anticipation is disabled", () => {

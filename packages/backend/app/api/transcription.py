@@ -37,6 +37,7 @@ class TranscriptionRequest(BaseModel):
 # API Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("/transcribe")
 async def transcribe_track(request: TranscriptionRequest):
     """
@@ -78,6 +79,7 @@ async def transcribe_track(request: TranscriptionRequest):
 # NOTE: More specific routes must come BEFORE the generic {filename:path} route
 # because FastAPI matches routes in registration order and {filename:path} is greedy
 
+
 @router.get("/transcript/lyrics/{filename:path}")
 async def get_lyrics_for_sync(filename: str):
     """Get lyrics formatted for frontend sync display."""
@@ -89,12 +91,14 @@ async def get_lyrics_for_sync(filename: str):
 
     lines = []
     for seg in result["segments"]:
-        lines.append({
-            "start": seg["start"],
-            "end": seg["end"],
-            "text": seg["text"],
-            "words": seg.get("words", []),
-        })
+        lines.append(
+            {
+                "start": seg["start"],
+                "end": seg["end"],
+                "text": seg["text"],
+                "words": seg.get("words", []),
+            }
+        )
 
     return {
         "filename": filename,

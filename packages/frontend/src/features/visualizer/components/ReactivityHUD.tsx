@@ -2,10 +2,7 @@ import { memo, useState } from "react";
 import { Sliders, Zap, ChevronDown, ChevronUp } from "lucide-react";
 import type { AudioData } from "../types";
 import type { ReactivityTriad } from "../audioReactivityProcessor";
-import {
-  REACTIVITY_GENRE_PRESETS,
-  type ReactivityGenrePreset,
-} from "../reactivityGenrePresets";
+import { REACTIVITY_GENRE_PRESETS, type ReactivityGenrePreset } from "../reactivityGenrePresets";
 
 interface ReactivityHUDProps {
   audioData: AudioData;
@@ -146,8 +143,8 @@ export const ReactivityHUD = memo(function ReactivityHUD({
         <div className="space-y-2 pt-1 border-t border-white/10">
           {vizMode && vizMode !== "shader" && (
             <p className="text-[9px] leading-tight px-1.5 py-1 rounded bg-amber-500/10 text-amber-300/80 border border-amber-500/20">
-              Tuning applies to Shader mode only — switch modes in the
-              preset bar above to hear/see it take effect.
+              Tuning applies to Shader mode only — switch modes in the preset bar above to hear/see
+              it take effect.
             </p>
           )}
           {/* Energy meters */}

@@ -47,8 +47,7 @@ def _patch_comfy_aimdo_model_vbar() -> None:
         if ModelVBAR.__init__ is _orig_init:
             ModelVBAR.__init__ = _patched_init
             logger.debug(
-                "Patched comfy_aimdo.model_vbar.ModelVBAR.__init__ to accept "
-                "pageout_callback kwarg"
+                "Patched comfy_aimdo.model_vbar.ModelVBAR.__init__ to accept pageout_callback kwarg"
             )
     except Exception as e:
         logger.debug(f"Could not patch comfy_aimdo ModelVBAR: {e}")

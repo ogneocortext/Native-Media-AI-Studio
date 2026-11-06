@@ -57,18 +57,14 @@ export function TrashPanel({
             <Trash2Icon size={20} className="text-red-400" />
             Trash
           </h3>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-white"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="text-muted hover:text-white" aria-label="Close">
             ✕
           </button>
         </div>
 
         <div className="p-4 text-xs text-muted">
-          Items here were soft-deleted and can be restored. Use Purge to
-          permanently remove a trash record.
+          Items here were soft-deleted and can be restored. Use Purge to permanently remove a trash
+          record.
         </div>
 
         {trash.length === 0 ? (
@@ -79,10 +75,7 @@ export function TrashPanel({
         ) : (
           <div className="divide-y divide-white/5">
             {trash.map((item) => (
-              <div
-                key={item.relative_path}
-                className="p-3 flex items-center justify-between"
-              >
+              <div key={item.relative_path} className="p-3 flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="text-xs text-muted">{item.file_type}</div>
                   <div className="text-sm font-medium text-white truncate">

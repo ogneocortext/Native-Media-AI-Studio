@@ -46,15 +46,15 @@ export interface KeyAnalysisLike {
  * Tolerates a bare pitch class (`"A"`) - some analysis files omit the mode -
  * which then falls back to major, since an omitted mode is not evidence of minor.
  */
-export function parseKey(key: string | null | undefined): { pc: string; mode: "major" | "minor" } | null {
+export function parseKey(
+  key: string | null | undefined,
+): { pc: string; mode: "major" | "minor" } | null {
   if (typeof key !== "string") return null;
   const parts = key.trim().split(/\s+/);
   if (parts.length === 0 || !parts[0]) return null;
   const pc = parts[0];
   const mode = parts[1] === "minor" ? "minor" : "major";
-  return FIFTHS_ORDER.includes(pc as (typeof FIFTHS_ORDER)[number])
-    ? { pc, mode }
-    : null;
+  return FIFTHS_ORDER.includes(pc as (typeof FIFTHS_ORDER)[number]) ? { pc, mode } : null;
 }
 
 /** Pitch class -> 0..1 hue along the circle of fifths. Null if unrecognised. */
@@ -92,7 +92,10 @@ export function hueToRgb(hue: number, sat: number): [number, number, number] {
  * (first track, or a track with no key at all) we fall back to the fifths slot
  * of C - red - so there is always a defined, non-black colour.
  */
-export function keyPalette(analysis: KeyAnalysisLike | null | undefined, lastHue: number | null = null): KeyPalette {
+export function keyPalette(
+  analysis: KeyAnalysisLike | null | undefined,
+  lastHue: number | null = null,
+): KeyPalette {
   const empty: KeyPalette = {
     hue: lastHue ?? 0,
     saturation: SAT_NEUTRAL,
@@ -129,9 +132,10 @@ export function keyPalette(analysis: KeyAnalysisLike | null | undefined, lastHue
 
   // Weight the blend by the two correlations so a close runner-up barely moves
   // the hue and a distant one dominates. Clamped because r can be negative.
-  const runnerR = typeof analysis.key_runner_up_r === "number" && Number.isFinite(analysis.key_runner_up_r)
-    ? analysis.key_runner_up_r
-    : 0;
+  const runnerR =
+    typeof analysis.key_runner_up_r === "number" && Number.isFinite(analysis.key_runner_up_r)
+      ? analysis.key_runner_up_r
+      : 0;
   const w = runnerR / (confidence + runnerR);
   // Blend the short way around the hue circle so 0.95 -> 0.05 does not sweep
   // through every colour in between.

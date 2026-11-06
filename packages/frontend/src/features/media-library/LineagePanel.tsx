@@ -26,7 +26,11 @@ import {
   Wand2,
 } from "lucide-react";
 import { audioDisplayName } from "../../state/audioNaming";
-import { setPendingRemixOpen, setPendingRemixRecipe, setPendingTrack } from "../../utils/pendingTrack";
+import {
+  setPendingRemixOpen,
+  setPendingRemixRecipe,
+  setPendingTrack,
+} from "../../utils/pendingTrack";
 import {
   getTrackLineage,
   remixFileUrl,
@@ -90,7 +94,9 @@ export function LineagePanel({ filename }: Props) {
       el.src = url;
       el.currentTime = 0;
     }
-    void el.play().catch(() => { void 0; });
+    void el.play().catch(() => {
+      void 0;
+    });
   }, []);
 
   const reopen = useCallback(
@@ -115,7 +121,10 @@ export function LineagePanel({ filename }: Props) {
   }, [filename, navigate]);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3" data-testid="lineage-panel">
+    <div
+      className="rounded-xl border border-white/10 bg-black/30 p-4 mt-3"
+      data-testid="lineage-panel"
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-white flex items-center gap-2">
           <GitBranch size={16} className="text-amber-300" /> Mashups from this track
@@ -128,7 +137,9 @@ export function LineagePanel({ filename }: Props) {
           >
             <Wand2 size={10} /> Mashup this track
           </button>
-          <span className="text-[10px] text-muted hidden sm:inline">provenance · reopen to rearrange</span>
+          <span className="text-[10px] text-muted hidden sm:inline">
+            provenance · reopen to rearrange
+          </span>
         </div>
       </div>
 
@@ -162,7 +173,10 @@ export function LineagePanel({ filename }: Props) {
             const others = entry.source_tracks.filter((t) => t !== key);
             const isOpen = expanded === entry.name;
             return (
-              <li key={entry.name} className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+              <li
+                key={entry.name}
+                className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5"
+              >
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-medium text-white">{entry.name}</span>
                   {entry.role === "primary" ? (
@@ -240,24 +254,28 @@ export function LineagePanel({ filename }: Props) {
 
                 {isOpen && (
                   <div className="mt-2 space-y-1" data-testid="lineage-stems">
-                    {(entry.has_enhanced ? [...entry.stems, "master"] : entry.stems).map((which) => (
-                      <button
-                        key={which}
-                        onClick={() => play(remixFileUrl(entry.name, which as StemName | "master"))}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white w-full text-left"
-                      >
-                        <Play size={9} /> {which}
-                        {entry.recipe && (
-                          <span className="ml-auto text-[9px] text-muted truncate">
-                            {entry.recipe.slots
-                              .flatMap((s) => s.layers)
-                              .filter((l) => l.stem === which)
-                              .map((l) => `${audioDisplayName(l.track)} +${l.gain_db}dB`)
-                              .join(" · ") || null}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                    {(entry.has_enhanced ? [...entry.stems, "master"] : entry.stems).map(
+                      (which) => (
+                        <button
+                          key={which}
+                          onClick={() =>
+                            play(remixFileUrl(entry.name, which as StemName | "master"))
+                          }
+                          className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white w-full text-left"
+                        >
+                          <Play size={9} /> {which}
+                          {entry.recipe && (
+                            <span className="ml-auto text-[9px] text-muted truncate">
+                              {entry.recipe.slots
+                                .flatMap((s) => s.layers)
+                                .filter((l) => l.stem === which)
+                                .map((l) => `${audioDisplayName(l.track)} +${l.gain_db}dB`)
+                                .join(" · ") || null}
+                            </span>
+                          )}
+                        </button>
+                      ),
+                    )}
                   </div>
                 )}
               </li>
@@ -269,8 +287,8 @@ export function LineagePanel({ filename }: Props) {
       <p className="flex items-start gap-1 text-[10px] text-muted mt-3">
         <Wand2 size={10} className="mt-0.5 shrink-0" />
         <span>
-          No &ldquo;similar tracks&rdquo; ranking here: tempo detection is unreliable on this library and
-          chroma failed a noise control. Lineage is what can be stated accurately.
+          No &ldquo;similar tracks&rdquo; ranking here: tempo detection is unreliable on this
+          library and chroma failed a noise control. Lineage is what can be stated accurately.
         </span>
       </p>
     </div>

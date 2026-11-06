@@ -57,7 +57,8 @@ export interface RemixPanelProps {
   currentTrack?: string | null;
 }
 
-const NUM = "w-14 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white text-right";
+const NUM =
+  "w-14 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white text-right";
 const LABEL = "text-[9px] uppercase tracking-wide text-muted";
 
 // matchSource (library path <-> stem key, with the fixture guard) lives in
@@ -100,7 +101,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   const [reviseWarnings, setReviseWarnings] = useState<string[]>([]);
   const [reviseInput, setReviseInput] = useState("");
   // A3: the last rendered audition, played through a hidden <audio>.
-  const [listen, setListen] = useState<{ url: string; duration_sec: number; truncated: boolean } | null>(null);
+  const [listen, setListen] = useState<{
+    url: string;
+    duration_sec: number;
+    truncated: boolean;
+  } | null>(null);
   const [built, setBuilt] = useState<RemixSummary | null>(null);
   // The lineage of the built remix: the current render plus every render a
   // rebuild archived. A rebuild used to delete the previous mix, so the
@@ -132,20 +137,23 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   }, []);
 
   /** Load a pinned arrangement into the form: a full context switch. */
-  const loadVariant = useCallback((which: "a" | "b") => {
-    const variant = which === "a" ? ab.a : ab.b;
-    if (!variant) return;
-    setName(variant.name);
-    setBpm(variant.bpm);
-    setSlots(variant.slots);
-    // The preview and any audition belong to the arrangement they were
-    // rendered from; keeping them would play the other variant's audio
-    // under the new form and read as a bug.
-    setPreview(null);
-    setListen(null);
-    setReviseChanges(null);
-    setReviseWarnings([]);
-  }, [ab]);
+  const loadVariant = useCallback(
+    (which: "a" | "b") => {
+      const variant = which === "a" ? ab.a : ab.b;
+      if (!variant) return;
+      setName(variant.name);
+      setBpm(variant.bpm);
+      setSlots(variant.slots);
+      // The preview and any audition belong to the arrangement they were
+      // rendered from; keeping them would play the other variant's audio
+      // under the new form and read as a bug.
+      setPreview(null);
+      setListen(null);
+      setReviseChanges(null);
+      setReviseWarnings([]);
+    },
+    [ab],
+  );
   const [remixes, setRemixes] = useState<RemixSummary[]>([]);
   // A5: replacing an existing remix is an explicit choice, not the default.
   const [overwrite, setOverwrite] = useState(false);
@@ -246,18 +254,26 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           p.key_advisory ? { key: p.key_advisory, confident: Boolean(p.key_confident) } : null,
         );
       })
-      .catch(() => { void 0; });
+      .catch(() => {
+        void 0;
+      });
     setSlots([
       {
         bars: 8,
         crossfade_bars: 2,
-        layers: STEM_NAMES.filter((n) => stemsFor(wanted).includes(n)).map((n) => newLayer(wanted, n)),
+        layers: STEM_NAMES.filter((n) => stemsFor(wanted).includes(n)).map((n) =>
+          newLayer(wanted, n),
+        ),
       },
     ]);
   }, [open, sourcesLoaded, tracks, currentTrack, stemsFor]);
 
   useEffect(() => {
-    listRemixes().then(setRemixes).catch(() => { void 0; });
+    listRemixes()
+      .then(setRemixes)
+      .catch(() => {
+        void 0;
+      });
   }, []);
 
   // A1: a Media Library handoff ("Mashup this track") carries the intent to
@@ -361,19 +377,40 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           {
             bars: 8,
             crossfade_bars: 0,
-            layers: [...STEM_NAMES.filter((n) => stemsFor(a).includes(n)).map((n) => newLayer(a, n)),
-                     ...STEM_NAMES.filter((n) => stemsFor(other).includes(n) && n !== "vocals").map((n) => newLayer(other, n))],
+            layers: [
+              ...STEM_NAMES.filter((n) => stemsFor(a).includes(n)).map((n) => newLayer(a, n)),
+              ...STEM_NAMES.filter((n) => stemsFor(other).includes(n) && n !== "vocals").map((n) =>
+                newLayer(other, n),
+              ),
+            ],
           },
         ]);
       } else if (preset === "intro" && b) {
         setSlots([
-          { bars: 4, crossfade_bars: 2, layers: STEM_NAMES.filter((n) => n !== "vocals" && stemsFor(a).includes(n)).map((n) => newLayer(a, n)) },
-          { bars: 4, crossfade_bars: 2, layers: [...STEM_NAMES.filter((n) => stemsFor(a).includes(n)).map((n) => newLayer(a, n)), newLayer(b, "vocals")] },
+          {
+            bars: 4,
+            crossfade_bars: 2,
+            layers: STEM_NAMES.filter((n) => n !== "vocals" && stemsFor(a).includes(n)).map((n) =>
+              newLayer(a, n),
+            ),
+          },
+          {
+            bars: 4,
+            crossfade_bars: 2,
+            layers: [
+              ...STEM_NAMES.filter((n) => stemsFor(a).includes(n)).map((n) => newLayer(a, n)),
+              newLayer(b, "vocals"),
+            ],
+          },
         ]);
       } else if (b) {
         setSlots([
           { bars: 4, crossfade_bars: 2, layers: [newLayer(a, "drums"), newLayer(a, "bass")] },
-          { bars: 4, crossfade_bars: 2, layers: [newLayer(a, "drums"), newLayer(a, "bass"), newLayer(b, "vocals")] },
+          {
+            bars: 4,
+            crossfade_bars: 2,
+            layers: [newLayer(a, "drums"), newLayer(a, "bass"), newLayer(b, "vocals")],
+          },
         ]);
       }
       setError(null);
@@ -404,7 +441,12 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
         setError("That arrangement has no playable layers — pick another song.");
         return;
       }
-      setName(nextFreeName(wizardName(input.songA, input.songB), remixes.map((r) => r.name)));
+      setName(
+        nextFreeName(
+          wizardName(input.songA, input.songB),
+          remixes.map((r) => r.name),
+        ),
+      );
       setNameTouched(true);
       setSlots(slots);
       setWizardOpen(false);
@@ -436,7 +478,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     setError(null);
     try {
       const result = await previewRemixAudio(recipe());
-      setListen({ url: result.url, duration_sec: result.duration_sec, truncated: result.truncated });
+      setListen({
+        url: result.url,
+        duration_sec: result.duration_sec,
+        truncated: result.truncated,
+      });
     } catch (e) {
       setError((e as Error).message);
       setListen(null);
@@ -482,15 +528,17 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
       setError(null);
       try {
         const built = recipe();
-        const playable = slots
-          .map((s, i) => ({ s, i }))
-          .filter(({ s }) => s.layers.length > 0);
+        const playable = slots.map((s, i) => ({ s, i })).filter(({ s }) => s.layers.length > 0);
         const position = playable.findIndex(({ i }) => i === slotIndex);
         if (position < 0 || position >= built.slots.length) {
           throw new Error(`Slot ${slotIndex + 1} has no layers to audition.`);
         }
         const result = await previewRemixAudio(built, position);
-        setListen({ url: result.url, duration_sec: result.duration_sec, truncated: result.truncated });
+        setListen({
+          url: result.url,
+          duration_sec: result.duration_sec,
+          truncated: result.truncated,
+        });
       } catch (e) {
         setError((e as Error).message);
         setListen(null);
@@ -526,7 +574,9 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     // the build used to pass overwrite: true, which replaced it without
     // asking. Now the collision is surfaced and the caller decides.
     if (!overwrite && remixes.some((r) => r.name.toLowerCase() === name.trim().toLowerCase())) {
-      setError(`A remix named "${name.trim()}" already exists. Pick another name, or enable overwrite.`);
+      setError(
+        `A remix named "${name.trim()}" already exists. Pick another name, or enable overwrite.`,
+      );
       return;
     }
     setBusy("build");
@@ -555,13 +605,22 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
       // play button on `other` that returned digital silence (-240 dBFS),
       // because no slot used it - which reads as a broken player.
       const used = Array.from(
-        new Set(
-          slots.flatMap((s) => s.layers.map((l) => l.stem)).filter(Boolean),
-        ),
+        new Set(slots.flatMap((s) => s.layers.map((l) => l.stem)).filter(Boolean)),
       );
-      setBuilt({ name: r.name, duration_sec: r.duration_sec, target_bpm: bpm, source_tracks: r.manifest.source_tracks as string[], stems: used.length ? used : Object.keys(r.stems), has_enhanced: false });
+      setBuilt({
+        name: r.name,
+        duration_sec: r.duration_sec,
+        target_bpm: bpm,
+        source_tracks: r.manifest.source_tracks as string[],
+        stems: used.length ? used : Object.keys(r.stems),
+        has_enhanced: false,
+      });
       setPreview((p) => (p ? { ...p, warnings: r.warnings } : p));
-      listRemixes().then(setRemixes).catch(() => { void 0; });
+      listRemixes()
+        .then(setRemixes)
+        .catch(() => {
+          void 0;
+        });
       void loadVersions(r.name);
     } catch (e) {
       if (e instanceof RemixCancelledError) {
@@ -593,7 +652,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     try {
       await enhanceRemix(built.name);
       setBuilt((b) => (b ? { ...b, has_enhanced: true } : b));
-      listRemixes().then(setRemixes).catch(() => { void 0; });
+      listRemixes()
+        .then(setRemixes)
+        .catch(() => {
+          void 0;
+        });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -604,7 +667,9 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
   const updateLayer = useCallback((slotIdx: number, layerIdx: number, patch: Partial<UILayer>) => {
     setSlots((prev) =>
       prev.map((s, i) =>
-        i !== slotIdx ? s : { ...s, layers: s.layers.map((l, j) => (j === layerIdx ? { ...l, ...patch } : l)) },
+        i !== slotIdx
+          ? s
+          : { ...s, layers: s.layers.map((l, j) => (j === layerIdx ? { ...l, ...patch } : l)) },
       ),
     );
   }, []);
@@ -645,7 +710,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
 
   if (!open) {
     return (
-      <button onClick={toggle} className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-white transition-colors">
+      <button
+        onClick={toggle}
+        className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-white transition-colors"
+      >
         <Wand2 size={12} className="text-amber-300" />
         <span className="flex-1 text-left">Remix / Mashup</span>
         <ChevronDown size={12} className="text-muted" />
@@ -670,7 +738,6 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     );
   }
 
-
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2 space-y-2">
       <button onClick={toggle} className="flex items-center gap-1.5 w-full text-left">
@@ -693,7 +760,11 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               disabled={busy !== null}
               className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100 disabled:opacity-40"
             >
-              {busy === "separate" ? <Loader2 size={10} className="animate-spin" /> : <Scissors size={10} />}
+              {busy === "separate" ? (
+                <Loader2 size={10} className="animate-spin" />
+              ) : (
+                <Scissors size={10} />
+              )}
               Separate stems for the current track
             </button>
           ) : (
@@ -702,7 +773,9 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
             </p>
           )}
           {busy === "separate" && (
-            <p className="text-[10px] text-muted">Separating — demucs takes a minute or two per track…</p>
+            <p className="text-[10px] text-muted">
+              Separating — demucs takes a minute or two per track…
+            </p>
           )}
         </div>
       )}
@@ -735,7 +808,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           {/* A5: replacing an existing remix is a visible, deliberate act.
               The default is the next free name plus overwrite off. */}
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="flex items-center gap-1 text-[10px] text-muted" title="Replace an existing remix of the same name instead of building under a new one">
+            <label
+              className="flex items-center gap-1 text-[10px] text-muted"
+              title="Replace an existing remix of the same name instead of building under a new one"
+            >
               <input
                 type="checkbox"
                 checked={overwrite}
@@ -744,11 +820,12 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               />
               Overwrite if the name exists
             </label>
-            {!overwrite && remixes.some((r) => r.name.toLowerCase() === name.trim().toLowerCase()) && (
-              <span className="text-[10px] text-amber-200/90" data-testid="remix-name-collision">
-                A remix named “{name.trim()}” already exists — enable overwrite to replace it.
-              </span>
-            )}
+            {!overwrite &&
+              remixes.some((r) => r.name.toLowerCase() === name.trim().toLowerCase()) && (
+                <span className="text-[10px] text-amber-200/90" data-testid="remix-name-collision">
+                  A remix named “{name.trim()}” already exists — enable overwrite to replace it.
+                </span>
+              )}
           </div>
 
           {/* A7: render the advisory the panel docstring always claimed, with
@@ -773,8 +850,16 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               <Wand2 size={10} /> Guided wizard
             </button>
             {(["swap", "intro", "blend"] as const).map((p) => (
-              <button key={p} onClick={() => applyPreset(p)} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
-                {p === "swap" ? "Drums A + Vocals B" : p === "intro" ? "Intro → swap" : "Blend A + B"}
+              <button
+                key={p}
+                onClick={() => applyPreset(p)}
+                className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white"
+              >
+                {p === "swap"
+                  ? "Drums A + Vocals B"
+                  : p === "intro"
+                    ? "Intro → swap"
+                    : "Blend A + B"}
               </button>
             ))}
           </div>
@@ -792,7 +877,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               Pin as A{abShowing(ab, { name, bpm, slots }) === "a" ? " •" : ""}
             </button>
             {ab.a && (
-              <button onClick={() => loadVariant("a")} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
+              <button
+                onClick={() => loadVariant("a")}
+                className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white"
+              >
                 A
               </button>
             )}
@@ -803,7 +891,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               Pin as B{abShowing(ab, { name, bpm, slots }) === "b" ? " •" : ""}
             </button>
             {ab.b && (
-              <button onClick={() => loadVariant("b")} className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white">
+              <button
+                onClick={() => loadVariant("b")}
+                className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white"
+              >
                 B
               </button>
             )}
@@ -838,7 +929,9 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           {(reviseChanges !== null || reviseWarnings.length > 0) && (
             <div className="space-y-0.5" data-testid="remix-revise-result">
               {(reviseChanges ?? []).map((c) => (
-                <p key={c} className="text-[10px] text-emerald-200/90">✓ {c}</p>
+                <p key={c} className="text-[10px] text-emerald-200/90">
+                  ✓ {c}
+                </p>
               ))}
               {reviseChanges !== null && reviseChanges.length === 0 && (
                 <p className="text-[10px] text-muted">No changes — recipe already matches.</p>

@@ -335,7 +335,11 @@ export async function getImage(filename: string, subfolder = "", type = "output"
   if (!safeName || safeName === "." || safeName === "..") {
     throw new ComfyUIError(`Invalid ComfyUI filename: ${filename}`, 400);
   }
-  const safeSub = subfolder.replace(/\\/g, "/").split("/").filter(p => p && p !== "." && p !== "..").join("/");
+  const safeSub = subfolder
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((p) => p && p !== "." && p !== "..")
+    .join("/");
   const params = new URLSearchParams({ filename: safeName, subfolder: safeSub, type });
   try {
     const response = await checkResponse(
@@ -437,7 +441,10 @@ export async function listOutput(): Promise<ComfyUIOutputListing> {
     timeout: 10000,
   });
   if (!response.ok) {
-    throw new ComfyUIError(`ComfyUI output listing failed: ${response.statusText}`, response.status);
+    throw new ComfyUIError(
+      `ComfyUI output listing failed: ${response.statusText}`,
+      response.status,
+    );
   }
   return response.json();
 }

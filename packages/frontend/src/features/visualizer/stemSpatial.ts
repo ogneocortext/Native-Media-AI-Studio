@@ -81,11 +81,7 @@ const SPATIAL_SETTINGS: Record<
 };
 
 /** Generate a stereo impulse-response buffer in-memory. */
-function generateImpulseResponse(
-  ctx: AudioContext,
-  duration: number,
-  decay: number,
-): AudioBuffer {
+function generateImpulseResponse(ctx: AudioContext, duration: number, decay: number): AudioBuffer {
   const rate = ctx.sampleRate;
   const length = Math.floor(rate * duration);
   const buffer = ctx.createBuffer(2, length, rate);
@@ -95,9 +91,7 @@ function generateImpulseResponse(
     // Slightly different decay timing per channel avoids metallic correlation.
     const channelDecay = decay * (channel === 0 ? 1.0 : 0.92);
     for (let i = 0; i < length; i++) {
-      data[i] =
-        (Math.random() * 2 - 1) *
-        Math.pow(1 - i / length, channelDecay * 10);
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, channelDecay * 10);
     }
   }
 
@@ -127,11 +121,7 @@ export function createStemSpatialProcessor(
 
   // Reverb path — convolver → return gain → output.
   const convolver = ctx.createConvolver();
-  convolver.buffer = generateImpulseResponse(
-    ctx,
-    settings.reverbDuration,
-    settings.reverbDecay,
-  );
+  convolver.buffer = generateImpulseResponse(ctx, settings.reverbDuration, settings.reverbDecay);
   const reverbGain = ctx.createGain();
   reverbGain.gain.value = settings.reverbWet;
 

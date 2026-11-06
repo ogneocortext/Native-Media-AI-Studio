@@ -41,16 +41,71 @@ const FX_SLIDERS: {
   format: (v: number) => string;
   parse: (v: string) => number;
 }[] = [
-  { key: "speed", label: "Speed", min: 0.1, max: 3, step: 0.1, format: (v) => `${v.toFixed(1)}x`, parse: parseFloat },
-  { key: "brightness", label: "Brightness", min: 0.2, max: 2, step: 0.1, format: (v) => v.toFixed(1), parse: parseFloat },
-  { key: "contrast", label: "Contrast", min: 0.2, max: 2, step: 0.1, format: (v) => v.toFixed(1), parse: parseFloat },
-  { key: "hue", label: "Hue", min: 0, max: 360, step: 1, format: (v) => `${v}°`, parse: (v) => parseInt(v, 10) },
-  { key: "saturation", label: "Saturation", min: 0.2, max: 2, step: 0.1, format: (v) => v.toFixed(1), parse: parseFloat },
+  {
+    key: "speed",
+    label: "Speed",
+    min: 0.1,
+    max: 3,
+    step: 0.1,
+    format: (v) => `${v.toFixed(1)}x`,
+    parse: parseFloat,
+  },
+  {
+    key: "brightness",
+    label: "Brightness",
+    min: 0.2,
+    max: 2,
+    step: 0.1,
+    format: (v) => v.toFixed(1),
+    parse: parseFloat,
+  },
+  {
+    key: "contrast",
+    label: "Contrast",
+    min: 0.2,
+    max: 2,
+    step: 0.1,
+    format: (v) => v.toFixed(1),
+    parse: parseFloat,
+  },
+  {
+    key: "hue",
+    label: "Hue",
+    min: 0,
+    max: 360,
+    step: 1,
+    format: (v) => `${v}°`,
+    parse: (v) => parseInt(v, 10),
+  },
+  {
+    key: "saturation",
+    label: "Saturation",
+    min: 0.2,
+    max: 2,
+    step: 0.1,
+    format: (v) => v.toFixed(1),
+    parse: parseFloat,
+  },
 ];
 
-export const DEFAULT_SHADER_FX: ShaderFxValues = { speed: 1, brightness: 1, contrast: 1, hue: 0, saturation: 1 };
+export const DEFAULT_SHADER_FX: ShaderFxValues = {
+  speed: 1,
+  brightness: 1,
+  contrast: 1,
+  hue: 0,
+  saturation: 1,
+};
 
-export function ShaderHud({ preset, onPresetChange, showFx, onFxOpenChange, fx, onFxChange, warpPreset, onWarpPresetChange }: ShaderHudProps) {
+export function ShaderHud({
+  preset,
+  onPresetChange,
+  showFx,
+  onFxOpenChange,
+  fx,
+  onFxChange,
+  warpPreset,
+  onWarpPresetChange,
+}: ShaderHudProps) {
   const [showSelector, setShowSelector] = useState(false);
   const [showWarpSelector, setShowWarpSelector] = useState(false);
   const warpLabel =

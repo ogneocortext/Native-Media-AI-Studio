@@ -1,4 +1,5 @@
 """Job queue manager with serial execution support."""
+
 import asyncio
 import logging
 import os
@@ -192,7 +193,8 @@ class QueueManager:
         """
         quarantined: list[str] = []
         candidates = [
-            j for j in self._jobs.values()
+            j
+            for j in self._jobs.values()
             if j.status in (JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.RETRYING)
             and not self.is_runnable(j)
         ]
@@ -206,9 +208,7 @@ class QueueManager:
                 if ok:
                     quarantined.append(job.id)
             except Exception as e:
-                logger.error(
-                    "Failed to quarantine unrunnable job %s: %s", job.id, e
-                )
+                logger.error("Failed to quarantine unrunnable job %s: %s", job.id, e)
         if quarantined:
             logger.warning(
                 "Quarantined %d job(s) with no params: they cannot be run, so "
@@ -217,9 +217,7 @@ class QueueManager:
             )
         return {"quarantined": quarantined, "examined": len(candidates)}
 
-    async def recover_stale_running_jobs(
-        self, max_age_seconds: int = 900
-    ) -> dict[str, Any]:
+    async def recover_stale_running_jobs(self, max_age_seconds: int = 900) -> dict[str, Any]:
         """Requeue or dead-letter jobs stranded in RUNNING by a dead process.
 
         A job only reaches RUNNING once a processor has claimed it, so on
@@ -242,9 +240,7 @@ class QueueManager:
         skipped_active: list[str] = []
         unrecoverable: list[str] = []
 
-        candidates = [
-            j for j in self._jobs.values() if j.status == JobStatus.RUNNING
-        ]
+        candidates = [j for j in self._jobs.values() if j.status == JobStatus.RUNNING]
         for job in candidates:
             started = job.started_at or job.created_at
             if started is not None and started > cutoff:
@@ -277,9 +273,9 @@ class QueueManager:
                     dead.append(job.id)
                     unrecoverable.append(job.id)
                     logger.warning(
-                        "Dead-lettered stranded job %s (%s): no params, "
-                        "so it cannot be run",
-                        job.id, job.job_type,
+                        "Dead-lettered stranded job %s (%s): no params, so it cannot be run",
+                        job.id,
+                        job.job_type,
                     )
                 continue
             try:
@@ -307,8 +303,11 @@ class QueueManager:
                     logger.warning(
                         "Recovered stranded job %s (%s) after %.0fs without an owner; "
                         "requeued (attempt %d/%d)",
-                        job.id, job.job_type, age_s,
-                        job.retry_count, job.max_retries,
+                        job.id,
+                        job.job_type,
+                        age_s,
+                        job.retry_count,
+                        job.max_retries,
                     )
                 else:
                     # Not called while holding self._lock: _move_to_dead_letter
@@ -322,7 +321,9 @@ class QueueManager:
                         dead.append(job.id)
                         logger.warning(
                             "Dead-lettered stranded job %s (%s) after %.0fs: retries exhausted",
-                            job.id, job.job_type, age_s,
+                            job.id,
+                            job.job_type,
+                            age_s,
                         )
             except Exception as e:
                 logger.error("Failed to recover stranded job %s: %s", job.id, e)
@@ -330,7 +331,9 @@ class QueueManager:
         if requeued or dead:
             logger.warning(
                 "Startup recovery: %d stranded job(s) -> %d requeued, %d dead-lettered",
-                len(requeued) + len(dead), len(requeued), len(dead),
+                len(requeued) + len(dead),
+                len(requeued),
+                len(dead),
             )
 
         return {
@@ -362,9 +365,7 @@ class QueueManager:
         requeued: list[str] = []
         dead: list[str] = []
 
-        candidates = [
-            j for j in self._jobs.values() if j.status == JobStatus.RETRYING
-        ]
+        candidates = [j for j in self._jobs.values() if j.status == JobStatus.RETRYING]
         for job in candidates:
             if not self.is_runnable(job):
                 # Leave for the quarantine sweep; it dead-letters with the
@@ -380,7 +381,8 @@ class QueueManager:
                     dead.append(job.id)
                     logger.warning(
                         "Dead-lettered stranded retrying job %s (%s): retries exhausted",
-                        job.id, job.job_type,
+                        job.id,
+                        job.job_type,
                     )
                 continue
             updated = await self.update_job(
@@ -394,22 +396,22 @@ class QueueManager:
                 self._signal_new_job()
                 requeued.append(job.id)
                 logger.warning(
-                    "Recovered stranded retrying job %s (%s); requeued "
-                    "(attempt %d/%d)",
-                    job.id, job.job_type,
-                    job.retry_count, job.max_retries,
+                    "Recovered stranded retrying job %s (%s); requeued (attempt %d/%d)",
+                    job.id,
+                    job.job_type,
+                    job.retry_count,
+                    job.max_retries,
                 )
 
         if requeued or dead:
             logger.warning(
                 "Retrying-job recovery: %d requeued, %d dead-lettered",
-                len(requeued), len(dead),
+                len(requeued),
+                len(dead),
             )
         return {"requeued": requeued, "dead": dead, "examined": len(candidates)}
 
-    async def count_stale_running_jobs(
-        self, max_age_seconds: int = 900
-    ) -> int:
+    async def count_stale_running_jobs(self, max_age_seconds: int = 900) -> int:
         """How many RUNNING jobs have no live owner. Used by the health check.
 
         Uses the same silence rule as the reaper (age AND quiet past the
@@ -443,7 +445,10 @@ class QueueManager:
         ttl = ttl_seconds if ttl_seconds is not None else JOB_TTL_SECONDS
         cutoff = datetime.now() - timedelta(seconds=ttl)
         terminal_statuses = {
-            JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+            JobStatus.DEAD,
         }
         # Collect and evict under the lock so a concurrent update_job cannot
         # resurrect or mutate a job mid-expiry; DB deletes run after release
@@ -523,7 +528,8 @@ class QueueManager:
     def count_active_by_type(self, job_type: JobType) -> int:
         """Count QUEUED + RUNNING jobs of a given type."""
         return sum(
-            1 for j in self._jobs.values()
+            1
+            for j in self._jobs.values()
             if j.job_type == job_type and j.status in (JobStatus.QUEUED, JobStatus.RUNNING)
         )
 
@@ -569,6 +575,7 @@ class QueueManager:
         if self._queue_file.exists():
             try:
                 import json
+
                 with open(self._queue_file) as f:
                     data = json.load(f)
                     for job_data in data:
@@ -650,12 +657,18 @@ class QueueManager:
     async def _broadcast_job_event(self, event_type: str, job: Job):
         """Broadcast a job event to all SSE clients"""
         try:
-            priority = "urgent" if job.status in (JobStatus.FAILED, JobStatus.DEAD) else \
-                       "high" if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED) else \
-                       "medium" if job.status == JobStatus.RUNNING else "low"
-            await sse_manager.broadcast(event_type, {
-                "job": job.model_dump(mode="json")
-            }, priority=priority)
+            priority = (
+                "urgent"
+                if job.status in (JobStatus.FAILED, JobStatus.DEAD)
+                else "high"
+                if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)
+                else "medium"
+                if job.status == JobStatus.RUNNING
+                else "low"
+            )
+            await sse_manager.broadcast(
+                event_type, {"job": job.model_dump(mode="json")}, priority=priority
+            )
         except Exception as e:
             logger.error("Error broadcasting job event: %s", e)
 
@@ -680,10 +693,14 @@ class QueueManager:
                 from ..diagnostics.resources import resource_monitor
 
                 cleanup = await resource_monitor.cleanup_system_memory()
-                logger.warning(f"System RAM {mem.percent:.1f}% before enqueue, cleanup: {cleanup['actions']}")
+                logger.warning(
+                    f"System RAM {mem.percent:.1f}% before enqueue, cleanup: {cleanup['actions']}"
+                )
                 mem2 = psutil.virtual_memory()
                 if mem2.percent >= 92:
-                    logger.warning(f"System RAM still {mem2.percent:.1f}% after cleanup -- queueing anyway but may OOM")
+                    logger.warning(
+                        f"System RAM still {mem2.percent:.1f}% after cleanup -- queueing anyway but may OOM"
+                    )
         except Exception as e:
             logger.debug(f"RAM check before enqueue failed: {e}")
 
@@ -800,13 +817,20 @@ class QueueManager:
         """Extended queue metrics for observability."""
         stats = await self.get_stats()
         jobs = list(self._jobs.values())
-        completed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED and j.started_at and j.completed_at]
-        wait_times = [(j.started_at - j.created_at).total_seconds() for j in completed_jobs if j.started_at]
-        durations = [(j.completed_at - j.started_at).total_seconds() for j in completed_jobs if j.started_at and j.completed_at]
+        completed_jobs = [
+            j for j in jobs if j.status == JobStatus.COMPLETED and j.started_at and j.completed_at
+        ]
+        wait_times = [
+            (j.started_at - j.created_at).total_seconds() for j in completed_jobs if j.started_at
+        ]
+        durations = [
+            (j.completed_at - j.started_at).total_seconds()
+            for j in completed_jobs
+            if j.started_at and j.completed_at
+        ]
         now = datetime.now()
         recent_completed = [
-            j for j in completed_jobs
-            if (now - j.completed_at).total_seconds() <= 60.0
+            j for j in completed_jobs if (now - j.completed_at).total_seconds() <= 60.0
         ]
         # recent_completed counts completions inside a 60-second window, so
         # the count itself IS the per-minute rate - dividing by 60 again
@@ -820,7 +844,9 @@ class QueueManager:
                 "error": j.error,
                 "failed_at": j.completed_at.isoformat() if j.completed_at else None,
             }
-            for j in sorted(dead_jobs, key=lambda j: j.completed_at or j.created_at, reverse=True)[:10]
+            for j in sorted(dead_jobs, key=lambda j: j.completed_at or j.created_at, reverse=True)[
+                :10
+            ]
         ]
         current = self._running_job
         return {
@@ -828,7 +854,9 @@ class QueueManager:
             "queue_depth": stats.queued + stats.pending,
             "current_job_id": current.id if current else None,
             "current_job_type": current.job_type.value if current else None,
-            "current_job_started_at": current.started_at.isoformat() if current and current.started_at else None,
+            "current_job_started_at": current.started_at.isoformat()
+            if current and current.started_at
+            else None,
             "processing_rate_per_min": round(processing_rate, 2),
             "avg_wait_seconds": round(sum(wait_times) / len(wait_times), 2) if wait_times else 0.0,
             "avg_duration_seconds": round(sum(durations) / len(durations), 2) if durations else 0.0,
@@ -836,12 +864,19 @@ class QueueManager:
             "dead_letter_sample": dead_sample,
         }
 
-    async def update_job(self, job_id: str, status: JobStatus | None = None,
-                        progress: float | None = None, message: str | None = None,
-                        error: str | None = None, result: dict | None = None,
-                        retry_count: int | None = None, output_path: str | None = None,
-                        started_at: datetime | None = None,
-                        completed_at: datetime | None = None) -> Job | None:
+    async def update_job(
+        self,
+        job_id: str,
+        status: JobStatus | None = None,
+        progress: float | None = None,
+        message: str | None = None,
+        error: str | None = None,
+        result: dict | None = None,
+        retry_count: int | None = None,
+        output_path: str | None = None,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
+    ) -> Job | None:
         """Update job status and progress"""
         job = self._jobs.get(job_id)
         if not job:
@@ -878,7 +913,7 @@ class QueueManager:
                     started_at=new_started_at,
                     completed_at=new_completed_at,
                     retry_count=new_retry_count,
-                    output_path=new_output_path
+                    output_path=new_output_path,
                 )
             except Exception as e:
                 logger.error("Failed to persist job %s update: %s", job_id, e)
@@ -948,14 +983,14 @@ class QueueManager:
             self._last_progress_at.pop(job_id, None)
             # Persist to SQLite
             await JobDatabaseManager.update_job_async(
-                job_id,
-                status=job.status,
-                completed_at=job.completed_at
+                job_id, status=job.status, completed_at=job.completed_at
             )
             await self._notify_subscribers(job)
             logger.info(
                 "Job cancelled id=%s type=%s was=%s",
-                job_id, job.job_type, old_status,
+                job_id,
+                job.job_type,
+                old_status,
             )
 
         await self._broadcast_job_event("job.cancelled", job)
@@ -1010,7 +1045,8 @@ class QueueManager:
             if job.retry_count >= job.max_retries:
                 job.retry_count = 0
                 logger.info(
-                    "Job %s exhausted its retry budget; manual retry requested, resetting budget", job_id
+                    "Job %s exhausted its retry budget; manual retry requested, resetting budget",
+                    job_id,
                 )
 
             job.retry_count += 1
@@ -1021,7 +1057,11 @@ class QueueManager:
             self._last_progress_at.pop(job_id, None)
             logger.info(
                 "Job retry queued id=%s type=%s attempt=%d/%d manual=%s",
-                job_id, job.job_type, job.retry_count, job.max_retries, manual,
+                job_id,
+                job.job_type,
+                job.retry_count,
+                job.max_retries,
+                manual,
             )
             # Persist to SQLite
             await JobDatabaseManager.update_job_async(
@@ -1030,7 +1070,7 @@ class QueueManager:
                 progress=job.progress,
                 message=job.message,
                 error=job.error,
-                retry_count=job.retry_count
+                retry_count=job.retry_count,
             )
             await self._notify_subscribers(job)
             self._signal_new_job()
@@ -1052,7 +1092,9 @@ class QueueManager:
             return False
         logger.info(
             "Job deleted id=%s type=%s status=%s",
-            job_id, job.job_type, job.status,
+            job_id,
+            job.job_type,
+            job.status,
         )
         # Tell subscribers and SSE clients the job is gone - without this a
         # deleted job lingered in every connected client's store until the
@@ -1066,7 +1108,8 @@ class QueueManager:
         doomed: list[Job] = []
         async with self._lock:
             doomed = [
-                j for j in self._jobs.values()
+                j
+                for j in self._jobs.values()
                 if j.status in (JobStatus.COMPLETED, JobStatus.CANCELLED)
             ]
             for job in doomed:
@@ -1090,10 +1133,7 @@ class QueueManager:
         """
         doomed: list[Job] = []
         async with self._lock:
-            doomed = [
-                j for j in self._jobs.values()
-                if j.status in _UNSUCCESSFUL_STATUSES
-            ]
+            doomed = [j for j in self._jobs.values() if j.status in _UNSUCCESSFUL_STATUSES]
             for job in doomed:
                 del self._jobs[job.id]
                 self._last_progress_at.pop(job.id, None)
@@ -1111,10 +1151,7 @@ class QueueManager:
         """Remove all dead-lettered jobs"""
         doomed: list[Job] = []
         async with self._lock:
-            doomed = [
-                j for j in self._jobs.values()
-                if j.status == JobStatus.DEAD
-            ]
+            doomed = [j for j in self._jobs.values() if j.status == JobStatus.DEAD]
             for job in doomed:
                 del self._jobs[job.id]
                 self._last_progress_at.pop(job.id, None)
@@ -1135,16 +1172,19 @@ class QueueManager:
         caller can retract them from clients after releasing the lock.
         """
         terminal_statuses = {
-            JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+            JobStatus.DEAD,
         }
         terminal_jobs = [
-            j for j in self._jobs.values()
-            if j.status in terminal_statuses
-            and j.completed_at is not None
+            j
+            for j in self._jobs.values()
+            if j.status in terminal_statuses and j.completed_at is not None
         ]
         terminal_jobs.sort(key=lambda j: j.completed_at)
 
-        to_remove = terminal_jobs[:max(0, len(terminal_jobs) // 2)]
+        to_remove = terminal_jobs[: max(0, len(terminal_jobs) // 2)]
         # Capture ids first, then release lock pressure by deleting from DB in batch
         ids_to_delete = [j.id for j in to_remove]
         evicted = []

@@ -154,7 +154,11 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
           </ResponsiveContainer>
         </div>
         <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1">
-          <Zap size={11} className={`text-${getUsageColor(memPct).includes("red") ? "red-400" : getUsageColor(memPct).includes("amber") ? "amber-400" : "violet-400"}`} /> {formatMB(snapshot.memory_free_mb)} free
+          <Zap
+            size={11}
+            className={`text-${getUsageColor(memPct).includes("red") ? "red-400" : getUsageColor(memPct).includes("amber") ? "amber-400" : "violet-400"}`}
+          />{" "}
+          {formatMB(snapshot.memory_free_mb)} free
         </p>
       </Card>
 

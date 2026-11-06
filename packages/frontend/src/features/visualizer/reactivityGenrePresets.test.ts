@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  REACTIVITY_GENRE_PRESETS,
-  matchReactivityGenrePreset,
-} from "./reactivityGenrePresets";
+import { REACTIVITY_GENRE_PRESETS, matchReactivityGenrePreset } from "./reactivityGenrePresets";
 
 /**
  * Plan 2.3 — genre reactivity presets. These tests pin the preset
@@ -15,9 +12,7 @@ import {
 describe("reactivity genre presets", () => {
   it("defines the plan's three genre families plus phonk/bass", () => {
     const ids = REACTIVITY_GENRE_PRESETS.map((p) => p.id);
-    expect(ids).toEqual(
-      expect.arrayContaining(["edm", "ambient", "vocal", "phonk"]),
-    );
+    expect(ids).toEqual(expect.arrayContaining(["edm", "ambient", "vocal", "phonk"]));
   });
 
   it("keeps every triad inside the HUD slider ranges", () => {
@@ -43,9 +38,7 @@ describe("reactivity genre presets", () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const ambient = REACTIVITY_GENRE_PRESETS.find((p) => p.id === "ambient")!;
     expect(edm.triad.attack).toBeGreaterThan(ambient.triad.attack);
-    expect(edm.triad.beatResponse).toBeGreaterThan(
-      ambient.triad.beatResponse,
-    );
+    expect(edm.triad.beatResponse).toBeGreaterThan(ambient.triad.beatResponse);
     expect(edm.triad.release).toBeLessThan(ambient.triad.release);
   });
 

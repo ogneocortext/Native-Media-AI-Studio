@@ -90,7 +90,14 @@ except Exception:  # prometheus_client not installed
         """Minimal Prometheus text exposition format."""
         lines: list[str] = []
         # This is a simplified fallback; install prometheus_client for full output.
-        lines.extend(("# HELP nma_http_requests_total Total HTTP requests", "# TYPE nma_http_requests_total counter", "# HELP nma_http_request_duration_seconds HTTP request latency", "# TYPE nma_http_request_duration_seconds histogram"))
+        lines.extend(
+            (
+                "# HELP nma_http_requests_total Total HTTP requests",
+                "# TYPE nma_http_requests_total counter",
+                "# HELP nma_http_request_duration_seconds HTTP request latency",
+                "# TYPE nma_http_request_duration_seconds histogram",
+            )
+        )
         return "\n".join(lines) + "\n"
 
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"

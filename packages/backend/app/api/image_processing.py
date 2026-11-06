@@ -52,7 +52,7 @@ async def process_image(
     operation: str = Form(
         ...,
         description="Operation to apply: beat_shockwave, energy_flash, color_grade, "
-                    "vignette, posterize, invert, solarize, tint, crossfade, aurora",
+        "vignette, posterize, invert, solarize, tint, crossfade, aurora",
     ),
     params: str = Form(
         default="{}",
@@ -255,7 +255,11 @@ async def get_capabilities():
                 "description": "Beat-synced displacement using ImageChops.offset",
                 "params": {
                     "beat_strength": {"type": "float", "min": 0.0, "max": 1.0, "default": 0.5},
-                    "direction": {"type": "string", "enum": ["horizontal", "vertical", "both"], "default": "both"},
+                    "direction": {
+                        "type": "string",
+                        "enum": ["horizontal", "vertical", "both"],
+                        "default": "both",
+                    },
                 },
             },
             "frame_difference": {
@@ -268,7 +272,15 @@ async def get_capabilities():
                     "band_gain": {"type": "float", "min": 0.0, "max": 2.0, "default": 1.0},
                     "filter_type": {
                         "type": "string",
-                        "enum": ["blur", "sharpen", "edge_enhance", "smooth", "contour", "emboss", "find_edges"],
+                        "enum": [
+                            "blur",
+                            "sharpen",
+                            "edge_enhance",
+                            "smooth",
+                            "contour",
+                            "emboss",
+                            "find_edges",
+                        ],
                         "default": "blur",
                     },
                 },
@@ -276,7 +288,11 @@ async def get_capabilities():
             "mirror_effect": {
                 "description": "Mirror/flip image using Image.transpose()",
                 "params": {
-                    "axis": {"type": "string", "enum": ["horizontal", "vertical", "both"], "default": "horizontal"},
+                    "axis": {
+                        "type": "string",
+                        "enum": ["horizontal", "vertical", "both"],
+                        "default": "horizontal",
+                    },
                 },
             },
             "palette_to_rgb": {

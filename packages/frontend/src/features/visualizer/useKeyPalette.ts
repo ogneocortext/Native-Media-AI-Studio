@@ -13,9 +13,7 @@ import { keyPalette, type KeyAnalysisLike, type KeyPalette } from "./keyPalette"
  * network, which is the point of the plan's guiding rule #1.
  */
 export type AnalysisLookup =
-  | { kind: "found" }
-  | { kind: "not-analyzed" }
-  | { kind: "error"; status: number };
+  { kind: "found" } | { kind: "not-analyzed" } | { kind: "error"; status: number };
 
 /** Classify a response status from the analysis endpoint. */
 export function classifyAnalysisResponse(status: number): AnalysisLookup {
@@ -57,7 +55,12 @@ const paletteCache = new Map<string, { palette: KeyPalette; unavailable: boolean
 const inflight = new Map<string, Promise<KeyAnalysisLike | null>>();
 
 export function useKeyPalette(filename: string | null): KeyPaletteState {
-  const [palette, setPalette] = useState<KeyPalette>({ hue: 0, saturation: 0.08, confidence: 0, fallback: true });
+  const [palette, setPalette] = useState<KeyPalette>({
+    hue: 0,
+    saturation: 0.08,
+    confidence: 0,
+    fallback: true,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);

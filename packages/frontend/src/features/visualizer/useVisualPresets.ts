@@ -276,7 +276,7 @@ export function useVisualPresets({
     try {
       const cleanName = cleanTrackName(currentFilename ?? "") || "track";
       const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
-      const desc = ((concept as any)?.prompt ?? (concept as any)?.visualConcept) ?? cleanName;
+      const desc = (concept as any)?.prompt ?? (concept as any)?.visualConcept ?? cleanName;
       const genre = (concept as any)?.genre?.join(", ") ?? "";
       const energy = currentAnalysisData.energy_curve.length
         ? currentAnalysisData.energy_curve.reduce((a, b) => a + b, 0) /

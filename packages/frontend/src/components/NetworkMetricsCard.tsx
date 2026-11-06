@@ -49,26 +49,30 @@ export function NetworkMetricsCard({
   return (
     <Card
       title="Network Metrics"
-      icon={connected ? <Wifi size={16} className="text-emerald-400" /> : <WifiOff size={16} className="text-red-400" />}
+      icon={
+        connected ? (
+          <Wifi size={16} className="text-emerald-400" />
+        ) : (
+          <WifiOff size={16} className="text-red-400" />
+        )
+      }
     >
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Status</span>
-          <span className={`text-sm font-medium ${connected ? "text-emerald-400" : "text-red-400"}`}>
+          <span
+            className={`text-sm font-medium ${connected ? "text-emerald-400" : "text-red-400"}`}
+          >
             {connected ? "Connected" : "Disconnected"}
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Uptime</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatUptime(uptime)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatUptime(uptime)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Reconnections</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {reconnectionCount}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{reconnectionCount}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Avg Latency</span>
@@ -78,15 +82,11 @@ export function NetworkMetricsCard({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Bytes Received</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatBytes(bytesReceived)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatBytes(bytesReceived)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Bytes Sent</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatBytes(bytesSent)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatBytes(bytesSent)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Message Drop Rate</span>

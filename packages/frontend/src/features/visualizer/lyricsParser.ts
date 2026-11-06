@@ -105,7 +105,10 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     if (/^\[offset:/i.test(line)) continue;
 
     // Standalone section marker like [Chorus] (no timestamp)
-    const standaloneSection = /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i.exec(line);
+    const standaloneSection =
+      /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i.exec(
+        line,
+      );
     if (standaloneSection) {
       currentSection = sectionFor(standaloneSection[1]);
       continue;
@@ -120,7 +123,10 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
     const wordTagRegex = /<(\d{1,3}):(\d{2})[.:](\d{1,3})>/g;
     const inlineWordTags = [...text.matchAll(wordTagRegex)];
     // Section marker embedded as text after timestamps: [00:12.00][Chorus]
-    const embeddedSection = /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i.exec(text);
+    const embeddedSection =
+      /^\[(Intro|Verse\s*\d*|Chorus|Bridge|Drop|Breakdown|Build-?Up|Pre-Chorus|Final\s*(Chorus|Drop)|Outro|Instrumental|Interlude|Hook|Refrain|Solo)\]$/i.exec(
+        text,
+      );
     if (embeddedSection) {
       currentSection = sectionFor(embeddedSection[1]);
       continue;
@@ -325,7 +331,10 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
       if (!trimmed) continue;
 
       // Check if this part is a section marker
-      const sectionMatch = /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i.exec(trimmed);
+      const sectionMatch =
+        /^(Verse\s*\d*|Chorus|Bridge|Intro|Final\s*Chorus|Pre-Chorus|Breakdown|Build-Up)$/i.exec(
+          trimmed,
+        );
       if (sectionMatch) {
         if (currentLines.length) {
           sections.push({ section: currentSection, lines: [...currentLines] });

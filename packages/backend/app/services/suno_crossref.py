@@ -77,7 +77,8 @@ def _load() -> None:
         _loaded = True
         logger.info(
             "Loaded Suno cross-reference: %d tiered tags, %d production phrases",
-            len(_tag_tier), len(_production),
+            len(_tag_tier),
+            len(_production),
         )
     except Exception as exc:
         logger.warning("Failed to load Suno cross-reference from %s: %s", _CROSSREF_PATH, exc)

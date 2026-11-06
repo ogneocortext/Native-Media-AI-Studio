@@ -28,19 +28,16 @@ export interface RawVideoModel {
 export function useVideoModels() {
   const [videoModels, setVideoModels] = useState<VideoModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
-  const [comfyStatus, setComfyStatus] = useState<"unknown" | "online" | "offline">(
-    "unknown"
-  );
+  const [comfyStatus, setComfyStatus] = useState<"unknown" | "online" | "offline">("unknown");
   const [error, setError] = useState<string | null>(null);
 
   const fetchVideoModels = useCallback(async () => {
     setLoadingModels(true);
     setError(null);
     try {
-      const vmRes = await fetchWithTimeout(
-        "/api/integrations/comfyui/video-models",
-        { timeout: 15000 }
-      );
+      const vmRes = await fetchWithTimeout("/api/integrations/comfyui/video-models", {
+        timeout: 15000,
+      });
       if (!vmRes.ok) throw new Error(`video-models ${vmRes.status}`);
       const vmData: { video_models?: RawVideoModel[] } = await vmRes.json();
       const raw: RawVideoModel[] = vmData.video_models ?? [];
@@ -54,24 +51,20 @@ export function useVideoModels() {
         }
       }
 
-      const allModels: VideoModel[] = Array.from(byName.values()).map(
-        (m: RawVideoModel) =>
-          getVideoModelInfo(m.name, {
-            variant: m.variant,
-            supports_8gb: m.supports_8gb,
-            requires_cpu_offload: m.requires_cpu_offload,
-            vram_mb: m.vram_mb,
-            size_mb: m.size_mb,
-            path: m.path,
-          })
+      const allModels: VideoModel[] = Array.from(byName.values()).map((m: RawVideoModel) =>
+        getVideoModelInfo(m.name, {
+          variant: m.variant,
+          supports_8gb: m.supports_8gb,
+          requires_cpu_offload: m.requires_cpu_offload,
+          vram_mb: m.vram_mb,
+          size_mb: m.size_mb,
+          path: m.path,
+        }),
       );
 
       // Health probe — ComfyUI live check drives the generate-button disabled state
       try {
-        const healthRes = await fetchWithTimeout(
-          "/api/services/comfyui/status",
-          { timeout: 6000 }
-        );
+        const healthRes = await fetchWithTimeout("/api/services/comfyui/status", { timeout: 6000 });
         if (healthRes.ok) {
           const h = await healthRes.json();
           setComfyStatus(h.running ? "online" : "offline");

@@ -75,7 +75,7 @@ def classify_model_variant(model_name: str) -> str:
         # Match mochi_N where N is a standalone digit (not part of a larger
         # number like mochi_10). Returns "mochi_1" for mochi_1, "mochi_2" for
         # mochi_2, and "mochi_2" as fallback for unrecognized variants.
-        m = re.search(r'mochi_(\d+)', base)
+        m = re.search(r"mochi_(\d+)", base)
         if m:
             return f"mochi_{m.group(1)}"
         return "mochi_2"
@@ -105,12 +105,14 @@ def is_wan_gguf_model(model_name: str) -> bool:
 
 # All Wan video tiers that fit 8GB (including 1.3B). Used by adapter routing
 # and video-models tagging to decide 8GB badge vs 16GB+ warning.
-WAN_8GB_TIERS = frozenset({
-    "wan2_1_t2v_1_3b",
-    "wan2_1_fun_inp_1_3b",
-    "wan_ti2v_5b_gguf_q4",
-    "wan_ti2v_5b_gguf_q5",
-})
+WAN_8GB_TIERS = frozenset(
+    {
+        "wan2_1_t2v_1_3b",
+        "wan2_1_fun_inp_1_3b",
+        "wan_ti2v_5b_gguf_q4",
+        "wan_ti2v_5b_gguf_q5",
+    }
+)
 
 
 def is_wan_8gb_model(model_name: str) -> bool:

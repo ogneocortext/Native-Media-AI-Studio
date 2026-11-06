@@ -16,9 +16,7 @@ from .connection import get_db
 def get_preference(key: str, default: Any = None) -> Any:
     """Get a user preference by key."""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT value FROM user_preferences WHERE key = ?", (key,)
-        ).fetchone()
+        row = conn.execute("SELECT value FROM user_preferences WHERE key = ?", (key,)).fetchone()
         if row:
             return json.loads(row["value"])
     return default

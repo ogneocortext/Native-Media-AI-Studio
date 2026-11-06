@@ -16,7 +16,11 @@ export { useHealthStore } from "../state/healthStore";
 export { useGPUStore, useGPUSnapshot, useGPULoading, useGPUError } from "../state/gpuStore";
 
 // Audio media library — single source of truth for every audio selector.
-export { useAudioLibraryStore, audioDisplayName, audioOptionLabel } from "../state/audioLibraryStore";
+export {
+  useAudioLibraryStore,
+  audioDisplayName,
+  audioOptionLabel,
+} from "../state/audioLibraryStore";
 export type { AudioLibraryEntry, AudioLibraryFile } from "../state/audioLibraryStore";
 
 // Re-export types from job store

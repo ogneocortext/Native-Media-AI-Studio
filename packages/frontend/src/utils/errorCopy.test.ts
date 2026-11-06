@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  SEPARATION_FAILED_HEADLINE,
-  friendlyPipelineError,
-} from "./errorCopy";
+import { SEPARATION_FAILED_HEADLINE, friendlyPipelineError } from "./errorCopy";
 
 describe("friendlyPipelineError", () => {
   it("returns the fallback headline for empty input", () => {

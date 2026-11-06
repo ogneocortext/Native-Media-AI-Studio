@@ -86,12 +86,7 @@ export interface DatabaseMaintenanceResult {
 }
 
 export type DatabaseMaintenanceAction =
-  | "vacuum"
-  | "wal-checkpoint"
-  | "analyze"
-  | "prune-logs"
-  | "prune-telemetry"
-  | "prune-resources";
+  "vacuum" | "wal-checkpoint" | "analyze" | "prune-logs" | "prune-telemetry" | "prune-resources";
 
 /** Default retention windows the backend applies when keep_days is omitted. */
 export const DEFAULT_KEEP_DAYS: Record<string, number> = {

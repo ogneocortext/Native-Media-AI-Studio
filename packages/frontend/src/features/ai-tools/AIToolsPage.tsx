@@ -215,16 +215,12 @@ export function AIToolsPage() {
           const data = event.data as { content: string; thinking?: string };
           fullResponse += data.content;
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: fullResponse } : m,
-            ),
+            prev.map((m) => (m.id === assistantId ? { ...m, content: fullResponse } : m)),
           );
           if (data.thinking) {
             fullThinking += data.thinking;
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, thinking: fullThinking } : m,
-              ),
+              prev.map((m) => (m.id === assistantId ? { ...m, thinking: fullThinking } : m)),
             );
           }
         } else if (event.type === "tool_calls") {
@@ -235,32 +231,24 @@ export function AIToolsPage() {
             toolDetails.push({ ...tc, status: "calling" });
           }
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m,
-            ),
+            prev.map((m) => (m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m)),
           );
         } else if (event.type === "tool_result") {
           const data = event.data as { name: string; result: string };
-          const target = toolDetails.find(
-            (t) => t.name === data.name && t.status === "calling",
-          );
+          const target = toolDetails.find((t) => t.name === data.name && t.status === "calling");
           if (target) {
             target.result = data.result;
             target.status = "done";
           }
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m,
-            ),
+            prev.map((m) => (m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m)),
           );
           if (data.name === "generate_visualization") {
             try {
               const cfg = JSON.parse(data.result) as VisualizationConfig;
               if (cfg?.style && cfg.colors) {
                 setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId ? { ...m, vizConfig: cfg } : m,
-                  ),
+                  prev.map((m) => (m.id === assistantId ? { ...m, vizConfig: cfg } : m)),
                 );
               }
             } catch {
@@ -338,8 +326,7 @@ export function AIToolsPage() {
   };
 
   const getModelScore = (m: OllamaModel) => {
-    const score =
-      benchmarks[m.name]?.validation?.score ?? m.benchmark?.score ?? null;
+    const score = benchmarks[m.name]?.validation?.score ?? m.benchmark?.score ?? null;
     return score !== null && score >= 0 ? Math.round(score) : null;
   };
 
@@ -401,8 +388,7 @@ export function AIToolsPage() {
                   const latency = getModelLatency(m);
                   const caps = getModelCaps(m);
                   const isSelected = m.name === selectedModel;
-                  const isBest =
-                    models[0]?.name === m.name && score !== null && score >= 60;
+                  const isBest = models[0]?.name === m.name && score !== null && score >= 60;
                   const brokenReason = m.verified ? null : m.broken_reason;
                   return (
                     <button
@@ -436,7 +422,10 @@ export function AIToolsPage() {
                               </span>
                             )}
                             {caps.map((cap) => (
-                              <span key={cap} className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded">
+                              <span
+                                key={cap}
+                                className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded"
+                              >
                                 {cap}
                               </span>
                             ))}
@@ -504,9 +493,7 @@ export function AIToolsPage() {
               <div className="flex flex-col items-center justify-center py-12 text-muted">
                 <MessageCircle size={32} className="mb-3 opacity-30" />
                 <p>Start a conversation with your AI model</p>
-                <p className="text-xs mt-1 opacity-50">
-                  Select a model and type a message above
-                </p>
+                <p className="text-xs mt-1 opacity-50">Select a model and type a message above</p>
               </div>
             )}
             {messages.map((msg) => (
@@ -521,17 +508,19 @@ export function AIToolsPage() {
                     <Bot size={14} className="text-violet-400" />
                   )}
                 </div>
-                <div className={`flex-1 max-w-[85%] ${msg.role === "user" ? "text-right" : "text-left"}`}>
-                  <div className={`inline-block p-3 rounded-lg ${
-                    msg.role === "user"
-                      ? "bg-violet-600 text-white"
-                      : "bg-gray-700 border border-gray-600 text-foreground"
-                  }`}>
+                <div
+                  className={`flex-1 max-w-[85%] ${msg.role === "user" ? "text-right" : "text-left"}`}
+                >
+                  <div
+                    className={`inline-block p-3 rounded-lg ${
+                      msg.role === "user"
+                        ? "bg-violet-600 text-white"
+                        : "bg-gray-700 border border-gray-600 text-foreground"
+                    }`}
+                  >
                     {msg.role === "assistant" && msg.model && (
                       <div className="flex items-center gap-1 mb-1">
-                        <span className="text-[10px] text-violet-300 font-medium">
-                          {msg.model}
-                        </span>
+                        <span className="text-[10px] text-violet-300 font-medium">{msg.model}</span>
                         <button
                           onClick={() => handleRegenerate(msg)}
                           disabled={generating}
@@ -549,18 +538,14 @@ export function AIToolsPage() {
                         </button>
                       </div>
                     )}
-                    <div className="whitespace-pre-wrap break-words text-sm">
-                      {msg.content}
-                    </div>
+                    <div className="whitespace-pre-wrap break-words text-sm">{msg.content}</div>
                     {msg.role === "assistant" && msg.thinking && !generating && (
                       <div className="mt-2 pt-2 border-t border-gray-600/50">
                         <button
                           onClick={() => {
                             setMessages((prev) =>
                               prev.map((m) =>
-                                m.id === msg.id
-                                  ? { ...m, showThinking: !m.showThinking }
-                                  : m,
+                                m.id === msg.id ? { ...m, showThinking: !m.showThinking } : m,
                               ),
                             );
                           }}
@@ -585,9 +570,7 @@ export function AIToolsPage() {
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <Zap size={12} className="text-amber-400 shrink-0" />
-                              <span className="text-xs text-amber-300 font-medium">
-                                {tc.name}
-                              </span>
+                              <span className="text-xs text-amber-300 font-medium">{tc.name}</span>
                               <span
                                 className={`ml-auto text-[10px] ${
                                   tc.status === "calling"
@@ -621,12 +604,8 @@ export function AIToolsPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] text-violet-300 font-medium">
-                      {selectedModel}
-                    </span>
-                    <span className="text-[10px] text-purple-300 animate-pulse">
-                      Thinking…
-                    </span>
+                    <span className="text-[10px] text-violet-300 font-medium">{selectedModel}</span>
+                    <span className="text-[10px] text-purple-300 animate-pulse">Thinking…</span>
                   </div>
                   <div className="flex gap-1">
                     {[1, 2, 3].map((i) => (
@@ -677,11 +656,7 @@ export function AIToolsPage() {
                 rows={3}
                 placeholder="Ask for video concepts, scene descriptions, color palettes…"
                 onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    (e.metaKey || e.ctrlKey) &&
-                    !e.shiftKey
-                  ) {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
                     e.preventDefault();
                     handleGenerate();
                   }
@@ -704,11 +679,7 @@ export function AIToolsPage() {
                 )}
                 <button
                   onClick={handleGenerate}
-                  disabled={
-                    generating ||
-                    (!prompt.trim()) ||
-                    !selectedModel
-                  }
+                  disabled={generating || !prompt.trim() || !selectedModel}
                   className={DS.btnPrimary + " " + DS.btnDisabled}
                 >
                   {generating ? (

@@ -149,10 +149,13 @@ def ingest_log_file(path: str, source: str = "app", limit: int = 20000) -> int:
     if not p.exists():
         return 0
     with get_db() as conn:
-        last_ts = conn.execute(
-            "SELECT MAX(ts_ms) FROM log_events WHERE source = ?",
-            (source,),
-        ).fetchone()[0] or 0
+        last_ts = (
+            conn.execute(
+                "SELECT MAX(ts_ms) FROM log_events WHERE source = ?",
+                (source,),
+            ).fetchone()[0]
+            or 0
+        )
     rows: list[LogEventRow] = []
     try:
         with open(p, encoding="utf-8", errors="replace") as f:
@@ -297,9 +300,7 @@ def get_log_analytics_last_cleanup() -> str | None:
     return None
 
 
-def set_log_analytics_last_cleanup(
-    ts_iso: str, conn: sqlite3.Connection | None = None
-) -> None:
+def set_log_analytics_last_cleanup(ts_iso: str, conn: sqlite3.Connection | None = None) -> None:
     """Persist last cleanup timestamp. Reuses `conn` when provided."""
     close_after = False
     if conn is None:

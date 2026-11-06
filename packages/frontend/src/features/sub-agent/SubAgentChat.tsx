@@ -7,7 +7,16 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, Bot, Wrench, Shield, AlertCircle, ChevronDown, Play, StopCircle } from "lucide-react";
+import {
+  Loader2,
+  Bot,
+  Wrench,
+  Shield,
+  AlertCircle,
+  ChevronDown,
+  Play,
+  StopCircle,
+} from "lucide-react";
 import { Card } from "../../components/common";
 import {
   runSubAgentTask,
@@ -80,7 +89,17 @@ export function SubAgentChat() {
         ...prev,
       ]);
 
-      let currentMetrics: { tool_calls?: number; iterations?: number; tool_usage?: Record<string, number>; context_truncations?: number; simulated_context_window?: number; dry_run?: boolean } | null | undefined = null;
+      let currentMetrics:
+        | {
+            tool_calls?: number;
+            iterations?: number;
+            tool_usage?: Record<string, number>;
+            context_truncations?: number;
+            simulated_context_window?: number;
+            dry_run?: boolean;
+          }
+        | null
+        | undefined = null;
 
       // Subscribe to SSE stream for real-time output
       const eventSource = subscribeToSubAgentSSE(
@@ -113,7 +132,9 @@ export function SubAgentChat() {
             // Refresh task list
             listSubAgentTasks()
               .then(({ tasks: t }) => setTasks(t))
-              .catch(() => { void 0; });
+              .catch(() => {
+                void 0;
+              });
           } else if (event.type === "agent_error") {
             setIterations((prev) => [
               ...prev,
@@ -200,7 +221,9 @@ export function SubAgentChat() {
       // Refresh task list
       listSubAgentTasks()
         .then(({ tasks: t }) => setTasks(t))
-        .catch(() => { void 0; });
+        .catch(() => {
+          void 0;
+        });
     } catch (err) {
       setIterations((prev) => [
         ...prev,
@@ -227,8 +250,8 @@ export function SubAgentChat() {
         <div>
           <h1 className="text-2xl font-bold">Local Qwen Sub-Agent</h1>
           <p className="text-sm text-muted mt-1">
-            Chat with a local Qwen-powered agent that can run gates, read files,
-            search code, and run tests on your repository.
+            Chat with a local Qwen-powered agent that can run gates, read files, search code, and
+            run tests on your repository.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -275,11 +298,7 @@ export function SubAgentChat() {
               disabled={!input.trim() || loading}
               className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? (
-                <StopCircle size={16} onClick={handleCancel} />
-              ) : (
-                <Play size={16} />
-              )}
+              {loading ? <StopCircle size={16} onClick={handleCancel} /> : <Play size={16} />}
             </button>
           </form>
           {loading && (
@@ -334,11 +353,13 @@ export function SubAgentChat() {
                   item.type === "output"
                     ? "bg-white/5 text-gray-200 border border-white/5"
                     : item.type === "done"
-                    ? "bg-emerald-500/10 text-emerald-100 border border-emerald-500/30"
-                    : "bg-red-500/10 text-red-100 border border-red-500/30"
+                      ? "bg-emerald-500/10 text-emerald-100 border border-emerald-500/30"
+                      : "bg-red-500/10 text-red-100 border border-red-500/30"
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words">{formatIterationText(item.text, item.type)}</p>
+                <p className="whitespace-pre-wrap break-words">
+                  {formatIterationText(item.text, item.type)}
+                </p>
                 <p className="text-[10px] text-muted mt-1">
                   {new Date().toLocaleTimeString()} · {item.type}
                 </p>
@@ -369,10 +390,10 @@ export function SubAgentChat() {
                         t.status === "completed"
                           ? "bg-emerald-500/20 text-emerald-300"
                           : t.status === "failed"
-                          ? "bg-red-500/20 text-red-300"
-                          : t.status === "cancelled"
-                          ? "bg-yellow-500/20 text-yellow-300"
-                          : "bg-white/10 text-gray-400"
+                            ? "bg-red-500/20 text-red-300"
+                            : t.status === "cancelled"
+                              ? "bg-yellow-500/20 text-yellow-300"
+                              : "bg-white/10 text-gray-400"
                       }`}
                     >
                       {t.status}

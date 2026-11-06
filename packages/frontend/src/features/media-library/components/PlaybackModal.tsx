@@ -23,11 +23,7 @@ interface PlaybackModalProps {
   };
 }
 
-export function PlaybackModal({
-  isOpen,
-  onClose,
-  file,
-}: PlaybackModalProps) {
+export function PlaybackModal({ isOpen, onClose, file }: PlaybackModalProps) {
   if (!isOpen) return null;
 
   const isAudio = file.file_type === "audio";
@@ -39,7 +35,7 @@ export function PlaybackModal({
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === "Escape") onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   return (
@@ -56,9 +52,7 @@ export function PlaybackModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between w-full px-4 py-2">
-          <h3 className="text-lg font-semibold text-white truncate">
-            {file.filename}
-          </h3>
+          <h3 className="text-lg font-semibold text-white truncate">{file.filename}</h3>
           <button
             onClick={onClose}
             className="text-muted hover:text-white"
@@ -119,9 +113,7 @@ export function PlaybackModal({
 
         <div className="w-full px-4 py-2 text-xs text-muted">
           <span>{file.file_type}</span>
-          {src && (
-            <span className="ml-2">· {file.relative_path}</span>
-          )}
+          {src && <span className="ml-2">· {file.relative_path}</span>}
         </div>
 
         <button

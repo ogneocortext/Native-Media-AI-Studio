@@ -8,22 +8,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Film,
-  Download,
-  Play,
-  Pause,
-  Maximize2,
-  X,
-  RefreshCw,
-  AlertCircle,
-} from "lucide-react";
+import { Film, Download, Play, Pause, Maximize2, X, RefreshCw, AlertCircle } from "lucide-react";
 import { Card } from "../../components/common";
-import {
-  useOutputs,
-  useOutputLoading,
-  useOutputError,
-} from "../../state/outputStore";
+import { useOutputs, useOutputLoading, useOutputError } from "../../state/outputStore";
 import { useOutputStore } from "../../state/outputStore";
 import { getOutputUrl } from "../../utils/url";
 
@@ -109,32 +96,26 @@ export function Preview() {
     else video.pause();
   }, []);
 
-  const handleFullscreen = useCallback(
-    (clip: PreviewClip) => {
-      setSelectedClip(clip);
-      setFullscreen(true);
-      // Reset video to start when a new clip is selected.
-      const video = videoRef.current;
-      if (video) {
-        video.pause();
-        video.currentTime = 0;
-      }
-    },
-    []
-  );
+  const handleFullscreen = useCallback((clip: PreviewClip) => {
+    setSelectedClip(clip);
+    setFullscreen(true);
+    // Reset video to start when a new clip is selected.
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+    }
+  }, []);
 
-  const handleDownload = useCallback(
-    (e: React.MouseEvent, url: string) => {
-      e.stopPropagation();
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    },
-    []
-  );
+  const handleDownload = useCallback((e: React.MouseEvent, url: string) => {
+    e.stopPropagation();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     void fetchOutputs();

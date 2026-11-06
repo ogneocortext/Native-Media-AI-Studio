@@ -34,9 +34,7 @@ export function MemoryMetricsCard({ pollInterval = 2000 }: { pollInterval?: numb
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Used</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {metrics.usedMB.toFixed(1)} MB
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{metrics.usedMB.toFixed(1)} MB</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Total Allocated</span>
@@ -57,8 +55,8 @@ export function MemoryMetricsCard({ pollInterval = 2000 }: { pollInterval?: numb
                 metrics.usagePercent < 60
                   ? "bg-emerald-500"
                   : metrics.usagePercent < 80
-                  ? "bg-yellow-500"
-                  : "bg-red-500"
+                    ? "bg-yellow-500"
+                    : "bg-red-500"
               }`}
               style={{ width: `${metrics.usagePercent}%` }}
             />

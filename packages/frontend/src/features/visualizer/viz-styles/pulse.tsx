@@ -58,9 +58,7 @@ export function PulseRings({
     beatPulseRef.current = attackRelease(beatPulseRef.current, beatTarget, 0.3, 0.9, dt60);
     const beatPulse = beatPulseRef.current;
     const snap =
-      audioData.current.beatPhase != null
-        ? beatSnap(audioData.current.beatPhase)
-        : beatPulse;
+      audioData.current.beatPhase != null ? beatSnap(audioData.current.beatPhase) : beatPulse;
 
     ringRefs.current.forEach((ring, i) => {
       if (!ring) return;
@@ -77,10 +75,15 @@ export function PulseRings({
       } else {
         const m = ring.material as THREE.MeshStandardMaterial;
         m.opacity = (1 - phase) * (0.5 + bass * 0.4 + stemEnergyRef.current.drums * 0.3);
-        m.emissiveIntensity =
-          rolloff((1 - phase) * vizParams.glowIntensity * 2 + stemEnergyRef.current.drums, 1.0);
+        m.emissiveIntensity = rolloff(
+          (1 - phase) * vizParams.glowIntensity * 2 + stemEnergyRef.current.drums,
+          1.0,
+        );
         // Energy-driven hue: cool at rest → warm when loud
-        const hue = energyHue(bass * 0.5 + stemEnergyRef.current.other * 0.3) + bass * 0.3 + stemEnergyRef.current.other * 0.15;
+        const hue =
+          energyHue(bass * 0.5 + stemEnergyRef.current.other * 0.3) +
+          bass * 0.3 +
+          stemEnergyRef.current.other * 0.15;
         m.color.setHSL(hue, 0.8, 0.6);
       }
       if (beat && i === 0 && !isWebGPU) {
@@ -166,7 +169,8 @@ export function SpectrumBars({
     const dt60 = Math.min(delta, 0.1) * 60;
     // Beat-quantized height kick (2026): bars jump on the grid
     const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
-    if (!sceneFrozen) rotRef.current += 0.004 * vizParams.rotationSpeed * speedMul * (1 + peak + snap * 0.5);
+    if (!sceneFrozen)
+      rotRef.current += 0.004 * vizParams.rotationSpeed * speedMul * (1 + peak + snap * 0.5);
 
     barRefs.current.forEach((bar, i) => {
       if (!bar) return;

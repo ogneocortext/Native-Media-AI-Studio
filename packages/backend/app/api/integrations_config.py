@@ -39,7 +39,9 @@ async def list_integrations() -> dict:
 TASK_MODEL_ROUTES: dict[str, dict[str, str]] = {
     "embeddings": {
         "engine": "ollama",
-        "model": config.embedding_model if hasattr(config, "embedding_model") else "nomic-embed-text",
+        "model": config.embedding_model
+        if hasattr(config, "embedding_model")
+        else "nomic-embed-text",
         "reason": "Dedicated embedding model for retrieval-augmented generation",
     },
     "reranker": {
@@ -86,6 +88,7 @@ async def get_unified_models(*, verified_only: bool = False) -> dict:
     # ---- Ollama models ----
     try:
         from ..core import ollama_client as _oc
+
         entries = await _oc.list_models(timeout=10)
         if entries:
             # Deduplicate by model name
@@ -111,35 +114,40 @@ async def get_unified_models(*, verified_only: bool = False) -> dict:
                 # Determine task eligibility: exclude embedding/reranker models
                 # from the general chat dropdown
                 name_lower = name.lower()
-                chat_eligible = not any(
-                    kw in name_lower for kw in EXCLUDED_FROM_CHAT
-                ) if not verified_only else verified
+                chat_eligible = (
+                    not any(kw in name_lower for kw in EXCLUDED_FROM_CHAT)
+                    if not verified_only
+                    else verified
+                )
 
-                result["ollama"].append({
-                    "source": "ollama",
-                    "id": name,
-                    "name": name,
-                    "size": m.get("size", 0),
-                    "digest": m.get("digest", ""),
-                    "capabilities": caps,
-                    "supports_tools": tool_capable,
-                    "supports_vision": "vision" in capability_set,
-                    "supports_thinking": "thinking" in capability_set,
-                    "supports_embedding": "embed" in capability_set,
-                    "supports_rerank": "rerank" in capability_set,
-                    "vram_required": _oc.estimate_model_vram_mb(name, m.get("size", 0)),
-                    "is_available": True,
-                    "verified": verified,
-                    "verified_features": verify_info.get("verified_features", []),
-                    "performance": verify_info.get("performance", {}),
-                    "verification_notes": verify_info.get("notes", ""),
-                    "broken_reason": verify_info.get("broken_reason", ""),
-                    "chat_eligible": chat_eligible,
-                    "task_routes": [
-                        task for task, route in TASK_MODEL_ROUTES.items()
-                        if route["model"] == name
-                    ],
-                })
+                result["ollama"].append(
+                    {
+                        "source": "ollama",
+                        "id": name,
+                        "name": name,
+                        "size": m.get("size", 0),
+                        "digest": m.get("digest", ""),
+                        "capabilities": caps,
+                        "supports_tools": tool_capable,
+                        "supports_vision": "vision" in capability_set,
+                        "supports_thinking": "thinking" in capability_set,
+                        "supports_embedding": "embed" in capability_set,
+                        "supports_rerank": "rerank" in capability_set,
+                        "vram_required": _oc.estimate_model_vram_mb(name, m.get("size", 0)),
+                        "is_available": True,
+                        "verified": verified,
+                        "verified_features": verify_info.get("verified_features", []),
+                        "performance": verify_info.get("performance", {}),
+                        "verification_notes": verify_info.get("notes", ""),
+                        "broken_reason": verify_info.get("broken_reason", ""),
+                        "chat_eligible": chat_eligible,
+                        "task_routes": [
+                            task
+                            for task, route in TASK_MODEL_ROUTES.items()
+                            if route["model"] == name
+                        ],
+                    }
+                )
     except Exception as e:
         logger.warning("Unified models: Ollama listing failed: %s", e)
 
@@ -148,31 +156,34 @@ async def get_unified_models(*, verified_only: bool = False) -> dict:
         adapter = adapter_registry.get_adapter("atomic-chat")
         if adapter is None:
             from .atomic_chat import AtomicChatAdapter
+
             adapter = AtomicChatAdapter(config.atomic_chat_url, mock_mode=False)
         ac_models = await adapter._discover_model()
         if ac_models:
-            result["atomic_chat"].append({
-                "source": "atomic-chat",
-                "id": ac_models,
-                "name": ac_models,
-                "size": 0,
-                "digest": "",
-                "capabilities": ["chat", "tools"],
-                "supports_tools": True,
-                "supports_vision": False,
-                "supports_thinking": False,
-                "supports_embedding": False,
-                "supports_rerank": False,
-                "vram_required": 0,
-                "is_available": True,
-                "verified": True,
-                "verified_features": ["chat", "tools"],
-                "performance": {},
-                "verification_notes": "Atomic Chat resident model",
-                "broken_reason": "",
-                "chat_eligible": True,
-                "task_routes": [],
-            })
+            result["atomic_chat"].append(
+                {
+                    "source": "atomic-chat",
+                    "id": ac_models,
+                    "name": ac_models,
+                    "size": 0,
+                    "digest": "",
+                    "capabilities": ["chat", "tools"],
+                    "supports_tools": True,
+                    "supports_vision": False,
+                    "supports_thinking": False,
+                    "supports_embedding": False,
+                    "supports_rerank": False,
+                    "vram_required": 0,
+                    "is_available": True,
+                    "verified": True,
+                    "verified_features": ["chat", "tools"],
+                    "performance": {},
+                    "verification_notes": "Atomic Chat resident model",
+                    "broken_reason": "",
+                    "chat_eligible": True,
+                    "task_routes": [],
+                }
+            )
     except Exception as e:
         logger.warning("Unified models: Atomic Chat discovery failed: %s", e)
 
@@ -207,10 +218,18 @@ async def ensure_vram_available(required_mb: int = 4096) -> dict:
     """
     try:
         from ..services.vram_manager import vram_manager
+
         return await vram_manager.preflight_check(required_mb)
     except Exception as exc:
         logger.warning("VRAM check failed: %s", exc)
-        return {"available": True, "free_mb": 0, "total_mb": 0, "required_mb": required_mb, "offloaded": False, "message": "VRAM check unavailable -- proceeding"}
+        return {
+            "available": True,
+            "free_mb": 0,
+            "total_mb": 0,
+            "required_mb": required_mb,
+            "offloaded": False,
+            "message": "VRAM check unavailable -- proceeding",
+        }
 
 
 @router.get("/system-resources")
@@ -239,9 +258,16 @@ async def get_system_resources() -> dict:
         # by the dashboard -- run it in a thread so the event loop (and the
         # SSE health stream) stays responsive.
         result = await run_subprocess_thread(
-            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu", "--format=csv,noheader,nounits"],
-            encoding="utf-8", errors="replace",
-            capture_output=True, text=True, timeout=10
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split(", ")
@@ -266,12 +292,12 @@ async def get_system_resources() -> dict:
 
     try:
         from ..core import ollama_client as _oc
+
         models = await _oc.list_models(timeout=5)
         if models is not None:
             resources["ollama_available"] = True
             resources["ollama_models"] = [
-                {"name": m.get("name", ""), "size": m.get("size", 0)}
-                for m in models
+                {"name": m.get("name", ""), "size": m.get("size", 0)} for m in models
             ]
     except Exception:
         pass
@@ -283,6 +309,7 @@ async def get_system_resources() -> dict:
 async def get_visualization_presets() -> dict:
     """Get all saved visualization presets."""
     from ..core.database import get_all_visualization_presets
+
     presets = get_all_visualization_presets()
     return {"presets": presets, "count": len(presets)}
 
@@ -324,8 +351,12 @@ BROKEN_MODELS = {
     # Deleted 2026-10-22: too big for GTX 1070 Ti 8 GB VRAM (6.5 GB safe budget)
     # Do not re-download until GPU upgrade.
     "glm-4.7-flash:latest": {"reason": "18 GB model -- far exceeds 8 GB VRAM; OOM on load"},
-    "qwen3.5:9b": {"reason": "9B model, ~9-10 GB VRAM est. -- exceeds 6.5 GB safe budget; OOM risk"},
-    "minicpm-v:8b": {"reason": "8B model, ~7.7 GB VRAM est. -- exceeds 6.5 GB safe budget; was vision-only fallback"},
+    "qwen3.5:9b": {
+        "reason": "9B model, ~9-10 GB VRAM est. -- exceeds 6.5 GB safe budget; OOM risk"
+    },
+    "minicpm-v:8b": {
+        "reason": "8B model, ~7.7 GB VRAM est. -- exceeds 6.5 GB safe budget; was vision-only fallback"
+    },
     "minicpm-v:latest": {"reason": "alias tag for minicpm-v:8b; deleted with it"},
     "openbmb/minicpm-v4.6:q4_K_M": {"reason": "invalid Blender API output"},
 }
@@ -396,6 +427,7 @@ async def get_ollama_models(*, verified_only: bool = False) -> dict:
     """
     try:
         from ..core import ollama_client as _oc
+
         entries = await _oc.list_models(timeout=10)
         if entries is None:
             return {"models": [], "count": 0}
@@ -483,12 +515,13 @@ async def set_mock_mode(*, enabled: bool) -> dict:
     adapter_registry.set_mock_mode(enabled=enabled)
     return {
         "mock_mode": enabled,
-        "message": f"Mock mode {'enabled' if enabled else 'disabled'}. Changes take effect on next health check."
+        "message": f"Mock mode {'enabled' if enabled else 'disabled'}. Changes take effect on next health check.",
     }
 
 
 class SettingsUpdateRequest(BaseModel):
     """Request to update application settings"""
+
     comfyui_url: str | None = None
     ollama_url: str | None = None
     atomic_chat_url: str | None = None
@@ -504,6 +537,7 @@ class SettingsUpdateRequest(BaseModel):
 async def get_settings() -> dict:
     """Get current application settings"""
     from ..core.config import config
+
     return {
         "comfyui_url": config.comfyui_url,
         "ollama_url": config.ollama_url,
@@ -523,6 +557,7 @@ async def get_settings() -> dict:
 async def update_settings(req: SettingsUpdateRequest) -> dict:
     """Update application settings and persist to config/settings.json"""
     from ..core.config import config, save_config
+
     updates = {}
     if req.comfyui_url is not None:
         config.comfyui_url = req.comfyui_url
@@ -539,6 +574,7 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
     if req.log_level is not None:
         try:
             from ..core.logging_config import apply_log_level
+
             config.log_level = apply_log_level(req.log_level)
         except ValueError as exc:
             raise HTTPException(
@@ -560,7 +596,10 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
         updates["output_node_id"] = req.output_node_id
 
     save_config(config)
-    return {"updated": updates, "message": "Settings saved. Restart may be required for some changes."}
+    return {
+        "updated": updates,
+        "message": "Settings saved. Restart may be required for some changes.",
+    }
 
 
 @router.get("/config/ports")
@@ -580,6 +619,7 @@ async def get_ports_config() -> dict:
 
     # Minimal fallback derived from the central config so values never drift.
     from ..core.config import config
+
     return {
         "backend_port": config.backend_port,
         "frontend_port": config.frontend_port,

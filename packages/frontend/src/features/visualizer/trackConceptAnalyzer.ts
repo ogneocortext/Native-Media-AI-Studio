@@ -138,7 +138,8 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
   {
     id: "pppanik",
     name: "PPPANIK Blob Field",
-    description: "Instanced blob field (30k tetrahedra on Fibonacci shell, bass-driven displacement + transient spore ejection)",
+    description:
+      "Instanced blob field (30k tetrahedra on Fibonacci shell, bass-driven displacement + transient spore ejection)",
     icon: "box",
     bestFor: ["experimental", "instanced", "blob", "spore"],
   },

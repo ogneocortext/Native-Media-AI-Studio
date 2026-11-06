@@ -1,1 +1,1 @@
-declare module 'tabler-react';
+declare module "tabler-react";

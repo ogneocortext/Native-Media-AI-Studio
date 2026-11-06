@@ -33,11 +33,13 @@ _SESSION_KEY = "music-gen"
 
 async def _get_shared_session() -> aiohttp.ClientSession:
     from ..core import http as _http
+
     return await _http.get_shared_session(_SESSION_KEY, **_http.session_defaults(_SESSION_KEY))
 
 
 async def close_shared_session():
     from ..core import http as _http
+
     await _http.close_shared_session(_SESSION_KEY)
 
 
@@ -197,7 +199,9 @@ class MusicGenAdapter(BaseAdapter):
                         self.set_status(AdapterStatus.CONNECTED)
                         logger.info(
                             "Music-gen service already reachable on %s (loaded=%s, model=%s)",
-                            self.base_url, data.get("loaded"), data.get("model")
+                            self.base_url,
+                            data.get("loaded"),
+                            data.get("model"),
                         )
                         return True
         except Exception:
@@ -220,9 +224,12 @@ class MusicGenAdapter(BaseAdapter):
         cmd = [
             str(python_exe),
             str(server_script),
-            "--port", str(self.port),
-            "--engine", self.engine,
-            "--output-dir", self.output_dir,
+            "--port",
+            str(self.port),
+            "--engine",
+            self.engine,
+            "--output-dir",
+            self.output_dir,
         ]
         if extra_args:
             cmd.extend(extra_args)
@@ -263,11 +270,9 @@ class MusicGenAdapter(BaseAdapter):
         if ready:
             self._ready = True
             self.set_status(AdapterStatus.CONNECTED)
-            logger.info("Music-gen service started (pid=%d, port=%d)",
-                        self._process.pid, self.port)
+            logger.info("Music-gen service started (pid=%d, port=%d)", self._process.pid, self.port)
         else:
-            logger.error("Music-gen service failed to start within timeout "
-                         "(see %s)", log_path)
+            logger.error("Music-gen service failed to start within timeout (see %s)", log_path)
             # Kill the failed subprocess so a timed-out start never leaves an
             # orphan still loading the model in the background.
             await self.stop_service()
@@ -341,6 +346,7 @@ class MusicGenAdapter(BaseAdapter):
             return
         try:
             import subprocess as _sp
+
             result = _sp.run(
                 ["taskkill", "/T", "/F", "/PID", str(pid)],
                 capture_output=True,
@@ -353,7 +359,9 @@ class MusicGenAdapter(BaseAdapter):
             else:
                 logger.warning(
                     "taskkill for PID %d returned %d: %s",
-                    pid, result.returncode, result.stderr.strip(),
+                    pid,
+                    result.returncode,
+                    result.stderr.strip(),
                 )
         except Exception as e:
             logger.warning("Failed to kill process tree for PID %d: %s", pid, e)
@@ -375,8 +383,11 @@ class MusicGenAdapter(BaseAdapter):
                 # Process exited early. Subprocess output goes to the log file,
                 # so read the tail of it for diagnostics instead of stderr pipes.
                 log_tail = self._read_log_tail(max_chars=2000)
-                logger.error("Music-gen process exited early (code=%d): %s",
-                             self._process.returncode, log_tail)
+                logger.error(
+                    "Music-gen process exited early (code=%d): %s",
+                    self._process.returncode,
+                    log_tail,
+                )
                 return False
 
             try:

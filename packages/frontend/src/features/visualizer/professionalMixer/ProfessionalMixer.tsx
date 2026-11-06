@@ -32,11 +32,7 @@ export function ProfessionalMixer({
   const mixer = useProfessionalMixer({
     audioFilename: audioFilename ?? undefined,
     sharedAudioContext: sharedAudioContext ?? undefined,
-    stems: stems
-      ? (Object.fromEntries(
-          Object.entries(stems).filter(([, v]) => v),
-        ))
-      : null,
+    stems: stems ? Object.fromEntries(Object.entries(stems).filter(([, v]) => v)) : null,
   });
 
   const {
@@ -82,7 +78,21 @@ export function ProfessionalMixer({
             <ChannelStrip
               key={name}
               name={name as any}
-              state={(strips as Record<string, any>)[name] ?? { volume: 1, pan: 0, muted: false, solo: false, eqBands: [], compressorThreshold: -24, compressorRatio: 4, compressorAttack: 10, compressorRelease: 120, reverbSend: 0, delaySend: 0 }}
+              state={
+                (strips as Record<string, any>)[name] ?? {
+                  volume: 1,
+                  pan: 0,
+                  muted: false,
+                  solo: false,
+                  eqBands: [],
+                  compressorThreshold: -24,
+                  compressorRatio: 4,
+                  compressorAttack: 10,
+                  compressorRelease: 120,
+                  reverbSend: 0,
+                  delaySend: 0,
+                }
+              }
               meters={meters[name] || { rms: 0, peak: 0, dBFS: -60 }}
               soloCount={soloCount}
               routing={routing}
@@ -92,7 +102,13 @@ export function ProfessionalMixer({
               onSolo={() => toggleStripSolo(name as any)}
               onCompressorPreset={(preset) => {
                 const params = COMPRESSOR_PRESETS[preset];
-                if (params) setStripCompressor(name as any, { threshold: params.threshold, ratio: params.ratio, attack: params.attack, release: params.release });
+                if (params)
+                  setStripCompressor(name as any, {
+                    threshold: params.threshold,
+                    ratio: params.ratio,
+                    attack: params.attack,
+                    release: params.release,
+                  });
               }}
               onSend={(send, v) => setStripSend(name as any, send, v)}
               onRouting={(bus) => setRouting(name as any, bus)}
@@ -112,9 +128,13 @@ export function ProfessionalMixer({
               onPan={(p) => setBusPan(bus, p)}
               onMute={() => toggleBusMute(bus)}
               onSolo={() => toggleBusSolo(bus)}
-              onCompressorPreset={() => { void 0; }}
+              onCompressorPreset={() => {
+                void 0;
+              }}
               collapsed={collapsedBuses}
-              onToggleCollapse={() => { void 0; }}
+              onToggleCollapse={() => {
+                void 0;
+              }}
             />
           ))}
 

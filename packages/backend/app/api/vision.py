@@ -65,14 +65,28 @@ async def _ollama_chat(model: str, prompt: str, b64: str, *, think: bool = False
         return (j.get("message") or {}).get("content") or ""
 
 
-def _save_ocr_result(relative_path: str, file: UploadFile, text: str, model: str, prompt: str, raw: bytes) -> None:
+def _save_ocr_result(
+    relative_path: str, file: UploadFile, text: str, model: str, prompt: str, raw: bytes
+) -> None:
     """Persist OCR result to DB (Media Library covers, GPU charts, any ad-hoc scan)."""
     try:
         import asyncio as _asyncio
 
         from ..core.database import save_vision_ocr
+
         rel = relative_path or file.filename or "unknown"
-        _asyncio.create_task(_asyncio.to_thread(save_vision_ocr, rel, file.filename or "unknown", text, model, prompt, file.content_type, len(raw)))
+        _asyncio.create_task(
+            _asyncio.to_thread(
+                save_vision_ocr,
+                rel,
+                file.filename or "unknown",
+                text,
+                model,
+                prompt,
+                file.content_type,
+                len(raw),
+            )
+        )
     except Exception as e:
         logger.debug(f"vision ocr DB save skipped: {e}")
 
@@ -88,7 +102,9 @@ async def _vision_chat_with_fallback(model: str, prompt: str, b64: str) -> str:
         try:
             return await _ollama_chat(model, prompt, b64)
         except Exception as e:
-            logger.warning(f"vision analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
+            logger.warning(
+                f"vision analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}"
+            )
             if FALLBACK_MODEL:
                 try:
                     return await _ollama_chat(FALLBACK_MODEL, prompt, b64)
@@ -122,7 +138,13 @@ async def vision_ocr(
     effective_prompt = PROMPTS.get(prompt, prompt)
     text = await _vision_chat_with_fallback(model, effective_prompt, b64)
     _save_ocr_result(relative_path, file, text, model, prompt, raw)
-    return {"text": text, "model": model, "prompt": prompt, "filename": file.filename, "relative_path": relative_path or file.filename}
+    return {
+        "text": text,
+        "model": model,
+        "prompt": prompt,
+        "filename": file.filename,
+        "relative_path": relative_path or file.filename,
+    }
 
 
 @router.post("/chart")
@@ -152,10 +174,7 @@ async def analyze_visualizer(
     if not raw:
         return {"error": "empty file"}
     b64 = base64.b64encode(raw).decode()
-    prompt = (
-        f"2D visualizer screenshot in mode={mode}. "
-        + PROMPTS["visualizer"]
-    )
+    prompt = f"2D visualizer screenshot in mode={mode}. " + PROMPTS["visualizer"]
     text = await _vision_chat_with_fallback(model, prompt, b64)
     return {"text": text, "model": model, "mode": mode}
 
@@ -165,6 +184,7 @@ async def vision_ocr_history(limit: int = 20):
     """List recent OCR results from DB (Media Library covers, charts)."""
     try:
         from ..core.database import list_vision_ocr
+
         pts = await asyncio.to_thread(list_vision_ocr, limit)
         return {"results": pts, "count": len(pts)}
     except Exception as e:
@@ -178,6 +198,7 @@ async def vision_ocr_by_path(relative_path: str):
         import asyncio as _asyncio
 
         from ..core.database import get_vision_ocr
+
         r = await _asyncio.to_thread(get_vision_ocr, relative_path)
         if not r:
             return {"found": False, "relative_path": relative_path}

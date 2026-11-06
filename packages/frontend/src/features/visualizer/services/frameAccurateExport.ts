@@ -95,10 +95,7 @@ export interface FrameAccurateRenderApi {
 }
 
 /** True when the browser can actually encode the export profile. */
-export async function canExportFrameAccurate(
-  width?: number,
-  height?: number,
-): Promise<boolean> {
+export async function canExportFrameAccurate(width?: number, height?: number): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const win = window as unknown as Record<string, unknown>;
   if (!win.VideoEncoder || !win.VideoFrame) return false;
@@ -131,13 +128,7 @@ export async function canExportFrameAccurate(
 export async function exportFramesDeterministic(
   opts: FrameAccurateExportOptions,
 ): Promise<ArrayBuffer | null> {
-  const {
-    canvas,
-    renderAtTime,
-    beginDeterministicRun,
-    endDeterministicRun,
-    onProgress,
-  } = opts;
+  const { canvas, renderAtTime, beginDeterministicRun, endDeterministicRun, onProgress } = opts;
   const fps = opts.fps ?? 30;
   const durationSec = opts.durationSec ?? 10;
   const bitrate = opts.bitrate ?? 8_000_000;

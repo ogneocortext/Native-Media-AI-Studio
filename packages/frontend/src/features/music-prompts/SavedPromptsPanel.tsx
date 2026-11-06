@@ -114,9 +114,12 @@ export function SavedPromptsPanel() {
   };
 
   const remove = (id: string) => {
-    const item = items.find((i) => i.id === id) as (SavedPrompt & { backendId?: string }) | undefined;
+    const item = items.find((i) => i.id === id) as
+      (SavedPrompt & { backendId?: string }) | undefined;
     if (item?.backendId) {
-      void deletePrompt(item.backendId).catch(() => { void 0; });
+      void deletePrompt(item.backendId).catch(() => {
+        void 0;
+      });
     }
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
@@ -143,7 +146,8 @@ export function SavedPromptsPanel() {
         <div>
           <h2 className="text-lg font-semibold">Saved Prompts</h2>
           <p className="text-sm text-gray-400">
-            {items.length} saved · track which ones you've tried or submitted to Suno / other platforms.
+            {items.length} saved · track which ones you've tried or submitted to Suno / other
+            platforms.
           </p>
         </div>
         <div className="flex gap-2">
@@ -197,7 +201,9 @@ export function SavedPromptsPanel() {
                   </button>
                   <select
                     value={p.status}
-                    onChange={(e) => update(p.id, { status: e.target.value as SavedPrompt["status"] })}
+                    onChange={(e) =>
+                      update(p.id, { status: e.target.value as SavedPrompt["status"] })
+                    }
                     className={`rounded border px-2 py-1 text-xs ${statusColor[p.status]}`}
                     aria-label="Status"
                   >

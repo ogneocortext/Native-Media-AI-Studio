@@ -25,6 +25,7 @@ _DEVICE = None
 
 try:
     import torch
+
     if torch.cuda.is_available():
         _CUDA_AVAILABLE = True
         _DEVICE = torch.device("cuda:0")
@@ -32,7 +33,7 @@ try:
             "CUDA enabled: %s (CC %d.%d, %d MB VRAM)",
             torch.cuda.get_device_name(0),
             *torch.cuda.get_device_capability(0),
-            torch.cuda.get_device_properties(0).total_memory // (1024 ** 2),
+            torch.cuda.get_device_properties(0).total_memory // (1024**2),
         )
     else:
         logger.info("CUDA not available -- using CPU fallback")
@@ -151,7 +152,7 @@ class CudaAudioAnalyzer:
 
             # Spectral bandwidth: weighted std-dev of frequencies around centroid
             deviation = freqs.unsqueeze(1) - centroid.unsqueeze(0)
-            bandwidth = torch.sqrt((deviation ** 2 * magnitude).sum(dim=0) / mag_sum)
+            bandwidth = torch.sqrt((deviation**2 * magnitude).sum(dim=0) / mag_sum)
             bandwidth_np = bandwidth.cpu().numpy()
 
             # Onset envelope: frame-to-frame difference of log-magnitude
@@ -161,7 +162,21 @@ class CudaAudioAnalyzer:
             onset_np = onset.cpu().numpy()
 
             # Clean up GPU tensors to free memory
-            del waveform, spectrogram, magnitude, rms, mag_sum, centroid, cum_energy, total_energy, rolloff, deviation, bandwidth, log_mag, onset
+            del (
+                waveform,
+                spectrogram,
+                magnitude,
+                rms,
+                mag_sum,
+                centroid,
+                cum_energy,
+                total_energy,
+                rolloff,
+                deviation,
+                bandwidth,
+                log_mag,
+                onset,
+            )
             torch.cuda.empty_cache()
 
             return {
@@ -233,7 +248,7 @@ class CudaAudioAnalyzer:
 
             # Spectral bandwidth: weighted std-dev of frequencies around centroid
             deviation = freqs.unsqueeze(1) - centroid.unsqueeze(0)
-            bandwidth = torch.sqrt((deviation ** 2 * magnitude).sum(dim=0) / mag_sum)
+            bandwidth = torch.sqrt((deviation**2 * magnitude).sum(dim=0) / mag_sum)
             bandwidth_np = bandwidth.cpu().numpy()
 
             # Onset envelope: frame-to-frame difference of log-magnitude
@@ -243,7 +258,22 @@ class CudaAudioAnalyzer:
             onset_np = onset.cpu().numpy()
 
             # Clean up GPU tensors to free memory
-            del waveform, stft, magnitude, power, rms, mag_sum, centroid, cum_energy, total_energy, rolloff, deviation, bandwidth, log_mag, onset
+            del (
+                waveform,
+                stft,
+                magnitude,
+                power,
+                rms,
+                mag_sum,
+                centroid,
+                cum_energy,
+                total_energy,
+                rolloff,
+                deviation,
+                bandwidth,
+                log_mag,
+                onset,
+            )
             torch.cuda.empty_cache()
 
             return {
@@ -274,16 +304,16 @@ class CudaAudioAnalyzer:
         )[::hop]
         if len(frames) == 0:
             frames = y[np.newaxis, :]
-        rms = np.sqrt(np.mean(frames ** 2, axis=1))
+        rms = np.sqrt(np.mean(frames**2, axis=1))
         if rms.max() > 0:
             rms_normalized = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
         else:
             rms_normalized = np.zeros_like(rms)
 
         # FFT-based spectral features
-        stft = np.abs(
-            np.fft.rfft(frames, n=self.n_fft)
-        ) if frames.shape[-1] > 0 else np.array([[0.0]])
+        stft = (
+            np.abs(np.fft.rfft(frames, n=self.n_fft)) if frames.shape[-1] > 0 else np.array([[0.0]])
+        )
         freqs = np.fft.rfftfreq(self.n_fft, d=1.0 / self.sample_rate)
 
         mag_sum = stft.sum(axis=1, keepdims=True).clip(min=1e-10)
@@ -298,17 +328,13 @@ class CudaAudioAnalyzer:
 
         # Spectral bandwidth: weighted std-dev around centroid per frame.
         deviation = freqs[np.newaxis, :] - centroid[:, np.newaxis]
-        bandwidth = np.sqrt(
-            ((deviation**2 * stft).sum(axis=1) / mag_sum.squeeze(1)).clip(min=0.0)
-        )
+        bandwidth = np.sqrt(((deviation**2 * stft).sum(axis=1) / mag_sum.squeeze(1)).clip(min=0.0))
 
         # Onset envelope: frame-to-frame positive log-magnitude difference.
         log_mag = np.log(stft + 1e-10)
         onset = np.zeros(len(centroid), dtype=np.float64)
         if len(centroid) > 1:
-            onset[1:] = np.clip(np.diff(log_mag, axis=0), a_min=0, a_max=None).sum(
-                axis=1
-            )
+            onset[1:] = np.clip(np.diff(log_mag, axis=0), a_min=0, a_max=None).sum(axis=1)
 
         return {
             "amplitude_envelope": rms_normalized.tolist(),
@@ -396,9 +422,7 @@ class CudaImageProcessor:
         if size is not None:
             from PIL import Image
 
-            pil = Image.fromarray(
-                (img * 255).clip(0, 255).astype(np.uint8)
-            )
+            pil = Image.fromarray((img * 255).clip(0, 255).astype(np.uint8))
             pil = pil.resize((size[1], size[0]), Image.BILINEAR)
             img = np.array(pil, dtype=np.float32) / 255.0
             if normalize == "neg_one":
@@ -413,7 +437,9 @@ class CudaImageProcessor:
         target_size: tuple[int, int] | None = None,
     ) -> list[np.ndarray]:
         """Preprocess a batch of images on GPU."""
-        return [self.preprocess(img, normalize=normalize, target_size=target_size) for img in images]
+        return [
+            self.preprocess(img, normalize=normalize, target_size=target_size) for img in images
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -442,9 +468,7 @@ class CudaVisualizationFFT:
 
             self._window = _t.hann_window(self.fft_size, device=_DEVICE)
 
-    def get_spectrum(
-        self, audio_chunk: np.ndarray | list[float]
-    ) -> list[float]:
+    def get_spectrum(self, audio_chunk: np.ndarray | list[float]) -> list[float]:
         """Compute a smoothed magnitude spectrum for visualization.
 
         Args:
@@ -511,10 +535,9 @@ class CudaVisualizationFFT:
         self._prev_spectrum = log_mag.copy()
 
         band_size = max(1, len(log_mag) // self.num_bands)
-        spectrum = np.array([
-            log_mag[i * band_size:(i + 1) * band_size].mean()
-            for i in range(self.num_bands)
-        ])
+        spectrum = np.array(
+            [log_mag[i * band_size : (i + 1) * band_size].mean() for i in range(self.num_bands)]
+        )
 
         s_min, s_max = spectrum.min(), spectrum.max()
         if (s_max - s_min) > 1e-10:

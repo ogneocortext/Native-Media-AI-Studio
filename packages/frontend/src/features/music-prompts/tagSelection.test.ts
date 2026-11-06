@@ -83,7 +83,6 @@ describe("unfilledRelated", () => {
   });
 });
 
-
 describe("badgeFor", () => {
   it("badges tier 1 as verified on Suno", () => {
     expect(badgeFor(1)).toBe("verified on Suno");
@@ -106,10 +105,9 @@ describe("badgeFor", () => {
 
 describe("productionSuggestions", () => {
   it("offers phrases that are not already selected", () => {
-    expect(productionSuggestions(["808 bass"], ["808 bass", "vinyl crackle", "half-time"])).toEqual([
-      "vinyl crackle",
-      "half-time",
-    ]);
+    expect(productionSuggestions(["808 bass"], ["808 bass", "vinyl crackle", "half-time"])).toEqual(
+      ["vinyl crackle", "half-time"],
+    );
   });
 
   it("compares case-insensitively so a phrase is not offered twice", () => {

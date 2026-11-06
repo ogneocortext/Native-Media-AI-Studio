@@ -1996,3 +1996,42 @@
   (e.g. transcription), and vice versa - acceptable on a single-user
   local studio. Follow-up if wanted: surface lane waiters in the
   frontend jobs panel.
+
+### D72 - Recover jobs stranded in RETRYING across restarts (2026-11-06)
+
+- **Status:** Decided
+- **Context:** RETRYING is a transient in-process state - the processor
+  sets it, sleeps out the exponential backoff in memory, then flips the
+  job to QUEUED. A restart orphans every job that was mid-backoff: the
+  process loop only reads QUEUED, so nothing ever transitions it again.
+  Live symptom: 21 `image_generation` jobs (all `params={}`, hence
+  unrecoverable anyway) sat in RETRYING for days, inflating
+  `active_jobs` to 21 while `is_healthy` reported true. The existing
+  recovery only handled RUNNING (stale reaper) and QUEUED/RUNNING
+  (unrunnable quarantine) - RETRYING fell through both.
+- **Decision:** `QueueManager.recover_stranded_retrying_jobs()` runs in
+  `reload_from_db` after the unrunnable quarantine. Runnable jobs with
+  retry budget left return to QUEUED (downtime already exceeded any
+  backoff); exhausted ones are dead-lettered; unrunnable ones are left
+  for the quarantine sweep, which now also covers RETRYING.
+- **Files:** `queue/manager.py`, `tests/test_queue_stale_recovery.py`.
+- **Consequences:** No job can be stranded in RETRYING across a restart.
+  The 21 live zombies were dead-lettered automatically on the reload
+  that shipped this fix (retrying 21 -> 0, dead 6 -> 27).
+
+### D73 - Eliminate retrieval import cycle by moving doc scanner into service layer (2026-11-06)
+
+- **Status:** Decided
+- **Context:** `services.retrieval_service.compute_content_hash()` deferred-imported
+  `_scan_docs_for_indexing` from `api.retrieval`, while `api.retrieval` imports
+  from `services.retrieval_service` — an import cycle plus a layer inversion
+  (services -> api), violating the api -> services -> adapters rule (D32). The
+  deferred import also left `compute_content_hash()` calling an `async` function
+  without `await`, a latent coroutine bug.
+- **Decision:** Moved `_scan_docs_for_indexing` plus `DOCS_ROOT`/`VAULT_ROOT` into
+  `services/retrieval_service.py` (made sync; it performs no awaits).
+  `api/retrieval.py` now imports it from the service layer (allowed direction)
+  and removed the deferred import so `compute_content_hash()` calls it directly.
+- **Files:** `app/api/retrieval.py`, `app/services/retrieval_service.py`
+- **Consequences:** `check-import-cycles.py` reports no cycles or layer
+  inversions; 44 retrieval tests pass; `ruff check` clean.

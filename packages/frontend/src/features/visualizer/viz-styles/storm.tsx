@@ -114,8 +114,7 @@ export function StormViz({
     });
 
     if (glowRef.current) {
-      const glowScale =
-        0.3 + bass * 0.5 + snap * 0.8 + stemEnergyRef.current.bass * 0.3;
+      const glowScale = 0.3 + bass * 0.5 + snap * 0.8 + stemEnergyRef.current.bass * 0.3;
       glowRef.current.scale.setScalar(glowScale);
       if (isWebGPU && glowMat) {
         updateAudioReactiveMaterialTSL(

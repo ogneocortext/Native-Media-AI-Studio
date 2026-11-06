@@ -54,9 +54,7 @@ def save_prompt(
 def get_prompt(prompt_id: str) -> dict[str, Any] | None:
     """Get a prompt by ID."""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM prompts WHERE id = ?", (prompt_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM prompts WHERE id = ?", (prompt_id,)).fetchone()
         if row:
             return _row_to_prompt(row)
     return None
@@ -111,9 +109,7 @@ def increment_prompt_use(prompt_id: str) -> None:
 def toggle_prompt_favorite(prompt_id: str) -> bool:
     """Toggle favorite status. Returns new status."""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT is_favorite FROM prompts WHERE id = ?", (prompt_id,)
-        ).fetchone()
+        row = conn.execute("SELECT is_favorite FROM prompts WHERE id = ?", (prompt_id,)).fetchone()
         if not row:
             return False
         new_status = not row["is_favorite"]

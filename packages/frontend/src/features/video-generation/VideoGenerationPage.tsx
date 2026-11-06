@@ -66,10 +66,22 @@ interface InspirationItem {
 }
 
 const EXAMPLE_PROMPTS: ExamplePrompt[] = [
-  { label: "Cinematic", prompt: "A cinematic shot of a futuristic city at sunset, volumetric lighting, 8k" },
-  { label: "Nature", prompt: "A serene mountain landscape with a lake, golden hour, misty atmosphere" },
-  { label: "Abstract", prompt: "Abstract flowing colors, liquid motion, psychedelic patterns, vibrant" },
-  { label: "Cyberpunk", prompt: "Cyberpunk street scene, neon lights, rain, holographic advertisements" },
+  {
+    label: "Cinematic",
+    prompt: "A cinematic shot of a futuristic city at sunset, volumetric lighting, 8k",
+  },
+  {
+    label: "Nature",
+    prompt: "A serene mountain landscape with a lake, golden hour, misty atmosphere",
+  },
+  {
+    label: "Abstract",
+    prompt: "Abstract flowing colors, liquid motion, psychedelic patterns, vibrant",
+  },
+  {
+    label: "Cyberpunk",
+    prompt: "Cyberpunk street scene, neon lights, rain, holographic advertisements",
+  },
 ];
 
 const INSPIRATION_GALLERY: InspirationItem[] = [
@@ -147,9 +159,7 @@ export function VideoGenerationPage() {
   const { queueInfo } = useQueueStatus();
 
   const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState(
-    "blurry, low quality, distorted"
-  );
+  const [negativePrompt, setNegativePrompt] = useState("blurry, low quality, distorted");
   const [selectedModel, setSelectedModel] = useState("");
   const [duration, setDuration] = useState(10);
   const [verticalFirst, setVerticalFirst] = useState(false);
@@ -340,7 +350,8 @@ export function VideoGenerationPage() {
           <div>
             <div className="text-sm font-semibold text-red-300">ComfyUI is offline</div>
             <div className="text-xs text-red-200">
-              Video generation requires ComfyUI to be running. Start it first, then return here to generate.
+              Video generation requires ComfyUI to be running. Start it first, then return here to
+              generate.
             </div>
           </div>
           <button
@@ -362,9 +373,7 @@ export function VideoGenerationPage() {
           </button>
         </div>
       )}
-      {error && (
-        <div className={DS.cardError}>{error}</div>
-      )}
+      {error && <div className={DS.cardError}>{error}</div>}
 
       {/* View context breadcrumb */}
       <nav className="flex items-center gap-2 text-xs text-muted mb-4">
@@ -384,7 +393,8 @@ export function VideoGenerationPage() {
         <div className={DS.cardWarning}>
           <AlertTriangle size={16} />
           <span className="text-sm">
-            {selectedModelInfo?.name} may exceed 8 GB VRAM. Generation could be slow or fail on this GPU.
+            {selectedModelInfo?.name} may exceed 8 GB VRAM. Generation could be slow or fail on this
+            GPU.
           </span>
         </div>
       )}
@@ -463,7 +473,9 @@ export function VideoGenerationPage() {
                         </option>
                       ))}
                     </select>
-                    <p className="text-[10px] text-muted">{IMAGE_ROLE_OPTIONS.find((o) => o.value === imageRole)?.desc}</p>
+                    <p className="text-[10px] text-muted">
+                      {IMAGE_ROLE_OPTIONS.find((o) => o.value === imageRole)?.desc}
+                    </p>
                   </div>
                   <button
                     onClick={clearInputImage}
@@ -476,9 +488,7 @@ export function VideoGenerationPage() {
                 <label className="block cursor-pointer border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-accent/50 hover:bg-accent/5 transition-colors">
                   <ImageIcon size={24} className="mx-auto mb-2 text-muted" />
                   <p className="text-sm text-foreground font-medium mb-1">Click to upload image</p>
-                  <p className="text-xs text-muted">
-                    Uploaded to ComfyUI input directory for I2V
-                  </p>
+                  <p className="text-xs text-muted">Uploaded to ComfyUI input directory for I2V</p>
                   <input
                     type="file"
                     accept="image/*"
@@ -507,13 +517,13 @@ export function VideoGenerationPage() {
             />
             <div className="mt-2 flex gap-2">
               {EXAMPLE_PROMPTS.map((ex) => (
-                  <button
-                    key={ex.label}
-                    onClick={() => setPrompt(ex.prompt)}
-                    className="text-xs text-muted hover:text-violet-400 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 rounded"
-                  >
-                    {ex.label}
-                  </button>
+                <button
+                  key={ex.label}
+                  onClick={() => setPrompt(ex.prompt)}
+                  className="text-xs text-muted hover:text-violet-400 underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 rounded"
+                >
+                  {ex.label}
+                </button>
               ))}
               <button
                 onClick={() => setPromptEnhance((v) => !v)}
@@ -541,7 +551,9 @@ export function VideoGenerationPage() {
             onVerticalFirstChange={setVerticalFirst}
             scheduler={scheduler}
             onSchedulerChange={setScheduler}
-            onRandomSeed={() => { void 0; }}
+            onRandomSeed={() => {
+              void 0;
+            }}
             fps={fps}
             onFpsChange={setFps}
             resolution={resolution}
@@ -614,7 +626,9 @@ export function VideoGenerationPage() {
                     }`}
                   >
                     <div className="text-xs font-semibold">{r.label}</div>
-                    <div className="text-[10px] text-muted">{r.w}×{r.h}</div>
+                    <div className="text-[10px] text-muted">
+                      {r.w}×{r.h}
+                    </div>
                     <div className="text-[10px] text-muted">{r.desc}</div>
                   </button>
                 );
@@ -624,10 +638,7 @@ export function VideoGenerationPage() {
 
           <button
             onClick={handleGenerate}
-            disabled={
-              generating ||
-              validationIssues.length > 0
-            }
+            disabled={generating || validationIssues.length > 0}
             className={DS.btnFull}
           >
             {generating ? (
@@ -683,14 +694,21 @@ export function VideoGenerationPage() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center group-hover:bg-black/60 transition-colors duration-300">
-                      <PlayCircle size={24} className="text-white/95 bg-black/70 rounded-full p-2 shadow-lg" />
+                      <PlayCircle
+                        size={24}
+                        className="text-white/95 bg-black/70 rounded-full p-2 shadow-lg"
+                      />
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-transparent to-transparent">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-white">{item.label}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded ${
-                          item.mode === "i2v" ? "border-violet-500 text-violet-400 bg-violet-500/20" : "border-blue-500 text-blue-400 bg-blue-500/20"
-                        }`}>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded ${
+                            item.mode === "i2v"
+                              ? "border-violet-500 text-violet-400 bg-violet-500/20"
+                              : "border-blue-500 text-blue-400 bg-blue-500/20"
+                          }`}
+                        >
                           {item.mode.toUpperCase()}
                         </span>
                       </div>
@@ -746,17 +764,21 @@ export function VideoGenerationPage() {
                   key={r.job_id || idx}
                   onClick={() => handleSelectResult(r.job_id || "")}
                   className={`cursor-pointer rounded-lg border p-3 transition-all ${
-                    isSelected ? "ring-2 ring-accent bg-violet-500/10" : "border-border hover:border-border/80"
+                    isSelected
+                      ? "ring-2 ring-accent bg-violet-500/10"
+                      : "border-border hover:border-border/80"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-foreground">
-                        {r.job_id}
-                      </span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
-                        isI2V ? "border-violet-500 text-violet-400 bg-violet-500/10" : "border-blue-500 text-blue-400 bg-blue-500/10"
-                      }`}>
+                      <span className="text-xs font-medium text-foreground">{r.job_id}</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                          isI2V
+                            ? "border-violet-500 text-violet-400 bg-violet-500/10"
+                            : "border-blue-500 text-blue-400 bg-blue-500/10"
+                        }`}
+                      >
                         {isI2V ? "I2V" : "T2V"}
                       </span>
                       <StatusBadge status={r.status} />
@@ -849,7 +871,8 @@ export function VideoGenerationPage() {
                   <div className="bg-surface rounded-lg p-2">
                     <div className="text-[10px] text-muted">Resolution</div>
                     <div className="text-sm text-foreground">
-                      {RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w}×{RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h}
+                      {RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w}×
+                      {RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h}
                     </div>
                   </div>
                   <div className="bg-surface rounded-lg p-2">

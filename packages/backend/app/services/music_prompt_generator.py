@@ -36,7 +36,9 @@ DEFAULT_MODEL = "qwen3.5:4b"
 FALLBACK_MODEL = "qwen3.5:4b"
 
 # Recognized Suno v6 style tags (community-tested) for cross-matching Qwen output.
-_RECOGNIZED_SUNO_TAGS_PATH = Path(__file__).resolve().parents[4] / "tools" / "music-gen" / "recognized-suno-tags.json"
+_RECOGNIZED_SUNO_TAGS_PATH = (
+    Path(__file__).resolve().parents[4] / "tools" / "music-gen" / "recognized-suno-tags.json"
+)
 
 
 def _load_recognized_suno_tags() -> set[str]:
@@ -97,7 +99,9 @@ def _load_presets() -> dict[str, Any]:
             return data["presets"]
         return {}
     except Exception as exc:
-        logger.warning("Failed to load music prompt presets from %s: %s", _MUSIC_PROMPT_PRESETS_PATH, exc)
+        logger.warning(
+            "Failed to load music prompt presets from %s: %s", _MUSIC_PROMPT_PRESETS_PATH, exc
+        )
         return {}
 
 
@@ -110,7 +114,9 @@ def _load_pronunciation_guide() -> tuple[list[str], dict[str, str]]:
     try:
         data = json.loads(_PRONUNCIATION_GUIDE_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
-        logger.warning("Failed to load pronunciation guide from %s: %s", _PRONUNCIATION_GUIDE_PATH, exc)
+        logger.warning(
+            "Failed to load pronunciation guide from %s: %s", _PRONUNCIATION_GUIDE_PATH, exc
+        )
         return [], {}
     rules: list[str] = []
     for entry in data.get("rules", []):
@@ -128,18 +134,30 @@ MUSIC_PROMPT_PRESETS: dict[str, list[dict[str, Any]]] = _load_presets()
 
 # Fallback generic styles are always available even if the JSON fails to load.
 GENERIC_LYRIC_STYLES: dict[str, list[str]] = {
-    "poetic": ["Use vivid imagery, metaphor, and assonance; compress meaning into short phrases.",
-               "Avoid cliches; prefer unexpected word pairings."],
-    "conversational": ["Write as if talking to a friend; simple words, natural rhythm, no forced rhymes.",
-                       "Use contractions, fragments, and honest emotion."],
-    "storytelling": ["Tell a complete mini-story: setup -> conflict -> resolution across verses.",
-                     "Include specific characters, places, and sensory details."],
-    "minimal": ["Strip to 1-2 idea words per line; let the beat breathe.",
-                "Repeat key phrases; fewer unique words = more memorable."],
-    "fragmented": ["Break phrases into 3-5 word chunks with rests; layer vocal textures.",
-                   "Use breath sounds and ad-libs as percussion."],
-    "narrative": ["Linear timeline: past -> present -> future; clear scenes.",
-                  "Use specific times, locations, and objects as anchors."],
+    "poetic": [
+        "Use vivid imagery, metaphor, and assonance; compress meaning into short phrases.",
+        "Avoid cliches; prefer unexpected word pairings.",
+    ],
+    "conversational": [
+        "Write as if talking to a friend; simple words, natural rhythm, no forced rhymes.",
+        "Use contractions, fragments, and honest emotion.",
+    ],
+    "storytelling": [
+        "Tell a complete mini-story: setup -> conflict -> resolution across verses.",
+        "Include specific characters, places, and sensory details.",
+    ],
+    "minimal": [
+        "Strip to 1-2 idea words per line; let the beat breathe.",
+        "Repeat key phrases; fewer unique words = more memorable.",
+    ],
+    "fragmented": [
+        "Break phrases into 3-5 word chunks with rests; layer vocal textures.",
+        "Use breath sounds and ad-libs as percussion.",
+    ],
+    "narrative": [
+        "Linear timeline: past -> present -> future; clear scenes.",
+        "Use specific times, locations, and objects as anchors.",
+    ],
 }
 
 PLATFORM_SPECS: dict[str, dict[str, Any]] = {
@@ -150,7 +168,15 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         "style_limit": 1000,
         "style_sweet_spot": "5-8 comma-separated descriptors",
         "formula": "Genre+Era, Mood, 2-3 Instruments, Vocal, Production",
-        "lyric_tags": ["Intro", "Verse", "Pre-Chorus", "Chorus", "Bridge", "Instrumental Break", "Outro"],
+        "lyric_tags": [
+            "Intro",
+            "Verse",
+            "Pre-Chorus",
+            "Chorus",
+            "Bridge",
+            "Instrumental Break",
+            "Outro",
+        ],
         "sliders": "Variety (0 = keep tags verbatim; >0 rewrites style text), Style Influence (Loose->Strong adherence), Weirdness (Safe->Chaos, 50% normal), Audio Influence (with uploads), Vocal Gender, Duration, Max Mode (>2 min / close covers)",
         "rules": [
             "Sound goes in Style box, story+structure go in Lyrics box -- never mix.",
@@ -171,8 +197,27 @@ PLATFORM_SPECS: dict[str, dict[str, Any]] = {
         "lyrics_limit": 3500,
         "formula": "A [mood] [BPM] [genre] song, featuring [vocal], about [theme], [atmosphere], [instruments]",
         "caption_sections": ["Global Metadata", "Vocal Details", "Arrangement"],
-        "lyric_tags": ["Intro", "Verse", "Pre Chorus", "Chorus", "Post Chorus", "Interlude", "Bridge", "Hook", "Build Up", "Break", "Transition", "Inst", "Solo", "Outro"],
-        "api_flags": ["lyrics_optimizer (auto lyrics when lyrics empty)", "is_instrumental (no vocals; lyrics not required)", "audio_setting (44100 Hz / 256000 / mp3 recommended)"],
+        "lyric_tags": [
+            "Intro",
+            "Verse",
+            "Pre Chorus",
+            "Chorus",
+            "Post Chorus",
+            "Interlude",
+            "Bridge",
+            "Hook",
+            "Build Up",
+            "Break",
+            "Transition",
+            "Inst",
+            "Solo",
+            "Outro",
+        ],
+        "api_flags": [
+            "lyrics_optimizer (auto lyrics when lyrics empty)",
+            "is_instrumental (no vocals; lyrics not required)",
+            "audio_setting (44100 Hz / 256000 / mp3 recommended)",
+        ],
         "rules": [
             "Write sentences, NOT tag salad.",
             "Structured Caption: Global Metadata (genre/BPM/key/emotion arc/use-case) + Vocal Details + Arrangement with section-level evolution.",
@@ -237,9 +282,20 @@ PLATFORM_OUTPUTS: dict[str, list[str]] = {
 # vowel to hold, rare vocabulary, invented words. Flagged by validate_output
 # so the user can respell or replace them before pasting.
 STUMBLE_PRONE = (
-    "strengths", "sixths", "twelfths", "rural", "jewelry", "squirrel",
-    "colonel", "worcestershire", "isthmus", "anemone", "otorhinolaryngologist",
-    "synecdoche", "abysmal", "nocturnal",
+    "strengths",
+    "sixths",
+    "twelfths",
+    "rural",
+    "jewelry",
+    "squirrel",
+    "colonel",
+    "worcestershire",
+    "isthmus",
+    "anemone",
+    "otorhinolaryngologist",
+    "synecdoche",
+    "abysmal",
+    "nocturnal",
 )
 
 # 2026 lyric-writing technique reference -- techniques used by popular artists
@@ -537,9 +593,23 @@ _SYSTEM_TEMPLATE = (
 
 def _format_brief(brief: dict[str, Any]) -> str:
     """Render user brief without .format() so {braces} in input can't crash us."""
-    fields = ("theme", "genre", "mood", "tempo", "key", "vocal", "instruments",
-              "language", "dialect", "tricky_words", "duration", "extra",
-              "exclude", "use_case", "lyric_style")
+    fields = (
+        "theme",
+        "genre",
+        "mood",
+        "tempo",
+        "key",
+        "vocal",
+        "instruments",
+        "language",
+        "dialect",
+        "tricky_words",
+        "duration",
+        "extra",
+        "exclude",
+        "use_case",
+        "lyric_style",
+    )
     lines = []
     for key in fields:
         value = brief.get(key, "")
@@ -576,7 +646,9 @@ def build_system_prompt(platform: str, brief: dict[str, Any]) -> str:
                 for t in entry["techniques"]:
                     if t not in technique_lines:
                         technique_lines.append(t)
-                if entry.get("vocal_delivery") and f"Vocal delivery for {key}:" not in "\n".join(technique_lines):
+                if entry.get("vocal_delivery") and f"Vocal delivery for {key}:" not in "\n".join(
+                    technique_lines
+                ):
                     technique_lines.append(f"Vocal delivery for {key}: {entry['vocal_delivery']}")
                 matched = True
                 break
@@ -603,13 +675,15 @@ def build_system_prompt(platform: str, brief: dict[str, Any]) -> str:
         pron += f"\nWords that stumbled before -- respell or replace: {tricky}."
     if _PRON_HARDENING_RULES:
         hardening = "\n".join(f"- {rule}" for rule in _PRON_HARDENING_RULES)
-        pron += "\nPronunciation hardening (from real engine misfires -- apply while writing):\n" + hardening
+        pron += (
+            "\nPronunciation hardening (from real engine misfires -- apply while writing):\n"
+            + hardening
+        )
     engine_note = _PRON_ENGINE_NOTES.get(platform)
     if engine_note:
         pron += f"\nEngine note: {engine_note}"
     return (
-        _SYSTEM_TEMPLATE
-        .replace("__LABEL__", spec["label"])
+        _SYSTEM_TEMPLATE.replace("__LABEL__", spec["label"])
         .replace("__ENGINE__", spec["engine"])
         .replace("__RULES__", rules)
         .replace("__BRIEF__", _format_brief(brief))
@@ -656,20 +730,29 @@ def _extract_json(text: str) -> dict[str, Any]:
         raw = fence.group(1).strip()
     try:
         data = json.loads(raw)
-        return data if isinstance(data, dict) else {"prompt": "", "lyrics": _coerce_str(data), "notes": [], "warnings": []}
+        return (
+            data
+            if isinstance(data, dict)
+            else {"prompt": "", "lyrics": _coerce_str(data), "notes": [], "warnings": []}
+        )
     except Exception:
         pass
     # Balanced parse: try decoding from each '{' until one succeeds
     decoder = json.JSONDecoder()
     for match in re.finditer(r"\{", raw):
         try:
-            data, _ = decoder.raw_decode(raw[match.start():])
+            data, _ = decoder.raw_decode(raw[match.start() :])
             if isinstance(data, dict):
                 return data
         except Exception:
             continue
     # Fallback: treat whole output as lyrics draft
-    return {"prompt": "", "lyrics": raw, "notes": [], "warnings": ["LLM did not return JSON; showing raw output as lyrics."]}
+    return {
+        "prompt": "",
+        "lyrics": raw,
+        "notes": [],
+        "warnings": ["LLM did not return JSON; showing raw output as lyrics."],
+    }
 
 
 def _normalize(data: dict[str, Any]) -> dict[str, Any]:
@@ -688,9 +771,15 @@ def _normalize(data: dict[str, Any]) -> dict[str, Any]:
     settings = data.get("settings")
     data["settings"] = settings if isinstance(settings, dict) else {}
     notes = data.get("notes") or []
-    data["notes"] = [_coerce_str(n) for n in notes] if isinstance(notes, list) else [_coerce_str(notes)]
+    data["notes"] = (
+        [_coerce_str(n) for n in notes] if isinstance(notes, list) else [_coerce_str(notes)]
+    )
     warnings = data.get("warnings") or []
-    data["warnings"] = [_coerce_str(w) for w in warnings] if isinstance(warnings, list) else [_coerce_str(warnings)]
+    data["warnings"] = (
+        [_coerce_str(w) for w in warnings]
+        if isinstance(warnings, list)
+        else [_coerce_str(warnings)]
+    )
     return data
 
 
@@ -725,7 +814,9 @@ def _default_settings(platform: str, brief: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
-def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] | None = None) -> list[str]:
+def validate_output(
+    platform: str, data: dict[str, Any], brief: dict[str, Any] | None = None
+) -> list[str]:
     warnings: list[str] = list(data.get("warnings") or [])
     title = _coerce_str(data.get("title", ""))
     prompt = _coerce_str(data.get("style", "") or data.get("prompt", ""))
@@ -736,7 +827,9 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
         warnings.append(f"Title {len(title)} chars exceeds the ~100-char title field; shorten it.")
     if platform == "suno_v6":
         if len(prompt) > 1000:
-            warnings.append(f"Style prompt {len(prompt)} chars exceeds Suno 1000-char field; front-load key tags.")
+            warnings.append(
+                f"Style prompt {len(prompt)} chars exceeds Suno 1000-char field; front-load key tags."
+            )
         tags = [t.strip() for t in prompt.split(",") if t.strip()]
         if len(tags) > 10:
             warnings.append(f"{len(tags)} descriptors -- trim to 5-8 to avoid mush.")
@@ -746,41 +839,69 @@ def validate_output(platform: str, data: dict[str, Any], brief: dict[str, Any] |
             warnings.append("Exclude Styles is very long; keep it to a few comma-separated tags.")
         settings = data.get("settings") or {}
         if settings.get("variety", 0) != 0:
-            warnings.append("Variety > 0 lets v6 rewrite your style text -- set Variety to 0 to keep tags verbatim.")
+            warnings.append(
+                "Variety > 0 lets v6 rewrite your style text -- set Variety to 0 to keep tags verbatim."
+            )
     elif platform == "minimax_30":
         if len(prompt) > 2000:
             warnings.append("Prompt exceeds MiniMax 2000-char limit.")
         if len(lyrics) > 3500:
             warnings.append("Lyrics exceed MiniMax 3500-char limit.")
         if brief.get("instrumental") and lyrics.strip():
-            warnings.append("Instrumental mode: clear the lyrics and let the prompt carry the arrangement.")
+            warnings.append(
+                "Instrumental mode: clear the lyrics and let the prompt carry the arrangement."
+            )
     elif platform == "happyshrimp_10":
         if len(prompt) > 5000:
             warnings.append("Prompt exceeds HappyShrimp 5000-char box.")
-        genre_words = [g.strip() for g in _coerce_str(brief.get("genre", "")).replace("/", ",").split(",") if g.strip()]
+        genre_words = [
+            g.strip()
+            for g in _coerce_str(brief.get("genre", "")).replace("/", ",").split(",")
+            if g.strip()
+        ]
         if len(genre_words) > 2:
-            warnings.append("HappyShrimp is weak at genre fusions -- pick one anchor genre instead of blending.")
+            warnings.append(
+                "HappyShrimp is weak at genre fusions -- pick one anchor genre instead of blending."
+            )
     elif platform == "lyria_35":
         if lyrics.strip() and "Lyrics:" not in lyrics and "Lyrics:" not in prompt:
             warnings.append("Prefix custom lyrics with 'Lyrics:' for Lyria 3.5.")
         if exclude.strip():
-            warnings.append("Lyria 3.5 has no negative prompting -- describe what you want instead of pasting Exclude.")
+            warnings.append(
+                "Lyria 3.5 has no negative prompting -- describe what you want instead of pasting Exclude."
+            )
         if brief.get("timeline") and "[0:" not in prompt and "[00:" not in prompt:
-            warnings.append("Timeline requested but no [mm:ss] marks found -- ask for a timestamped timeline.")
+            warnings.append(
+                "Timeline requested but no [mm:ss] marks found -- ask for a timestamped timeline."
+            )
     if not prompt and not lyrics and not title:
         warnings.append("Empty result from model.")
     if lyrics.strip():
-        stumbled = sorted({w for w in STUMBLE_PRONE if re.search(rf"\b{re.escape(w)}\b", lyrics, re.IGNORECASE)})
+        stumbled = sorted(
+            {w for w in STUMBLE_PRONE if re.search(rf"\b{re.escape(w)}\b", lyrics, re.IGNORECASE)}
+        )
         if stumbled:
-            warnings.append(f"Stumble-prone words in lyrics ({', '.join(stumbled)}) -- respell or replace before pasting.")
-        tricky = [t.strip().lower() for t in _coerce_str(brief.get("tricky_words", "")).replace(",", "\n").split("\n") if t.strip()]
+            warnings.append(
+                f"Stumble-prone words in lyrics ({', '.join(stumbled)}) -- respell or replace before pasting."
+            )
+        tricky = [
+            t.strip().lower()
+            for t in _coerce_str(brief.get("tricky_words", "")).replace(",", "\n").split("\n")
+            if t.strip()
+        ]
         unhandled = [t for t in tricky if re.search(rf"\b{re.escape(t)}\b", lyrics, re.IGNORECASE)]
         if unhandled:
-            warnings.append(f"Previously stumbled words still verbatim ({', '.join(unhandled)}) -- respell them (e.g. stretched vowels) or swap them out.")
+            warnings.append(
+                f"Previously stumbled words still verbatim ({', '.join(unhandled)}) -- respell them (e.g. stretched vowels) or swap them out."
+            )
         if platform == "lyria_35":
-            long_words = sorted({w for w in re.findall(r"[A-Za-z]{11,}", lyrics) if w.lower() != "instrumental"})
+            long_words = sorted(
+                {w for w in re.findall(r"[A-Za-z]{11,}", lyrics) if w.lower() != "instrumental"}
+            )
             if len(long_words) > 3:
-                warnings.append(f"Lyria pronounces worse than Suno v6-mini -- simplify long words ({', '.join(long_words[:5])}) or test on v6-mini first.")
+                warnings.append(
+                    f"Lyria pronounces worse than Suno v6-mini -- simplify long words ({', '.join(long_words[:5])}) or test on v6-mini first."
+                )
         # Contamination + pronunciation-hardening scan (flag-for-review).
         bpm = parse_bpm(brief.get("tempo"))
         for finding in scan_lyrics(lyrics, platform, bpm=bpm):
@@ -839,24 +960,30 @@ async def generate_music_prompt(
         logger.warning("Primary model %s failed (%s), trying %s", chosen, exc, FALLBACK_MODEL)
         if chosen == FALLBACK_MODEL:
             logger.error("Music prompt generation failed: %s", exc)
-            data = _normalize({
-                "prompt": "",
-                "lyrics": "",
-                "notes": [],
-                "warnings": [f"Generation failed: {exc}. Is Ollama running with {chosen}?"],
-            })
+            data = _normalize(
+                {
+                    "prompt": "",
+                    "lyrics": "",
+                    "notes": [],
+                    "warnings": [f"Generation failed: {exc}. Is Ollama running with {chosen}?"],
+                }
+            )
         else:
             try:
                 data = await _call(FALLBACK_MODEL)
                 chosen = FALLBACK_MODEL
             except Exception as exc2:
                 logger.error("Music prompt generation failed: %s", exc2)
-                data = _normalize({
-                    "prompt": "",
-                    "lyrics": "",
-                    "notes": [],
-                    "warnings": [f"Generation failed: {exc2}. Is Ollama running with {chosen}?"],
-                })
+                data = _normalize(
+                    {
+                        "prompt": "",
+                        "lyrics": "",
+                        "notes": [],
+                        "warnings": [
+                            f"Generation failed: {exc2}. Is Ollama running with {chosen}?"
+                        ],
+                    }
+                )
     if platform == "suno_v6" and isinstance(data.get("style"), str):
         data["style"] = _filter_style_tags(data["style"])
         data["prompt"] = data["style"]

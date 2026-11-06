@@ -240,7 +240,12 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
   /** POST multipart with progress (0-100). Rejects on abort or HTTP error. */
   const uploadWithProgress = useCallback(
-    async (url: string, fileToUpload: File, fieldName = "file", extraFields?: Record<string, string>) => {
+    async (
+      url: string,
+      fileToUpload: File,
+      fieldName = "file",
+      extraFields?: Record<string, string>,
+    ) => {
       cancelUploadSafe();
       setUploadProgress(0);
       return new Promise<Response>((resolve, reject) => {

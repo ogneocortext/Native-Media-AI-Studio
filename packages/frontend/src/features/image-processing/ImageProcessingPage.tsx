@@ -129,8 +129,8 @@ export function ImageProcessingPage() {
           <span>Image Processing</span>
         </div>
         <p className="page-subtitle">
-          Apply AI-powered image processing effects using Pillow 13.0.
-          Beat-synced processing, EQ-reactive filters, and more.
+          Apply AI-powered image processing effects using Pillow 13.0. Beat-synced processing,
+          EQ-reactive filters, and more.
         </p>
       </div>
 
@@ -142,10 +142,7 @@ export function ImageProcessingPage() {
               {image ? (
                 <>
                   <img src={image} alt="Selected image" className="selected-image" />
-                  <button
-                    className="btn-change"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
+                  <button className="btn-change" onClick={() => fileInputRef.current?.click()}>
                     Change Image
                   </button>
                 </>
@@ -230,9 +227,7 @@ export function ImageProcessingPage() {
           </div>
         </div>
 
-        {error && (
-          <div className="error-banner">{error}</div>
-        )}
+        {error && <div className="error-banner">{error}</div>}
 
         {result && (
           <div className="result-panel">

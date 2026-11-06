@@ -46,9 +46,7 @@ def set_last_model_provider(provider: Callable[[], str | None] | None) -> None:
 _LAST_ATOMIC_CHAT_MODEL_PROVIDER: Callable[[], str | None] | None = None
 
 
-def set_last_atomic_chat_model_provider(
-    provider: Callable[[], str | None] | None
-) -> None:
+def set_last_atomic_chat_model_provider(provider: Callable[[], str | None] | None) -> None:
     """Register the source of "last loaded Atomic Chat model"."""
     global _LAST_ATOMIC_CHAT_MODEL_PROVIDER
     _LAST_ATOMIC_CHAT_MODEL_PROVIDER = provider

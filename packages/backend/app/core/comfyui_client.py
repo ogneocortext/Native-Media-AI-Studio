@@ -143,7 +143,9 @@ def safe_join(base_dir: Path, filename: str) -> Path:
     return resolve_within(base_dir, sanitize_filename(filename))
 
 
-def view_params(filename: str, subfolder: str | None = "", file_type: str = "output") -> dict[str, Any]:
+def view_params(
+    filename: str, subfolder: str | None = "", file_type: str = "output"
+) -> dict[str, Any]:
     """Build ``/view`` query params with sanitized values."""
     params: dict[str, Any] = {"filename": sanitize_filename(filename), "type": file_type}
     safe_sub = sanitize_subfolder(subfolder)
@@ -407,9 +409,7 @@ async def cancel_prompt(
     # build that method returns 405 Method Not Allowed, and treating it as fatal
     # made cancellation a silent no-op - verified live, the prompt stayed queued.
     try:
-        async with sess.get(
-            url, timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as resp:
+        async with sess.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
             if resp.status != 200:
                 return False
             body = await resp.json()

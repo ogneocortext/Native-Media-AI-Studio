@@ -54,11 +54,11 @@ class _Job:
         self.tracks = tracks
         self.started_at = time.time()
         self.finished_at: float | None = None
-        self.state = "running"          # running | done | failed
+        self.state = "running"  # running | done | failed
         self.error: str | None = None
         self.succeeded: list[str] = []
         self.failed: dict[str, str] = {}
-        self.skipped: list[str] = []    # never asked: no stem on disk
+        self.skipped: list[str] = []  # never asked: no stem on disk
 
     def as_dict(self, now: float | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now
@@ -265,8 +265,9 @@ def start_refresh(tracks: list[str]) -> dict[str, Any]:
             job.error = "essentia bridge unavailable (WSL or venv missing)"
         return {"started": False, "reason": job.error, "job": job.as_dict()}
 
-    thread = threading.Thread(target=_run_refresh, args=(job,), daemon=True,
-                              name=f"essentia-refresh-{job.id}")
+    thread = threading.Thread(
+        target=_run_refresh, args=(job,), daemon=True, name=f"essentia-refresh-{job.id}"
+    )
     thread.start()
     return {"started": True, "reason": None, "job": job.as_dict()}
 

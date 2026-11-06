@@ -168,7 +168,7 @@ export function DocsPage() {
             type: "directory",
             children: val.map((n: BackendNode) => backendToTree(n)),
           });
-        } else if (val && typeof val === "object" && "children" in (val)) {
+        } else if (val && typeof val === "object" && "children" in val) {
           normalized.push(backendToTree(val));
         } else {
           // fallback
@@ -712,7 +712,10 @@ export function DocsPage() {
             {structureError ? (
               <p className="text-amber-400 text-sm">
                 Failed to load structure ({structureError}).{" "}
-                <button onClick={async () => loadStructure()} className="underline hover:text-amber-300">
+                <button
+                  onClick={async () => loadStructure()}
+                  className="underline hover:text-amber-300"
+                >
                   Retry
                 </button>
               </p>

@@ -5,7 +5,7 @@ import type { Tag } from "../../../services/api";
 export function useFileFilters(
   files: MediaFile[],
   filter: FilterState,
-  itemTags: Map<string, Tag[]>
+  itemTags: Map<string, Tag[]>,
 ) {
   return useMemo(() => {
     let filtered = [...files];
@@ -16,8 +16,7 @@ export function useFileFilters(
       filtered = filtered.filter((f) => {
         const key = f.relative_path || f.filename;
         const nameMatch =
-          f.filename.toLowerCase().includes(query) ||
-          (f.relative_path.toLowerCase().includes(query));
+          f.filename.toLowerCase().includes(query) || f.relative_path.toLowerCase().includes(query);
         const tags = itemTags.get(key) ?? [];
         const tagMatch = tags.some((t) => t.name.toLowerCase().includes(query));
         return nameMatch || tagMatch;

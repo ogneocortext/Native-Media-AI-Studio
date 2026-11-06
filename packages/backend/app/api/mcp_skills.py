@@ -35,7 +35,10 @@ router = APIRouter(tags=["MCP Skills"])
 _CANDIDATE_SKILLS_DIRS = [
     PROJECT_ROOT / "tools" / "mcp" / "skills",
     Path(__file__).resolve().parents[5] / "tools" / "mcp" / "skills",
-    Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio") / "tools" / "mcp" / "skills",
+    Path(r"D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio")
+    / "tools"
+    / "mcp"
+    / "skills",
 ]
 
 _SKILLS_DIR = None
@@ -324,7 +327,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                         success=False,
                         error=f"Audio analysis failed: {result['error']}",
                     )
-            return ExecuteToolResponse(success=True, result=_enhance_audio_analysis(result, filename))
+            return ExecuteToolResponse(
+                success=True, result=_enhance_audio_analysis(result, filename)
+            )
 
         elif tool_name == "create_music_video_plan":
             filename = args.get("filename")
@@ -396,7 +401,10 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 )
             result = await _http_post(
                 "/api/analyze-visualizer",
-                {"image_path": image_path, "prompt": args.get("prompt", "Describe this image in detail.")},
+                {
+                    "image_path": image_path,
+                    "prompt": args.get("prompt", "Describe this image in detail."),
+                },
                 timeout=60,
             )
             if isinstance(result, dict) and "error" in result:
@@ -413,7 +421,11 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 )
             result = await _http_post(
                 "/api/music-video/generate-preview",
-                {"prompt": idea, "category": args.get("category", "character"), "style": args.get("style", "")},
+                {
+                    "prompt": idea,
+                    "category": args.get("category", "character"),
+                    "style": args.get("style", ""),
+                },
                 timeout=60,
             )
             if isinstance(result, dict) and "error" in result:
@@ -450,7 +462,11 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 )
             result = await _http_post(
                 "/api/music-video/generate-preview",
-                {"prompt": description, "category": args.get("target", "mesh"), "style": args.get("model", "qwen3.5:4b")},
+                {
+                    "prompt": description,
+                    "category": args.get("target", "mesh"),
+                    "style": args.get("model", "qwen3.5:4b"),
+                },
                 timeout=60,
             )
             if isinstance(result, dict) and "error" in result:
@@ -606,7 +622,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 timeout=60,
             )
             if isinstance(analysis, dict) and "error" in analysis:
-                return ExecuteToolResponse(success=False, error=f"Audio analysis failed: {analysis['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Audio analysis failed: {analysis['error']}"
+                )
             # Step 2: Create music video plan
             plan = await _http_post(
                 "/api/from-prompt",
@@ -614,16 +632,22 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 timeout=60,
             )
             if isinstance(plan, dict) and "error" in plan:
-                return ExecuteToolResponse(success=False, error=f"Plan creation failed: {plan['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Plan creation failed: {plan['error']}"
+                )
             # Step 3: Generate a concept image based on the plan
-            concept_prompt = f"Music video concept for {filename}: {args.get('prompt', 'cinematic music video')}"
+            concept_prompt = (
+                f"Music video concept for {filename}: {args.get('prompt', 'cinematic music video')}"
+            )
             concept = await _http_post(
                 "/api/generate-image",
                 {"description": concept_prompt, "width": 1024, "height": 1024},
                 timeout=120,
             )
             if isinstance(concept, dict) and "error" in concept:
-                return ExecuteToolResponse(success=False, error=f"Concept generation failed: {concept['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Concept generation failed: {concept['error']}"
+                )
             return ExecuteToolResponse(
                 success=True,
                 result={
@@ -646,20 +670,35 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
             # Step 1: Suggest a refined prompt
             suggestion = await _http_post(
                 "/api/music-video/generate-preview",
-                {"prompt": idea, "category": args.get("category", "character"), "style": args.get("style", "")},
+                {
+                    "prompt": idea,
+                    "category": args.get("category", "character"),
+                    "style": args.get("style", ""),
+                },
                 timeout=60,
             )
             if isinstance(suggestion, dict) and "error" in suggestion:
-                return ExecuteToolResponse(success=False, error=f"Prompt suggestion failed: {suggestion['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Prompt suggestion failed: {suggestion['error']}"
+                )
             # Step 2: Generate concept image
-            refined_prompt = suggestion.get("prompt", idea) if isinstance(suggestion, dict) else idea
+            refined_prompt = (
+                suggestion.get("prompt", idea) if isinstance(suggestion, dict) else idea
+            )
             concept = await _http_post(
                 "/api/generate-image",
-                {"description": refined_prompt, "category": args.get("category", "character"), "width": 1024, "height": 1024},
+                {
+                    "description": refined_prompt,
+                    "category": args.get("category", "character"),
+                    "width": 1024,
+                    "height": 1024,
+                },
                 timeout=120,
             )
             if isinstance(concept, dict) and "error" in concept:
-                return ExecuteToolResponse(success=False, error=f"Concept generation failed: {concept['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Concept generation failed: {concept['error']}"
+                )
             return ExecuteToolResponse(
                 success=True,
                 result={
@@ -687,7 +726,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 timeout=60,
             )
             if isinstance(analysis, dict) and "error" in analysis:
-                return ExecuteToolResponse(success=False, error=f"Audio analysis failed: {analysis['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Audio analysis failed: {analysis['error']}"
+                )
             # Step 2: Create music video plan
             plan = await _http_post(
                 "/api/from-prompt",
@@ -695,7 +736,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 timeout=60,
             )
             if isinstance(plan, dict) and "error" in plan:
-                return ExecuteToolResponse(success=False, error=f"Plan creation failed: {plan['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Plan creation failed: {plan['error']}"
+                )
             # Step 3: Generate concept image
             concept_prompt = f"Music video concept for {filename}: {style} style"
             concept = await _http_post(
@@ -704,7 +747,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 timeout=120,
             )
             if isinstance(concept, dict) and "error" in concept:
-                return ExecuteToolResponse(success=False, error=f"Concept generation failed: {concept['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Concept generation failed: {concept['error']}"
+                )
             # Step 4: Generate video
             video = await _http_post(
                 "/api/music-video/generate-preview",
@@ -718,7 +763,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
                 timeout=120,
             )
             if isinstance(video, dict) and "error" in video:
-                return ExecuteToolResponse(success=False, error=f"Video generation failed: {video['error']}")
+                return ExecuteToolResponse(
+                    success=False, error=f"Video generation failed: {video['error']}"
+                )
             return ExecuteToolResponse(
                 success=True,
                 result={
@@ -735,7 +782,9 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
             return ExecuteToolResponse(success=False, error=f"Unknown tool: {tool_name}")
 
     except httpx.ConnectError:
-        return ExecuteToolResponse(success=False, error="Backend not reachable at http://127.0.0.1:8000")
+        return ExecuteToolResponse(
+            success=False, error="Backend not reachable at http://127.0.0.1:8000"
+        )
     except Exception as exc:  # noqa: BLE001
         return ExecuteToolResponse(success=False, error=str(exc))
 
@@ -1113,7 +1162,7 @@ async def tools_list() -> list[dict[str, Any]]:
                     "which": {
                         "type": "string",
                         "description": "Which stem to retrieve: vocals, drums, bass, other, or master.",
-                    }
+                    },
                 },
                 "required": ["name", "which"],
             },

@@ -79,6 +79,7 @@ def get_tracer(name: str) -> object:
     """Return a tracer, or a no-op tracer when tracing is disabled."""
     try:
         from opentelemetry import trace
+
         return trace.get_tracer(name)
     except Exception:
         return _NOOP_TRACER

@@ -249,3 +249,69 @@ class TestUnrunnableJobs:
         asyncio.run(m.quarantine_unrunnable_jobs())
         err = m._jobs["j1"].error or ""
         assert "no params" in err
+
+
+class TestRetryingRecovery:
+    """Jobs stranded in RETRYING by a restart.
+
+    RETRYING is transient in-process state: the processor sets it, sleeps
+    out the backoff, then flips the job to QUEUED. The backoff timer is
+    memory-only, so a restart orphans every mid-backoff job - the process
+    loop only reads QUEUED, so nothing ever transitions it again. The live
+    symptom was 21 `image_generation` jobs (all with empty params) sitting
+    in RETRYING for days with `is_active: true`.
+    """
+
+    def test_requeues_a_stranded_retrying_job_with_retries_left(self):
+        m = _manager([_running_job(status=JobStatus.RETRYING, retry_count=1)])
+        out = asyncio.run(m.recover_stranded_retrying_jobs())
+
+        assert out["requeued"] == ["j1"]
+        job = m._jobs["j1"]
+        assert job.status == JobStatus.QUEUED
+        assert job.progress == 0.0
+        assert "backoff" in job.message
+
+    def test_dead_letters_a_stranded_retrying_job_with_exhausted_retries(self):
+        m = _manager(
+            [_running_job(status=JobStatus.RETRYING, retry_count=3, max_retries=3)]
+        )
+        out = asyncio.run(m.recover_stranded_retrying_jobs())
+
+        assert out["dead"] == ["j1"]
+        assert m._jobs["j1"].status == JobStatus.DEAD
+
+    def test_leaves_unrunnable_retrying_jobs_for_quarantine(self):
+        """Empty-params jobs are skipped here; the quarantine sweep DLQs them."""
+        m = _manager([_running_job(status=JobStatus.RETRYING, params={})])
+        out = asyncio.run(m.recover_stranded_retrying_jobs())
+
+        assert out["requeued"] == [] and out["dead"] == []
+        assert m._jobs["j1"].status == JobStatus.RETRYING
+
+        q = asyncio.run(m.quarantine_unrunnable_jobs())
+        assert q["quarantined"] == ["j1"]
+        assert m._jobs["j1"].status == JobStatus.DEAD
+
+    def test_ignores_non_retrying_jobs(self):
+        m = _manager(
+            [
+                _running_job(job_id="q", status=JobStatus.QUEUED),
+                _running_job(job_id="r", status=JobStatus.RUNNING),
+                _running_job(job_id="d", status=JobStatus.DEAD),
+            ]
+        )
+        out = asyncio.run(m.recover_stranded_retrying_jobs())
+        assert out["examined"] == 0
+        assert out["requeued"] == [] and out["dead"] == []
+
+    def test_does_not_deadlock_on_update_job(self):
+        async def run():
+            m = _manager([_running_job(status=JobStatus.RETRYING)])
+            return await m.recover_stranded_retrying_jobs()
+
+        try:
+            out = asyncio.run(asyncio.wait_for(run(), timeout=5))
+        except TimeoutError:
+            pytest.fail("recover_stranded_retrying_jobs deadlocked")
+        assert out["requeued"] == ["j1"]

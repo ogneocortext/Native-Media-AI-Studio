@@ -155,16 +155,18 @@ class SSEService {
 
   private scheduleReconnect(): void {
     if (!this.wantsConnection || this.reconnectTimer) return;
-    
+
     this.reconnectAttempts += 1;
     if (this.reconnectAttempts > this.maxReconnectAttempts) {
-      console.warn(`[SSE] Max reconnect attempts (${this.maxReconnectAttempts}) reached. Stopping reconnection. Server may be unavailable (optional Go dashboard).`);
+      console.warn(
+        `[SSE] Max reconnect attempts (${this.maxReconnectAttempts}) reached. Stopping reconnection. Server may be unavailable (optional Go dashboard).`,
+      );
       this._connectionState = "disconnected";
       this.emitState(false);
       this._broadcastStateToSyncChannel("disconnected");
       return;
     }
-    
+
     this._connectionState = "reconnecting";
     this._broadcastStateToSyncChannel("reconnecting");
     const delay = this.reconnectDelay;
@@ -198,8 +200,7 @@ class SSEService {
     const proxyUrl = `${window.location.protocol}//${window.location.host}/api/events`;
     const configuredUrl = getEventsUrl();
     const primaryUrl = proxyUrl;
-    const fallbackUrl =
-      configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : null;
+    const fallbackUrl = configuredUrl && configuredUrl !== proxyUrl ? configuredUrl : null;
 
     const attempt = (url: string) => {
       // Build URL with Last-Event-ID for replay on reconnect
@@ -244,7 +245,7 @@ class SSEService {
       this.eventSource.addEventListener("connected", (event) => {
         let message: Record<string, unknown>;
         try {
-          message = JSON.parse((event).data);
+          message = JSON.parse(event.data);
           this._dispatchToListeners(message);
         } catch {
           // ignore
@@ -277,9 +278,7 @@ class SSEService {
 
         const wasUsingPrimary = url === primaryUrl;
         if (wasUsingPrimary && fallbackUrl && fallbackUrl !== primaryUrl) {
-          console.warn(
-            `[SSE] ${url} unreachable, falling back to ${fallbackUrl}`,
-          );
+          console.warn(`[SSE] ${url} unreachable, falling back to ${fallbackUrl}`);
           attempt(fallbackUrl);
         } else {
           this.scheduleReconnect();

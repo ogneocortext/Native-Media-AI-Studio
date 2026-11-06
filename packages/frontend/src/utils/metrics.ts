@@ -106,8 +106,8 @@ export function recordApiTiming(endpoint: string, duration: number, success: boo
  * Record frame timing
  */
 export function recordFrameTime(fps: number, frameTime: number) {
-  metricsStore.record('render.fps', fps);
-  metricsStore.record('render.frameTime', frameTime);
+  metricsStore.record("render.fps", fps);
+  metricsStore.record("render.frameTime", frameTime);
 }
 
 /**
@@ -120,24 +120,24 @@ export function recordToolExecution(toolName: string, duration: number, success:
 /**
  * Record memory usage
  */
-export function recordMemoryUsage(usedJSHeapSize: number, totalJSHeapSize: number, jsHeapSizeLimit: number) {
-  metricsStore.record('memory.usedHeap', usedJSHeapSize);
-  metricsStore.record('memory.totalHeap', totalJSHeapSize);
-  metricsStore.record('memory.heapLimit', jsHeapSizeLimit);
-  metricsStore.record('memory.usagePercent', (usedJSHeapSize / jsHeapSizeLimit) * 100);
+export function recordMemoryUsage(
+  usedJSHeapSize: number,
+  totalJSHeapSize: number,
+  jsHeapSizeLimit: number,
+) {
+  metricsStore.record("memory.usedHeap", usedJSHeapSize);
+  metricsStore.record("memory.totalHeap", totalJSHeapSize);
+  metricsStore.record("memory.heapLimit", jsHeapSizeLimit);
+  metricsStore.record("memory.usagePercent", (usedJSHeapSize / jsHeapSizeLimit) * 100);
 }
 
 /**
  * Record network metrics
  */
-export function recordNetworkMetrics(
-  bytesReceived: number,
-  bytesSent: number,
-  latency: number
-) {
-  metricsStore.record('network.bytesReceived', bytesReceived);
-  metricsStore.record('network.bytesSent', bytesSent);
-  metricsStore.record('network.latency', latency);
+export function recordNetworkMetrics(bytesReceived: number, bytesSent: number, latency: number) {
+  metricsStore.record("network.bytesReceived", bytesReceived);
+  metricsStore.record("network.bytesSent", bytesSent);
+  metricsStore.record("network.latency", latency);
 }
 
 /**
@@ -154,13 +154,13 @@ export function recordNavigationTiming(
   toPath: string,
   navigateMs: number,
   renderMs: number,
-  totalMs: number
+  totalMs: number,
 ) {
-  const key = `nav.${fromPath.replace(/\//g, '_')}.to.${toPath.replace(/\//g, '_')}`;
+  const key = `nav.${fromPath.replace(/\//g, "_")}.to.${toPath.replace(/\//g, "_")}`;
   metricsStore.record(key, totalMs, { fromPath, toPath, navigateMs, renderMs });
-  metricsStore.record('nav.total.duration', totalMs);
-  metricsStore.record('nav.navigate.duration', navigateMs);
-  metricsStore.record('nav.render.duration', renderMs);
+  metricsStore.record("nav.total.duration", totalMs);
+  metricsStore.record("nav.navigate.duration", navigateMs);
+  metricsStore.record("nav.render.duration", renderMs);
 }
 
 /**
@@ -173,7 +173,7 @@ export function getNavigationMetricsSummary(): {
   p95Ms: number;
   maxMs: number;
 }[] {
-  const names = metricsStore.getAllNames().filter((n) => n.startsWith('nav.'));
+  const names = metricsStore.getAllNames().filter((n) => n.startsWith("nav."));
   const summary: {
     route: string;
     count: number;
@@ -184,7 +184,7 @@ export function getNavigationMetricsSummary(): {
 
   for (const name of names) {
     const stats = metricsStore.getStats(name, 60000);
-    if (stats && name.includes('.to.')) {
+    if (stats && name.includes(".to.")) {
       summary.push({
         route: name,
         count: stats.count,

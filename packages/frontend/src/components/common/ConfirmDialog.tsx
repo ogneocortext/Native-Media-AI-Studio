@@ -33,23 +33,16 @@ export function ConfirmDialog({
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
     >
-      <div
-        className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl"
-      >
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
         <div className="flex items-start gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-amber-500/15 border border-amber-500/20 flex items-center justify-center shrink-0">
             <X size={20} className="text-amber-400" />
           </div>
           <div>
-            <h3
-              id="confirm-dialog-title"
-              className="text-lg font-bold text-white"
-            >
+            <h3 id="confirm-dialog-title" className="text-lg font-bold text-white">
               {title}
             </h3>
-            {description && (
-              <p className="text-sm text-gray-400 mt-1">{description}</p>
-            )}
+            {description && <p className="text-sm text-gray-400 mt-1">{description}</p>}
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
@@ -62,9 +55,7 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors ${
-              isDestructive
-                ? "bg-red-600 hover:bg-red-500"
-                : "bg-accent hover:bg-accent/90"
+              isDestructive ? "bg-red-600 hover:bg-red-500" : "bg-accent hover:bg-accent/90"
             }`}
           >
             {confirmLabel}

@@ -27,11 +27,18 @@ const REACTIVITY_STORAGE_KEY = "visualizerReactivity:triad";
 export type OverlayId = "shortcuts" | "more" | "fx" | null;
 
 export interface VisualizerState {
-  bgColor: string; meshColor: string; demoEnabled: boolean;
-  audioUrl: string | null; currentFilename: string | null;
-  isPlaying: boolean; isPaused: boolean; error: string | null;
-  liveAudioData: AudioData; adaptiveDpr: [number, number];
-  renderStats: RenderStats | null; aiEnhancing: boolean;
+  bgColor: string;
+  meshColor: string;
+  demoEnabled: boolean;
+  audioUrl: string | null;
+  currentFilename: string | null;
+  isPlaying: boolean;
+  isPaused: boolean;
+  error: string | null;
+  liveAudioData: AudioData;
+  adaptiveDpr: [number, number];
+  renderStats: RenderStats | null;
+  aiEnhancing: boolean;
   openOverlay: OverlayId;
   activeVisualPresetId: string | null;
   activeShaderPreset: ShaderPresetName | undefined;
@@ -39,7 +46,7 @@ export interface VisualizerState {
   frequencyFocus: "balanced" | "bass" | "mid" | "treble";
   reactivityTriad: ReactivityTriad;
   activeGenrePresetId: string | null;
-  stemsMixerState: { muted: Record<StemName, boolean>; volumes: Record<StemName, number>; } | null;
+  stemsMixerState: { muted: Record<StemName, boolean>; volumes: Record<StemName, number> } | null;
   proMixerMeters: Record<StemName, ChannelMeters> | null;
   useProMixer: boolean;
   csvContent: string;
@@ -57,36 +64,56 @@ export interface VisualizerState {
   lastAudioDataAtRef: React.MutableRefObject<number | null>;
   last3DUiUpdateRef: React.MutableRefObject<number>;
   testStateRef: React.MutableRefObject<{
-    vizMode: VizMode; canvas2DMode: Canvas2DMode;
-    currentFilename: string | null; isPlaying: boolean;
-    liveAudioData: AudioData; visualizationStyle: VisualizationStyle;
-    kineticPreset: string; loadedPresetName: string | null;
-    storyboard: unknown; activeVisualPresetId: string | null;
-    visualsVisible: boolean; lyricsVisible: boolean;
+    vizMode: VizMode;
+    canvas2DMode: Canvas2DMode;
+    currentFilename: string | null;
+    isPlaying: boolean;
+    liveAudioData: AudioData;
+    visualizationStyle: VisualizationStyle;
+    kineticPreset: string;
+    loadedPresetName: string | null;
+    storyboard: unknown;
+    activeVisualPresetId: string | null;
+    visualsVisible: boolean;
+    lyricsVisible: boolean;
     characterVisible: boolean;
   }>;
   prevTestState: React.MutableRefObject<{
-    vizMode: VizMode; canvas2DMode: Canvas2DMode;
-    currentFilename: string | null; isPlaying: boolean;
-    liveAudioData: AudioData; visualizationStyle: VisualizationStyle;
-    kineticPreset: string; loadedPresetName: string | null;
-    storyboard: unknown; activeVisualPresetId: string | null;
-    visualsVisible: boolean; lyricsVisible: boolean;
+    vizMode: VizMode;
+    canvas2DMode: Canvas2DMode;
+    currentFilename: string | null;
+    isPlaying: boolean;
+    liveAudioData: AudioData;
+    visualizationStyle: VisualizationStyle;
+    kineticPreset: string;
+    loadedPresetName: string | null;
+    storyboard: unknown;
+    activeVisualPresetId: string | null;
+    visualsVisible: boolean;
+    lyricsVisible: boolean;
     characterVisible: boolean;
   }>;
-  elapsed: number; audioDuration: number;
-  vizMode: VizMode; canvas2DMode: Canvas2DMode;
-  sceneFrozen: boolean; prefersReducedMotion: boolean;
-  visualsVisible: boolean; lyricsVisible: boolean;
+  elapsed: number;
+  audioDuration: number;
+  vizMode: VizMode;
+  canvas2DMode: Canvas2DMode;
+  sceneFrozen: boolean;
+  prefersReducedMotion: boolean;
+  visualsVisible: boolean;
+  lyricsVisible: boolean;
   characterVisible: boolean;
-  showTestPanel: boolean; showSettings: boolean;
-  showAnimDemo: boolean; showTheatreStudio: boolean;
-  showExportModal: boolean; showAIPanel: boolean;
+  showTestPanel: boolean;
+  showSettings: boolean;
+  showAnimDemo: boolean;
+  showTheatreStudio: boolean;
+  showExportModal: boolean;
+  showAIPanel: boolean;
   showAudioBrowser: boolean;
   pendingTrack: string | null;
   loopAnchor: number | null;
   loopRegion: { start: number; end: number } | null;
-  kineticPreset: string; visualizationStyle: VisualizationStyle;
+  kineticPreset: string;
+  visualizationStyle: VisualizationStyle;
   perceptualScale: PerceptualScale | undefined;
   loadedPreset: VisualPreset | null;
 }
@@ -151,7 +178,6 @@ export interface VisualizerStateSetters {
   setLoadedPreset: Setter<VisualizerState["loadedPreset"]>;
 }
 
-
 export function useVisualizerState() {
   const [bgColor, setBgColor] = useState("#050505");
   const [meshColor, setMeshColor] = useState("#6366f1");
@@ -162,23 +188,35 @@ export function useVisualizerState() {
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liveAudioData, setLiveAudioData] = useState<AudioData>({
-    bass: 0, mid: 0, treble: 0, overall: 0, beat: false,
-    peak: 0, energy: 0, drumType: null, nextBeatIn: 0,
+    bass: 0,
+    mid: 0,
+    treble: 0,
+    overall: 0,
+    beat: false,
+    peak: 0,
+    energy: 0,
+    drumType: null,
+    nextBeatIn: 0,
   });
   const [adaptiveDpr, setAdaptiveDpr] = useState<[number, number]>([1, 1.5]);
   const [renderStats, setRenderStats] = useState<RenderStats | null>(null);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [openOverlay, setOpenOverlay] = useState<OverlayId>(null);
   const [activeVisualPresetId, setActiveVisualPresetId] = useState<string | null>(null);
-  const [activeShaderPreset, setActiveShaderPreset] = useState<ShaderPresetName | undefined>(undefined);
+  const [activeShaderPreset, setActiveShaderPreset] = useState<ShaderPresetName | undefined>(
+    undefined,
+  );
   const [reactivityGain, setReactivityGain] = useState(1.0);
-  const [frequencyFocus, setFrequencyFocus] = useState<"balanced" | "bass" | "mid" | "treble">("balanced");
+  const [frequencyFocus, setFrequencyFocus] = useState<"balanced" | "bass" | "mid" | "treble">(
+    "balanced",
+  );
   const [reactivityTriad, setReactivityTriad] = useState<ReactivityTriad>(() => {
     try {
       const raw = localStorage.getItem(REACTIVITY_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<ReactivityTriad>;
-        const num = (v: unknown, fallback: number): number => typeof v === "number" && Number.isFinite(v) ? v : fallback;
+        const num = (v: unknown, fallback: number): number =>
+          typeof v === "number" && Number.isFinite(v) ? v : fallback;
         return {
           sensitivity: num(parsed.sensitivity, DEFAULT_REACTIVITY_TRIAD.sensitivity),
           attack: num(parsed.attack, DEFAULT_REACTIVITY_TRIAD.attack),
@@ -199,8 +237,13 @@ export function useVisualizerState() {
     }
   }, [reactivityTriad]);
   const [activeGenrePresetId, setActiveGenrePresetId] = useState<string | null>(null);
-  const [stemsMixerState, setStemsMixerState] = useState<{ muted: Record<StemName, boolean>; volumes: Record<StemName, number>; } | null>(null);
-  const [proMixerMeters, setProMixerMeters] = useState<Record<StemName, ChannelMeters> | null>(null);
+  const [stemsMixerState, setStemsMixerState] = useState<{
+    muted: Record<StemName, boolean>;
+    volumes: Record<StemName, number>;
+  } | null>(null);
+  const [proMixerMeters, setProMixerMeters] = useState<Record<StemName, ChannelMeters> | null>(
+    null,
+  );
   const [useProMixer, setUseProMixer] = useState(false);
   const [csvContent, setCsvContent] = useState<string>("");
   const [vizParams, setVizParams] = useState<VizParams>(DEFAULT_VIZ_PARAMS);
@@ -257,45 +300,162 @@ export function useVisualizerState() {
   const lastAudioDataAtRef = useRef<number | null>(null);
   const last3DUiUpdateRef = useRef(0);
   const testStateRef = useRef<{
-    vizMode: VizMode; canvas2DMode: Canvas2DMode;
-    currentFilename: string | null; isPlaying: boolean;
-    liveAudioData: AudioData; visualizationStyle: VisualizationStyle;
-    kineticPreset: string; loadedPresetName: string | null;
-    storyboard: unknown; activeVisualPresetId: string | null;
-    visualsVisible: boolean; lyricsVisible: boolean;
+    vizMode: VizMode;
+    canvas2DMode: Canvas2DMode;
+    currentFilename: string | null;
+    isPlaying: boolean;
+    liveAudioData: AudioData;
+    visualizationStyle: VisualizationStyle;
+    kineticPreset: string;
+    loadedPresetName: string | null;
+    storyboard: unknown;
+    activeVisualPresetId: string | null;
+    visualsVisible: boolean;
+    lyricsVisible: boolean;
     characterVisible: boolean;
   }>({
-    vizMode: "3d", canvas2DMode: "bars",
-    currentFilename: null, isPlaying: false,
-    liveAudioData: { bass: 0, mid: 0, treble: 0, overall: 0, beat: false, peak: 0, energy: 0, drumType: null, nextBeatIn: 0 },
-    visualizationStyle: "geometric", kineticPreset: "", loadedPresetName: null,
-    storyboard: null, activeVisualPresetId: null,
-    visualsVisible: true, lyricsVisible: true, characterVisible: true,
+    vizMode: "3d",
+    canvas2DMode: "bars",
+    currentFilename: null,
+    isPlaying: false,
+    liveAudioData: {
+      bass: 0,
+      mid: 0,
+      treble: 0,
+      overall: 0,
+      beat: false,
+      peak: 0,
+      energy: 0,
+      drumType: null,
+      nextBeatIn: 0,
+    },
+    visualizationStyle: "geometric",
+    kineticPreset: "",
+    loadedPresetName: null,
+    storyboard: null,
+    activeVisualPresetId: null,
+    visualsVisible: true,
+    lyricsVisible: true,
+    characterVisible: true,
   });
   const prevTestState = useRef({ ...testStateRef.current });
 
   return {
-    bgColor, meshColor, demoEnabled, audioUrl, currentFilename, isPlaying, isPaused, error,
-    liveAudioData, adaptiveDpr, renderStats, aiEnhancing, openOverlay,
-    activeVisualPresetId, activeShaderPreset, reactivityGain, frequencyFocus, reactivityTriad,
-    activeGenrePresetId, stemsMixerState, proMixerMeters, useProMixer,
-    csvContent, vizParams, trackMetadata, analysisData, stemsData, analyzing,
-    rendererReady, rendererBackend, lyrics, modeFade,
-    elapsed, audioDuration, vizMode, canvas2DMode, sceneFrozen, prefersReducedMotion,
-    visualsVisible, lyricsVisible, characterVisible,
-    showTestPanel, showSettings, showAnimDemo, showTheatreStudio, showExportModal, showAIPanel,
-    showAudioBrowser, pendingTrack, loopAnchor, loopRegion, kineticPreset, visualizationStyle, perceptualScale, loadedPreset,
-    lastBeatIdxRef, lastBeatAtRef, lastAudioDataAtRef, last3DUiUpdateRef,
-    testStateRef, prevTestState,
-    setBgColor, setMeshColor, setDemoEnabled, setAudioUrl, setCurrentFilename, setIsPlaying, setIsPaused, setError,
-    setLiveAudioData, setAdaptiveDpr, setRenderStats, setAiEnhancing, setOpenOverlay,
-    setActiveVisualPresetId, setActiveShaderPreset, setReactivityGain, setFrequencyFocus, setReactivityTriad,
-    setActiveGenrePresetId, setStemsMixerState, setProMixerMeters, setUseProMixer,
-    setCsvContent, setVizParams, setTrackMetadata, setAnalysisData, setStemsData, setAnalyzing,
-    setRendererReady, setRendererBackend, setLyrics, setModeFade,
-    setElapsed, setAudioDuration, setVizMode, setCanvas2DMode, setSceneFrozen, setPrefersReducedMotion,
-    setVisualsVisible, setLyricsVisible, setCharacterVisible,
-    setShowTestPanel, setShowSettings, setShowAnimDemo, setShowTheatreStudio, setShowExportModal, setShowAIPanel,
-    setShowAudioBrowser, setPendingTrack, setLoopAnchor, setLoopRegion, setKineticPreset, setVisualizationStyle, setPerceptualScale, setLoadedPreset,
+    bgColor,
+    meshColor,
+    demoEnabled,
+    audioUrl,
+    currentFilename,
+    isPlaying,
+    isPaused,
+    error,
+    liveAudioData,
+    adaptiveDpr,
+    renderStats,
+    aiEnhancing,
+    openOverlay,
+    activeVisualPresetId,
+    activeShaderPreset,
+    reactivityGain,
+    frequencyFocus,
+    reactivityTriad,
+    activeGenrePresetId,
+    stemsMixerState,
+    proMixerMeters,
+    useProMixer,
+    csvContent,
+    vizParams,
+    trackMetadata,
+    analysisData,
+    stemsData,
+    analyzing,
+    rendererReady,
+    rendererBackend,
+    lyrics,
+    modeFade,
+    elapsed,
+    audioDuration,
+    vizMode,
+    canvas2DMode,
+    sceneFrozen,
+    prefersReducedMotion,
+    visualsVisible,
+    lyricsVisible,
+    characterVisible,
+    showTestPanel,
+    showSettings,
+    showAnimDemo,
+    showTheatreStudio,
+    showExportModal,
+    showAIPanel,
+    showAudioBrowser,
+    pendingTrack,
+    loopAnchor,
+    loopRegion,
+    kineticPreset,
+    visualizationStyle,
+    perceptualScale,
+    loadedPreset,
+    lastBeatIdxRef,
+    lastBeatAtRef,
+    lastAudioDataAtRef,
+    last3DUiUpdateRef,
+    testStateRef,
+    prevTestState,
+    setBgColor,
+    setMeshColor,
+    setDemoEnabled,
+    setAudioUrl,
+    setCurrentFilename,
+    setIsPlaying,
+    setIsPaused,
+    setError,
+    setLiveAudioData,
+    setAdaptiveDpr,
+    setRenderStats,
+    setAiEnhancing,
+    setOpenOverlay,
+    setActiveVisualPresetId,
+    setActiveShaderPreset,
+    setReactivityGain,
+    setFrequencyFocus,
+    setReactivityTriad,
+    setActiveGenrePresetId,
+    setStemsMixerState,
+    setProMixerMeters,
+    setUseProMixer,
+    setCsvContent,
+    setVizParams,
+    setTrackMetadata,
+    setAnalysisData,
+    setStemsData,
+    setAnalyzing,
+    setRendererReady,
+    setRendererBackend,
+    setLyrics,
+    setModeFade,
+    setElapsed,
+    setAudioDuration,
+    setVizMode,
+    setCanvas2DMode,
+    setSceneFrozen,
+    setPrefersReducedMotion,
+    setVisualsVisible,
+    setLyricsVisible,
+    setCharacterVisible,
+    setShowTestPanel,
+    setShowSettings,
+    setShowAnimDemo,
+    setShowTheatreStudio,
+    setShowExportModal,
+    setShowAIPanel,
+    setShowAudioBrowser,
+    setPendingTrack,
+    setLoopAnchor,
+    setLoopRegion,
+    setKineticPreset,
+    setVisualizationStyle,
+    setPerceptualScale,
+    setLoadedPreset,
   } as VisualizerState & VisualizerStateSetters;
 }

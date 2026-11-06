@@ -15,13 +15,7 @@
 
 /** The six steps of the path, plus the error branch. */
 export type OnboardingStep =
-  | "add"
-  | "analyzing"
-  | "look"
-  | "watch"
-  | "rendering"
-  | "done"
-  | "error";
+  "add" | "analyzing" | "look" | "watch" | "rendering" | "done" | "error";
 
 /** A 10-second window of the track chosen for the clip. */
 export interface ClipWindow {
@@ -102,7 +96,7 @@ export function pickHighestEnergyWindow(
           bestStartSample = i;
         }
       }
-      const start = (bestStartSample / samplesPerSecond);
+      const start = bestStartSample / samplesPerSecond;
       return {
         start: round2(start),
         end: round2(Math.min(durationSeconds, start + windowLength)),
@@ -159,10 +153,7 @@ export function describeSuggestion(input: {
 }
 
 /** The user chose a track. Analysis starts automatically — no button. */
-export function trackSelected(
-  state: OnboardingState,
-  filename: string,
-): OnboardingState {
+export function trackSelected(state: OnboardingState, filename: string): OnboardingState {
   return {
     ...state,
     step: "analyzing",
@@ -213,10 +204,7 @@ export function renderStarted(state: OnboardingState): OnboardingState {
 }
 
 /** The clip rendered. */
-export function renderSucceeded(
-  state: OnboardingState,
-  outputUrl: string,
-): OnboardingState {
+export function renderSucceeded(state: OnboardingState, outputUrl: string): OnboardingState {
   return { ...state, step: "done", outputUrl, error: null, errorFix: null };
 }
 

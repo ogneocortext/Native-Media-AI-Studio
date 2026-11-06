@@ -329,14 +329,18 @@ def validate_tool_call(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
     """
     schema = _TOOL_SCHEMAS.get(tool_name)
     if schema is None:
-        logger.warning("validate_tool_call: unknown tool %r -- passing through unchanged", tool_name)
+        logger.warning(
+            "validate_tool_call: unknown tool %r -- passing through unchanged", tool_name
+        )
         return args
 
     errors: list[str] = []
 
     # Type check
     if not isinstance(args, dict):
-        raise ValidationError(f"tool {tool_name!r}: arguments must be a dict, got {type(args).__name__}")
+        raise ValidationError(
+            f"tool {tool_name!r}: arguments must be a dict, got {type(args).__name__}"
+        )
 
     # Required fields
     for field in schema.get("required", []):
@@ -365,8 +369,6 @@ def validate_tool_call(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
             errors.append(f"field {key!r} must be an array, got {type(value).__name__}")
 
     if errors:
-        raise ValidationError(
-            f"tool {tool_name!r}: invalid arguments -- " + "; ".join(errors)
-        )
+        raise ValidationError(f"tool {tool_name!r}: invalid arguments -- " + "; ".join(errors))
 
     return args

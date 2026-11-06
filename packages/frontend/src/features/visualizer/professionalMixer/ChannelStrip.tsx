@@ -78,7 +78,8 @@ export function ChannelStrip({
             className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-75"
             style={{
               height: `${Math.min(100, meters.rms * 200)}%`,
-              background: meters.dBFS > -6 ? `linear-gradient(to top, #ef4444, ${accent})` : `${accent}88`,
+              background:
+                meters.dBFS > -6 ? `linear-gradient(to top, #ef4444, ${accent})` : `${accent}88`,
             }}
           />
         </div>
@@ -99,7 +100,9 @@ export function ChannelStrip({
           <button
             onClick={onMute}
             className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${
-              state.muted ? "bg-red-500/30 border-red-500/50 text-red-300" : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+              state.muted
+                ? "bg-red-500/30 border-red-500/50 text-red-300"
+                : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
             }`}
           >
             M
@@ -107,7 +110,9 @@ export function ChannelStrip({
           <button
             onClick={onSolo}
             className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${
-              state.solo ? "bg-yellow-500/30 border-yellow-500/50 text-yellow-300" : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
+              state.solo
+                ? "bg-yellow-500/30 border-yellow-500/50 text-yellow-300"
+                : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
             }`}
           >
             S
@@ -149,11 +154,12 @@ export function ChannelStrip({
           className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-75"
           style={{
             height: `${Math.min(100, meters.rms * 250)}%`,
-            background: meters.dBFS > -6
-              ? "linear-gradient(to top, #ef4444, #f59e0b)"
-              : meters.dBFS > -18
-                ? `linear-gradient(to top, ${accent}88, ${accent}44)`
-                : `${accent}44`,
+            background:
+              meters.dBFS > -6
+                ? "linear-gradient(to top, #ef4444, #f59e0b)"
+                : meters.dBFS > -18
+                  ? `linear-gradient(to top, ${accent}88, ${accent}44)`
+                  : `${accent}44`,
           }}
         />
         <div
@@ -232,7 +238,9 @@ export function ChannelStrip({
         >
           <option value="">—</option>
           {Object.entries(COMPRESSOR_PRESETS).map(([key, preset]) => (
-            <option key={key} value={key}>{preset.label}</option>
+            <option key={key} value={key}>
+              {preset.label}
+            </option>
           ))}
         </select>
       </div>
@@ -270,4 +278,3 @@ export function ChannelStrip({
     </div>
   );
 }
-

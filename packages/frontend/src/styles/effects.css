@@ -402,28 +402,16 @@ body::after {
 /* Organic float using CSS random() — each element gets unique offset */
 @keyframes random-drift {
   0% {
-    transform: translate(
-      random(-8px, 8px),
-      random(-8px, 8px)
-    );
+    transform: translate(random(-8px, 8px), random(-8px, 8px));
   }
   33% {
-    transform: translate(
-      random(-12px, 4px),
-      random(-4px, 12px)
-    );
+    transform: translate(random(-12px, 4px), random(-4px, 12px));
   }
   66% {
-    transform: translate(
-      random(-4px, 12px),
-      random(-12px, 4px)
-    );
+    transform: translate(random(-4px, 12px), random(-12px, 4px));
   }
   100% {
-    transform: translate(
-      random(-8px, 8px),
-      random(-8px, 8px)
-    );
+    transform: translate(random(-8px, 8px), random(-8px, 8px));
   }
 }
 
@@ -455,25 +443,13 @@ body::after {
 /* Particle float using CSS random() — organic per-element motion */
 @keyframes particle-float {
   0% {
-    transform: translate3d(
-      random(-10px, 10px),
-      random(-10px, 10px),
-      0
-    );
+    transform: translate3d(random(-10px, 10px), random(-10px, 10px), 0);
   }
   50% {
-    transform: translate3d(
-      random(-15px, 5px),
-      random(-5px, 15px),
-      0
-    );
+    transform: translate3d(random(-15px, 5px), random(-5px, 15px), 0);
   }
   100% {
-    transform: translate3d(
-      random(-10px, 10px),
-      random(-10px, 10px),
-      0
-    );
+    transform: translate3d(random(-10px, 10px), random(-10px, 10px), 0);
   }
 }
 
@@ -482,7 +458,6 @@ body::after {
 }
 
 /* ===== END CSS random() ===== */
-
 
 /* ===== CONTAINER QUERY UTILITIES ===== */
 /* These allow child elements to respond to their container's size */

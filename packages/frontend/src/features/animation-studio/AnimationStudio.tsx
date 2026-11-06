@@ -57,7 +57,15 @@ const TRACKS: TrackDef[] = [
   { id: "posX", label: "Position X", color: "#6366f1", min: -3, max: 3, default: 0 },
   { id: "posY", label: "Position Y", color: "#22c55e", min: -2, max: 2, default: 0.5 },
   { id: "scale", label: "Scale", color: "#f59e0b", min: 0.2, max: 3, default: 1 },
-  { id: "rotation", label: "Rotation", color: "#ec4899", min: 0, max: 360, default: 0, unit: "deg" },
+  {
+    id: "rotation",
+    label: "Rotation",
+    color: "#ec4899",
+    min: 0,
+    max: 360,
+    default: 0,
+    unit: "deg",
+  },
   { id: "opacity", label: "Opacity", color: "#06b6d4", min: 0, max: 1, default: 1 },
 ];
 
@@ -457,7 +465,8 @@ export function AnimationStudio() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Animation Studio</h1>
         <p className="text-muted mt-1">
-          Keyframe-based animation powered by Theatre.js. Set keyframes, scrub the timeline, and export your project.
+          Keyframe-based animation powered by Theatre.js. Set keyframes, scrub the timeline, and
+          export your project.
         </p>
       </div>
 
@@ -465,12 +474,7 @@ export function AnimationStudio() {
         <div className="lg:col-span-2 space-y-4">
           <Card title="Preview">
             <div className="relative bg-black/40 rounded-xl overflow-hidden aspect-video flex items-center justify-center">
-              <canvas
-                ref={canvasRef}
-                width={640}
-                height={360}
-                className="max-w-full max-h-full"
-              />
+              <canvas ref={canvasRef} width={640} height={360} className="max-w-full max-h-full" />
               {!theatreReady && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                   <p className="text-muted flex items-center gap-2">
@@ -491,9 +495,9 @@ export function AnimationStudio() {
                 </button>
                 <button
                   onClick={() => {
-                      if (!isPlaying && timeRef.current >= DURATION) applyFrame(0);
-                      setIsPlaying(!isPlaying);
-                    }}
+                    if (!isPlaying && timeRef.current >= DURATION) applyFrame(0);
+                    setIsPlaying(!isPlaying);
+                  }}
                   className="btn btn-primary"
                 >
                   {isPlaying ? <Pause size={16} /> : <Play size={16} />}
@@ -577,7 +581,8 @@ export function AnimationStudio() {
           >
             {sortedKeyframes.length === 0 ? (
               <p className="text-sm text-muted py-4 text-center">
-                No keyframes yet. Select a track, adjust the slider, then click "Add Keyframe" — or apply a preset.
+                No keyframes yet. Select a track, adjust the slider, then click "Add Keyframe" — or
+                apply a preset.
               </p>
             ) : (
               <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -603,9 +608,7 @@ export function AnimationStudio() {
                         />
                         {track?.label}
                       </span>
-                      <span className="col-span-3 font-mono text-muted">
-                        {kf.time.toFixed(2)}s
-                      </span>
+                      <span className="col-span-3 font-mono text-muted">{kf.time.toFixed(2)}s</span>
                       <span className="col-span-3 font-mono">
                         {kf.value.toFixed(2)}
                         {track?.unit ?? ""}
@@ -637,9 +640,7 @@ export function AnimationStudio() {
                 >
                   <Sparkles size={14} className="text-violet-400 mb-1" />
                   <p className="text-sm font-medium text-foreground">{preset.name}</p>
-                  <p className="text-[11px] text-muted">
-                    {preset.keyframes.length} keyframes
-                  </p>
+                  <p className="text-[11px] text-muted">{preset.keyframes.length} keyframes</p>
                 </button>
               ))}
             </div>
@@ -689,9 +690,7 @@ export function AnimationStudio() {
                       setValues((prev) => ({ ...prev, [track.id]: v }));
                       // Bake into a keyframe when one sits at the playhead.
                       const existingKf = keyframes.find(
-                        (k) =>
-                          k.trackId === track.id &&
-                          Math.abs(k.time - currentTime) < 0.05,
+                        (k) => k.trackId === track.id && Math.abs(k.time - currentTime) < 0.05,
                       );
                       if (existingKf) {
                         setKeyframes((prev) =>

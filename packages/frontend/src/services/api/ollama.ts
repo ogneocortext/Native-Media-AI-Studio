@@ -49,10 +49,13 @@ export interface TaskModelRoute {
 
 export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedModel[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/models/unified?verified_only=${verifiedOnly}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(
+    `${base}/api/integrations/models/unified?verified_only=${verifiedOnly}`,
+    { timeout: 30000 },
+  );
   if (!res.ok) throw new Error("Failed to get unified models");
   const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : payload.models ?? [];
+  const entries = Array.isArray(payload) ? payload : (payload.models ?? []);
   return entries.map((m: UnifiedModel & Record<string, unknown>) => {
     const caps = (m.capabilities as string[] | undefined) ?? [];
     const pick = (...keys: string[]): unknown => {
@@ -65,28 +68,36 @@ export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedMod
       ...m,
       source: (pick("source") as "ollama" | "atomic-chat") || "ollama",
       name: m.name || m.id || "",
-      size: (m.size) ?? (pick("model_size") as number) ?? 0,
+      size: m.size ?? (pick("model_size") as number) ?? 0,
       capabilities: caps,
       supports_tools: (pick("supports_tools") as boolean | undefined) ?? caps.includes("tools"),
       supports_vision: (pick("supports_vision") as boolean | undefined) ?? caps.includes("vision"),
-      supports_thinking: (pick("supports_thinking") as boolean | undefined) ?? caps.includes("thinking"),
-      supports_embedding: (pick("supports_embedding") as boolean | undefined) ?? caps.includes("embed"),
+      supports_thinking:
+        (pick("supports_thinking") as boolean | undefined) ?? caps.includes("thinking"),
+      supports_embedding:
+        (pick("supports_embedding") as boolean | undefined) ?? caps.includes("embed"),
       supports_rerank: (pick("supports_rerank") as boolean | undefined) ?? caps.includes("rerank"),
       vram_required: (pick("vram_required") as number | undefined) ?? 0,
       verified: pick("verified") as boolean | undefined,
       verified_features: pick("verified_features") as string[] | undefined,
-      performance: pick("performance") as { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
+      performance: pick("performance") as
+        { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
       verification_notes: pick("verification_notes") as string | undefined,
       broken_reason: pick("broken_reason") as string | undefined,
-      chat_eligible: pick("chat_eligible") as boolean | undefined ?? true,
-      task_routes: pick("task_routes") as string[] | undefined ?? [],
+      chat_eligible: (pick("chat_eligible") as boolean | undefined) ?? true,
+      task_routes: (pick("task_routes") as string[] | undefined) ?? [],
     };
   });
 }
 
-export async function getTaskModelRoutes(): Promise<{ routes: Record<string, TaskModelRoute>; excluded_from_chat: string[] }> {
+export async function getTaskModelRoutes(): Promise<{
+  routes: Record<string, TaskModelRoute>;
+  excluded_from_chat: string[];
+}> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/models/task-routes`, { timeout: 10000 });
+  const res = await fetchWithTimeout(`${base}/api/integrations/models/task-routes`, {
+    timeout: 10000,
+  });
   if (!res.ok) throw new Error("Failed to get task model routes");
   return res.json();
 }
@@ -133,10 +144,13 @@ export interface ToolDefinition {
 
 export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/models?verified_only=${verifiedOnly}`, { timeout: 30000 });
+  const res = await fetchWithTimeout(
+    `${base}/api/integrations/ollama/models?verified_only=${verifiedOnly}`,
+    { timeout: 30000 },
+  );
   if (!res.ok) throw new Error("Failed to get Ollama models");
   const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : payload.models ?? [];
+  const entries = Array.isArray(payload) ? payload : (payload.models ?? []);
   // The two handlers that have served this path disagreed on field names: the one
   // actually reachable returned snake_case (`model_name`, `supports_tools`,
   // `vram_required`), while this type declared camelCase. `name` and `size` were
@@ -147,7 +161,7 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
   // of the frontend can trust the type.
   return entries
     .map((model: OllamaModel & Record<string, unknown>) => {
-      const caps = (model.capabilities) ?? [];
+      const caps = model.capabilities ?? [];
       const pick = (...keys: string[]): unknown => {
         for (const k of keys) {
           if (model[k] !== undefined && model[k] !== null) return model[k];
@@ -156,8 +170,8 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
       };
       return {
         ...model,
-        name: (model.name) || (pick("model_name", "id") as string) || "",
-        size: (model.size) ?? (pick("model_size") as number) ?? 0,
+        name: model.name || (pick("model_name", "id") as string) || "",
+        size: model.size ?? (pick("model_size") as number) ?? 0,
         capabilities: caps,
         // Prefer the server's explicit flags; fall back to the capability list,
         // which Ollama populates authoritatively on 0.35.x.
@@ -170,12 +184,12 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
         supportsThinking:
           (pick("supportsThinking", "supports_thinking") as boolean | undefined) ??
           caps.includes("thinking"),
-        vram_estimate_mb:
-          (pick("vram_estimate_mb", "vram_required") as number | undefined) ?? 0,
+        vram_estimate_mb: (pick("vram_estimate_mb", "vram_required") as number | undefined) ?? 0,
         // Verification fields
         verified: pick("verified") as boolean | undefined,
         verified_features: pick("verified_features") as string[] | undefined,
-        performance: pick("performance") as { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
+        performance: pick("performance") as
+          { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
         verification_notes: pick("verification_notes") as string | undefined,
         broken_reason: pick("broken_reason") as string | undefined,
       };
@@ -183,10 +197,7 @@ export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel
     .filter((m: OllamaModel) => {
       const name = m.name.toLowerCase();
       return (
-        name &&
-        !name.includes("embed") &&
-        !name.includes("nomic") &&
-        !name.includes("minigpt")
+        name && !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt")
       );
     });
 }
@@ -324,9 +335,7 @@ function medianLatency(values: number[]): number | null {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-export async function getHardwareBenchmarks(): Promise<
-  Record<string, HardwareBenchmarkSummary>
-> {
+export async function getHardwareBenchmarks(): Promise<Record<string, HardwareBenchmarkSummary>> {
   const base = getApiBase();
   const res = await fetchWithTimeout(`${base}/api/hardware/benchmarks?limit=200`, {
     timeout: 30000,
@@ -348,9 +357,7 @@ export async function getHardwareBenchmarks(): Promise<
     const tokPerSec = list
       .map((r) => r.metrics?.tokens_per_second)
       .filter((v): v is number => typeof v === "number" && v > 0);
-    const sortedRuns = [...list].sort((a, b) =>
-      b.started_at.localeCompare(a.started_at),
-    );
+    const sortedRuns = [...list].sort((a, b) => b.started_at.localeCompare(a.started_at));
     summary[model] = {
       model,
       median_latency_ms: medianLatency(latencies) ?? 0,

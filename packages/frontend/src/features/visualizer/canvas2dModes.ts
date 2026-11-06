@@ -90,10 +90,7 @@ export interface BarModeState {
 const PEAK_DECAY = 0.985;
 
 /** Shared boosted-value computation used by every bar-style mode. */
-function boostedValue(
-  rawV: number,
-  ctx: BarModeContext,
-): number {
+function boostedValue(rawV: number, ctx: BarModeContext): number {
   return (
     rawV +
     ctx.phraseFlash * 0.35 +
@@ -210,13 +207,7 @@ function drawDownbeatDot(
 ): void {
   ctx.fillStyle = `rgba(255,255,255,${0.85})`;
   ctx.beginPath();
-  ctx.arc(
-    x + barW / 2,
-    y - 6 * dpr - rand() * 6 * dpr,
-    2 * dpr,
-    0,
-    Math.PI * 2,
-  );
+  ctx.arc(x + barW / 2, y - 6 * dpr - rand() * 6 * dpr, 2 * dpr, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -262,9 +253,16 @@ export function renderBars(
     const coolMix = i / barCount > 0.7 ? modeCtx.d.treble * 0.35 : 0;
 
     drawBar(
-      modeCtx.ctx, dpr, x, y, bw, bh, radius,
+      modeCtx.ctx,
+      dpr,
+      x,
+      y,
+      bw,
+      bh,
+      radius,
       barGradients[cIdx % barGradients.length],
-      warmMix, coolMix,
+      warmMix,
+      coolMix,
     );
 
     // Falling peak indicator
@@ -273,12 +271,8 @@ export function renderBars(
     drawPeakIndicator(modeCtx.ctx, dpr, x, bw, baseY, state.barPeaks[i]);
 
     if (modeCtx.d.beat && sampleMappedBand(modeCtx.freq, freqMap, i) / 255 > 0.55) {
-      drawBeatFlash(
-        modeCtx.ctx, dpr,
-        modeCtx.colors[cIdx % modeCtx.colors.length],
-        x, y, bw,
-      );
-            if (modeCtx.isDownbeat) {
+      drawBeatFlash(modeCtx.ctx, dpr, modeCtx.colors[cIdx % modeCtx.colors.length], x, y, bw);
+      if (modeCtx.isDownbeat) {
         drawDownbeatDot(modeCtx.ctx, dpr, x, y, barW, modeCtx.rand);
       }
     }
@@ -382,11 +376,7 @@ export function renderMirroredBars(
     modeCtx.ctx.fillStyle = "rgba(255,255,255,0.55)";
     modeCtx.ctx.fillRect(x + 1, lowPeakY, bw, 1.5 * dpr);
     if (modeCtx.d.beat && rawV > 0.55) {
-      drawBeatFlash(
-        modeCtx.ctx, dpr,
-        modeCtx.colors[cIdx % modeCtx.colors.length],
-        x, upY, bw,
-      );
+      drawBeatFlash(modeCtx.ctx, dpr, modeCtx.colors[cIdx % modeCtx.colors.length], x, upY, bw);
     }
   }
 }
@@ -424,10 +414,7 @@ export function renderSegmentedLedBars(
     const targetSegs = boosted * segmentsPerBar * modeCtx.energyMod;
     // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
     state.barVelocities[i] = targetSegs;
-    const activeSegments = Math.max(
-      0,
-      Math.min(segmentsPerBar, Math.round(targetSegs)),
-    );
+    const activeSegments = Math.max(0, Math.min(segmentsPerBar, Math.round(targetSegs)));
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
     const cIdx = Math.floor((i / barCount) * modeCtx.colors.length);
@@ -769,15 +756,11 @@ export function renderWaveform(
         ? (1 - d.beatPhase * 2) * 0.15
         : 0;
     const targetAmp =
-      v *
-      h *
-      0.35 *
-      (1 + energyMod * 0.85 + phraseFlash * 0.45 + d.bass * 0.25 + beatPhaseAnt);
+      v * h * 0.35 * (1 + energyMod * 0.85 + phraseFlash * 0.45 + d.bass * 0.25 + beatPhaseAnt);
     const prev = state.waveEnvelope[i];
     state.waveEnvelope[i] = Math.max(0, damp(prev, targetAmp, lambda, dt));
     const y = h / 2 + state.waveEnvelope[i];
-    const xOff =
-      syncLineProgress * 14 * dpr * Math.sin(i * 0.01 + nowMs() * 0.001);
+    const xOff = syncLineProgress * 14 * dpr * Math.sin(i * 0.01 + nowMs() * 0.001);
     if (i === 0) ctx.moveTo(x + xOff, y);
     else ctx.lineTo(x + xOff, y);
   }
@@ -879,8 +862,7 @@ export function renderRadial(
         ? (1 - d.beatPhase * 2) * 0.12
         : 0;
     const targetR1 =
-      baseR +
-      v * baseR * 1.2 * (1 + phraseFlash * 0.6 + energyMod * 0.4 + beatPhaseAnt);
+      baseR + v * baseR * 1.2 * (1 + phraseFlash * 0.6 + energyMod * 0.4 + beatPhaseAnt);
     // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
     const r1 = Math.max(r0, targetR1);
     state.barVelocities[i] = r1;
@@ -1022,12 +1004,9 @@ export function renderLissajous(
   const cy = h / 2;
   const bassIdx = Math.floor(freqLen * 0.1);
   const midIdx = Math.floor(freqLen * 0.4);
-  const bassV = freq
-    ? freq.slice(0, bassIdx).reduce((a, b) => a + b, 0) / (bassIdx * 255 || 1)
-    : 0;
+  const bassV = freq ? freq.slice(0, bassIdx).reduce((a, b) => a + b, 0) / (bassIdx * 255 || 1) : 0;
   const midV = freq
-    ? freq.slice(bassIdx, midIdx).reduce((a, b) => a + b, 0) /
-      ((midIdx - bassIdx) * 255 || 1)
+    ? freq.slice(bassIdx, midIdx).reduce((a, b) => a + b, 0) / ((midIdx - bassIdx) * 255 || 1)
     : 0;
   const ampX = w * 0.35 * (1 + bassV * 0.6 + energyMod * 0.3);
   const ampY = h * 0.35 * (1 + midV * 0.6 + energyMod * 0.3);
@@ -1146,12 +1125,8 @@ export function renderConstellation(
   for (let i = 0; i < maxPoints; i++) {
     const p = points[i];
     const r =
-      2 * dpr +
-      p.v * 5 * dpr +
-      (d.beat && p.v > 0.7 ? 3 * dpr : 0) +
-      analyzedPunch * 3 * dpr;
-    ctx.fillStyle =
-      colors[Math.floor(p.v * colors.length) % colors.length];
+      2 * dpr + p.v * 5 * dpr + (d.beat && p.v > 0.7 ? 3 * dpr : 0) + analyzedPunch * 3 * dpr;
+    ctx.fillStyle = colors[Math.floor(p.v * colors.length) % colors.length];
     const nodeGlow = 4 * dpr + p.v * 8 * dpr + analyzedPunch * 6 * dpr;
     drawGlowSprite(ctx, colors[0], p.x, p.y, r * 2 + nodeGlow * 2, r * 2 + nodeGlow * 2, 0.5);
     ctx.beginPath();
@@ -1333,8 +1308,7 @@ export function renderKineticType(
   ctx.fillStyle = withAlpha(colors[1], "55");
   ctx.fillRect(0, groundY, w, Math.max(1, dpr));
 
-  const isHook =
-    sectionName === "CHORUS" || sectionName === "DROP" || sectionName === "PRE-CHORUS";
+  const isHook = sectionName === "CHORUS" || sectionName === "DROP" || sectionName === "PRE-CHORUS";
   const beatPulse = (beatEnv ?? 0) * 0.02 * motionScale;
 
   // ── Instrumental fallback: section card, never an empty frame ─────────
@@ -1358,8 +1332,7 @@ export function renderKineticType(
   const ease = 1 - Math.pow(1 - entryT, 3);
   const entryScale = 0.94 + 0.06 * ease * motionScale + beatPulse;
   const alpha =
-    (0.35 + 0.65 * ease) * (1 - exitT * 0.6 * motionScale) *
-    Math.min(1, 0.4 + energyMod * 0.6);
+    (0.35 + 0.65 * ease) * (1 - exitT * 0.6 * motionScale) * Math.min(1, 0.4 + energyMod * 0.6);
 
   // ── Word-level timing: approximate audio position inside the line ──────
   const lineDur = Math.max(0.001, lyric.end - lyric.start);
@@ -1369,15 +1342,16 @@ export function renderKineticType(
 
   // ── Layout: wrap to lines, then draw centred ───────────────────────────
   const maxW = w * 0.86;
-  const baseSize = Math.round(
-    clamp(Math.min(w / 15, h / 6.5), 26, 92) * dpr * (isHook ? 1.08 : 1),
-  );
+  const baseSize = Math.round(clamp(Math.min(w / 15, h / 6.5), 26, 92) * dpr * (isHook ? 1.08 : 1));
   ctx.font = `${isHook ? 700 : 600} ${baseSize}px system-ui, sans-serif`;
 
   // Word-wrap preserving per-word identity for highlight.
   const units = useWords
     ? words.map((wd) => ({ text: wd.word, start: wd.start, end: wd.end }))
-    : lyric.text.split(/\s+/).filter(Boolean).map((t) => ({ text: t }));
+    : lyric.text
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((t) => ({ text: t }));
   const lines: { text: string; words: { text: string; start?: number; end?: number }[] }[] = [];
   let cur: typeof units = [];
   let curW = 0;
@@ -1408,8 +1382,7 @@ export function renderKineticType(
     const y = li * lineH - blockH / 2 + lineH / 2;
     // Measure word widths (without trailing space) for centering + advance.
     const widths = ln.words.map((wd) => ctx.measureText(wd.text).width);
-    const fullW =
-      widths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, ln.words.length - 1);
+    const fullW = widths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, ln.words.length - 1);
     let x = -fullW / 2;
     ln.words.forEach((wd, wi) => {
       const ww = widths[wi];

@@ -20,34 +20,16 @@
  * as stale rather than serving them forever.
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  Play,
-  Pause,
-  Type,
-  RotateCcw,
-  Mic,
-  Loader2,
-  Edit3,
-  Film,
-  ChevronDown,
-} from "lucide-react";
+import { Play, Pause, Type, RotateCcw, Mic, Loader2, Edit3, Film, ChevronDown } from "lucide-react";
 import {
   kineticPresets,
   kineticPresetList,
   selectPresetForTrack,
   type LyricLine,
 } from "../visualizer/components/KineticPresets";
-import {
-  ensureAnalysis,
-  transcribeAudio,
-  getLyricsByFilename,
-} from "../../services/api";
+import { ensureAnalysis, transcribeAudio, getLyricsByFilename } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
-import {
-  groupAudioEntries,
-  parseVariantName,
-  variantLabel,
-} from "../../state/audioNaming";
+import { groupAudioEntries, parseVariantName, variantLabel } from "../../state/audioNaming";
 import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
 import {
   createDefaultLyricsData,
@@ -210,10 +192,7 @@ export function KineticTypographyPage() {
   // `libraryFiles` because the grouping needs the filename plus the computed
   // label, and deriving it here keeps the flat `libraryFiles` list intact for
   // every other consumer on this page.
-  const libraryGroups = useMemo(
-    () => groupAudioEntries(audioLibrary),
-    [audioLibrary],
-  );
+  const libraryGroups = useMemo(() => groupAudioEntries(audioLibrary), [audioLibrary]);
   // Track-lyrics library: the user's own tracks with lyrics but no LRC.
   // Selecting one previews kinetic typography in demo mode (estimated timing).
   const [libraryTracks, setLibraryTracks] = useState<TrackLyricsIndexEntry[]>([]);
@@ -268,7 +247,9 @@ export function KineticTypographyPage() {
         libraryTracksRef.current = complete;
         setLibraryTracks(complete);
       })
-      .catch(() => { void 0; });
+      .catch(() => {
+        void 0;
+      });
     // Load normalized lyrics CSV (fallback to legacy if not found)
     fetch("/track-lyrics-normalized.csv")
       .then(async (r) => r.text())
@@ -278,7 +259,9 @@ export function KineticTypographyPage() {
         fetch("/track-prompts-lyrics.csv")
           .then(async (r) => r.text())
           .then(setCsvContent)
-          .catch(() => { void 0; });
+          .catch(() => {
+            void 0;
+          });
       });
   }, []);
 
@@ -318,7 +301,7 @@ export function KineticTypographyPage() {
   // preview never advances because nothing drives `elapsed`.
   // Playback duration: real audio track first, then the lyric-library
   // preview track (estimated timing), then the 60s demo default.
-  const playbackDuration = (selectedTrack?.duration ?? libraryTrackDuration) ?? 60;
+  const playbackDuration = selectedTrack?.duration ?? libraryTrackDuration ?? 60;
   const demoDuration = playbackDuration;
   const elapsedRef = useRef(elapsed);
   const demoBaseRef = useRef(0);
@@ -404,7 +387,10 @@ export function KineticTypographyPage() {
       if (e.code === "Space") {
         e.preventDefault();
         if (audioRef.current) {
-          if (audioRef.current.paused) audioRef.current.play().catch(() => { void 0; });
+          if (audioRef.current.paused)
+            audioRef.current.play().catch(() => {
+              void 0;
+            });
           else audioRef.current.pause();
         } else {
           setIsPlaying((p) => !p);
@@ -707,7 +693,11 @@ export function KineticTypographyPage() {
   // chain once instead of leaving stale sample lyrics with source "none".
   useEffect(() => {
     if ((csvContent || libraryTracks.length > 0) && selectedTrack && lyricsSource === "none") {
-      void loadLyricsForTrack(selectedTrack.name, selectedTrack.filename, selectedTrack.duration ?? 60);
+      void loadLyricsForTrack(
+        selectedTrack.name,
+        selectedTrack.filename,
+        selectedTrack.duration ?? 60,
+      );
     }
   }, [csvContent, libraryTracks.length, selectedTrack, lyricsSource, loadLyricsForTrack]);
 
@@ -777,7 +767,10 @@ export function KineticTypographyPage() {
 
   const togglePlay = useCallback(() => {
     if (audioRef.current) {
-      if (audioRef.current.paused) audioRef.current.play().catch(() => { void 0; });
+      if (audioRef.current.paused)
+        audioRef.current.play().catch(() => {
+          void 0;
+        });
       else audioRef.current.pause();
     } else {
       setIsPlaying((p) => !p);
@@ -953,7 +946,9 @@ export function KineticTypographyPage() {
                       )}
                       {g.variants.map((v) => (
                         <option key={v.filename} value={v.filename}>
-                          {variantLabel(parseVariantName(v.filename) ?? { source: g.name, preset: v.filename })}
+                          {variantLabel(
+                            parseVariantName(v.filename) ?? { source: g.name, preset: v.filename },
+                          )}
                         </option>
                       ))}
                     </optgroup>

@@ -11,20 +11,9 @@
  * panels like RemixPanel's stem probes.
  */
 import type { ReactNode } from "react";
-import {
-  AudioLines,
-  Palette,
-  SlidersHorizontal,
-  Sparkles,
-  AudioWaveform,
-} from "lucide-react";
+import { AudioLines, Palette, SlidersHorizontal, Sparkles, AudioWaveform } from "lucide-react";
 
-export type VizInspectorTab =
-  | "scene"
-  | "tuning"
-  | "mixer"
-  | "eq"
-  | "ai";
+export type VizInspectorTab = "scene" | "tuning" | "mixer" | "eq" | "ai";
 
 const TABS: {
   id: VizInspectorTab;
@@ -50,13 +39,7 @@ interface VizInspectorProps {
   trackLoaded: boolean;
 }
 
-export function VizInspector({
-  open,
-  tab,
-  onTabChange,
-  panels,
-  trackLoaded,
-}: VizInspectorProps) {
+export function VizInspector({ open, tab, onTabChange, panels, trackLoaded }: VizInspectorProps) {
   if (!open) return null;
 
   return (
@@ -70,9 +53,7 @@ export function VizInspector({
               role="tab"
               aria-selected={tab === id}
               aria-disabled={disabled}
-              title={
-                disabled ? `${label} — load a track first` : `${label} panel`
-              }
+              title={disabled ? `${label} — load a track first` : `${label} panel`}
               className={`viz-inspector-tab ${tab === id ? "active" : ""} ${
                 disabled ? "disabled" : ""
               }`}
@@ -91,20 +72,11 @@ export function VizInspector({
           const disabled = !!needsTrack && !trackLoaded;
           const content = panels[id];
           return (
-            <div
-              key={id}
-              role="tabpanel"
-              hidden={tab !== id}
-              className="viz-inspector-panel"
-            >
+            <div key={id} role="tabpanel" hidden={tab !== id} className="viz-inspector-panel">
               {disabled ? (
-                <p className="viz-inspector-empty">
-                  Load a track to use the {label} panel.
-                </p>
+                <p className="viz-inspector-empty">Load a track to use the {label} panel.</p>
               ) : (
-                (content ?? (
-                  <p className="viz-inspector-empty">Nothing here yet.</p>
-                ))
+                (content ?? <p className="viz-inspector-empty">Nothing here yet.</p>)
               )}
             </div>
           );

@@ -42,7 +42,7 @@ export function ApiPerformanceCard() {
   });
 
   const sortedEndpoints = Array.from(endpointStats.entries()).sort(
-    (a, b) => b[1].duration - a[1].duration
+    (a, b) => b[1].duration - a[1].duration,
   );
 
   const getLatencyColor = (ms: number) => {
@@ -55,14 +55,15 @@ export function ApiPerformanceCard() {
     <Card title="API Performance" icon={<Activity size={16} className="text-violet-400" />}>
       <div className="space-y-2 max-h-64 overflow-y-auto">
         {sortedEndpoints.slice(0, 10).map(([endpoint, stats]) => (
-          <div key={endpoint} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+          <div
+            key={endpoint}
+            className="flex items-center justify-between p-2 bg-white/5 rounded-lg"
+          >
             <div className="flex-1 min-w-0">
               <div className="text-xs text-gray-300 truncate" title={endpoint}>
                 {endpoint}
               </div>
-              <div className="text-[10px] text-gray-500">
-                {stats.count} requests
-              </div>
+              <div className="text-[10px] text-gray-500">{stats.count} requests</div>
             </div>
             <div className="flex items-center gap-3">
               {stats.errors > 0 && (

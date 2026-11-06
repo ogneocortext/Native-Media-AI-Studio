@@ -158,7 +158,9 @@ export function StoryboardPage() {
             }));
           }
         })
-        .catch(() => { void 0; });
+        .catch(() => {
+          void 0;
+        });
     });
   }, [trackMetadata]);
 

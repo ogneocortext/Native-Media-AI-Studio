@@ -43,7 +43,9 @@ STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ErrorCategory(Enum):
-    RETRYABLE = "retryable"  # transient infrastructure errors, LLM throttling, temporary unavailability
+    RETRYABLE = (
+        "retryable"  # transient infrastructure errors, LLM throttling, temporary unavailability
+    )
     NON_RETRYABLE = "non_retryable"  # authentication errors, invalid inputs, permission denials
     SIDE_EFFECT_UNKNOWN = "side_effect_unknown"  # timeout after send, connection loss after commit, adapter crash before confirmation stored
 
@@ -87,8 +89,8 @@ def classify_error(exc: Exception) -> ErrorCategory:
 
 
 class CircuitState(Enum):
-    CLOSED = "closed"      # normal operation
-    OPEN = "open"          # fail fast, no calls
+    CLOSED = "closed"  # normal operation
+    OPEN = "open"  # fail fast, no calls
     HALF_OPEN = "half_open"  # probe with one call
 
 
@@ -100,8 +102,9 @@ class CircuitBreaker:
     admits one probe call. A success closes it; a failure re-opens it.
     """
 
-    def __init__(self, threshold: int = CIRCUIT_BREAKER_THRESHOLD,
-                 cooldown: float = CIRCUIT_BREAKER_COOLDOWN) -> None:
+    def __init__(
+        self, threshold: int = CIRCUIT_BREAKER_THRESHOLD, cooldown: float = CIRCUIT_BREAKER_COOLDOWN
+    ) -> None:
         self.threshold = threshold
         self.cooldown = cooldown
         self._fails = 0
@@ -157,8 +160,9 @@ async def get_circuit_breaker(name: str) -> CircuitBreaker:
 # ---------------------------------------------------------------------------
 
 
-def backoff_delay(attempt: int, *, base: float = DEFAULT_BACKOFF_BASE,
-                  cap: float = DEFAULT_BACKOFF_CAP) -> float:
+def backoff_delay(
+    attempt: int, *, base: float = DEFAULT_BACKOFF_BASE, cap: float = DEFAULT_BACKOFF_CAP
+) -> float:
     """Full-jitter exponential backoff: uniform(0, min(cap,
     base * 2^(attempt-1))).
 
@@ -191,62 +195,57 @@ async def retry_with_backoff(
         # Check circuit breaker before each attempt
         if circuit_breaker is not None:
             if not await circuit_breaker.allow():
-                raise NMAApiError(
-                    f"Circuit breaker open for {context or 'unknown'}"
-                )
+                raise NMAApiError(f"Circuit breaker open for {context or 'unknown'}")
 
         try:
             result = await fn()
-            await circuit_breaker.record_success() \
-                if circuit_breaker else None
+            await circuit_breaker.record_success() if circuit_breaker else None
             return result
         except NMAApiError as e:
             category = classify_error(e)
             last_error = e
 
             if category == ErrorCategory.NON_RETRYABLE:
-                await circuit_breaker.record_failure() \
-                    if circuit_breaker else None
+                await circuit_breaker.record_failure() if circuit_breaker else None
                 raise
             if category == ErrorCategory.SIDE_EFFECT_UNKNOWN:
                 # Side-effect unknown: only retry if idempotency key present
                 # (caller must have provided one)
                 if attempt >= max_attempts:
-                    await circuit_breaker.record_failure() \
-                        if circuit_breaker else None
+                    await circuit_breaker.record_failure() if circuit_breaker else None
                     raise
                 # Side-effect unknown: retry once with idempotency key
-                await circuit_breaker.record_failure() \
-                    if circuit_breaker else None
-                delay = backoff_delay(attempt,
-                                      base=backoff_base, cap=backoff_cap)
+                await circuit_breaker.record_failure() if circuit_breaker else None
+                delay = backoff_delay(attempt, base=backoff_base, cap=backoff_cap)
                 logger.warning(
-                    "%s side-effect-unknown error (attempt %d/%d), "
-                    "retrying in %.2fs",
-                    context or "api_call", attempt, max_attempts, delay,
+                    "%s side-effect-unknown error (attempt %d/%d), retrying in %.2fs",
+                    context or "api_call",
+                    attempt,
+                    max_attempts,
+                    delay,
                 )
                 await asyncio.sleep(delay)
                 continue
             # Retryable
             if attempt >= max_attempts:
-                await circuit_breaker.record_failure() \
-                    if circuit_breaker else None
+                await circuit_breaker.record_failure() if circuit_breaker else None
                 raise
-            await circuit_breaker.record_failure() \
-                if circuit_breaker else None
-            delay = backoff_delay(attempt, base=backoff_base,
-                                  cap=backoff_cap)
+            await circuit_breaker.record_failure() if circuit_breaker else None
+            delay = backoff_delay(attempt, base=backoff_base, cap=backoff_cap)
             # Honor Retry-After header if present
             if hasattr(e, "retry_after") and e.retry_after:
                 delay = max(delay, e.retry_after)
             logger.warning(
                 "%s retryable error (attempt %d/%d), retrying in %.2fs: %s",
-                context or "api_call", attempt, max_attempts, delay, e,
+                context or "api_call",
+                attempt,
+                max_attempts,
+                delay,
+                e,
             )
             await asyncio.sleep(delay)
 
-    raise last_error or NMAApiError(
-        f"Exhausted {max_attempts} attempts for {context}")
+    raise last_error or NMAApiError(f"Exhausted {max_attempts} attempts for {context}")
 
 
 # ---------------------------------------------------------------------------
@@ -254,8 +253,7 @@ async def retry_with_backoff(
 # ---------------------------------------------------------------------------
 
 
-def make_idempotency_key(*, tenant: str, operation: str,
-                         params: dict[str, Any]) -> str:
+def make_idempotency_key(*, tenant: str, operation: str, params: dict[str, Any]) -> str:
     """Create a stable idempotency key from tenant + operation + param hash.
 
     The key must identify the *operation*, not the *attempt*. Using a
@@ -263,9 +261,7 @@ def make_idempotency_key(*, tenant: str, operation: str,
     identical requests (even after a re-plan) share the same key.
     """
     fingerprint = hashlib.sha256(
-        json.dumps(params, sort_keys=True, separators=(",", ":")).encode(
-            "utf-8"
-        )
+        json.dumps(params, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()[:32]
     key = f"{tenant}:{operation}:{fingerprint}"
     assert len(key) <= 255, f"Idempotency key too long: {len(key)} chars"
@@ -280,10 +276,14 @@ def make_idempotency_key(*, tenant: str, operation: str,
 class NMAApiError(RuntimeError):
     """Raised when the backend API returns an error response."""
 
-    def __init__(self, message: str, *,
-                 retryable: bool = False,
-                 retry_after: float | None = None,
-                 status_code: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        retry_after: float | None = None,
+        status_code: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.retry_after = retry_after

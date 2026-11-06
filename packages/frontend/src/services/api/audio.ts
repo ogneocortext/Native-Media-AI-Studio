@@ -77,8 +77,8 @@ export interface StemSeparationResponse {
 
 export interface SeparationQualityOptions {
   mode?: "single" | "hierarchical";
-  segment_size?: number;   // seconds; clamped to the model's trained max
-  overlap?: number;        // 0.25–0.75
+  segment_size?: number; // seconds; clamped to the model's trained max
+  overlap?: number; // 0.25–0.75
   denoise?: boolean;
 }
 
@@ -261,10 +261,7 @@ export async function getCudaStatus(): Promise<{
   return res.json();
 }
 
-export async function analyzeAudio(
-  file: File,
-  backend = "sonara",
-): Promise<AudioAnalysisResult> {
+export async function analyzeAudio(file: File, backend = "sonara"): Promise<AudioAnalysisResult> {
   const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
@@ -401,7 +398,7 @@ export async function listAudioFiles(): Promise<
     throw new Error(err.detail ?? "Failed to list audio files");
   }
   const data = await res.json();
-  return Array.isArray(data) ? data : data?.files ?? [];
+  return Array.isArray(data) ? data : (data?.files ?? []);
 }
 
 export interface AudioBackendsResponse {
@@ -910,9 +907,7 @@ export interface MasterResponse {
 }
 
 /** Measurement-only: LUFS / true peak / LRA of a file (preview, no write). */
-export async function measureMasterLoudness(
-  filename: string,
-): Promise<MasterMeasureResponse> {
+export async function measureMasterLoudness(filename: string): Promise<MasterMeasureResponse> {
   const base = getApiBase();
   const res = await fetchWithTimeout(
     `${base}/api/audio/master/measure/${encodeURIComponent(filename)}`,

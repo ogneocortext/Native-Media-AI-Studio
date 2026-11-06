@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaFile } from "../hooks/useMediaFiles";
 import type { Collection, Tag } from "../../../services/api";
-import {
-  formatFileSize,
-  formatDateTime,
-} from "../../../utils/format";
+import { formatFileSize, formatDateTime } from "../../../utils/format";
 import { getOutputUrl } from "../../../utils/url";
 import { Heart, Pause, Play, Image, RefreshCw } from "lucide-react";
 import { getMediaWaveform } from "../../../services/api/media";
@@ -93,58 +90,55 @@ function WaveformVisualizer({
   const rafRef = useRef<number | null>(null);
   const waveformDataRef = useRef<number[] | null>(null);
 
-  const drawWaveform = useCallback(
-    (data: number[], playheadX?: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+  const drawWaveform = useCallback((data: number[], playheadX?: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-      ctx.scale(dpr, dpr);
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.scale(dpr, dpr);
 
-      const width = canvas.width / dpr;
-      const height = canvas.height / dpr;
-      ctx.clearRect(0, 0, width, height);
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    ctx.clearRect(0, 0, width, height);
 
-      // Gradient fill for a professional look
-      const gradient = ctx.createLinearGradient(0, 0, width, 0);
-      gradient.addColorStop(0, "rgba(139, 92, 246, 0.8)");
-      gradient.addColorStop(0.5, "rgba(168, 85, 247, 0.6)");
-      gradient.addColorStop(1, "rgba(192, 132, 252, 0.4)");
-      ctx.fillStyle = gradient;
+    // Gradient fill for a professional look
+    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+    gradient.addColorStop(0, "rgba(139, 92, 246, 0.8)");
+    gradient.addColorStop(0.5, "rgba(168, 85, 247, 0.6)");
+    gradient.addColorStop(1, "rgba(192, 132, 252, 0.4)");
+    ctx.fillStyle = gradient;
 
-      const sliceWidth = width / data.length;
-      let x = 0;
-      for (let i = 0; i < data.length; i++) {
-        const v = Math.abs(data[i]) / 128.0;
-        const barHeight = Math.max(2, v * (height / 2));
-        const y = height / 2 - barHeight / 2;
-        ctx.fillRect(x, y, Math.max(1, sliceWidth - 0.5), barHeight);
-        x += sliceWidth;
-      }
+    const sliceWidth = width / data.length;
+    let x = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = Math.abs(data[i]) / 128.0;
+      const barHeight = Math.max(2, v * (height / 2));
+      const y = height / 2 - barHeight / 2;
+      ctx.fillRect(x, y, Math.max(1, sliceWidth - 0.5), barHeight);
+      x += sliceWidth;
+    }
 
-      // Draw playhead line when playing
-      if (playheadX != null) {
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(playheadX, 0);
-        ctx.lineTo(playheadX, height);
-        ctx.stroke();
+    // Draw playhead line when playing
+    if (playheadX != null) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(playheadX, 0);
+      ctx.lineTo(playheadX, height);
+      ctx.stroke();
 
-        // Playhead dot at top
-        ctx.fillStyle = "rgba(255, 255, 255, 1)";
-        ctx.beginPath();
-        ctx.arc(playheadX, 4, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    },
-    [],
-  );
+      // Playhead dot at top
+      ctx.fillStyle = "rgba(255, 255, 255, 1)";
+      ctx.beginPath();
+      ctx.arc(playheadX, 4, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, []);
 
   // Animation loop: reads currentTime directly from the audio element
   // so the playhead moves smoothly without depending on React state updates.
@@ -290,9 +284,7 @@ export function FileCard({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const sizeLabel =
-    file.size_bytes != null
-      ? formatFileSize(file.size_bytes)
-      : formatFileSize(file.size ?? 0);
+    file.size_bytes != null ? formatFileSize(file.size_bytes) : formatFileSize(file.size ?? 0);
   const typeColor = FILE_TYPE_COLORS[file.file_type] || "bg-gray-500/20";
   const typeIcon = FILE_TYPE_ICONS[file.file_type] || "📁";
   // audioEntryLabel handles unnamed files (bare hash/uuid names) by rendering
@@ -300,9 +292,7 @@ export function FileCard({
   // and is used for rename so the real file is untouched.
   const displayName = isAudio ? audioEntryLabel(file.filename) : file.filename;
   // Parent folder, used to disambiguate same-named files in different folders.
-  const folder = file.relative_path
-    ? file.relative_path.split("/").slice(0, -1).join("/")
-    : "";
+  const folder = file.relative_path ? file.relative_path.split("/").slice(0, -1).join("/") : "";
   const durationLabel = file.duration != null ? file.duration.toFixed(0) + "s" : "";
 
   const handleCardClick = () => {
@@ -416,7 +406,9 @@ export function FileCard({
                     const audio = audioRef.current;
                     if (!audio) return;
                     if (audio.paused) {
-                      audio.play().catch(() => { void 0; });
+                      audio.play().catch(() => {
+                        void 0;
+                      });
                     } else {
                       audio.pause();
                     }
@@ -459,7 +451,9 @@ export function FileCard({
                   const video = videoRef.current;
                   if (!video) return;
                   if (video.paused) {
-                    video.play().catch(() => { void 0; });
+                    video.play().catch(() => {
+                      void 0;
+                    });
                     setIsVideoPlaying(true);
                   } else {
                     video.pause();
@@ -542,7 +536,9 @@ export function FileCard({
               </button>
             </div>
           ) : (
-            <div className={`w-full h-full bg-black/40 flex items-center justify-center border border-gray-700/50 group`}>
+            <div
+              className={`w-full h-full bg-black/40 flex items-center justify-center border border-gray-700/50 group`}
+            >
               <span className="text-3xl">{typeIcon}</span>
               <button
                 onClick={(e) => {
@@ -580,17 +576,12 @@ export function FileCard({
               {formatDateTime(file.modified_at || file.modified_time || "")}
             </time>
           </div>
-          {isAudio &&
-            folder &&
-            collisionNames?.has(displayName) && (
-              <div
-                className="flex items-center gap-1 text-[10px] text-muted truncate"
-                title={folder}
-              >
-                <span className="mr-0.5 opacity-50">in</span>
-                {folder}
-              </div>
-            )}
+          {isAudio && folder && collisionNames?.has(displayName) && (
+            <div className="flex items-center gap-1 text-[10px] text-muted truncate" title={folder}>
+              <span className="mr-0.5 opacity-50">in</span>
+              {folder}
+            </div>
+          )}
 
           {/* Tag chips */}
           {tags.length > 0 && (

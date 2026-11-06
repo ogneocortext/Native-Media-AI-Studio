@@ -44,36 +44,26 @@ export function GenerationTimingCard({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Queue Wait</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatTime(queueWaitTime)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatTime(queueWaitTime)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Model Load</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatTime(modelLoadTime)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatTime(modelLoadTime)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Inference</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatTime(inferenceTime)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatTime(inferenceTime)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Post-Process</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {formatTime(postProcessTime)}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{formatTime(postProcessTime)}</span>
         </div>
         <div className="flex items-center justify-between border-t border-white/5 pt-2 mt-2">
           <span className="text-xs text-gray-400 flex items-center gap-1">
             <Cpu size={10} />
             VRAM Peak
           </span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {vramPeak.toFixed(0)} MB
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{vramPeak.toFixed(0)} MB</span>
         </div>
       </div>
     </Card>

@@ -21,7 +21,7 @@ export function Pagination({
         onPageChange(page);
       }
     },
-    [totalPages, onPageChange]
+    [totalPages, onPageChange],
   );
 
   const goToNext = useCallback(() => {
@@ -41,8 +41,8 @@ export function Pagination({
   return (
     <div className="flex items-center justify-between px-4 py-2 border-t border-white/10">
       <div className="text-xs text-muted">
-        {((currentPage - 1) * pageSize) + 1}-
-        {Math.min(currentPage * pageSize, totalCount)} of {totalCount}
+        {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalCount)} of{" "}
+        {totalCount}
       </div>
       <div className="flex gap-2">
         <button
@@ -57,9 +57,7 @@ export function Pagination({
             key={page}
             onClick={() => goToPage(page)}
             className={`px-2 py-1 text-xs rounded ${
-              page === currentPage
-                ? "bg-primary/20 text-primary"
-                : "bg-black/30 hover:bg-black/50"
+              page === currentPage ? "bg-primary/20 text-primary" : "bg-black/30 hover:bg-black/50"
             }`}
           >
             {page}

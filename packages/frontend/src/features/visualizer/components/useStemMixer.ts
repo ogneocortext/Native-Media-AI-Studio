@@ -92,19 +92,19 @@ function gainMapToLinear(dbMap: Record<StemName, number>): Record<StemName, numb
  * time-domain buffer without blocking the render thread.
  */
 export interface StemQuality {
-  bleedScore: number;        // 0-1, higher = more cross-stem bleed
-  frequencyPurity: number;   // 0-1, how much energy is in expected band
-  monoCompatible: boolean;   // false = likely phase/mono problem
-  warning: string | null;    // human-readable warning, null when clean
+  bleedScore: number; // 0-1, higher = more cross-stem bleed
+  frequencyPurity: number; // 0-1, how much energy is in expected band
+  monoCompatible: boolean; // false = likely phase/mono problem
+  warning: string | null; // human-readable warning, null when clean
 }
 
 /** Expected frequency band (Hz) for each stem — where most of its energy
  *  should live. Energy outside these bands suggests bleed from other stems. */
 const STEM_EXPECTED_BAND: Record<StemName, [number, number]> = {
-  vocals: [300, 3000],   // voice fundamental + formants
-  drums:  [60, 250],     // kick + snare body
-  bass:   [40, 200],     // bass guitar / synth fundamental
-  other:  [200, 4000],   // guitars, keys, pads
+  vocals: [300, 3000], // voice fundamental + formants
+  drums: [60, 250], // kick + snare body
+  bass: [40, 200], // bass guitar / synth fundamental
+  other: [200, 4000], // guitars, keys, pads
 };
 
 /** FFT bin index for a frequency, given the analyser's sample rate and fftSize. */
@@ -213,8 +213,8 @@ export function useStemMixer({
   // Linear gains for the audio graph, derived from gainsDb. Kept in sync by
   // setVolumeDb / toggleMute / applyPreset / resetGains rather than derived in
   // render, so the WebAudio write happens exactly once per change.
-  const [volumes, setVolumes] = useState<Record<StemName, number>>(
-    () => gainMapToLinear(DEFAULT_STEM_GAINS_DB),
+  const [volumes, setVolumes] = useState<Record<StemName, number>>(() =>
+    gainMapToLinear(DEFAULT_STEM_GAINS_DB),
   );
   const [muted, setMuted] = useState<Record<StemName, boolean>>({
     vocals: false,
@@ -233,9 +233,7 @@ export function useStemMixer({
   const rafRef = useRef<number>(0);
   const startedRef = useRef(false);
   const trackRef = useRef<string | null>(null);
-  const stemQualityRef = useRef<Record<StemName, StemQuality> | undefined>(
-    undefined,
-  );
+  const stemQualityRef = useRef<Record<StemName, StemQuality> | undefined>(undefined);
 
   // New track → drop previous stems/graph so nothing stale survives a switch.
   useEffect(() => {
@@ -308,8 +306,7 @@ export function useStemMixer({
     const created: LoadedStem[] = [];
     void (() => {
       try {
-        const ctx =
-          sharedAudioContext ?? (new AudioContext({ renderSizeHint: "hardware" } as any));
+        const ctx = sharedAudioContext ?? new AudioContext({ renderSizeHint: "hardware" } as any);
         ctxRef.current = ctx;
         for (const name of STEM_NAMES) {
           const raw = stems[name];
@@ -388,11 +385,7 @@ export function useStemMixer({
       }
       // Restore the main track's output when stems are released.
       if (mainGainRef?.current) {
-        mainGainRef.current.gain.setTargetAtTime(
-          1,
-          mainGainRef.current.context.currentTime,
-          0.06,
-        );
+        mainGainRef.current.gain.setTargetAtTime(1, mainGainRef.current.context.currentTime, 0.06);
       } else {
         const main = document.querySelector<HTMLAudioElement>("audio[data-main-player]");
         if (main) main.muted = false;
@@ -459,7 +452,10 @@ export function useStemMixer({
         if (Math.abs(stem.element.currentTime - main.currentTime) > 0.2) {
           stem.element.currentTime = main.currentTime;
         }
-        if (stem.element.paused) stem.element.play().catch(() => { void 0; });
+        if (stem.element.paused)
+          stem.element.play().catch(() => {
+            void 0;
+          });
       }
       // Blend the main track down (not mute) when stems are active so the
       // original stereo imaging and mastering survive underneath the widened
@@ -538,19 +534,16 @@ export function useStemMixer({
     [applyMixerState, volumes],
   );
 
-  const setStemEQ = useCallback(
-    (name: StemName, bands: EQBand[]) => {
-      setEqBands((prev) => {
-        const next = { ...prev, [name]: bands };
-        const stem = loadedRef.current.find((s) => s.name === name);
-        if (stem?.eq) {
-          stem.eq.setBands(bands);
-        }
-        return next;
-      });
-    },
-    [],
-  );
+  const setStemEQ = useCallback((name: StemName, bands: EQBand[]) => {
+    setEqBands((prev) => {
+      const next = { ...prev, [name]: bands };
+      const stem = loadedRef.current.find((s) => s.name === name);
+      if (stem?.eq) {
+        stem.eq.setBands(bands);
+      }
+      return next;
+    });
+  }, []);
 
   // Expose per-stem EQ presets through the hook return.
   return {

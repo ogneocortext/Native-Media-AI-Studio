@@ -174,7 +174,9 @@ export function resolveMotion(
       history.bassTrigger.update(input.bass, dtSec, nowSec),
       history.midTrigger.update(input.mid, dtSec, nowSec),
       history.highTrigger.update(input.high, dtSec, nowSec),
-    ) * profile.transientGain * gain;
+    ) *
+    profile.transientGain *
+    gain;
 
   // Driver dominance: the loudest onset owns global motion, so two stems can
   // never drive the same spatial vector at once.
@@ -189,12 +191,7 @@ export function resolveMotion(
   const anticipation =
     options.anticipationEnabled === false
       ? { scale: 1, orbitSpeed: 1, snapped: false }
-      : anticipationContract(
-          nowSec,
-          input.nextBeat ?? null,
-          DEFAULT_ANTICIPATION,
-          bpm,
-        );
+      : anticipationContract(nowSec, input.nextBeat ?? null, DEFAULT_ANTICIPATION, bpm);
   const freeze = preDropFreeze(nowSec, input.nextDrop ?? null, DEFAULT_PRE_DROP_FREEZE, bpm);
   // `Infinity` = "no gate": `subBassSwell` expects time *since the swell began*,
   // which is not a quantity the driver has. Passing the absolute audio clock
@@ -217,9 +214,7 @@ export function resolveMotion(
 
   const motionMultiplier = freeze.motionMultiplier;
   // The pre-drop vacuum scales *every* kinematic channel toward rest at once.
-  const scale = squashFromImpulse(impulse).map(
-    (v) => 1 + (v - 1) * motionMultiplier,
-  ) as Vec3;
+  const scale = squashFromImpulse(impulse).map((v) => 1 + (v - 1) * motionMultiplier) as Vec3;
   // ...including the camera. A frozen scene that keeps drifting is the
   // "unanchored drunk camera" tell the rig split exists to prevent, and a
   // freeze that only touched the mesh would read as a bug, not as intent.

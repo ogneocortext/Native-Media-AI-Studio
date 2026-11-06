@@ -105,7 +105,7 @@ export function FileUploadZone({
           <div className="file-upload-compact-inner">
             <Icon size={16} className="file-upload-icon" />
             <span className="file-upload-compact-text">
-              {displayFile ? displayFile.name : title ?? config.defaultTitle}
+              {displayFile ? displayFile.name : (title ?? config.defaultTitle)}
             </span>
           </div>
         ) : (
@@ -114,7 +114,7 @@ export function FileUploadZone({
               <Icon size={32} className="file-upload-icon" />
             </div>
             <p className="file-upload-title">
-              {isDragging ? "Drop to upload" : title ?? config.defaultTitle}
+              {isDragging ? "Drop to upload" : (title ?? config.defaultTitle)}
             </p>
             <p className="file-upload-subtitle">{subtitle ?? config.defaultSubtitle}</p>
           </>

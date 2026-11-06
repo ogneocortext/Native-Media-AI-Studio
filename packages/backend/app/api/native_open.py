@@ -94,10 +94,18 @@ async def open_in_blender(payload: dict):
                         import asyncio as _asyncio3
 
                         from ..core.database import log_native_open as _logmcp
-                        await _asyncio3.to_thread(_logmcp, rel, src.name, "blender", "blender-mcp", success=True)
+
+                        await _asyncio3.to_thread(
+                            _logmcp, rel, src.name, "blender", "blender-mcp", success=True
+                        )
                     except Exception:
                         pass
-                    return {"success": True, "method": "blender-mcp", "path": str(src), "message": "Sent to running Blender via MCP"}
+                    return {
+                        "success": True,
+                        "method": "blender-mcp",
+                        "path": str(src),
+                        "message": "Sent to running Blender via MCP",
+                    }
             except Exception:
                 pass
         finally:
@@ -107,15 +115,22 @@ async def open_in_blender(payload: dict):
 
     blender = _find_blender()
     if not blender:
-        raise HTTPException(status_code=500, detail="Blender not found -- install at C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe or add to PATH")
+        raise HTTPException(
+            status_code=500,
+            detail="Blender not found -- install at C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe or add to PATH",
+        )
 
     # Launch Blender with a small Python snippet that imports the GLB
     # We write a temp .py that imports the file so Blender opens with it loaded
     try:
         import tempfile
         import textwrap
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tf:
-            tf.write(textwrap.dedent(f"""
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as tf:
+            tf.write(
+                textwrap.dedent(f"""
 import bpy
 import pathlib
 path = pathlib.Path(r"{src.as_posix()}")
@@ -138,26 +153,48 @@ try:
                     break
 except Exception as e:
     print("Blender import error:", e)
-"""))
+""")
+            )
             script = tf.name
 
         # Use Popen so backend doesn't block
-        proc = subprocess.Popen([blender, "--python", script, "--", str(src)], creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, "DETACHED_PROCESS") else 0)
+        proc = subprocess.Popen(
+            [blender, "--python", script, "--", str(src)],
+            creationflags=subprocess.DETACHED_PROCESS
+            if hasattr(subprocess, "DETACHED_PROCESS")
+            else 0,
+        )
         # Persist to DB (applicable: audit trail, recently opened, dedup)
         try:
             import asyncio as _asyncio
 
             from ..core.database import log_native_open as _log
+
             await _asyncio.to_thread(_log, rel, src.name, "blender", "launch", success=True)
         except Exception as e:
             logger.debug("native open DB log skipped: %s", e)
-        return {"success": True, "method": "launch", "blender": blender, "path": str(src), "pid": proc.pid, "message": "Launched Blender with model"}
+        return {
+            "success": True,
+            "method": "launch",
+            "blender": blender,
+            "path": str(src),
+            "pid": proc.pid,
+            "message": "Launched Blender with model",
+        }
     except Exception as e:
         try:
             import asyncio as _asyncio2
 
             from ..core.database import log_native_open as _log2
-            await _asyncio2.to_thread(_log2, rel, src.name if 'src' in locals() else rel, "blender", "launch", success=False)
+
+            await _asyncio2.to_thread(
+                _log2,
+                rel,
+                src.name if "src" in locals() else rel,
+                "blender",
+                "launch",
+                success=False,
+            )
         except Exception:
             pass
         logger.error("Failed to launch Blender: %s", e, exc_info=True)
@@ -189,6 +226,7 @@ async def open_in_unity(payload: dict):
             import asyncio as _asyncio4
 
             from ..core.database import log_native_open as _logu
+
             await _asyncio4.to_thread(_logu, rel, src.name, "unity", "copy", success=True)
         except Exception:
             pass
@@ -197,7 +235,10 @@ async def open_in_unity(payload: dict):
             import asyncio as _asyncio5
 
             from ..core.database import log_native_open as _logu2
-            await _asyncio5.to_thread(_logu2, rel, src.name if 'src' in locals() else rel, "unity", "copy", success=False)
+
+            await _asyncio5.to_thread(
+                _logu2, rel, src.name if "src" in locals() else rel, "unity", "copy", success=False
+            )
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=f"Copy failed: {e}") from e
@@ -206,17 +247,24 @@ async def open_in_unity(payload: dict):
     unity_refreshed = False
     try:
         # Ping Unity bridge through go-gateway
-        ping_resp = await proxy_request("unity", "/api/exec", method="POST", json_body={
-            "command": "editor_status",
-            "parameters": {}
-        })
+        ping_resp = await proxy_request(
+            "unity",
+            "/api/exec",
+            method="POST",
+            json_body={"command": "editor_status", "parameters": {}},
+        )
         if ping_resp is not None and ping_resp.status_code == 200:
             unity_refreshed = True
             # Trigger AssetDatabase refresh if editor is responsive
-            refresh_resp = await proxy_request("unity", "/api/exec", method="POST", json_body={
-                "command": "execute_code",
-                "parameters": {"code": "UnityEditor.AssetDatabase.Refresh();"}
-            })
+            refresh_resp = await proxy_request(
+                "unity",
+                "/api/exec",
+                method="POST",
+                json_body={
+                    "command": "execute_code",
+                    "parameters": {"code": "UnityEditor.AssetDatabase.Refresh();"},
+                },
+            )
             if refresh_resp is not None and refresh_resp.status_code == 200:
                 unity_refreshed = True
     except Exception as e:
@@ -228,7 +276,8 @@ async def open_in_unity(payload: dict):
         "source": str(src),
         "unity_path": str(dest.relative_to(PROJECT_ROOT)),
         "absolute_unity_path": str(dest),
-        "message": "Copied to Assets/GeneratedModels -- open Unity Editor at unity-project-mcp to see it" + (" (auto-refreshed)" if unity_refreshed else ""),
+        "message": "Copied to Assets/GeneratedModels -- open Unity Editor at unity-project-mcp to see it"
+        + (" (auto-refreshed)" if unity_refreshed else ""),
     }
 
 
@@ -239,7 +288,11 @@ async def native_open_status():
     unity = UNITY_PROJECT.exists()
     return {
         "blender": {"available": bool(blender), "path": blender},
-        "unity": {"available": unity, "project": str(UNITY_PROJECT), "generated_dir": str(UNITY_ASSETS_GENERATED)},
+        "unity": {
+            "available": unity,
+            "project": str(UNITY_PROJECT),
+            "generated_dir": str(UNITY_ASSETS_GENERATED),
+        },
     }
 
 
@@ -250,6 +303,7 @@ async def native_open_history(app: str | None = None, limit: int = 20):
         import asyncio as _asyncio6
 
         from ..core.database import list_native_opens
+
         rows = await _asyncio6.to_thread(list_native_opens, app, limit)
         return {"results": rows, "count": len(rows)}
     except Exception as e:

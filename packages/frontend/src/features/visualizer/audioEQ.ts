@@ -177,26 +177,26 @@ export function createEQ(ctx: AudioContext, bands: EQBand[] = []): EQInstance {
     );
   };
 
-    const dispose = () => {
+  const dispose = () => {
+    try {
+      input.disconnect();
+    } catch {
+      // ignore
+    }
+    try {
+      output.disconnect();
+    } catch {
+      // ignore
+    }
+    for (const f of filters) {
       try {
-        input.disconnect();
+        f.disconnect();
       } catch {
         // ignore
       }
-      try {
-        output.disconnect();
-      } catch {
-        // ignore
-      }
-      for (const f of filters) {
-        try {
-          f.disconnect();
-        } catch {
-          // ignore
-        }
-      }
-      filters.length = 0;
-    };
+    }
+    filters.length = 0;
+  };
 
   // Initialize with requested bands
   setBands(bands);

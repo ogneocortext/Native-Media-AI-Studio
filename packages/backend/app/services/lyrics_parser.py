@@ -3,6 +3,7 @@ Lyrics parsing utilities.
 
 Handles parsing of LRC format and other lyric formats into structured data.
 """
+
 import operator
 
 
@@ -14,6 +15,7 @@ def parse_lrc_to_lines(lrc_content: str) -> list[dict]:
     Returns list of dicts with keys: start_time, end_time, text
     """
     import re
+
     lines = []
     timestamp_regex = r"\[(\d{1,3}):(\d{2})[.:](\d{1,3})\]"
     offset_ms = 0
@@ -49,11 +51,13 @@ def parse_lrc_to_lines(lrc_content: str) -> list[dict]:
             # Clamp negative offset starts to 0
             if start < 0:
                 start = 0
-            lines.append({
-                "start_time": round(start, 2),
-                "end_time": round(start + 5, 2),
-                "text": text,
-            })
+            lines.append(
+                {
+                    "start_time": round(start, 2),
+                    "end_time": round(start + 5, 2),
+                    "text": text,
+                }
+            )
 
     lines.sort(key=operator.itemgetter("start_time"))
     # Update end times based on next line's start (cap to avoid unreadably long lines)
@@ -100,7 +104,7 @@ def parse_word_level_lrc(lrc_content: str) -> list[dict]:
         line_start = w_min * 60 + w_sec + fractional
 
         # Extract word timings
-        word_line = line[line_match.end():]
+        word_line = line[line_match.end() :]
         words = []
         for word_match in re.findall(word_timestamp_regex, word_line):
             # findall returns tuple (mm, ss, frac, text)
@@ -119,11 +123,13 @@ def parse_word_level_lrc(lrc_content: str) -> list[dict]:
         if words:
             text = " ".join(w["word"] for w in words)
             end_time = max(w["start_time"] for w in words) + 0.5
-            lines.append({
-                "start_time": round(line_start, 2),
-                "end_time": round(end_time, 2),
-                "text": text,
-            })
+            lines.append(
+                {
+                    "start_time": round(line_start, 2),
+                    "end_time": round(end_time, 2),
+                    "text": text,
+                }
+            )
 
     return lines
 

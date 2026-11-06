@@ -256,9 +256,7 @@ def _last_activity(conn: sqlite3.Connection) -> dict[str, str | None]:
         """Return the latest activity timestamp, preferring ts_iso but falling
         back to converting ts_ms when ts_iso is NULL."""
         try:
-            row = conn.execute(
-                f'SELECT MAX("ts_iso"), MAX("ts_ms") FROM "{table}"'
-            ).fetchone()
+            row = conn.execute(f'SELECT MAX("ts_iso"), MAX("ts_ms") FROM "{table}"').fetchone()
             if row is None:
                 return None
             ts_iso, ts_ms = row

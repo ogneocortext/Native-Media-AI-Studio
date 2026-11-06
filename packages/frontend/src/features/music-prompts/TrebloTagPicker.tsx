@@ -88,12 +88,15 @@ export function TrebloTagPicker() {
     const url = q
       ? `${getApiBase()}/api/treblo-tags/suno/production-vocab?q=${encodeURIComponent(q)}&limit=24`
       : `${getApiBase()}/api/treblo-tags/suno/production-vocab?limit=12`;
-    const timer = window.setTimeout(() => {
-      fetch(url)
-        .then(async (r) => readJson<{ results: string[] }>(r))
-        .then((d) => !cancelled && setProduction(d.results ?? []))
-        .catch(() => !cancelled && setProduction([]));
-    }, q ? 180 : 0);
+    const timer = window.setTimeout(
+      () => {
+        fetch(url)
+          .then(async (r) => readJson<{ results: string[] }>(r))
+          .then((d) => !cancelled && setProduction(d.results ?? []))
+          .catch(() => !cancelled && setProduction([]));
+      },
+      q ? 180 : 0,
+    );
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -212,8 +215,9 @@ export function TrebloTagPicker() {
           ones, and copy them as a comma-separated string.
         </p>
         <p className="text-xs text-gray-500">
-          Paste into Treblo&rsquo;s style field in <strong className="text-gray-400">Advanced</strong>{" "}
-          mode, or straight into Suno&rsquo;s style field &mdash; both take plain comma-separated tags.
+          Paste into Treblo&rsquo;s style field in{" "}
+          <strong className="text-gray-400">Advanced</strong> mode, or straight into Suno&rsquo;s
+          style field &mdash; both take plain comma-separated tags.
         </p>
       </header>
 
@@ -231,8 +235,7 @@ export function TrebloTagPicker() {
       {!query.trim() && !selected.length && (
         <div className="space-y-2">
           <p className="text-xs text-gray-500">
-            Start with a genre, or search any mood, era or instrument. ↑ ↓ to move,
-            Enter to add.
+            Start with a genre, or search any mood, era or instrument. ↑ ↓ to move, Enter to add.
           </p>
           <ul className="flex flex-wrap gap-1.5">
             {STARTER_TAGS.map((tag) => (
@@ -253,7 +256,9 @@ export function TrebloTagPicker() {
       {query.trim() && (
         <div className="space-y-1">
           <p className="text-xs text-gray-500">
-            {searching ? "Searching…" : `${results.length} result${results.length === 1 ? "" : "s"}`}
+            {searching
+              ? "Searching…"
+              : `${results.length} result${results.length === 1 ? "" : "s"}`}
           </p>
           <ul
             className="max-h-56 overflow-y-auto rounded border border-gray-800"
@@ -346,9 +351,7 @@ export function TrebloTagPicker() {
 
       {unfilled.length > 0 && (
         <div className="space-y-1">
-          <h3 className="text-xs text-gray-500">
-            Related to “{selected[selected.length - 1]}”
-          </h3>
+          <h3 className="text-xs text-gray-500">Related to “{selected[selected.length - 1]}”</h3>
           <ul className="flex flex-wrap gap-1.5">
             {unfilled.map((tag) => (
               <li key={tag}>
@@ -399,7 +402,11 @@ export function TrebloTagPicker() {
         </div>
       )}
 
-      {status && <p role="status" className="text-xs text-amber-400">{status}</p>}
+      {status && (
+        <p role="status" className="text-xs text-amber-400">
+          {status}
+        </p>
+      )}
     </section>
   );
 }

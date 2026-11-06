@@ -41,13 +41,15 @@ _WORD_RE = re.compile(r"[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*")
 
 #: Terms carrying no retrieval signal here. Deliberately short: an aggressive list
 #: starts eating real queries ("can", "use", "get").
-STOPWORDS = frozenset("""
+STOPWORDS = frozenset(
+    """
 a an the and or of to in on for with is are was were be been this that these those
 it as at by from not no but if then than so such can could should would will may
 might must do does did done have has had having you your we our they their he she
 i me my us them what which who whom when where why how all any both each few more
 most other some only own same too very s t just don now
-""".split())
+""".split()
+)
 
 #: BM25 parameters: k1 controls term-frequency saturation, b the length
 #: normalisation. Standard defaults, known to work well for short documents.

@@ -23,6 +23,7 @@ STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 class AgentStateData(BaseModel):
     """Structured state for an agent session."""
+
     session_id: str
     created_at: str
     updated_at: str
@@ -68,9 +69,7 @@ class AgentState:
     def save(self) -> AgentState:
         """Persist state to disk."""
         self.data.updated_at = datetime.now(UTC).isoformat()
-        self.state_path.write_text(
-            self.data.model_dump_json(indent=2), encoding="utf-8"
-        )
+        self.state_path.write_text(self.data.model_dump_json(indent=2), encoding="utf-8")
         return self
 
     def update(self, **kwargs: Any) -> AgentState:
@@ -89,27 +88,28 @@ class AgentState:
 
     def add_error(self, message: str) -> None:
         errors = list(self.data.errors)
-        errors.append({"time": datetime.now(UTC).isoformat(),
-                       "message": message})
+        errors.append({"time": datetime.now(UTC).isoformat(), "message": message})
         self.data.errors = errors[-50:]  # keep last 50
         self.save()
 
     def add_warning(self, message: str) -> None:
         warnings = list(self.data.warnings)
-        warnings.append({"time": datetime.now(UTC).isoformat(),
-                         "message": message})
+        warnings.append({"time": datetime.now(UTC).isoformat(), "message": message})
         self.data.warnings = warnings[-50:]
         self.save()
 
-    def add_generated_asset(self, asset_type: str, path: str,
-                            metadata: dict[str, Any] | None = None) -> None:
+    def add_generated_asset(
+        self, asset_type: str, path: str, metadata: dict[str, Any] | None = None
+    ) -> None:
         assets = list(self.data.generated_assets)
-        assets.append({
-            "type": asset_type,
-            "path": path,
-            "metadata": metadata or {},
-            "created_at": datetime.now(UTC).isoformat(),
-        })
+        assets.append(
+            {
+                "type": asset_type,
+                "path": path,
+                "metadata": metadata or {},
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
         self.data.generated_assets = assets
         self.save()
 

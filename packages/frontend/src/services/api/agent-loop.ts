@@ -23,12 +23,7 @@ import {
   type ChatMessage,
   type ToolDefinition,
 } from "./ollama";
-import {
-  skillsList,
-  executeTool,
-  type ExecuteToolResponse,
-  type SkillInfo,
-} from "./mcp-skills";
+import { skillsList, executeTool, type ExecuteToolResponse, type SkillInfo } from "./mcp-skills";
 import { getAtomicChatStatus } from "./integrations";
 import { getLoadedModels } from "./diagnostics";
 
@@ -59,10 +54,16 @@ export interface AgentLoopOptions {
 function stripMarkdownFences(content: string): string {
   const code = content.trim();
   if (code.startsWith("```")) {
-    return code.replace(/^```(?:\w+)?\s*/i, "").replace(/\s*```$/, "").trim();
+    return code
+      .replace(/^```(?:\w+)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
   }
   if (code.startsWith("~~~")) {
-    return code.replace(/^~~~(?:\w+)?\s*/i, "").replace(/\s*~~~$/, "").trim();
+    return code
+      .replace(/^~~~(?:\w+)?\s*/i, "")
+      .replace(/\s*~~~$/, "")
+      .trim();
   }
   return code;
 }
@@ -90,23 +91,19 @@ const MODEL_SELECTION_TTL_MS = 30_000;
  * @param preferred - Optional override model to use when nothing is resident.
  * @returns The model name to use.
  */
-export async function selectModel(
-  taskType = "default",
-  preferred?: string,
-): Promise<string> {
+export async function selectModel(taskType = "default", preferred?: string): Promise<string> {
   // Return cached result if still valid
   const now = Date.now();
   if (modelSelectionCache && now < modelSelectionCache.expiresAt) {
     return modelSelectionCache.model;
   }
 
-  const [ollamaStatus, atomicStatus, loadedModels, installedModels] =
-    await Promise.allSettled([
-      ollamaEngineStatus(),
-      getAtomicChatStatus(),
-      getLoadedModels(),
-      getOllamaModels(false),
-    ]);
+  const [ollamaStatus, atomicStatus, loadedModels, installedModels] = await Promise.allSettled([
+    ollamaEngineStatus(),
+    getAtomicChatStatus(),
+    getLoadedModels(),
+    getOllamaModels(false),
+  ]);
 
   const installed: OllamaModel[] =
     installedModels.status === "fulfilled" ? installedModels.value : [];
@@ -178,8 +175,7 @@ export async function selectModel(
         case "vision": {
           // Prefer verified vision-capable installed models
           const visionCandidates = installed.filter(
-            (m) =>
-              m.supports_vision && m.is_available !== false && m.verified,
+            (m) => m.supports_vision && m.is_available !== false && m.verified,
           );
           if (visionCandidates.length > 0) {
             const model = visionCandidates[0].name;
@@ -190,9 +186,7 @@ export async function selectModel(
             return model;
           }
           // Fall back to any vision-capable installed model
-          const anyVision = installed.find(
-            (m) => m.supports_vision && m.is_available !== false,
-          );
+          const anyVision = installed.find((m) => m.supports_vision && m.is_available !== false);
           if (anyVision) {
             modelSelectionCache = {
               model: anyVision.name,
@@ -236,9 +230,7 @@ export async function selectModel(
             };
             return best.best;
           }
-          const anyTool = installed.find(
-            (m) => m.supports_tools && m.is_available !== false,
-          );
+          const anyTool = installed.find((m) => m.supports_tools && m.is_available !== false);
           if (anyTool) {
             modelSelectionCache = {
               model: anyTool.name,
@@ -319,8 +311,7 @@ function skillsToToolDefinitions(skills: SkillInfo[]): ToolDefinition[] {
     function: {
       name: `skill_${skill.name}`,
       description:
-        skill.description ||
-        `Skill: ${skill.name}. Available tools: ${skill.tools.join(", ")}`,
+        skill.description || `Skill: ${skill.name}. Available tools: ${skill.tools.join(", ")}`,
       parameters: {
         type: "object",
         properties: {
@@ -477,8 +468,7 @@ The current user request is: "${userMessage}"`;
           // Map skill_* tool names to actual tool names
           // The tool name from ollama is like "skill_audio" but we need the actual tool name
           // from the arguments. The model should put the actual tool name in arguments.tool.
-          const actualToolName =
-            (toolArgs.tool as string) || toolName.replace(/^skill_/, "");
+          const actualToolName = (toolArgs.tool as string) || toolName.replace(/^skill_/, "");
 
           let result: ExecuteToolResponse;
           try {
@@ -512,7 +502,8 @@ The current user request is: "${userMessage}"`;
       }
 
       // No tool calls - this is the final response
-      finalResponse = stripMarkdownFences(response.response) || "I'm not sure how to help with that.";
+      finalResponse =
+        stripMarkdownFences(response.response) || "I'm not sure how to help with that.";
       emitTurn({
         type: "final",
         content: finalResponse,
@@ -548,7 +539,8 @@ The current user request is: "${userMessage}"`;
   });
   return {
     success: false,
-    finalResponse: finalResponse || "I reached the maximum number of iterations without completing the task.",
+    finalResponse:
+      finalResponse || "I reached the maximum number of iterations without completing the task.",
     turns,
     iterations: iteration,
   };

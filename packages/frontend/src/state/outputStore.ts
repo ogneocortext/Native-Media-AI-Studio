@@ -138,11 +138,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
       // zeroes out every non-active category (e.g. "Audio 0" while the
       // Videos tab is selected) on every refresh, rename, delete or
       // extract that calls fetchOutputs.
-      const response = await fetchOutputsFromAPI(
-        undefined,
-        filter.limit || 200,
-        filter.offset,
-      );
+      const response = await fetchOutputsFromAPI(undefined, filter.limit || 200, filter.offset);
       set({
         outputs: response.outputs,
         counts: {

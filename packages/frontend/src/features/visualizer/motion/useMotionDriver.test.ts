@@ -26,7 +26,11 @@ const SILENCE: MotionInput = {
 };
 
 /** Run `frames` frames of constant input and return the final state. */
-function run(history: MotionHistory, base: MotionInput, frames: number): ReturnType<typeof resolveMotion> {
+function run(
+  history: MotionHistory,
+  base: MotionInput,
+  frames: number,
+): ReturnType<typeof resolveMotion> {
   let state = resolveMotion(base, history);
   for (let i = 1; i < frames; i++) {
     state = resolveMotion({ ...base, nowSec: base.nowSec + i * base.dtSec }, history);
@@ -105,10 +109,7 @@ describe("resolveMotion — section budgeting", () => {
     const hit = (section: string) => {
       const history = createMotionHistory();
       run(history, SILENCE, 30);
-      return resolveMotion(
-        { ...SILENCE, nowSec: 31 / 60, bass: 1, section },
-        history,
-      ).impulse;
+      return resolveMotion({ ...SILENCE, nowSec: 31 / 60, bass: 1, section }, history).impulse;
     };
     expect(hit("VERSE")).toBeGreaterThan(hit("BREAKDOWN"));
     expect(hit("DROP")).toBeGreaterThan(hit("VERSE"));
@@ -139,14 +140,8 @@ describe("resolveMotion — section budgeting", () => {
 describe("resolveMotion — lookahead moves", () => {
   it("winds up before a known downbeat", () => {
     const beat = { timeSec: 4.0 };
-    const near = resolveMotion(
-      { ...SILENCE, nowSec: 3.9, nextBeat: beat },
-      createMotionHistory(),
-    );
-    const far = resolveMotion(
-      { ...SILENCE, nowSec: 2.0, nextBeat: beat },
-      createMotionHistory(),
-    );
+    const near = resolveMotion({ ...SILENCE, nowSec: 3.9, nextBeat: beat }, createMotionHistory());
+    const far = resolveMotion({ ...SILENCE, nowSec: 2.0, nextBeat: beat }, createMotionHistory());
     expect(near.anticipation).toBeLessThan(far.anticipation);
   });
 

@@ -197,7 +197,9 @@ export function BeatTimeline({
         return <PauseCircle size={14} />;
       case "transition":
         return <SkipForward size={14} />;
-      case "beat": { throw new Error('Not implemented yet: "beat" case') }
+      case "beat": {
+        throw new Error('Not implemented yet: "beat" case');
+      }
       default:
         return <Music size={14} />;
     }

@@ -37,7 +37,9 @@ describe("getOutputUrl", () => {
 
   it("builds comfyui URL with relative fallback when no cached config", () => {
     mockGetCachedConfig.mockReturnValue(null);
-    expect(getOutputUrl("comfyui/outputs/image.png")).toBe("/api/outputs/comfyui/outputs/image.png");
+    expect(getOutputUrl("comfyui/outputs/image.png")).toBe(
+      "/api/outputs/comfyui/outputs/image.png",
+    );
   });
 
   it("builds output URL from cached backend config", () => {

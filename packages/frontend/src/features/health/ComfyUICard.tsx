@@ -127,7 +127,9 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
               </span>
             )}
           </div>
-          {status.version.up_to_date || (status.version.behind_remote !== undefined && status.version.behind_remote > 0) ? null : (
+          {status.version.up_to_date ||
+          (status.version.behind_remote !== undefined &&
+            status.version.behind_remote > 0) ? null : (
             <span className="text-gray-400">{status.version.version}</span>
           )}
         </div>
@@ -148,7 +150,9 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
               {!status.running && status.installed && (
                 <>
                   <AlertTriangle size={12} className="text-amber-400" />
-                  <span className="ml-1">ComfyUI is offline — image/video generation will fail</span>
+                  <span className="ml-1">
+                    ComfyUI is offline — image/video generation will fail
+                  </span>
                 </>
               )}
             </div>

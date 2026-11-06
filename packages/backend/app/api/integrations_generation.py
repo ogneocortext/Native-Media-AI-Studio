@@ -1,6 +1,7 @@
 """
 Integrations API - Generation routes (ComfyUI, Ollama, VRAM, Audio).
 """
+
 from __future__ import annotations
 
 import json
@@ -42,13 +43,16 @@ router = APIRouter(tags=["Integrations-Generation"])
 async def get_models_status() -> dict:
     """Get status of model availability for all image generation services"""
     from ..core.comfyui_client import resolve_models_dir
+
     # Resolve against the real ComfyUI install (sibling dir), not legacy
     # in-repo paths that no longer hold models.
     models_base = resolve_models_dir()
     ckpt_dir = models_base / "checkpoints" if models_base else None
     comfyui_models_list = []
     if ckpt_dir is not None and ckpt_dir.exists():
-        comfyui_models_list = [f.name for f in ckpt_dir.iterdir() if f.suffix in (".safetensors", ".ckpt")]
+        comfyui_models_list = [
+            f.name for f in ckpt_dir.iterdir() if f.suffix in (".safetensors", ".ckpt")
+        ]
     return {
         "comfyui": {
             "models_directory": str(ckpt_dir or ""),
@@ -75,8 +79,7 @@ async def list_comfyui_checkpoints() -> dict:
 
     if ckpt_dir is not None and ckpt_dir.exists():
         checkpoints = sorted(
-            f.name for f in ckpt_dir.iterdir()
-            if f.suffix in (".safetensors", ".ckpt")
+            f.name for f in ckpt_dir.iterdir() if f.suffix in (".safetensors", ".ckpt")
         )
         if checkpoints:
             return {"checkpoints": checkpoints, "directory": str(ckpt_dir)}
@@ -210,14 +213,13 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         raise HTTPException(status_code=404, detail=f"Unknown service: {service_name}")
     # Check health first
     if not await adapter.health_check():
-        raise HTTPException(
-            status_code=503, detail=f"Service {service_name} is not available"
-        )
+        raise HTTPException(status_code=503, detail=f"Service {service_name} is not available")
     # Explicit LLM prompt enrichment -- only if user opts in via enrich_prompt=true
     if request.enrich_prompt and request.prompt and len(request.prompt.strip()) < 200:
         try:
             from ..core import ollama_client as _oc
             from ..core.text import strip_code_fences
+
             enrich_sys = (
                 "You are a Stable Diffusion prompt engineer. Expand the user prompt into a "
                 "detailed comma-separated style prompt under 180 characters and provide a negative_prompt. "
@@ -234,7 +236,10 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
                 "additionalProperties": False,
             }
             c = await _oc.chat_content(
-                [{"role": "system", "content": enrich_sys}, {"role": "user", "content": request.prompt}],
+                [
+                    {"role": "system", "content": enrich_sys},
+                    {"role": "user", "content": request.prompt},
+                ],
                 model=config.default_model,
                 timeout=15,
                 think=False,
@@ -254,13 +259,17 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         # Validate checkpoint - don't allow 3D/video models for image generation
         if request.ckpt_name:
             from ..adapters.comfyui import is_image_checkpoint
+
             if not is_image_checkpoint(request.ckpt_name):
-                logger.warning(f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring")
+                logger.warning(
+                    f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring"
+                )
                 params.pop("ckpt_name", None)
 
         # VRAM preflight: offload Ollama before ComfyUI generation to prevent OOM
         # on 8 GB cards where both models can't be resident simultaneously.
         from ..services.vram_manager import vram_manager
+
         vram_result = await vram_manager.begin_3d_generation()
         logger.debug("VRAM pre-ComfyUI generation: %s", vram_result)
 
@@ -278,6 +287,7 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         finally:
             # VRAM postflight: reload Ollama after ComfyUI generation
             from ..services.vram_manager import vram_manager
+
             vram_cleanup = await vram_manager.end_3d_generation()
             logger.debug("VRAM post-ComfyUI generation: %s", vram_cleanup)
     except Exception as e:
@@ -286,6 +296,7 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         # Ensure Ollama is reloaded even on error
         try:
             from ..services.vram_manager import vram_manager
+
             await vram_manager.end_3d_generation()
         except Exception:
             pass
@@ -404,8 +415,14 @@ async def get_progress(prompt_id: str) -> dict:
         # Check if prompt is in running queue (both queue shapes)
         running = queue_data.get("queue_running", queue_data.get("running", []))
         for item in running:
-            item_id = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else (
-                item.get("task_id", item.get("id", item.get("prompt_id"))) if isinstance(item, dict) else None
+            item_id = (
+                item[1]
+                if isinstance(item, (list, tuple)) and len(item) > 1
+                else (
+                    item.get("task_id", item.get("id", item.get("prompt_id")))
+                    if isinstance(item, dict)
+                    else None
+                )
             )
             if item_id == prompt_id:
                 hist_data = await _cu.fetch_history(base_url, prompt_id, timeout=3)
@@ -423,14 +440,22 @@ async def get_progress(prompt_id: str) -> dict:
         # Check if prompt is in pending queue
         pending = queue_data.get("queue_pending", queue_data.get("queued", []))
         for item in pending:
-            item_id = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else (
-                item.get("task_id", item.get("id", item.get("prompt_id"))) if isinstance(item, dict) else None
+            item_id = (
+                item[1]
+                if isinstance(item, (list, tuple)) and len(item) > 1
+                else (
+                    item.get("task_id", item.get("id", item.get("prompt_id")))
+                    if isinstance(item, dict)
+                    else None
+                )
             )
             if item_id == prompt_id:
                 return {
                     "status": "pending",
                     "prompt_id": prompt_id,
-                    "queue_position": item[0] if isinstance(item, (list, tuple)) and len(item) > 0 else 0,
+                    "queue_position": item[0]
+                    if isinstance(item, (list, tuple)) and len(item) > 0
+                    else 0,
                 }
         # Check history for completed
         history = await _cu.fetch_history(base_url, prompt_id)
@@ -494,6 +519,7 @@ async def view_preview(request: Request, prompt_id: str, filename: str):
     from urllib.parse import unquote
 
     from fastapi.responses import StreamingResponse
+
     base_url = config.comfyui_url
     try:
         decoded_filename = _cu.sanitize_filename(unquote(filename))
@@ -515,6 +541,7 @@ async def view_preview(request: Request, prompt_id: str, filename: str):
         async def stream_generator():
             for chunk in chunks:
                 yield chunk
+
         return StreamingResponse(
             stream_generator(),
             media_type=content_type,
@@ -531,23 +558,19 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
     """Generate a video using AnimateDiff via ComfyUI"""
     # Video generation only supported by ComfyUI
     if service_name != "comfyui":
-        raise HTTPException(
-            status_code=400,
-            detail="Video generation is only supported by ComfyUI"
-        )
+        raise HTTPException(status_code=400, detail="Video generation is only supported by ComfyUI")
     adapter = adapter_registry.get(service_name)
     if not adapter:
         raise HTTPException(status_code=404, detail=f"Unknown service: {service_name}")
     # Check health first
     if not await adapter.health_check():
-        raise HTTPException(
-            status_code=503, detail=f"Service {service_name} is not available"
-        )
+        raise HTTPException(status_code=503, detail=f"Service {service_name} is not available")
     # Explicit LLM prompt enrichment -- only if user opts in via enrich_prompt=true
     if request.enrich_prompt and request.prompt and len(request.prompt.strip()) < 200:
         try:
             from ..core import ollama_client as _oc
             from ..core.text import strip_code_fences
+
             enrich_sys = (
                 "You are a video prompt engineer. Expand the user prompt into a "
                 "detailed comma-separated style prompt under 180 characters and provide a negative_prompt. "
@@ -564,7 +587,10 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
                 "additionalProperties": False,
             }
             c = await _oc.chat_content(
-                [{"role": "system", "content": enrich_sys}, {"role": "user", "content": request.prompt}],
+                [
+                    {"role": "system", "content": enrich_sys},
+                    {"role": "user", "content": request.prompt},
+                ],
                 model=config.default_model,
                 timeout=15,
                 think=False,
@@ -581,6 +607,7 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
     try:
         # VRAM preflight: offload Ollama before ComfyUI video generation
         from ..services.vram_manager import vram_manager
+
         vram_result = await vram_manager.begin_3d_generation()
         logger.debug("VRAM pre-ComfyUI video generation: %s", vram_result)
 
@@ -591,17 +618,21 @@ async def generate_video(service_name: str, request: VideoGenerationRequest) -> 
                 "output_path": result.get("video_path"),
                 "seed": result.get("seed"),
                 "prompt_id": result.get("prompt_id"),
-                "message": result.get("info", f"Video generated: {request.num_frames} frames @ {request.fps}fps"),
+                "message": result.get(
+                    "info", f"Video generated: {request.num_frames} frames @ {request.fps}fps"
+                ),
             }
         finally:
             # VRAM postflight: reload Ollama after ComfyUI video generation
             from ..services.vram_manager import vram_manager
+
             vram_cleanup = await vram_manager.end_3d_generation()
             logger.debug("VRAM post-ComfyUI video generation: %s", vram_cleanup)
     except Exception as e:
         # Ensure Ollama is reloaded even on error
         try:
             from ..services.vram_manager import vram_manager
+
             await vram_manager.end_3d_generation()
         except Exception:
             pass
@@ -740,6 +771,7 @@ async def ollama_embed(body: OllamaEmbedRequest) -> dict:
     model = body.model or config.embedding_model
     try:
         from ..core import ollama_client as _oc
+
         emb = await _oc.embed_text(text, model=model)
         if emb is None:
             raise HTTPException(status_code=502, detail="Embedding failed")
@@ -754,6 +786,7 @@ async def ollama_embed(body: OllamaEmbedRequest) -> dict:
 async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     """Semantic search over tracks/visuals using nomic embeddings."""
     import math
+
     query = body.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="query required")
@@ -761,11 +794,13 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
     model = body.model or config.embedding_model
     # Embed query
     from ..core import ollama_client as _oc
+
     qemb = await _oc.embed_text(query, model=model)
     if qemb is None:
         raise HTTPException(status_code=502, detail="Embedding failed")
     # Fetch candidates from DB (tracks)
     from ..core import database as db
+
     candidates = []
     try:
         tracks = getattr(db, "get_all_tracks", list)()
@@ -778,6 +813,7 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
         return {"query": query, "results": [], "model": model}
     # Embed candidates with concurrency limit (was sequential 200*15s = 50min)
     import asyncio as _asyncio
+
     candidates = candidates[: min(len(candidates), limit * 5)]  # cap to 5x limit before embedding
     sem = _asyncio.Semaphore(5)
 
@@ -794,7 +830,10 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
                 return {**c, "score": round(sim, 4)}
             except Exception:
                 return None
-    results = [r for r in await _asyncio.gather(*[_embed_one(c) for c in candidates]) if r is not None]
+
+    results = [
+        r for r in await _asyncio.gather(*[_embed_one(c) for c in candidates]) if r is not None
+    ]
     results.sort(key=operator.itemgetter("score"), reverse=True)
     return {"query": query, "model": model, "results": results[:limit]}
 
@@ -803,6 +842,7 @@ async def ollama_semantic_search(body: OllamaSemanticSearchRequest) -> dict:
 async def get_vram_status() -> dict:
     """Get current VRAM status and GPU workload information"""
     from ..services.vram_manager import vram_manager
+
     vram = await vram_manager.get_vram_status()
     status = vram_manager.get_status()
     return {
@@ -815,6 +855,7 @@ async def get_vram_status() -> dict:
 async def offload_ollama() -> Any:
     """Manually offload Ollama models from GPU to free VRAM"""
     from ..services.vram_manager import _unload_ollama_models, vram_manager
+
     result = await _unload_ollama_models()
     # Sync the resident flag with reality so subsequent load/unload decisions
     # are based on /api/ps truth, not a stale boolean.
@@ -826,6 +867,7 @@ async def offload_ollama() -> Any:
 async def reload_ollama() -> dict:
     """Manually reload Ollama models to GPU"""
     from ..services.vram_manager import _reload_ollama_models
+
     result = await _reload_ollama_models(config.default_model)
     return {"success": result, "model": config.default_model}
 
@@ -841,6 +883,7 @@ async def switch_backend_model(body: dict) -> dict:
     Body: { "backend": "ollama"|"atomic_chat", "model": "model_name" }
     """
     from ..services.vram_manager import vram_manager
+
     backend = body.get("backend")
     model = body.get("model")
     if not backend or not model:
@@ -904,17 +947,28 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
     # Small local models are much more reliable when the request names one
     # tool. Keep the full registry for ambiguous requests, but narrow a
     # prompt such as "call get_project_structure" to that single callable.
-    if tools and any(tool.get("function", {}).get("name", "").lower() in message.lower()
-                     for tool in tools if isinstance(tool, dict)):
+    if tools and any(
+        tool.get("function", {}).get("name", "").lower() in message.lower()
+        for tool in tools
+        if isinstance(tool, dict)
+    ):
         named = [
-            tool for tool in tools
+            tool
+            for tool in tools
             if isinstance(tool, dict)
             and tool.get("function", {}).get("name", "").lower() in message.lower()
         ]
         if len(named) == 1:
             tools = named
-    logger.info("Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d, system_len=%d, options=%s",
-                model, stream, len(tools), len(message), len(system_prompt or ""), ollama_options)
+    logger.info(
+        "Ollama chat request: model=%s, stream=%s, tools=%d, message_len=%d, system_len=%d, options=%s",
+        model,
+        stream,
+        len(tools),
+        len(message),
+        len(system_prompt or ""),
+        ollama_options,
+    )
     # Build messages array (system first, then history, then user)
     messages = []
     if system_prompt:
@@ -931,17 +985,19 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
             for t in tools
             if isinstance(t, dict)
         )
-        messages.append({
-            "role": "system",
-            "content": (
-                "You have callable tools. Available tools:\n"
-                + tool_list
-                + "\n\nIf the user's request requires data from a tool, call "
-                "that tool now. Respond by calling the tool, not by describing "
-                "it. Do not invent results; wait for the tool result before "
-                "answering."
-            ),
-        })
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "You have callable tools. Available tools:\n"
+                    + tool_list
+                    + "\n\nIf the user's request requires data from a tool, call "
+                    "that tool now. Respond by calling the tool, not by describing "
+                    "it. Do not invent results; wait for the tool result before "
+                    "answering."
+                ),
+            }
+        )
     for h in history:
         # Support system role in history as well
         role = h.get("role", "user")
@@ -994,15 +1050,25 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                                 tool_call_count += 1
                                 yield {
                                     "event": "tool_calls",
-                                    "data": json.dumps({
-                                        "tool_calls": [{"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]} for tc in tool_calls]
-                                    }),
+                                    "data": json.dumps(
+                                        {
+                                            "tool_calls": [
+                                                {
+                                                    "name": tc["function"]["name"],
+                                                    "arguments": tc["function"]["arguments"],
+                                                }
+                                                for tc in tool_calls
+                                            ]
+                                        }
+                                    ),
                                 }
-                                current_messages.append({
-                                    "role": "assistant",
-                                    "content": msg.get("content", "") or "",
-                                    "tool_calls": tool_calls,
-                                })
+                                current_messages.append(
+                                    {
+                                        "role": "assistant",
+                                        "content": msg.get("content", "") or "",
+                                        "tool_calls": tool_calls,
+                                    }
+                                )
                                 for tc in tool_calls:
                                     assert tool_adapter is not None
                                     result = await tool_adapter.execute_tool_call(
@@ -1016,16 +1082,20 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                                     # to re-parse the model's prose.
                                     yield {
                                         "event": "tool_result",
-                                        "data": json.dumps({
-                                            "name": tc["function"]["name"],
-                                            "result": result,
-                                        }),
+                                        "data": json.dumps(
+                                            {
+                                                "name": tc["function"]["name"],
+                                                "result": result,
+                                            }
+                                        ),
                                     }
-                                    current_messages.append({
-                                        "role": "tool",
-                                        "tool_name": tc["function"]["name"],
-                                        "content": result,
-                                    })
+                                    current_messages.append(
+                                        {
+                                            "role": "tool",
+                                            "tool_name": tc["function"]["name"],
+                                            "content": result,
+                                        }
+                                    )
                                 break
                             if chunk.get("done"):
                                 # The done chunk's content is empty on
@@ -1046,18 +1116,32 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                                     for tool in tools
                                     if isinstance(tool, dict)
                                 ]
-                                explicit_names = [name for name in explicit_names if name and name.lower() in message.lower()]
-                                if not final_content and not fallback_executed and tool_call_count == 0 and len(explicit_names) == 1 and tool_call_count < max_tool_calls:
+                                explicit_names = [
+                                    name
+                                    for name in explicit_names
+                                    if name and name.lower() in message.lower()
+                                ]
+                                if (
+                                    not final_content
+                                    and not fallback_executed
+                                    and tool_call_count == 0
+                                    and len(explicit_names) == 1
+                                    and tool_call_count < max_tool_calls
+                                ):
                                     name = explicit_names[0]
                                     args: dict[str, object] = {}
-                                    depth_match = re.search(r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE)
+                                    depth_match = re.search(
+                                        r"depth\s*[=:]\s*(\d+)", message, re.IGNORECASE
+                                    )
                                     if depth_match:
                                         args["depth"] = min(6, int(depth_match.group(1)))
                                     tool_call_count += 1
                                     fallback_executed = True
                                     yield {
                                         "event": "tool_calls",
-                                        "data": json.dumps({"tool_calls": [{"name": name, "arguments": args}]}),
+                                        "data": json.dumps(
+                                            {"tool_calls": [{"name": name, "arguments": args}]}
+                                        ),
                                     }
                                     assert tool_adapter is not None
                                     result = await tool_adapter.execute_tool_call(name, args, {})
@@ -1065,10 +1149,18 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                                         "event": "tool_result",
                                         "data": json.dumps({"name": name, "result": result}),
                                     }
-                                    current_messages.extend([
-                                        {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": name, "arguments": args}}]},
-                                        {"role": "tool", "tool_name": name, "content": result},
-                                    ])
+                                    current_messages.extend(
+                                        [
+                                            {
+                                                "role": "assistant",
+                                                "content": "",
+                                                "tool_calls": [
+                                                    {"function": {"name": name, "arguments": args}}
+                                                ],
+                                            },
+                                            {"role": "tool", "tool_name": name, "content": result},
+                                        ]
+                                    )
                                     break
                                 if not final_content and tool_call_count == 0:
                                     if saw_thinking:
@@ -1077,19 +1169,23 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                                         no_response_msg = "The model produced no response. Try rephrasing, or use a model with native tool support."
                                     yield {
                                         "event": "error",
-                                        "data": json.dumps({
-                                            "message": no_response_msg,
-                                            "model": chunk.get("model", model),
-                                        }),
+                                        "data": json.dumps(
+                                            {
+                                                "message": no_response_msg,
+                                                "model": chunk.get("model", model),
+                                            }
+                                        ),
                                     }
                                 else:
                                     yield {
                                         "event": "done",
-                                        "data": json.dumps({
-                                            "content": final_content,
-                                            "model": chunk.get("model", model),
-                                            "tool_calls": tool_call_count,
-                                        }),
+                                        "data": json.dumps(
+                                            {
+                                                "content": final_content,
+                                                "model": chunk.get("model", model),
+                                                "tool_calls": tool_call_count,
+                                            }
+                                        ),
                                     }
                                 return
                             else:
@@ -1102,12 +1198,15 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                                 if content or thinking:
                                     yield {
                                         "event": "content",
-                                        "data": json.dumps({"content": content, "thinking": thinking}),
+                                        "data": json.dumps(
+                                            {"content": content, "thinking": thinking}
+                                        ),
                                     }
                     # Send done event to properly close the stream
                     yield {"event": "done", "data": json.dumps({"status": "complete"})}
                 finally:
                     adapter.clear_activity(model or config.default_model)
+
             return EventSourceResponse(event_generator())
         else:
             # Non-streaming response with agent loop
@@ -1140,11 +1239,13 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                 if tool_calls and tool_call_count < max_tool_calls:
                     tool_call_count += 1
                     # Add assistant message with tool calls
-                    current_messages.append({
-                        "role": "assistant",
-                        "content": content,
-                        "tool_calls": tool_calls,
-                    })
+                    current_messages.append(
+                        {
+                            "role": "assistant",
+                            "content": content,
+                            "tool_calls": tool_calls,
+                        }
+                    )
                     # Execute each tool and add results
                     for tc in tool_calls:
                         assert tool_adapter is not None
@@ -1153,16 +1254,20 @@ async def ollama_chat(body: OllamaChatRequest) -> Any:
                             tc["function"]["arguments"],
                             {},
                         )
-                        tool_details.append({
-                            "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"],
-                            "result": tool_result,
-                        })
-                        current_messages.append({
-                            "role": "tool",
-                            "tool_name": tc["function"]["name"],
-                            "content": tool_result,
-                         })
+                        tool_details.append(
+                            {
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"],
+                                "result": tool_result,
+                            }
+                        )
+                        current_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_name": tc["function"]["name"],
+                                "content": tool_result,
+                            }
+                        )
                 else:
                     last_response = content
                     break
@@ -1197,6 +1302,7 @@ async def ollama_generate(body: OllamaGenerateRequest) -> dict:
 # ============================================================================
 class AudioAnalysisRequest(BaseModel):
     """Request for immediate audio analysis"""
+
     audio_path: str
     hop_length: int = 512
     frame_length: int = 1024
@@ -1204,12 +1310,14 @@ class AudioAnalysisRequest(BaseModel):
 
 class OllamaEmbedRequest(BaseModel):
     """Request for generating embeddings via Ollama."""
+
     text: str
     model: str | None = None
 
 
 class OllamaSemanticSearchRequest(BaseModel):
     """Request for semantic search over tracks/visuals."""
+
     query: str
     limit: int = 10
     model: str | None = None
@@ -1217,6 +1325,7 @@ class OllamaSemanticSearchRequest(BaseModel):
 
 class OllamaChatRequest(BaseModel):
     """Request for Ollama chat with tool calling support."""
+
     message: str
     model: str | None = None
     history: list[dict] | None = None
@@ -1230,12 +1339,14 @@ class OllamaChatRequest(BaseModel):
 
 class OllamaGenerateRequest(BaseModel):
     """Request for generating text via Ollama /api/generate."""
+
     prompt: str
     model: str = "gemma4:e2b-it-qat"
 
 
 class GenerateVisualizerPresetRequest(BaseModel):
     """Request for generating a visualizer preset from natural language."""
+
     description: str
     model: str | None = None
     temperature: float = 0.7
@@ -1244,6 +1355,7 @@ class GenerateVisualizerPresetRequest(BaseModel):
 
 class AudioAnalysisJobRequest(BaseModel):
     """Request to queue an audio analysis job"""
+
     audio_path: str
     hop_length: int = 512
     frame_length: int = 1024
@@ -1257,6 +1369,7 @@ async def analyze_audio(request: AudioAnalysisRequest):
     Uses librosa to extract amplitude envelope, beat markers, tempo, and spectral features.
     """
     from ..services.audio_analyzer import LIBROSA_AVAILABLE, AudioAnalyzer
+
     if not LIBROSA_AVAILABLE:
         raise HTTPException(
             status_code=503,
@@ -1266,13 +1379,9 @@ async def analyze_audio(request: AudioAnalysisRequest):
     if not audio_path.is_absolute():
         audio_path = PROJECT_ROOT / audio_path
     if not audio_path.exists():
-        raise HTTPException(
-            status_code=404, detail=f"Audio file not found: {audio_path}"
-        )
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {audio_path}")
     try:
-        analyzer = AudioAnalyzer(
-            hop_length=request.hop_length, frame_length=request.frame_length
-        )
+        analyzer = AudioAnalyzer(hop_length=request.hop_length, frame_length=request.frame_length)
         result, json_path = analyzer.analyze_and_save(str(audio_path))
         return {
             "success": True,
@@ -1346,7 +1455,7 @@ VISUALIZER_PRESET_SCHEMA = {
         "accent": "hex color - highlight color",
         "background": "hex color - scene background",
         "text": "hex color - lyric text color",
-        "glow": "hex color - glow/emissive color"
+        "glow": "hex color - glow/emissive color",
     },
     "visualizer": {
         "style": "one of: particles, waveform, pulse, bars, galaxy, terrain",
@@ -1356,12 +1465,19 @@ VISUALIZER_PRESET_SCHEMA = {
         "speed": "number 0-3 - animation speed multiplier",
         "scale": "number 0.1-3 - base scale",
         "glow": "boolean - enable glow effects",
-        "rotation": "boolean - enable auto-rotation"
+        "rotation": "boolean - enable auto-rotation",
     },
     "camera": {
-        "keyframes": [{"at": "number - seconds", "position": [0, 0, 0], "target": [0, 0, 0], "easing": "linear|easeIn|easeOut|easeInOut"}],
+        "keyframes": [
+            {
+                "at": "number - seconds",
+                "position": [0, 0, 0],
+                "target": [0, 0, 0],
+                "easing": "linear|easeIn|easeOut|easeInOut",
+            }
+        ],
         "mode": "orbit|fixed|flythrough|handheld",
-        "fov": "number 30-90 - field of view"
+        "fov": "number 30-90 - field of view",
     },
     "postfx": {
         "bloom": "number 0-3 - bloom intensity",
@@ -1372,7 +1488,7 @@ VISUALIZER_PRESET_SCHEMA = {
         "vignetteRadius": "number 0-3",
         "vignetteStrength": "number 0-1",
         "glitch": "number 0-1",
-        "sharpen": "number 0-1"
+        "sharpen": "number 0-1",
     },
     "lyrics": {
         "style": "kinetic|fade|typewriter|glitch|neon|bounce",
@@ -1382,7 +1498,7 @@ VISUALIZER_PRESET_SCHEMA = {
         "letterSpacing": "number 0-0.2",
         "beatReact": "boolean",
         "enterAnimation": "string",
-        "exitAnimation": "string"
+        "exitAnimation": "string",
     },
     "audioReactivity": {
         "bass": "none|scale|glow|shake|pulse|zoom",
@@ -1390,8 +1506,8 @@ VISUALIZER_PRESET_SCHEMA = {
         "treble": "none|scale|glow|shake|pulse|zoom",
         "beat": "none|pulse|shake|flash|zoom",
         "beatDecay": "number 0-1",
-        "smoothing": "number 0-1"
-    }
+        "smoothing": "number 0-1",
+    },
 }
 
 # Proper JSON Schema for Ollama's `format` parameter (constrained decoding).
@@ -1413,23 +1529,35 @@ VISUALIZER_PRESET_JSON_SCHEMA = {
                 "accent": {"type": "string"},
                 "background": {"type": "string"},
                 "text": {"type": "string"},
-                "glow": {"type": "string"}
+                "glow": {"type": "string"},
             },
-            "required": ["primary", "secondary", "accent", "background", "text", "glow"]
+            "required": ["primary", "secondary", "accent", "background", "text", "glow"],
         },
         "visualizer": {
             "type": "object",
             "properties": {
-                "style": {"type": "string", "enum": ["particles", "waveform", "pulse", "bars", "galaxy", "terrain"]},
+                "style": {
+                    "type": "string",
+                    "enum": ["particles", "waveform", "pulse", "bars", "galaxy", "terrain"],
+                },
                 "colors": {"type": "string"},
                 "intensity": {"type": "number", "minimum": 0, "maximum": 1},
                 "particleCount": {"type": "integer", "minimum": 50, "maximum": 2000},
                 "speed": {"type": "number", "minimum": 0, "maximum": 3},
                 "scale": {"type": "number", "minimum": 0.1, "maximum": 3},
                 "glow": {"type": "boolean"},
-                "rotation": {"type": "boolean"}
+                "rotation": {"type": "boolean"},
             },
-            "required": ["style", "colors", "intensity", "particleCount", "speed", "scale", "glow", "rotation"]
+            "required": [
+                "style",
+                "colors",
+                "intensity",
+                "particleCount",
+                "speed",
+                "scale",
+                "glow",
+                "rotation",
+            ],
         },
         "camera": {
             "type": "object",
@@ -1440,17 +1568,30 @@ VISUALIZER_PRESET_JSON_SCHEMA = {
                         "type": "object",
                         "properties": {
                             "at": {"type": "number"},
-                            "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                            "target": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                            "easing": {"type": "string", "enum": ["linear", "easeIn", "easeOut", "easeInOut"]}
+                            "position": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "minItems": 3,
+                                "maxItems": 3,
+                            },
+                            "target": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "minItems": 3,
+                                "maxItems": 3,
+                            },
+                            "easing": {
+                                "type": "string",
+                                "enum": ["linear", "easeIn", "easeOut", "easeInOut"],
+                            },
                         },
-                        "required": ["at", "position", "target", "easing"]
-                    }
+                        "required": ["at", "position", "target", "easing"],
+                    },
                 },
                 "mode": {"type": "string", "enum": ["orbit", "fixed", "flythrough", "handheld"]},
-                "fov": {"type": "number", "minimum": 30, "maximum": 90}
+                "fov": {"type": "number", "minimum": 30, "maximum": 90},
             },
-            "required": ["keyframes", "mode", "fov"]
+            "required": ["keyframes", "mode", "fov"],
         },
         "postfx": {
             "type": "object",
@@ -1463,38 +1604,81 @@ VISUALIZER_PRESET_JSON_SCHEMA = {
                 "vignetteRadius": {"type": "number", "minimum": 0, "maximum": 3},
                 "vignetteStrength": {"type": "number", "minimum": 0, "maximum": 1},
                 "glitch": {"type": "number", "minimum": 0, "maximum": 1},
-                "sharpen": {"type": "number", "minimum": 0, "maximum": 1}
+                "sharpen": {"type": "number", "minimum": 0, "maximum": 1},
             },
-            "required": ["bloom", "bloomRadius", "bloomThreshold", "chromaticAberration", "filmGrain", "vignetteRadius", "vignetteStrength", "glitch", "sharpen"]
+            "required": [
+                "bloom",
+                "bloomRadius",
+                "bloomThreshold",
+                "chromaticAberration",
+                "filmGrain",
+                "vignetteRadius",
+                "vignetteStrength",
+                "glitch",
+                "sharpen",
+            ],
         },
         "lyrics": {
             "type": "object",
             "properties": {
-                "style": {"type": "string", "enum": ["kinetic", "fade", "typewriter", "glitch", "neon", "bounce"]},
+                "style": {
+                    "type": "string",
+                    "enum": ["kinetic", "fade", "typewriter", "glitch", "neon", "bounce"],
+                },
                 "glowIntensity": {"type": "number", "minimum": 0, "maximum": 1},
                 "fontSize": {"type": "number", "minimum": 24, "maximum": 96},
                 "fontWeight": {"type": "number", "minimum": 100, "maximum": 900},
                 "letterSpacing": {"type": "number", "minimum": 0, "maximum": 0.2},
                 "beatReact": {"type": "boolean"},
                 "enterAnimation": {"type": "string"},
-                "exitAnimation": {"type": "string"}
+                "exitAnimation": {"type": "string"},
             },
-            "required": ["style", "glowIntensity", "fontSize", "fontWeight", "letterSpacing", "beatReact", "enterAnimation", "exitAnimation"]
+            "required": [
+                "style",
+                "glowIntensity",
+                "fontSize",
+                "fontWeight",
+                "letterSpacing",
+                "beatReact",
+                "enterAnimation",
+                "exitAnimation",
+            ],
         },
         "audioReactivity": {
             "type": "object",
             "properties": {
-                "bass": {"type": "string", "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"]},
-                "mid": {"type": "string", "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"]},
-                "treble": {"type": "string", "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"]},
+                "bass": {
+                    "type": "string",
+                    "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"],
+                },
+                "mid": {
+                    "type": "string",
+                    "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"],
+                },
+                "treble": {
+                    "type": "string",
+                    "enum": ["none", "scale", "glow", "shake", "pulse", "zoom"],
+                },
                 "beat": {"type": "string", "enum": ["none", "pulse", "shake", "flash", "zoom"]},
                 "beatDecay": {"type": "number", "minimum": 0, "maximum": 1},
-                "smoothing": {"type": "number", "minimum": 0, "maximum": 1}
+                "smoothing": {"type": "number", "minimum": 0, "maximum": 1},
             },
-            "required": ["bass", "mid", "treble", "beat", "beatDecay", "smoothing"]
-        }
+            "required": ["bass", "mid", "treble", "beat", "beatDecay", "smoothing"],
+        },
     },
-    "required": ["version", "id", "name", "description", "tags", "theme", "visualizer", "camera", "postfx", "lyrics", "audioReactivity"]
+    "required": [
+        "version",
+        "id",
+        "name",
+        "description",
+        "tags",
+        "theme",
+        "visualizer",
+        "camera",
+        "postfx",
+        "lyrics",
+        "audioReactivity",
+    ],
 }
 
 VISUALIZER_SYSTEM_PROMPT = """You are a music visualizer preset generator. Given a natural language description of a visual style, generate a JSON preset for a 3D audio-reactive visualizer.
@@ -1548,17 +1732,30 @@ async def _generate_visualizer_preset(
             parts.append(f"energy: {energy_label} ({energy:.2f})")
         if duration:
             parts.append(f"duration: {duration:.0f}s")
-        track_context = "\n\nTRACK CONTEXT (adapt the preset to match this music):\n" + "\n".join(f"- {p}" for p in parts)
-        track_context += "\n\n- Scale animation speed to the BPM (faster tempo -> quicker transitions)"
-        track_context += "\n- Match intensity to the energy level (high energy -> more particles, faster motion)"
+        track_context = "\n\nTRACK CONTEXT (adapt the preset to match this music):\n" + "\n".join(
+            f"- {p}" for p in parts
+        )
+        track_context += (
+            "\n\n- Scale animation speed to the BPM (faster tempo -> quicker transitions)"
+        )
+        track_context += (
+            "\n- Match intensity to the energy level (high energy -> more particles, faster motion)"
+        )
         track_context += "\n- Set camera keyframe 'at' times to fit within the track duration"
         if energy is not None:
             if energy > 0.6:
-                track_context += "\n- Use high-intensity audio reactivity (shake, flash, zoom on beat)"
+                track_context += (
+                    "\n- Use high-intensity audio reactivity (shake, flash, zoom on beat)"
+                )
             elif energy < 0.35:
                 track_context += "\n- Use gentle reactivity (slow pulse, glow, no shake)"
-    logger.info("Generating visualizer preset: backend=%s, model=%s, desc_len=%d, track=%s",
-                backend_name, model, len(description), bool(track_context))
+    logger.info(
+        "Generating visualizer preset: backend=%s, model=%s, desc_len=%d, track=%s",
+        backend_name,
+        model,
+        len(description),
+        bool(track_context),
+    )
     try:
         # Ollama supports JSON Schema in `format` for constrained decoding
         # (token-by-token enforcement of the schema shape). Atomic Chat only
@@ -1568,17 +1765,19 @@ async def _generate_visualizer_preset(
         system_prompt_grounded = VISUALIZER_SYSTEM_PROMPT.format(
             schema_json=json.dumps(VISUALIZER_PRESET_JSON_SCHEMA, indent=2)
         )
-        result = await adapter.generate({
-            "prompt": f"Generate a visualizer preset for: {description}{track_context}",
-            "model": model,
-            "system": system_prompt_grounded,
-            "format": fmt_param,
-            "think": False,
-            "options": {
-                "temperature": temperature,
-                "num_ctx": 8192,
-            },
-        })
+        result = await adapter.generate(
+            {
+                "prompt": f"Generate a visualizer preset for: {description}{track_context}",
+                "model": model,
+                "system": system_prompt_grounded,
+                "format": fmt_param,
+                "think": False,
+                "options": {
+                    "temperature": temperature,
+                    "num_ctx": 8192,
+                },
+            }
+        )
         response_text = result.get("response", "")
         if not response_text:
             raise HTTPException(status_code=502, detail=f"{backend_name} returned empty response")
@@ -1586,6 +1785,7 @@ async def _generate_visualizer_preset(
             preset = json.loads(response_text)
         except json.JSONDecodeError:
             from ..core.text import strip_code_fences
+
             preset = json.loads(strip_code_fences(response_text))
         preset.setdefault("version", "1.0")
         if not preset.get("id"):
@@ -1599,25 +1799,38 @@ async def _generate_visualizer_preset(
             from pathlib import Path
 
             from ..core.database import save_visualization_preset
+
             track_hash = hashlib.md5(f"{description}{bpm}{energy}{genre}".encode()).hexdigest()[:16]
             track_name = track_meta.get("track_name") or description[:60]
-            save_visualization_preset({
-                "track_name": track_name,
-                "track_hash": track_hash,
-                "preset_name": preset.get("name", "AI Generated"),
-                "visualization_style": preset.get("visualizer", {}).get("style", preset.get("style", "geometric")),
-                "params": preset,
-                "ollama_model": result.get("model", model),
-                "prompt": description,
-                "lyrics": track_meta.get("lyrics", ""),
-                "bpm": bpm or 120,
-                "energy_level": ("high" if (energy or 0) > 0.6 else "low" if (energy or 0) < 0.35 else "medium"),
-                "mood_tags": preset.get("tags", []),
-                "genre_tags": [genre] if genre else [],
-            })
+            save_visualization_preset(
+                {
+                    "track_name": track_name,
+                    "track_hash": track_hash,
+                    "preset_name": preset.get("name", "AI Generated"),
+                    "visualization_style": preset.get("visualizer", {}).get(
+                        "style", preset.get("style", "geometric")
+                    ),
+                    "params": preset,
+                    "ollama_model": result.get("model", model),
+                    "prompt": description,
+                    "lyrics": track_meta.get("lyrics", ""),
+                    "bpm": bpm or 120,
+                    "energy_level": (
+                        "high"
+                        if (energy or 0) > 0.6
+                        else "low"
+                        if (energy or 0) < 0.35
+                        else "medium"
+                    ),
+                    "mood_tags": preset.get("tags", []),
+                    "genre_tags": [genre] if genre else [],
+                }
+            )
             out_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
             out_dir.mkdir(parents=True, exist_ok=True)
-            (out_dir / f"{track_hash}.json").write_text(json.dumps(preset, indent=2), encoding="utf-8")
+            (out_dir / f"{track_hash}.json").write_text(
+                json.dumps(preset, indent=2), encoding="utf-8"
+            )
         except Exception as e:
             logger.warning(f"Failed to persist visualizer preset: {e}")
         return {
@@ -1627,7 +1840,9 @@ async def _generate_visualizer_preset(
             "persisted": True,
         }
     except json.JSONDecodeError as e:
-        logger.error("Failed to parse %s JSON response: %s (raw: %s)", backend_name, e, response_text[:200])
+        logger.error(
+            "Failed to parse %s JSON response: %s (raw: %s)", backend_name, e, response_text[:200]
+        )
         raise HTTPException(status_code=502, detail=f"Model returned invalid JSON: {e}") from e
     except HTTPException:
         raise
@@ -1662,6 +1877,7 @@ async def list_visualizer_presets() -> dict:
     from pathlib import Path
 
     from ..core.database import get_all_visualization_presets
+
     presets = get_all_visualization_presets()
     # Also include file-based presets not yet in DB
     file_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
@@ -1676,14 +1892,24 @@ async def get_visualizer_preset(track_hash: str) -> dict:
     from pathlib import Path
 
     from ..core.database import get_visualization_preset
+
     preset = get_visualization_preset(track_hash)
     if preset:
         return {"preset": preset["params"], "meta": preset}
     # Fallback to file
-    file_path = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets" / f"{track_hash}.json"
+    file_path = (
+        Path(__file__).resolve().parents[4]
+        / "storage"
+        / "visualizer_presets"
+        / f"{track_hash}.json"
+    )
     if file_path.exists():
-        return {"preset": _json.loads(file_path.read_text(encoding="utf-8")), "meta": {"source": "file"}}
+        return {
+            "preset": _json.loads(file_path.read_text(encoding="utf-8")),
+            "meta": {"source": "file"},
+        }
     from fastapi import HTTPException
+
     raise HTTPException(status_code=404, detail="Preset not found")
 
 
@@ -1693,10 +1919,12 @@ async def delete_visualizer_preset(preset_id: str) -> dict:
     from pathlib import Path
 
     from ..core.database import get_db
+
     with get_db() as conn:
         cur = conn.execute("DELETE FROM visualization_presets WHERE id = ?", (preset_id,))
         if cur.rowcount == 0:
             from fastapi import HTTPException
+
             raise HTTPException(status_code=404, detail="Preset not found")
     # Also remove file if exists (by id or hash)
     file_dir = Path(__file__).resolve().parents[4] / "storage" / "visualizer_presets"
@@ -1787,6 +2015,7 @@ async def get_benchmark_results() -> dict:
     """Get cached Ollama Three.js scene benchmark results."""
     try:
         from tools.scripts.ollama_benchmark import get_all_results
+
         return get_all_results()
     except Exception as e:
         logger.error("Failed to load benchmark results: %s", e, exc_info=True)
@@ -1801,6 +2030,7 @@ async def run_benchmark(body: dict | None = None) -> dict:
         raise HTTPException(status_code=404, detail="Ollama not available")
     try:
         from tools.scripts.ollama_benchmark import run_benchmark
+
         models = None
         max_models = 8
         if body:
@@ -1823,6 +2053,7 @@ async def get_best_benchmark() -> dict:
     """Get the best model from cached Ollama Three.js scene benchmarks."""
     try:
         from tools.scripts.ollama_benchmark import get_all_results, get_best_model
+
         data = get_all_results()
         best = get_best_model()
         return {
@@ -1840,6 +2071,7 @@ async def get_coding_benchmark_results() -> dict:
     """Get cached coding benchmark results."""
     try:
         from tools.scripts.coding_benchmark import get_all_results
+
         return get_all_results()
     except Exception as e:
         logger.error("Failed to load coding benchmark results: %s", e, exc_info=True)
@@ -1854,6 +2086,7 @@ async def run_coding_benchmark(body: dict | None = None) -> dict:
         raise HTTPException(status_code=404, detail="Ollama not available")
     try:
         from tools.scripts.coding_benchmark import run_benchmark
+
         models = None
         max_models = 12
         quick = False
@@ -1868,7 +2101,9 @@ async def run_coding_benchmark(body: dict | None = None) -> dict:
                 num_ctx = body.get("num_ctx")
                 if num_ctx is not None:
                     num_ctx = int(num_ctx)
-        results = await run_benchmark(models=models, adapter=adapter, max_models=max_models, quick=quick, num_ctx=num_ctx)
+        results = await run_benchmark(
+            models=models, adapter=adapter, max_models=max_models, quick=quick, num_ctx=num_ctx
+        )
         return results
     except HTTPException:
         raise
@@ -1882,6 +2117,7 @@ async def get_best_coding_benchmark() -> dict:
     """Get the best model from cached coding benchmarks."""
     try:
         from tools.scripts.coding_benchmark import get_all_results, get_best_model
+
         data = get_all_results()
         best = get_best_model()
         return {
@@ -1901,9 +2137,12 @@ async def get_best_coding_benchmark() -> dict:
 # ---------------------------------------------------------------------------
 class UpscaleRequest(BaseModel):
     """Request body for the image upscaler."""
-    image: str                  # absolute/project-relative path, bare filename, or comfyui/-prefixed ref
-    model: str = "4x-ClearRealityV1.safetensors"  # exact ComfyUI-registered name; fuzzy-matched as fallback
-    scale: int = 4              # 2 | 4
+
+    image: str  # absolute/project-relative path, bare filename, or comfyui/-prefixed ref
+    model: str = (
+        "4x-ClearRealityV1.safetensors"  # exact ComfyUI-registered name; fuzzy-matched as fallback
+    )
+    scale: int = 4  # 2 | 4
     prefer_comfyui: bool = True
 
 
@@ -1911,6 +2150,7 @@ class UpscaleRequest(BaseModel):
 async def upscale_image_endpoint(request: UpscaleRequest) -> dict:
     """Upscale an image 2x/4x for YouTube 4K export without 4K render cost."""
     from ..services.upscale_service import upscale_image
+
     try:
         result = await upscale_image(
             request.image,

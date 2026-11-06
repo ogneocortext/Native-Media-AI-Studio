@@ -42,15 +42,8 @@ export function useVisualizerTrackEffects({
   setters,
   api,
 }: UseVisualizerTrackEffectsOptions): void {
-  const {
-    currentFilename,
-    vizMode,
-    inspectorOpen,
-    inspectorTab,
-    audioUrl,
-    autoPlay,
-    isPlaying,
-  } = state;
+  const { currentFilename, vizMode, inspectorOpen, inspectorTab, audioUrl, autoPlay, isPlaying } =
+    state;
   const { audioElRef } = refs;
   const { setStemsData } = setters;
   const { getStemsAnalysis } = api;
@@ -63,8 +56,7 @@ export function useVisualizerTrackEffects({
   // ever opened a stem UI. Fetched once per track per session; a failed
   // fetch is retried on the next activation.
   const stemsFetchedRef = useRef<Set<string>>(new Set());
-  const stemsNeeded =
-    vizMode === "shader" || (inspectorOpen && inspectorTab === "mixer");
+  const stemsNeeded = vizMode === "shader" || (inspectorOpen && inspectorTab === "mixer");
   useEffect(() => {
     if (!currentFilename || !stemsNeeded) return;
     if (stemsFetchedRef.current.has(currentFilename)) return;

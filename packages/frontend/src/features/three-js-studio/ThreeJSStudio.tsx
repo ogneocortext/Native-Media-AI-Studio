@@ -86,9 +86,9 @@ export function ThreeJSStudio() {
   const [fps, setFps] = useState(24);
   // Mirrored from the shared audio library store by useTrackManager; each entry
   // carries a pre-computed `optionLabel` so the header needs no local naming logic.
-  const [libraryTracks, setLibraryTracks] = useState<
-    { filename: string; optionLabel: string }[]
-  >([]);
+  const [libraryTracks, setLibraryTracks] = useState<{ filename: string; optionLabel: string }[]>(
+    [],
+  );
   const [tracksLoading, setTracksLoading] = useState(true);
   const [tracksError, setTracksError] = useState<string | null>(null);
   const [trackMetadata, setTrackMetadata] = useState<
@@ -144,12 +144,13 @@ export function ThreeJSStudio() {
   // above (it lands after the scene engine is built) and is created here
   // so the scene engine can consume it on its first frame.
   const sectionDriver = useSectionDriver(
-    () => (beatAnalysisRef.current?.sections ?? []) as {
-      type: string;
-      start: number;
-      end: number;
-      energy: number;
-    }[],
+    () =>
+      (beatAnalysisRef.current?.sections ?? []) as {
+        type: string;
+        start: number;
+        end: number;
+        energy: number;
+      }[],
     () => (beatAnalysisRef.current?.beat_times ?? []) as readonly number[],
   );
   const activeTemplate = activeTemplateId
@@ -291,10 +292,10 @@ export function ThreeJSStudio() {
         onProgress: (done) => setVideoExportLabel(`${done}/${plan.totalFrames}`),
       });
       if (!buffer) {
-        showToast(
-          "Video export needs WebCodecs (Chrome/Edge). The frame PNG button still works.",
-          { type: "error", duration: 6000 },
-        );
+        showToast("Video export needs WebCodecs (Chrome/Edge). The frame PNG button still works.", {
+          type: "error",
+          duration: 6000,
+        });
         return;
       }
       const url = URL.createObjectURL(new Blob([buffer], { type: "video/mp4" }));

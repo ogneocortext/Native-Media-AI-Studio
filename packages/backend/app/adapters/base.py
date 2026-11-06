@@ -44,7 +44,7 @@ class BaseAdapter(AdapterBase):
             name: Human-readable name for this adapter
             mock_mode: If True, skip service checks and use mock directly
         """
-        self.base_url = base_url.rstrip('/') if not mock_mode else "mock://internal"
+        self.base_url = base_url.rstrip("/") if not mock_mode else "mock://internal"
         super().__init__(name=name, mock_mode=mock_mode)
 
     @abstractmethod

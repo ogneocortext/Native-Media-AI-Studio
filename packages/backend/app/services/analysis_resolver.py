@@ -127,9 +127,7 @@ def resolve_analysis(
         return None
 
     usable = [
-        c
-        for c in candidates
-        if c.schema_version is not None and c.schema_version >= current_schema
+        c for c in candidates if c.schema_version is not None and c.schema_version >= current_schema
     ]
     hit = _match(usable)
     if hit:
@@ -284,9 +282,7 @@ def choose_keeper(candidates: list[AnalysisCandidate]) -> AnalysisCandidate:
     return min(candidates, key=rank)
 
 
-def scan_analysis_dir_cached(
-    analysis_dir: Path, schema_of
-) -> list[AnalysisCandidate]:
+def scan_analysis_dir_cached(analysis_dir: Path, schema_of) -> list[AnalysisCandidate]:
     """`scan_analysis_dir`, but re-reads only files that actually changed.
 
     Reading `schema_version` means parsing whole analysis documents -- ~2.5 MB
@@ -320,10 +316,7 @@ def scan_analysis_dir_cached(
         versions = {p.name: schema_of(p) for p, _, _ in entries}
         _SCAN_CACHE[str(key)] = (fingerprint, versions)
 
-    return [
-        AnalysisCandidate(path=p, schema_version=versions.get(p.name))
-        for p, _, _ in entries
-    ]
+    return [AnalysisCandidate(path=p, schema_version=versions.get(p.name)) for p, _, _ in entries]
 
 
 def resolve_by_job_id(

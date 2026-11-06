@@ -58,7 +58,11 @@ function glCheckError(gl: WebGLRenderingContext, where: string, debug = false): 
  * Bind a WebGL program only if it differs from the currently bound one,
  * avoiding redundant gl.useProgram() calls.
  */
-function glUseProgram(gl: WebGLRenderingContext, program: WebGLProgram | null, currentRef: React.MutableRefObject<WebGLProgram | null>): boolean {
+function glUseProgram(
+  gl: WebGLRenderingContext,
+  program: WebGLProgram | null,
+  currentRef: React.MutableRefObject<WebGLProgram | null>,
+): boolean {
   if (!program) return false;
   if (currentRef.current === program) return true;
   gl.useProgram(program);
@@ -164,9 +168,9 @@ export async function loadTextureFromImage(
       }
       // Apply anisotropic filtering if requested and extension available
       if (anisotropic) {
-        const ext = gl.getExtension("EXT_texture_filter_anisotropic") as
-          | EXT_texture_filter_anisotropic
-          | null;
+        const ext = gl.getExtension(
+          "EXT_texture_filter_anisotropic",
+        ) as EXT_texture_filter_anisotropic | null;
         if (ext) {
           const maxAniso = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
           gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
@@ -199,7 +203,9 @@ export function disposeTexture(gl: WebGLRenderingContext, texture: WebGLTexture 
  * Optional anisotropic filtering extension for better texture quality at
  * oblique viewing angles. Falls back gracefully if unsupported.
  */
-export function getAnisotropicExt(gl: WebGLRenderingContext): EXT_texture_filter_anisotropic | null {
+export function getAnisotropicExt(
+  gl: WebGLRenderingContext,
+): EXT_texture_filter_anisotropic | null {
   return gl.getExtension("EXT_texture_filter_anisotropic") as EXT_texture_filter_anisotropic | null;
 }
 
@@ -224,7 +230,10 @@ export function setAnisotropicFiltering(
  * Texture unit tracker — records which texture is bound to which unit
  * to avoid redundant activeTexture/bindTexture calls during render.
  */
-function createTextureUnitTracker(gl: WebGLRenderingContext, maxUnits: number): {
+function createTextureUnitTracker(
+  gl: WebGLRenderingContext,
+  maxUnits: number,
+): {
   bind: (unit: number, texture: WebGLTexture | null) => void;
   active: (unit: number) => void;
   getBound: (unit: number) => WebGLTexture | null;
@@ -631,25 +640,22 @@ export function ShaderCanvas({
     gl.deleteShader(fs);
   }, []);
 
-  const ensureFBOs = useCallback(
-    (gl: WebGLRenderingContext, width: number, height: number) => {
-      const current = fboRef.current;
-      if (
-        current.read &&
-        current.write &&
-        current.read.width === width &&
-        current.read.height === height
-      ) {
-        return;
-      }
-      deleteFBO(gl, current.read);
-      deleteFBO(gl, current.write);
-      const read = createFBO(gl, width, height);
-      const write = createFBO(gl, width, height);
-      fboRef.current = { read, write };
-    },
-    [],
-  );
+  const ensureFBOs = useCallback((gl: WebGLRenderingContext, width: number, height: number) => {
+    const current = fboRef.current;
+    if (
+      current.read &&
+      current.write &&
+      current.read.width === width &&
+      current.read.height === height
+    ) {
+      return;
+    }
+    deleteFBO(gl, current.read);
+    deleteFBO(gl, current.write);
+    const read = createFBO(gl, width, height);
+    const write = createFBO(gl, width, height);
+    fboRef.current = { read, write };
+  }, []);
 
   useEffect(() => {
     initGL();
@@ -780,11 +786,7 @@ export function ShaderCanvas({
           gl.uniform1f(locs.u_transient, u.transient ?? 0);
           gl.uniform1f(locs.u_centroid, u.centroid ?? 0);
           gl.uniform1f(locs.u_trail, u.trail ?? 0);
-          gl.uniform2f(
-            locs.u_camera_offset,
-            u.cameraOffsetX ?? 0,
-            u.cameraOffsetY ?? 0,
-          );
+          gl.uniform2f(locs.u_camera_offset, u.cameraOffsetX ?? 0, u.cameraOffsetY ?? 0);
           gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
           gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
           gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);
@@ -833,11 +835,7 @@ export function ShaderCanvas({
           gl.uniform1f(locs.u_transient, u.transient ?? 0);
           gl.uniform1f(locs.u_centroid, u.centroid ?? 0);
           gl.uniform1f(locs.u_trail, u.trail ?? 0);
-          gl.uniform2f(
-            locs.u_camera_offset,
-            u.cameraOffsetX ?? 0,
-            u.cameraOffsetY ?? 0,
-          );
+          gl.uniform2f(locs.u_camera_offset, u.cameraOffsetX ?? 0, u.cameraOffsetY ?? 0);
           gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
           gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
           gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);

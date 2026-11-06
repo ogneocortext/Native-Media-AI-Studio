@@ -91,7 +91,9 @@ def to_wsl_path(path: Path) -> str:
     return "/mnt/" + posix.as_posix()
 
 
-def probe_batch(tracks: dict[str, Path], timeout: int = DEFAULT_TIMEOUT) -> dict[str, dict[str, Any]]:
+def probe_batch(
+    tracks: dict[str, Path], timeout: int = DEFAULT_TIMEOUT
+) -> dict[str, dict[str, Any]]:
     """Estimate tempo for many tracks in ONE WSL call.
 
     Args:
@@ -107,8 +109,9 @@ def probe_batch(tracks: dict[str, Path], timeout: int = DEFAULT_TIMEOUT) -> dict
     if not tracks:
         return {}
     if not is_available():
-        logger.info("essentia bridge unavailable (runner or venv missing); "
-                    "falling back to other estimators")
+        logger.info(
+            "essentia bridge unavailable (runner or venv missing); falling back to other estimators"
+        )
         return {}
 
     # Convert every path up front: one bad path should drop that track, not abort
@@ -127,8 +130,14 @@ def probe_batch(tracks: dict[str, Path], timeout: int = DEFAULT_TIMEOUT) -> dict
     distro = os.environ.get("NMA_WSL_DISTRO", DEFAULT_DISTRO)
 
     cmd = [
-        "wsl.exe", "-d", distro, "--user", "root",
-        "--", python_wsl, runner_wsl,
+        "wsl.exe",
+        "-d",
+        distro,
+        "--user",
+        "root",
+        "--",
+        python_wsl,
+        runner_wsl,
     ]
     try:
         proc = subprocess.run(
@@ -152,8 +161,9 @@ def probe_batch(tracks: dict[str, Path], timeout: int = DEFAULT_TIMEOUT) -> dict
 
     stdout = (proc.stdout or "").strip()
     if proc.returncode != 0 or not stdout:
-        logger.warning("essentia batch failed rc=%s: %s",
-                       proc.returncode, (proc.stderr or "").strip()[:200])
+        logger.warning(
+            "essentia batch failed rc=%s: %s", proc.returncode, (proc.stderr or "").strip()[:200]
+        )
         return {}
     try:
         body = json.loads(stdout)

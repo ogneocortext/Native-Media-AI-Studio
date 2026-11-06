@@ -34,9 +34,7 @@ export function LibraryTrackList({ onSelect }: { onSelect: (track: string) => vo
             <div className="flex items-center gap-2">
               <Music size={14} className="text-muted" />
               <div className="flex-1 min-w-0">
-                <span className="block truncate text-sm text-foreground">
-                  {track.optionLabel}
-                </span>
+                <span className="block truncate text-sm text-foreground">{track.optionLabel}</span>
                 <span className="block text-[10px] text-muted truncate">
                   {ext} • {sizeKB} KB
                 </span>

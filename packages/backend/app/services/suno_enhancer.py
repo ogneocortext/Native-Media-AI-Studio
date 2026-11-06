@@ -66,6 +66,7 @@ except ImportError:
 
 # --- Config ------------------------------------------------------------------
 
+
 @dataclass
 class EnhanceConfig:
     """Tuning knobs for the 10-step auto-mix chain (KARRA / Gemini Suno guidance).
@@ -89,10 +90,11 @@ class EnhanceConfig:
       - Parallel weight bus (-12 to -18 dB).
       - Sidechain "pocket EQ" on Other stem: duck 2.5--3.5 kHz while vocals sing.
     """
+
     target_peak_dbfs: float = -1.0
     attack_ms: float = 5.0
     release_ms: float = 80.0
-    ratio: float = 2.5          # Gentle acompressor (2.5:1) -- NOT brickwall
+    ratio: float = 2.5  # Gentle acompressor (2.5:1) -- NOT brickwall
     threshold_dbfs: float = -24.0
     reverb_decay: float = 0.4
     reverb_mix: float = 0.12
@@ -118,7 +120,7 @@ class EnhanceConfig:
     vocal_spectral_gate_threshold_db: float = -40.0
     vocal_dynamic_eq_max_reduction_db: float = 4.0
     # Needs-fallback / KARRA preset toggles
-    vocal_expander: bool = False   # expansion/transient recovery instead of compression
+    vocal_expander: bool = False  # expansion/transient recovery instead of compression
     deess_freq_hz: float = 6500.0  # KARRA de-ess at 6.5 kHz
     air_boost_gain_db: float = 2.5  # +2.5 dB air boost at 10 kHz
     air_boost_freq_hz: float = 10000.0
@@ -143,6 +145,7 @@ class EnhanceConfig:
 
 
 # --- DSP helpers -------------------------------------------------------------
+
 
 def _db_to_linear(db: float | np.ndarray) -> float | np.ndarray:
     """dB -> linear amplitude.
@@ -311,7 +314,7 @@ def _reverb_and_delay(
     #
     # L2-normalising the IR makes `mix` mean what it says: wet RMS ~= mix * dry
     # RMS, so 0.12 is a genuine 12% reverb send.
-    ir_energy = float(np.sqrt(np.sum(ir ** 2))) + 1e-12
+    ir_energy = float(np.sqrt(np.sum(ir**2))) + 1e-12
     ir /= ir_energy
     # Convolve per channel: `np.convolve` is 1-D only and raises
     # `ValueError: object too deep for desired array` on a (channels, samples)
@@ -355,6 +358,7 @@ def _simple_limiter(y: np.ndarray, ceiling_db: float = -0.3) -> np.ndarray:
 #   1. Pre high-pass < 30 Hz (sub-bass rumble / MP3 artifacts).
 #   2. Post spectral gating on vocal stem (kill ghost bleed / phase smearing).
 #   3. Dynamic EQ taming 2.5--4 kHz digital harshness.
+
 
 def _high_pass(y: np.ndarray, sr: int, cutoff_hz: float = 30.0) -> np.ndarray:
     """Simple DC-blocking high-pass via FFT magnitude zeroing."""
@@ -575,7 +579,9 @@ def _dynamic_eq_tame_harshness(
     local_mean = np.mean(band_energy)
     # Reduce up to max_reduction_db when band exceeds mean by > 6 dB
     excess = band_energy / (local_mean + 1e-8)
-    reduction = np.where(excess > 2.0, np.minimum(max_reduction_db, (excess - 2.0) * max_reduction_db), 0.0)
+    reduction = np.where(
+        excess > 2.0, np.minimum(max_reduction_db, (excess - 2.0) * max_reduction_db), 0.0
+    )
     lin_gain = _db_to_linear(-reduction)
     stft[band_mask, :] *= lin_gain[np.newaxis, :]
     out = librosa.istft(stft, hop_length=hop)
@@ -595,6 +601,7 @@ def _dynamic_eq_tame_harshness(
 # We translate the same stages into numpy/librosa DSP. The blueprint's 110 Hz
 # high-pass is deliberately NOT reproduced: measured on the 48 kHz source it
 # deleted 89% of the 10-250 Hz bass band (see `pre_highpass_hz`).
+
 
 def _vocal_expander(
     y: np.ndarray,
@@ -700,7 +707,9 @@ def _band_rms_deesser(
     overall_rms = np.sqrt(np.mean(np.abs(stft) ** 2, axis=0)) + 1e-8
     ratio = band_energy / overall_rms
     threshold = 1.8  # band is 1.8x overall RMS -> start reducing
-    reduction = np.where(ratio > threshold, np.minimum(max_reduction_db, (ratio - threshold) * max_reduction_db), 0.0)
+    reduction = np.where(
+        ratio > threshold, np.minimum(max_reduction_db, (ratio - threshold) * max_reduction_db), 0.0
+    )
     lin_gain = _db_to_linear(-reduction)
     stft[band_mask, :] *= lin_gain[np.newaxis, :]
     out = librosa.istft(stft, hop_length=hop)
@@ -719,7 +728,7 @@ def _lufs_gain_stage(y: np.ndarray, target_lufs: float = -14.0) -> np.ndarray:
     """
     if y.size == 0:
         return y
-    rms = float(np.sqrt(np.mean(y ** 2)))
+    rms = float(np.sqrt(np.mean(y**2)))
     if rms < 1e-10:
         return y
     # Rough LUFS ~= -0.691 + 10*log10(RMS^2) for full-scale sine
@@ -781,7 +790,9 @@ def _sidechain_pocket_eq(
     other_band_energy = np.mean(np.abs(stft_o[band_mask, :]), axis=0)
     # When vocal band energy exceeds Other band energy, duck Other
     ratio = vocal_band_energy / (other_band_energy + 1e-8)
-    reduction = np.where(ratio > 1.0, np.minimum(max_reduction_db, (ratio - 1.0) * max_reduction_db), 0.0)
+    reduction = np.where(
+        ratio > 1.0, np.minimum(max_reduction_db, (ratio - 1.0) * max_reduction_db), 0.0
+    )
     lin_gain = _db_to_linear(-reduction)
     stft_o[band_mask, :] *= lin_gain[np.newaxis, :]
     out = librosa.istft(stft_o, hop_length=hop)
@@ -794,6 +805,7 @@ def _sidechain_pocket_eq(
 
 
 # --- Core pipeline ------------------------------------------------------------
+
 
 @dataclass
 class EnhanceResult:
@@ -821,7 +833,13 @@ class SunoEnhancer:
         steps: list[dict[str, Any]] = []
         stems_dir = Path(stems_dir)
         if not stems_dir.exists():
-            return EnhanceResult(success=False, output_dir=None, wav_path=None, mp3_path=None, error=f"stems_dir not found: {stems_dir}")
+            return EnhanceResult(
+                success=False,
+                output_dir=None,
+                wav_path=None,
+                mp3_path=None,
+                error=f"stems_dir not found: {stems_dir}",
+            )
 
         if output_dir is None:
             output_dir = stems_dir / "enhanced"
@@ -829,7 +847,13 @@ class SunoEnhancer:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         if not LIBROSA_AVAILABLE:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, error="librosa not installed")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                error="librosa not installed",
+            )
 
         stem_names = ["vocals", "drums", "bass", "other"]
         loaded: dict[str, np.ndarray] = {}
@@ -855,24 +879,39 @@ class SunoEnhancer:
             steps.append({"step": 1, "name": "load", "stems": list(loaded.keys())})
             _report(1, "load")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"load failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"load failed: {exc}",
+            )
 
         if not loaded:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, error="no stems found")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                error="no stems found",
+            )
 
         # Ensure mono fallback
         for name, y in loaded.items():
             if y.ndim == 1:
                 loaded[name] = y[np.newaxis, :]
 
-# -- Step 2: Pre high-pass (heuristic: spectral-centroid adaptive) ----
+        # -- Step 2: Pre high-pass (heuristic: spectral-centroid adaptive) ----
         # Gemini KARRA: push HPF to 110--130 Hz for Suno + Demucs low-end bleed.
         # Default 120 Hz; adapt down to 80 Hz only when spectral centroid is very low.
         try:
             adaptive_hp = self.config.pre_highpass_hz
             if LIBROSA_AVAILABLE and "vocals" in loaded:
                 try:
-                    centroid = librosa.feature.spectral_centroid(y=loaded["vocals"][0], sr=sr, n_fft=2048, hop_length=512)
+                    centroid = librosa.feature.spectral_centroid(
+                        y=loaded["vocals"][0], sr=sr, n_fft=2048, hop_length=512
+                    )
                     c_mean = float(np.mean(centroid))
                     if c_mean < 800.0:
                         adaptive_hp = max(80.0, adaptive_hp - 30.0)
@@ -893,27 +932,50 @@ class SunoEnhancer:
             steps.append({"step": 2, "name": "pre_highpass", "cutoff_hz": adaptive_hp})
             _report(2, "pre_highpass")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"pre_highpass failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"pre_highpass failed: {exc}",
+            )
 
-# -- Step 3: LUFS gain staging (heuristic) ---------------------------
+        # -- Step 3: LUFS gain staging (heuristic) ---------------------------
         try:
             for name, y in loaded.items():
                 loaded[name] = _lufs_gain_stage(y, target_lufs=-14.0)
             steps.append({"step": 3, "name": "lufs_gain_stage", "target_lufs": -14.0})
             _report(3, "lufs_gain_stage")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"lufs_gain_stage failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"lufs_gain_stage failed: {exc}",
+            )
 
-# -- Step 4: Normalize ---------------------------------------------
+        # -- Step 4: Normalize ---------------------------------------------
         try:
             for name, y in loaded.items():
                 loaded[name] = _normalize_peak(y, self.config.target_peak_dbfs)
-            steps.append({"step": 4, "name": "normalize", "peak_dbfs": self.config.target_peak_dbfs})
+            steps.append(
+                {"step": 4, "name": "normalize", "peak_dbfs": self.config.target_peak_dbfs}
+            )
             _report(4, "normalize")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"normalize failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"normalize failed: {exc}",
+            )
 
-# -- Step 5: Per-stem processing (KARRA split) -----------------------
+        # -- Step 5: Per-stem processing (KARRA split) -----------------------
         # Heuristic (always): non-vocals get gentle glue compression.
         # Needs-fallback (opt-in): vocals get expander + KARRA preset instead.
         try:
@@ -922,128 +984,260 @@ class SunoEnhancer:
                 for c in range(y.shape[0]):
                     if name == "vocals" and self.config.vocal_expander:
                         # KARRA path: expander/transient recovery (no compression)
-                        chans.append(_vocal_expander(
-                            y[c], sr,
-                            threshold_db=-45.0,
-                            ratio=1.8,
-                        ))
+                        chans.append(
+                            _vocal_expander(
+                                y[c],
+                                sr,
+                                threshold_db=-45.0,
+                                ratio=1.8,
+                            )
+                        )
                     else:
-                        chans.append(_compress_audio(
-                            y[c], sr,
-                            threshold_db=self.config.threshold_dbfs,
-                            ratio=self.config.ratio,
-                            attack_ms=self.config.attack_ms,
-                            release_ms=self.config.release_ms,
-                        ))
+                        chans.append(
+                            _compress_audio(
+                                y[c],
+                                sr,
+                                threshold_db=self.config.threshold_dbfs,
+                                ratio=self.config.ratio,
+                                attack_ms=self.config.attack_ms,
+                                release_ms=self.config.release_ms,
+                            )
+                        )
                 loaded[name] = np.stack(chans, axis=0)
-            steps.append({"step": 5, "name": "stem_processing", "vocal_expander": self.config.vocal_expander})
+            steps.append(
+                {"step": 5, "name": "stem_processing", "vocal_expander": self.config.vocal_expander}
+            )
             _report(5, "stem_processing")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"stem_processing failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"stem_processing failed: {exc}",
+            )
 
-# -- Step 6: De-ess vocals (band-RMS heuristic) ----------------------
+        # -- Step 6: De-ess vocals (band-RMS heuristic) ----------------------
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
-                deessed = np.stack([_band_rms_deesser(
-                    vocals[c], sr,
-                    freq_hz=self.config.deess_freq_hz,
-                    bandwidth_hz=3000.0,
-                    max_reduction_db=6.0,
-                ) for c in range(vocals.shape[0])], axis=0)
+                deessed = np.stack(
+                    [
+                        _band_rms_deesser(
+                            vocals[c],
+                            sr,
+                            freq_hz=self.config.deess_freq_hz,
+                            bandwidth_hz=3000.0,
+                            max_reduction_db=6.0,
+                        )
+                        for c in range(vocals.shape[0])
+                    ],
+                    axis=0,
+                )
                 loaded["vocals"] = deessed
-                steps.append({"step": 6, "name": "deess", "target": "vocals", "freq_hz": self.config.deess_freq_hz})
+                steps.append(
+                    {
+                        "step": 6,
+                        "name": "deess",
+                        "target": "vocals",
+                        "freq_hz": self.config.deess_freq_hz,
+                    }
+                )
                 _report(6, "deess")
             else:
                 steps.append({"step": 6, "name": "deess", "skipped": True})
                 _report(6, "deess")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"deess failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"deess failed: {exc}",
+            )
 
-# -- Step 7: KARRA vocal chain (air boost + gentle acompressor) ------
+        # -- Step 7: KARRA vocal chain (air boost + gentle acompressor) ------
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
                 # Air boost at 10 kHz
-                aired = np.stack([_air_boost(
-                    vocals[c], sr,
-                    freq_hz=self.config.air_boost_freq_hz,
-                    gain_db=self.config.air_boost_gain_db,
-                    bandwidth_hz=2000.0,
-                ) for c in range(vocals.shape[0])], axis=0)
+                aired = np.stack(
+                    [
+                        _air_boost(
+                            vocals[c],
+                            sr,
+                            freq_hz=self.config.air_boost_freq_hz,
+                            gain_db=self.config.air_boost_gain_db,
+                            bandwidth_hz=2000.0,
+                        )
+                        for c in range(vocals.shape[0])
+                    ],
+                    axis=0,
+                )
                 # Gentle acompressor 2.5:1
-                comped = np.stack([_compress_audio(
-                    aired[c], sr,
-                    threshold_db=-18.0,
-                    ratio=self.config.ratio,
-                    attack_ms=2.0,
-                    release_ms=40.0,
-                ) for c in range(vocals.shape[0])], axis=0)
+                comped = np.stack(
+                    [
+                        _compress_audio(
+                            aired[c],
+                            sr,
+                            threshold_db=-18.0,
+                            ratio=self.config.ratio,
+                            attack_ms=2.0,
+                            release_ms=40.0,
+                        )
+                        for c in range(vocals.shape[0])
+                    ],
+                    axis=0,
+                )
                 loaded["vocals"] = comped
-                steps.append({"step": 7, "name": "karrra_vocal_chain", "air_boost_db": self.config.air_boost_gain_db})
+                steps.append(
+                    {
+                        "step": 7,
+                        "name": "karrra_vocal_chain",
+                        "air_boost_db": self.config.air_boost_gain_db,
+                    }
+                )
                 _report(7, "karrra_vocal_chain")
             else:
                 steps.append({"step": 7, "name": "karrra_vocal_chain", "skipped": True})
                 _report(7, "karrra_vocal_chain")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"karrra_vocal_chain failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"karrra_vocal_chain failed: {exc}",
+            )
 
-# -- Step 8: Vocal balance +/-3 dB macro + stereo widen non-vocals -----
+        # -- Step 8: Vocal balance +/-3 dB macro + stereo widen non-vocals -----
         try:
             if "vocals" in loaded and self.config.vocal_balance_db != 0.0:
                 bal = _db_to_linear(self.config.vocal_balance_db)
                 loaded["vocals"] = loaded["vocals"] * bal
-                steps.append({"step": 8, "name": "vocal_balance", "db": self.config.vocal_balance_db})
+                steps.append(
+                    {"step": 8, "name": "vocal_balance", "db": self.config.vocal_balance_db}
+                )
             for name in ("drums", "bass", "other"):
                 if name not in loaded:
                     continue
                 y = loaded[name]
                 if y.ndim >= 2 and y.shape[0] >= 2:
                     loaded[name] = _stereo_widen(y, self.config.stereo_widen_amount)
-            steps.append({"step": 8, "name": "stereo_widen", "amount": self.config.stereo_widen_amount})
+            steps.append(
+                {"step": 8, "name": "stereo_widen", "amount": self.config.stereo_widen_amount}
+            )
             _report(8, "stereo_widen")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"stereo_widen failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"stereo_widen failed: {exc}",
+            )
 
-# -- Step 9: Post spectral gating on vocals (ghost bleed killer) -----
+        # -- Step 9: Post spectral gating on vocals (ghost bleed killer) -----
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
-                gated = np.stack([_spectral_gate(vocals[c], sr, threshold_db=self.config.vocal_spectral_gate_threshold_db) for c in range(vocals.shape[0])], axis=0)
+                gated = np.stack(
+                    [
+                        _spectral_gate(
+                            vocals[c], sr, threshold_db=self.config.vocal_spectral_gate_threshold_db
+                        )
+                        for c in range(vocals.shape[0])
+                    ],
+                    axis=0,
+                )
                 loaded["vocals"] = gated
-                steps.append({"step": 9, "name": "vocal_spectral_gate", "threshold_db": self.config.vocal_spectral_gate_threshold_db})
+                steps.append(
+                    {
+                        "step": 9,
+                        "name": "vocal_spectral_gate",
+                        "threshold_db": self.config.vocal_spectral_gate_threshold_db,
+                    }
+                )
                 _report(9, "vocal_spectral_gate")
             else:
                 steps.append({"step": 9, "name": "vocal_spectral_gate", "skipped": True})
                 _report(9, "vocal_spectral_gate")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"vocal_spectral_gate failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"vocal_spectral_gate failed: {exc}",
+            )
 
-# -- Step 10: Dynamic EQ tame 2.5--4 kHz harshness on vocals ----------
+        # -- Step 10: Dynamic EQ tame 2.5--4 kHz harshness on vocals ----------
         try:
             if "vocals" in loaded:
                 vocals = loaded["vocals"]
-                tamed = np.stack([_dynamic_eq_tame_harshness(vocals[c], sr, max_reduction_db=self.config.vocal_dynamic_eq_max_reduction_db) for c in range(vocals.shape[0])], axis=0)
+                tamed = np.stack(
+                    [
+                        _dynamic_eq_tame_harshness(
+                            vocals[c],
+                            sr,
+                            max_reduction_db=self.config.vocal_dynamic_eq_max_reduction_db,
+                        )
+                        for c in range(vocals.shape[0])
+                    ],
+                    axis=0,
+                )
                 loaded["vocals"] = tamed
-                steps.append({"step": 10, "name": "vocal_dynamic_eq", "freq_hz": 3200.0, "max_reduction_db": self.config.vocal_dynamic_eq_max_reduction_db})
+                steps.append(
+                    {
+                        "step": 10,
+                        "name": "vocal_dynamic_eq",
+                        "freq_hz": 3200.0,
+                        "max_reduction_db": self.config.vocal_dynamic_eq_max_reduction_db,
+                    }
+                )
                 _report(10, "vocal_dynamic_eq")
             else:
                 steps.append({"step": 10, "name": "vocal_dynamic_eq", "skipped": True})
                 _report(10, "vocal_dynamic_eq")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"vocal_dynamic_eq failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"vocal_dynamic_eq failed: {exc}",
+            )
 
-# -- Step 11: Parallel weight bus (-12 to -18 dB) ---------------------
+        # -- Step 11: Parallel weight bus (-12 to -18 dB) ---------------------
         try:
             if self.config.parallel_weight_bus_db != 0.0:
                 for name, y in loaded.items():
                     loaded[name] = _parallel_weight_bus(y, self.config.parallel_weight_bus_db)
-                steps.append({"step": 11, "name": "parallel_weight_bus", "attenuation_db": self.config.parallel_weight_bus_db})
+                steps.append(
+                    {
+                        "step": 11,
+                        "name": "parallel_weight_bus",
+                        "attenuation_db": self.config.parallel_weight_bus_db,
+                    }
+                )
                 _report(11, "parallel_weight_bus")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"parallel_weight_bus failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"parallel_weight_bus failed: {exc}",
+            )
 
-# -- Step 12: Sidechain pocket EQ on Other while vocals sing -----------
+        # -- Step 12: Sidechain pocket EQ on Other while vocals sing -----------
         try:
             if self.config.sidechain_pocket_eq_enabled and "vocals" in loaded and "other" in loaded:
                 vocals_y = loaded["vocals"]
@@ -1069,34 +1263,64 @@ class SunoEnhancer:
                 steps.append({"step": 12, "name": "sidechain_pocket_eq", "freq_hz": 3000.0})
                 _report(12, "sidechain_pocket_eq")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"sidechain_pocket_eq failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"sidechain_pocket_eq failed: {exc}",
+            )
 
-# -- Step 13: Reverb/delay sends (vocals EXCLUDED -- pseudo-reverb baked in) --
+        # -- Step 13: Reverb/delay sends (vocals EXCLUDED -- pseudo-reverb baked in) --
         try:
             for name, y in loaded.items():
                 send_target = y
                 if name != "vocals":
                     send_target = _reverb_and_delay(
-                        y, sr,
+                        y,
+                        sr,
                         decay=self.config.reverb_decay,
                         mix=self.config.reverb_mix,
                         delay_mix=self.config.delay_mix,
                     )
                 loaded[name] = send_target
-            steps.append({"step": 13, "name": "fx_sends", "reverb_mix": self.config.reverb_mix, "delay_mix": self.config.delay_mix, "vocals_excluded": True})
+            steps.append(
+                {
+                    "step": 13,
+                    "name": "fx_sends",
+                    "reverb_mix": self.config.reverb_mix,
+                    "delay_mix": self.config.delay_mix,
+                    "vocals_excluded": True,
+                }
+            )
             _report(13, "fx_sends")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"fx_sends failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"fx_sends failed: {exc}",
+            )
 
-# -- Step 14: Mix stems with auto-leveling ---------------------------
+        # -- Step 14: Mix stems with auto-leveling ---------------------------
         try:
             mixed = await asyncio.to_thread(self._mix_stems, loaded, sr)
             steps.append({"step": 14, "name": "mix", "method": "auto_level"})
             _report(14, "mix")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"mix failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"mix failed: {exc}",
+            )
 
-# -- Step 15: Progressive high-end drift correction (V6) ---------------
+        # -- Step 15: Progressive high-end drift correction (V6) ---------------
         try:
             if self.config.restore_high_end_drift:
                 mixed = _restore_high_end_drift(
@@ -1104,16 +1328,25 @@ class SunoEnhancer:
                     sr,
                     max_boost_db=self.config.max_drift_boost_db,
                 )
-                steps.append({
-                    "step": 15,
-                    "name": "high_end_drift_correction",
-                    "max_boost_db": self.config.max_drift_boost_db,
-                })
+                steps.append(
+                    {
+                        "step": 15,
+                        "name": "high_end_drift_correction",
+                        "max_boost_db": self.config.max_drift_boost_db,
+                    }
+                )
                 _report(15, "high_end_drift_correction")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"drift_correction failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"drift_correction failed: {exc}",
+            )
 
-# -- Step 16: Reference tonal match (opt-in) -------------------------
+        # -- Step 16: Reference tonal match (opt-in) -------------------------
         # EQ before limiting: the limiter then sees the final spectrum.
         try:
             if self.config.reference_track:
@@ -1122,26 +1355,50 @@ class SunoEnhancer:
                     match_to_reference,
                     profile_for_reference,
                 )
+
                 ref_profile = profile_for_reference(self.config.reference_track)
                 mixed = match_to_reference(
-                    mixed, sr, ref_profile,
+                    mixed,
+                    sr,
+                    ref_profile,
                     strength=self.config.reference_match_strength,
                 )
-                steps.append({"step": 16, "name": "reference_match",
-                              "reference": self.config.reference_track,
-                              "strength": self.config.reference_match_strength,
-                               "profile": describe_profile(ref_profile)})
+                steps.append(
+                    {
+                        "step": 16,
+                        "name": "reference_match",
+                        "reference": self.config.reference_track,
+                        "strength": self.config.reference_match_strength,
+                        "profile": describe_profile(ref_profile),
+                    }
+                )
                 _report(16, "reference_match")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"reference_match failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"reference_match failed: {exc}",
+            )
 
-# -- Step 17: Master bus true-peak limiter (-1.0 dB) -----------------
+        # -- Step 17: Master bus true-peak limiter (-1.0 dB) -----------------
         try:
             mixed = _simple_limiter(mixed, self.config.master_ceiling_dbfs)
-            steps.append({"step": 17, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs})
+            steps.append(
+                {"step": 17, "name": "limiter", "ceiling_dbfs": self.config.master_ceiling_dbfs}
+            )
             _report(17, "limiter")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=None, mp3_path=None, steps=steps, error=f"limiter failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                steps=steps,
+                error=f"limiter failed: {exc}",
+            )
 
         # -- Step 18/19: Export ----------------------------------------------
         wav_path = None
@@ -1155,13 +1412,32 @@ class SunoEnhancer:
                 _report(18, "export_wav")
             if self.config.output_format in ("mp3", "both"):
                 mp3_path = output_dir / f"{base_name}_enhanced.mp3"
-                await asyncio.to_thread(self._encode_mp3, wav_path or output_dir / f"{base_name}_enhanced.wav", mp3_path, mixed, sr)
+                await asyncio.to_thread(
+                    self._encode_mp3,
+                    wav_path or output_dir / f"{base_name}_enhanced.wav",
+                    mp3_path,
+                    mixed,
+                    sr,
+                )
                 steps.append({"step": 19, "name": "export_mp3", "path": str(mp3_path)})
                 _report(19, "export_mp3")
         except Exception as exc:
-            return EnhanceResult(success=False, output_dir=str(output_dir), wav_path=wav_path, mp3_path=mp3_path, steps=steps, error=f"export failed: {exc}")
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=wav_path,
+                mp3_path=mp3_path,
+                steps=steps,
+                error=f"export failed: {exc}",
+            )
 
-        return EnhanceResult(success=True, output_dir=str(output_dir), wav_path=str(wav_path) if wav_path else None, mp3_path=str(mp3_path) if mp3_path else None, steps=steps)
+        return EnhanceResult(
+            success=True,
+            output_dir=str(output_dir),
+            wav_path=str(wav_path) if wav_path else None,
+            mp3_path=str(mp3_path) if mp3_path else None,
+            steps=steps,
+        )
 
     def _mix_stems(self, loaded: dict[str, np.ndarray], sr: int) -> np.ndarray:
         """Sum the stems at unity, then normalise the *sum*.
@@ -1202,9 +1478,7 @@ class SunoEnhancer:
 
         for y in loaded.values():
             if y.shape[-1] < max_len:
-                y = np.concatenate(
-                    [y, np.zeros(max_len - y.shape[-1], dtype=np.float32)], axis=-1
-                )
+                y = np.concatenate([y, np.zeros(max_len - y.shape[-1], dtype=np.float32)], axis=-1)
             chans = y if y.ndim > 1 else y[np.newaxis, :]
             for c in range(min(chans.shape[0], n_ch)):
                 mixed[c] += chans[c, :max_len]
@@ -1214,7 +1488,7 @@ class SunoEnhancer:
         # mix balance; the limiter then catches whatever transients remain.
         peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
         if peak > 1e-9:
-            mixed *= (PEAK_TARGET_LINEAR / peak)
+            mixed *= PEAK_TARGET_LINEAR / peak
         return mixed
 
     def _write_wav(self, path: Path, y: np.ndarray, sr: int) -> None:
@@ -1222,6 +1496,7 @@ class SunoEnhancer:
             sf.write(str(path), y.T if y.ndim > 1 else y, sr, subtype="FLOAT")
         else:
             import wave
+
             wav_path = str(path)
             with wave.open(wav_path, "wb") as wf:
                 wf.setnchannels(2 if y.ndim > 1 else 1)
@@ -1237,15 +1512,32 @@ class SunoEnhancer:
         if not wav_path.exists():
             raise FileNotFoundError(f"intermediate WAV missing: {wav_path}")
         cmd = [
-            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(wav_path),
-            "-codec:a", "libmp3lame", "-q:a", "2",
+            ffmpeg,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(wav_path),
+            "-codec:a",
+            "libmp3lame",
+            "-q:a",
+            "2",
             str(mp3_path),
         ]
-        subprocess.run(cmd, encoding="utf-8", errors="replace", check=True, capture_output=True, text=True, timeout=300)
+        subprocess.run(
+            cmd,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
 
 
 # --- Async entry point --------------------------------------------------------
+
 
 async def enhance_stems(
     stems_dir: str | Path,

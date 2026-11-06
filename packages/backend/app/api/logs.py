@@ -108,6 +108,8 @@ async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
 
     result: dict = {"received": len(entries)}
     if dropped:
-        logger.warning("Dropped %d frontend log entries (batch cap %d)", dropped, _MAX_FRONTEND_ENTRIES)
+        logger.warning(
+            "Dropped %d frontend log entries (batch cap %d)", dropped, _MAX_FRONTEND_ENTRIES
+        )
         result["dropped"] = dropped
     return result

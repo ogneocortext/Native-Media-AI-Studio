@@ -313,13 +313,13 @@ export function VisualizerScene({
 
         {/* Post pipeline: bloom + film grade — now LRC-reactive (phrase pulse boosts bloom) */}
         {postfxEnabled && (
-        <PostFXSelector
-          audioData={audioData}
-          lrcSync={lrcSync}
-          lrcSyncRef={lrcSyncLiveRef}
-          prefersReducedMotion={prefersReducedMotion}
-          postfx={vizParams.postfx}
-        />
+          <PostFXSelector
+            audioData={audioData}
+            lrcSync={lrcSync}
+            lrcSyncRef={lrcSyncLiveRef}
+            prefersReducedMotion={prefersReducedMotion}
+            postfx={vizParams.postfx}
+          />
         )}
 
         <OrbitControls

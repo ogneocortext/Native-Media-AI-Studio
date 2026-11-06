@@ -30,11 +30,7 @@ export function getVideoModelInfo(modelName: string, meta?: Partial<RawVideoMode
   const vramMb = meta?.vram_mb;
   const supports8gb = meta?.supports_8gb ?? true;
 
-  if (
-    base.includes("mm_sd15") ||
-    base.includes("mm_sd_v15") ||
-    base.includes("mm-stabilized")
-  ) {
+  if (base.includes("mm_sd15") || base.includes("mm_sd_v15") || base.includes("mm-stabilized")) {
     return {
       name: modelName,
       description: "AnimateDiff motion module — adds temporal consistency to SD 1.5",
@@ -76,9 +72,7 @@ export function getVideoModelInfo(modelName: string, meta?: Partial<RawVideoMode
       name: modelName,
       description: `Wan 2.1 T2V 1.3B — 6GB class text-to-video${vramNote}`,
       type: "Text-to-Video (1.3B)",
-      bestFor: supports8gb
-        ? "832×480, 49–97 frames on 8GB — fastest iteration"
-        : "Text-to-video",
+      bestFor: supports8gb ? "832×480, 49–97 frames on 8GB — fastest iteration" : "Text-to-video",
       variant: variant ?? "1.3B",
       size_mb: meta?.size_mb,
       path: meta?.path,

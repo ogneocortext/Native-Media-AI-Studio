@@ -133,13 +133,7 @@ export function useTrackSelection({
   refs,
   api,
 }: UseTrackSelectionOptions): UseTrackSelectionResult {
-  const {
-    analysisData,
-    trackMetadata,
-    vizMode,
-    pendingTrack,
-    libraryFiles,
-  } = state;
+  const { analysisData, trackMetadata, vizMode, pendingTrack, libraryFiles } = state;
   const {
     setError,
     setCurrentFilename,

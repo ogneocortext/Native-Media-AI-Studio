@@ -404,9 +404,7 @@ class MuseTalkAdapter:
         workdir = out.parent / f".lipsync_{out.stem}"
         workdir.mkdir(parents=True, exist_ok=True)
         try:
-            wav = await asyncio.to_thread(
-                self._prepare_audio, audio, workdir
-            )
+            wav = await asyncio.to_thread(self._prepare_audio, audio, workdir)
             # Optional avatar preparation (latent caching) -- skipped when
             # cached latents exist and use_prepared is set.
             if avatar_key and use_prepared and self.is_prepared(avatar_key):
@@ -607,8 +605,7 @@ class MuseTalkAdapter:
             ) from exc
         if proc.returncode != 0:
             raise RuntimeError(
-                f"MuseTalk inference failed (rc={proc.returncode}): "
-                f"{(proc.stderr or '')[-800:]}"
+                f"MuseTalk inference failed (rc={proc.returncode}): {(proc.stderr or '')[-800:]}"
             )
         # If a progress callback was provided but we ran synchronously (no
         # streaming), at least report completion based on the exit code.
@@ -656,9 +653,7 @@ class MuseTalkAdapter:
         logger.info("MuseTalk inference (streaming): %s", cmd_str[:200])
 
         frame_re = re.compile(r"frame\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
-        pct_re = re.compile(
-            r"(\d{1,3})\s*%\s*(?:complete|done|rendered)", re.IGNORECASE
-        )
+        pct_re = re.compile(r"(\d{1,3})\s*%\s*(?:complete|done|rendered)", re.IGNORECASE)
 
         self._reset_cancel()
         try:
@@ -672,7 +667,12 @@ class MuseTalkAdapter:
             # Windows SelectorEventLoop -- fall back to synchronous run in a thread.
             logger.debug("async subprocess unavailable; falling back to thread")
             await asyncio.to_thread(
-                self._run_inference, video, audio_wav, out, avatar_key=avatar_key, progress_cb=progress_cb
+                self._run_inference,
+                video,
+                audio_wav,
+                out,
+                avatar_key=avatar_key,
+                progress_cb=progress_cb,
             )
             return
         self._current_proc = proc
@@ -727,6 +727,4 @@ class MuseTalkAdapter:
             self._current_proc = None
         self._check_cancelled()
         if proc.returncode != 0:
-            raise RuntimeError(
-                f"MuseTalk inference failed (rc={proc.returncode})"
-            )
+            raise RuntimeError(f"MuseTalk inference failed (rc={proc.returncode})")

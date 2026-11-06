@@ -62,7 +62,7 @@ export function Sidebar({
   history,
   setResponse,
 }: SidebarProps) {
-const timeAgo = (d: Date) => {
+  const timeAgo = (d: Date) => {
     const secs = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
     if (secs < 60) return "just now";
     const mins = Math.floor(secs / 60);
@@ -231,7 +231,9 @@ const timeAgo = (d: Date) => {
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate">{h.prompt}</span>
                   {h.toolCalls ? (
-                    <span className="text-amber-400 light:text-amber-700 ml-2 shrink-0">🔧{h.toolCalls}</span>
+                    <span className="text-amber-400 light:text-amber-700 ml-2 shrink-0">
+                      🔧{h.toolCalls}
+                    </span>
                   ) : null}
                 </div>
                 <div className={DS.textXs + " flex items-center justify-between gap-2 mt-0.5"}>

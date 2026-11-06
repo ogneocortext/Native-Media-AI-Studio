@@ -742,9 +742,7 @@ class ImageProcessor:
 
         # Beat-synced displacement on beats
         if beat_detected and audio_level > 0.5:
-            result = ImageProcessor.beat_sync_displace(
-                result, beat_strength=audio_level
-            )
+            result = ImageProcessor.beat_sync_displace(result, beat_strength=audio_level)
 
         # EQ-reactive filter based on audio level
         if audio_level > 0.3:

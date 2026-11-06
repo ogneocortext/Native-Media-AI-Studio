@@ -87,12 +87,18 @@ export function useFrameRateMonitor(enabled = true) {
     });
 
     // Record to metrics store
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const win = window as unknown as Record<string, unknown>;
       const store = win.metricsStore;
-      if (store && typeof (store as { record?: (name: string, value: number) => void }).record === 'function') {
-        (store as { record: (name: string, value: number) => void }).record('render.fps', fps);
-        (store as { record: (name: string, value: number) => void }).record('render.frameTime', delta);
+      if (
+        store &&
+        typeof (store as { record?: (name: string, value: number) => void }).record === "function"
+      ) {
+        (store as { record: (name: string, value: number) => void }).record("render.fps", fps);
+        (store as { record: (name: string, value: number) => void }).record(
+          "render.frameTime",
+          delta,
+        );
       }
     }
 

@@ -68,8 +68,7 @@ export const easeOutExpo: EasingFn = (t) => {
 /** easeInQuad → easeInExpo chain used for builds ("ratcheting tension"). The
  *  blend is linear in t; the *convexity* of the result is what makes each step
  *  feel shorter than the last, which is the actual ratchet effect. */
-export const easeInQuadToExpo: EasingFn = (t) =>
-  lerp(easeInQuad(t), easeInExpo(t), clamp01(t));
+export const easeInQuadToExpo: EasingFn = (t) => lerp(easeInQuad(t), easeInExpo(t), clamp01(t));
 
 /** Stepped hold → smooth move. Drives `orbital-ratchet` and the snap-out of
  *  `anticipation-contract`. */
@@ -209,14 +208,7 @@ export class DampedSpring {
 // ---------------------------------------------------------------------------
 
 export type MotionSection =
-  | "intro"
-  | "verse"
-  | "pre-chorus"
-  | "chorus"
-  | "bridge"
-  | "outro"
-  | "drop"
-  | "breakdown";
+  "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "drop" | "breakdown";
 
 export interface SectionEasing {
   /** Curve applied to intra-section progress. */

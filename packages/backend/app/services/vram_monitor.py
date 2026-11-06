@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # re-import it on every call.
 try:
     import pynvml as _pynvml
+
     _PYNVML_AVAILABLE = True
 except Exception:
     _pynvml = None
@@ -47,6 +48,7 @@ async def _fetch_resident_models() -> list[str]:
     hammering /api/ps on every call.
     """
     import time
+
     global _resident_cache, _resident_cache_ts
     now = time.monotonic()
     if now - _resident_cache_ts < _RESIDENT_CACHE_TTL_S and _resident_cache:
@@ -76,9 +78,7 @@ def classify_resident_models(resident_models: list[str]) -> tuple[bool, bool]:
     """
     names = {_base_name(m) for m in resident_models}
     ollama_loaded = any(n.startswith(("gemma4", "llama")) for n in names)
-    atomic_chat_loaded = any(
-        n.startswith("qwen3") or "qwen3_5" in n for n in names
-    )
+    atomic_chat_loaded = any(n.startswith("qwen3") or "qwen3_5" in n for n in names)
     return ollama_loaded, atomic_chat_loaded
 
 

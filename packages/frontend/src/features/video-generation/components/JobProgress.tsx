@@ -15,26 +15,32 @@ export interface JobProgress {
   error: string | null;
 }
 
-export const JobProgress = ({ progress, compact }: { progress: JobProgress | null; compact?: boolean }) => {
+export const JobProgress = ({
+  progress,
+  compact,
+}: {
+  progress: JobProgress | null;
+  compact?: boolean;
+}) => {
   if (!progress) return null;
 
   const StatusIcon =
     progress.status === "completed"
       ? CheckCircle
       : progress.status === "failed"
-      ? XCircle
-      : progress.status === "cancelled"
-      ? AlertCircle
-      : Loader2;
+        ? XCircle
+        : progress.status === "cancelled"
+          ? AlertCircle
+          : Loader2;
 
   const statusColor =
     progress.status === "completed"
       ? "text-green-400"
       : progress.status === "failed"
-      ? "text-red-400"
-      : progress.status === "cancelled"
-      ? "text-yellow-400"
-      : "text-white";
+        ? "text-red-400"
+        : progress.status === "cancelled"
+          ? "text-yellow-400"
+          : "text-white";
 
   if (compact) {
     return (
@@ -42,9 +48,7 @@ export const JobProgress = ({ progress, compact }: { progress: JobProgress | nul
         <StatusIcon size={14} />
         <span>{progress.status}</span>
         {progress.progress > 0 && (
-          <span className="text-muted">
-            {Math.round(progress.progress)}%
-          </span>
+          <span className="text-muted">{Math.round(progress.progress)}%</span>
         )}
         {progress.error && (
           <span className="text-red-400 truncate" title={progress.error}>
@@ -60,9 +64,7 @@ export const JobProgress = ({ progress, compact }: { progress: JobProgress | nul
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <StatusIcon size={16} className={statusColor} />
-          <span className={`font-medium ${statusColor}`}>
-            {progress.status}
-          </span>
+          <span className={`font-medium ${statusColor}`}>{progress.status}</span>
         </div>
         {progress.estimated_end_time && (
           <span className="text-xs text-muted">

@@ -82,9 +82,7 @@ class _Job:
         # answer, and leaving "running" here would wedge a poller.
         # "cancelling" counts too - a cancel the work never observed is
         # exactly as wedged as a render that never finishes.
-        timed_out = (
-            self.state in ("queued", "running", "cancelling") and elapsed > JOB_TIMEOUT_SEC
-        )
+        timed_out = self.state in ("queued", "running", "cancelling") and elapsed > JOB_TIMEOUT_SEC
         return {
             "job_id": self.id,
             "kind": self.kind,
@@ -163,6 +161,7 @@ def _run(job: _Job, work: Callable[[Callable[[], bool]], dict[str, Any]]) -> Non
     stop at the next safe point, raising `RemixCancelledError` when it does.
     Work that cannot be interrupted simply never polls it.
     """
+
     def token() -> bool:
         return job.cancel_requested
 

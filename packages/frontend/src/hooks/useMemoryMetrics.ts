@@ -38,7 +38,11 @@ export function useMemoryMetrics(pollInterval = 2000) {
       return;
     }
 
-    const memory = (performance as unknown as { memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+    const memory = (
+      performance as unknown as {
+        memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
+      }
+    ).memory;
     const usedJSHeapSize = memory.usedJSHeapSize;
     const totalJSHeapSize = memory.totalJSHeapSize;
     const jsHeapSizeLimit = memory.jsHeapSizeLimit;
@@ -58,15 +62,17 @@ export function useMemoryMetrics(pollInterval = 2000) {
     setMetrics(metricsData);
 
     // Record to metrics store
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const win = window as unknown as Record<string, unknown>;
       const store = win.metricsStore;
-      if (store && typeof (store as { recordMemoryUsage?: (a: number, b: number, c: number) => void }).recordMemoryUsage === 'function') {
-        (store as { recordMemoryUsage: (a: number, b: number, c: number) => void }).recordMemoryUsage(
-          usedJSHeapSize,
-          totalJSHeapSize,
-          jsHeapSizeLimit
-        );
+      if (
+        store &&
+        typeof (store as { recordMemoryUsage?: (a: number, b: number, c: number) => void })
+          .recordMemoryUsage === "function"
+      ) {
+        (
+          store as { recordMemoryUsage: (a: number, b: number, c: number) => void }
+        ).recordMemoryUsage(usedJSHeapSize, totalJSHeapSize, jsHeapSizeLimit);
       }
     }
   }, []);

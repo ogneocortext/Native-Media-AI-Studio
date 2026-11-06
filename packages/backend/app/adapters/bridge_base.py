@@ -72,7 +72,7 @@ class BaseBridgeAdapter(AdapterBase):
         """
         super().__init__(name=name, mock_mode=mock_mode)
         self.bridge_command = bridge_command
-        self.base_url = base_url.rstrip('/') if base_url else None
+        self.base_url = base_url.rstrip("/") if base_url else None
         self._startup_timeout = startup_timeout
         self._health_timeout = health_timeout
         self._cwd = cwd

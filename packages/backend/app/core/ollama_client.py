@@ -215,7 +215,9 @@ async def get_model_capabilities(model: str, timeout: float = 8) -> list[str] | 
     return list(caps)
 
 
-async def get_capabilities_bulk(models: list[str], timeout: float = 8) -> dict[str, list[str] | None]:
+async def get_capabilities_bulk(
+    models: list[str], timeout: float = 8
+) -> dict[str, list[str] | None]:
     """``/api/show`` for many models concurrently.
 
     Concurrent because this runs per model-list request and each call is a local
@@ -233,7 +235,9 @@ async def get_capabilities_bulk(models: list[str], timeout: float = 8) -> dict[s
     return out
 
 
-async def resolve_capabilities_for_entries(entries: list[dict], timeout: float = 8) -> dict[str, list[str] | None]:
+async def resolve_capabilities_for_entries(
+    entries: list[dict], timeout: float = 8
+) -> dict[str, list[str] | None]:
     """Capabilities for every model in a ``/api/tags`` list.
 
     Measured on Ollama 0.35.1: ``/api/tags`` ALREADY carries authoritative
@@ -269,10 +273,20 @@ def clear_capability_cache() -> None:
 def is_tool_capable_model(model_name: str) -> bool:
     """Heuristic tool-calling support from the model family name."""
     name = model_name.lower()
-    return any(k in name for k in [
-        "llama3", "mistral", "command-r", "gemma2", "gemma3", "gemma4",
-        "qwen3", "qwen2.5", "minicpm-v",
-    ])
+    return any(
+        k in name
+        for k in [
+            "llama3",
+            "mistral",
+            "command-r",
+            "gemma2",
+            "gemma3",
+            "gemma4",
+            "qwen3",
+            "qwen2.5",
+            "minicpm-v",
+        ]
+    )
 
 
 async def _embed_warmup(model: str) -> None:
@@ -364,8 +378,7 @@ async def embed_text(
     if not (text or "").strip():
         return None
 
-    candidates = [m for m in (model or config.embedding_model, *_EMBED_MODEL_FALLBACKS)
-                  if m]
+    candidates = [m for m in (model or config.embedding_model, *_EMBED_MODEL_FALLBACKS) if m]
     # Dedup while preserving order.
     seen: set[str] = set()
     candidates = [m for m in candidates if not (m in seen or seen.add(m))]
@@ -385,7 +398,9 @@ async def embed_text(
                 last_error = f"{candidate} returned {len(emb)}-dim vector, expected {expected_dim}"
                 logger.warning(
                     "Embedding dimension mismatch for %s: got %d, expected %d; trying next fallback",
-                    candidate, len(emb), expected_dim,
+                    candidate,
+                    len(emb),
+                    expected_dim,
                 )
                 continue
             return emb
@@ -441,7 +456,9 @@ async def embed_text_batch_concurrent(
             if emb is not None and expected_dim is not None and len(emb) != expected_dim:
                 logger.warning(
                     "Embedding dimension mismatch for %s: got %d, expected %d",
-                    resolved, len(emb), expected_dim,
+                    resolved,
+                    len(emb),
+                    expected_dim,
                 )
                 return None
             return emb

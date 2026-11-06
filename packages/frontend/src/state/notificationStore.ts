@@ -7,9 +7,7 @@
 
 import { create } from "zustand";
 import { sseService } from "../services/sseService";
-import type {
-  NotificationItem,
-  NotificationPreferences} from "../services/api/notifications";
+import type { NotificationItem, NotificationPreferences } from "../services/api/notifications";
 import {
   fetchNotifications,
   fetchEventsSince,
@@ -41,15 +39,11 @@ const GROUP_RULES: {
   },
   {
     match: /^(system\.)?health_changed$/,
-    key: (name, data) =>
-      `${name}:${String(data?.level ?? data?.status ?? "unknown")}`,
+    key: (name, data) => `${name}:${String(data?.level ?? data?.status ?? "unknown")}`,
   },
 ];
 
-function groupKeyFor(
-  name: string,
-  data: Record<string, unknown> | null,
-): string | null {
+function groupKeyFor(name: string, data: Record<string, unknown> | null): string | null {
   for (const rule of GROUP_RULES) {
     if (rule.match.test(name)) {
       return rule.key(name, data);
@@ -82,10 +76,7 @@ interface NotificationState {
 
 function countUnread(items: NotificationItem[], readIds: string[]): number {
   const read = new Set(readIds);
-  return items.reduce(
-    (count, item) => count + (item.id && !read.has(item.id) ? 1 : 0),
-    0,
-  );
+  return items.reduce((count, item) => count + (item.id && !read.has(item.id) ? 1 : 0), 0);
 }
 
 /** Trim readIds so it never outgrows the items it refers to. */
@@ -108,9 +99,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       // Precompute each existing item's group key once so the regex tests run
       // once per item instead of once per map/filter pass.
-      const existingKeys = items.map((existing) =>
-        groupKeyFor(existing.type ?? "", existing.data),
-      );
+      const existingKeys = items.map((existing) => groupKeyFor(existing.type ?? "", existing.data));
 
       if (gkey) {
         // Replace the most recent item of the same group in place (keeping
@@ -122,14 +111,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           // Immutable update at index (ES2023 .with()) — no splice/mutation.
           items = items
             .map((existing, index) =>
-              index === replacedIdx
-                ? { ...item, id: items[replacedIdx].id }
-                : existing,
+              index === replacedIdx ? { ...item, id: items[replacedIdx].id } : existing,
             )
-            .filter(
-              (existing, index) =>
-                existingKeys[index] !== gkey || existing.id === item.id,
-            );
+            .filter((existing, index) => existingKeys[index] !== gkey || existing.id === item.id);
         } else {
           // Same id arriving again (reconnect replay, history reload) must
           // update the existing row, never append a duplicate key.
@@ -259,10 +243,7 @@ export function disconnectNotificationSSE(): void {
   sseService.disconnect();
 }
 
-function handleIncomingSSE(
-  message: Record<string, unknown>,
-  get: () => NotificationState,
-) {
+function handleIncomingSSE(message: Record<string, unknown>, get: () => NotificationState) {
   const data = message.data as Record<string, unknown> | undefined;
   if (!data) return;
 
@@ -277,13 +258,13 @@ function handleIncomingSSE(
   const prefs = get().preferences;
   if (!matchesPreferences(name, prefs)) return;
 
-  const id = String((data.id ?? message.id) ?? `${Date.now()}-${Math.random()}`);
+  const id = String(data.id ?? message.id ?? `${Date.now()}-${Math.random()}`);
   const item: NotificationItem = {
     id,
     type: name,
     data,
     timestamp: (data.timestamp as string | null) ?? new Date().toISOString(),
-    priority: (((message.priority ?? data.priority) ?? "medium") as NotificationItem["priority"]),
+    priority: (message.priority ?? data.priority ?? "medium") as NotificationItem["priority"],
   };
 
   get().addItem(item);
@@ -298,11 +279,13 @@ function isNotificationEvent(name: string): boolean {
   return false;
 }
 
-function matchesPreferences(
-  name: string,
-  prefs: NotificationPreferences,
-): boolean {
-  if (name.startsWith("job.failed") || name.startsWith("job.dead") || name.startsWith("job.retrying")) return prefs.failed;
+function matchesPreferences(name: string, prefs: NotificationPreferences): boolean {
+  if (
+    name.startsWith("job.failed") ||
+    name.startsWith("job.dead") ||
+    name.startsWith("job.retrying")
+  )
+    return prefs.failed;
   if (name.startsWith("job.completed")) return prefs.completed;
   if (name.startsWith("job.cancelled")) return prefs.cancelled;
   if (name.startsWith("job.progress")) return prefs.progress;

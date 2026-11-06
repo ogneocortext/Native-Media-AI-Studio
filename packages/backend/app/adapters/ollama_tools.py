@@ -41,13 +41,29 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "obj_type": {"type": "string", "enum": ["sphere", "box", "cylinder", "cone", "torus", "crown"]},
-                            "position": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] position"},
+                            "obj_type": {
+                                "type": "string",
+                                "enum": ["sphere", "box", "cylinder", "cone", "torus", "crown"],
+                            },
+                            "position": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "[x, y, z] position",
+                            },
                             "color": {"type": "string", "description": "Hex color like #ff0000"},
-                            "scale": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] scale"},
+                            "scale": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "[x, y, z] scale",
+                            },
                             "metalness": {"type": "number", "minimum": 0, "maximum": 1},
                             "roughness": {"type": "number", "minimum": 0, "maximum": 1},
-                            "emissive": {"type": "number", "minimum": 0, "maximum": 2, "description": "Emissive glow intensity"},
+                            "emissive": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Emissive glow intensity",
+                            },
                         },
                     },
                 },
@@ -60,7 +76,10 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "light_type": {"type": "string", "enum": ["point", "spot", "directional"]},
+                            "light_type": {
+                                "type": "string",
+                                "enum": ["point", "spot", "directional"],
+                            },
                             "color": {"type": "string"},
                             "intensity": {"type": "number"},
                             "position": {"type": "array", "items": {"type": "number"}},
@@ -76,7 +95,10 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "mode": {"type": "string", "enum": ["orbit", "dolly", "handheld", "static"]},
+                            "mode": {
+                                "type": "string",
+                                "enum": ["orbit", "dolly", "handheld", "static"],
+                            },
                         },
                     },
                 },
@@ -104,7 +126,10 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "object_index": {"type": "integer", "description": "Index of the object to animate"},
+                            "object_index": {
+                                "type": "integer",
+                                "description": "Index of the object to animate",
+                            },
                             "time": {"type": "number", "description": "Time in seconds"},
                             "position": {"type": "array", "items": {"type": "number"}},
                             "rotation": {"type": "array", "items": {"type": "number"}},
@@ -163,7 +188,36 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "element_type": {"type": "string", "enum": ["crown", "skyline", "orb", "ring", "spiral", "mountain", "city", "tree", "lightning", "rain", "snow", "fire", "wave", "galaxy", "neuron", "fractal", "text", "particle_field", "light_rays", "lens_flare", "stage", "equalizer", "vinyl", "pillar", "bar"]},
+                            "element_type": {
+                                "type": "string",
+                                "enum": [
+                                    "crown",
+                                    "skyline",
+                                    "orb",
+                                    "ring",
+                                    "spiral",
+                                    "mountain",
+                                    "city",
+                                    "tree",
+                                    "lightning",
+                                    "rain",
+                                    "snow",
+                                    "fire",
+                                    "wave",
+                                    "galaxy",
+                                    "neuron",
+                                    "fractal",
+                                    "text",
+                                    "particle_field",
+                                    "light_rays",
+                                    "lens_flare",
+                                    "stage",
+                                    "equalizer",
+                                    "vinyl",
+                                    "pillar",
+                                    "bar",
+                                ],
+                            },
                             "position": {"type": "array", "items": {"type": "number"}},
                             "color": {"type": "string"},
                             "scale": {"type": "array", "items": {"type": "number"}},
@@ -171,7 +225,10 @@ class OllamaToolsMixin:
                             "metalness": {"type": "number", "minimum": 0, "maximum": 1},
                             "roughness": {"type": "number", "minimum": 0, "maximum": 1},
                             "emissive": {"type": "number", "minimum": 0, "maximum": 2},
-                            "storyboard_ref": {"type": "string", "description": "Reference to storyboard scene/section"},
+                            "storyboard_ref": {
+                                "type": "string",
+                                "description": "Reference to storyboard scene/section",
+                            },
                         },
                     },
                 },
@@ -184,10 +241,26 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "shot_type": {"type": "string", "enum": ["wide", "close_up", "macro", "overhead", "dolly", "tracking", "handheld", "low_angle", "birds_eye"]},
+                            "shot_type": {
+                                "type": "string",
+                                "enum": [
+                                    "wide",
+                                    "close_up",
+                                    "macro",
+                                    "overhead",
+                                    "dolly",
+                                    "tracking",
+                                    "handheld",
+                                    "low_angle",
+                                    "birds_eye",
+                                ],
+                            },
                             "target": {"type": "array", "items": {"type": "number"}},
                             "fov": {"type": "number", "minimum": 10, "maximum": 120},
-                            "movement": {"type": "string", "enum": ["static", "orbit", "dolly", "tracking", "handheld"]},
+                            "movement": {
+                                "type": "string",
+                                "enum": ["static", "orbit", "dolly", "tracking", "handheld"],
+                            },
                         },
                     },
                 },
@@ -216,7 +289,18 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "env_type": {"type": "string", "enum": ["studio", "city", "void", "sunset", "neon", "forest", "space"]},
+                            "env_type": {
+                                "type": "string",
+                                "enum": [
+                                    "studio",
+                                    "city",
+                                    "void",
+                                    "sunset",
+                                    "neon",
+                                    "forest",
+                                    "space",
+                                ],
+                            },
                             "color": {"type": "string"},
                             "fog": {"type": "number", "minimum": 0, "maximum": 0.1},
                         },
@@ -269,7 +353,11 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "depth": {"type": "integer", "default": 3, "description": "Depth of directory traversal (1-5)"},
+                            "depth": {
+                                "type": "integer",
+                                "default": 3,
+                                "description": "Depth of directory traversal (1-5)",
+                            },
                         },
                     },
                 },
@@ -283,7 +371,11 @@ class OllamaToolsMixin:
                         "type": "object",
                         "properties": {
                             "query": {"type": "string", "description": "Search query"},
-                            "limit": {"type": "integer", "default": 5, "description": "Maximum number of results"},
+                            "limit": {
+                                "type": "integer",
+                                "default": 5,
+                                "description": "Maximum number of results",
+                            },
                         },
                         "required": ["query"],
                     },
@@ -308,7 +400,10 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "status": {"type": "string", "description": "Filter by job status (queued, running, completed, failed)"},
+                            "status": {
+                                "type": "string",
+                                "description": "Filter by job status (queued, running, completed, failed)",
+                            },
                         },
                     },
                 },
@@ -335,9 +430,22 @@ class OllamaToolsMixin:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "style": {"type": "string", "enum": ["particles", "waveform", "geometric", "fractal"], "default": "particles"},
-                            "color_scheme": {"type": "string", "enum": ["neon", "fire", "ocean", "forest", "sunset", "monochrome"], "default": "neon"},
-                            "intensity": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.7},
+                            "style": {
+                                "type": "string",
+                                "enum": ["particles", "waveform", "geometric", "fractal"],
+                                "default": "particles",
+                            },
+                            "color_scheme": {
+                                "type": "string",
+                                "enum": ["neon", "fire", "ocean", "forest", "sunset", "monochrome"],
+                                "default": "neon",
+                            },
+                            "intensity": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                                "default": 0.7,
+                            },
                             "bpm": {"type": "integer", "default": 120},
                         },
                     },
@@ -405,7 +513,9 @@ class OllamaToolsMixin:
             "emissive": emissive,
         }
         self._scene_state["objects"].append(obj)
-        return f"Added {obj_type} object. Scene now has {len(self._scene_state['objects'])} objects."
+        return (
+            f"Added {obj_type} object. Scene now has {len(self._scene_state['objects'])} objects."
+        )
 
     async def _tool_scene_add_light(
         self,
@@ -523,7 +633,9 @@ class OllamaToolsMixin:
         }
         self._scene_state["objects"].append(element)
         idx = len(self._scene_state["objects"]) - 1
-        return f"Added storyboard element '{element_type}' at index {idx}" + (f" (ref: {storyboard_ref})" if storyboard_ref else "")
+        return f"Added storyboard element '{element_type}' at index {idx}" + (
+            f" (ref: {storyboard_ref})" if storyboard_ref else ""
+        )
 
     async def _tool_scene_set_camera_for_shot(
         self,
@@ -630,7 +742,12 @@ class OllamaToolsMixin:
             except PermissionError:
                 return
             for i, entry in enumerate(entries):
-                if entry.startswith(".") or entry in ["node_modules", "__pycache__", "venv", ".git"]:
+                if entry.startswith(".") or entry in [
+                    "node_modules",
+                    "__pycache__",
+                    "venv",
+                    ".git",
+                ]:
                     continue
                 full_path = path / entry
                 is_last = i == len(entries) - 1
@@ -681,17 +798,24 @@ class OllamaToolsMixin:
 
             health_parts = [
                 f"CPU: {cpu}%",
-                f"Memory: {mem.percent}% ({mem.used / (1024 ** 3):.1f}GB / {mem.total / (1024 ** 3):.1f}GB)",
-                f"Disk: {disk.percent}% ({disk.used / (1024 ** 3):.1f}GB / {disk.total / (1024 ** 3):.1f}GB)",
+                f"Memory: {mem.percent}% ({mem.used / (1024**3):.1f}GB / {mem.total / (1024**3):.1f}GB)",
+                f"Disk: {disk.percent}% ({disk.used / (1024**3):.1f}GB / {disk.total / (1024**3):.1f}GB)",
             ]
 
             try:
                 import subprocess
 
                 result = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=utilization.memory,memory.used,memory.total", "--format=csv,noheader,nounits"],
-                    encoding="utf-8", errors="replace",
-                    capture_output=True, text=True, timeout=5,
+                    [
+                        "nvidia-smi",
+                        "--query-gpu=utilization.memory,memory.used,memory.total",
+                        "--format=csv,noheader,nounits",
+                    ],
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0:
                     parts = result.stdout.strip().split(",")
@@ -699,7 +823,9 @@ class OllamaToolsMixin:
                         mem_pct = float(parts[0])
                         mem_used = float(parts[1])
                         mem_total = float(parts[2])
-                        health_parts.append(f"GPU VRAM: {mem_pct:.0f}% ({mem_used:.0f}MB / {mem_total:.0f}MB)")
+                        health_parts.append(
+                            f"GPU VRAM: {mem_pct:.0f}% ({mem_used:.0f}MB / {mem_total:.0f}MB)"
+                        )
             except (FileNotFoundError, Exception):
                 pass
 
@@ -711,6 +837,7 @@ class OllamaToolsMixin:
         """List real jobs from the queue manager."""
         try:
             from ..queue.manager import queue_manager
+
             jobs = await queue_manager.get_all_jobs()
             if status:
                 jobs = [j for j in jobs if j.status == status]
@@ -730,6 +857,7 @@ class OllamaToolsMixin:
         """Get real status of a specific job."""
         try:
             from ..queue.manager import queue_manager
+
             job = await queue_manager.get_job(job_id)
             if not job:
                 return f"Job {job_id}: not found"

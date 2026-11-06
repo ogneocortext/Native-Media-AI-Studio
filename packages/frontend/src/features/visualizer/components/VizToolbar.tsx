@@ -156,11 +156,7 @@ export function VizToolbar({
 }: VizToolbarProps) {
   return (
     <div className="viz-actions" role="toolbar" aria-label="Visualizer controls">
-      <div
-        className="viz-btn-group viz-mode-switch"
-        role="group"
-        aria-label="Visualization mode"
-      >
+      <div className="viz-btn-group viz-mode-switch" role="group" aria-label="Visualization mode">
         {MODE_ORDER.map(({ id, label }) => (
           <button
             key={id}
@@ -216,9 +212,7 @@ export function VizToolbar({
         <button
           onClick={onToggleFocus}
           className={`viz-icon-btn ${focusMode ? "active" : ""}`}
-          aria-label={
-            focusMode ? "Exit Stage Mode (F)" : "Enter Fullscreen Stage Mode (F)"
-          }
+          aria-label={focusMode ? "Exit Stage Mode (F)" : "Enter Fullscreen Stage Mode (F)"}
           aria-pressed={focusMode}
           title={focusMode ? "Exit Stage Mode (F)" : "Stage / Focus Mode (F)"}
         >

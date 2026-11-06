@@ -106,7 +106,8 @@ class MovieLiteRenderer(VideoRenderer):
                 raise ValueError(f"Unsupported render kind for MovieLite: {spec.kind}")
             writer.write(
                 processes=1,
-                video_quality=getattr(enums.VideoQuality, "MIDDLE", None) or enums.VideoQuality.MIDDLE,
+                video_quality=getattr(enums.VideoQuality, "MIDDLE", None)
+                or enums.VideoQuality.MIDDLE,
             )
         finally:
             close = getattr(writer, "close", None)

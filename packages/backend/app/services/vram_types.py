@@ -11,6 +11,7 @@ from enum import StrEnum
 
 class GPUWorkload(StrEnum):
     """Types of GPU workloads"""
+
     IDLE = "idle"
     LLM_INFERENCE = "llm_inference"
     RENDER_3D = "render_3d"
@@ -22,6 +23,7 @@ class GPUWorkload(StrEnum):
 
 class GPUState(StrEnum):
     """States of GPU resource allocation"""
+
     AVAILABLE = "available"
     BUSY = "busy"
     CRITICAL = "critical"

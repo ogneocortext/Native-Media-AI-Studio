@@ -38,12 +38,7 @@ export const BAND_EDGES = {
  * 0..1. `getByteFrequencyData` returns 0..255 unsigned bytes, so the
  * mean is divided by 255. Out-of-range edges clamp to the bin array.
  */
-function bandAverage(
-  bins: Uint8Array,
-  binWidthHz: number,
-  minHz: number,
-  maxHz: number,
-): number {
+function bandAverage(bins: Uint8Array, binWidthHz: number, minHz: number, maxHz: number): number {
   if (bins.length === 0 || binWidthHz <= 0) return 0;
   const first = Math.max(1, Math.floor(minHz / binWidthHz));
   const last = Math.min(bins.length - 1, Math.ceil(maxHz / binWidthHz));
@@ -95,10 +90,7 @@ export function synthesizeLiveFrame(
     weighted += bins[i] * i;
     weight += bins[i];
   }
-  const centroid =
-    weight > 0
-      ? weighted / weight / binCount
-      : 0;
+  const centroid = weight > 0 ? weighted / weight / binCount : 0;
 
   // Transient: positive frame-to-frame RMS change, scaled so a hard
   // onset (~0.3 RMS jump) saturates near 1.

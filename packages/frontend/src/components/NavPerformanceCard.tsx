@@ -21,7 +21,9 @@ export function NavPerformanceCard({ initiallyCollapsed = true }: NavPerformance
   if (summary.length === 0) {
     return (
       <Card title="Navigation Performance" icon={<Clock size={16} className="text-violet-400" />}>
-        <div className="text-sm text-muted">No navigation data yet. Navigate between pages to collect metrics.</div>
+        <div className="text-sm text-muted">
+          No navigation data yet. Navigate between pages to collect metrics.
+        </div>
       </Card>
     );
   }
@@ -41,13 +43,21 @@ export function NavPerformanceCard({ initiallyCollapsed = true }: NavPerformance
       {!collapsed && (
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {summary.map((m) => {
-            const color = m.avgMs < 200 ? "text-emerald-400" : m.avgMs < 500 ? "text-yellow-400" : "text-red-400";
+            const color =
+              m.avgMs < 200
+                ? "text-emerald-400"
+                : m.avgMs < 500
+                  ? "text-yellow-400"
+                  : "text-red-400";
             const routeLabel = m.route
               .replace(/^nav\./, "")
               .replace(/\._/g, "/")
               .replace(/\.to\./g, " → ");
             return (
-              <div key={m.route} className="flex items-center justify-between p-1.5 bg-white/5 rounded">
+              <div
+                key={m.route}
+                className="flex items-center justify-between p-1.5 bg-white/5 rounded"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-gray-300 truncate" title={m.route}>
                     {routeLabel}
@@ -59,9 +69,7 @@ export function NavPerformanceCard({ initiallyCollapsed = true }: NavPerformance
                 <div className={`text-sm font-bold tabular-nums ${color}`}>
                   {m.avgMs.toFixed(0)} ms
                 </div>
-                <div className="text-[10px] text-gray-500">
-                  p95: {m.p95Ms.toFixed(0)}ms
-                </div>
+                <div className="text-[10px] text-gray-500">p95: {m.p95Ms.toFixed(0)}ms</div>
               </div>
             );
           })}

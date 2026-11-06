@@ -58,8 +58,7 @@ _PRODUCTION_WORDS = (
     "beat drop",
 )
 _PRODUCTION_RES = [
-    re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
-    for word in _PRODUCTION_WORDS
+    re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE) for word in _PRODUCTION_WORDS
 ]
 _TAKE_RE = re.compile(r"\btake\s+\d+\b", re.IGNORECASE)  # "take 3"
 
@@ -100,15 +99,16 @@ def scan_lyrics(
     findings: list[dict[str, Any]] = []
     lines = lyrics.splitlines()
 
-    def add(kind: str, line_no: int | None, text: str,
-            suggestion: str, message: str) -> None:
-        findings.append({
-            "kind": kind,
-            "line": line_no,
-            "text": text,
-            "suggestion": suggestion,
-            "message": message,
-        })
+    def add(kind: str, line_no: int | None, text: str, suggestion: str, message: str) -> None:
+        findings.append(
+            {
+                "kind": kind,
+                "line": line_no,
+                "text": text,
+                "suggestion": suggestion,
+                "message": message,
+            }
+        )
 
     for idx, raw in enumerate(lines, start=1):
         content = _strip_tags(raw)
@@ -117,7 +117,9 @@ def scan_lyrics(
         instruction = _INSTRUCTION_RE.search(content)
         if instruction:
             add(
-                "instruction_text", idx, instruction.group(0).strip(),
+                "instruction_text",
+                idx,
+                instruction.group(0).strip(),
                 "Delete this line -- it is not a lyric. Put directions in the Style field.",
                 f"Lyric line {idx} looks like an instruction/preface "
                 f"('{instruction.group(0).strip()}') -- engines sing it literally. "
@@ -128,7 +130,9 @@ def scan_lyrics(
             hit = pattern.search(content)
             if hit:
                 add(
-                    "production_direction", idx, hit.group(0),
+                    "production_direction",
+                    idx,
+                    hit.group(0),
                     "Move production notes to the Style/prompt field, or reword the line.",
                     f"Production-direction word '{hit.group(0)}' in lyric line {idx} "
                     "may get sung -- move it to Style or reword.",
@@ -137,7 +141,9 @@ def scan_lyrics(
         take_hit = _TAKE_RE.search(content)
         if take_hit:
             add(
-                "production_direction", idx, take_hit.group(0),
+                "production_direction",
+                idx,
+                take_hit.group(0),
                 "Remove take markers from lyrics.",
                 f"'{take_hit.group(0)}' in lyric line {idx} looks like a studio "
                 "take marker -- engines will sing it. Remove it.",
@@ -145,7 +151,9 @@ def scan_lyrics(
         if _is_caps_chant(content):
             preview = content[:42] + ("..." if len(content) > 42 else "")
             add(
-                "caps_chant", idx, preview,
+                "caps_chant",
+                idx,
+                preview,
                 "Use mixed case; put delivery direction in [bracketed] section tags.",
                 f"ALL-CAPS lyric line {idx} ('{preview}') risks chant/shout "
                 "delivery -- use mixed case and put direction in [tags].",
@@ -154,7 +162,9 @@ def scan_lyrics(
         if abbrev:
             plain = abbrev.group(0).replace(".", "")
             add(
-                "abbreviation_periods", idx, abbrev.group(0),
+                "abbreviation_periods",
+                idx,
+                abbrev.group(0),
                 f"Write it without periods: {plain}.",
                 f"Abbreviation '{abbrev.group(0)}' (line {idx}) with periods "
                 f"stumbles -- write '{plain}'.",
@@ -168,7 +178,9 @@ def scan_lyrics(
             avg_words = sum(len(line.split()) for line in lyric_lines) / len(lyric_lines)
             if avg_words > 9:
                 add(
-                    "dense_vocals", None, f"{len(lyric_lines)} lines, ~{avg_words:.0f} words/line",
+                    "dense_vocals",
+                    None,
+                    f"{len(lyric_lines)} lines, ~{avg_words:.0f} words/line",
                     "Add rests, breaks, or ad-lib space between phrases.",
                     f"Dense vocals at {bpm:g} BPM ({len(lyric_lines)} lines averaging "
                     f"~{avg_words:.0f} words) risk slurring -- add rests/breaks.",

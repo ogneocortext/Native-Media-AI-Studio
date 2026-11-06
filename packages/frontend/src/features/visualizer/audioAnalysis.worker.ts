@@ -168,10 +168,7 @@ function analyze(msg: AnalyzeMessage): WorkerAudioData {
   const trebleSmoothed = smoothedTreble;
   const overallSmoothed = bassSmoothed * 0.4 + midSmoothed * 0.35 + trebleSmoothed * 0.25;
 
-  updatePeakHold(
-    peakState,
-    Math.max(bassSmoothed, midSmoothed, trebleSmoothed),
-  );
+  updatePeakHold(peakState, Math.max(bassSmoothed, midSmoothed, trebleSmoothed));
 
   let isBeat: boolean;
   let drumType: "kick" | "snare" | "hat" | null = null;

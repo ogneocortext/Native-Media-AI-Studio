@@ -8,34 +8,25 @@ Endpoints:
 """
 
 import logging
-import re
-from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from ..core.config import PROJECT_ROOT
 from ..core.ollama_client import embed_text_batch_concurrent, list_models
 from ..services.retrieval_service import (
     EMBED_DIM,
     EMBED_MODEL,
     RERANK_MODEL,
     VECTOR_MODEL_ALT,
-    _split_text_into_chunks,
+    _scan_docs_for_indexing,
     get_index,
     persist_chunk_embeddings,
     reset_index,
-)
-from ..services.retrieval_service import (
-    _chunk_id as hashlib_chunk_id,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/retrieval", tags=["Retrieval"])
-
-DOCS_ROOT = PROJECT_ROOT / "docs"
-VAULT_ROOT = DOCS_ROOT / "knowledge-library"
 
 
 class IndexRequest(BaseModel):
@@ -85,75 +76,6 @@ class SearchResponse(BaseModel):
 # Indexing
 # ---------------------------------------------------------------------------
 
-async def _scan_docs_for_indexing() -> list[dict[str, Any]]:
-    """Scan docs corpus and return chunk-ready entries."""
-    entries: list[dict[str, Any]] = []
-    if not DOCS_ROOT.exists():
-        return entries
-
-    seen: set[str] = set()
-    for p in list(DOCS_ROOT.rglob("*.md")) + list(VAULT_ROOT.glob("*.md")):
-        if ".obsidian" in p.parts:
-            continue
-        if "node_modules" in p.parts:
-            continue
-        key = p.resolve().as_posix()
-        if key in seen:
-            continue
-        seen.add(key)
-
-        try:
-            rel = p.relative_to(DOCS_ROOT).as_posix()
-            in_vault = p.is_relative_to(VAULT_ROOT) if hasattr(p, "is_relative_to") else str(p).startswith(str(VAULT_ROOT))
-            try:
-                text = p.read_text(encoding="utf-8", errors="ignore")
-                # Strip frontmatter for cleaner indexing
-                body = text
-                if text.startswith("---"):
-                    end = text.find("\n---", 3)
-                    if end != -1:
-                        body = text[end + 4:].lstrip("\n")
-                # Title from first H1 or filename
-                m = re.search(r"^#\s+(.+)", body, re.MULTILINE)
-                title = m.group(1).strip()[:80] if m else p.stem.replace("-", " ").replace("_", " ").title()
-                tags = []
-                # Extract tags from frontmatter
-                if text.startswith("---"):
-                    end = text.find("\n---", 3)
-                    if end != -1:
-                        fm = text[3:end]
-                        for line in fm.splitlines():
-                            if line.strip().startswith("tags:"):
-                                v = line.split(":", 1)[1].strip()
-                                if v.startswith("["):
-                                    v = v.strip("[]")
-                                    tags = [x.strip().strip('"').strip("'") for x in v.split(",") if x.strip()]
-                                else:
-                                    tags = [v.strip().strip('"').strip("'")]
-                                break
-
-                # Detect superseded documents by checking for superseded banner
-                is_superseded = "superseded" in text.lower() or "superseded" in body.lower()
-            except Exception:
-                continue
-
-            chunks = _split_text_into_chunks(body)
-            for i, chunk_text in enumerate(chunks):
-                entries.append({
-                    "chunk_id": hashlib_chunk_id(rel, i),
-                    "doc_path": rel,
-                    "doc_title": title,
-                    "chunk_index": i,
-                    "text": chunk_text,
-                    "in_vault": in_vault,
-                    "tags": tags,
-                    "is_superseded": is_superseded,
-                })
-        except Exception:
-            continue
-
-    return entries
-
 
 @router.post("/index", response_model=dict)
 async def index_docs(req: IndexRequest) -> dict:
@@ -172,7 +94,7 @@ async def index_docs(req: IndexRequest) -> dict:
         reset_index()
         idx = get_index()
 
-        entries = await _scan_docs_for_indexing()
+        entries = _scan_docs_for_indexing()
         if not entries:
             return {"status": "empty", "chunks": 0, "message": "No docs found to index"}
 
@@ -241,9 +163,7 @@ async def index_status() -> IndexStatus:
     model_names = [m.get("name", "") for m in models]
     embedding_model_available = EMBED_MODEL in model_names
     # Also report which alternative embedding models are installed
-    embedding_models_available = [
-        m for m in (EMBED_MODEL, VECTOR_MODEL_ALT) if m in model_names
-    ]
+    embedding_models_available = [m for m in (EMBED_MODEL, VECTOR_MODEL_ALT) if m in model_names]
     if not embedding_model_available:
         logger.warning(
             "Configured embedding model %s is not installed in Ollama; "
@@ -272,6 +192,7 @@ async def index_status() -> IndexStatus:
 # ---------------------------------------------------------------------------
 # Search
 # ---------------------------------------------------------------------------
+
 
 @router.post("/search", response_model=SearchResponse)
 async def search(req: SearchRequest) -> SearchResponse:
@@ -315,6 +236,7 @@ async def search(req: SearchRequest) -> SearchResponse:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _embed_batch(texts: list[str], model: str) -> list[list[float] | None] | None:
     """Embed multiple texts via Ollama, concurrently (bounded round-trips).

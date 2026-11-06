@@ -33,9 +33,7 @@ VIDEO_EXTENSIONS = frozenset(
 )
 
 #: Audio formats the library already understands. Passed through untouched.
-AUDIO_EXTENSIONS = frozenset(
-    {".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"}
-)
+AUDIO_EXTENSIONS = frozenset({".mp3", ".wav", ".flac", ".ogg", ".opus", ".m4a", ".wma", ".aac"})
 
 DEFAULT_AAC_BITRATE = "192k"
 
@@ -95,8 +93,15 @@ def extract_audio(
     last_error = ""
     for index, codec_args in enumerate(attempts):
         cmd = [
-            binary, "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(src), *codec_args, str(dest),
+            binary,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(src),
+            *codec_args,
+            str(dest),
         ]
         try:
             proc = subprocess.run(

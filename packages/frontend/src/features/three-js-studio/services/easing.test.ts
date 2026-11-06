@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  ANCHOR_NAMES,
-  chain,
-  ease,
-  easeBezier,
-  type EasingAnchor,
-} from "./easing";
+import { ANCHOR_NAMES, chain, ease, easeBezier, type EasingAnchor } from "./easing";
 
 /**
  * Plan F3 acceptance: "unit tests pin each anchor's output at
@@ -19,13 +13,7 @@ import {
 /** Independent oracle: densely sample the parametric cubic
  *  bezier and interpolate y at `targetX`. O(N) but only runs
  *  in tests. */
-function oracleY(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  targetX: number,
-): number {
+function oracleY(x1: number, y1: number, x2: number, y2: number, targetX: number): number {
   const N = 20000;
   let prevX = 0;
   let prevY = 0;

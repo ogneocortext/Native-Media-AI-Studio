@@ -1,4 +1,5 @@
 """Decimate a GLB mesh to a target face count using Blender."""
+
 import sys
 
 import bpy
@@ -10,7 +11,7 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
     """
     try:
         # Clear scene
-        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.select_all(action="SELECT")
         bpy.ops.object.delete(use_global=False)
 
         # Import GLB
@@ -24,7 +25,7 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
         # Calculate original face count
         original_faces = 0
         for obj in imported:
-            if obj.type == 'MESH' and obj.data:
+            if obj.type == "MESH" and obj.data:
                 original_faces += len(obj.data.polygons)
 
         if original_faces == 0:
@@ -34,26 +35,26 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
         if original_faces <= target_faces:
             bpy.ops.export_scene.gltf(
                 filepath=output_path,
-                export_format='GLB',
+                export_format="GLB",
                 export_apply=True,
                 export_texcoords=True,
                 export_normals=True,
-                export_materials='EXPORT'
+                export_materials="EXPORT",
             )
             return {
                 "success": True,
                 "original_faces": original_faces,
                 "final_faces": original_faces,
-                "decimated": False
+                "decimated": False,
             }
 
         # Decimate each mesh object
         ratio = target_faces / original_faces
         for obj in imported:
-            if obj.type == 'MESH' and obj.data:
+            if obj.type == "MESH" and obj.data:
                 # Add decimate modifier
-                mod = obj.modifiers.new(name="Decimate", type='DECIMATE')
-                mod.decimate_type = 'COLLAPSE'
+                mod = obj.modifiers.new(name="Decimate", type="DECIMATE")
+                mod.decimate_type = "COLLAPSE"
                 mod.ratio = ratio
 
                 # Apply modifier
@@ -63,17 +64,17 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
         # Calculate final face count
         final_faces = 0
         for obj in imported:
-            if obj.type == 'MESH' and obj.data:
+            if obj.type == "MESH" and obj.data:
                 final_faces += len(obj.data.polygons)
 
         # Export decimated GLB
         bpy.ops.export_scene.gltf(
             filepath=output_path,
-            export_format='GLB',
+            export_format="GLB",
             export_apply=True,
             export_texcoords=True,
             export_normals=True,
-            export_materials='EXPORT'
+            export_materials="EXPORT",
         )
 
         return {
@@ -81,7 +82,7 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
             "original_faces": original_faces,
             "final_faces": final_faces,
             "decimated": True,
-            "ratio": ratio
+            "ratio": ratio,
         }
 
     except Exception as e:
@@ -89,10 +90,12 @@ def decimate_glb(input_path: str, output_path: str, target_faces: int = 50000) -
 
 
 if __name__ == "__main__":
-    args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
+    args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else sys.argv[1:]
 
     if len(args) < 2:
-        print("Usage: blender --background --python decimate_glb.py -- <input.glb> <output.glb> [target_faces]")
+        print(
+            "Usage: blender --background --python decimate_glb.py -- <input.glb> <output.glb> [target_faces]"
+        )
         sys.exit(1)
 
     input_path = args[0]

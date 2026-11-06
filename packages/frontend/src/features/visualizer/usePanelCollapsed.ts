@@ -9,7 +9,10 @@ import { parsePanelOpen, panelStorageKey, serializePanelOpen } from "./panelColl
  * A localStorage write failure (private mode, quota) must never break the
  * toggle — it just means the state is session-only.
  */
-export function usePanelCollapsed(panelId: string, defaultOpen = false): {
+export function usePanelCollapsed(
+  panelId: string,
+  defaultOpen = false,
+): {
   open: boolean;
   toggle: () => void;
   /** Force a state without toggling — used by cross-page handoffs (A1). */

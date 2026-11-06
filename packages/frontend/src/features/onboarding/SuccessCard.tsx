@@ -31,10 +31,7 @@ export function SuccessCard({
   onMakeAnother,
 }: SuccessCardProps) {
   return (
-    <div
-      className="flex flex-col items-center gap-4"
-      data-testid="onboarding-success"
-    >
+    <div className="flex flex-col items-center gap-4" data-testid="onboarding-success">
       <h2 className="text-xl font-semibold text-white">Your first clip is ready.</h2>
 
       <video

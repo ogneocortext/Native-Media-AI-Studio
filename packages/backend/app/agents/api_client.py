@@ -38,8 +38,7 @@ class NMAApiClient:
     Uses httpx.AsyncClient for connection pooling and async I/O.
     """
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000",
-                 timeout: float = 30.0) -> None:
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: float = 30.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
@@ -65,11 +64,15 @@ class NMAApiClient:
     async def __aexit__(self, *args: Any) -> None:
         await self.aclose()
 
-    async def _request(self, method: str, path: str,
-                       data: dict[str, Any] | None = None,
-                       files: dict[str, tuple[str, bytes, str]] | None = None,
-                       idempotency_key: str | None = None,
-                       circuit_name: str | None = None) -> dict[str, Any]:
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        data: dict[str, Any] | None = None,
+        files: dict[str, tuple[str, bytes, str]] | None = None,
+        idempotency_key: str | None = None,
+        circuit_name: str | None = None,
+    ) -> dict[str, Any]:
         """Make an HTTP request with retry + circuit breaker + idempotency.
 
         Supports both JSON bodies (``data``) and multipart file uploads
@@ -93,9 +96,9 @@ class NMAApiClient:
             headers["Idempotency-Key"] = idempotency_key
 
         async def _do_request() -> dict[str, Any]:
-            resp = await client.request(method, url, content=content,
-                                        data=form_data, files=files,
-                                        headers=headers)
+            resp = await client.request(
+                method, url, content=content, data=form_data, files=files, headers=headers
+            )
             if resp.status_code >= 400:
                 body_text = resp.text
                 retryable = resp.status_code in (429, 502, 503, 504)
@@ -141,10 +144,17 @@ class NMAApiClient:
         if not path.exists():
             raise NMAApiError(f"Audio file not found: {file_path}")
         import mimetypes
-        files = {"file": (path.name, path.read_bytes(),
-                          mimetypes.guess_type(str(path))[0] or "audio/wav")}
+
+        files = {
+            "file": (
+                path.name,
+                path.read_bytes(),
+                mimetypes.guess_type(str(path))[0] or "audio/wav",
+            )
+        }
         return await self._request(
-            "POST", "/api/audio/upload",
+            "POST",
+            "/api/audio/upload",
             files=files,
             idempotency_key=make_idempotency_key(
                 tenant="agent",
@@ -156,15 +166,16 @@ class NMAApiClient:
 
     async def audio_analyze(self, filename: str) -> dict[str, Any]:
         """Run audio analysis on a file. Returns tempo, beats, sections, energy."""
-        return await self._request("POST",
-                                   f"/api/audio/analysis?filename={filename}",
-                                   idempotency_key=make_idempotency_key(
-                                       tenant="agent",
-                                       operation="audio_analyze",
-                                       params={"filename": filename},
-                                   ),
-                                   circuit_name="audio_analysis",
-                                   )
+        return await self._request(
+            "POST",
+            f"/api/audio/analysis?filename={filename}",
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="audio_analyze",
+                params={"filename": filename},
+            ),
+            circuit_name="audio_analysis",
+        )
 
     async def audio_list(self) -> dict[str, Any]:
         """List all audio outputs."""
@@ -177,15 +188,17 @@ class NMAApiClient:
         return await self._request("GET", "/api/music-gen/status")
 
     async def music_gen_start(self, engine: str = "ace") -> dict[str, Any]:
-        return await self._request("POST", "/api/music-gen/start",
-                                   {"engine": engine},
-                                   idempotency_key=make_idempotency_key(
-                                       tenant="agent",
-                                       operation="music_gen_start",
-                                       params={"engine": engine},
-                                   ),
-                                   circuit_name="music_gen",
-                                   )
+        return await self._request(
+            "POST",
+            "/api/music-gen/start",
+            {"engine": engine},
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="music_gen_start",
+                params={"engine": engine},
+            ),
+            circuit_name="music_gen",
+        )
 
     async def music_gen_stop(self) -> dict[str, Any]:
         return await self._request("POST", "/api/music-gen/stop")
@@ -201,7 +214,9 @@ class NMAApiClient:
         if output_name:
             data["output_name"] = output_name
         return await self._request(
-            "POST", "/api/music-gen/generate", data,
+            "POST",
+            "/api/music-gen/generate",
+            data,
             idempotency_key=idempotency_key,
             circuit_name="music_gen",
         )
@@ -217,52 +232,62 @@ class NMAApiClient:
         return await self._request("GET", "/api/audio/remix/")
 
     async def remix_preview(self, recipe: dict[str, Any]) -> dict[str, Any]:
-        return await self._request("POST", "/api/audio/remix/preview", recipe,
-                                   idempotency_key=make_idempotency_key(
-                                       tenant="agent",
-                                       operation="remix_preview",
-                                       params=recipe,
-                                   ),
-                                   circuit_name="audio_remix",
-                                   )
+        return await self._request(
+            "POST",
+            "/api/audio/remix/preview",
+            recipe,
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="remix_preview",
+                params=recipe,
+            ),
+            circuit_name="audio_remix",
+        )
 
     async def remix_build(self, recipe: dict[str, Any]) -> dict[str, Any]:
-        return await self._request("POST", "/api/audio/remix/build", recipe,
-                                   idempotency_key=make_idempotency_key(
-                                       tenant="agent",
-                                       operation="remix_build",
-                                       params=recipe,
-                                   ),
-                                   circuit_name="audio_remix",
-                                   )
+        return await self._request(
+            "POST",
+            "/api/audio/remix/build",
+            recipe,
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="remix_build",
+                params=recipe,
+            ),
+            circuit_name="audio_remix",
+        )
 
     async def remix_enhance(self, name: str) -> dict[str, Any]:
-        return await self._request("POST", f"/api/audio/remix/{name}/enhance",
-                                   idempotency_key=make_idempotency_key(
-                                       tenant="agent",
-                                       operation="remix_enhance",
-                                       params={"name": name},
-                                   ),
-                                   circuit_name="audio_remix",
-                                   )
+        return await self._request(
+            "POST",
+            f"/api/audio/remix/{name}/enhance",
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="remix_enhance",
+                params={"name": name},
+            ),
+            circuit_name="audio_remix",
+        )
 
     # ------------------------------------------------------------------
     # Media Library
     # ------------------------------------------------------------------
     async def media_delete(self, relative_path: str) -> dict[str, Any]:
-        return await self._request("DELETE", f"/api/outputs/{relative_path}",
-                                   idempotency_key=make_idempotency_key(
-                                       tenant="agent",
-                                       operation="media_delete",
-                                       params={"path": relative_path},
-                                   ),
-                                   circuit_name="audio_outputs",
-                                   )
-
-    async def media_rename(self, relative_path: str,
-                           new_name: str) -> dict[str, Any]:
         return await self._request(
-            "POST", f"/api/outputs/{relative_path}/rename",
+            "DELETE",
+            f"/api/outputs/{relative_path}",
+            idempotency_key=make_idempotency_key(
+                tenant="agent",
+                operation="media_delete",
+                params={"path": relative_path},
+            ),
+            circuit_name="audio_outputs",
+        )
+
+    async def media_rename(self, relative_path: str, new_name: str) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/api/outputs/{relative_path}/rename",
             {"new_name": new_name},
             idempotency_key=make_idempotency_key(
                 tenant="agent",
@@ -312,5 +337,4 @@ class NMAApiClient:
             data["history"] = history
         if think is not None:
             data["think"] = think
-        return await self._request("POST", "/api/ollama/chat", data,
-                                   circuit_name="ollama_chat")
+        return await self._request("POST", "/api/ollama/chat", data, circuit_name="ollama_chat")

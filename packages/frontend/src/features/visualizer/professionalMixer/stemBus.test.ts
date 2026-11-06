@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type {
-  StemRouting} from "./stemBus";
+import type { StemRouting } from "./stemBus";
 import {
   DEFAULT_STEM_ROUTING,
   ROUTABLE_STEMS,
@@ -71,7 +70,12 @@ describe("describeRouting", () => {
   });
 
   it("renders custom routing", () => {
-    const routing: StemRouting = { vocals: "vocals", drums: "drums", bass: "drums", other: "drums" };
+    const routing: StemRouting = {
+      vocals: "vocals",
+      drums: "drums",
+      bass: "drums",
+      other: "drums",
+    };
     const result = describeRouting(routing);
     expect(result).toContain("bass → drums");
     expect(result).toContain("other → drums");

@@ -1,4 +1,4 @@
-import type { ChangeEvent} from "react";
+import type { ChangeEvent } from "react";
 import { useState } from "react";
 import { Loader2, Radio } from "lucide-react";
 import { DS } from "../../../styles/designSystem";
@@ -35,9 +35,7 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [query, setQuery] = useState("");
 
-  const filtered = models.filter((m) =>
-    m.name.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = models.filter((m) => m.name.toLowerCase().includes(query.toLowerCase()));
 
   const handleQueryChange = (e: ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);

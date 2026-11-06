@@ -102,7 +102,9 @@ async def get_patterns(limit: int = Query(20, ge=1, le=100)) -> dict:
 
 @router.get("/events")
 async def get_events(
-    level: str | None = Query(None, description="Filter by level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"),
+    level: str | None = Query(
+        None, description="Filter by level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    ),
     source: str | None = Query(None, description="Filter by source label"),
     limit: int = Query(200, ge=1, le=2000),
 ) -> dict:

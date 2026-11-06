@@ -15,14 +15,8 @@ import {
   Scissors,
   AlertCircle,
 } from "lucide-react";
-import {
-  getCudaStatus,
-  separateAudioFile,
-} from "../../services/api";
-import {
-  SEPARATION_FAILED_HEADLINE,
-  friendlyPipelineError,
-} from "../../utils/errorCopy";
+import { getCudaStatus, separateAudioFile } from "../../services/api";
+import { SEPARATION_FAILED_HEADLINE, friendlyPipelineError } from "../../utils/errorCopy";
 import { useAudioAnalysis } from "../../hooks/useAudioAnalysis";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { AudioTransport } from "../../components/audio";
@@ -31,10 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { setPendingTrack } from "../../utils/pendingTrack";
 
 // Extracted components
-import {
-  BeatDensityChart,
-  buildBeatDensity,
-} from "./components/BeatDensityChart";
+import { BeatDensityChart, buildBeatDensity } from "./components/BeatDensityChart";
 import { EnergyChart } from "./components/EnergyChart";
 import { SectionsDisplay } from "./components/SectionsDisplay";
 import { LibraryTrackList } from "./components/LibraryTrackList";
@@ -120,19 +111,17 @@ export function AudioAnalysisPage() {
     ? buildBeatDensity(audio.analysis.beat_times, audio.analysis.sections)
     : [];
 
-  const energyData = audio.analysis?.energy_curve?.map((v, i) => ({
-    time: i,
-    energy: v,
-  })) ?? [];
+  const energyData =
+    audio.analysis?.energy_curve?.map((v, i) => ({
+      time: i,
+      energy: v,
+    })) ?? [];
 
   // `stored_path` is the absolute on-disk path (e.g. D:\...\output\audio\track.wav)
   // and is NOT a valid input for /api/audio/file/{filename}, which resolves under
   // output/audio/. Prefer the output-relative path, then the bare filename.
   const filename =
-    audio.analysis?.relative_path ||
-    audio.summary?.filename ||
-    audio.analysis?.stored_path ||
-    null;
+    audio.analysis?.relative_path || audio.summary?.filename || audio.analysis?.stored_path || null;
   const audioUrl = filename ? `/api/audio/file/${encodeURIComponent(filename)}` : null;
 
   return (
@@ -150,8 +139,7 @@ export function AudioAnalysisPage() {
         {audio.analysis && (
           <button
             onClick={() => {
-              if (audio.summary?.filename)
-                void audio.ensure(audio.summary.filename, "sonara");
+              if (audio.summary?.filename) void audio.ensure(audio.summary.filename, "sonara");
             }}
             className="btn btn-ghost"
             title="Refresh analysis"
@@ -218,9 +206,7 @@ export function AudioAnalysisPage() {
           <AlertCircle size={20} />
           <div>
             <p className="font-semibold">Error</p>
-            <p className="text-sm">
-              {friendlyPipelineError(error, "Analysis failed").headline}
-            </p>
+            <p className="text-sm">{friendlyPipelineError(error, "Analysis failed").headline}</p>
           </div>
         </div>
       )}
@@ -239,24 +225,15 @@ export function AudioAnalysisPage() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleSeparateStems}
-              className={DS.btnSecondary}
-            >
+            <button onClick={handleSeparateStems} className={DS.btnSecondary}>
               <Scissors size={16} />
               Separate Stems
             </button>
-            <button
-              onClick={() => setShowTrimModal(true)}
-              className={DS.btnSecondary}
-            >
+            <button onClick={() => setShowTrimModal(true)} className={DS.btnSecondary}>
               <Slash size={16} />
               Trim Audio
             </button>
-            <button
-              onClick={handleGenerateVideo}
-              className={DS.btnPrimary}
-            >
+            <button onClick={handleGenerateVideo} className={DS.btnPrimary}>
               <Film size={16} />
               Generate Video
             </button>
@@ -286,11 +263,14 @@ export function AudioAnalysisPage() {
           onSaved={() => {
             setShowTrimModal(false);
             void refreshLibrary();
-            if (audio.summary?.filename)
-              void audio.ensure(audio.summary.filename, "sonara");
+            if (audio.summary?.filename) void audio.ensure(audio.summary.filename, "sonara");
           }}
-          onAnalyzeFile={() => { void 0; }}
-          onSendToKinetic={() => { void 0; }}
+          onAnalyzeFile={() => {
+            void 0;
+          }}
+          onSendToKinetic={() => {
+            void 0;
+          }}
         />
       )}
     </div>

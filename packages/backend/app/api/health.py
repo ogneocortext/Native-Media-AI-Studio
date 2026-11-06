@@ -1,6 +1,7 @@
 """
 Health and diagnostics API routes.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -43,9 +44,16 @@ async def _check_go_sidecar(name: str, url_attr: str, path: str) -> dict[str, An
     port = None
     if url:
         from urllib.parse import urlparse
+
         port = urlparse(url).port
     if not url:
-        return {"name": name, "status": "offline", "url": None, "port": port, "error": "not configured"}
+        return {
+            "name": name,
+            "status": "offline",
+            "url": None,
+            "port": port,
+            "error": "not configured",
+        }
     started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
@@ -162,6 +170,7 @@ async def agent_health() -> dict:
 
     # Backend info
     import sys
+
     backend_info = {
         "status": "online",
         "python_version": sys.version.split()[0],
@@ -193,6 +202,7 @@ async def agent_health() -> dict:
 
     # Queue health
     from ..queue.manager import queue_manager
+
     queue_stats = await queue_manager.get_stats()
     stranded = await queue_manager.count_stale_running_jobs()
     queue_info = {
@@ -206,9 +216,11 @@ async def agent_health() -> dict:
     # Ollama models
     from ..core import ollama_client as _oc
     from ..core.urls import ollama_url
+
     models_info = {"loaded": False, "server_online": False, "models": []}
     try:
         import aiohttp
+
         session = await _oc.get_shared_session()
         async with session.get(
             ollama_url("/api/ps"), timeout=aiohttp.ClientTimeout(total=5)
@@ -273,6 +285,7 @@ async def gpu_snapshot(*, log: bool = True) -> dict:
             import asyncio as _asyncio
 
             from ..core.database import log_gpu_telemetry
+
             # off-thread DB write so NVML poll stays fast
             await _asyncio.to_thread(log_gpu_telemetry, snap)
         except Exception as e:
@@ -299,8 +312,18 @@ async def gpu_history(
     import time as _time
 
     from ..core.database import get_gpu_history
+
     if since_ms is None and range:
-        mapping = {"5m": 5 * 60 * 1000, "15m": 15 * 60 * 1000, "30m": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000, "24h": 24 * 60 * 60 * 1000, "7d": 7 * 24 * 60 * 60 * 1000}
+        mapping = {
+            "5m": 5 * 60 * 1000,
+            "15m": 15 * 60 * 1000,
+            "30m": 30 * 60 * 1000,
+            "1h": 60 * 60 * 1000,
+            "6h": 6 * 60 * 60 * 1000,
+            "12h": 12 * 60 * 60 * 1000,
+            "24h": 24 * 60 * 60 * 1000,
+            "7d": 7 * 24 * 60 * 60 * 1000,
+        }
         ms = mapping.get(range)
         if ms is not None:
             since_ms = int(_time.time() * 1000) - ms
@@ -315,8 +338,18 @@ async def gpu_stats(range: str | None = None, since_ms: int | None = None) -> di
     import time as _time
 
     from ..core.database import get_gpu_stats
+
     if since_ms is None and range:
-        mapping = {"5m": 5 * 60 * 1000, "15m": 15 * 60 * 1000, "30m": 30 * 60 * 1000, "1h": 60 * 60 * 1000, "6h": 6 * 60 * 60 * 1000, "12h": 12 * 60 * 60 * 1000, "24h": 24 * 60 * 60 * 1000, "7d": 7 * 24 * 60 * 60 * 1000}
+        mapping = {
+            "5m": 5 * 60 * 1000,
+            "15m": 15 * 60 * 1000,
+            "30m": 30 * 60 * 1000,
+            "1h": 60 * 60 * 1000,
+            "6h": 6 * 60 * 60 * 1000,
+            "12h": 12 * 60 * 60 * 1000,
+            "24h": 24 * 60 * 60 * 1000,
+            "7d": 7 * 24 * 60 * 60 * 1000,
+        }
         ms = mapping.get(range)
         if ms is not None:
             since_ms = int(_time.time() * 1000) - ms
@@ -327,8 +360,10 @@ async def gpu_stats(range: str | None = None, since_ms: int | None = None) -> di
 async def gpu_history_clear(keep_days: int = 0) -> dict:
     """Clear history. keep_days=0 wipes all; otherwise keep last N days."""
     from ..core.database import cleanup_old_gpu_telemetry
+
     if keep_days <= 0:
         from ..core.database import get_db
+
         with get_db() as conn:
             cur = conn.execute("DELETE FROM gpu_telemetry")
             return {"deleted": cur.rowcount, "kept_days": 0}
@@ -344,6 +379,7 @@ async def ollama_models() -> dict:
     from ..adapters.registry import adapter_registry
     from ..core import ollama_client as _oc
     from ..core.urls import ollama_url
+
     try:
         session = await _oc.get_shared_session()
         async with session.get(
@@ -376,13 +412,20 @@ async def ollama_models() -> dict:
                 "activity": activity,
             }
     except Exception as e:
-        return {"loaded": False, "server_online": False, "models": [], "activity": {}, "error": str(e)}
+        return {
+            "loaded": False,
+            "server_online": False,
+            "models": [],
+            "activity": {},
+            "error": str(e),
+        }
 
 
 @router.post("/ollama/clear-activity")
 async def clear_ollama_activity() -> dict:
     """Manually clear all Ollama activity tracking (for stuck tasks)."""
     from ..adapters.registry import adapter_registry
+
     adapter = adapter_registry.get("ollama")
     if not adapter:
         return {"status": "error", "detail": "Ollama not available"}
@@ -401,11 +444,13 @@ async def ffmpeg_status() -> dict:
             try:
                 if "ffmpeg" in (proc.info.get("name") or "").lower():
                     mem = proc.info.get("memory_info")
-                    procs.append({
-                        "pid": proc.info.get("pid"),
-                        "cpu": proc.info.get("cpu_percent"),
-                        "working_set_mb": round(mem.rss / (1024 * 1024), 1) if mem else 0,
-                    })
+                    procs.append(
+                        {
+                            "pid": proc.info.get("pid"),
+                            "cpu": proc.info.get("cpu_percent"),
+                            "working_set_mb": round(mem.rss / (1024 * 1024), 1) if mem else 0,
+                        }
+                    )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         return {"running": bool(procs), "count": len(procs), "processes": procs}
@@ -470,6 +515,7 @@ async def system_diagnostics() -> dict:
 async def queue_health() -> dict:
     """Queue health snapshot for Go sidecars and frontend."""
     from ..queue.manager import queue_manager
+
     stats = await queue_manager.get_stats()
     metrics = await queue_manager.get_metrics()
     # Jobs stranded in RUNNING by a crashed/restarted worker. They count as
@@ -523,28 +569,30 @@ async def memory_diagnostics() -> dict:
     # Get top processes by memory usage (limit to 50 for speed)
     processes = []
     try:
-        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+        for proc in psutil.process_iter(["pid", "name", "memory_percent"]):
             try:
                 info = proc.info
-                if info.get('name') and info.get('memory_percent', 0) > 0.5:
+                if info.get("name") and info.get("memory_percent", 0) > 0.5:
                     # Only get rss for processes using > 0.5% memory
                     try:
                         rss = proc.memory_info().rss
                     except Exception:
                         continue
-                    processes.append({
-                        "pid": info['pid'],
-                        "name": info['name'],
-                        "mem_mb": rss // (1024 * 1024),
-                        "mem_percent": round(info.get('memory_percent', 0) or 0, 1),
-                    })
+                    processes.append(
+                        {
+                            "pid": info["pid"],
+                            "name": info["name"],
+                            "mem_mb": rss // (1024 * 1024),
+                            "mem_percent": round(info.get("memory_percent", 0) or 0, 1),
+                        }
+                    )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
     except Exception:
         pass
 
     # Sort by memory descending, take top 15
-    processes.sort(key=operator.itemgetter('mem_mb'), reverse=True)
+    processes.sort(key=operator.itemgetter("mem_mb"), reverse=True)
     top_processes = processes[:15]
 
     return {
@@ -573,7 +621,7 @@ async def check_service(service: str) -> dict:
     return {
         "service": service,
         "status": "healthy" if is_healthy else "offline",
-        "url": adapter.base_url
+        "url": adapter.base_url,
     }
 
 
@@ -587,6 +635,7 @@ _CONTEXT_PATH = config.output_dir / "mcp-context.json"
 def _read_context() -> dict:
     try:
         import json
+
         if not _CONTEXT_PATH.exists():
             return {}
         return json.loads(_CONTEXT_PATH.read_text(encoding="utf-8"))
@@ -597,6 +646,7 @@ def _read_context() -> dict:
 def _write_context(data: dict) -> None:
     try:
         import json
+
         _CONTEXT_PATH.parent.mkdir(parents=True, exist_ok=True)
         _CONTEXT_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except Exception:
@@ -690,13 +740,15 @@ async def api_catalog(request: Request) -> dict:
         # Extract endpoint info for each method
         for method, details in path_item.items():
             if method.lower() in ["get", "post", "put", "delete", "patch"]:
-                catalog[category].append({
-                    "path": path,
-                    "method": method.upper(),
-                    "summary": details.get("summary", ""),
-                    "description": details.get("description", ""),
-                    "tags": details.get("tags", []),
-                })
+                catalog[category].append(
+                    {
+                        "path": path,
+                        "method": method.upper(),
+                        "summary": details.get("summary", ""),
+                        "description": details.get("description", ""),
+                        "tags": details.get("tags", []),
+                    }
+                )
 
     # Sort categories and endpoints
     sorted_catalog = dict(sorted(catalog.items()))
@@ -809,8 +861,7 @@ async def model_reliability() -> dict:
                 (worked if worked_bool else failed).append(date)
             if r.get("note"):
                 notes.append(f"[{r.get('route', '?')}] {r['note']}")
-        return (max(worked) if worked else None,
-                max(failed) if failed else None, notes)
+        return (max(worked) if worked else None, max(failed) if failed else None, notes)
 
     def tier_for(score, lw, lf):
         if lf and (not lw or lf >= lw) and days_ago(lf) <= 7:
@@ -848,22 +899,24 @@ async def model_reliability() -> dict:
             "models": [],
             "snapshot_dates": {},
             "updated_at": datetime.datetime.utcnow().isoformat() + "Z",
-            "note": "No observed sessions and no snapshots available"
+            "note": "No observed sessions and no snapshots available",
         }
 
     table = []
     for model, sources in advertised.items():
         lw, lf, model_notes = model_observed(model, rows)
         score = score_model(sources, lw, lf)
-        table.append({
-            "name": model,
-            "score": score,
-            "tier": tier_for(score, lw, lf),
-            "sources": sorted(sources),
-            "last_worked": lw,
-            "last_failed": lf,
-            "notes": model_notes[:2],  # Limit to top 2 notes
-        })
+        table.append(
+            {
+                "name": model,
+                "score": score,
+                "tier": tier_for(score, lw, lf),
+                "sources": sorted(sources),
+                "last_worked": lw,
+                "last_failed": lf,
+                "notes": model_notes[:2],  # Limit to top 2 notes
+            }
+        )
 
     table.sort(key=lambda t: (-t["score"], t["name"]))
 

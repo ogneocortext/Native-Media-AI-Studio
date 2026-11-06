@@ -1,4 +1,3 @@
-
 /**
  * OllamaChat — AI chat interface for the Native Media AI Studio.
  *
@@ -100,18 +99,19 @@ function getBenchmarkScore(
   modelName: string,
 ): { score: number | null; latency: number | null; success: boolean | null } {
   const mBench = benchmarks[modelName];
-  const modelBench = (mBench?.validation ?? {}) as {
-    score?: number;
-    latency_ms?: number;
-    success?: boolean;
-  } | undefined;
+  const modelBench = (mBench?.validation ?? {}) as
+    | {
+        score?: number;
+        latency_ms?: number;
+        success?: boolean;
+      }
+    | undefined;
   return {
     score: modelBench?.score ?? null,
     latency: modelBench?.latency_ms ?? null,
     success: modelBench?.success ?? null,
   };
 }
-
 
 // ---------------------------------------------------------------------------
 // SimpleMarkdown — lightweight markdown → React (no extra dependency)
@@ -204,7 +204,10 @@ function renderInline(nodes: MDNode[]): React.ReactNode {
         return <em key={idx}>{renderInline(node.children)}</em>;
       case "code":
         return (
-          <code key={idx} className="text-xs bg-white/10 px-1.5 py-0.5 rounded border border-white/5 text-cyan-300 font-mono">
+          <code
+            key={idx}
+            className="text-xs bg-white/10 px-1.5 py-0.5 rounded border border-white/5 text-cyan-300 font-mono"
+          >
             {node.content}
           </code>
         );
@@ -239,11 +242,16 @@ function SimpleMarkdown({ content }: { content: string }): React.ReactNode {
       const langLine = trimmed.slice(3, fenceEnd !== -1 ? fenceEnd : trimmed.length).trim();
       const codeBody = fenceEnd !== -1 ? trimmed.slice(fenceEnd + 3).trim() : "";
       return (
-        <div key={bi} className="my-2 rounded-lg border border-white/5 bg-black/30 p-3 overflow-x-auto">
+        <div
+          key={bi}
+          className="my-2 rounded-lg border border-white/5 bg-black/30 p-3 overflow-x-auto"
+        >
           <div className="flex items-center gap-2 mb-1 text-[10px] text-muted font-mono">
             <span>{langLine || "text"}</span>
           </div>
-          <pre className="text-sm text-gray-200 font-mono leading-relaxed whitespace-pre break-all">{codeBody}</pre>
+          <pre className="text-sm text-gray-200 font-mono leading-relaxed whitespace-pre break-all">
+            {codeBody}
+          </pre>
         </div>
       );
     }
@@ -286,7 +294,6 @@ function SimpleMarkdown({ content }: { content: string }): React.ReactNode {
   });
 }
 
-
 // ---------------------------------------------------------------------------
 // MessageItem
 // ---------------------------------------------------------------------------
@@ -298,12 +305,17 @@ interface MessageItemProps {
 
 function MessageItem({ msg, onCopy }: MessageItemProps) {
   const isUser = msg.role === "user";
-  const time = msg.timestamp ? msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  const time = msg.timestamp
+    ? msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "";
   const hasContent = Boolean(msg.content && msg.content.trim());
   const isError = hasContent && msg.content.startsWith("Error:");
 
   return (
-    <div key={String(msg.timestamp?.getTime() ?? Math.random())} className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
+    <div
+      key={String(msg.timestamp?.getTime() ?? Math.random())}
+      className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
+    >
       {!isUser && (
         <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
           <Bot size={16} className="text-white" />
@@ -315,7 +327,10 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
         {msg.tool_calls && msg.tool_calls.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
             {msg.tool_calls.map((tc, idx) => (
-              <span key={idx} className="inline-flex items-center gap-1 rounded-md bg-violet-500/20 px-2 py-0.5 text-xs text-violet-200">
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1 rounded-md bg-violet-500/20 px-2 py-0.5 text-xs text-violet-200"
+              >
                 <Wrench size={12} />
                 {tc.name}
               </span>
@@ -323,7 +338,9 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
           </div>
         )}
         {msg.tool_name && (
-          <div className="mb-1 text-xs text-muted uppercase tracking-wider">tool result: {msg.tool_name}</div>
+          <div className="mb-1 text-xs text-muted uppercase tracking-wider">
+            tool result: {msg.tool_name}
+          </div>
         )}
         {hasContent && (
           <div className="relative group">
@@ -345,9 +362,7 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
             )}
           </div>
         )}
-        <p className="text-[10px] text-muted mt-1 flex items-center gap-1">
-          {time}
-        </p>
+        <p className="text-[10px] text-muted mt-1 flex items-center gap-1">{time}</p>
       </div>
       {isUser && (
         <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
@@ -415,7 +430,11 @@ function MessageList({ messages, loading, onCopy, atBottom, setAtBottom }: Messa
           </div>
         )}
         {messages.map((msg) => (
-          <MessageItem key={String(msg.timestamp?.getTime() ?? Math.random())} msg={msg} onCopy={onCopy} />
+          <MessageItem
+            key={String(msg.timestamp?.getTime() ?? Math.random())}
+            msg={msg}
+            onCopy={onCopy}
+          />
         ))}
         {loading && (
           <div className="flex gap-3">
@@ -432,7 +451,6 @@ function MessageList({ messages, loading, onCopy, atBottom, setAtBottom }: Messa
     </Card>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // ChatHeader
@@ -495,7 +513,6 @@ function ChatHeader({ engineStatus, atomicStatus }: ChatHeaderProps) {
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // EngineStatusAlerts
 // ---------------------------------------------------------------------------
@@ -513,8 +530,11 @@ function EngineStatusAlerts({ engineStatus, atomicStatus }: EngineStatusAlertsPr
         <div>
           <p className="text-sm font-semibold text-red-300">No inference engine online</p>
           <p className="text-xs text-red-200/70">
-            Neither Ollama nor Atomic Chat is running, so messages cannot be sent. Start an engine and
-            refresh this page, or check the <a href="/system/health" className="text-red-300 underline">Health page</a>
+            Neither Ollama nor Atomic Chat is running, so messages cannot be sent. Start an engine
+            and refresh this page, or check the{" "}
+            <a href="/system/health" className="text-red-300 underline">
+              Health page
+            </a>
             for service status.
           </p>
         </div>
@@ -526,9 +546,12 @@ function EngineStatusAlerts({ engineStatus, atomicStatus }: EngineStatusAlertsPr
       <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-900/30 flex items-center gap-3">
         <AlertCircle size={18} className="text-amber-400 shrink-0" />
         <div>
-          <p className="text-sm font-semibold text-amber-300">Ollama offline — Atomic Chat available</p>
+          <p className="text-sm font-semibold text-amber-300">
+            Ollama offline — Atomic Chat available
+          </p>
           <p className="text-xs text-amber-200/70">
-            Ollama is not running but Atomic Chat is online. Select an Atomic Chat model from the dropdown above.
+            Ollama is not running but Atomic Chat is online. Select an Atomic Chat model from the
+            dropdown above.
           </p>
         </div>
       </div>
@@ -539,7 +562,9 @@ function EngineStatusAlerts({ engineStatus, atomicStatus }: EngineStatusAlertsPr
       <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-900/30 flex items-center gap-3">
         <AlertCircle size={18} className="text-amber-400 shrink-0" />
         <div>
-          <p className="text-sm font-semibold text-amber-300">Atomic Chat offline — Ollama available</p>
+          <p className="text-sm font-semibold text-amber-300">
+            Atomic Chat offline — Ollama available
+          </p>
           <p className="text-xs text-amber-200/70">
             Atomic Chat is not running but Ollama is online. Ollama models are available for chat.
           </p>
@@ -549,7 +574,6 @@ function EngineStatusAlerts({ engineStatus, atomicStatus }: EngineStatusAlertsPr
   }
   return null;
 }
-
 
 // ---------------------------------------------------------------------------
 // ModelSelector
@@ -561,7 +585,10 @@ interface ModelSelectorProps {
   selectedModel: string;
   benchmarks: Record<string, OllamaBenchmarkResult>;
   onModelChange: (value: string) => void;
-  toolRoutes: { routes: Record<string, { engine: string; model: string; reason: string }>; excluded_from_chat: string[] } | null;
+  toolRoutes: {
+    routes: Record<string, { engine: string; model: string; reason: string }>;
+    excluded_from_chat: string[];
+  } | null;
   onAutoSelect: (task: "coding" | "vision" | "chat" | "default") => void;
 }
 
@@ -615,7 +642,8 @@ function ModelSelector({
               const sCfg = SOURCE_BADGES[m.source];
               return (
                 <option key={m.name} value={m.name}>
-                  {m.name} [{sCfg.label}]{m.verified ? " [verified]" : " [unverified]"}{badge}
+                  {m.name} [{sCfg.label}]{m.verified ? " [verified]" : " [unverified]"}
+                  {badge}
                   {isBest ? " [best]" : ""}
                 </option>
               );
@@ -627,27 +655,69 @@ function ModelSelector({
             const m = models.find((x) => x.name === selectedModel);
             if (!m) return <ChevronDown size={14} className="text-muted" />;
             const badges: React.ReactNode[] = [];
-            if (m.verified) badges.push(<span key="v" className="text-green-400" title="Verified Working"><Shield size={10} /></span>);
-            if (!m.verified && m.broken_reason) badges.push(<span key="b" className="text-red-400" title={m.broken_reason}><AlertCircle size={10} /></span>);
-            if (m.supports_tools) badges.push(<span key="t" className="text-amber-400" title="Tools"><Wrench size={10} /></span>);
-            if (m.supports_vision) badges.push(<span key="vi" className="text-blue-400" title="Vision"><Eye size={10} /></span>);
-            if (m.supports_thinking) badges.push(<span key="th" className="text-purple-400" title="Thinking"><Brain size={10} /></span>);
-            if (m.supports_embedding) badges.push(<span key="em" className="text-cyan-400 flex items-center gap-1" title="Embeddings"><Activity size={10} /> Embeddings</span>);
-            if (m.supports_rerank) badges.push(<span key="rr" className="text-violet-400 flex items-center gap-1" title="Reranker"><GitBranch size={10} /> Reranker</span>);
+            if (m.verified)
+              badges.push(
+                <span key="v" className="text-green-400" title="Verified Working">
+                  <Shield size={10} />
+                </span>,
+              );
+            if (!m.verified && m.broken_reason)
+              badges.push(
+                <span key="b" className="text-red-400" title={m.broken_reason}>
+                  <AlertCircle size={10} />
+                </span>,
+              );
+            if (m.supports_tools)
+              badges.push(
+                <span key="t" className="text-amber-400" title="Tools">
+                  <Wrench size={10} />
+                </span>,
+              );
+            if (m.supports_vision)
+              badges.push(
+                <span key="vi" className="text-blue-400" title="Vision">
+                  <Eye size={10} />
+                </span>,
+              );
+            if (m.supports_thinking)
+              badges.push(
+                <span key="th" className="text-purple-400" title="Thinking">
+                  <Brain size={10} />
+                </span>,
+              );
+            if (m.supports_embedding)
+              badges.push(
+                <span key="em" className="text-cyan-400 flex items-center gap-1" title="Embeddings">
+                  <Activity size={10} /> Embeddings
+                </span>,
+              );
+            if (m.supports_rerank)
+              badges.push(
+                <span key="rr" className="text-violet-400 flex items-center gap-1" title="Reranker">
+                  <GitBranch size={10} /> Reranker
+                </span>,
+              );
             const vram = m.vram_required;
             if (vram) {
               const gb = (vram / 1024).toFixed(1);
               const isHigh = vram > 7000;
               badges.push(
-                <span key="vram" className={`text-[10px] ${isHigh ? "text-amber-400" : "text-emerald-400"}`}>
+                <span
+                  key="vram"
+                  className={`text-[10px] ${isHigh ? "text-amber-400" : "text-emerald-400"}`}
+                >
                   {gb}GB
-                </span>
+                </span>,
               );
             }
             badges.push(
-              <span key="src" className={`text-[10px] ${sourceCfg.color}`} title={SOURCE_BADGES[m.source || "ollama"].label}>
+              <span
+                key="src"
+                className={`text-[10px] ${sourceCfg.color}`}
+                title={SOURCE_BADGES[m.source || "ollama"].label}
+              >
                 {m.source === "atomic-chat" ? <Zap size={10} /> : <Activity size={10} />}
-              </span>
+              </span>,
             );
             badges.push(<ChevronDown key="d" size={14} className="text-muted" />);
             return <>{badges}</>;
@@ -718,7 +788,10 @@ function ModelSelector({
             <p className="text-xs font-semibold text-purple-300">Task-specific model routing</p>
             <div className="text-xs text-muted flex flex-wrap gap-2">
               {Object.entries(toolRoutes.routes).map(([task, route]) => (
-                <span key={task} className="bg-purple-900/20 px-2 py-1 rounded border border-purple-900/50 text-xs text-purple-300">
+                <span
+                  key={task}
+                  className="bg-purple-900/20 px-2 py-1 rounded border border-purple-900/50 text-xs text-purple-300"
+                >
                   {task}: {route.model}
                 </span>
               ))}
@@ -730,13 +803,13 @@ function ModelSelector({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // StreamStatusBanner
 // ---------------------------------------------------------------------------
 
 interface StreamStatusBannerProps {
-  streamStatus: "idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done";
+  streamStatus:
+    "idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done";
   toolStep: number;
   totalToolSteps: number;
   currentTool: string | null;
@@ -757,18 +830,28 @@ function StreamStatusBanner({
   if (streamStatus === "idle") return null;
 
   const label =
-    streamStatus === "connecting" ? "Connecting…"
-    : streamStatus === "thinking" ? "Model is thinking…"
-    : streamStatus === "executing_tool" ? `Executing tool${currentTool ? `: ${currentTool}` : ""}${totalToolSteps > 0 ? ` (step ${toolStep + 1}/${totalToolSteps})` : ""}`
-    : streamStatus === "streaming_response" ? "Streaming response…"
-    : "Complete";
+    streamStatus === "connecting"
+      ? "Connecting…"
+      : streamStatus === "thinking"
+        ? "Model is thinking…"
+        : streamStatus === "executing_tool"
+          ? `Executing tool${currentTool ? `: ${currentTool}` : ""}${totalToolSteps > 0 ? ` (step ${toolStep + 1}/${totalToolSteps})` : ""}`
+          : streamStatus === "streaming_response"
+            ? "Streaming response…"
+            : "Complete";
 
   const icon =
-    streamStatus === "connecting" ? <Loader2 size={14} className="animate-spin text-emerald-400" />
-    : streamStatus === "thinking" ? <Brain size={14} className="text-purple-400 animate-pulse" />
-    : streamStatus === "executing_tool" ? <Wrench size={14} className="text-amber-400 animate-pulse" />
-    : streamStatus === "streaming_response" ? <Activity size={14} className="text-blue-400 animate-pulse" />
-    : <Shield size={14} className="text-emerald-400" />;
+    streamStatus === "connecting" ? (
+      <Loader2 size={14} className="animate-spin text-emerald-400" />
+    ) : streamStatus === "thinking" ? (
+      <Brain size={14} className="text-purple-400 animate-pulse" />
+    ) : streamStatus === "executing_tool" ? (
+      <Wrench size={14} className="text-amber-400 animate-pulse" />
+    ) : streamStatus === "streaming_response" ? (
+      <Activity size={14} className="text-blue-400 animate-pulse" />
+    ) : (
+      <Shield size={14} className="text-emerald-400" />
+    );
 
   return (
     <Card className="mb-4 shrink-0">
@@ -802,7 +885,6 @@ function StreamStatusBanner({
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // BenchmarkControls
 // ---------------------------------------------------------------------------
@@ -829,8 +911,8 @@ function BenchmarkControls({
       <Card title="Model benchmarks">
         <div className="p-4 flex flex-col gap-3">
           <p className="text-xs text-muted">
-            Benchmarks measure chat quality and latency per model. Run them to
-            surface the best model for each task.
+            Benchmarks measure chat quality and latency per model. Run them to surface the best
+            model for each task.
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -839,15 +921,25 @@ function BenchmarkControls({
               className="px-2 py-1 text-xs rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
               title={benchmarkRunning ? "Running benchmarks…" : "Run Ollama benchmarks"}
             >
-              {benchmarkRunning ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+              {benchmarkRunning ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Download size={12} />
+              )}
             </button>
             <button
               onClick={onRunCodingBenchmarks}
               disabled={codingBenchmarkRunning || modelsLoading}
               className="px-2 py-1 text-xs rounded bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
-              title={codingBenchmarkRunning ? "Running coding benchmarks…" : "Run coding benchmarks"}
+              title={
+                codingBenchmarkRunning ? "Running coding benchmarks…" : "Run coding benchmarks"
+              }
             >
-              {codingBenchmarkRunning ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+              {codingBenchmarkRunning ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Zap size={12} />
+              )}
             </button>
           </div>
           {Object.entries(benchmarks).length > 0 && (
@@ -855,9 +947,14 @@ function BenchmarkControls({
               {Object.entries(benchmarks).map(([name]) => {
                 const { score } = getBenchmarkScore(benchmarks, name);
                 return (
-                  <div key={name} className="flex items-center justify-between text-xs p-2 rounded bg-white/5 border border-white/5">
+                  <div
+                    key={name}
+                    className="flex items-center justify-between text-xs p-2 rounded bg-white/5 border border-white/5"
+                  >
                     <span className="font-mono text-gray-300 truncate">{name}</span>
-                    <span className={`font-mono ${score !== null && score >= 70 ? "text-emerald-400" : score !== null && score >= 40 ? "text-amber-400" : "text-red-400"}`}>
+                    <span
+                      className={`font-mono ${score !== null && score >= 70 ? "text-emerald-400" : score !== null && score >= 40 ? "text-amber-400" : "text-red-400"}`}
+                    >
                       {score !== null ? `${Math.round(score)}/100` : "—"}
                     </span>
                   </div>
@@ -870,7 +967,6 @@ function BenchmarkControls({
     </div>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // VideoUploadPanel
@@ -949,7 +1045,11 @@ function VideoUploadPanel({
                   <Download size={13} />
                 </a>
               </div>
-              <AudioTransport src={getOutputUrl(extractResult.relative_path)} className="w-full" ariaLabel={`Play ${extractResult.filename}`} />
+              <AudioTransport
+                src={getOutputUrl(extractResult.relative_path)}
+                className="w-full"
+                ariaLabel={`Play ${extractResult.filename}`}
+              />
             </div>
           )}
         </div>
@@ -957,7 +1057,6 @@ function VideoUploadPanel({
     </Card>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // ChatInput
@@ -1004,7 +1103,6 @@ function ChatInput({ input, setInput, disabled, loading, onSend, placeholder }: 
   );
 }
 
-
 // ---------------------------------------------------------------------------
 // OllamaChat (main) — state, effects, send/abort orchestration
 // ---------------------------------------------------------------------------
@@ -1025,12 +1123,19 @@ export function OllamaChat() {
   const abortRef = useRef<AbortController | null>(null);
   const [engineStatus, setEngineStatus] = useState<"online" | "offline" | "checking">("checking");
   const [atomicStatus, setAtomicStatus] = useState<"online" | "offline" | "checking">("checking");
-  const [taskRoutes, setTaskRoutes] = useState<{ routes: Record<string, { engine: string; model: string; reason: string }>; excluded_from_chat: string[] } | null>(null);
-  const [streamStatus, setStreamStatus] = useState<"idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done">("idle");
+  const [taskRoutes, setTaskRoutes] = useState<{
+    routes: Record<string, { engine: string; model: string; reason: string }>;
+    excluded_from_chat: string[];
+  } | null>(null);
+  const [streamStatus, setStreamStatus] = useState<
+    "idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done"
+  >("idle");
   const [toolStep, setToolStep] = useState(0);
   const [totalToolSteps, setTotalToolSteps] = useState(0);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
-  const [streamEvents, setStreamEvents] = useState<{ time: string; event: string; detail: string }[]>([]);
+  const [streamEvents, setStreamEvents] = useState<
+    { time: string; event: string; detail: string }[]
+  >([]);
   const [extractRunning, setExtractRunning] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<{
@@ -1063,7 +1168,6 @@ export function OllamaChat() {
       setAtomicStatus("offline");
     }
   }
-
 
   const handleVideoUpload = async (file: File) => {
     setExtractRunning(true);
@@ -1132,7 +1236,6 @@ export function OllamaChat() {
     }
   };
 
-
   useEffect(() => {
     async function loadModels() {
       await Promise.all([checkEngineStatus(), checkAtomicStatus()]);
@@ -1170,7 +1273,9 @@ export function OllamaChat() {
 
         setModels(sorted);
         setTools(toolsData.tools ?? []);
-        const preferredModel = PREFERRED_MODELS.find((name) => sorted.some((model) => model.name === name));
+        const preferredModel = PREFERRED_MODELS.find((name) =>
+          sorted.some((model) => model.name === name),
+        );
         if (preferredModel) setSelectedModel(preferredModel);
         else if (sorted.length > 0) setSelectedModel(sorted[0].name);
       } catch {
@@ -1189,7 +1294,6 @@ export function OllamaChat() {
   const buildHistory = useCallback((): ChatMessage[] => {
     return messages.filter((m, i) => !(i === messages.length - 1 && m.role === "user"));
   }, [messages]);
-
 
   const handleSend = async () => {
     const anyEngineOnline = engineStatus === "online" || atomicStatus === "online";
@@ -1270,7 +1374,10 @@ export function OllamaChat() {
             setCurrentTool(tcData.name);
             toolCalls.push({ name: tcData.name, arguments: tcData.arguments ?? {} });
             setToolStep((s) => s + 1);
-            logStreamEvent("tool_call", `${tcData.name}(${JSON.stringify(tcData.arguments ?? {}).slice(0, 80)})`);
+            logStreamEvent(
+              "tool_call",
+              `${tcData.name}(${JSON.stringify(tcData.arguments ?? {}).slice(0, 80)})`,
+            );
             setMessages((prev) => {
               const next = [...prev];
               const last = next[next.length - 1];
@@ -1342,7 +1449,6 @@ export function OllamaChat() {
       abortRef.current = null;
     }
   };
-
 
   const handleAbort = useCallback(() => {
     if (abortRef.current) {
@@ -1444,8 +1550,8 @@ export function OllamaChat() {
                 Tool calling ({tools.length})
               </label>
               <p className="text-[10px] text-muted mt-2">
-                When enabled, the model can call backend tools (audio, remix,
-                visualizer, etc.) during the conversation.
+                When enabled, the model can call backend tools (audio, remix, visualizer, etc.)
+                during the conversation.
               </p>
             </div>
           </Card>
@@ -1505,4 +1611,3 @@ export function OllamaChat() {
     </div>
   );
 }
-

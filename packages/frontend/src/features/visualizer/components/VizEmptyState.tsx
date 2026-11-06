@@ -27,19 +27,15 @@ export function VizEmptyState({
   onRetryLibrary,
 }: VizEmptyStateProps) {
   return (
-    <div
-      className="viz-empty-hero"
-      role="status"
-      aria-label="Get started with the visualizer"
-    >
+    <div className="viz-empty-hero" role="status" aria-label="Get started with the visualizer">
       <div className="viz-empty-card">
         <div className="viz-empty-icon">
           <Music size={28} />
         </div>
         <h3>Drop a song to see it</h3>
         <p className="viz-empty-sub">
-          Three steps — no setup. Pick a track, pick a vibe, hit play.
-          Beat-synced shader + 3D + lyrics.
+          Three steps — no setup. Pick a track, pick a vibe, hit play. Beat-synced shader + 3D +
+          lyrics.
         </p>
         {libraryError ? (
           <div className="viz-empty-error" role="alert">
@@ -72,19 +68,16 @@ export function VizEmptyState({
                   : ", or upload an MP3/WAV"}
           </li>
           <li>
-            <span className="viz-empty-n">2</span> <b>Pick a vibe</b> →
-            shader, 3D, or 2D from the toolbar
+            <span className="viz-empty-n">2</span> <b>Pick a vibe</b> → shader, 3D, or 2D from the
+            toolbar
           </li>
           <li>
-            <span className="viz-empty-n">3</span> Press <b>Play</b> — cuts
-            land on beats, chorus = maximal
+            <span className="viz-empty-n">3</span> Press <b>Play</b> — cuts land on beats, chorus =
+            maximal
           </li>
         </ol>
         <div className="viz-empty-actions">
-          <button
-            className="viz-empty-cta"
-            onClick={onBrowse}
-          >
+          <button className="viz-empty-cta" onClick={onBrowse}>
             Browse library…
           </button>
           <a href="/audio-analysis" className="viz-empty-link">
@@ -92,8 +85,8 @@ export function VizEmptyState({
           </a>
         </div>
         <p className="viz-empty-tip">
-          Tip: first 3s are the hook — start on the chorus for Shorts.
-          Drag & drop audio files anywhere to load them.
+          Tip: first 3s are the hook — start on the chorus for Shorts. Drag & drop audio files
+          anywhere to load them.
         </p>
       </div>
     </div>

@@ -48,7 +48,9 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
     try:
         probe = await run_subprocess_thread(
             [ffmpeg, "-hide_banner", "-i", str(audio_path)],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         # FFmpeg prints stream info to stderr; cover shows as `Video: png` or `Video: mjpeg (attached pic)`
         stderr = (probe.stderr or "") + (probe.stdout or "")
@@ -64,9 +66,26 @@ async def extract_audio_cover(audio_path: Path, relative_base: Path) -> str | No
     try:
         # -frames:v 1 and -update 1 ensures single image, not sequence
         result = await run_subprocess_thread(
-            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-             "-i", str(audio_path), "-an", "-vcodec", "copy", "-frames:v", "1", "-update", "1", str(cover_path)],
-            capture_output=True, text=True, timeout=10,
+            [
+                ffmpeg,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(audio_path),
+                "-an",
+                "-vcodec",
+                "copy",
+                "-frames:v",
+                "1",
+                "-update",
+                "1",
+                str(cover_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0 and cover_path.exists() and cover_path.stat().st_size > 1024:
             try:

@@ -190,18 +190,13 @@ export function TerrainFlyover({
         const low = Math.max(0, 1 - t * 1.7);
         const mid = Math.max(0, 1 - Math.abs(t - 0.45) * 2.4);
         const high = t < 0.55 ? 0 : (t - 0.55) / 0.45;
-        bands[i] = Math.min(
-          1,
-          d.bass * low * 0.95 + d.mid * mid + d.treble * high * high * 0.95,
-        );
+        bands[i] = Math.min(1, d.bass * low * 0.95 + d.mid * mid + d.treble * high * high * 0.95);
       }
     }
 
     const u = material.uniforms;
     u.uPhase.value = phaseRef.current;
-    u.uHeave.value = prefersReducedMotion
-      ? d.bass * 0.25
-      : d.bass * 0.85 + (d.onset ?? 0) * 0.25;
+    u.uHeave.value = prefersReducedMotion ? d.bass * 0.25 : d.bass * 0.85 + (d.onset ?? 0) * 0.25;
     u.uTreble.value = d.treble;
     u.uEnergy.value = d.energy;
   });

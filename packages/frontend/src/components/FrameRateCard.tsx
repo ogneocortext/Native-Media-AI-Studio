@@ -79,27 +79,19 @@ export function FrameRateCard({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Frame Time</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {frameTime.toFixed(1)} ms
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{frameTime.toFixed(1)} ms</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">P95 Frame Time</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {p95FrameTime.toFixed(1)} ms
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{p95FrameTime.toFixed(1)} ms</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Jank Count</span>
-          <span className={`text-sm tabular-nums ${getJankColor(jankCount)}`}>
-            {jankCount}
-          </span>
+          <span className={`text-sm tabular-nums ${getJankColor(jankCount)}`}>{jankCount}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Dropped Frames</span>
-          <span className="text-sm tabular-nums text-gray-300">
-            {droppedFrames}
-          </span>
+          <span className="text-sm tabular-nums text-gray-300">{droppedFrames}</span>
         </div>
       </div>
     </Card>

@@ -102,8 +102,12 @@ describe("keyPalette", () => {
   });
 
   it("maps mode to saturation", () => {
-    expect(keyPalette({ estimated_key: "C major", key_confidence_r: 0.9 }).saturation).toBe(SAT_MAJOR);
-    expect(keyPalette({ estimated_key: "A minor", key_confidence_r: 0.9 }).saturation).toBe(SAT_MINOR);
+    expect(keyPalette({ estimated_key: "C major", key_confidence_r: 0.9 }).saturation).toBe(
+      SAT_MAJOR,
+    );
+    expect(keyPalette({ estimated_key: "A minor", key_confidence_r: 0.9 }).saturation).toBe(
+      SAT_MINOR,
+    );
   });
 
   it("uses the key directly at high confidence, ignoring the runner-up", () => {

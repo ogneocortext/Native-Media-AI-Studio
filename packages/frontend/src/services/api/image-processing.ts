@@ -101,32 +101,24 @@ export async function processImage(
     formData.append("output_name", params.output_name);
   }
 
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/image/process`,
-    {
-      method: "POST",
-      body: formData,
-      timeout: 300000,
-    },
-  );
+  const res = await fetchWithTimeout(`${getApiBase()}/api/image/process`, {
+    method: "POST",
+    body: formData,
+    timeout: 300000,
+  });
   return unwrap<ImageProcessResponse>(res, "Failed to process image");
 }
 
 /**
  * Remix images into a mashup using ACE-Step bridge.
  */
-export async function remixImage(
-  recipe: ImageRemixRequest,
-): Promise<ImageRemixResponse> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/image/remix`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(recipe),
-      timeout: 300000,
-    },
-  );
+export async function remixImage(recipe: ImageRemixRequest): Promise<ImageRemixResponse> {
+  const res = await fetchWithTimeout(`${getApiBase()}/api/image/remix`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(recipe),
+    timeout: 300000,
+  });
   return unwrap<ImageRemixResponse>(res, "Failed to build remix");
 }
 
@@ -136,15 +128,12 @@ export async function remixImage(
 export async function previewRemixRecipe(
   recipe: ImagePreviewRequest,
 ): Promise<ImagePreviewResponse> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/image/preview-recipe`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layers: recipe.layers }),
-      timeout: 120000,
-    },
-  );
+  const res = await fetchWithTimeout(`${getApiBase()}/api/image/preview-recipe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ layers: recipe.layers }),
+    timeout: 120000,
+  });
   return unwrap<ImagePreviewResponse>(res, "Failed to preview remix recipe");
 }
 
@@ -152,10 +141,7 @@ export async function previewRemixRecipe(
  * Get image processing capabilities and available features.
  */
 export async function getImageCapabilities(): Promise<ImageCapabilities> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/image/capabilities`,
-    { timeout: 30000 },
-  );
+  const res = await fetchWithTimeout(`${getApiBase()}/api/image/capabilities`, { timeout: 30000 });
   return unwrap<ImageCapabilities>(res, "Failed to get image capabilities");
 }
 
@@ -163,10 +149,7 @@ export async function getImageCapabilities(): Promise<ImageCapabilities> {
  * Check image processing service health.
  */
 export async function checkImageProcessingHealth(): Promise<ImageHealth> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/image/health`,
-    { timeout: 10000 },
-  );
+  const res = await fetchWithTimeout(`${getApiBase()}/api/image/health`, { timeout: 10000 });
   return unwrap<ImageHealth>(res, "Failed to get image processing health");
 }
 

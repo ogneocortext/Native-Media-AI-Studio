@@ -87,7 +87,16 @@ class HardwareLimits(BaseModel):
     benchmark_timeout_seconds: int = 300
     vram_safety_margin_mb: int = 1536
 
-    @field_validator("max_concurrent_benchmarks", "ollama_context_tokens", "ollama_max_output_tokens", "comfyui_width", "comfyui_height", "comfyui_steps", "benchmark_timeout_seconds", "vram_safety_margin_mb")
+    @field_validator(
+        "max_concurrent_benchmarks",
+        "ollama_context_tokens",
+        "ollama_max_output_tokens",
+        "comfyui_width",
+        "comfyui_height",
+        "comfyui_steps",
+        "benchmark_timeout_seconds",
+        "vram_safety_margin_mb",
+    )
     @classmethod
     def validate_positive(cls, value: int) -> int:
         if value < 1:
@@ -190,7 +199,9 @@ def _detect_gpus() -> list[GPUInfo]:
                     GPUInfo(
                         index=index,
                         name=str(name).strip() or "Unknown NVIDIA GPU",
-                        uuid=str(pynvml.nvmlDeviceGetUUID(handle)) if hasattr(pynvml, "nvmlDeviceGetUUID") else None,
+                        uuid=str(pynvml.nvmlDeviceGetUUID(handle))
+                        if hasattr(pynvml, "nvmlDeviceGetUUID")
+                        else None,
                         driver_version=driver_version,
                         compute_capability=_gpu_compute_capability(handle),
                         memory_total_mb=int(memory_info.total // (1024 * 1024)),
@@ -245,7 +256,9 @@ def _limits_for_gpu(gpus: list[GPUInfo], configured: dict[str, Any]) -> Hardware
         }
 
     limits_data = dict(defaults)
-    limits_data.update(configured.get("limits", {}) if isinstance(configured.get("limits"), dict) else {})
+    limits_data.update(
+        configured.get("limits", {}) if isinstance(configured.get("limits"), dict) else {}
+    )
     return HardwareLimits(**limits_data)
 
 
@@ -262,14 +275,20 @@ def _recommendations(profile: HardwareProfile) -> tuple[list[str], list[str]]:
             ]
         )
     elif gpu_vram:
-        recommendations.append("Use the detected VRAM headroom to compare larger models, but keep benchmark concurrency at one.")
+        recommendations.append(
+            "Use the detected VRAM headroom to compare larger models, but keep benchmark concurrency at one."
+        )
     else:
-        warnings.append("No NVIDIA GPU was detected through NVML; GPU timing and VRAM deltas will be unavailable.")
+        warnings.append(
+            "No NVIDIA GPU was detected through NVML; GPU timing and VRAM deltas will be unavailable."
+        )
 
     if profile.memory.total_mb < 16 * 1024:
         warnings.append("System RAM is below 16 GB; large model offload may page to disk.")
     if profile.storage.free_gb < 10:
-        warnings.append("Less than 10 GB of storage is free; generated benchmark outputs may need cleanup.")
+        warnings.append(
+            "Less than 10 GB of storage is free; generated benchmark outputs may need cleanup."
+        )
     return recommendations, warnings
 
 
@@ -459,7 +478,11 @@ def snapshot_hardware_profile(
 ) -> HardwareProfile:
     """Detect and persist a profile, returning the saved model."""
 
-    profile = detect_hardware_profile(profile_path, include_source=True) if refresh else load_hardware_profile(profile_path)
+    profile = (
+        detect_hardware_profile(profile_path, include_source=True)
+        if refresh
+        else load_hardware_profile(profile_path)
+    )
     save_hardware_profile(profile, profile_path)
     return profile
 

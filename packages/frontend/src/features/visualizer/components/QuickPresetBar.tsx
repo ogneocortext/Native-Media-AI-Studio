@@ -67,44 +67,44 @@ export const QuickPresetBar = memo(function QuickPresetBar({
       {/* Mode pills — optional; the topbar segmented control is the
           persistent switch, this bar focuses on per-mode presets. */}
       {showModeSwitch && (
-      <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
-        <button
-          onClick={() => onVizModeChange("shader")}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-            vizMode === "shader"
-              ? "bg-violet-600 text-white shadow"
-              : "text-white/60 hover:text-white hover:bg-white/5"
-          }`}
-          title="Switch to Shader / GLSL FX Mode"
-        >
-          <Flame size={12} />
-          <span>FX</span>
-        </button>
-        <button
-          onClick={() => onVizModeChange("3d")}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-            vizMode === "3d"
-              ? "bg-violet-600 text-white shadow"
-              : "text-white/60 hover:text-white hover:bg-white/5"
-          }`}
-          title="Switch to 3D Stage Mode"
-        >
-          <Sparkles size={12} />
-          <span>3D</span>
-        </button>
-        <button
-          onClick={() => onVizModeChange("2d")}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-            vizMode === "2d"
-              ? "bg-violet-600 text-white shadow"
-              : "text-white/60 hover:text-white hover:bg-white/5"
-          }`}
-          title="Switch to Canvas 2D Mode"
-        >
-          <Activity size={12} />
-          <span>2D</span>
-        </button>
-      </div>
+        <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
+          <button
+            onClick={() => onVizModeChange("shader")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              vizMode === "shader"
+                ? "bg-violet-600 text-white shadow"
+                : "text-white/60 hover:text-white hover:bg-white/5"
+            }`}
+            title="Switch to Shader / GLSL FX Mode"
+          >
+            <Flame size={12} />
+            <span>FX</span>
+          </button>
+          <button
+            onClick={() => onVizModeChange("3d")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              vizMode === "3d"
+                ? "bg-violet-600 text-white shadow"
+                : "text-white/60 hover:text-white hover:bg-white/5"
+            }`}
+            title="Switch to 3D Stage Mode"
+          >
+            <Sparkles size={12} />
+            <span>3D</span>
+          </button>
+          <button
+            onClick={() => onVizModeChange("2d")}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              vizMode === "2d"
+                ? "bg-violet-600 text-white shadow"
+                : "text-white/60 hover:text-white hover:bg-white/5"
+            }`}
+            title="Switch to Canvas 2D Mode"
+          >
+            <Activity size={12} />
+            <span>2D</span>
+          </button>
+        </div>
       )}
 
       {showModeSwitch && <div className="h-4 w-px bg-white/15 mx-0.5" />}

@@ -1,25 +1,5 @@
 import { useState } from "react";
-import {
-  
-  
-  
-  Sparkles,
-  Play,
-  
-  
-  Loader2,
-  
-  Layers,
-  
-  
-  Target,
-  
-  
-  
-  
-  Scissors,
-  Activity,
-} from "lucide-react";
+import { Sparkles, Play, Loader2, Layers, Target, Scissors, Activity } from "lucide-react";
 import type { AudioAnalysis, GenerationConfig } from "../types";
 import { VISUAL_TREATMENTS } from "../types";
 import {
@@ -55,9 +35,9 @@ export function GenerateStep({
   const [assemblyOutput, setAssemblyOutput] = useState<string | null>(null);
   const [assembling, setAssembling] = useState(false);
   const [assemblyError, setAssemblyError] = useState<string | null>(null);
-  const [stemVizData, setStemVizData] = useState<
-    Record<string, StemVisualizationUniform> | null
-  >(null);
+  const [stemVizData, setStemVizData] = useState<Record<string, StemVisualizationUniform> | null>(
+    null,
+  );
   const [loadingStemViz, setLoadingStemViz] = useState(false);
   const [stemVizError, setStemVizError] = useState<string | null>(null);
 
@@ -112,7 +92,7 @@ export function GenerateStep({
         crossfade: 0.3,
       });
       if (res.success && res.output_path) setCanvasOutput(res.output_path);
-      else setCanvasError((res.error ?? res.message) ?? "Failed");
+      else setCanvasError(res.error ?? res.message ?? "Failed");
     } catch (err) {
       setCanvasError(err instanceof Error ? err.message : "Failed to create Canvas loop");
     } finally {
@@ -147,7 +127,7 @@ export function GenerateStep({
         beat_times: analysis.beat_times,
       });
       if (res.success && res.output_path) setAssemblyOutput(res.output_path);
-      else setAssemblyError((res.error ?? res.message) ?? "Failed");
+      else setAssemblyError(res.error ?? res.message ?? "Failed");
     } catch (err) {
       setAssemblyError(err instanceof Error ? err.message : "Failed to assemble");
     } finally {

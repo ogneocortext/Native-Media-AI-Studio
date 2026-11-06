@@ -10,6 +10,7 @@ the tunnel origin can be injected via the ``PUBLIC_ORIGIN`` environment
 variable so that a sandbox VM or remote agent can reach the API while the
 local origin allowlist stays intact.
 """
+
 from __future__ import annotations
 
 import os
@@ -66,13 +67,13 @@ def get_all_origins() -> frozenset[str]:
 # every preflight from a sandbox VM agent fails with 400 and no
 # Access-Control-Allow-Origin header.
 _TUNNEL_HOST_PATTERNS = (
-    r"[a-z0-9-]+\.loca\.lt",        # localtunnel
+    r"[a-z0-9-]+\.loca\.lt",  # localtunnel
     r"[a-z0-9-]+\.ngrok-free\.app",  # ngrok (free tier)
     r"[a-z0-9-]+\.ngrok\.app",
     r"[a-z0-9-]+\.ngrok\.io",
     r"[a-z0-9-]+\.ngrok-free\.dev",
     r"[a-z0-9-]+\.trycloudflare\.com",  # Cloudflare Tunnel
-    r"[a-z0-9-]+\.serveo\.net",         # serveo
+    r"[a-z0-9-]+\.serveo\.net",  # serveo
 )
 
 

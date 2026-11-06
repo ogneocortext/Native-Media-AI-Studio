@@ -52,17 +52,17 @@ export const ANCHOR_NAMES = Object.keys(ANCHORS) as EasingAnchor[];
 
 /** B_x(u) in Horner form: 3x1·u + (3x2−6x1)u² + (3x1−3x2+1)u³. */
 function sampleX(u: number, x1: number, x2: number): number {
-  return u * (3 * x1 + u * ((3 * x2 - 6 * x1) + u * (3 * x1 - 3 * x2 + 1)));
+  return u * (3 * x1 + u * (3 * x2 - 6 * x1 + u * (3 * x1 - 3 * x2 + 1)));
 }
 
 /** d/du B_x(u). */
 function sampleXDerivative(u: number, x1: number, x2: number): number {
-  return 3 * x1 + u * ((6 * x2 - 12 * x1) + u * (9 * x1 - 9 * x2 + 3));
+  return 3 * x1 + u * (6 * x2 - 12 * x1 + u * (9 * x1 - 9 * x2 + 3));
 }
 
 /** B_y(u) in Horner form. */
 function sampleY(u: number, y1: number, y2: number): number {
-  return u * (3 * y1 + u * ((3 * y2 - 6 * y1) + u * (3 * y1 - 3 * y2 + 1)));
+  return u * (3 * y1 + u * (3 * y2 - 6 * y1 + u * (3 * y1 - 3 * y2 + 1)));
 }
 
 /**
@@ -72,13 +72,7 @@ function sampleY(u: number, y1: number, y2: number): number {
  * Returns B_y(u). Both control points must be inside [0, 1]
  * on x for the solve to be monotonic (all six anchors are).
  */
-function solveBezier(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  x: number,
-): number {
+function solveBezier(x1: number, y1: number, x2: number, y2: number, x: number): number {
   let u = x;
   let lo = 0;
   let hi = 1;
@@ -119,13 +113,7 @@ export function ease(anchor: EasingAnchor, t: number): number {
  * anchors. Control points are clamped into [0, 1] on x so
  * the solve stays monotonic.
  */
-export function easeBezier(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  t: number,
-): number {
+export function easeBezier(x1: number, y1: number, x2: number, y2: number, t: number): number {
   const cx1 = clamp01(x1);
   const cx2 = clamp01(x2);
   const x = clamp01(t);
@@ -140,12 +128,7 @@ export function easeBezier(
  * "anticipation then action" (F4) without allocating a
  * composite curve.
  */
-export function chain(
-  a: EasingAnchor,
-  b: EasingAnchor,
-  split: number,
-  t: number,
-): number {
+export function chain(a: EasingAnchor, b: EasingAnchor, split: number, t: number): number {
   const s = clamp01(split);
   const x = clamp01(t);
   if (x <= s) return ease(a, s > 0 ? x / s : 0) * s;

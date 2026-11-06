@@ -37,14 +37,7 @@ export interface SpectralTimelineState {
 const timelineCache = new Map<string, SpectralTimeline>();
 const inflight = new Map<string, Promise<SpectralTimeline>>();
 
-const LERP_FIELDS = [
-  "sub",
-  "mid",
-  "high",
-  "transient",
-  "centroid",
-  "rms",
-] as const;
+const LERP_FIELDS = ["sub", "mid", "high", "transient", "centroid", "rms"] as const;
 
 /**
  * T-VIZ-19 — sample the timeline at an arbitrary time with linear
@@ -72,10 +65,7 @@ export function sampleSpectralFrame(
   return out;
 }
 
-export function useSpectralTimeline(
-  filename: string | null,
-  fps = 24,
-): SpectralTimelineState {
+export function useSpectralTimeline(filename: string | null, fps = 24): SpectralTimelineState {
   const [timeline, setTimeline] = useState<SpectralTimeline | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

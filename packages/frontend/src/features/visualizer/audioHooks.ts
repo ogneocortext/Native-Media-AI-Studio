@@ -197,7 +197,9 @@ export function useRealAudio(
     // Ensure AudioContext is running
     const ctx = analyser.context as AudioContext;
     if (ctx.state === "suspended") {
-      ctx.resume().catch(() => { void 0; });
+      ctx.resume().catch(() => {
+        void 0;
+      });
       return;
     }
 
@@ -243,7 +245,16 @@ export function useRealAudio(
       const beatTimes = analysisData?.beat_times;
       const downbeatTimes = analysisData?.downbeat_times;
       const energyCurve = analysisData?.energy_curve;
-      worker.send(arr, ctx.sampleRate, analyser.fftSize, elapsed, duration, beatTimes, downbeatTimes, energyCurve);
+      worker.send(
+        arr,
+        ctx.sampleRate,
+        analyser.fftSize,
+        elapsed,
+        duration,
+        beatTimes,
+        downbeatTimes,
+        energyCurve,
+      );
       data.current = worker.data.current;
       data.current.onset = onsetValue;
       return;
@@ -385,11 +396,7 @@ export function useRealAudio(
 
     // Downbeat detection from backend downbeat times (150ms window)
     let isDownbeat = false;
-    if (
-      analysisData?.downbeat_times &&
-      analysisData.downbeat_times.length > 0 &&
-      elapsed > 0
-    ) {
+    if (analysisData?.downbeat_times && analysisData.downbeat_times.length > 0 && elapsed > 0) {
       const downbeatT = Math.round(elapsed * 100);
       for (let delta = 0; delta <= 15; delta++) {
         if (

@@ -77,9 +77,7 @@ async def analyze_stems_for_visualization(filename: str) -> dict[str, Any]:
         for name in stem_names
         if (stem_dir / f"{name}.wav").exists()
     }
-    results = (
-        await asyncio.gather(*tasks.values(), return_exceptions=True) if tasks else []
-    )
+    results = await asyncio.gather(*tasks.values(), return_exceptions=True) if tasks else []
     stems_data: dict[str, Any] = {}
     for name, features in zip(tasks, results, strict=True):
         if isinstance(features, BaseException):

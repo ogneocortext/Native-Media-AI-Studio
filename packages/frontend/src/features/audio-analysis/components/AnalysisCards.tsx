@@ -41,9 +41,7 @@ export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
           {analysis.duration_seconds.toFixed(1) || "--"}s
         </p>
         <p className="text-xs text-muted">
-          {analysis.beat_count != null
-            ? `${analysis.beat_count} beats detected`
-            : ""}
+          {analysis.beat_count != null ? `${analysis.beat_count} beats detected` : ""}
         </p>
       </div>
       <div className={DS.card}>

@@ -40,14 +40,14 @@ export function EmptySection({
       {icon && (
         <div className="mx-auto mb-2 text-muted/40">
           {React.isValidElement(icon)
-            ? React.cloneElement(icon as React.ReactElement<Record<string, unknown>>, { size: iconSize })
+            ? React.cloneElement(icon as React.ReactElement<Record<string, unknown>>, {
+                size: iconSize,
+              })
             : icon}
         </div>
       )}
       <div className="text-base font-medium text-foreground mb-1">{title}</div>
-      {description && (
-        <p className="text-muted text-xs max-w-xs mx-auto mb-4">{description}</p>
-      )}
+      {description && <p className="text-muted text-xs max-w-xs mx-auto mb-4">{description}</p>}
       {action && (
         <button
           onClick={action.onClick}
@@ -57,7 +57,9 @@ export function EmptySection({
           {action.icon && (
             <span className="mr-1">
               {React.isValidElement(action.icon)
-                ? React.cloneElement(action.icon as React.ReactElement<Record<string, unknown>>, { size: 14 })
+                ? React.cloneElement(action.icon as React.ReactElement<Record<string, unknown>>, {
+                    size: 14,
+                  })
                 : action.icon}
             </span>
           )}

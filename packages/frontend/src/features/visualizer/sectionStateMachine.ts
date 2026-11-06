@@ -1,14 +1,7 @@
 import type { ShaderPresetName } from "./shaders";
 
 export type SectionType =
-  | "intro"
-  | "verse"
-  | "pre-chorus"
-  | "chorus"
-  | "bridge"
-  | "outro"
-  | "drop"
-  | "breakdown";
+  "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "drop" | "breakdown";
 
 export interface SectionPresetMapping {
   preset: ShaderPresetName;

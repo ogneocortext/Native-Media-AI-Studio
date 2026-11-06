@@ -1,15 +1,5 @@
 import { useState, useCallback } from "react";
-import {
-  Activity,
-  BarChart3,
-  Camera,
-  Circle,
-  Globe,
-  Mic,
-  Mountain,
-  Star,
-  Zap,
-} from "lucide-react";
+import { Activity, BarChart3, Camera, Circle, Globe, Mic, Mountain, Star, Zap } from "lucide-react";
 import { PRESET_LIBRARY, type VisualPreset, getPresetById } from "./aiPresetCatalog";
 
 export type { VisualPreset } from "./aiPresetCatalog";
@@ -19,7 +9,10 @@ interface PresetSelectorProps {
   onSelect: (preset: VisualPreset) => void;
 }
 
-const VISUALIZER_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+const VISUALIZER_ICONS: Record<
+  string,
+  React.ComponentType<{ size?: number; className?: string }>
+> = {
   particles: Zap,
   waveform: Activity,
   pulse: Circle,

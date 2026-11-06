@@ -5,10 +5,7 @@
  * Presentational only: every value and handler is passed in by VizToolbar.
  */
 import type { Canvas2DMode } from "../visualizerHelpers";
-import {
-  CANVAS_2D_MODES,
-  shortModeLabel,
-} from "../visualizerHelpers";
+import { CANVAS_2D_MODES, shortModeLabel } from "../visualizerHelpers";
 import { formatTime } from "../../../utils/format";
 import {
   Accessibility,
@@ -119,8 +116,7 @@ export function VizMoreMenu({
       {isRecording && (
         <span className="viz-rec viz-more-item" aria-live="polite">
           <span className="viz-rec-dot" />
-          {Math.floor(recordingTime / 60)}:
-          {(recordingTime % 60).toString().padStart(2, "0")}
+          {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}
         </span>
       )}
       <button
@@ -131,9 +127,7 @@ export function VizMoreMenu({
         title={isRecording ? "Stop recording" : "Start recording"}
       >
         {isRecording ? <Square size={14} /> : <Video size={14} />}
-        <span className="viz-more-label">
-          {isRecording ? "Stop recording" : "Record"}
-        </span>
+        <span className="viz-more-label">{isRecording ? "Stop recording" : "Record"}</span>
       </button>
       {/* Plan 2.9 — deterministic 10 s @ 30 fps export, exactly 300 frames. */}
       {(vizMode === "shader" || vizMode === "2d") && (
@@ -146,9 +140,7 @@ export function VizMoreMenu({
         >
           <Film size={14} />
           <span className="viz-more-label">
-            {isExporting
-              ? `Exporting ${Math.round(exportProgress * 100)}%`
-              : "Export 10s HQ"}
+            {isExporting ? `Exporting ${Math.round(exportProgress * 100)}%` : "Export 10s HQ"}
           </span>
         </button>
       )}
@@ -189,16 +181,16 @@ export function VizMoreMenu({
           loopActive
             ? `Looping ${formatTime(loopRegion!.start)} to ${formatTime(loopRegion!.end)} — click to clear`
             : loopPending
-            ? `Loop start set at ${formatTime(loopAnchor!)} — click to set the end`
-            : "Loop A–B: click to set start, again for end, again to clear"
+              ? `Loop start set at ${formatTime(loopAnchor!)} — click to set the end`
+              : "Loop A–B: click to set start, again for end, again to clear"
         }
         aria-pressed={loopActive}
         title={
           loopActive
             ? `Loop ${formatTime(loopRegion!.start)}–${formatTime(loopRegion!.end)} — click to clear`
             : loopPending
-            ? `Start set at ${formatTime(loopAnchor!)} — click to set end`
-            : "Loop A–B"
+              ? `Start set at ${formatTime(loopAnchor!)} — click to set end`
+              : "Loop A–B"
         }
       >
         <Repeat size={14} />
@@ -224,9 +216,7 @@ export function VizMoreMenu({
         title={focusMode ? "Exit focus mode" : "Enter focus mode"}
       >
         {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        <span className="viz-more-label">
-          {focusMode ? "Exit focus" : "Focus mode"}
-        </span>
+        <span className="viz-more-label">{focusMode ? "Exit focus" : "Focus mode"}</span>
       </button>
       <button
         onClick={() => {
@@ -240,9 +230,7 @@ export function VizMoreMenu({
         title={showSettings ? "Close settings" : "Open settings"}
       >
         <Settings size={14} />
-        <span className="viz-more-label">
-          {showSettings ? "Close settings" : "Settings"}
-        </span>
+        <span className="viz-more-label">{showSettings ? "Close settings" : "Settings"}</span>
       </button>
       <button
         onClick={onToggleAnimDemo}

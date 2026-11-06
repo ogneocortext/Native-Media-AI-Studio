@@ -61,7 +61,10 @@ Respond ONLY with valid JSON in this exact format:
 Generate 3-8 scenes based on the input theme or concept."""
 
     def __init__(
-        self, base_url: str | None = None, *, mock_mode: bool = False,
+        self,
+        base_url: str | None = None,
+        *,
+        mock_mode: bool = False,
     ):
         """
         Initialize the Atomic Chat adapter.
@@ -72,11 +75,13 @@ Generate 3-8 scenes based on the input theme or concept."""
             mock_mode: If True, skip service checks and use mock generation.
         """
         from ..core.config import config as _cfg
+
         _base = base_url or _cfg.atomic_chat_url
         super().__init__(_base, "Atomic Chat", mock_mode=mock_mode)
         self._available_models: list[str] = []
         try:
             from ..core.config import config as _cfg
+
             _def = _cfg.default_model
         except Exception:
             _def = "gemma4:e2b-it-qat"
@@ -102,7 +107,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         """Authorization header when an API key is configured, else empty."""
         return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
 
-    def set_activity(self, model: str, task: str = "generate", description: str = "", timeout: float = 180) -> None:
+    def set_activity(
+        self, model: str, task: str = "generate", description: str = "", timeout: float = 180
+    ) -> None:
         """Register that a model is actively processing a task.
 
         Args:
@@ -148,13 +155,29 @@ Generate 3-8 scenes based on the input theme or concept."""
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "obj_type": {"type": "string", "enum": ["sphere", "box", "cylinder", "cone", "torus", "crown"]},
-                            "position": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] position"},
+                            "obj_type": {
+                                "type": "string",
+                                "enum": ["sphere", "box", "cylinder", "cone", "torus", "crown"],
+                            },
+                            "position": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "[x, y, z] position",
+                            },
                             "color": {"type": "string", "description": "Hex color like #ff0000"},
-                            "scale": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] scale"},
+                            "scale": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "[x, y, z] scale",
+                            },
                             "metalness": {"type": "number", "minimum": 0, "maximum": 1},
                             "roughness": {"type": "number", "minimum": 0, "maximum": 1},
-                            "emissive": {"type": "number", "minimum": 0, "maximum": 2, "description": "Emissive glow intensity"},
+                            "emissive": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Emissive glow intensity",
+                            },
                         },
                     },
                 },
@@ -167,7 +190,10 @@ Generate 3-8 scenes based on the input theme or concept."""
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "light_type": {"type": "string", "enum": ["point", "spot", "directional"]},
+                            "light_type": {
+                                "type": "string",
+                                "enum": ["point", "spot", "directional"],
+                            },
                             "color": {"type": "string"},
                             "intensity": {"type": "number"},
                             "position": {"type": "array", "items": {"type": "number"}},
@@ -183,7 +209,10 @@ Generate 3-8 scenes based on the input theme or concept."""
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "mode": {"type": "string", "enum": ["orbit", "dolly", "handheld", "static"]},
+                            "mode": {
+                                "type": "string",
+                                "enum": ["orbit", "dolly", "handheld", "static"],
+                            },
                         },
                     },
                 },
@@ -215,7 +244,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         try:
             session = await self._get_session()
             target = f"{self.base_url.rstrip('/')}/v1/models"
-            async with session.get(target, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(
+                target, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
                 if resp.status == 401:
                     reason = "HTTP 401 — set ATOMIC_CHAT_API_KEY to the key shown in Atomic Chat"
                     if self._last_health_log != reason:
@@ -291,7 +322,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         try:
             session = await self._get_session()
             target = f"{self.base_url.rstrip('/')}/v1/models"
-            async with session.get(target, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(
+                target, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
                 if resp.status != 200:
                     return None
                 data = await resp.json()
@@ -347,7 +380,9 @@ Generate 3-8 scenes based on the input theme or concept."""
         options.update(kwargs)
 
         if tools and not self._supports_tools(model):
-            logger.warning("Model %s is not known to support tools; sending without tool definitions", model)
+            logger.warning(
+                "Model %s is not known to support tools; sending without tool definitions", model
+            )
             tools = None
 
         # VRAM-aware num_ctx: default to 8192 on the 8GB workstation.
@@ -359,18 +394,41 @@ Generate 3-8 scenes based on the input theme or concept."""
             try:
                 requested = int(options["num_ctx"])
                 if requested > 8192:
-                    logger.warning("num_ctx %d requested -- capping to 8192 for 8GB VRAM", requested)
+                    logger.warning(
+                        "num_ctx %d requested -- capping to 8192 for 8GB VRAM", requested
+                    )
                     options["num_ctx"] = 8192
             except Exception:
                 pass
 
         self._last_model = model
-        logger.info("Atomic Chat chat request: model=%s, stream=%s, tools=%d, think=%s [route=atomic-chat]",
-                     model, stream, len(tools) if tools else 0, think)
+        logger.info(
+            "Atomic Chat chat request: model=%s, stream=%s, tools=%d, think=%s [route=atomic-chat]",
+            model,
+            stream,
+            len(tools) if tools else 0,
+            think,
+        )
 
         if stream:
-            return self._stream_chat(messages, model, tools, think=think, format=format, keep_alive=keep_alive, options=options)
-        return await self._chat_request(messages, model, tools, think=think, format=format, keep_alive=keep_alive, options=options)
+            return self._stream_chat(
+                messages,
+                model,
+                tools,
+                think=think,
+                format=format,
+                keep_alive=keep_alive,
+                options=options,
+            )
+        return await self._chat_request(
+            messages,
+            model,
+            tools,
+            think=think,
+            format=format,
+            keep_alive=keep_alive,
+            options=options,
+        )
 
     def _supports_tools(self, model: str) -> bool:
         """Whether the given model is known to support tool calling."""
@@ -435,7 +493,12 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         session = await self._get_session()
         target = f"{self.base_url.rstrip('/')}/v1/chat/completions"
-        async with session.post(target, json=payload, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=300)) as resp:
+        async with session.post(
+            target,
+            json=payload,
+            headers=self._auth_headers(),
+            timeout=aiohttp.ClientTimeout(total=300),
+        ) as resp:
             if resp.status != 200:
                 error = await resp.text()
                 raise RuntimeError(f"Atomic Chat error: {error}")
@@ -497,14 +560,23 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         session = await self._get_session()
         target = f"{self.base_url.rstrip('/')}/v1/chat/completions"
-        async with session.post(target, json=payload, headers=self._auth_headers(), timeout=aiohttp.ClientTimeout(total=300)) as resp:
+        async with session.post(
+            target,
+            json=payload,
+            headers=self._auth_headers(),
+            timeout=aiohttp.ClientTimeout(total=300),
+        ) as resp:
             if resp.status != 200:
                 error = await resp.text()
                 raise RuntimeError(f"Atomic Chat stream error: {error}")
             async for line in resp.content:
                 if not line.strip():
                     continue
-                text = line.decode("utf-8", errors="ignore") if isinstance(line, (bytes, bytearray)) else line
+                text = (
+                    line.decode("utf-8", errors="ignore")
+                    if isinstance(line, (bytes, bytearray))
+                    else line
+                )
                 text = text.removeprefix("data: ")
                 if text == "[DONE]":
                     yield {"done": True}
@@ -573,7 +645,13 @@ Generate 3-8 scenes based on the input theme or concept."""
 
         try:
             result = await self._chat_request(
-                messages, model, None, think=think, format=format, keep_alive=keep_alive, options=options,
+                messages,
+                model,
+                None,
+                think=think,
+                format=format,
+                keep_alive=keep_alive,
+                options=options,
             )
             return {
                 "response": result.get("message", {}).get("content", ""),

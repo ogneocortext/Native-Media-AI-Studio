@@ -88,7 +88,9 @@ export function OceanWaves({
     meshRef.current.rotation.x = -Math.PI / 2.2 + snap * 0.02;
     if (!sceneFrozen)
       meshRef.current.rotation.z =
-        t * 0.005 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.02 + snap * 0.01;
+        t * 0.005 * vizParams.rotationSpeed * speedMul +
+        stemEnergyRef.current.bass * 0.02 +
+        snap * 0.01;
     // Tint the wave field toward the energy hue so the
     // ocean warms in loud sections instead of staying teal.
     const m = meshRef.current.material as THREE.MeshStandardMaterial;
