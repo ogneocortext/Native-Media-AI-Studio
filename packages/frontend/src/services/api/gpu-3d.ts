@@ -123,7 +123,7 @@ export async function generate3D(request: {
 
 export async function generate3DFromImage(
   file: File,
-  opts?: { steps?: number; output_name?: string },
+  opts?: { steps?: number; output_name?: string; model?: string },
 ): Promise<Record<string, unknown>> {
   const base = getApiBase();
   const form = new FormData();
@@ -131,6 +131,7 @@ export async function generate3DFromImage(
   const params = new URLSearchParams();
   if (opts?.steps) params.set("steps", String(opts.steps));
   if (opts?.output_name) params.set("output_name", opts.output_name);
+  if (opts?.model) params.set("model", opts.model);
   const res = await fetchWithTimeout(`${base}/api/3d/generate-image?${params.toString()}`, {
     method: "POST",
     body: form,

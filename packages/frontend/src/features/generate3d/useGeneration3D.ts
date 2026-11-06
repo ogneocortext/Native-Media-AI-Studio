@@ -34,6 +34,7 @@ export interface ModelInfo {
   desc: string;
   color: string;
   available: boolean;
+  unavailableHint?: string;
 }
 
 export const PROMPT_EXAMPLES = [
@@ -218,7 +219,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   const [prompt, setPrompt] = useState(
     "a futuristic robot, chrome metallic, highly detailed, standing pose",
   );
-  const [model, setModel] = useState("hunyuan3d-2mini");
+  const [model, setModel] = useState("hunyuan3d_2mini");
   const [steps, setSteps] = useState(15);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
@@ -393,15 +394,43 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     return () => clearInterval(iv);
   }, [generating]);
 
+  // Live availability comes from /api/3d/status -> backend_health (weights on
+  // disk + Hy3D node classes registered). Falls back to the historical static
+  // flags only while status is still loading or the field is absent.
+  const backendHealth = (status3d.backend_health ?? {}) as Record<
+    string,
+    { available?: boolean }
+  >;
+  const healthAvailable = (id: string, fallback: boolean) =>
+    backendHealth[id]?.available ?? fallback;
+
   const models: readonly ModelInfo[] = [
     {
-      id: "hunyuan3d-2mini",
+      id: "hunyuan3d_2mini",
       name: "Hunyuan3D-2mini",
       vram: "5GB",
       time: "3-5 min",
       desc: "0.6B • Installed & 8GB-safe",
       color: "text-emerald-400",
-      available: true,
+      available: healthAvailable("hunyuan3d_2mini", true),
+    },
+    {
+      id: "hunyuan3d_2mini_fast",
+      name: "Hunyuan3D-2mini Fast",
+      vram: "5GB",
+      time: "2-4 min",
+      desc: "0.6B distilled • faster drafts",
+      color: "text-emerald-400",
+      available: healthAvailable("hunyuan3d_2mini_fast", false),
+    },
+    {
+      id: "hunyuan3d_2mini_turbo",
+      name: "Hunyuan3D-2mini Turbo",
+      vram: "5GB",
+      time: "1-2 min",
+      desc: "0.6B turbo-distilled • fastest",
+      color: "text-emerald-400",
+      available: healthAvailable("hunyuan3d_2mini_turbo", false),
     },
     {
       id: "hunyuan3d-2",
@@ -411,6 +440,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       desc: "1.2B • Not installed on this system",
       color: "text-amber-400",
       available: false,
+      unavailableHint: "Hunyuan3D-2 full is not installed — use a 2mini variant",
     },
   ];
 
@@ -514,7 +544,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     setResult(null);
     const start = Date.now();
     try {
-      const data = await generate3DFromImage(refFile, { steps });
+      const data = await generate3DFromImage(refFile, { steps, model });
       setResult(data);
       if ((data as { success?: boolean }).success === false) {
         setError(

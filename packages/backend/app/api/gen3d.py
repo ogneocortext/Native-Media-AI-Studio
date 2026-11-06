@@ -24,6 +24,25 @@ class Gen3DGenerateRequest(BaseModel):
     steps: int = 15
     seed: int = 42
     cfg: float = 7.0
+    model: str | None = None
+
+
+def _resolve_backend(model: str | None) -> str:
+    """Map a frontend model id (e.g. 'hunyuan3d-2mini-fast') to a backend key.
+
+    Returns DEFAULT_BACKEND for empty input; raises HTTPException for names
+    that are not real backends so a typo can't silently run the default.
+    """
+    from fastapi import HTTPException
+
+    from ..services.gen3d.gen3d_service import DEFAULT_BACKEND, MODEL_BACKENDS
+
+    key = (model or "").strip().replace("-", "_")
+    if not key:
+        return DEFAULT_BACKEND
+    if key not in MODEL_BACKENDS:
+        raise HTTPException(status_code=400, detail=f"Unknown 3D backend '{model}'")
+    return key
 
 
 @router.get("/status")
@@ -55,6 +74,7 @@ async def gen3d_generate(body: Gen3DGenerateRequest) -> dict:
             steps=body.steps,
             seed=body.seed,
             cfg=body.cfg,
+            backend=_resolve_backend(body.model),
         )
 
 
@@ -67,6 +87,7 @@ async def gen3d_generate_image(
     file: UploadFile = File(...),
     steps: int = 15,
     output_name: str | None = None,
+    model: str | None = None,
 ) -> dict:
     """Generate a 3D model from a reference image (face/body lock source).
 
@@ -104,6 +125,7 @@ async def gen3d_generate_image(
                 image_path=str(tmp_path),
                 output_name=output_name,
                 steps=steps,
+                backend=_resolve_backend(model),
             )
     except ValueError as e:
         from fastapi import HTTPException

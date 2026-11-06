@@ -819,3 +819,26 @@ Rules: `docs/plans/tasks/README.md`
   (ZoomIn deduped by the frontend's by-name map); ruff clean; eslint
   0 errors on touched file.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-29 - 3D model selector: fast/turbo variants + real backend plumbing
+- **Status:** done
+- **Goal:** Expose the on-disk Hunyuan3D-2mini fast/turbo DiT variants and
+  make the selector actually reach the backend (the `model` field was
+  previously sent but silently dropped by the request schema).
+- **What changed:** `MODEL_BACKENDS` gains `hunyuan3d_2mini_fast` and
+  `hunyuan3d_2mini_turbo` (each DiT safetensors bundles its own VAE, so
+  only `diffusion_subpath` differs); Hy3D backend checks now use a shared
+  `HY3D_BACKENDS` frozenset; `/api/3d/generate` and `/generate-image`
+  accept `model`, normalize `-`→`_`, and 400 on unknown backends instead
+  of silently defaulting. Frontend lists all three 2mini variants with
+  availability driven by live `backend_health` (weights + Hy3D node
+  registration), passes the selection on both text and reference-image
+  paths, and the disabled-card tooltip is per-model.
+- **Files:** services/gen3d/gen3d_service.py, api/gen3d.py,
+  services/api/gpu-3d.ts, features/generate3d/{useGeneration3D,
+  ModelSelector}.tsx.
+- **Verification:** `/api/3d/status` reports `model_exists: true` for all
+  three variants (ComfyUI currently offline → `available: false`, correct);
+  14 checkpoint-filtering tests pass; ruff clean; tsc -b clean; eslint
+  0 errors.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

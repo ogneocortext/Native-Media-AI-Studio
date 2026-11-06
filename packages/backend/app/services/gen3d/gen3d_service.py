@@ -68,6 +68,38 @@ MODEL_BACKENDS = {
         "num_chunks": 8000,
         "target_faces": 30000,
     },
+    "hunyuan3d_2mini_fast": {
+        "name": "Hunyuan3D-2mini Fast",
+        "vram_gb": 5,
+        "speed_s": "20-40",
+        "quality": "Very good (distilled)",
+        "description": "0.6B distilled variant — fewer steps for faster iteration. Geometry only.",
+        "checkpoint_subpath": "hunyuan3d-2mini/hunyuan3d-dit-v2-mini-fast/model.fp16.safetensors",
+        "diffusion_subpath": "hunyuan3d-2mini/hunyuan3d-dit-v2-mini-fast/model.fp16.safetensors",
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": True,
+        "supports_kijai": True,
+        "octree_resolution": 256,
+        "num_chunks": 8000,
+        "target_faces": 30000,
+    },
+    "hunyuan3d_2mini_turbo": {
+        "name": "Hunyuan3D-2mini Turbo",
+        "vram_gb": 5,
+        "speed_s": "10-25",
+        "quality": "Good (heavily distilled)",
+        "description": "0.6B turbo-distilled variant — fewest steps, fastest drafts. Geometry only.",
+        "checkpoint_subpath": "hunyuan3d-2mini/hunyuan3d-dit-v2-mini-turbo/model.fp16.safetensors",
+        "diffusion_subpath": "hunyuan3d-2mini/hunyuan3d-dit-v2-mini-turbo/model.fp16.safetensors",
+        "supports_texture": False,
+        "supports_multiview": False,
+        "supports_native": True,
+        "supports_kijai": True,
+        "octree_resolution": 256,
+        "num_chunks": 8000,
+        "target_faces": 30000,
+    },
     "hunyuan3d_2mv": {
         "name": "Hunyuan3D-2mv",
         "vram_gb": 6,
@@ -158,8 +190,31 @@ DEFAULT_BACKEND = "hunyuan3d_2mini"
 # importing cleanly) so a broken pack surfaces as "backend unavailable"
 # with a clear log line instead of failing mid-job with a node-not-found
 # error from ComfyUI.
+# Backends that run the Hy3D wrapper node chain (DiT + bundled VAE in one
+# safetensors). The 2mini fast/turbo distilled variants share the same nodes.
+HY3D_BACKENDS = frozenset(
+    {
+        "hunyuan3d_2mini",
+        "hunyuan3d_2mini_fast",
+        "hunyuan3d_2mini_turbo",
+        "hunyuan3d_2mv",
+    }
+)
+
 REQUIRED_NODES = {
     "hunyuan3d_2mini": ("Hy3DModelLoader", "Hy3DGenerateMesh", "Hy3DVAEDecode", "Hy3DExportMesh"),
+    "hunyuan3d_2mini_fast": (
+        "Hy3DModelLoader",
+        "Hy3DGenerateMesh",
+        "Hy3DVAEDecode",
+        "Hy3DExportMesh",
+    ),
+    "hunyuan3d_2mini_turbo": (
+        "Hy3DModelLoader",
+        "Hy3DGenerateMesh",
+        "Hy3DVAEDecode",
+        "Hy3DExportMesh",
+    ),
     "hunyuan3d_2mv": ("Hy3DModelLoader", "Hy3DGenerateMesh", "Hy3DVAEDecode", "Hy3DExportMesh"),
     "triposr": ("TripoSRGenerate",),
     "stable_fast_3d": ("Comfy3DLoadSF3DModel", "Comfy3DStableFast3D"),
@@ -193,7 +248,7 @@ class Gen3DService:
         self.target_faces = backend_info.get("target_faces") or 30000
 
         # Resolve model path for availability check
-        if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
+        if self.backend in HY3D_BACKENDS:
             subpath = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
             self.model_dir = COMFYUI_DIR / "models" / "diffusion_models" / subpath
         elif self.backend == "triposr":
@@ -416,7 +471,7 @@ class Gen3DService:
         """
         proc_output_name = self._sanitize_name(output_name)
 
-        if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
+        if self.backend in HY3D_BACKENDS:
             return self._build_hunyuan_text23d_workflow(prompt, proc_output_name, steps, seed, cfg)
         elif self.backend == "triposr":
             # TripoSR is image-only; first render a concept image, then generate 3D
@@ -790,7 +845,7 @@ class Gen3DService:
         image_name = Path(image_path).name
         proc_output_name = self._sanitize_name(output_name)
 
-        if self.backend in ("hunyuan3d_2mini", "hunyuan3d_2mv"):
+        if self.backend in HY3D_BACKENDS:
             backend_info = MODEL_BACKENDS[self.backend]
             model_path = backend_info["diffusion_subpath"] or backend_info["checkpoint_subpath"]
 
@@ -1227,11 +1282,15 @@ class Gen3DService:
                 "point_e",
                 "shap_e",
                 "hunyuan3d_2mini",
+                "hunyuan3d_2mini_fast",
+                "hunyuan3d_2mini_turbo",
                 "hunyuan3d_2mv",
                 "hunyuan3d_2gp_external",
             ],
             "image_to_3d_backends": [
                 "hunyuan3d_2mini",
+                "hunyuan3d_2mini_fast",
+                "hunyuan3d_2mini_turbo",
                 "hunyuan3d_2mv",
                 "triposr",
                 "stable_fast_3d",

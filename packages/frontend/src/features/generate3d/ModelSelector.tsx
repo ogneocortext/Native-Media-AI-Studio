@@ -19,7 +19,7 @@ export function ModelSelector({ hook }: ModelSelectorProps) {
             key={m.id}
             onClick={() => m.available && setModel(m.id)}
             disabled={!m.available}
-            title={m.available ? m.desc : "Hunyuan3D-2 full is not installed — use Hunyuan3D-2mini"}
+            title={m.available ? m.desc : (m.unavailableHint ?? "Not installed on this system")}
             className={`text-left p-3 rounded-xl border-2 transition-all ${
               model === m.id
                 ? "bg-violet-500/10 border-violet-500"
