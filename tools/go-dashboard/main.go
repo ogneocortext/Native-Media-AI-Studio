@@ -1,3 +1,16 @@
+// Command go-dashboard is an optional SSE fan-out mirror for the studio.
+//
+// The FastAPI backend POSTs every SSE message to /publish (fire-and-forget,
+// see app/sse/handler.py); this service republishes them on /events for any
+// external subscriber (external dashboards, debug tooling). The studio
+// frontend does NOT read this stream — it uses the backend's canonical
+// /api/events — so the service is safe to run or omit without affecting the
+// app. Ports.json advertises events_url/sse_url pointing here, but
+// sseService.ts deliberately prefers the backend endpoint.
+//
+// Endpoints: GET /api/health, GET /version, POST /publish {type?, ...},
+// GET /events?stream=events (SSE; 15s heartbeat keeps proxies alive).
+// Config: GO_DASHBOARD_PORT (default 3847).
 package main
 
 import (

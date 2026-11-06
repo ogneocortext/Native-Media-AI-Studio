@@ -1,3 +1,20 @@
+// Command go-worker persists job metadata and JSON sidecar files for the
+// studio's async pipelines.
+//
+// The backend's services/go_worker_client.py calls it from four places —
+// comfyui_workflow_handler, export_matrix, image_generator, and
+// storyboard_generator — to write <PROJECT_ROOT>/output/<name>.json sidecars
+// without blocking the Python event loop on file I/O. Each POST
+// /jobs/:id/sidecar validates the filename (safeNamePattern + path
+// containment) before writing. The job registry itself (POST /jobs,
+// GET /jobs/:id, snapshot persistence to output/.go-worker-jobs.json) is
+// maintained but currently has no backend callers — create_job/get_job in
+// the client are unused; the sidecar write path is the live surface.
+//
+// Endpoints: GET /health (includes job count), GET /version,
+// POST /jobs (create; 409 on duplicate ID), GET /jobs/:id,
+// POST /jobs/:id/sidecar?filename= (write output/<filename>.json).
+// Config: GO_WORKER_PORT (default 3849), PROJECT_ROOT (default ".").
 package main
 
 import (

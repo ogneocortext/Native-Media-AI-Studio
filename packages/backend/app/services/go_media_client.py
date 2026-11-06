@@ -1,6 +1,10 @@
-"""HTTP client for go-media sidecar.
+"""HTTP client for the go-media sidecar (:3848).
 
-Replaces direct FFmpeg shell-outs with HTTP calls to `go-media:3848/process`.
+NOTE: currently unused — no backend code path calls these helpers; FFmpeg
+work runs in-process via ``ffmpeg_tools.py``. Kept as the wiring point for
+if/when media jobs are offloaded to the Go worker (see tools/go-media and
+tools/go/README.md for the consumer audit).
+
 All methods return a job dict accepted by go-media, or raise on transport errors.
 """
 

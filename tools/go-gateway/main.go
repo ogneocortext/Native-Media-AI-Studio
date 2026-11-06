@@ -1,3 +1,18 @@
+// Command go-gateway is a pass-through HTTP proxy for the local MCP bridges.
+//
+// The backend's go_gateway_client calls /proxy/{bridge}/* to reach Unity
+// (:7800), Blender (:9876), ComfyUI (:8188), and Ollama (:11434) through one
+// CORS-uniform hop. In practice only the "unity" bridge is used today
+// (api/unity_control.py, api/native_open.py forward the Pipeline server's
+// Authorization header through it); the other bridge entries are configured
+// capacity for future callers. /health probes every configured bridge in
+// parallel with per-service health paths (Ollama /api/tags, ComfyUI
+// /system_stats — neither implements /api/health).
+//
+// Endpoints: GET /health (per-bridge status+latency), ANY /proxy/:bridge/*path,
+// GET /bridges (registry), GET /version.
+// Config: GO_GATEWAY_PORT (default 3850), MCP_BRIDGE_ENDPOINTS and
+// MCP_BRIDGE_HEALTH_PATHS (name=url / name=path, comma-separated overrides).
 package main
 
 import (

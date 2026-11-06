@@ -543,3 +543,25 @@ Rules: `docs/plans/tasks/README.md`
   pills + processes, zero console errors; `tsc -b` clean, eslint 0
   errors, vitest 935/935 pass.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-16 - Audit Go sidecars and document real purpose/consumers
+- **Status:** done
+- **Goal:** Determine which of the five go-* services are actually used,
+  then make each one's purpose actionable instead of obtuse.
+- **Audit result:** go-worker (sidecar writes, 4 live callers),
+  go-gateway (Unity bridge proxy only — 3 of 4 bridge endpoints unused),
+  go-ports (optional port-check accelerator with Python fallback) are
+  live. go-dashboard is a write-only SSE mirror nothing reads (frontend
+  uses backend /api/events). go-media server mode has zero callers —
+  go_media_client.py was dead code and FFmpeg runs in-process.
+- **What changed:** package doc comments added to all five main.go files
+  (purpose, consumers, endpoints, env vars, live-vs-reserved status);
+  tools/go/README.md rewritten with a per-binary consumer table;
+  go_media_client.py docstring corrected — it claimed to "replace direct
+  FFmpeg shell-outs" but nothing calls it.
+- **Files:** tools/go-{dashboard,gateway,media,ports,worker}/main.go,
+  tools/go/README.md, packages/backend/app/services/go_media_client.py.
+- **Acceptance:** comment-only Go changes (no behavior); README table
+  verified against importers via rg (write_sidecar x4, proxy_request
+  unity x2, port_manager fast path, sseService canonical /api/events).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

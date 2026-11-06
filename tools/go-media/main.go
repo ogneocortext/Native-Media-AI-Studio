@@ -1,3 +1,22 @@
+// Command go-media is an FFmpeg job runner with an optional HTTP server.
+//
+// Two modes: CLI (`go-media -op thumbnail -in in.mp4 -out out.jpg`) for
+// manual/offline use, and `--server` on :3848 exposing POST /process plus
+// job tracking (GET /jobs, GET|DELETE /jobs/:id) and an SSE progress stream
+// on /events. Concurrency is capped at 4 simultaneous ffmpeg processes.
+//
+// Current wiring status: the backend's services/go_media_client.py can call
+// this server, but no backend code path invokes it yet — FFmpeg work
+// currently runs in-process via app/services/ffmpeg_tools.py. Treat the
+// server endpoints as reserved capacity; the CLI mode is usable today.
+//
+// Endpoints (server mode): GET /api/health (includes resolved ffmpeg path),
+// GET /version, POST /process {input,output,operation,start,duration},
+// GET /jobs, GET|DELETE /jobs/:id, GET /events (SSE job.progress).
+// Operations: thumbnail, normalize (loudnorm I=-16), concat (segment cut),
+// extract_audio (PCM 16-bit 44.1kHz stereo WAV).
+// Config: --port flag or default 3848; ffmpeg resolved from PATH then
+// %ProgramFiles%/ffmpeg/bin, Git's usr/bin, C:\ffmpeg\bin.
 package main
 
 import (

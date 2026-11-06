@@ -1,3 +1,14 @@
+// Command go-ports reports whether local TCP ports are in use.
+//
+// The backend's core/port_manager uses it as an optional fast path for port
+// checks (single GET /check/<port> or batch GET /scan?ports=...); when the
+// service is down the manager falls back to its own socket probe, so this
+// is an accelerator, not a dependency. Checks dial 127.0.0.1 with a 1s
+// timeout — "in use" means the TCP connect succeeded.
+//
+// Endpoints: GET /api/health, GET /version, GET /check/<port>,
+// GET /scan?ports=8000,5173 (max 100, deduped, checked in parallel).
+// Config: GO_PORTS_PORT (default 3851).
 package main
 
 import (
