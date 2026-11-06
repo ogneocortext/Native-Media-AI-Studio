@@ -358,16 +358,17 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
             stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
             output_name = f"ace-step-{stamp}"
 
-        result = await adapter.generate(
-            {
-                "style": req.style,
-                "lyrics": req.lyrics,
-                "seed": req.seed,
-                "cfg_scale": req.cfg_scale,
-                "inference_steps": req.inference_steps,
-                "output_name": output_name,
-            }
-        )
+        async with vram_manager.work_lane("endpoint:/api/music-gen/generate"):
+            result = await adapter.generate(
+                {
+                    "style": req.style,
+                    "lyrics": req.lyrics,
+                    "seed": req.seed,
+                    "cfg_scale": req.cfg_scale,
+                    "inference_steps": req.inference_steps,
+                    "output_name": output_name,
+                }
+            )
 
         # Register generated audio in the media library so the frontend can find/play it.
         audio_path = result.get("audio_path")

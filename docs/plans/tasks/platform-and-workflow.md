@@ -589,3 +589,24 @@ Rules: `docs/plans/tasks/README.md`
   /check/8000 reported in-use, sidecar write succeeded and traversal
   rejected 400, /jobs returned [], /publish queued.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-18 - Shared GPU work lane for all VRAM-heavy entry points (D71)
+- **Status:** done
+- **Goal:** Serialize every VRAM-heavy operation - queued jobs AND
+  user-facing endpoints that bypass the queue - so each completes
+  within the 8 GB budget before the next starts.
+- **What changed:** `VRAMManager.work_lane(label)` - a single
+  asyncio.Lock + holder/waiter tracking exposed via get_status().
+  Held by: JobProcessor._process_job (before RUNNING so waiters stay
+  QUEUED), source_separation._queue_worker, and endpoints
+  /api/3d/generate(+image), /api/music-gen/generate,
+  /api/audio/transcribe (now asyncio.to_thread - was blocking the
+  loop), /api/vision/* (via _vision_chat_with_fallback). Interactive
+  LLM chat and CPU-only ffmpeg work deliberately excluded.
+- **Files:** services/vram_manager.py, queue/processor.py,
+  services/source_separation.py, api/{gen3d,music_gen,transcription,
+  vision}.py, tests/test_gpu_work_lane.py.
+- **Acceptance:** new test_gpu_work_lane.py (4 tests: mutual exclusion,
+  holder/waiter status, release-on-exception, status payload) passes;
+  59 existing queue+vram+separation tests pass; ruff clean.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

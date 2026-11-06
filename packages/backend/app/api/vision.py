@@ -79,16 +79,22 @@ def _save_ocr_result(relative_path: str, file: UploadFile, text: str, model: str
 
 async def _vision_chat_with_fallback(model: str, prompt: str, b64: str) -> str:
     """Try vision chat with primary model, fall back to FALLBACK_MODEL if available."""
-    try:
-        return await _ollama_chat(model, prompt, b64)
-    except Exception as e:
-        logger.warning(f"vision analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
-        if FALLBACK_MODEL:
-            try:
-                return await _ollama_chat(FALLBACK_MODEL, prompt, b64)
-            except Exception as e2:
-                raise RuntimeError(str(e2)) from e2
-        raise RuntimeError(str(e)) from e
+    # GPU work lane (D71): vision models are VRAM-resident; serialize against
+    # queue jobs and other heavy endpoints. Covers /ocr, /chart (delegates to
+    # vision_ocr) and /analyze-visualizer since all funnel here.
+    from ..services.vram_manager import vram_manager
+
+    async with vram_manager.work_lane("endpoint:/api/vision"):
+        try:
+            return await _ollama_chat(model, prompt, b64)
+        except Exception as e:
+            logger.warning(f"vision analysis with {model} failed: {e}; trying fallback {FALLBACK_MODEL}")
+            if FALLBACK_MODEL:
+                try:
+                    return await _ollama_chat(FALLBACK_MODEL, prompt, b64)
+                except Exception as e2:
+                    raise RuntimeError(str(e2)) from e2
+            raise RuntimeError(str(e)) from e
 
 
 @router.post("/ocr")

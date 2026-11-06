@@ -6,6 +6,7 @@ implementation). Provides endpoints for transcribing audio files with
 word-level timestamps using faster-whisper running locally on CUDA.
 """
 
+import asyncio
 import json
 import logging
 
@@ -50,11 +51,18 @@ async def transcribe_track(request: TranscriptionRequest):
         raise HTTPException(404, f"Audio file not found: {request.filename}")
 
     try:
-        result = transcribe_audio(
-            str(audio_path),
-            language=request.language,
-            model_size=request.model_size or DEFAULT_MODEL_SIZE,
-        )
+        # faster-whisper is synchronous and CUDA-resident: run it off the
+        # event loop and inside the shared GPU work lane (D71) so it cannot
+        # overlap a queue job or another VRAM-heavy endpoint.
+        from ..services.vram_manager import vram_manager
+
+        async with vram_manager.work_lane("endpoint:/api/audio/transcribe"):
+            result = await asyncio.to_thread(
+                transcribe_audio,
+                str(audio_path),
+                language=request.language,
+                model_size=request.model_size or DEFAULT_MODEL_SIZE,
+            )
         result["filename"] = request.filename
 
         # Store for later retrieval

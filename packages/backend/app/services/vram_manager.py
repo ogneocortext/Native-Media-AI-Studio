@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from .vram_adapters import (
@@ -60,7 +61,7 @@ from .vram_providers import (
 from .vram_types import GPUState, GPUWorkload
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,16 @@ class VRAMManager:
         # view available", which under-counts and warns early rather than
         # over-committing.
         self._queue_provider: Callable[[], Awaitable[list[Any]]] | None = None
+        # GPU work lane: a single asyncio.Lock every VRAM-heavy entry point
+        # must hold while it runs. The job queue is already serial, but
+        # user-facing endpoints (stem separation, 3D gen, music gen,
+        # transcription, vision) call services directly and would otherwise
+        # overlap a running queue job and OOM the 8 GB card. Acquired at the
+        # entry boundary only - never inside a service - so queued handlers
+        # and inline endpoints share one exclusion domain. See D71.
+        self._work_lane = asyncio.Lock()
+        self._work_lane_holder: str | None = None
+        self._work_lane_waiters: int = 0
         self._init_thresholds()
 
     async def sync_resident_state(self) -> None:
@@ -1187,10 +1198,39 @@ class VRAMManager:
         )
         return result
 
+    @asynccontextmanager
+    async def work_lane(self, label: str) -> AsyncGenerator[None, None]:
+        """Hold the single GPU work lane for the duration of a heavy operation.
+
+        ``label`` identifies the holder in status output (e.g.
+        ``"job:music_video:<id>"`` or ``"endpoint:/api/3d/generate"``).
+        Only one holder runs at a time; everyone else waits. Waiters are
+        counted before blocking so status can show queue pressure.
+        """
+        self._work_lane_waiters += 1
+        try:
+            async with self._work_lane:
+                self._work_lane_holder = label
+                try:
+                    yield
+                finally:
+                    self._work_lane_holder = None
+        finally:
+            self._work_lane_waiters -= 1
+
+    @property
+    def work_lane_status(self) -> dict[str, Any]:
+        return {
+            "held": self._work_lane.locked(),
+            "holder": self._work_lane_holder,
+            "waiters": self._work_lane_waiters,
+        }
+
     def get_status(self) -> dict[str, Any]:
         """Get VRAM manager status."""
         return {
             "current_workload": self._current_workload.value,
+            "work_lane": self.work_lane_status,
             "ollama_loaded": self._ollama_loaded,
             "atomic_chat_loaded": self._atomic_chat_loaded,
             "comfyui_busy": self._comfyui_busy,

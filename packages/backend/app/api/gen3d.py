@@ -43,13 +43,16 @@ async def gen3d_models() -> list[dict]:
 async def gen3d_generate(body: Gen3DGenerateRequest) -> dict:
     """Generate a 3D model from text prompt."""
     from ..services.gen3d.gen3d_service import gen3d_service
-    return await gen3d_service.generate_from_text(
-        prompt=body.prompt,
-        output_name=body.output_name,
-        steps=body.steps,
-        seed=body.seed,
-        cfg=body.cfg,
-    )
+    from ..services.vram_manager import vram_manager
+
+    async with vram_manager.work_lane("endpoint:/api/3d/generate"):
+        return await gen3d_service.generate_from_text(
+            prompt=body.prompt,
+            output_name=body.output_name,
+            steps=body.steps,
+            seed=body.seed,
+            cfg=body.cfg,
+        )
 
 
 ALLOWED_REF_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
@@ -90,11 +93,14 @@ async def gen3d_generate_image(
                     raise ValueError("Reference image exceeds 15 MB")
                 out.write(chunk)
         from ..services.gen3d.gen3d_service import gen3d_service
-        return await gen3d_service.generate_from_image(
-            image_path=str(tmp_path),
-            output_name=output_name,
-            steps=steps,
-        )
+        from ..services.vram_manager import vram_manager
+
+        async with vram_manager.work_lane("endpoint:/api/3d/generate-image"):
+            return await gen3d_service.generate_from_image(
+                image_path=str(tmp_path),
+                output_name=output_name,
+                steps=steps,
+            )
     except ValueError as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e)) from e

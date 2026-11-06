@@ -386,12 +386,27 @@ class JobProcessor:
         """Process a single job"""
         self._current_job = job
 
-        # Bind the job id for everything this execution logs. Without it, a
-        # failure inside a handler produced log lines with no job id, so
-        # `rg <job-id>` found the enqueue and nothing after it. The context is
-        # reset on exit because this task handles many jobs in sequence.
-        with job_context(job.id):
-            await self._process_job_inner(job)
+        # Hold the shared GPU work lane for the whole job so queued work
+        # cannot overlap VRAM-heavy inline endpoints (separation, 3D gen,
+        # music gen, transcription, vision). The lane is acquired BEFORE the
+        # job is marked RUNNING: while waiting it stays QUEUED, which keeps
+        # the stale-job reaper (RUNNING-only) and the UI status honest.
+        # Lazy import: services.vram_manager must not import queue (cycle).
+        from ..services.vram_manager import vram_manager
+
+        async with vram_manager.work_lane(f"job:{job.job_type}:{job.id}"):
+            # The job may have been cancelled or deleted while queued behind
+            # the lane holder; don't resurrect a terminal state.
+            current = await queue_manager.get_job(job.id)
+            if current is None or current.status == JobStatus.CANCELLED:
+                logger.info("Job %s no longer runnable after lane wait; skipping", job.id)
+                return
+            # Bind the job id for everything this execution logs. Without it, a
+            # failure inside a handler produced log lines with no job id, so
+            # `rg <job-id>` found the enqueue and nothing after it. The context is
+            # reset on exit because this task handles many jobs in sequence.
+            with job_context(job.id):
+                await self._process_job_inner(job)
 
     async def _process_job_inner(self, job: Job):
         """Body of :meth:`_process_job`, run inside ``job_context``."""

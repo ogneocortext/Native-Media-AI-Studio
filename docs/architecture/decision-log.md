@@ -1952,3 +1952,47 @@
   (claim/heartbeat/retry per industry pattern), decide whether
   go-dashboard's write-only mirror and go-media's unused server mode
   should be deleted outright.
+
+### D71 - Shared GPU work lane serializes all VRAM-heavy entry points (2026-11-06)
+
+- **Status:** Decided
+- **Context:** The job queue already runs serially, but several
+  user-facing endpoints bypass it and call GPU services directly:
+  stem separation (Demucs), 3D generation (Hunyuan3D), music generation
+  (ACE-Step adapters), transcription (faster-whisper CUDA), and vision
+  analysis (Ollama vision models). Any of these could overlap a running
+  queue job and OOM the 8 GB GTX 1070 Ti. Source separation had its own
+  private serial queue, but that only serialized separation against
+  itself.
+- **Decision:** One process-wide `asyncio.Lock` on `VRAMManager`
+  (`work_lane(label)` async context manager) is the single exclusion
+  domain for VRAM-heavy work. Acquired at entry boundaries only -
+  never inside services - so there are no nested-lock deadlocks:
+  - `JobProcessor._process_job` holds it for the whole handler run,
+    acquired BEFORE the job is marked RUNNING so a job waiting on the
+    lane stays QUEUED (reaper-safe, honest UI status).
+  - `source_separation._queue_worker` holds it around `_run_separation`,
+    covering every separation regardless of entry point.
+  - Endpoints hold it around their service call: `/api/3d/generate*`,
+    `/api/music-gen/generate`, `/api/audio/transcribe` (also moved to
+    `asyncio.to_thread` - the sync faster-whisper call was blocking the
+    event loop), `/api/vision` (via `_vision_chat_with_fallback`,
+    covering /ocr, /chart, /analyze-visualizer).
+  - Lane state (`held`/`holder`/`waiters`) is exposed in
+    `vram_manager.get_status()` for diagnostics.
+- **Excluded deliberately:** interactive LLM chat/generate endpoints
+  (agent chat, analyze-track*) stay outside the lane - blocking chat
+  behind a 20-minute render is worse than the small OOM window, and
+  `vram_manager`'s offload logic already manages Ollama residency.
+  CPU-only media work (ffmpeg extract/trim, enhance-stems DSP,
+  mastering) is not VRAM-bound and stays unlaned.
+- **Files:** `services/vram_manager.py` (lane + status),
+  `queue/processor.py`, `services/source_separation.py`,
+  `api/{gen3d,music_gen,transcription,vision}.py`,
+  `tests/test_gpu_work_lane.py`.
+- **Consequences:** At most one VRAM-heavy operation runs at a time,
+  whether it arrived via the job queue or a direct endpoint call.
+  Trade-off: a queued job can wait behind a long inline operation
+  (e.g. transcription), and vice versa - acceptable on a single-user
+  local studio. Follow-up if wanted: surface lane waiters in the
+  frontend jobs panel.

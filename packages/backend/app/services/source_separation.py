@@ -495,7 +495,14 @@ class SourceSeparator:
             job = await self._queue.get()
             try:
                 job.status = "running"
-                job.result = await self._run_separation(job)
+                # GPU work lane (D71): this worker serialises separation jobs
+                # against each other, but it must also yield to the shared lane
+                # so a Demucs run cannot overlap a queue job or another
+                # VRAM-heavy endpoint on the 8 GB card.
+                from .vram_manager import vram_manager
+
+                async with vram_manager.work_lane(f"separation:{job.job_id}"):
+                    job.result = await self._run_separation(job)
                 job.status = "done" if job.result and not job.result.error else "error"
                 if job.result and job.result.error:
                     job.error = job.result.error
