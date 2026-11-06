@@ -79,7 +79,7 @@ with shared helpers in `canvas2dHelpers.ts`. Six bar-style modes exist:
 | Integer coordinates | Done | `Math.round` on x/y; `bw = round(barW) - 2` |
 | No `shadowBlur` in hot loop | Done | Glow via cached `drawGlowSprite` sprites instead |
 | Beat pulse | Done | `drawBeatFlash` (white cap + glow sprite) gated on `d.beat` + per-band energy; `drawDownbeatDot` on `isDownbeat` |
-| Attack/release smoothing | Done (centralized) | T-VIZ-15 moved smoothing into one shared envelope stage upstream of all modes — per-mode springs removed |
+| Attack/release smoothing | Done (centralized) | T-VIZ-15 moved smoothing into one shared envelope stage upstream of all modes — per-mode springs removed. Uses `dampLambda` delta-time constants; 2026 consensus (graemephi, Sonic Weaver) confirms `analyser.smoothingTimeConstant` is display-frame-rate-bound and per-frame dt lerp is the correct approach — we already do the latter |
 | Batched fills by style | Partial | Per-bar `fillStyle` still switches (gradient + warm/cool overlays + reflection = up to 4 fills/bar). True batching would need sorting by style; deferred — 64 bars × ~4 fills is within budget at 60 fps |
 
 ### Defects found and fixed (commit `4dafd9c`, `15b0be4`)

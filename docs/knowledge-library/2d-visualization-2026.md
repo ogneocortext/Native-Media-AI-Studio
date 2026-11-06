@@ -153,4 +153,65 @@ renderer instead.
   channels; rename or implement real L/R split (needs per-channel
   analyser data that doesn't exist today).
 
+---
+
+## 10. November 2026 Refresh — techniques validation + new signals
+
+Fresh searches (2026-11-06): `Canvas2D audio visualizer techniques 2026`,
+`audio reactive visualization trends 2026`.
+
+### What the 2026 consensus says — and where we already match
+
+Multiple independent 2026 sources (Sonic Weaver "How Canvas Paints an
+Audio Visualizer", graemephi "How to audio visualizer good", kennykey
+"Audio-Reactive Music Visualizers in JavaScript 2026", MDN) converge on
+the same performance rules. Checking each against the codebase:
+
+| 2026 rule | Our status |
+|---|---|
+| Reuse typed arrays, never allocate in the draw loop | Done — `freq`/`wave`/`smoothed` buffers reused per frame; T-VIZ-38 removed the last dead per-frame allocations in bar modes |
+| Frame-rate-independent smoothing (compute lerp from delta-time, NOT `analyser.smoothingTimeConstant` which is display-frame-rate bound) | Done — T-VIZ-15 envelope stage uses `dampLambda` continuous-time constants per frequency group |
+| Cap `devicePixelRatio` (~2) | Done — T-VIZ-18 governor DPR ladder tops at 2.0 and steps down under load |
+| Avoid `shadowBlur`/CSS filters per frame; bake glow | Done — `drawGlowSprite` cached sprites; no `shadowBlur` in mode hot loops |
+| Clear vs fade: `clearRect` for crisp EQ, translucent fill for trails | Both present — modes opt into trails via `MODE_BUDGETS` |
+| Log-frequency binning is "the number-one reason home-made visualizers go amateur→pro" | Done — `perceptualScale` (`log` default, `bark`/`mel`/`linear` optional) via `makeFreqMapper` |
+| "A well-designed 2D spectrum beats a messy shader every time" | Validated — Canvas2D is the primary surface; R3F/WebGPU are the specialist paths |
+
+### New signals worth tracking
+
+- **Deus Studio uniform set** (deus-soft.com, Oct 2026) — a clean reference
+  for what a production audio-reactive shader API exposes: per-drum
+  detectors (`u_kick`/`u_snare`/`u_hihat`), `u_attack` transient spike,
+  `u_bass_pulse` decaying kick pulse, and notably **`u_level_integral` —
+  a clock that runs faster when the music is louder**. We have
+  `onset`/`beatEnv`/`bass` but no energy-driven time base; an
+  "energy clock" uniform is a cheap, distinctive addition for shader
+  presets (motion accelerates with loudness instead of wall-clock `u_time`).
+- **2026 visual-style trends** (VVavy trend research, Mar 2026): liquid
+  metal, cel-shaded anime scans, holographic scan planes, liminal
+  corridors, CRT/VHS glitch, slit-scan smears, Gaussian-splat clouds,
+  optical-flow motion, depth-driven staging. Maps to preset/style
+  opportunities — CRT glitch and slit-scan are achievable as Canvas2D
+  post treatments; splat/depth styles belong to the R3F/WebGPU path.
+- **Category split** (Echonos 2026): FFT band→graphics visualizers vs
+  AI music-video engines that analyze beat grids/sections and render
+  scenes. The studio now sits in *both* — Canvas2D/R3F reactive modes
+  (FFT path) plus the stem-scene/terrain styles that consume precomputed
+  section/beat analysis (structure path). The `kinetic-type` and
+  `stem-scene` modes are effectively the bridge: reactive rendering
+driven by structural analysis rather than raw FFT.
+- **Build-order validation** (kennykey 2026): bass-average → spectrum
+  bars → smoothing → gradients is still the recommended ramp; our mode
+  set covers every rung and then some.
+
+### Sources (Nov 2026 refresh)
+
+- sonicweaver.com/blog/how-canvas-paints-an-audio-visualizer
+- graemephi.github.io/posts/audio-visualizers (dt-based smoothing)
+- kennykey.com/how-ken-key-builds-long-island-music-visualizers-with-js
+- developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Visualizations_with_Web_Audio_API
+- vvavy.io/blog/what-the-last-two-days-of-visual-trend-research-say-about-vvavy
+- echonos.ai/blog/audio-reactive-visualizer
+- deus-soft.com/blog/audio-reactive-shaders (uniform reference)
+
 _Generated 2026-09-02 via web search `2026 open source 2D visualization`; addendum 2026-09-05 via Summer 2026 refresh._
