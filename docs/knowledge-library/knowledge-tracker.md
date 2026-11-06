@@ -153,7 +153,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
 - ✅ `agent-chat-architecture-2026.md`  → `#ai`, `#agent`, `#architecture`, `#documentation`
 
-### 📊 Research & Reference (19/19 completed)
+### 📊 Research & Reference (21/21 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -175,6 +175,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `x-platform-video-research-2026.md`  → `#research`, `#creative`
 - ✅ `suno-v6-style-tags-README.md` → `#research`, `#audio`
 - ✅ `lyria-3.5-brief-library-README.md` → `#research`, `#audio`
+- ✅ `local-rag-redesign-2026.md` → `#research`, `#architecture`
+- ✅ `ascii-art-trends-2026.md` → `#research`, `#ascii-art`, `#terminal`, `#generative-art`, `#visualization`
 
 ## 📝 Migration Template
 

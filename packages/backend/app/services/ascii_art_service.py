@@ -430,7 +430,7 @@ class AsciiArtService:
         fonts = []
         if self.tools_available.get("figlet"):
             try:
-                result = subprocess.run(["showfigfonts"], capture_output=True, text=True, timeout=10)
+                result = subprocess.run(["showfigfonts"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
                 if result.returncode == 0:
                     fonts = result.stdout.strip().split("\n")
             except Exception:
