@@ -42,6 +42,24 @@ class FFmpegRenderer(VideoRenderer):
                 error="ffmpeg not found on PATH",
             )
 
+        # image2 stops at the first missing index and silently produces a
+        # shorter video — refuse to mux a gapped sequence unless the caller
+        # explicitly opted in via extra["allow_gaps"].
+        if spec.kind == "frames" and not spec.extra.get("allow_gaps"):
+            from .frame_sequence import inspect_sequence
+
+            info = inspect_sequence(spec.frames_dir, spec.frame_pattern)
+            errs = info.errors
+            if errs:
+                return RenderResult(
+                    engine=self.engine_id,
+                    output_path=str(out),
+                    render_s=0.0,
+                    size_bytes=0,
+                    success=False,
+                    error="; ".join(errs),
+                )
+
         cmd = self._build_cmd(spec, ffmpeg, out)
         t0 = time.perf_counter()
         try:

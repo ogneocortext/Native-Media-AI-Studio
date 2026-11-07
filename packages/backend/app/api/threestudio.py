@@ -36,37 +36,22 @@ ExportFramesResponse.model_rebuild()
 
 @router.post("/export", response_model=ExportFramesResponse)
 async def export_frames(request: ExportFramesRequest):
+    """Export a frame sequence from Three.js Studio for video.
+
+    Not implemented: there is no server-side Three.js renderer. The real
+    frame-capture path is the Blender frame-package builder
+    (tools/blender/frame_package.py, T-VID-17) and the Unity MV renderer.
+    Returning 501 rather than a fabricated success keeps the API honest.
     """
-    Export a frame sequence from Three.js Studio for video.
-
-    This endpoint renders a sequence of frames from the current Three.js scene.
-    In a full implementation, this would:
-    1. Load the scene
-    2. Set up the renderer
-    3. Render each frame
-    4. Save frames to the output directory
-    """
-    logger.info(f"Exporting {request.frames} frames at {request.fps} fps to {request.output_dir}")
-
-    try:
-        # TODO: Implement actual frame export
-        # This would typically:
-        # 1. Load the Three.js scene (from scene_name or current session)
-        # 2. Set up an offscreen renderer (WebGL or headless)
-        # 4. Render each frame
-        # 5. Save as PNG sequence or encode to video
-
-        # For now, return success with mock data
-        return ExportFramesResponse(
-            success=True,
-            frames_rendered=request.frames,
-            output_path=request.output_dir,
-            message=f"Exported {request.frames} frames at {request.fps} fps to {request.output_dir}"
-        )
-
-    except Exception as e:
-        logger.error(f"Frame export failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Frame export failed: {str(e)}")
+    logger.info(f"Frame export requested ({request.frames} frames) but no renderer exists")
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Three.js frame export is not implemented. Use the Blender "
+            "frame-package capture (tools/blender/frame_package.py) or the "
+            "Unity MV renderer for frame sequences."
+        ),
+    )
 
 
 @router.get("/status", response_model=dict)

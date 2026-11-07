@@ -464,6 +464,21 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   final spec-native ≤1080p/64spp, OIDN denoise, AgX view transform;
   control passes as separate bpy render layers at 0.2–0.4× beauty
   cost. Resolution ladder draft/review/final mapped to budget caps +
+  2026-11-07 addendum (implementation began, owner "fill the gaps"):
+  `tools/blender/frame_package.py` v1 emits a real frame-package/v1 —
+  verified on stage.glb (4 frames, draft, orbit): beauty/f%06d.png +
+  normals/f%06d.png (world-space emission-override render) +
+  camera.jsonl (fx/fy/cx/cy + column-major cam-to-world) + manifest.json
+  claiming only emitted passes + deterministic frame_set stepping.
+  Blender 5.2.3 API realities recorded in the script docstring: compositor
+  is `compositing_node_group` + `NodeGroupOutput` sink; Output File FLOAT
+  items write a single overwritten f.exr (no frame numbering, read-only
+  format) so depth/seg/pose are honestly NOT emitted — v1.1 path is
+  multilayer-EXR data renders + post-convert. Also landed:
+  `app/services/video/frame_sequence.py` (inspect/gap-detect/manifest),
+  ffmpeg renderer refuses gapped sequences unless extra.allow_gaps,
+  `tools/frame-sequence.py` CLI, and /api/threestudio/export now returns
+  honest 501 instead of mock success.
   Route B's 768×768 lane input (lane downscales, package ships
   scene-native). Determinism: six bpy-side rules mirroring
   three-js-render-motion-2026 — pure function of frame_set(f), seeded
