@@ -347,11 +347,14 @@ tools/model-reliability/snapshots/
 /icon2_model.json
 /modernlogo_model.json
 /vector_model.json
-p a c k a g e s / b a c k e n d / s t u d i o - d a t a / 
- 
- 
+packages/backend/studio-data/
+
+
 # Cline local skills junction -> .kilo/skills (machine-local, not for commit)
 /.cline/
 
 # Self-metrics JSONL streams (test results, gate history) - local state
 tools/self-metrics/
+
+# Knowledge-library EPUB exports - local host only, not for commit
+/*.epub
