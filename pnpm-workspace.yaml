@@ -1,50 +1,34 @@
-# ============================================================================
-# pnpm-workspace.yaml — Native Media AI Studio
-# ============================================================================
-# pnpm reads workspace configuration from this file, NOT from package.json.
-# See https://pnpm.io/workspaces for full reference.
-
-# ---------------------------------------------------------------------------
-# Workspace packages
-# ---------------------------------------------------------------------------
 packages:
-  - packages/frontend
-  - packages/video-editor
-  - tools
-  - '!tools/hyperframes-*'
-
-# packages/backend is intentionally excluded — it's a Python (FastAPI) package,
-# not a pnpm workspace member.
-
-# ---------------------------------------------------------------------------
-# Catalog — shared dependency version pins across workspace packages
-# ---------------------------------------------------------------------------
+- packages/frontend
+- packages/video-editor
+- tools
+- '!tools/hyperframes-*'
 catalog:
-  react: ^19.3.0
-  react-dom: ^19.3.0
-  typescript: ^5.9.3
-  tailwindcss: ^4.3.3
-  '@tailwindcss/vite': ^4.3.3
+  react: ^19.3.1
+  react-dom: ^19.3.1
+  typescript: ^7.0.2
+  tailwindcss: ^4.3.5
+  '@tailwindcss/vite': ^4.3.5
   eslint: ^10.14.0
-  '@playwright/test': ^1.64.0
-  playwright: ^1.64.0
-  '@remotion/captions': 4.0.539
-  '@remotion/cli': 4.0.539
-  '@remotion/effects': 4.0.539
-  '@remotion/eslint-config-flat': 4.0.539
-  '@remotion/media': 4.0.539
-  '@remotion/media-utils': 4.0.539
-  '@remotion/noise': 4.0.539
-  '@remotion/shapes': 4.0.539
-  '@remotion/tailwind-v4': 4.0.539
-  '@remotion/three': 4.0.539
-  '@remotion/transitions': 4.0.539
-  remotion: 4.0.539
-  zod: 4.5.4
-  vite: 8.3.5
+  '@playwright/test': ^1.65.0
+  playwright: ^1.65.0
+  '@remotion/captions': ^4.0.541
+  '@remotion/cli': ^4.0.541
+  '@remotion/effects': ^4.0.541
+  '@remotion/eslint-config-flat': ^4.0.541
+  '@remotion/media': ^4.0.541
+  '@remotion/media-utils': ^4.0.541
+  '@remotion/noise': ^4.0.541
+  '@remotion/shapes': ^4.0.541
+  '@remotion/tailwind-v4': ^4.0.541
+  '@remotion/three': ^4.0.541
+  '@remotion/transitions': ^4.0.541
+  remotion: ^4.0.541
+  zod: ^4.6.7
+  vite: 8.3.6
   comfyui-mcp: 0.52.206
-  '@playwright/mcp': 0.0.83
-  '@tanstack/react-query': ^5.106.0
+  '@playwright/mcp': ^0.0.84
+  '@tanstack/react-query': ^5.107.1
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 sharedWorkspaceLockfile: true
@@ -52,33 +36,28 @@ dedupeDirectDeps: true
 optimisticRepeatInstall: true
 preferOffline: true
 lockfile: true
-
-# saveExact — lock resolved versions exactly (no caret/tilde) for reproducibility
 saveExact: true
-
-# saveWorkspaceProtocol — use `workspace:` protocol for workspace deps
 saveWorkspaceProtocol: true
-
-# catalogMode — enforce catalog versions; 'strict' rejects non-catalog versions
 catalogMode: strict
 catalogPrune: true
-
-# auditLevel — fail CI on high-severity vulnerabilities
 auditLevel: high
-
-# Node version requirement (exact semver)
-nodeVersion: "26.13.0"
-
-# ---------------------------------------------------------------------------
-# Build policy — only allow building esbuild from source
-# ---------------------------------------------------------------------------
+nodeVersion: 26.13.0
+# The runtime pnpm uses for `pnpm run`/`pnpm exec`/`pnpm node` is declared
+# via devEngines.runtime in package.json (pnpm 12 removed useNodeVersion;
+# without it scripts ran on the ambient fnm node v24 while engines and
+# nodeVersion declare 26.13.0 — a real toolchain mismatch).
+# 7-day maturity gate (minutes). pnpm 12 defaults to 1440 (1 day); the
+# repo's supply-chain posture and the agent dependency rule both prefer
+# 7 days. minimumReleaseAgeExclude below lists packages exempted from it.
+minimumReleaseAge: 10080
+# Enforce dependency `engines` against nodeVersion above. Without this,
+# deps declaring incompatible Node versions install silently — the
+# engine-strict=true in .npmrc is NOT read by pnpm (it only honors
+# registry/auth/TLS/proxy/local-address keys from .npmrc).
+engineStrict: true
 allowBuilds:
   cloudflared@0.7.3: true
   esbuild: true
-
-# ---------------------------------------------------------------------------
-# Overrides — pin specific dependency versions across the workspace
-# ---------------------------------------------------------------------------
 overrides:
   typescript-eslint: 8.72.1
   '@remotion/bundler@4.0.534': '>=4.0.534'
@@ -117,15 +96,95 @@ overrides:
   '@remotion/effects@4.0.534': '>=4.0.534'
   '@remotion/transitions@4.0.534': '>=4.0.534'
   mediabunny@1.59.1 || 1.61.0 || 1.61.3: '>=1.61.3'
-  vite@8.3.4: '>=8.3.4'
+  vite@8.3.5: '>=8.3.6'
   '@playwright/test@1.64.0': '>=1.64.0'
   lucide-react@1.53.0: '>=1.53.0'
   playwright-core@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
   playwright@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
-
-# ---------------------------------------------------------------------------
-# TypeScript stays on 5.x: typescript-eslint 8.x (the lint toolchain)
-# peer-caps typescript at >=4.8.4 <6.1.0, so neither TS 6 nor the TS 7
-# native port can be adopted until typescript-eslint ships support for
-# them. The `typescript` catalog entry above is the single source of
-# truth for the workspace.
+minimumReleaseAgeExclude:
+- '@tailwindcss/node@4.3.5'
+- '@tailwindcss/oxide-android-arm64@4.3.5'
+- '@tailwindcss/oxide-darwin-arm64@4.3.5'
+- '@tailwindcss/oxide-darwin-x64@4.3.5'
+- '@tailwindcss/oxide-freebsd-x64@4.3.5'
+- '@tailwindcss/oxide-linux-arm-gnueabihf@4.3.5'
+- '@tailwindcss/oxide-linux-arm64-gnu@4.3.5'
+- '@tailwindcss/oxide-linux-arm64-musl@4.3.5'
+- '@tailwindcss/oxide-linux-x64-gnu@4.3.5'
+- '@tailwindcss/oxide-linux-x64-musl@4.3.5'
+- '@tailwindcss/oxide-wasm32-wasi@4.3.5'
+- '@tailwindcss/oxide-win32-arm64-msvc@4.3.5'
+- '@tailwindcss/oxide-win32-x64-msvc@4.3.5'
+- '@tailwindcss/oxide@4.3.5'
+- '@tailwindcss/vite@4.3.5'
+- '@tanstack/query-core@5.107.1'
+- '@tanstack/react-query@5.107.1'
+- tailwindcss@4.3.5
+# Versions already in the lockfile that are younger than the 7-day gate
+# (published 2026-11-02..05, audited at adoption). Version-scoped so the
+# gate still applies to every other version of these packages. Prune as
+# they age past the window.
+- '@ai-sdk/anthropic@4.0.96'
+- '@ai-sdk/gateway@4.0.135'
+- '@ai-sdk/google@4.0.111'
+- '@ai-sdk/openai@4.0.108'
+- '@ai-sdk/provider-utils@5.0.74'
+- '@anthropic-ai/claude-agent-sdk@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.318'
+- '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.318'
+- '@anthropic-ai/sdk@1.4.0'
+- '@hono/node-server@2.1.6'
+- '@playwright/mcp@0.0.84'
+- '@playwright/test@1.65.0'
+- '@remotion/bundler@4.0.541'
+- '@remotion/captions@4.0.541'
+- '@remotion/cli@4.0.541'
+- '@remotion/codemods@4.0.541'
+- '@remotion/compositor-darwin-arm64@4.0.541'
+- '@remotion/compositor-darwin-x64@4.0.541'
+- '@remotion/compositor-linux-arm64-gnu@4.0.541'
+- '@remotion/compositor-linux-arm64-musl@4.0.541'
+- '@remotion/compositor-linux-x64-gnu@4.0.541'
+- '@remotion/compositor-linux-x64-musl@4.0.541'
+- '@remotion/compositor-win32-x64-msvc@4.0.541'
+- '@remotion/elevenlabs@4.0.541'
+- '@remotion/effects@4.0.541'
+- '@remotion/eslint-config-flat@4.0.541'
+- '@remotion/licensing@4.0.541'
+- '@remotion/media-utils@4.0.541'
+- '@remotion/media@4.0.541'
+- '@remotion/noise@4.0.541'
+- '@remotion/openai-whisper@4.0.541'
+- '@remotion/paths@4.0.541'
+- '@remotion/player@4.0.541'
+- '@remotion/renderer@4.0.541'
+- '@remotion/sdk@4.0.541'
+- '@remotion/shapes@4.0.541'
+- '@remotion/streaming@4.0.541'
+- '@remotion/studio-protocol@4.0.541'
+- '@remotion/studio-server@4.0.541'
+- '@remotion/studio-shared@4.0.541'
+- '@remotion/studio@4.0.541'
+- '@remotion/tailwind-v4@4.0.541'
+- '@remotion/three@4.0.541'
+- '@remotion/timeline-utils@4.0.541'
+- '@remotion/transitions@4.0.541'
+- '@remotion/web-renderer@4.0.541'
+- '@remotion/zod-types@4.0.541'
+- ai@7.0.162
+- express-rate-limit@8.7.3
+- fast-xml-parser@5.12.0
+- hono@4.13.16
+- ip-address@10.7.6
+- is-unsafe@2.0.3
+- playwright-core@1.65.0
+- playwright@1.65.0
+- remotion@4.0.541
+- vite@8.3.6
+- ws@8.22.1

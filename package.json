@@ -9,8 +9,15 @@
     "node": ">=26.13.0",
     "pnpm": ">=12.0.0"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "26.13.0",
+      "onFail": "download"
+    }
+  },
   "scripts": {
-    "preinstall": "pnpm dlx -y only-allow pnpm",
+    "preinstall": "pnpm dlx -y only-allow@1.2.2 pnpm",
     "dev": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\start-studio.ps1",
     "dev:frontend": "pnpm --filter=native-media-ai-studio-frontend dev",
     "dev:backend": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services backend",
@@ -25,8 +32,8 @@
     "build:video": "pnpm --filter=video-editor build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "verify": "python tools/run-gates.py",
-    "verify:e2e": "python tools/run-gates.py --e2e",
+    "verify": "tools\\python.cmd tools/run-gates.py",
+    "verify:e2e": "tools\\python.cmd tools/run-gates.py --e2e",
     "clean": "pnpm -r clean",
     "db:migrate": "cd packages/backend && D:\\conda-envs\\nma-studio-cuda\\Scripts\\python.exe -c \"from app.core.database import init_db; init_db()\""
   },

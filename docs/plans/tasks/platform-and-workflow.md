@@ -1210,3 +1210,43 @@ Rules: `docs/plans/tasks/README.md`
   copied from docs; missing tools are named with their substitute;
   trap rows describe the actual failure mode observed.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-44 — pnpm configuration audit: dead settings, toolchain mismatch, unpinned dlx
+- **Status:** done
+- **Goal:** Line-by-line review of pnpm usage (workspace yaml, .npmrc,
+  package.json scripts, lockfile) for correctness and supply-chain
+  posture, verified against pnpm 12.17.0 docs and live `pnpm config`.
+- **What changed:**
+  - pnpm-workspace.yaml: added `minimumReleaseAge: 10080` (7-day gate;
+    pnpm 12 default is only 1440) — immediately proved itself by
+    rejecting the stale lockfile; added ~55 version-scoped
+    `minimumReleaseAgeExclude` entries for lockfile packages published
+    2026-11-02..05 (remotion 4.0.541 train, playwright 1.65, ai-sdk,
+    anthropic sdk, hono, vite, ws, etc.) so `pnpm install` passes
+    supply-chain policy on all 1076 entries.
+  - Added `engineStrict: true` — the `engine-strict=true` in .npmrc was
+    DEAD CONFIG: pnpm reads only registry/auth/TLS/proxy/local-address
+    keys from .npmrc (confirmed in pnpm docs + `pnpm config get`).
+  - package.json: added `devEngines.runtime` node 26.13.0
+    `onFail: download` — pnpm 12 removed `useNodeVersion`; without it
+    `pnpm run`/`pnpm exec` used ambient fnm node v24.20.0 while
+    engines/nodeVersion declare 26.13.0. Verified: `pnpm exec
+    node --version` now reports v26.13.0, lockfile records
+    `runtime:26.13.0`.
+  - package.json preinstall: pinned `only-allow@1.2.2` — was fetching
+    latest on every install (unpinned remote exec in the supply-chain
+    path).
+  - package.json `verify`/`verify:e2e`: `python` -> `tools\python.cmd`
+    — under pnpm's cmd script-shell, bare `python` resolves to
+    C:\Python314 (wrong env per command sheet).
+  - .npmrc: annotated that engine-strict/save-exact are inert for pnpm.
+  - pnpm-lock.yaml regenerated: it was stale vs the catalog (remotion
+    4.0.539 recorded vs ^4.0.541 declared, playwright 1.64 vs ^1.65) —
+    `--frozen-lockfile` installs would have failed. Now consistent.
+- **Files:** pnpm-workspace.yaml, package.json, pnpm-lock.yaml,
+  .npmrc, docs/plans/tasks/platform-and-workflow.md.
+- **Acceptance:** `pnpm config get` shows minimumReleaseAge=10080,
+  engineStrict=true; `pnpm install --lockfile-only` passes supply-chain
+  policy (1076 entries); `pnpm exec node --version` = v26.13.0;
+  package.json valid JSON; tools\python.cmd resolves 3.11.9.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
