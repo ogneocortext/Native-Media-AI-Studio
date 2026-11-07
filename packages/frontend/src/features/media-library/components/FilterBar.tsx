@@ -37,7 +37,8 @@ export function FilterBar({ filter, tags, onChange, hideFileTypeFilter = false }
   };
 
   const handleTagChange = (tagId: string | null) => {
-    onChange({ ...filter, tagFilter: tagId, fileType: "all" });
+    // Keep the active file-type filter; tag selection composes with it.
+    onChange({ ...filter, tagFilter: tagId });
   };
 
   const selectedTag = tags.find((t) => t.id === filter.tagFilter);
@@ -65,7 +66,7 @@ export function FilterBar({ filter, tags, onChange, hideFileTypeFilter = false }
       </div>
 
       {/* Tag filter */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <TagIcon size={16} className="text-muted" />
         <span className="text-xs text-muted">Tag:</span>
         <button
@@ -101,7 +102,7 @@ export function FilterBar({ filter, tags, onChange, hideFileTypeFilter = false }
 
       {!hideFileTypeFilter && (
         // File type filter — single combined filter (Category + Type merged)
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted">Type:</span>
           {FILE_TYPE_OPTIONS.map((opt) => (
             <button
@@ -121,7 +122,7 @@ export function FilterBar({ filter, tags, onChange, hideFileTypeFilter = false }
       )}
 
       {/* Sort */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted uppercase tracking-wider">Sort:</span>
           <select

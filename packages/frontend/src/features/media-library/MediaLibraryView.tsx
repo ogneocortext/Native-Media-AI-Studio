@@ -23,6 +23,7 @@ import { PlaybackModal } from "./components/PlaybackModal";
 import { DuplicatesPanel } from "./components/DuplicatesPanel";
 import { TrashPanel } from "./components/TrashPanel";
 import { extractThumbnailAtTime } from "../../services/api/media";
+import { listCollectionItems } from "../../services/api";
 import { formatFileSize, formatDateTime } from "../../utils/format";
 import { audioEntryLabel } from "../../state/audioNaming";
 import { DS } from "../../styles/designSystem";
@@ -100,6 +101,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   } | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [expandedCollection, setExpandedCollection] = useState<string | null>(null);
+  const [collectionItems, setCollectionItems] = useState<string[]>([]);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
 
   const filteredFiles = useFileFilters(allFiles, filter, itemTags);
@@ -144,7 +148,31 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
   const handleFileClick = (file: MediaFile) => {
     setSelectedFile(file);
+    setRenameValue(file.filename);
     setDetailOpen(true);
+  };
+
+  const handleSaveRename = async () => {
+    if (!selectedFile) return;
+    const newName = renameValue.trim();
+    if (!newName || newName === selectedFile.filename) return;
+    if (await handleRenameFile(selectedFile, newName)) {
+      setDetailOpen(false);
+      setSelectedFile(null);
+    }
+  };
+
+  const handleToggleCollection = async (collectionId: string) => {
+    if (expandedCollection === collectionId) {
+      setExpandedCollection(null);
+      return;
+    }
+    setExpandedCollection(collectionId);
+    try {
+      setCollectionItems(await listCollectionItems(collectionId));
+    } catch {
+      setCollectionItems([]);
+    }
   };
 
   const handlePlay = (file: MediaFile) => {
@@ -189,8 +217,11 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
       clearSelection();
       void refetchFiles();
       void refetchOrg();
+      return true;
     }
+    return false;
   };
+
 
   const handleToggleFavorite = useCallback(
     async (file: MediaFile) => {
@@ -430,10 +461,8 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             onSelect={toggleSelect}
             onDelete={handleDeleteFile}
             onRename={(file) => {
-              const newName = window.prompt(`Rename "${file.filename}"`, file.filename);
-              if (newName && newName !== file.filename) {
-                void handleRenameFile(file, newName);
-              }
+              // Rename lives in the detail modal now (no window.prompt).
+              handleFileClick(file);
             }}
             onSendToWizard={(file) => {
               window.dispatchEvent(new CustomEvent("send-to-wizard", { detail: { file } }));
@@ -463,45 +492,68 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             </div>
           ) : (
             <div className="divide-y divide-white/5">
-              {collections.map((collection) => (
-                <div
-                  key={collection.id}
-                  className="p-3 bg-black/40 border border-white/10 rounded-lg flex items-center justify-between group hover:bg-black/50 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.alert(
-                      `Collection: ${collection.name} (${
-                        collectionItemCounts.get(collection.id) ?? 0
-                      } items)`,
-                    );
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-blue-600/20 flex items-center justify-center text-blue-300">
-                      <Tag size={16} />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-white truncate">
-                        {collection.name}
+              {collections.map((collection) => {
+                const isOpen = expandedCollection === collection.id;
+                return (
+                  <div key={collection.id} className="bg-black/40 border border-white/10 rounded-lg">
+                    <div
+                      className="p-3 flex items-center justify-between group hover:bg-black/50 cursor-pointer"
+                      onClick={() => void handleToggleCollection(collection.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-blue-600/20 flex items-center justify-center text-blue-300">
+                          <Tag size={16} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-white truncate">
+                            {collection.name}
+                          </div>
+                          <div className="text-xs text-muted">
+                            {collectionItemCounts.get(collection.id) ?? 0} items
+                            {isOpen ? " · click to collapse" : " · click to view"}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted">
-                        {collectionItemCounts.get(collection.id) ?? 0} items
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            window.confirm(
+                              `Delete collection "${collection.name}"? Items stay in the library.`,
+                            )
+                          ) {
+                            void deleteCollection(collection.id);
+                            void refetchOrg();
+                          }
+                        }}
+                        className="text-xs text-red-500 hover:text-red-300"
+                        title="Delete collection"
+                      >
+                        Delete
+                      </button>
                     </div>
+                    {isOpen && (
+                      <div className="px-3 pb-3 pt-1 border-t border-white/5">
+                        {collectionItems.length === 0 ? (
+                          <div className="text-xs text-muted py-2">No items in this collection.</div>
+                        ) : (
+                          <ul className="space-y-1 max-h-48 overflow-y-auto">
+                            {collectionItems.map((path) => (
+                              <li
+                                key={path}
+                                className="text-xs text-gray-300 font-mono truncate"
+                                title={path}
+                              >
+                                {path}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteCollection(collection.id);
-                      void refetchOrg();
-                    }}
-                    className="text-xs text-red-500 hover:text-red-300"
-                    title="Delete collection"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -568,6 +620,26 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                 className="text-muted hover:text-white"
               >
                 ✕
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSaveRename();
+                }}
+                className="flex-1 text-sm bg-black/40 border border-gray-600 rounded px-2 py-1.5 text-white focus:outline-none focus:border-violet-500"
+                aria-label="Rename file"
+              />
+              <button
+                onClick={() => void handleSaveRename()}
+                disabled={!renameValue.trim() || renameValue.trim() === selectedFile.filename}
+                className="px-3 py-1.5 text-xs bg-violet-900/30 border border-violet-700 rounded text-violet-300 hover:bg-violet-800/50 disabled:opacity-40"
+              >
+                Rename
               </button>
             </div>
 
