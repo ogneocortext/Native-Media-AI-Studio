@@ -1383,3 +1383,51 @@ Rules: `docs/plans/tasks/README.md`
   Acceptance. Note: pre-existing corrupt checkpoint rows remain in
   studio.db (filtered from aggregates, not rewritten); recording resumes
   on the next real pytest/unit/tools-pytest gate run.
+
+### T-PLT-51 — Navigation walkthrough audit: sidebar density, offline-service CTA parity, landing discovery
+
+- **Status:** done
+- **Goal:** Reduce first-five-pages friction measured by a recorded
+  Playwright walkthrough (dashboard → music-video → video → 3D → image →
+  kinetic-type) plus per-page Ollama vision analysis, without removing
+  capabilities.
+- **Findings (measured):** (a) `collapsedByDefault` existed on
+  `NavGroup` but was never set — all five groups rendered expanded, ~33
+  nav items visible; the "dense sidebar" complaint was real. (b) The
+  video-generation ComfyUI-offline banner offered only "Retry", which
+  re-probes a service that is down; image-generation already had the
+  correct "Start ComfyUI" action — sibling pages disagreed. (c) The
+  dashboard footer deliberately hid every create surface except the
+  music-video path ("hidden from this view on purpose"), so the other
+  four first-class destinations were undiscoverable from `/`.
+  (d) Vision-model claims verified false before acting: kinetic-type
+  page title is "Kinetic Typography" (model reported "Image
+  Generation"), and the dashboard does render StageHero + drop zone
+  (model reported a blank workspace) — hallucinated findings were
+  discarded, not "fixed".
+- **Plan/landed:** `collapsedByDefault: true` on Library, Analyze,
+  Render, Admin groups — Create stays open (primary journey), the
+  active group auto-opens via `groupActive`, `/`-shortcut search still
+  reaches everything. Verified live: on `/system/onboarding` only Create
+  + Admin render items; Library/Analyze/Render collapse to headers.
+  Video-gen banner gained a "Start ComfyUI" button (`startComfyUI` +
+  `refetchModels` re-probe, spinner + disabled while starting) matching
+  the image-gen pattern; "Retry" kept for post-start re-check.
+  Dashboard footer replaced with a "More ways to create" strip linking
+  Video Generation, 3D Generation, Image Generation, Kinetic Type, and
+  the Visualizer.
+- **Files:** packages/frontend/src/components/layout/Sidebar.tsx,
+  packages/frontend/src/features/video-generation/VideoGenerationPage.tsx,
+  packages/frontend/src/features/dashboard/Dashboard.tsx
+- **Acceptance:** `tsc -b` clean; Playwright probe confirms collapsed
+  groups (0 items) with active-group auto-open; "Start ComfyUI" button
+  present and enabled on `/create/video` while ComfyUI is stopped;
+  discovery strip renders all five links on `/`.
+- **Last session:** Devin, 2026-11-08 — implemented and verified per
+  Acceptance. Open follow-ups (not done): ComfyUI-offline banners still
+  dominate three pages while the service is stopped (consider a shared
+  service-status chip instead of per-page banners); technical jargon
+  (safetensors/pipeline) has no tooltips; the combined-walkthrough
+  console run reported 13 errors (uncached-promise Suspense warnings +
+  one 400) that isolated page loads did not reproduce — transition-
+  focused retest with request logging still owed.

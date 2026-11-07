@@ -371,23 +371,29 @@ export function Dashboard() {
         </div>
       )}
 
-      <p className="text-center text-[11px] text-muted mt-6">
-        Looking for something else?{" "}
-        <button
-          onClick={async () => navigate("/music-video-wizard")}
-          className="underline hover:text-white"
-        >
-          Music Video Wizard
-        </button>{" "}
-        or{" "}
-        <button
-          onClick={async () => navigate("/visualizer")}
-          className="underline hover:text-white"
-        >
-          Visualizer
-        </button>{" "}
-        — hidden from this view on purpose.
-      </p>
+      {/* Discovery — the other creation surfaces, one click from landing */}
+      <div className="mt-8">
+        <p className="text-center text-[11px] uppercase tracking-wider text-muted mb-3">
+          More ways to create
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {[
+            { path: "/create/video", label: "Video Generation" },
+            { path: "/create/3d", label: "3D Generation" },
+            { path: "/create/image", label: "Image Generation" },
+            { path: "/create/typography", label: "Kinetic Type" },
+            { path: "/render/visualizer", label: "Visualizer" },
+          ].map((l) => (
+            <button
+              key={l.path}
+              onClick={async () => navigate(l.path)}
+              className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-xs text-white/70 hover:text-white hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors"
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

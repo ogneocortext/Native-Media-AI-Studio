@@ -159,6 +159,7 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "storyboard plan scenes",
       },
     ],
+    collapsedByDefault: true,
   },
   {
     id: "analyze",
@@ -189,6 +190,7 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "loudness normalize master audio lufs true peak",
       },
     ],
+    collapsedByDefault: true,
   },
   {
     id: "render",
@@ -213,6 +215,7 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "music prompts lyrics suno",
       },
     ],
+    collapsedByDefault: true,
   },
   {
     id: "admin",
@@ -291,6 +294,7 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "quick start onboarding first clip guided",
       },
     ],
+    collapsedByDefault: true,
   },
 ];
 

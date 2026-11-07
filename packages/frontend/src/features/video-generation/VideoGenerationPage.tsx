@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { DS } from "../../styles/designSystem";
 import { StatusBadge } from "../../components/common";
+import { startComfyUI } from "../../services/api";
 import { Link } from "react-router-dom";
 import { useVideoModels } from "./hooks/useVideoModels";
 import { useQueueStatus } from "./hooks";
@@ -164,6 +165,7 @@ export function VideoGenerationPage() {
   const [duration, setDuration] = useState(10);
   const [verticalFirst, setVerticalFirst] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [startingComfy, setStartingComfy] = useState(false);
   const [results, setResults] = useState<VideoGenerationResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -341,6 +343,18 @@ export function VideoGenerationPage() {
     return issues;
   }, [prompt, mode, uploadedImagePath, duration, selectedModel, comfyStatus]);
 
+  const handleStartComfy = async () => {
+    setStartingComfy(true);
+    try {
+      await startComfyUI(8188);
+      await refetchModels();
+    } catch {
+      // Banner stays visible; the Retry button re-checks status.
+    } finally {
+      setStartingComfy(false);
+    }
+  };
+
   return (
     <div className={DS.page}>
       {/* ComfyUI Offline Banner — prominent placement at top */}
@@ -350,13 +364,21 @@ export function VideoGenerationPage() {
           <div>
             <div className="text-sm font-semibold text-red-300">ComfyUI is offline</div>
             <div className="text-xs text-red-200">
-              Video generation requires ComfyUI to be running. Start it first, then return here to
-              generate.
+              Video generation requires ComfyUI to be running. Start it, then generate — no need to
+              reload.
             </div>
           </div>
           <button
+            onClick={handleStartComfy}
+            disabled={startingComfy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-red-500/20 border border-red-400/40 text-red-100 hover:bg-red-500/30 disabled:opacity-50 whitespace-nowrap ml-auto flex items-center gap-1.5"
+          >
+            {startingComfy ? <Loader2 size={12} className="animate-spin" /> : null}
+            {startingComfy ? "Starting…" : "Start ComfyUI"}
+          </button>
+          <button
             onClick={refetchModels}
-            className="text-xs underline text-red-200 hover:text-white ml-auto"
+            className="text-xs underline text-red-200 hover:text-white"
           >
             Retry
           </button>
