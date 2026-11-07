@@ -652,11 +652,20 @@ async function main() {
       const totalMb = v.total_mb ?? 0;
       const usedMb = v.used_mb ?? 0;
       console.error(`[vision] VRAM: ${usedMb}MB / ${totalMb}MB (${pct}%), free ${freeMb}MB`);
-      if (pct >= VRAM_ABORT_PCT && !args.skipVramCheck) {
+      // A resident vision model needs no new weight allocation — resolveModel
+      // prefers resident models (mode-map+resident / resident-sticky), so a
+      // non-empty resident list means this run reuses loaded weights. Only
+      // abort when a cold load would actually be required.
+      const resident = await residentVisionModels();
+      const modelAlreadyResident = resident.length > 0;
+      if (pct >= VRAM_ABORT_PCT && !modelAlreadyResident) {
         console.error(`[vision] ERROR: VRAM at ${pct}% >= abort threshold ${VRAM_ABORT_PCT}%. ` +
           `Free GPU memory first (POST /api/integrations/vram/offload-ollama) ` +
           `or use --skip-vram-check to override.`);
         process.exit(1);
+      }
+      if (pct >= VRAM_ABORT_PCT && modelAlreadyResident) {
+        console.error(`[vision] VRAM at ${pct}% but ${resident[0]} is resident — proceeding without new model load.`);
       }
       if (pct >= VRAM_WARN_PCT) {
         console.error(`[vision] WARNING: VRAM at ${pct}% >= warn threshold ${VRAM_WARN_PCT}%. ` +
