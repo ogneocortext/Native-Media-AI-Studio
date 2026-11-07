@@ -9,7 +9,7 @@ description: |
   
   Usage:
     1. Load this skill
-    2. Call the `research` function with your topic
+    2. Call the `research` function with your topic and domain
     3. Get structured, dated findings with sources
 ---
 
@@ -23,25 +23,29 @@ This skill automates the process of finding current best practices for any techn
 - Returns structured findings with source attribution
 - Caches results for the session to avoid duplicate searches
 
+**Important**: This skill documents the research methodology. The actual web searches are performed by the agent using the `websearch` tool with the queries and filters provided here. The `research.py` helper generates optimized search queries.
+
 ## Current Date Context
 
-**As of November 2026**, the current best practices landscape includes:
+**As of {{CURRENT_MONTH}} {{CURRENT_YEAR}}**, the current best practices landscape includes:
 
-### Frontend / Presentation Layer (November 2026)
+> **Note**: The date context above should be replaced with the actual current month/year when the skill is loaded. The `get_current_context()` function in `__init__.py` returns the live date.
+
+### Frontend / Presentation Layer
 
 | Area | Recommendation | Key Sources |
 |------|----------------|-------------|
-| **Framework** | React 19 + TypeScript (strict) + **Vite 8+**/Next.js App Router | React.dev, Next.js docs, Vite 8 blog |
-| **Architecture** | Feature-first (feature-sliced design) with co-located components | ChainMagic Studio, Superset, Carassco Labs |
-| **State** | TanStack Query for server state, local useState/useReducer for UI, avoid mirroring server state globally | Superset, DARE |
-| **Styling** | **Tailwind v4** (default), CSS Modules (component libraries), Vanilla Extract (type-safe design systems), avoid runtime CSS-in-JS | Tailwind blog, CoderCops, BuildStack |
-| **Design Tokens** | CSS custom properties (`@theme` in Tailwind v4, `:root` elsewhere) as single source of truth | Tailwind v4, Dev Note |
-| **Components** | Functional + explicit props typing, `< 250 lines`, default exports for single-export modules | Carassco Labs, Superset |
-| **Testing** | Vitest + React Testing Library (unit), Playwright (E2E), Storybook (visual) | Superset, DARE |
-| **Tooling** | OXC (oxlint + oxfmt) for lint/format, TypeScript strict, ESLint for rules only | Superset |
-| **API Contracts** | Zod schemas + runtime validation, infer TS types from schemas | ChainMagic Studio |
+| **Framework** | React 19 + TypeScript (strict) + **Vite 8+**/Next.js App Router | React.dev, Next.js docs, Vite blog |
+| **Architecture** | Feature-first (feature-sliced design) with co-located components | Feature-Sliced Design methodology, large org handbooks |
+| **State** | TanStack Query v5 for server state, local useState/useReducer for UI, avoid mirroring server state globally | TanStack Query docs, React docs |
+| **Styling** | **Tailwind v4** (default), CSS Modules (component libraries), Vanilla Extract (type-safe design systems), avoid runtime CSS-in-JS | Tailwind blog, Vanilla Extract docs |
+| **Design Tokens** | CSS custom properties (`@theme` in Tailwind v4, `:root` elsewhere) as single source of truth | Tailwind v4 docs, CSS Custom Properties spec |
+| **Components** | Functional + explicit props typing, `< 250 lines`, default exports for single-export modules | React docs, large org style guides |
+| **Testing** | Vitest + React Testing Library (unit), Playwright (E2E), Storybook (visual) | Vitest docs, Playwright docs |
+| **Tooling** | OXC (oxlint + oxfmt) for lint/format, TypeScript strict, ESLint for rules only | OXC repo, TypeScript handbook |
+| **API Contracts** | Zod schemas + runtime validation, infer TS types from schemas | Zod docs, TanStack Query docs |
 
-### Key Trends (Nov 2026)
+### Key Trends (Current)
 
 1. **Runtime CSS-in-JS is deprecated** — styled-components/Emotion classic mode blocked by Server Components, adds bundle overhead
 2. **Zero-runtime CSS-in-TS wins** — Vanilla Extract, Panda CSS, Pigment CSS (MUI v7)
@@ -52,7 +56,7 @@ This skill automates the process of finding current best practices for any techn
 7. **Type-safe everything** — Zod for runtime validation, inferred TS types, no `any`
 8. **Accessibility by default** — WCAG 2.1 AA, ARIA roles, semantic HTML, reduced motion
 
-### Backend / API (November 2026)
+### Backend / API
 
 | Area | Recommendation |
 |------|----------------|
@@ -62,11 +66,11 @@ This skill automates the process of finding current best practices for any techn
 | **Database** | SQLAlchemy 2.0 async + Alembic, or Drizzle ORM (TypeScript) |
 | **Auth** | OIDC/OAuth2 via Keycloak/Authentik, short-lived JWTs |
 
-### AI/ML Integration (November 2026)
+### AI/ML Integration
 
 | Area | Recommendation |
 |------|----------------|
-| **Local LLMs** | Ollama + GGUF (Q4_K_M), nomic-embed-text for embeddings |
+| **Local LLMs** | Ollama + GGUF (Q4_K_M), nomic-embed-text:v1.5 for embeddings |
 | **RAG** | Hybrid BM25 + vector (sqlite-vec), cross-encoder rerank (bge-reranker-v2-m3) |
 | **Inference** | Batched concurrent requests, model warm-up, VRAM budgets |
 | **Vision** | gemma4:e2b-it-qat (local), structured JSON output |
@@ -87,33 +91,67 @@ def research(topic: str, domain: str = "general", max_results: int = 8) -> dict:
     
     Returns:
         Structured findings with sources, dates, and recommendations
+    
+    Note: This function generates optimized search queries. 
+    The agent should execute these queries via the `websearch` tool
+    and then process results through `format_findings()`.
     """
-    # Uses websearch with current date context
-    # Filters for recent authoritative sources
-    # Returns structured summary
+    # 1. Get current context via get_current_context()
+    # 2. Build queries via build_search_queries(topic, domain)
+    # 3. Execute each query via websearch tool
+    # 4. Process results through format_findings()
+    # 5. Return structured findings
 ```
 
-## Usage Examples
+---
 
-```bash
-# Research a specific topic
-skill current-best-practices --topic "React Server Components" --domain frontend
+## Usage (Agent Workflow)
 
-# Research with custom result count
-skill current-best-practices --topic "Zero-runtime CSS-in-TS" --domain frontend --max-results 5
+```python
+# In agent code:
+from skills.current_best_practices import get_current_context, get_domain_queries, build_search_queries, format_findings
 
-# Quick lookup (uses cached session results if available)
-skill current-best-practices --topic "TanStack Query v5 patterns" --domain frontend
+# 1. Get current context
+context = get_current_context()  # {"year": 2026, "month": 11, "month_name": "November", "date_string": "November 2026"}
+
+# 2. Build queries for topic
+queries = build_search_queries("React Server Components", "frontend")
+# Returns: ["React Server Components best practices 2026 november", ...]
+
+# 3. Execute via websearch tool (agent does this)
+# results = await websearch({"query": queries[0], "numResults": 8})
+
+# 4. Format findings
+# findings = format_findings("React Server Components", "frontend", raw_results)
 ```
+
+---
+
+## Query Templates by Domain
+
+The `build_search_queries()` function uses these templates:
+
+| Domain | Templates |
+|--------|-----------|
+| **frontend** | `"{topic} best practices {year} {month}"`, `"{topic} modern patterns {year}"`, `"{topic} architecture {year} TypeScript React"` |
+| **backend** | `"{topic} best practices {year} {month}"`, `"{topic} architecture {year} Python FastAPI"`, `"{topic} patterns {year} async"` |
+| **ai** | `"{topic} best practices {year} {month} local LLM"`, `"{topic} patterns {year} Ollama RAG"`, `"{topic} implementation {year} embeddings"` |
+| **devops** | `"{topic} best practices {year} {month} CI/CD"`, `"{topic} patterns {year} Kubernetes Docker"`, `"{topic} observability {year} OpenTelemetry"` |
+| **general** | `"{topic} best practices {year} {month}"`, `"{topic} modern approach {year}"`, `"{topic} recommendations {year}"` |
+
+---
 
 ## Source Quality Filters
 
-The skill prioritizes sources by:
-1. **Official docs** (react.dev, nextjs.org, tailwindcss.com, etc.)
-2. **Major project guidelines** (Superset, Apache, large org handbooks)
-3. **Recent technical blogs** (2026 dates, author attribution)
-4. **Community consensus** (GitHub discussions, RFCs)
-5. **Avoids** — SEO farms, outdated tutorials, unmaintained libraries
+The `format_findings()` function prioritizes sources by:
+
+1. **Official docs** — react.dev, nextjs.org, tailwindcss.com, vite.dev, fastapi.tiangolo.com, pydantic.dev, tanstack.com, playwright.dev, vitest.dev, storybook.js.org, zod.dev
+2. **Major project guidelines** — github.com/vercel, github.com/facebook/react, github.com/tailwindlabs, superset.apache.org
+3. **Authoritative technical blogs** — web.dev, kentcdodds.com, epicweb.dev, joshwcomeau.com (with 2026 dates)
+4. **Community consensus** — GitHub discussions, RFCs, official RFC repos
+5. **Avoids** — dev.to, css-tricks.com, medium.com, SEO farms, outdated tutorials, unmaintained libraries
+
+---
 
 ## Caching
 
@@ -121,13 +159,13 @@ Results are cached in-memory for the session. Repeated queries for the same topi
 
 ---
 
-## Quick Reference: November 2026 Frontend Stack
+## Quick Reference: Current Frontend Stack
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  RECOMMENDED STACK (Nov 2026)                               │
+│  RECOMMENDED STACK (Current)                                │
 ├─────────────────────────────────────────────────────────────┤
-│  Framework:     React 19 + TypeScript (strict) + **Vite 8+** │
+│  Framework:     React 19 + TypeScript (strict) + Vite 8+    │
 │  Router:        React Router v7 / Next.js App Router        │
 │  State:         TanStack Query v5 + Zustand (lightweight)   │
 │  Styling:       Tailwind v4 (Oxide) + CSS Modules (complex) │
@@ -137,13 +175,13 @@ Results are cached in-memory for the session. Repeated queries for the same topi
 │  Storybook:     Co-located .stories.tsx                     │
 │  Lint/Format:   oxlint + oxfmt (OXC)                        │
 │  API Layer:     Zod schemas + typed fetch wrapper           │
-│  Build:         **Vite 8+ (Rolldown)** / Turbopack          │
+│  Build:         Vite 8+ (Rolldown) / Turbopack              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Anti-Patterns to Avoid (Nov 2026)
+## Anti-Patterns to Avoid
 
 | Anti-Pattern | Why | Alternative |
 |--------------|-----|-------------|
@@ -161,4 +199,6 @@ Results are cached in-memory for the session. Repeated queries for the same topi
 
 ## Updating This Skill
 
-When the month/year changes, update the "Current Date Context" section above with fresh research. The skill is designed to be updated monthly by re-running the research function for key domains.
+When the month/year changes, the skill automatically uses the current date via `get_current_context()`. The trend tables above should be reviewed quarterly and updated by re-running the research process for key domains.
+
+> **Important**: The trend data in this document reflects the state as of the last manual update. Always verify critical decisions with fresh research using the `research()` workflow above.

@@ -1,28 +1,29 @@
 """Current Best Practices Research Skill Package"""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __description__ = "Automated research for current best practices (as of current month/year)"
 
-# This skill is primarily the SKILL.md documentation and research.py helper
-# The actual research is performed via websearch tool with date-contextualized queries
+# This skill provides utilities for researching current best practices.
+# The actual web searches are performed by the agent using the `websearch` tool.
+# This module provides query generation, result formatting, and source filtering.
 
-def get_current_context() -> dict:
-    """Get current date context for research."""
-    from datetime import datetime
-    now = datetime.now()
-    return {
-        "year": now.year,
-        "month": now.month,
-        "month_name": now.strftime("%B"),
-        "date_string": now.strftime("%B %Y"),
-    }
-
-def get_domain_queries(domain: str = "general") -> list:
-    """Get search query templates for a domain."""
-    from .research import DOMAIN_QUERIES
-    return DOMAIN_QUERIES.get(domain, DOMAIN_QUERIES["general"])
+# Import from the research module
+from current_best_practices.research import (
+    get_current_context,
+    get_domain_queries,
+    build_search_queries,
+    format_findings,
+    research_via_websearch,
+    DOMAIN_QUERIES,
+    TRUSTED_SOURCES,
+)
 
 __all__ = [
     "get_current_context",
     "get_domain_queries",
+    "build_search_queries",
+    "format_findings",
+    "research_via_websearch",
+    "DOMAIN_QUERIES",
+    "TRUSTED_SOURCES",
 ]
