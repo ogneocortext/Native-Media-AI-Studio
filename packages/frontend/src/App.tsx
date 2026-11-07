@@ -124,6 +124,10 @@ const MusicGenPage = lazyNamed(
   async () => import("./features/music-gen/MusicGenPage"),
   "MusicGenPage",
 );
+const ChiptunePage = lazyNamed(
+  async () => import("./features/chiptune/ChiptunePage"),
+  "ChiptunePage",
+);
 const RemixPage = lazyNamed(async () => import("./features/remix/RemixPage"), "RemixPage");
 const UnityControlPage = lazyNamed(
   async () => import("./features/unity-control/UnityControlPage"),
@@ -155,6 +159,7 @@ registerRouteLoader(
   async () => import("./features/kinetic-typography/KineticTypographyPage"),
 );
 registerRouteLoader("/create/music", async () => import("./features/music-gen/MusicGenPage"));
+registerRouteLoader("/create/chiptune", async () => import("./features/chiptune/ChiptunePage"));
 registerRouteLoader("/create/remix", async () => import("./features/remix/RemixPage"));
 registerRouteLoader(
   "/create/animation",
@@ -217,6 +222,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/create/image-processing": "Image Processing",
   "/create/typography": "Kinetic Typography",
   "/create/music": "Music Gen",
+  "/create/chiptune": "Chiptune",
   "/create/remix": "Remix / Mashup",
   "/create/animation": "Animation Studio",
   "/create/unity": "Unity Control",
@@ -309,6 +315,7 @@ function App() {
                 element={withErrorBoundary(<KineticTypographyPage />)}
               />
               <Route path="/create/music" element={withErrorBoundary(<MusicGenPage />)} />
+              <Route path="/create/chiptune" element={withErrorBoundary(<ChiptunePage />)} />
               <Route path="/create/remix" element={withErrorBoundary(<RemixPage />)} />
               <Route path="/create/animation" element={withErrorBoundary(<AnimationStudio />)} />
               <Route path="/create/unity" element={withErrorBoundary(<UnityControlPage />)} />

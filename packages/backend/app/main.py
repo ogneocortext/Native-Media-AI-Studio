@@ -39,6 +39,7 @@ from .api.integrations_generation import router as integrations_generation_route
 from .api.integrations_misc import router as integrations_misc_router
 from .api.integrations_music_video import router as integrations_music_video_router
 from .api.sub_agent import router as sub_agent_router
+from .api.test_analytics import router as test_analytics_router
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
@@ -749,6 +750,7 @@ from .api import (  # noqa: E402
     audio_mastering,
     audio_remix,
     audio_stems,
+    chiptune,
     comfyui,
     data,
     database_admin,
@@ -795,6 +797,7 @@ app.include_router(audio.router)
 # public paths are unchanged. Keep this next to the audio include - splitting
 # audio.py only works while both routers are registered here.
 app.include_router(audio_stems.router)
+app.include_router(chiptune.router)
 # File editing (/extract, /rename, /trim, /file) lives in its own module but
 # shares the /api/audio prefix, so the public paths are unchanged. All three
 # audio routers must stay registered here or the split silently drops routes.
@@ -836,6 +839,7 @@ app.include_router(threestudio.router)
 app.include_router(animationstudio.router)
 app.include_router(ai.router)
 app.include_router(ascii_router.router)
+app.include_router(test_analytics_router)
 
 
 # Additional root-level routes

@@ -99,6 +99,12 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "music generation ace-step generate song",
       },
       {
+        path: "/create/chiptune",
+        label: "Chiptune",
+        icon: <Gamepad2 size={18} />,
+        keywords: "chiptune chip music tracker nes gameboy c64 synth",
+      },
+      {
         path: "/create/remix",
         label: "Remix / Mashup",
         icon: <Wand2 size={18} />,
