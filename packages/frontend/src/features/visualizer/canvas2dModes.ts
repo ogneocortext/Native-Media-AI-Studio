@@ -80,6 +80,10 @@ export interface BarModeState {
   barVelocities: number[] | null;
   barPeaks: number[] | null;
   smoothedBars: number[] | null;
+  /** T-VIZ-53 — second-stage damped display heights (normalized 0..1). */
+  displayBars: number[] | null;
+  /** T-VIZ-53 — damped per-layer band values for stacked mode (barCount*3). */
+  displayBands: number[] | null;
   waveEnvelope: number[] | null;
   waveVelocities: number[] | null;
   smoothed: Uint8Array | null;
@@ -174,9 +178,10 @@ function drawPeakIndicator(
   bw: number,
   baseY: number,
   peak: number,
+  alpha = 0.85,
 ): void {
   const peakY = Math.round(baseY - peak);
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillStyle = `rgba(255,255,255,${alpha})`;
   ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
 }
 
@@ -227,6 +232,19 @@ export function renderBars(
   if (state.smoothedBars?.length !== barCount) {
     state.smoothedBars = new Array(barCount).fill(0);
   }
+  if (state.displayBars?.length !== barCount) {
+    state.displayBars = new Array(barCount).fill(0);
+  }
+
+  // T-VIZ-53: second-stage display damp. The shared envelope smooths the
+  // FFT data, but bar HEIGHT still tracks it nearly 1:1 — on dense mixes
+  // the columns step between frames. Damping the rendered height (not the
+  // analysis) adds the "fluid" tier the scorecard flagged as missing.
+  state.lastMs ??= modeCtx.nowMs();
+  const frameNow = modeCtx.nowMs();
+  const frameDt = Math.min(0.1, Math.max(0, frameNow - state.lastMs) / 1000);
+  state.lastMs = frameNow;
+  const dispLambda = dampLambda(0.35);
 
   const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
@@ -239,11 +257,39 @@ export function renderBars(
   const barGradients = modeCtx.getGradients("bars", modeCtx.colors);
   const baseY = Math.round(h * 0.88);
 
+  // Subtle baseline — grounds the bars so they don't float on void.
+  modeCtx.ctx.fillStyle = `rgba(255,255,255,${0.05 + modeCtx.d.bass * 0.05})`;
+  modeCtx.ctx.fillRect(0, baseY, w, Math.max(1, dpr));
+
+  // T-VIZ-53 ambient glow — the "ambient glow" layer from the proven
+  // 2026 layering formula (music-viz-trends-2026.md). Bass+energy drive
+  // intensity so quiet sections recede and drops bloom; additive sprite
+  // keeps it cheap (cached canvas, no per-frame gradient alloc).
+  const glowI = clamp(
+    modeCtx.d.bass * 0.9 + (modeCtx.d.energy ?? modeCtx.d.analyzedEnergy ?? 0) * 0.35,
+    0,
+    1,
+  );
+  if (glowI > 0.02) {
+    drawGlowSprite(
+      modeCtx.ctx,
+      modeCtx.colors[1] || modeCtx.colors[0],
+      w / 2,
+      h * 0.72,
+      w * 1.15,
+      h * 0.95,
+      glowI * 0.32,
+    );
+  }
+
   for (let i = 0; i < barCount; i++) {
     const { smoothH, springRising } = computeBarTarget(i, freqMap, modeCtx, state);
     const easeT = clamp(smoothH / Math.max(1, h * 0.78 * modeCtx.energyMod), 0, 1);
     const easedH = smoothH * (1 + 0.08 * easeOutBack(easeT) * (springRising ? 1 : 0));
-    const bh = easedH;
+    const dispTarget = clamp(easedH / Math.max(1, h * 0.78), 0, 1.2);
+    const disp = damp(state.displayBars[i], dispTarget, dispLambda, frameDt);
+    state.displayBars[i] = disp;
+    const bh = disp * h * 0.78;
     const x = Math.round(i * barW);
     const y = Math.round(baseY - bh);
     const bw = Math.round(barW) - 2;
@@ -268,7 +314,7 @@ export function renderBars(
     // Falling peak indicator
     if (bh > state.barPeaks[i]) state.barPeaks[i] = bh;
     else state.barPeaks[i] = Math.max(bh, state.barPeaks[i] * PEAK_DECAY);
-    drawPeakIndicator(modeCtx.ctx, dpr, x, bw, baseY, state.barPeaks[i]);
+    drawPeakIndicator(modeCtx.ctx, dpr, x, bw, baseY, state.barPeaks[i], 0.45);
 
     if (modeCtx.d.beat && sampleMappedBand(modeCtx.freq, freqMap, i) / 255 > 0.55) {
       drawBeatFlash(modeCtx.ctx, dpr, modeCtx.colors[cIdx % modeCtx.colors.length], x, y, bw);
@@ -556,6 +602,38 @@ export function renderStackedFrequencyBands(
   if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
+  if (state.displayBands?.length !== barCount * layers.length) {
+    state.displayBands = new Array(barCount * layers.length).fill(0);
+  }
+
+  // T-VIZ-53: same second-stage damp as renderBars — the scorecard flagged
+  // this mode's columns as stepped/jittery despite the shared envelope.
+  state.lastMs ??= modeCtx.nowMs();
+  const frameNow = modeCtx.nowMs();
+  const frameDt = Math.min(0.1, Math.max(0, frameNow - state.lastMs) / 1000);
+  state.lastMs = frameNow;
+  const dispLambda = dampLambda(0.35);
+
+  // T-VIZ-53 ambient glow layer — same treatment as renderBars, plus the
+  // baseline rule the bars mode already had.
+  modeCtx.ctx.fillStyle = `rgba(255,255,255,${0.05 + modeCtx.d.bass * 0.05})`;
+  modeCtx.ctx.fillRect(0, baseY, w, Math.max(1, dpr));
+  const glowI = clamp(
+    modeCtx.d.bass * 0.9 + (modeCtx.d.energy ?? modeCtx.d.analyzedEnergy ?? 0) * 0.35,
+    0,
+    1,
+  );
+  if (glowI > 0.02) {
+    drawGlowSprite(
+      modeCtx.ctx,
+      modeCtx.colors[1] || modeCtx.colors[0],
+      w / 2,
+      h * 0.72,
+      w * 1.15,
+      h * 0.95,
+      glowI * 0.32,
+    );
+  }
 
   const freqMap = makeFreqMapper(
     modeCtx.perceptualScale,
@@ -579,7 +657,10 @@ export function renderStackedFrequencyBands(
       const binIdx = clamp(Math.floor(freqMap(p * barCount)), 0, freqLen - 1);
       const v = (modeCtx.freq?.[binIdx] ?? 0) / 255;
       layerVs.push(v);
-      const boosted = boostedValue(v, modeCtx);
+      const dIdx = i * layers.length + layerVs.length - 1;
+      const dispV = damp(state.displayBands[dIdx], clamp(v, 0, 1), dispLambda, frameDt);
+      state.displayBands[dIdx] = dispV;
+      const boosted = boostedValue(dispV, modeCtx);
       // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
       const lh = boosted * h * 0.22 * modeCtx.energyMod;
       const ly = Math.round(layerY - lh);
@@ -587,6 +668,12 @@ export function renderStackedFrequencyBands(
       modeCtx.ctx.beginPath();
       modeCtx.ctx.roundRect(x + 1, ly, bw, lh + 2 * dpr, [radius, radius, 0, 0]);
       modeCtx.ctx.fill();
+      // T-VIZ-53: inner depth — dark seat at the layer's base, light crown
+      // on top. Flat single-fill stacks read as "demo" on the scorecard.
+      if (lh > 4 * dpr) {
+        modeCtx.ctx.fillStyle = "rgba(0,0,0,0.22)";
+        modeCtx.ctx.fillRect(x + 1, ly + lh - 3 * dpr, bw, 3 * dpr);
+      }
       modeCtx.ctx.fillStyle = "rgba(255,255,255,0.1)";
       modeCtx.ctx.fillRect(x + 1, ly, bw, Math.max(1, lh * 0.25));
       topY = ly;
@@ -599,8 +686,13 @@ export function renderStackedFrequencyBands(
     if (smoothStackH > state.barPeaks[i]) state.barPeaks[i] = smoothStackH;
     else state.barPeaks[i] = Math.max(smoothStackH, state.barPeaks[i] * PEAK_DECAY);
     const peakY = Math.round(baseY - state.barPeaks[i]);
-    modeCtx.ctx.fillStyle = "rgba(255,255,255,0.7)";
-    modeCtx.ctx.fillRect(x + 1, peakY - 1 * dpr, bw, 1.5 * dpr);
+    // T-VIZ-53: tick takes the top layer's color instead of white — 48
+    // white dashes read as unexplained clutter on the scorecard.
+    modeCtx.ctx.save();
+    modeCtx.ctx.globalAlpha = 0.6;
+    modeCtx.ctx.fillStyle = layers[layers.length - 1].color;
+    modeCtx.ctx.fillRect(x + 1, peakY - 0.5 * dpr, bw, 1 * dpr);
+    modeCtx.ctx.restore();
     // Beat glow on top layer — reuse the value already sampled for it.
     if (modeCtx.d.beat) {
       const topLayer = layers[layers.length - 1];

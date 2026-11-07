@@ -312,6 +312,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         barVelocities: null,
         barPeaks: null,
         smoothedBars: null,
+        displayBars: null,
+        displayBands: null,
         waveEnvelope: null,
         waveVelocities: null,
         smoothed: null,
@@ -328,6 +330,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         barModeState.barVelocities = null;
         barModeState.barPeaks = null;
         barModeState.smoothedBars = null;
+        barModeState.displayBars = null;
+        barModeState.displayBands = null;
         envelope?.reset();
         onset?.reset();
         lastEnvMs = null;

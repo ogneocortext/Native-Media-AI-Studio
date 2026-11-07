@@ -16,8 +16,11 @@ import {
  *    not at `h + 2*dpr` offscreen.
  *
  * The ctx is a call recorder — renderBars only needs the Canvas2D method
- * surface, and the peak tick is identifiable by its exact fillStyle
- * ("rgba(255,255,255,0.85)"), which no other draw call in these modes uses.
+ * surface, and the peak tick is identifiable as the thin (1.5*dpr) white
+ * rgba fillRect, which no other draw call in these modes produces.
+ * T-VIZ-53 added a second-stage display damp, so tests that assert on
+ * rendered geometry must advance `nowMs` — a frozen clock means dt=0 and
+ * the damped values never leave zero.
  */
 /* eslint-disable @typescript-eslint/no-empty-function -- canvas mock stubs */
 
@@ -93,7 +96,11 @@ function makeRecorder() {
   return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
 }
 
-function makeModeCtx(ctx: CanvasRenderingContext2D, freq: Uint8Array): BarModeContext {
+function makeModeCtx(
+  ctx: CanvasRenderingContext2D,
+  freq: Uint8Array,
+  nowMs: () => number = () => 0,
+): BarModeContext {
   return {
     ctx,
     dpr: 1,
@@ -108,7 +115,7 @@ function makeModeCtx(ctx: CanvasRenderingContext2D, freq: Uint8Array): BarModeCo
     freq,
     wave: null,
     bg: "#000000",
-    nowMs: () => 0,
+    nowMs,
     analyser: null,
     motionScale: 1,
     phraseFlash: 0,
@@ -125,6 +132,8 @@ function makeState(): BarModeState {
     barVelocities: null,
     barPeaks: null,
     smoothedBars: null,
+    displayBars: null,
+    displayBands: null,
     waveEnvelope: null,
     waveVelocities: null,
     smoothed: null,
@@ -145,7 +154,12 @@ function barGeometry(calls: RecordedCall[]) {
   const reflections: { y: number; h: number }[] = [];
   for (const c of calls) {
     const barIdx = Math.round((c.args[0] - 1) / BAR_W);
-    if (c.kind === "fillRect" && c.fill === "rgba(255,255,255,0.85)") {
+    if (
+      c.kind === "fillRect" &&
+      typeof c.fill === "string" &&
+      c.fill.startsWith("rgba(255,255,255,") &&
+      Math.abs(c.args[3] - 1.5) < 0.01
+    ) {
       const prev = tickY.get(barIdx);
       if (prev === undefined || c.args[1] < prev) tickY.set(barIdx, c.args[1]);
     } else if (c.kind === "roundRect") {
@@ -164,17 +178,27 @@ describe("renderBars peak indicators and reflections (T-VIZ-38)", () => {
   it("holds the peak above the bar after a spectral drop, then reflections stay on-canvas", () => {
     const freq = new Uint8Array(1024);
     const state = makeState();
+    // T-VIZ-53: display damp needs a moving clock — 100ms steps converge
+    // the exponential in ~3 frames.
+    let now = 0;
+    const clock = () => now;
 
     // Frame 1: loud across the spectrum — bars tall, peaks = bar tops.
+    // Warm up so the damped display heights reach the loud target.
     freq.fill(255);
     let rec = makeRecorder();
-    renderBars(1, W, H, makeModeCtx(rec.ctx, freq), state);
+    for (let f = 0; f < 4; f++) {
+      now += 100;
+      rec = makeRecorder();
+      renderBars(1, W, H, makeModeCtx(rec.ctx, freq, clock), state);
+    }
 
     // Frames 2-4: spectrum collapses — bars shrink, peaks must decay slowly.
     freq.fill(10);
     for (let f = 0; f < 3; f++) {
+      now += 100;
       rec = makeRecorder();
-      renderBars(1, W, H, makeModeCtx(rec.ctx, freq), state);
+      renderBars(1, W, H, makeModeCtx(rec.ctx, freq, clock), state);
     }
 
     const { tickY, barTop, reflections } = barGeometry(rec.calls);
@@ -237,7 +261,15 @@ describe("renderStackedFrequencyBands layer sampling", () => {
     freq.fill(10);
     freq.fill(255, 0, 60);
     const rec = makeRecorder();
-    renderStackedFrequencyBands(1, W, H, makeModeCtx(rec.ctx, freq), makeState());
+    // T-VIZ-53: run enough advancing-clock frames for the display damp to
+    // converge, then read the LAST frame's heights per layer.
+    let now = 0;
+    const ctx = makeModeCtx(rec.ctx, freq, () => now);
+    const state = makeState();
+    for (let f = 0; f < 6; f++) {
+      now += 100;
+      renderStackedFrequencyBands(1, W, H, ctx, state);
+    }
 
     // layer.color is the palette string, so heights are attributable per band.
     const heights = new Map<string, number[]>(); // color -> segment heights
@@ -249,8 +281,8 @@ describe("renderStackedFrequencyBands layer sampling", () => {
       arr.push(c.args[3]);
       heights.set(c.fill, arr);
     }
-    const low = heights.get("#ff0044")?.[0];
-    const high = heights.get("#4488ff")?.[0];
+    const low = heights.get("#ff0044")?.at(-1);
+    const high = heights.get("#4488ff")?.at(-1);
     expect(low).toBeDefined();
     expect(high).toBeDefined();
     if (low === undefined || high === undefined) return;

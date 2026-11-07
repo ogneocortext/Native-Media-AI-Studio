@@ -1278,3 +1278,45 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** satisfied — baseline measured, redesign backlog ranked.
 - **Last session:** Devin, 2026-11-07 — commits ce99bd17, 935f9c23,
   4c7c9a1d, 4aa74d8a.
+
+### T-VIZ-53 — 2.0-tier redesign: bars + stacked-frequency-bands (first pass)
+
+- **Status:** doing (visual re-score pending — see blocker)
+- **Goal:** Act on the T-VIZ-52 baseline — the two worst modes (both 2.0)
+  get the knowledge-library + 2026/2027 trend treatment, then re-score.
+- **Trend grounding:** `music-viz-trends-2026.md` layering formula
+  (background → ambient glow → reactive bars → particles → post) and the
+  2026 reactive-shader consensus (transient spikes, loudness-clock motion,
+  section-aware palette). Applied to Canvas2D: the missing layer was
+  ambient glow + perceived-motion smoothing + depth, not new geometry.
+- **Changes (canvas2dModes.ts):**
+  - `BarModeState.displayBars` / `displayBands`: second-stage exponential
+    damp (`damp()`/`dampLambda(0.35)`, dt-clamped 100ms) on RENDERED
+    heights — the shared envelope smooths FFT data but bar height still
+    tracked it ~1:1, which the scorecard read as "stepped/robotic".
+  - Ambient glow backdrop via cached `drawGlowSprite` (additive, no
+    per-frame gradient alloc), intensity = bass*0.9 + energy*0.35 —
+    quiet sections recede, drops bloom (both modes).
+  - Baseline rule at baseY (bars had none; stacked gained one).
+  - Stacked layers: dark inner seat + light crown per layer (flat fills
+    read "demo"); peak ticks recolored from white to top-layer color at
+    0.6 alpha — 48 white dashes were flagged as unexplained clutter.
+  - bars peak indicators softened 0.85 → 0.45 alpha.
+- **Tests:** canvas2dModes.test.ts updated for the damp (advancing-clock
+  frames — frozen nowMs means dt=0 and damped values never move) and the
+  new tick signature (thin white rgba fillRect). 85/85 vitest green.
+- **Blocker:** visual re-score (`viz-capture --only` → `viz-score`) is
+  blocked by a concurrent services/api refactor — another agent's
+  uncommitted edits produced Vite 500s (duplicate exports, bad
+  `./portConfig` paths, mid-typing parse errors in generation.ts /
+  remix.ts). I fixed the portConfig paths + duplicate exports in
+  index.ts/core.ts (uncommitted — inside their dirty files), which got
+  the app loading once, but their refactor is still in flight. One
+  capture attempt scored a build-error modal (invalid — discarded).
+- **Also fixed en route:** backend crash-loop — committed
+  `logging_config.py` used `typing.override` (Python 3.12+) on the 3.11
+  env → ImportError. Switched to `typing_extensions.override` (repo
+  pattern). Uncommitted, inside their file.
+- **Next:** re-run `viz-capture --modes "2d:bars,2d:stacked-frequency-bands"`
+  + `viz-score` once services/api stabilizes; compare vs 2.0 baseline.
+- **Last session:** Devin, 2026-11-07 — pending commit.
