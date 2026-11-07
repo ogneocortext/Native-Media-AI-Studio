@@ -150,7 +150,7 @@ DEMO = """
 system nes
 tempo 150
 
-lead: A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | C-5 . E-5 . G-5 . C-6 . . B-5 . . G-5 . E-5 . | F-5 . . E-5 . . D-5 . . E-5 . . >D-5 . . . | E-5 . G-5 . B-5 . E-6 . . D-6 . . B-5 . G-5 . | E-5 - - - - - - - G-5 - - - - - - - | C-5 . E-5 . A-5 . C-6 . . B-5 . . G-5 . E-5 . | >A-4 . . >C-5 . . >E-5 . . >A-5 - - - - - -
+lead: A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | A-5 . C-6 . E-6 . A-6 . . G-6 . . E-6 . C-6 . | D-6 . . B-5 . . G-5 . . A-5 . . . . . . | A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | >A-4 . . >C-5 . . >E-5 . . >A-5 - - - - - -
 harmony: C-5 . . E-5 . . A-5 . . C-6 . . E-6 . . . | B-4 . . G-4 . . D-5 . . B-4 . . G-4 . . . | E-5 . . G-5 . . C-6 . . E-6 . . G-6 . . . | D-5 . . C-5 . . A-4 . . D-5 . . F-5 . . . | G-5 . . B-5 . . E-6 . . G-6 . . B-6 . . . | . . . . . . . . . . . . . . . . | E-5 . . A-5 . . C-6 . . E-6 . . A-6 . . . | . . . . . . . . . . . . . . . .
 pad: E-4 - - - - - - - - - - - - - - - | E-4 - - - - - - - - - - - - - - - | A-4 - - - - - - - - - - - - - - - | A-4 - - - - - - - - - - - - - - - | G-4 - - - - - - - - - - - - - - - | G-4 - - - - - - - - - - - - - - - | D-5 - - - - - - - - - - - - - - - | E-4 - - - - - - - - - - - - - - -
 arp: A-4 . C-5 . E-5 . A-4 . C-5 . E-5 . A-4 . C-5 . | E-5 . C-5 . A-4 . E-5 . C-5 . A-4 . E-5 . C-5 . | F-4 . A-4 . C-5 . F-4 . A-4 . C-5 . F-4 . A-4 . | C-5 . A-4 . F-4 . C-5 . A-4 . F-4 . C-5 . A-4 . | G-4 . C-5 . E-5 . G-4 . C-5 . E-5 . G-4 . C-5 . | . . . . . . . . . . . . . . . . | G-4 . B-4 . D-5 . G-4 . B-4 . D-5 . G-4 . B-4 . | . . . . . . . . . . . . . . . .
@@ -170,7 +170,9 @@ class Pattern:
 
 
 def note_to_freq(name: str) -> float:
-    m = re.fullmatch(r"([A-G])(#|b)?(-?\d)", name)
+    # Note names are 'C-4' style: the dash is a letter/octave separator,
+    # NOT a sign — '(#|b|-)?' consumes it so the octave group sees '4'.
+    m = re.fullmatch(r"([A-G])(#|b|-)?(\d+)", name)
     if not m:
         raise ValueError(f"bad note {name!r}")
     base = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[m.group(1)]
@@ -759,6 +761,102 @@ def print_analysis(rep: dict, sig: dict) -> None:
         print(f"  {k}: {v}")
 
 
+def normalize_loudness(pcm: np.ndarray, sr: int,
+                       target_lufs: float = -20.0,
+                       ceiling: float = 0.7) -> tuple[np.ndarray, dict | None]:
+    """BS.1770 integrated loudness -> target, then hard peak ceiling.
+
+    Owner rule for chiptune listening copies (T-MUS-06, 2026-11-07):
+    -20 LUFS / 0.7 peak — dense square waves are loudness-efficient and
+    -14 LUFS 'studio' targets blow through perceptually.
+    """
+    try:
+        import pyloudnorm as pyln
+    except ImportError:
+        return pcm, None
+    x = pcm.astype(np.float64) / 32768.0
+    if x.ndim == 1:
+        x = np.stack([x, x], axis=1)
+    lufs = pyln.Meter(sr).integrated_loudness(x)
+    if not math.isfinite(lufs) or lufs < -70:
+        return pcm, {"lufs_before": None, "note": "too quiet/silent to meter"}
+    gain = 10 ** ((target_lufs - lufs) / 20)
+    y = x * gain
+    peak = float(np.max(np.abs(y)))
+    peak_gain = min(1.0, ceiling / peak) if peak > 0 else 1.0
+    y *= peak_gain
+    info = {"lufs_before": round(lufs, 1),
+            "gain_db": round(20 * math.log10(gain * peak_gain), 1),
+            "peak_after": round(float(np.max(np.abs(y))), 3)}
+    return np.clip(y * 32768, -32768, 32767).astype(np.int16), info
+
+
+_ROLL_COLORS = [
+    (255, 90, 90), (255, 200, 60), (90, 255, 120), (80, 160, 255),
+    (200, 110, 255), (255, 140, 40), (90, 230, 220), (240, 240, 240),
+]
+
+
+def render_roll(p: Pattern, sysname: str, path: Path,
+                px_cell: int = 8, px_semi: int = 6) -> None:
+    """Piano-roll preview PNG — owner PREVIEW-FIRST rule (T-MUS-06).
+
+    x = cell index, y = pitch; each bound channel gets a lane color,
+    bars ruled every 16 cells, noise hits as bottom ticks, arp offsets
+    as dim dots. Audio follows only on the owner's visual go.
+    """
+    from PIL import Image, ImageDraw
+
+    slots = _assign_voices(p, SYSTEMS[sysname]["channels"], sysname, quiet=True)
+    bound = [s for s in slots if s]
+    semis: list[int] = []
+    for _, _, _, cells in bound:
+        for c in cells:
+            s = _note_semitone(c.lstrip(">").split("~", 1)[0])
+            if s is not None:
+                semis.append(s)
+    if not semis:
+        raise ValueError("pattern has no pitched notes to roll")
+    lo, hi = min(semis) - 1, max(semis) + 1
+    n_cells = max(len(c) for _, _, _, c in bound)
+    w, h = n_cells * px_cell, (hi - lo + 1) * px_semi + 24
+    img = Image.new("RGB", (w, h), (22, 22, 28))
+    d = ImageDraw.Draw(img)
+
+    def _y(s: int) -> int:
+        return h - 20 - (s - lo) * px_semi
+
+    for ci, (_, _, _, cells) in enumerate(bound):
+        color = _ROLL_COLORS[ci % len(_ROLL_COLORS)]
+        dim = tuple(max(0, int(c * 0.45)) for c in color)
+        for i, cell in enumerate(cells):
+            x0 = i * px_cell
+            if cell == "x":
+                d.rectangle([x0, h - 14, x0 + px_cell - 1, h - 8], fill=color)
+                continue
+            body = cell.lstrip(">")
+            if body in (".", "-"):
+                continue
+            s = _note_semitone(body.split("~", 1)[0])
+            if s is None:
+                continue
+            d.rectangle([x0, _y(s), x0 + px_cell - 1, _y(s) + px_semi - 2],
+                        fill=color)
+            if "~" in body:
+                for off in body.split("~", 1)[1].split(","):
+                    try:
+                        os_ = _note_semitone(body.split("~", 1)[0])
+                        if os_ is not None:
+                            d.point((x0 + px_cell // 2,
+                                     _y(os_ + int(float(off)))), fill=dim)
+                    except ValueError:
+                        pass
+    for b in range(0, n_cells, 16):
+        d.line([(b * px_cell, 0), (b * px_cell, h - 20)], fill=(58, 58, 70))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+
+
 def write_wav(path: Path, pcm: np.ndarray, sr: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as w:
@@ -782,6 +880,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="print pattern + signal metrics after rendering")
     ap.add_argument("--no-render", action="store_true",
                     help="with --analyze: metrics only, skip WAV write")
+    ap.add_argument("--roll", action="store_true",
+                    help="write a piano-roll preview PNG (owner PREVIEW-FIRST rule)")
+    ap.add_argument("--loudness", type=float, default=-20.0,
+                    help="integrated LUFS target for listening copies "
+                         "(owner rule: -20); ignored with --no-loudnorm")
+    ap.add_argument("--no-loudnorm", action="store_true",
+                    help="skip loudness normalization + 0.7 peak ceiling")
     args = ap.parse_args(argv)
 
     if args.list:
@@ -816,14 +921,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[chiptune] {sysname}: {e}", file=sys.stderr)
             continue
         spec = SYSTEMS[sysname]
+        loud_info = None
+        if not args.no_loudnorm:
+            pcm, loud_info = normalize_loudness(pcm, sr, args.loudness)
         if args.analyze:
             print_analysis(pattern_report(pat, sysname), signal_report(pcm, sr))
+        if loud_info:
+            print(f"[chiptune] loudnorm: {loud_info}")
         if args.no_render:
             continue
         suffix = "" if sysname == pat.system and not args.all else f"-{sysname}"
         out = (Path(args.out) if args.out and len(systems) == 1
                else OUT_DIR / f"{name}{suffix}.wav")
         write_wav(out, pcm, sr)
+        if args.roll:
+            roll_path = out.with_suffix(".roll.png")
+            render_roll(pat, sysname, roll_path)
+            print(f"[chiptune] roll preview -> {roll_path}")
         secs = len(pcm) / sr
         print(f"[chiptune] {spec['label']}")
         print(f"[chiptune] {len(pat.channels)} voices, tempo {pat.tempo:g}, "
