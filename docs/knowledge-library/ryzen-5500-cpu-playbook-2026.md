@@ -33,6 +33,12 @@ that actually runs out on it, which is not speed. It is threads.
 | Socket / TDP | AM4 / 65 W | §7 — the board's ceiling |
 | Integrated graphics | **None** | The 1070 Ti is the only display output; no fallback |
 
+Rig verification (CPU-Z, owner-supplied, 2026-11-06): board is an
+ASUS TUF GAMING B550-PLUS WIFI II, BIOS 3611 (2024-09-30); the CPU
+reports revision CZN-A0 with AVX2 / FMA3 / AES / SHA present (the
+instruction set §3's int8 guidance assumes); the 1070 Ti (MSI card,
+Micron GDDR5) negotiates a full PCIe 3.0 **x16** link.
+
 ## 2. The thread budget
 
 The one rule everything else follows: **12 threads is not 12 cores.**
@@ -129,10 +135,13 @@ Settled once, here:
   it alone.
 - Bandwidth is the quiet ceiling: DDR4-3200 dual-channel tops out
   near 51.2 GB/s, which is what the data-locality rules in
-  [[pascal-3d-budget-discipline-2026]] §6 spend. **Owner check, once:**
-  confirm the 32 GB is populated as 2 sticks in dual channel — a
-  single-channel configuration halves that bandwidth and would
-  masquerade as "slow CPU" in exactly the workloads above.
+  [[pascal-3d-budget-discipline-2026]] §6 spend. **Configuration
+  verified (CPU-Z, 2026-11-06):** the 32 GB is a Corsair Vengeance
+  LPX kit (CMK32GX4M2E3200C16, Samsung dies, dual-rank) populated
+  2×16 GB in slots A2/B2, channel mode 2×64-bit, XMP active and
+  running at its rated DDR4-3200 CL16-20-20-38 1T with the memory
+  controller 1:1 at 1600 MHz. This is the correct configuration —
+  there is no hidden single-channel penalty to find here.
 - The system SSD is SATA (~550 MB/s): model and asset load times are
   disk-bound, not CPU-bound. A slow model load is not a CPU problem
   and no thread setting will fix it.
@@ -142,7 +151,8 @@ Settled once, here:
 - **GPU upgrades are not PCIe-choked here.** PCIe 3.0 x16 ≈ PCIe
   4.0 x8 in bandwidth; for this studio's workloads a future card at
   x16 Gen 3 loses little. Judge a GPU upgrade on VRAM and raster,
-  not on the slot.
+  not on the slot. (This machine's x16 link width is verified, §1 —
+  the slot is not silently running at x8.)
 - **Gen 4 NVMe drives run at Gen 3 speeds** in this platform — buy
   capacity and endurance, never a Gen 4 speed premium.
 - **AM4 is the ceiling and the opportunity:** the board tops out at
