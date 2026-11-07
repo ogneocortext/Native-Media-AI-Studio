@@ -725,3 +725,4 @@ This design ensures that:
 ---## Related
 
 - [[playwright-e2e-2026]] :see-also — Playwright E2E 2026
+- [[animatediff-evolved-2026]] :see-also — AnimateDiff Evolved node contract and 8 GB VRAM fit notes

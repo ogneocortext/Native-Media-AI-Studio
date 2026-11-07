@@ -9,7 +9,7 @@ aliases:
 cssclasses:
   - technical-guide
 date: 2026-11-06
-type: reference
+type: source
 ---
 
 # External Book Sources for Agent Work — What Applies Here

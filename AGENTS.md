@@ -76,7 +76,7 @@
 > **Finding documentation:** the tree is 197 markdown files across 13
 > directories, so searching blind returns the wrong document. `docs/README.md`
 > is the index; `docs/knowledge-library/index.md` is the entry point for the
-> 107-article research library. `docs/source-map.md` is a condensed "where is
+> research library (count lives in `knowledge-tracker.md`, not here — R3). `docs/source-map.md` is a condensed "where is
 > what" quick reference for source files (backend, frontend, tests, config,
 #  scripts, tools). Note that `docs/knowledge/` is a _separate_ doc
 > set from the library and `docs/notes/` and `docs/scratch/` are explicitly not
