@@ -40,6 +40,7 @@ date: 2026-09-30
 - [[character-animation-2026-summer-synthesis|🎭 Character Animation 2026 — Summer Synthesis]] — Story-first puppet, beatPhase sync, performance-driven
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
+- [[browser-character-pipeline-research-2026|🦴 Browser Character Pipeline — Research Agenda]] — The 11 unresearched engineering categories between character design and a rendered browser character: sourcing, auto-rigging, the house skeleton, retargeting, beat-mapped blending, character textures/KTX2, skinned LOD, mixer runtime, pose-pass encoding (NEW 2026-11-06)
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
@@ -205,7 +206,7 @@ date: 2026-09-30
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
-|| `#3d` | 3D generation & rendering | 17 documents |
+|| `#3d` | 3D generation & rendering | 18 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---
