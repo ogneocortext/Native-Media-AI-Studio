@@ -12,7 +12,9 @@ Pattern file format (line-based, # comments):
 
     system nes          # atari | nes | gameboy | pico8 | loose | full
     tempo 140           # BPM; one cell = 1/16 note
-    wave lead pulse 50  # optional per-channel override: pulse|triangle|saw|noise + duty%
+    swing 0.58          # optional shuffle: 0.5 straight, >0.5 delays off-8ths
+    vibrato lead 0.12 5.0  # optional per-channel LFO: depth in semitones, rate Hz
+    wave lead pulse 25  # optional per-channel override: pulse|triangle|saw|noise + duty%
 
     lead: C-4 . . E-4~0,4,7 . . | G-4 . . A-4 . . | ...
     bass: C-3 . . . . . . . . . . | ...
@@ -24,6 +26,8 @@ Cells are separated by spaces; '|' separates bars (cosmetic). Tokens:
     -             hold previous note
     >NOTE         portamento — glides from the previous pitch to NOTE
                   over the cell (semitone-space glide, tracker style)
+    <NOTE         pitch-drop — starts one octave above NOTE and glides
+                  down to it (kick-design trick)
     x             noise-channel hit (other channels: rest)
     NOTE~s1,s2    arpeggio — cycles the note + semitone offsets per cell
 
@@ -147,14 +151,18 @@ def _quantize_duty(duty: int, system: str) -> int:
 
 DEMO = """
 # chiptune demo - built-in pattern (A minor, 8 bars x 16 cells, 6 parts)
+# motif-first + anti-jingle variables (owner verdicts, T-MUS-06)
 system nes
 tempo 150
+swing 0.56
+vibrato lead 0.12 5.0
+wave lead pulse 25
 
-lead: A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | A-5 . C-6 . E-6 . A-6 . . G-6 . . E-6 . C-6 . | D-6 . . B-5 . . G-5 . . A-5 . . . . . . | A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | >A-4 . . >C-5 . . >E-5 . . >A-5 - - - - - -
+lead: A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . G#-4 . . . . . . | A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . G#-4 . . . . . . | A-5 . C-6 . E-6 . A-6 . . G-6 . . E-6 . C-6 . | D-6 . . B-5 . . G-5 . . G#5 . . . . . . | A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | >A-4 . . >C-5 . . >E-5 . . >A-5 - - - - - -
 harmony: C-5 . . E-5 . . A-5 . . C-6 . . E-6 . . . | B-4 . . G-4 . . D-5 . . B-4 . . G-4 . . . | E-5 . . G-5 . . C-6 . . E-6 . . G-6 . . . | D-5 . . C-5 . . A-4 . . D-5 . . F-5 . . . | G-5 . . B-5 . . E-6 . . G-6 . . B-6 . . . | . . . . . . . . . . . . . . . . | E-5 . . A-5 . . C-6 . . E-6 . . A-6 . . . | . . . . . . . . . . . . . . . .
 pad: E-4 - - - - - - - - - - - - - - - | E-4 - - - - - - - - - - - - - - - | A-4 - - - - - - - - - - - - - - - | A-4 - - - - - - - - - - - - - - - | G-4 - - - - - - - - - - - - - - - | G-4 - - - - - - - - - - - - - - - | D-5 - - - - - - - - - - - - - - - | E-4 - - - - - - - - - - - - - - -
 arp: A-4 . C-5 . E-5 . A-4 . C-5 . E-5 . A-4 . C-5 . | E-5 . C-5 . A-4 . E-5 . C-5 . A-4 . E-5 . C-5 . | F-4 . A-4 . C-5 . F-4 . A-4 . C-5 . F-4 . A-4 . | C-5 . A-4 . F-4 . C-5 . A-4 . F-4 . C-5 . A-4 . | G-4 . C-5 . E-5 . G-4 . C-5 . E-5 . G-4 . C-5 . | . . . . . . . . . . . . . . . . | G-4 . B-4 . D-5 . G-4 . B-4 . D-5 . G-4 . B-4 . | . . . . . . . . . . . . . . . .
-bass: A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . | F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . | C-3 . C-3 . C-3 . C-3 . G-2 . G-2 . G-2 . G-2 . | A-2 . A-2 . A-2 . A-2 . G-2 . G-2 . E-2 . E-2 . | C-3 - - - - - - - G-2 - - - - - - - | F-2 . F-2 . F-2 . F-2 . E-2 . E-2 . E-2 . E-2 . | A-2 . A-2 . A-2 . A-2 . E-2 . E-2 . E-2 . E-2 . | E-2 . D-2 . C-3 . B-2 . A-2 - - - - - - -
+bass: <A-2~12,8,4 . <A-2~12,8,4 . <A-2~12,8,4 . <A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . A-2~12,8,4 . | <F-2~12,8,4 . <F-2~12,8,4 . <F-2~12,8,4 . <F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . F-2~12,8,4 . | C-3 . C-3 . C-3 . C-3 . G-2 . G-2 . G-2 . G-2 . | A-2 . A-2 . A-2 . A-2 . G-2 . G-2 . E-2 . E-2 . | C-3 - - - - - - - G-2 - - - - - - - | F-2 . F-2 F-2 . F-2 . F-2 F-2 . F-2 F-2 . E-2 . E-2 | A-2 . A-2 . A-2 . A-2 . E-2 . E-2 . E-2 . E-2 . | E-2 . D-2 . C-3 . B-2 . A-2 - - - - - - -
 hat: x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . . x . . . x . . . x . . . | x . . x . . x . x . . x . . x . | x . x . x . x . x . x . x x x x
 """
 
@@ -165,21 +173,21 @@ class Pattern:
     def __init__(self) -> None:
         self.system = "nes"
         self.tempo = 140.0
+        self.swing = 0.5
         self.waves: dict[str, tuple[str, int]] = {}
+        self.vibrato: dict[str, tuple[float, float]] = {}
         self.channels: dict[str, list[str]] = {}
 
 
 def note_to_freq(name: str) -> float:
-    # Note names are 'C-4' style: the dash is a letter/octave separator,
-    # NOT a sign — '(#|b|-)?' consumes it so the octave group sees '4'.
-    m = re.fullmatch(r"([A-G])(#|b|-)?(\d+)", name)
+    # Grammar: letter, optional #/b accidental, optional '-' separator,
+    # digits. 'A-4', 'C#4', 'G#-4', 'Bb3' all parse; '-' is never signed.
+    m = re.fullmatch(r"([A-G])(#{1,2}|b{1,2})?-?(\d+)", name)
     if not m:
         raise ValueError(f"bad note {name!r}")
     base = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[m.group(1)]
-    if m.group(2) == "#":
-        base += 1
-    elif m.group(2) == "b":
-        base -= 1
+    acc = m.group(2) or ""
+    base += acc.count("#") - acc.count("b")
     midi = (int(m.group(3)) + 1) * 12 + base
     return 440.0 * 2 ** ((midi - 69) / 12)
 
@@ -190,7 +198,10 @@ def parse_chip(text: str) -> Pattern:
     # may span physical lines (the built-in DEMO relies on this).
     text = re.sub(r"\\\s*\n", " ", text)
     for raw in text.splitlines():
-        line = raw.split("#", 1)[0].strip()
+        # '#' starts a comment only at line start or after whitespace —
+        # 'G#-4' sharp notes must survive.
+        cm = re.search(r"(?<!\S)#", raw)
+        line = (raw[:cm.start()] if cm else raw).strip()
         if not line:
             continue
         if ":" in line and not line.startswith(("system", "tempo", "wave")):
@@ -208,6 +219,10 @@ def parse_chip(text: str) -> Pattern:
             wave_name = parts[2]
             duty = int(parts[3]) if len(parts) > 3 else 50
             p.waves[parts[1]] = (wave_name, duty)
+        elif parts[0] == "swing" and len(parts) > 1:
+            p.swing = float(parts[1])
+        elif parts[0] == "vibrato" and len(parts) >= 4:
+            p.vibrato[parts[1]] = (float(parts[2]), float(parts[3]))
     if not p.channels:
         raise ValueError("no channel lines found (expected 'name: cells ...')")
     return p
@@ -330,7 +345,6 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
 
     n_cells = max(len(cells) for _, _, _, cells in bound)
     cell_sec = 60.0 / p.tempo / 4.0  # 16th note
-    cell_samples = int(cell_sec * sr)
     total = n_cells * cell_sec
     t = np.arange(int(total * sr)) / sr
     mix = np.zeros(len(t), dtype=np.float64)
@@ -338,7 +352,15 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
     # Per-voice gains — keep headroom for 5-voice sums.
     voice_gain = 0.22 if len(chan_specs) <= 4 else 0.16
 
-    for ci, (_name, wave_kind, duty, cells) in enumerate(bound):
+    # Swing: the off-8th cell of each beat pair (cells 2,3 mod 4) is
+    # delayed by (swing-0.5)*2 cells. 0.5 = straight, ~0.6 = shuffled.
+    starts = [0] * (n_cells + 1)
+    for i in range(n_cells + 1):
+        off = ((p.swing - 0.5) * 2 * cell_sec
+               if i < n_cells and (i // 2) % 2 == 1 else 0.0)
+        starts[i] = int(round((i * cell_sec + off) * sr))
+
+    for ci, (name, wave_kind, duty, cells) in enumerate(bound):
         if wave_kind == "noise":
             # Noise voice: each note cell triggers a burst; pitch selects
             # the LFSR clock division (Atari/GB style). 'x' = default hit.
@@ -351,8 +373,8 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
                 except ValueError:
                     continue
                 div = int(np.clip(sr / (f * 32), 2, 64))
-                start = i * cell_samples
-                end = min(start + cell_samples, len(t))
+                start = starts[i]
+                end = min(starts[i + 1], len(t))
                 if end <= start:
                     continue
                 seg = _lfsr_noise(end - start, clock_div=div,
@@ -371,8 +393,8 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
         glide_f = 0.0  # pitch portamento carries from the last sounded note
         arp_semitones = [0.0]
         for i, cell in enumerate(cells):
-            start = i * cell_samples
-            end = min(start + cell_samples, len(t))
+            start = starts[i]
+            end = min(starts[i + 1], len(t))
             if end <= start:
                 continue
             if cell == ".":
@@ -383,7 +405,8 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
                 freq[start:end] = cur_f
                 continue
             porta = cell.startswith(">")
-            base, _, arp = (cell[1:] if porta else cell).partition("~")
+            drop = cell.startswith("<")
+            base, _, arp = (cell[1:] if (porta or drop) else cell).partition("~")
             try:
                 target = note_to_freq(base)
             except ValueError:
@@ -404,6 +427,17 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
                 prog = np.arange(n) / max(n - 1, 1)
                 dist = 12.0 * math.log2(target / glide_f)
                 freq[start:end] = glide_f * (2.0 ** (dist * prog / 12.0))
+            elif drop:
+                # Pitch-drop (kick design): start one octave up, glide
+                # down to the written note across the cell; arp offsets
+                # still apply so ~12,8,4 kick shimmer survives the drop.
+                n = end - start
+                prog = np.arange(n) / max(n - 1, 1)
+                sub_idx = (np.arange(n) * 8 // max(n, 1))
+                offs = np.array([arp_semitones[s % len(arp_semitones)]
+                                 for s in sub_idx])
+                freq[start:end] = (target * (2.0 ** (1.0 - prog))
+                                   * (2.0 ** (offs / 12.0)))
             else:
                 # Arpeggio cycles offsets across 8 substeps inside the cell.
                 n = end - start
@@ -413,11 +447,16 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
                 freq[start:end] = cur_f * (2.0 ** (offs / 12.0))
             glide_f = target
         # SPC700-style vibrato: LFO on the freq track (post-arpeggio so it
-        # rides the final pitch).
+        # rides the final pitch). System preset first, then per-channel
+        # 'vibrato <name> <depth_semi> <rate_hz>' pattern directive.
         vib = spec.get("vibrato")
         if vib:
             freq *= 1.0 + vib["depth"] * np.sin(
                 2.0 * np.pi * vib["rate"] * t)
+        chan_vib = p.vibrato.get(name)
+        if chan_vib:
+            depth, rate = chan_vib
+            freq *= 2.0 ** (depth * np.sin(2.0 * np.pi * rate * t) / 12.0)
         phase = np.cumsum(freq) / sr
         if wave_kind == "fm":
             # duty field doubles as FM index*10 for fm voices (0 -> 1.6).
@@ -429,7 +468,7 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
         # 3 ms raised-cosine anti-click envelope on every cell boundary.
         atk = int(0.003 * sr)
         env = np.ones(len(t))
-        for b in range(cell_samples, n_cells * cell_samples, cell_samples):
+        for b in starts[1:-1]:
             s = max(0, b - atk // 2)
             e = min(len(t), b + atk // 2)
             if e > s:
@@ -501,18 +540,16 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
 # ---------------------------------------------------------------------------
 
 _LETTER_SEMI = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-_ACCIDENTAL = {"#": 1, "##": 2, "b": -1, "bb": -2, None: 0, "": 0, "-": 0}
+_ACCIDENTAL = {"#": 1, "##": 2, "b": -1, "bb": -2, None: 0, "": 0}
 
 
 def _note_semitone(name: str) -> int | None:
     """Note name -> absolute semitone index (C-4 = 60-ish scale, octave+1)*12."""
-    m = re.fullmatch(r"([A-Ga-g])(#{1,2}|b{1,2}|-)?(-?\d)", name)
+    m = re.fullmatch(r"([A-Ga-g])(#{1,2}|b{1,2})?-?(\d+)", name)
     if not m:
         return None
     letter = m.group(1).upper()
     acc = m.group(2)
-    if acc == "-":
-        acc = None
     if letter not in _LETTER_SEMI or acc not in _ACCIDENTAL:
         return None
     return (int(m.group(3)) + 1) * 12 + _LETTER_SEMI[letter] + _ACCIDENTAL[acc]
