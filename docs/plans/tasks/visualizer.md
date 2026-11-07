@@ -1281,7 +1281,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 
 ### T-VIZ-53 — 2.0-tier redesign: bars + stacked-frequency-bands (first pass)
 
-- **Status:** doing (visual re-score pending — see blocker)
+- **Status:** done (first pass verified — see re-score below)
 - **Goal:** Act on the T-VIZ-52 baseline — the two worst modes (both 2.0)
   get the knowledge-library + 2026/2027 trend treatment, then re-score.
 - **Trend grounding:** `music-viz-trends-2026.md` layering formula
@@ -1305,18 +1305,22 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Tests:** canvas2dModes.test.ts updated for the damp (advancing-clock
   frames — frozen nowMs means dt=0 and damped values never move) and the
   new tick signature (thin white rgba fillRect). 85/85 vitest green.
-- **Blocker:** visual re-score (`viz-capture --only` → `viz-score`) is
-  blocked by a concurrent services/api refactor — another agent's
-  uncommitted edits produced Vite 500s (duplicate exports, bad
-  `./portConfig` paths, mid-typing parse errors in generation.ts /
-  remix.ts). I fixed the portConfig paths + duplicate exports in
-  index.ts/core.ts (uncommitted — inside their dirty files), which got
-  the app loading once, but their refactor is still in flight. One
-  capture attempt scored a build-error modal (invalid — discarded).
-- **Also fixed en route:** backend crash-loop — committed
-  `logging_config.py` used `typing.override` (Python 3.12+) on the 3.11
-  env → ImportError. Switched to `typing_extensions.override` (repo
-  pattern). Uncommitted, inside their file.
-- **Next:** re-run `viz-capture --modes "2d:bars,2d:stacked-frequency-bands"`
-  + `viz-score` once services/api stabilizes; compare vs 2.0 baseline.
-- **Last session:** Devin, 2026-11-07 — pending commit.
+- **Re-score (verified audio, qwen3.5:4b, capture
+  `viz-capture-2026-11-07T23-03-43-672Z`, audioVerified:true):**
+  - `2d:bars` 2.0 → **4.0** (comp 3, react 4, read 5, motion 3, color 5,
+    polish 4)
+  - `2d:stacked-frequency-bands` 2.0 → **4.0** (comp 4, react 5, read 5,
+    motion 3, color 5, polish 4)
+  - Remaining findings converge on ONE cross-mode issue: the static
+    BuilderFigure silhouette — "static, unexplained, placeholder-like"
+    (bars) and "occludes left-side spectrum data" (stacked). Motion
+    still 3 — damp helped but qwen still reads residual stepping.
+- **Blocker resolved:** the services/api refactor was finished by a
+  subagent (tsc ~120 errors → 1 unrelated; all Vite modules 200;
+  `getComfyUIStatus` etc. restored). Backend `typing.override` →
+  `typing_extensions.override` fix kept (uncommitted, their file).
+- **Next:** BuilderFigure integration pass (react to audio or remove per
+  mode — now the top finding across the 2D family); motion=3 residual;
+  then foggyNoir/fireCrown/spectralReactor shader tier.
+- **Last session:** Devin, 2026-11-07 — commit 857a5573 + re-score
+evidence above.
