@@ -21,7 +21,7 @@ import {
   buildTestInsights,
   type SlowTest,
   type TestFailure,
-} from "../src/utils/cli-output-formatter";
+} from "../src/utils/cli-output-formatter.ts";
 
 interface RecordedTest {
   name: string;
@@ -59,25 +59,24 @@ function outcomeOf(test: TestCase, result: TestResult): RecordedTest["outcome"] 
 export default class AsciiReporter implements Reporter {
   private cli = new CLIOutput();
   private startTime = 0;
-  private tests: RecordedTest[] = [];
+  // onTestEnd fires once per attempt (result.retry distinguishes them), so
+  // keep the LAST result per test.id — a flaky pass must overwrite its
+  // earlier failed attempt, not be dropped by a retry>0 filter.
+  private tests = new Map<string, RecordedTest>();
 
   onBegin(_config: unknown, _suite: Suite): void {
     this.startTime = Date.now();
-    this.tests = [];
+    this.tests.clear();
     console.log("");
     console.log(this.cli.formatTestSuiteStart("Playwright E2E Suite"));
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
-    // Only record the final attempt — retries report intermediate results
-    // that would double-count the test.
-    if (result.retry > 0) return;
-
     const skipAnnotation = test.annotations.find(
       (a) => a.type === "skip" || a.type === "fixme",
     );
 
-    this.tests.push({
+    this.tests.set(test.id, {
       name: test.title,
       file: relFile(test.location.file),
       line: test.location.line,
@@ -90,16 +89,17 @@ export default class AsciiReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     const durationS = (Date.now() - this.startTime) / 1000;
+    const tests = [...this.tests.values()];
 
-    const passed = this.tests.filter(
+    const passed = tests.filter(
       (t) => t.outcome === "passed" || t.outcome === "flaky",
     ).length;
-    const failed = this.tests.filter((t) => t.outcome === "failed").length;
-    const skipped = this.tests.filter((t) => t.outcome === "skipped").length;
-    const flaky = this.tests.filter((t) => t.outcome === "flaky").length;
+    const failed = tests.filter((t) => t.outcome === "failed").length;
+    const skipped = tests.filter((t) => t.outcome === "skipped").length;
+    const flaky = tests.filter((t) => t.outcome === "flaky").length;
     const errors = result.status === "interrupted" ? 1 : 0;
 
-    const failures: TestFailure[] = this.tests
+    const failures: TestFailure[] = tests
       .filter((t) => t.outcome === "failed")
       .map((t) => ({
         name: t.name,
@@ -108,17 +108,22 @@ export default class AsciiReporter implements Reporter {
         message: t.error,
       }));
 
-    const slowest: SlowTest[] = [...this.tests]
+    const slowest: SlowTest[] = [...tests]
       .sort((a, b) => b.durationMs - a.durationMs)
       .slice(0, 8)
       .map((t) => ({ name: t.name, duration_s: t.durationMs / 1000 }));
 
-    const insights = buildTestInsights({
+    let insights = buildTestInsights({
       failed,
       skipped,
       errors,
       slowest,
     });
+    if (tests.length === 0 && errors === 0) {
+      insights = [
+        'No tests ran — check file patterns/filters before trusting this result.',
+      ];
+    }
     if (flaky) {
       insights.unshift(
         `${flaky} flaky test(s) — passed only after retry; investigate before trusting them.`,
@@ -127,7 +132,7 @@ export default class AsciiReporter implements Reporter {
 
     // Surface skip reasons so "skipped" is interpretable, not just a count.
     const skipReasons = new Map<string, number>();
-    for (const t of this.tests) {
+    for (const t of tests) {
       if (t.outcome === "skipped" && t.skipNote) {
         skipReasons.set(t.skipNote, (skipReasons.get(t.skipNote) ?? 0) + 1);
       }

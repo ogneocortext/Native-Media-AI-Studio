@@ -369,7 +369,8 @@ class CLIOutput:
             f"suite={suite}",
             f"total={total}",
             f"passed={passed}",
-            f"failed={bad}",
+            f"failed={failed}",
+            f"errors={errors}",
             f"skipped={skipped}",
             f"duration_s={duration_s:.1f}",
         ]
@@ -433,8 +434,8 @@ def format_command_help(commands: dict[str, str],
 
 
 def build_test_insights(*, failed: int, skipped: int, errors: int,
-                        slowest: list[dict[str, Any]] | None = None,
-                        suite: str = "tests") -> list[str]:
+                        slowest: list[dict[str, Any]] | None = None
+                        ) -> list[str]:
     """Default actionable insights derived purely from counts/perf data.
 
     Callers may append or replace these with domain-specific items.

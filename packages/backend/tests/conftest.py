@@ -56,37 +56,6 @@ LOCAL_BASETEMP = BACKEND_ROOT.parent.parent / ".pytest_tmp"
 _USING_LOCAL_BASETEMP = False
 
 
-def _temp_root_usable(root: Path) -> bool:
-    """Return True when pytest can create *and* expire numbered temp dirs here.
-
-    This machine's %TEMP% lives in a profile folder that was renamed after the
-    Windows account was created, so pytest still computes the original
-    ``pytest-of-<user>`` root while stale entries inside it belong to the old
-    profile. Expiring those raises ``PermissionError`` in
-    ``tmp_path_factory._exit_stack.close()`` — i.e. *after* every test has
-    passed — which makes an otherwise green run exit non-zero.
-    """
-    try:
-        root.mkdir(parents=True, exist_ok=True)
-        probe = root / ".nma-write-probe"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
-        # Mirror what pytest does when it expires previous runs: for every entry
-        # in the root it calls ``entry.resolve().exists()``. ``Path.exists()``
-        # re-raises PermissionError (only ENOENT/ENOTDIR/ELOOP are swallowed),
-        # and ``os.path.realpath`` hides it — so use the pathlib call here.
-        # Wrap each entry check individually so one bad entry doesn't skip the
-        # whole directory.
-        for entry in root.iterdir():
-            try:
-                entry.resolve().exists()
-            except PermissionError:
-                return False
-    except (OSError, PermissionError):
-        return False
-    return True
-
-
 def pytest_configure(config: pytest.Config) -> None:
     """Point --basetemp at a repo-local directory to avoid PermissionError.
 
@@ -220,7 +189,7 @@ def pytest_terminal_summary(terminalreporter) -> None:
                 text = str(lr).strip()
                 if text:
                     reason = text.splitlines()[-1]
-            reason = reason.strip() or "unspecified"
+            reason = reason.strip().splitlines()[0][:80] if reason.strip() else "unspecified"
             skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
         slowest = [
             {"name": getattr(r, "nodeid", "?"),
@@ -233,7 +202,6 @@ def pytest_terminal_summary(terminalreporter) -> None:
         insights = build_test_insights(
             failed=failed, skipped=skipped, errors=errors,
             slowest=slowest or None,
-            suite="pytest backend",
         )
         if skip_reasons:
             top = sorted(skip_reasons.items(), key=lambda kv: -kv[1])[:3]

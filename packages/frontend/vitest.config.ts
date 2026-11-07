@@ -1,7 +1,7 @@
 import { defineConfig, configDefaults } from "vitest/config";
 import path from "path";
 import { fileURLToPath } from "url";
-import { AsciiArtVitestReporter } from "./src/utils/ascii-test-reporter";
+import { AsciiArtVitestReporter } from "./src/utils/ascii-test-reporter.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

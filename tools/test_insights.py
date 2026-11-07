@@ -979,7 +979,7 @@ def print_ascii_summary(report: InsightsReport,
         if not insights:
             insights = build_test_insights(
                 failed=report.failed, skipped=report.skipped, errors=0,
-                slowest=slowest or None, suite="pytest backend",
+                slowest=slowest or None,
             )
 
         safe_print("")

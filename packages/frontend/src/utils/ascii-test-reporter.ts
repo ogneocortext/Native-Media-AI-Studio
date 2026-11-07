@@ -6,14 +6,19 @@
  * agents and users read both suites the same way.
  */
 
-import type { Reporter, TestCase, TestModule } from 'vitest/node';
+import type {
+  Reporter,
+  TestCase,
+  TestModule,
+  TestRunEndReason,
+} from 'vitest/node';
 
 import {
   CLIOutput,
   buildTestInsights,
   type SlowTest,
   type TestFailure,
-} from './cli-output-formatter';
+} from './cli-output-formatter.ts';
 
 interface RecordedTest {
   name: string;
@@ -62,7 +67,7 @@ export class AsciiArtVitestReporter implements Reporter {
   onTestRunEnd(
     testModules: readonly TestModule[],
     unhandledErrors: readonly unknown[],
-    reason: string,
+    reason: TestRunEndReason,
   ): void {
     const durationS = (Date.now() - this.startTime) / 1000;
 
@@ -99,14 +104,22 @@ export class AsciiArtVitestReporter implements Reporter {
       .slice(0, 8)
       .map((t) => ({ name: t.name, duration_s: t.durationMs / 1000 }));
 
-    const insights = buildTestInsights({
+    let insights = buildTestInsights({
       failed,
       skipped,
       errors: totalErrors,
       slowest,
     });
-    if (reason !== 'passed' && reason !== 'failures') {
-      insights.unshift(`Run ended early (${reason}) — results may be incomplete.`);
+    const totalTests = passed + failed + skipped;
+    if (reason === 'interrupted') {
+      insights = insights.filter((i) => !i.startsWith('All green'));
+      insights.unshift(
+        'Run interrupted — results may be incomplete; rerun to confirm.',
+      );
+    } else if (totalTests === 0 && totalErrors === 0) {
+      insights = [
+        'No tests ran — check file patterns/filters before trusting this result.',
+      ];
     }
 
     // Surface skip reasons so "N skipped" is interpretable, not just a count.

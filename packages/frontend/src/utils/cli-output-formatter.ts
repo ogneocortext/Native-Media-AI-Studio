@@ -333,7 +333,7 @@ export class CLIOutput {
 
     const result = bad > 0 ? 'FAIL' : skipped > 0 ? 'PASS_WITH_SKIPS' : 'PASS';
     lines.push(
-      `# RESULT: ${result} | suite=${suite} | total=${total} | passed=${passed} | failed=${bad} | skipped=${skipped} | duration_s=${duration_s.toFixed(1)}`,
+      `# RESULT: ${result} | suite=${suite} | total=${total} | passed=${passed} | failed=${failed} | errors=${errors} | skipped=${skipped} | duration_s=${duration_s.toFixed(1)}`,
     );
 
     return lines.join('\n');
