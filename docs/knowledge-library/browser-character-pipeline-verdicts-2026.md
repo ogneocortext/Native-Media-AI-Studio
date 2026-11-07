@@ -52,11 +52,12 @@ delivery*. Keep provenance (source, dated license copy, creator
 credit) beside every asset. AI-generator output rights are a
 separate check per service/model, recorded at generation time —
 generated output is never assumed commercially cleared. Related:
-the reference Hunyuan3D-2 combined shape+texture pipeline reports
-~16 GB memory, over this rig's 8 GB — local gen3d characters are
-**shape-first, texturing as a separate step**, and the 2mini
-variant's actual footprint gets verified on the rig before the
-pipeline depends on it.
+the reference Hunyuan3D-2 combined shape+texture pipeline is
+reported at 12–16 GB memory across sources — the exact figure
+varies, the conclusion doesn't: it exceeds this rig's 8 GB, so
+local gen3d characters are **shape-first, texturing as a
+separate step**, and the 2mini variant's actual footprint gets
+verified on the rig before the pipeline depends on it.
 
 **Conversion chain (Blender is the hub):** FBX/VRM source →
 normalize to the house skeleton (§2) → skin-weight validation
@@ -157,6 +158,12 @@ upper-body tracks at weight 0.3–0.6. One mixer per character;
 `AnimationAction`s are never shared; skinned hierarchies clone
 via `SkeletonUtils.clone()`. This is the mixer-side engineering
 of [[character-animation-2026-summer-synthesis]]'s beatPhase rule.
+One calibration the steered second pass surfaced: the song
+origin is the **scheduled start of a pre-decoded audio buffer**
+(`AudioBufferSourceNode.start(when)`), never the moment play was
+pressed — codec delay and `AudioContext.outputLatency` offset
+the audible timeline from the clock, and that offset is
+calibrated once per output path, not assumed to be zero.
 
 ## 4. Textures + materials (T-VID-21)
 
