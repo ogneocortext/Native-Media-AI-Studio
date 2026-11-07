@@ -32,7 +32,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never", outputFolder: "playwright-report" }],
+    // ASCII-art verdict + failure repro commands, same shape as pytest/vitest.
+    ["./tests/ascii-reporter.ts"],
+  ],
   use: {
     baseURL: BASE_URL,
     actionTimeout: 10_000,

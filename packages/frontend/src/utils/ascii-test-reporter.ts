@@ -21,6 +21,7 @@ interface RecordedTest {
   state: string;
   durationMs: number;
   error?: string;
+  skipNote?: string;
 }
 
 function firstErrorLine(errors: readonly unknown[] | undefined): string {
@@ -54,6 +55,7 @@ export class AsciiArtVitestReporter implements Reporter {
       durationMs: diagnostic?.duration ?? 0,
       error:
         result.state === 'failed' ? firstErrorLine(result.errors) : undefined,
+      skipNote: result.state === 'skipped' ? result.note : undefined,
     });
   }
 
@@ -105,6 +107,22 @@ export class AsciiArtVitestReporter implements Reporter {
     });
     if (reason !== 'passed' && reason !== 'failures') {
       insights.unshift(`Run ended early (${reason}) — results may be incomplete.`);
+    }
+
+    // Surface skip reasons so "N skipped" is interpretable, not just a count.
+    const skipReasons = new Map<string, number>();
+    for (const t of this.tests) {
+      if (t.state === 'skipped' && t.skipNote) {
+        skipReasons.set(t.skipNote, (skipReasons.get(t.skipNote) ?? 0) + 1);
+      }
+    }
+    if (skipReasons.size) {
+      const top = [...skipReasons.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([note, n]) => `${note} (${n})`)
+        .join('; ');
+      insights.push(`Skip reasons: ${top}`);
     }
 
     console.log('');

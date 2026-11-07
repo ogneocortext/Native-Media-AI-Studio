@@ -207,6 +207,21 @@ def pytest_terminal_summary(terminalreporter) -> None:
             }
 
         failures = [_failure_entry(r) for r in reports["failed"] + reports["error"]]
+
+        # Skip reasons: pytest represents skips as (path, lineno, reason)
+        # tuples — surface the top ones so "N skipped" is interpretable.
+        skip_reasons: dict[str, int] = {}
+        for r in reports["skipped"] + reports["xfailed"]:
+            lr = getattr(r, "longrepr", None)
+            reason = ""
+            if isinstance(lr, tuple) and len(lr) >= 3:
+                reason = str(lr[2])
+            elif lr is not None:
+                text = str(lr).strip()
+                if text:
+                    reason = text.splitlines()[-1]
+            reason = reason.strip() or "unspecified"
+            skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
         slowest = [
             {"name": getattr(r, "nodeid", "?"),
              "duration_s": float(getattr(r, "duration", 0.0) or 0.0)}
@@ -220,6 +235,12 @@ def pytest_terminal_summary(terminalreporter) -> None:
             slowest=slowest or None,
             suite="pytest backend",
         )
+        if skip_reasons:
+            top = sorted(skip_reasons.items(), key=lambda kv: -kv[1])[:3]
+            insights.append(
+                "Skip reasons: "
+                + "; ".join(f"{reason} ({n})" for reason, n in top)
+            )
 
         safe_print("")
         safe_print(CLIOutput().format_test_results(

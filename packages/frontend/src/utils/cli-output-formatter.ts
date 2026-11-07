@@ -241,6 +241,12 @@ export class CLIOutput {
     insights?: string[];
     meta?: Record<string, string>;
     rerunHint?: string;
+    /**
+     * Optional verbatim repro commands. When omitted, commands are generated
+     * as `${rerunHint} ${failure.name} -x` (pytest style). Playwright passes
+     * its own `pnpm test <file> -g "<title>"` lines here.
+     */
+    reproLines?: string[];
   }): string {
     const {
       passed,
@@ -254,6 +260,7 @@ export class CLIOutput {
       insights = [],
       meta = {},
       rerunHint = 'vitest run',
+      reproLines,
     } = opts;
     const total = opts.total ?? passed + failed + skipped + errors;
     const bad = failed + errors;
@@ -293,10 +300,14 @@ export class CLIOutput {
         '',
         '  Reproduce one failure:',
       );
-      for (const f of failures.slice(0, 5)) {
-        lines.push(`    ${rerunHint} ${f.file ?? ''} -t "${f.name}"`);
+      if (reproLines?.length) {
+        lines.push(...reproLines);
+      } else {
+        for (const f of failures.slice(0, 5)) {
+          lines.push(`    ${rerunHint} ${f.file ?? ''} -t "${f.name}"`);
+        }
+        if (failures.length > 5) lines.push(`    ... and ${failures.length - 5} more`);
       }
-      if (failures.length > 5) lines.push(`    ... and ${failures.length - 5} more`);
       lines.push('');
     }
 
