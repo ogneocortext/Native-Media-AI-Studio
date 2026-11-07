@@ -112,7 +112,8 @@ failure, not a model failure:
 1. **One canonical doc** — `media-anti-patterns-2026`:
    the per-medium lists above, fully written, each pattern
    with its replacement move. Single source, per the
-   library's convention.
+   library's convention. **(Landed 2026-11-07:
+   [[media-anti-patterns-2026]].)**
 2. **Pointers, not copies** — the generation-front-door docs
    (ComfyUI workflows, 3D generation, Hunyuan, AnimateDiff,
    prompt-engineering, character pipeline, bones/skin) each
