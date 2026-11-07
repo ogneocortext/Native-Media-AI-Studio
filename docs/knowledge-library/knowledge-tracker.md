@@ -37,7 +37,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (17/17 completed) ✅
+### 🎬 Production Pipeline (19/19 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -47,6 +47,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `character-animation-2026-summer-synthesis.md`  → `#production`, `#3d`
 - ✅ `silhouette-character-animation.md`  → `#production`, `#3d`
 - ✅ `character-driven-visualization-research.md`  → `#production`, `#3d`
+- ✅ `browser-character-pipeline-research-2026.md`  → `#production`, `#3d`, `#research`
+- ✅ `browser-character-pipeline-verdicts-2026.md`  → `#production`, `#3d`, `#research`
 - ✅ `lyric-beat-visualization-2026.md`  → `#production`, `#audio`, `#platform-remotion`
 - ✅ `music-video-vision-prompts.md`  → `#production`, `#ai`
 - ✅ `a1-a6-media-pipeline-tooling-2026.md`  → `#production`, `#audio`, `#tooling`, `#platform-comfyui`
@@ -57,7 +59,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (21/21 completed) ✅
+### 🛠️ Technical Implementation (22/22 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
 - ✅ `database-operations-2026.md`  → `#technical`, `#database`, `#gpu`, `#telemetry`
 
@@ -78,6 +80,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `npx-best-practices-2026.md`  → `#technical`, `#security`, `#nodejs`, `#npx`, `#supply-chain`
 - ✅ `remotion-agent-skills-2026.md`  → `#technical`, `#remotion`, `#skills`, `#ai-agents`
 - ✅ `higgsfield-comfyui-challenge-2026.md`  → `#technical`, `#comfyui`, `#video-generation`, `#open-source`
+- ✅ `3d-bones-ai-skin-pipeline-2026.md`  → `#technical`, `#3d`, `#comfyui`, `#video-generation`
 - ✅ `three-js-studio-scene-quality-2026.md`  → `#technical`, `#3d`, `#three-js`
 - ✅ `programmatic-tool-calling-2026.md`  → `#technical`, `#ai-agents`, `#tooling`
 
@@ -158,11 +161,9 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
 - ✅ `agent-chat-architecture-2026.md`  → `#ai`, `#agent`, `#architecture`, `#documentation`
 
-### 📊 Research & Reference (25/25 completed)
+### 📊 Research & Reference (23/23 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
-- ✅ `browser-character-pipeline-research-2026.md` → `#research`, `#3d`
-- ✅ `3d-bones-ai-skin-pipeline-2026.md` → `#research`, `#3d`, `#platform-comfyui`
 
 - ✅ `track-similarity-measurement-2026.md` → `#research`, `#audio`
 - ✅ `ai-video-trends-2026.md`  → `#research`, `#ai`

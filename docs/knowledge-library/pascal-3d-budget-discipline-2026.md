@@ -10,7 +10,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-11-06
-type: source
+type: synthesis
 status: current
 ---
 

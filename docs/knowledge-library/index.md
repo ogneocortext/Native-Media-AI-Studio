@@ -41,6 +41,7 @@ date: 2026-09-30
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[browser-character-pipeline-research-2026|🦴 Browser Character Pipeline — Research Agenda]] — The 11 unresearched engineering categories between character design and a rendered browser character: sourcing, auto-rigging, the house skeleton, retargeting, beat-mapped blending, character textures/KTX2, skinned LOD, mixer runtime, pose-pass encoding (NEW 2026-11-06)
+- [[browser-character-pipeline-verdicts-2026|✅ Browser Character Pipeline — Verdicts]] — The agenda answered: hybrid sourcing, HouseRig_v1 (47/59 bones), retarget + beat architecture, KTX2/single-material rules, runtime + disposal — distilled from an external research report and corrected against the studio's budgets (NEW 2026-11-06)
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
@@ -181,13 +182,13 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 17 documents |
-|| `#technical/*` | System implementation & code | 22 documents |
+|| `#production/*` | Production workflow & creative guides | 19 documents |
+|| `#technical/*` | System implementation & code | 23 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
-|| `#research/*` | Industry trends & analysis | 24 documents |
+|| `#research/*` | Industry trends & analysis | 22 documents |
 
 ### Cross-Cutting Tags
 
@@ -206,7 +207,7 @@ date: 2026-09-30
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
-|| `#3d` | 3D generation & rendering | 18 documents |
+|| `#3d` | 3D generation & rendering | 19 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---

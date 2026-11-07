@@ -2,15 +2,14 @@
 title: "3D Bones, AI Skin — Pipeline Gap Analysis 2026"
 date: 2026-11-06
 type: synthesis
-aliases:
-  - 3D Bones AI Skin Pipeline
-  - Bones Drive AI Skin
-cssclasses:
-  - analysis
 tags:
-  - research
+  - technical
   - 3d
   - platform-comfyui
+aliases:
+  - 3D Bones AI Skin Pipeline Gap Analysis 2026
+cssclasses:
+  - technical-guide
 ---
 
 # 3D Bones, AI Skin — Pipeline Gap Analysis 2026
