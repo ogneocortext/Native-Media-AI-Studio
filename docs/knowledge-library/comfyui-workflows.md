@@ -16,6 +16,8 @@ type: entity
 
 > **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
 
+> **Currency (2026-11-07):** "Primary video for 8GB" below is a hardware-niche call for this studio's Pascal card (AnimateDiff's ecosystem-wide status is now legacy/niche; the general open center is Wan 2.x / HunyuanVideo 1.5). Sora, mentioned in older comparisons, was discontinued in 2026.
+
 > [!info] Scope
 > Custom ComfyUI workflows for music video production.
 > Covers image generation, video generation, and 3D model creation.

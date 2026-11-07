@@ -111,7 +111,7 @@ Related: [[ai-video-trends-2026]], [[music-viz-trends-2026]], [[app-research-gap
 
 ### Luma Ray 3.2 — fast iteration platform, no native audio
 
-- **Workflow:** No beat sync or song planning. Text/image-to-video with up to 16 keyframes; Modify Video restyles up to 20s (preserves source audio); Reframe; Boards for treatments; Luma Agents route across Ray, Veo 3.1, Kling 3.0, Sora, Nano Banana; ElevenLabs music/SFX/voice as a separate step.
+- **Workflow:** No beat sync or song planning. Text/image-to-video with up to 16 keyframes; Modify Video restyles up to 20s (preserves source audio); Reframe; Boards for treatments; Luma Agents route across Ray, Veo 3.1, Kling 3.0, Sora, Nano Banana; ElevenLabs music/SFX/voice as a separate step. *(Currency note 2026-11-07: Sora has since been discontinued — app/web Apr 2026, API Sep 2026 — it is listed as researched; this doc's own §5 already records the API sunset.)*
 - **Pricing:** Plus $30/mo (10,000 credits); Pro $90/mo; Ultra $300/mo. A 5s Ray3 1080p clip = 330 credits → Plus ≈ ~30 clips (~2.5 min) ≈ ~$12/min raw.
 - **Strengths:** Fastest iteration with the most generous entry point; unified multi-model comparison shopping.
 - **Weaknesses:** No native audio generation; no music awareness; short clips; experimentation gets expensive quickly.

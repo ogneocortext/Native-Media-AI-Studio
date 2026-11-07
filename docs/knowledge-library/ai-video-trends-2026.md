@@ -18,6 +18,9 @@ type: source
 > Web-search synthesis Aug 2026 — what changed since vault baseline (2026-08-24).
 > Implications specifically for the Native Media AI Studio pipeline (GTX 1070 Ti 8GB, Blender 5.2, ComfyUI, Remotion).
 
+> [!warning] Currency note (2026-11-07)
+> **Sora was discontinued in 2026** (app/web April, API September) — its mentions below are the research-date landscape, not current options; the cinematic class today is Veo 3.1 / Kling / Runway / Seedance. The AnimateDiff-primary call in this doc is a **deliberate 8GB-niche decision** (measured on the studio's Pascal card), not a claim about the wider ecosystem, whose open center is now Wan 2.x / HunyuanVideo 1.5 — with Wan 2.2 GGUF already carried here as the quality upgrade.
+
 ---
 
 ## 1. Five Defining Trends (Sources: AIMusicVideoGenerators 2026-03-15, Digen, Wavespeed, Renderforest)
