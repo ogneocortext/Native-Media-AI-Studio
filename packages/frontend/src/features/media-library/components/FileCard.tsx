@@ -21,6 +21,15 @@ const FILE_TYPE_ICONS: Record<string, string> = {
   "3d": "🤖",
 };
 
+/** Subtle per-type tint behind the preview so the media kind reads even
+ *  when a thumbnail is missing, still loading, or failed to decode. */
+const TYPE_PREVIEW_TINT: Record<string, string> = {
+  audio: "bg-violet-500/10",
+  video: "bg-blue-500/10",
+  image: "bg-green-500/10",
+  "3d": "bg-amber-500/10",
+};
+
 const WAVEFORM_BAR_COUNT = 48;
 
 /** Tracks audio elements currently playing so only one track plays at a time. */
@@ -387,7 +396,7 @@ export function FileCard({
       <div className="flex flex-col gap-1.5">
         {/* Media area */}
         <div
-          className={`relative aspect-square overflow-hidden ${
+          className={`relative aspect-square overflow-hidden ${TYPE_PREVIEW_TINT[file.file_type] || "bg-black/40"} ${
             viewMode === "list" ? "w-20 h-20 flex-shrink-0" : "w-full"
           }`}
         >
@@ -552,7 +561,7 @@ export function FileCard({
             </div>
           ) : (
             <div
-              className={`w-full h-full bg-black/40 flex items-center justify-center border border-gray-700/50 group`}
+              className={`w-full h-full ${TYPE_PREVIEW_TINT[file.file_type] || "bg-black/40"} flex items-center justify-center border border-white/5 group`}
             >
               <span className="text-3xl">{typeIcon}</span>
               <button

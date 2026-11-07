@@ -10,7 +10,18 @@
  * (the page is already scoped) and the page title/icon reflect the type.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Square, Music, Video, RefreshCw, Heart, Trash2, Tag } from "lucide-react";
+import {
+  Square,
+  Music,
+  Video,
+  RefreshCw,
+  Heart,
+  Trash2,
+  Tag,
+  Copy,
+  List,
+  LayoutGrid,
+} from "lucide-react";
 import { useFileOperations } from "./hooks/useFileOperations";
 import { useMediaFiles, type MediaFile } from "./hooks/useMediaFiles";
 import { useFileFilters } from "./hooks/useFileFilters";
@@ -340,7 +351,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           onClick={() => setView("favorites")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "favorites"
-              ? "bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
+              ? "bg-primary/30 text-primary border border-primary/40 shadow-sm ring-1 ring-primary/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -355,7 +366,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           onClick={() => setView("collections")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "collections"
-              ? "bg-blue-500/25 text-blue-300 border border-blue-500/40 shadow-sm ring-1 ring-blue-500/20"
+              ? "bg-primary/30 text-primary border border-primary/40 shadow-sm ring-1 ring-primary/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -370,7 +381,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           onClick={() => setView("trash")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
             view === "trash"
-              ? "bg-red-500/25 text-red-300 border border-red-500/40 shadow-sm ring-1 ring-red-500/20"
+              ? "bg-primary/30 text-primary border border-primary/40 shadow-sm ring-1 ring-primary/20"
               : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
           }`}
         >
@@ -394,7 +405,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                   : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
               }`}
             >
-              <Square size={14} /> Grid
+              <LayoutGrid size={14} /> Grid
             </button>
             <button
               onClick={() => setViewMode("list")}
@@ -404,7 +415,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                   : "bg-black/30 text-muted hover:bg-black/50 border border-transparent"
               }`}
             >
-              <Video size={14} /> List
+              <List size={14} /> List
             </button>
           </div>
 
@@ -421,7 +432,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                 onClick={handleFindDuplicates}
                 className="px-3 py-1 text-xs bg-violet-900/30 border border-violet-700 rounded text-violet-300 hover:bg-violet-800/50"
               >
-                <RefreshCw size={14} /> Find Duplicates
+                <Copy size={14} /> Find Duplicates
               </button>
             </>
           )}

@@ -1484,3 +1484,48 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session (follow-up):** Devin, 2026-11-08 — banner unified,
   verified live on /create/image + /create/video + /create/unity;
   `tsc -b` clean.
+
+### T-PLT-53 — Walkthrough set 3 (library pages) fixes + stale Vite cache root cause
+
+- **Status:** done
+- **Goal:** Apply the verified-real findings from walkthrough-3b
+  (Media Library, Video Library, Audio Library, Storyboards,
+  Audio Analysis) to the media-library UI, and chase the
+  "Loading… forever" regression observed afterward.
+- **Library fixes (verified against component source, not just VLM
+  output):**
+  - Tab active states used four unrelated hues (primary/amber/blue/red)
+    — unified Library/Favorites/Collections/Trash to one
+    `bg-primary/30 text-primary` treatment in MediaLibraryView.tsx.
+  - Grid/List toggle used `Square`/`Video` icons (Video icon for List
+    was wrong) — now `LayoutGrid`/`List`.
+  - "Find Duplicates" used `RefreshCw` (reads as refresh) — now `Copy`.
+  - FileCard: added `TYPE_PREVIEW_TINT` per-type backdrop (violet/blue/
+    green/amber at 10%) behind the media area AND the missing-preview
+    fallback, so media kind reads even when thumbnails are absent or
+    fail to decode (img onError now reveals the tint instead of flat
+    black).
+- **"Green placeholders" finding — partially a VLM misread:** qwen
+  re-analysis of the fixed page shows the green thumbnails are real
+  generated image thumbnails, not placeholder styling. The tint work
+  still helps true missing-preview cases.
+- **Environment defect found + fixed:** after a Vite restart every
+  lazy route hung on PageLoader forever (zero console errors, dynamic
+  import() resolves in 38ms when called manually, no /api calls fired).
+  Root cause: `node_modules/.vite` held a stale/partial optimize cache
+  — leftover `deps_temp_6378308a` dir plus a bundle patched
+  diagnostically in a previous session. `Stop-Process` on the vite
+  PID, deleted `.vite`, restarted: all routes load. The
+  uncached-promise React warnings RETURNED with the clean cache —
+  confirming they were suppressed, not fixed, by the patched bundle.
+  They remain a real dev-only warning (2-6 per page load); production
+  build does not emit the code path.
+- **Verification:** `tsc -b` clean; qwen3.5:4b ui-mode analysis of the
+  fixed /library confirms unified blue active tab, Find Duplicates
+  affordance, and populated grid; browser probe shows all lazy routes
+  render (loader:false on /, /library, /library/video, /create/image).
+- **Files:** packages/frontend/src/features/media-library/
+  MediaLibraryView.tsx, components/FileCard.tsx,
+  docs/plans/tasks/platform-and-workflow.md.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.
