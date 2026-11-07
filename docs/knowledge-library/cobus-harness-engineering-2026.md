@@ -206,6 +206,77 @@ executors inside this system at all. If a local executor is ever
 fine-tuned, logged Kilo/Orion session traces plus the Harness Delta
 filter are the dataset recipe, and it is already paid for.
 
+## 6. Approval fatigue: applicability verdict (T-AGT-11, executed 2026-11-07)
+
+Source: "Humans cannot keep up with agents and are struggling with
+approval fatigue" (Oct 22, 2026; not retitled; read in full, free),
+distilling Mitchell, Ghosh & Passi, "AI Agents Push Humans Out of
+the Loop" (arXiv 2608.23642). Diagnosis in three parts: **approval
+fatigue** (repetition turns reviewing into clicking — "after the
+twentieth prompt you're no longer reading"; the endpoint is
+auto-approve modes, which remove the human instead of fixing the
+loop), **skill atrophy** (long reliance on automation erodes the
+judgement oversight depends on, so the loop weakens over time), and
+the **false success signal** (systems measure approval/completion/
+satisfaction rates, so a tired reviewer's quick approval counts as
+success and the system learns to get waved through, not to be
+right). Four mitigations, in the post's own names: bounded autonomy,
+deliberate friction, fatigue tracking, organisational protocols.
+Closing principle: fewer, better decisions, put to people who still
+have the skill and attention to make them.
+
+Verdict against the studio's approval surface as inventoried
+2026-11-07 (16 committed `.claude/skills`, Kilo permission configs,
+the exact-approval-scope rule, standing filing/notice rules, the
+quota gate, T-AGT-09):
+
+- **Bounded autonomy — already solved; this IS the owner's
+  mitigation.** "Decide in advance what the agent may do without
+  asking" is precisely what the 2026-11-07 custom-skills leap did:
+  skills carry pre-approved patterns (including crawler skills with
+  preapproved site lists, held local-only on the owner's rig), so
+  routine work executes without prompts and approvals remain for
+  genuinely new decisions. `bolt-local`'s deny-all config is the
+  same decision from the other direction. The owner reported the
+  fatigue largely mitigated the same day — the post's framework
+  explains why the fix worked.
+- **Deliberate friction — partially present, not formalised.**
+  Pitch-first creative approvals, the quota gate's numbers-before-
+  heavy-work pause, and options widgets all force a real decision
+  at key points, but nothing asks the post's question ("what
+  assumption does this approval rest on?") at high-stakes approvals.
+  Residual gap, candidate only.
+- **Fatigue tracking — not implemented.** No instrumentation of
+  review time vs approval rate exists. The working substitutes are
+  self-report (the owner caught his own fatigue and named it) and
+  the 20-minute checkpoint convention. Recorded as a watch item;
+  instrumenting a single owner's attention is likely more apparatus
+  than the problem wants. Residual gap, candidate only.
+- **Organisational protocols — scale-mismatched, principles partly
+  embodied.** Rotation is impossible for a single owner. Workload
+  limits exist as the quota gate and task tiers. "Keep domain
+  skills sharp" is served structurally: the owner still does headed
+  verifications, menu/price checks and APK forensics himself rather
+  than delegating every judgement.
+- **Skill atrophy (diagnosis) — the live residual risk.** Nothing
+  in the current system specifically counters it, and it compounds
+  as executors improve. The cross-check lane (a different model
+  reviews than wrote; the owner spot-checks diffs) is partial
+  exercise of the judgement muscle. Named here as the one diagnosis
+  with no real answer yet — watch, do not build.
+- **False success signal (diagnosis) — guarded by design.** Success
+  in this repo is verified outcomes (gates, tests, headed checks),
+  never approval or completion rates; the trust roster already
+  discounts burst metrics (commit counts are explicitly not
+  evidence). T-AGT-08 hardens this further.
+
+Net: the post's prescription — fewer, better decisions — is the
+studio's current operating shape, arrived at independently. Of four
+mitigations, one is fully implemented (as skills, not settings),
+one is partial, one is a watch item, one is scale-mismatched. The
+three residual gaps above are reported to the owner as candidates;
+none is registered as a task under T-AGT-11, per its Plan.
+
 ## Follow-ups (owner decision 2026-11-07)
 
 1. Claim-scoring pass for executor reports (transcript-vs-summary),
@@ -248,6 +319,9 @@ titles in brackets where the author has retitled.
 - "There is a disconnect between what agents do and what they say
   they do" (Oct 23)
   — cobusgreyling.substack.com/p/there-is-a-disconnect-between-what
+- "Humans cannot keep up with agents and are struggling with
+  approval fatigue" (Oct 22; read for T-AGT-11, verdict in §6)
+  — cobusgreyling.substack.com/p/humans-cannot-keep-up-with-agents
 
 Papers cited inside the posts: arXiv 2610.35509 (Cosmos gateway),
 arXiv 2610.02858 (harness-aware distillation), arXiv 2609.20812

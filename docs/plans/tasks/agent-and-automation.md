@@ -300,7 +300,7 @@ Code: `packages/backend/app/agents/`
   direction (Cobus follow-up 3); not started.
 
 ### T-AGT-11 — Applicability read: approval fatigue vs the post-skills studio
-- **Status:** todo
+- **Status:** done
 - **Goal:** A verdict, not a fix: read Cobus Greyling's "Humans
   cannot keep up with agents and are struggling with approval
   fatigue" (Oct 22, 2026) against the studio's CURRENT approval
@@ -325,6 +325,15 @@ Code: `packages/backend/app/agents/`
   every mitigation the post names, each mapped to the studio's
   current state with evidence; owner informed of any residual gaps
   in the same commit's message.
-- **Last session:** — registered 2026-11-07 by Orion at owner
-  direction (Cobus follow-up 4, reframed as an applicability read
-  after the owner's mitigation report); not started.
+- **Last session:** Orion, 2026-11-07 — executed same day at owner
+  direction ("see how it might work in practice"). Post read in full
+  via public browse; approval surface inventoried from the live repo
+  (16 committed `.claude/skills`, Kilo permission configs,
+  exact-approval-scope rule, quota gate). Verdict appended to the
+  Cobus doc §6 in this same commit: bounded autonomy already solved
+  (it is the owner's skills mitigation, in the post's own terms);
+  deliberate friction partial; fatigue tracking a watch item;
+  organisational protocols scale-mismatched; skill atrophy named
+  the live residual risk; false-success-signal guarded by design.
+  Residual gaps reported to the owner as candidates in the landing
+  commit's message; none registered, per this item's Plan.
