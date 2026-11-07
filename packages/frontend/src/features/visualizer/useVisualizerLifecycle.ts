@@ -22,6 +22,7 @@ import { showToast } from "../../utils/toast";
 import { cleanTrackName } from "./visualizerHelpers";
 import { CANVAS_2D_MODES, type Canvas2DMode } from "./visualizerHelpers";
 import type { VizMode } from "./visualizerHelpers";
+import type { VisualizationStyle } from "./trackConceptAnalyzer";
 import type { VisualizerStateSetters } from "./useVisualizerState";
 
 interface TestState {
@@ -83,6 +84,7 @@ export interface UseVisualizerLifecycleOptions {
     | "setLyricsVisible"
     | "setCharacterVisible"
     | "setModeFade"
+    | "setVisualizationStyle"
   >;
   refs: {
     audioElRef: React.MutableRefObject<HTMLAudioElement | null>;
@@ -135,6 +137,7 @@ export function useVisualizerLifecycle({
     setLyricsVisible,
     setCharacterVisible,
     setModeFade,
+    setVisualizationStyle,
   } = setters;
   const { audioElRef, audioElapsedRef, prevModeRef, testStateRef, prevTestState } = refs;
   const {
@@ -377,6 +380,7 @@ export function useVisualizerLifecycle({
     (window as any).__VIZ_TEST__ = {
       selectTrack: async (filename: string) => handleSelectLibraryTrack(filename),
       setMode: (mode: "3d" | "shader" | "2d") => setVizMode(mode),
+      setStyle: (style: VisualizationStyle) => setVisualizationStyle(style),
       set2DMode: (mode: Canvas2DMode) => setCanvas2DMode(mode),
       getState: () => ({ ...testStateRef.current }),
       toggleTestPanel: () => setShowTestPanel((v) => !v),

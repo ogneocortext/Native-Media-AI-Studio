@@ -6,8 +6,8 @@
      20  mode crossfade veil — pointer-events: none
      25  letterbox bars — pointer-events: none
      30  playhead seek strip, backend badge
-     40  stage chrome — quick presets, latency card, reactivity HUD,
-         style picker, loading overlay, AI preset row
+     40  stage chrome — quick presets, latency card, loading overlay,
+         AI preset row
      100 test/debug panel
      150 overlay scrim (position: fixed, viewport)
      160 interactive chrome above the scrim — topbar, shader HUD
@@ -619,7 +619,6 @@
    so the visuals own the frame. Pointer movement over .viz-canvas-wrap
    reveals them again; the playhead stays — it is the seek surface. */
 .viz-latency-panel,
-.viz-style-picker,
 .viz-ai-preset-row,
 .viz-bottombar {
   transition: opacity 0.3s ease;
@@ -632,7 +631,6 @@
 }
 
 .viz-chrome-hidden .viz-latency-panel,
-.viz-chrome-hidden .viz-style-picker,
 .viz-chrome-hidden .viz-ai-preset-row,
 .viz-chrome-hidden .viz-bottombar {
   opacity: 0;
@@ -651,6 +649,15 @@
   background: rgba(16, 16, 22, 0.92);
   border-left: 1px solid rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(10px);
+}
+
+/* StylePicker lives in the inspector Scene tab now — its stage rules
+   (absolute top-right column) are neutralized there. */
+.viz-inspector .viz-style-picker {
+  position: static;
+  max-height: none;
+  overflow: visible;
+  margin-bottom: 0.75rem;
 }
 
 .viz-inspector-tabs {

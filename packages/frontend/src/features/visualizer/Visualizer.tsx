@@ -700,6 +700,7 @@ export function Visualizer() {
       setLyricsVisible,
       setCharacterVisible,
       setModeFade,
+      setVisualizationStyle,
     },
     refs: {
       audioElRef,
@@ -1143,9 +1144,15 @@ export function Visualizer() {
               {/* Renderer backend + live stats render inside the latency
                   panel column below (viz-stats-stack) — keeping them here
                   would collide with the AudioLatencyCard at top-right. */}
-              {vizMode === "3d" && rendererReady && openOverlay === null && (
-                <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
-              )}
+              {/* Stage chrome hierarchy (T-VIZ-42): the stage keeps only
+                  glanceable + one-click controls — the quick preset bar
+                  (3D/2D; shader mode's presets live in ShaderHud), the
+                  latency card, status chips and the playhead. Everything
+                  detailed — reactivity tuning, scene params, styles,
+                  presets, mixer, EQ, AI — lives in the docked inspector.
+                  The old always-on StylePicker column and floating
+                  ReactivityHUD were third/fourth copies of inspector
+                  controls and are gone from the stage. */}
             </>
           ) : (
             <div className="viz-layer-hidden" style={{ background: bgColor }}>
@@ -1192,44 +1199,31 @@ export function Visualizer() {
             calm={prefersReducedMotion}
           />
 
-          {/* 1-Click Interactive Quick Preset & Vibe Bar */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
-            <QuickPresetBar
-              vizMode={vizMode}
-              onVizModeChange={setVizMode}
-              active3DPresetId={activeVisualPresetId}
-              onSelect3DPreset={(id) => handleVisualPresetSelect(id)}
-              canvas2DMode={canvas2DMode}
-              onSelect2DMode={(m) => setCanvas2DMode(m)}
-              activeShaderPreset={activeShaderPreset}
-              onSelectShaderPreset={(sp) => setActiveShaderPreset(sp)}
-              showModeSwitch={false}
-            />
-          </div>
-
-          {/* Live Audio Reactivity HUD & Focus Tuning */}
-          <div className="absolute bottom-12 left-3 z-40 pointer-events-auto max-w-xs">
-            <ReactivityHUD
-              audioData={liveAudioData}
-              isPlaying={isPlaying}
-              gain={reactivityGain}
-              onGainChange={setReactivityGain}
-              frequencyFocus={frequencyFocus}
-              onFrequencyFocusChange={setFrequencyFocus}
-              triad={reactivityTriad}
-              onTriadChange={setReactivityTriad}
-              activeGenrePresetId={activeGenrePresetId}
-              onGenrePresetSelect={handleGenrePresetSelect}
-              vizMode={vizMode}
-            />
-          </div>
+          {/* 1-Click Interactive Quick Preset & Vibe Bar — hidden in
+              shader mode: ShaderHud already carries the full preset
+              list plus FX and warp, so the bar was a duplicate surface
+              that also collided with the HUD on narrow stages. */}
+          {vizMode !== "shader" && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
+              <QuickPresetBar
+                vizMode={vizMode}
+                onVizModeChange={setVizMode}
+                active3DPresetId={activeVisualPresetId}
+                onSelect3DPreset={(id) => handleVisualPresetSelect(id)}
+                canvas2DMode={canvas2DMode}
+                onSelect2DMode={(m) => setCanvas2DMode(m)}
+                activeShaderPreset={activeShaderPreset}
+                onSelectShaderPreset={(sp) => setActiveShaderPreset(sp)}
+                showModeSwitch={false}
+              />
+            </div>
+          )}
 
           {/* Audio Latency card — the R3F probe only runs in 3D mode, so FPS
               telemetry lives in the canvas stats stack (RenderStatsBadge)
               instead of a card with fabricated jank/drop metrics.
               Top-left: top-right is owned by mode chrome (ShaderHud in FX
-              mode, StylePicker in 3D) and bottom-right collided with it on
-              short stages — left/right separation is robust at any height.
+              mode) — passive telemetry belongs on the free corner.
               pointer-events-none, so it can never swallow a control. */}
           <div className="absolute top-3 left-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
             <AudioLatencyCard audioCtxRef={audioCtxRef} />
@@ -1253,7 +1247,9 @@ export function Visualizer() {
           trackLoaded={!!currentFilename}
           panels={{
             scene: (
-              <SettingsPanel
+              <>
+                <StylePicker active={visualizationStyle} onChange={setVisualizationStyle} />
+                <SettingsPanel
                 params={vizParams}
                 onChange={setVizParams}
                 bgColor={bgColor}
@@ -1272,7 +1268,8 @@ export function Visualizer() {
                 onVisualPresetSelect={handleVisualPresetSelect}
                 perceptualScale={perceptualScale}
                 onPerceptualScaleChange={setPerceptualScale}
-              />
+                />
+              </>
             ),
             tuning: (
               <ReactivityHUD

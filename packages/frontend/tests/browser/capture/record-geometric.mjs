@@ -92,13 +92,10 @@ try {
   // Force the FIRST visualizer (Geometric) — track auto-select may override it.
   if (state.visualizationStyle !== 'geometric') {
     console.log('   forcing style -> geometric...');
-    const geoBtn = page.locator('.viz-style-btn', { hasText: 'Geometric' }).first();
-    if ((await geoBtn.count()) > 0) {
-      await geoBtn.click();
-      await page.waitForTimeout(1500);
-    } else {
-      console.log('   WARNING: StylePicker not visible, staying on', state.visualizationStyle);
-    }
+    // StylePicker moved into the inspector Scene tab (T-VIZ-42) — drive the
+    // dev-only test harness instead of clicking stage chrome.
+    await page.evaluate(() => window.__VIZ_TEST__.setStyle('geometric'));
+    await page.waitForTimeout(1500);
     const styleNow = await page.evaluate(() => window.__VIZ_TEST__.getState().visualizationStyle);
     console.log('   style now:', styleNow);
   }

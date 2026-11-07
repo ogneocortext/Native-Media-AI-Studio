@@ -895,3 +895,38 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-07 — live-verified fix; note the
   Tailwind cascade-layer trap for future display overrides in this file.
+
+### T-VIZ-43 — Stage chrome hierarchy: inspector consolidation, QuickPresetBar shader dedupe
+
+- **Status:** done
+- **Goal:** Owner report — "a lot of overlapping elements fighting for
+  attention", "layout can't fit everything", "no sense of hierarchy".
+  Design pass on top of T-VIZ-42's corner deconfliction.
+- **What changed:**
+  - Stage-level `StylePicker` column (3D) and floating `ReactivityHUD`
+    (bottom-left) removed — both were duplicates of inspector panels.
+    `StylePicker` now renders at the top of the inspector Scene tab;
+    `ReactivityHUD` was already the Tuning tab content. One canonical
+    home per control.
+  - `.viz-inspector .viz-style-picker` neutralized to static flow
+    (position/max-height/overflow/margin reset) so stage absolute rules
+    can't leak into the dock; focus-mode fade rules for the stage picker
+    deleted; `.viz-style-picker` removed from the chrome-hidden opacity
+    list since it no longer lives on stage.
+  - `QuickPresetBar` hidden in shader mode — ShaderHud already carries
+    the full preset list + FX + warp, so the bar was a duplicate surface
+    colliding with the HUD on narrow stages.
+  - `__VIZ_TEST__.setStyle(style)` added to the dev harness
+    (useVisualizerLifecycle) since capture scripts could no longer click
+    the inspector-hidden StylePicker; both record-geometric.mjs copies
+    updated to drive the harness.
+- **Files:** features/visualizer/{Visualizer.tsx,
+  useVisualizerLifecycle.ts}, styles/{visualizer.css,
+  visualizer-chrome.css}, tests/browser{,/capture}/record-geometric.mjs.
+- **Verification:** live collision audit at 1600x900 across all three
+  modes — zero overlapping chrome rects; inspector picker position
+  static, ~285px wide inside the 320px dock; shader HUD the only
+  top-right owner in FX; tsc -b clean.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — hierarchy pass landed; stage now
+  carries only glanceable telemetry + one-click presets.

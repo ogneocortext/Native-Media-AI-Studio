@@ -1189,13 +1189,8 @@
 .viz-focus-mode .viz-bottombar {
   display: none;
 }
-.viz-focus-mode .viz-style-picker {
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.viz-focus-mode .viz-style-picker:hover {
-  opacity: 1;
-}
+/* StylePicker now lives in the inspector Scene tab — the old stage
+   focus-mode fade rules are gone so they can't dim the inspector copy. */
 .viz-style-picker::-webkit-scrollbar {
   width: 4px;
 }
