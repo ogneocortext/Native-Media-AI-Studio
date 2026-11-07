@@ -32,9 +32,12 @@ interface RecordedTest {
   code?: string;
 }
 
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\u001b\[[0-9;]*m/g;
+
 function firstErrorLine(errors: readonly unknown[] | undefined): string {
   const first = errors?.[0] as { message?: string } | undefined;
-  const message = first?.message ?? '';
+  const message = (first?.message ?? '').replace(ANSI_RE, '');
   const line = message.split('\n').find((l) => l.trim().length > 0) ?? '';
   return line.trim().slice(0, 120);
 }
@@ -102,13 +105,18 @@ export class AsciiArtVitestReporter implements Reporter {
           name: mod.moduleId,
           file: mod.moduleId,
           message: 'module failed (suite-level error)',
+          code: 'E_ERROR',
         });
       }
     }
     for (const err of unhandledErrors) {
       const raw = (err as { message?: unknown }).message;
       const message = typeof raw === 'string' ? raw : String(err);
-      failures.push({ name: 'unhandled error', message: message.slice(0, 120) });
+      failures.push({
+        name: 'unhandled error',
+        message: message.slice(0, 120),
+        code: classifyFailure(message),
+      });
     }
     const totalErrors = unhandledErrors.length + suiteLevelFailures;
 

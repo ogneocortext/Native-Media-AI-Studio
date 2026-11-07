@@ -4,7 +4,7 @@ CLI Output Formatter - Cross-platform terminal output presentation.
 
 Works on Windows (cp1252/UTF-8), Linux, and macOS. Produces ASCII-art test
 summaries with actionable insights so both humans and AI agents can interpret
-results without parsing raw pytest/vitest output.
+results without parsing raw pytest/vitest/playwright output.
 
 Usage:
     from cli_output import CLIOutput, safe_print, format_duration
@@ -125,7 +125,7 @@ class CLIOutput:
         output = result.output.strip()
         if len(output) > 500:
             output = output[:500] + "\n... (truncated)"
-        return f"{header}\n{self._hr('─')}\n{output}\n"
+        return f"{header}\n{self._hr('-')}\n{output}\n"
 
     def format_table(self, headers: list[str], rows: list[list[str]],
                      title: str = "") -> str:

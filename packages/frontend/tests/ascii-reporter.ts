@@ -50,12 +50,20 @@ function relFile(file: string): string {
   return rel || file;
 }
 
-function outcomeOf(test: TestCase, result: TestResult): NormalizedTestResult["outcome"] {
-  const outcome = test.outcome();
-  if (outcome === "unexpected") return "failed";
-  if (outcome === "flaky") return "flaky";
-  if (outcome === "skipped") return "skipped";
-  return result.status === "passed" ? "passed" : "failed";
+function outcomeOf(test: TestCase): NormalizedTestResult["outcome"] {
+  // test.outcome() already accounts for expectation: "expected" covers both
+  // normal passes and expected failures (test.fail()), so it maps to passed
+  // regardless of the raw result.status.
+  switch (test.outcome()) {
+    case "unexpected":
+      return "failed";
+    case "flaky":
+      return "flaky";
+    case "skipped":
+      return "skipped";
+    default:
+      return "passed";
+  }
 }
 
 export default class AsciiReporter implements Reporter {
@@ -78,7 +86,7 @@ export default class AsciiReporter implements Reporter {
       (a) => a.type === "skip" || a.type === "fixme",
     );
 
-    const outcome = outcomeOf(test, result);
+    const outcome = outcomeOf(test);
     this.tests.set(test.id, {
       name: test.title,
       file: relFile(test.location.file),
@@ -136,8 +144,9 @@ export default class AsciiReporter implements Reporter {
     }
 
     // Repro commands use Playwright's file + -g title filters (no -x flag).
+    // Titles containing double quotes would break the -g "..." arg — escape.
     const reproLines = failures.slice(0, 5).map((f) => {
-      return `    pnpm test ${f.file} -g "${f.name}"`;
+      return `    pnpm test ${f.file} -g "${f.name.replace(/"/g, '\\"')}"`;
     });
     if (failures.length > 5) {
       reproLines.push(`    ... and ${failures.length - 5} more`);

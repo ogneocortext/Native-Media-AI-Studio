@@ -57,6 +57,6 @@
   "classify_rules": [
     { "code": "E_TIMEOUT", "keywords": ["timeout", "timed out", "etimedout"] },
     { "code": "E_ASSERT", "keywords": ["assert", "expected", "expect(", "tohave", "tobe", "tobeclose", "tothrow"] },
-    { "code": "E_ENV", "keywords": ["econnrefused", "connection refused", "connectionrefused", "enotfound", "eai_again", "enoent", "no such file", "filenotfound", "modulenotfounderror", "importerror", "service unavailable", "err_connection", "err_name_not_resolved"] }
+    { "code": "E_ENV", "keywords": ["econnrefused", "connection refused", "connectionrefused", "connectionerror", "connection aborted", "remotedisconnected", "enotfound", "eai_again", "getaddrinfo", "name or service not known", "enoent", "no such file", "filenotfound", "modulenotfounderror", "importerror", "service unavailable", "err_connection", "err_name_not_resolved"] }
   ]
 }

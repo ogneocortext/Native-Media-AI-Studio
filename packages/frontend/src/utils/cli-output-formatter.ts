@@ -177,7 +177,7 @@ export class CLIOutput {
     if (output.length > 500) {
       output = output.slice(0, 500) + '\n... (truncated)';
     }
-    return `${header}\n${this.hr('─')}\n${output}\n`;
+    return `${header}\n${this.hr('-')}\n${output}\n`;
   }
 
   formatTable(headers: string[], rows: string[][], title = ''): string {
@@ -221,8 +221,16 @@ export class CLIOutput {
     lines.push('');
     const counts = new Map<Status, number>();
     for (const r of results) counts.set(r.status, (counts.get(r.status) ?? 0) + 1);
+    const STATUS_NAMES: Record<string, string> = {
+      '[OK]': 'OK',
+      '[ERR]': 'ERR',
+      '[WARN]': 'WARN',
+      '[INFO]': 'INFO',
+      '[RUN]': 'RUN',
+      '[...]': 'PENDING',
+    };
     for (const [status, count] of counts) {
-      lines.push(`  ${status} ${status.replace('[', '').replace(']', '')}: ${count}`);
+      lines.push(`  ${status} ${STATUS_NAMES[status] ?? status}: ${count}`);
     }
     return lines.join('\n');
   }
@@ -313,7 +321,11 @@ export class CLIOutput {
         const msg = `${f.code ? `[${f.code}] ` : ''}${(f.message ?? '')
           .split('\n')[0]
           .slice(0, 80)}`;
-        return [f.name.split('>').pop()?.slice(0, 40) ?? '?', loc.slice(0, 40), msg];
+        return [
+          f.name.split(/::|>/).pop()?.slice(0, 40) ?? '?',
+          loc.slice(0, 40),
+          msg,
+        ];
       });
       lines.push(
         this.formatTable(['Test', 'Location', 'Error (first line)'], failRows),
@@ -369,7 +381,7 @@ export class CLIOutput {
         errors,
         skipped,
         duration_s: Number(duration_s.toFixed(1)),
-        ...(Object.keys(codeCounts).length ? { codes: codeCounts } : {}),
+        codes: Object.keys(codeCounts).length ? codeCounts : null,
       })}`,
     );
 
