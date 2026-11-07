@@ -155,6 +155,7 @@ date: 2026-09-30
 - [[video-generation-vram-2026|🎬 Video Generation VRAM 2026]] — 8GB GPU video generation with quantization breakthroughs
 - [[synced-technical-scan-sample-2026-10|🛰️ Synced Technical Scan Sample 2026-10]] — first 机器之心 (Synced) engineering scan: agent resource hijacking + the ResGate deterministic-authorization pattern (verdict: adopt), SpanUQ span-level uncertainty quantification (verdict: test), the week's lane-filtered yield, and the free-surface access report (NEW 2026-10-22)
 - [[agent-llm-loop-spec-2026-10|🤖 Agent LLM Loop Spec 2026-10]] — LLM-driven decision loop on top of the deterministic NMA agent pipeline; tool-calling over NMAApiClient (NEW 2026-10-27)
+- [[skill-eval-harness-spec-2026-11|🧪 Skill Eval Harness Spec 2026-11]] — trigger-precision and description-quality evals for the project skillset: query bank, lint + simulated-route runner modes, thresholds, build order (NEW 2026-11-19)
 
 ### 📊 Research & Reference (Industry & Analysis)
 
@@ -197,7 +198,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
-|| `#ai/*` | AI models, training & ML | 20 documents |
+|| `#ai/*` | AI models, training & ML | 21 documents |
 || `#research/*` | Industry trends & analysis | 23 documents |
 
 ### Cross-Cutting Tags

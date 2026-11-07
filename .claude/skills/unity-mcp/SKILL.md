@@ -1,3 +1,14 @@
+---
+name: unity-mcp
+description: >-
+  Control the Unity Editor through the unity-mcp-bridge MCP server
+  (stdio bridge to the Pipeline HTTP API on port 7800): scene and
+  GameObject edits, console logs, asset search, play mode. Use for Unity
+  scene creation, animation, rendering, or asset maintenance tasks —
+  requires Unity running with the Pipeline package; not for the standalone
+  unity-visualizer project or Blender/ComfyUI work.
+---
+
 # Unity MCP Integration
 
 ## Overview

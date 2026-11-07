@@ -1,3 +1,13 @@
+---
+name: blender-mcp
+description: >-
+  Drive Blender 5.2 through the blender-mcp MCP server (uvx bridge, addon
+  protocol 4, socket port 9876): scene creation, modeling, rendering, and
+  music-video asset production. Use when a task requires creating or
+  manipulating Blender scenes, generating 3D assets inside Blender, or
+  verifying the Blender MCP connection — not for ComfyUI or Unity work.
+---
+
 # Blender MCP Integration
 
 ## Overview

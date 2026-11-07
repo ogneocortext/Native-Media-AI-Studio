@@ -1,3 +1,14 @@
+---
+name: music-video-vision
+description: >-
+  Analyze rendered music-video frames with the local Ollama vision model
+  using production-specific prompts (composition, lighting, color,
+  beat-synced framing) — never generic "describe this image" prompts. Use
+  after Blender/Unity renders, lyric-video checks, or shot-composition
+  review. For generic UI/page screenshot analysis use
+  vision-page-analysis instead.
+---
+
 > [!warning] CRITICAL: Do not send generic placeholder prompts to Ollama.
 > Prompts like "describe this image" or "what is in this screenshot" produce
 > non-actionable output. Always use the mode-specific prompts documented below

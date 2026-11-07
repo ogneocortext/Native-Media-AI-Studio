@@ -1,3 +1,13 @@
+---
+name: comfyui-mcp
+description: >-
+  Drive ComfyUI through the comfyui-mcp MCP server (npx bridge to the
+  ComfyUI REST API on port 8188): run workflows, txt2img/img2img/inpaint,
+  and Hunyuan3D-2mini 3D generation. Use when generating or iterating
+  images, video, or 3D models through ComfyUI node graphs — not for
+  Blender or Unity work.
+---
+
 # ComfyUI MCP Integration
 
 ## Overview

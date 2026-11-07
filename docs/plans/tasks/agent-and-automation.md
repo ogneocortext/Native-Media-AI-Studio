@@ -202,3 +202,33 @@ Code: `packages/backend/app/agents/`
 - **Last session:** Orion, 2026-11-01 — Item created from
   the cloud↔local bridge work of the same day (the bridge
   integration's Layers 3–4); not started.
+
+### T-AGT-06 — Spec the skill-eval harness
+- **Status:** done
+- **Goal:** A written spec for measuring skill trigger precision
+  (description-as-trigger) and static description quality across the
+  project skillset, per Anthropic Agent Skills progressive-disclosure
+  docs and skill-creator eval methodology.
+- **Files:** docs/knowledge-library/skill-eval-harness-spec-2026-11.md
+- **Acceptance:** Spec defines query-bank format, lint + simulated-route
+  + deferred-live runner modes, metrics/thresholds, build order, and
+  open questions; no harness code written under this item.
+- **Last session:** Devin, 2026-11-19 — wrote
+  docs/knowledge-library/skill-eval-harness-spec-2026-11.md. Same commit
+  backfilled YAML frontmatter + trigger descriptions on the five
+  previously-undescribed tracked skills (blender-mcp, comfyui-mcp,
+  dependency-management, music-video-vision, unity-mcp) across all four
+  mirrors, and added frontmatter to the six .kilo-only design skills.
+
+### T-AGT-07 — Build the skill-eval harness
+- **Status:** todo
+- **Goal:** Implement the T-AGT-06 spec: `tools/skill-evals/` with
+  queries.json seed bank, Mode-1 lint (frontmatter, description budget,
+  mirror-hash, overlap heuristic, coverage), Mode-2 route (Ollama
+  simulated activation, 3 runs/query, 60/40 train/held-out), Mode-3 live
+  deferred pending an observable skill-invocation path.
+- **Files:** tools/skill-evals/, .claude/skills/*/SKILL.md descriptions
+- **Acceptance:** `python tools/skill-evals/skill_evals.py lint` exits 0
+  on the current tree; `route` mode produces per-skill trigger/FP rates
+  for the seeded bank; results written under tools/skill-evals/results/.
+- **Last session:** — not started.

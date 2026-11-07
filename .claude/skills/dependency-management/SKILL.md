@@ -1,3 +1,13 @@
+---
+name: dependency-management
+description: >-
+  Audit and upgrade monorepo dependencies with tools/check-deps.py:
+  outdated packages, peer conflicts, breaking changes, security audit,
+  CI mode, JSON output. Use before feature work that may need new deps,
+  weekly maintenance, CI failures from peer conflicts, or supply-chain
+  audits — not for application code changes.
+---
+
 # Dependency Management Skill
 
 **Purpose:** Automated dependency checking, upgrading, and compatibility validation for the Native Media AI Studio monorepo.
