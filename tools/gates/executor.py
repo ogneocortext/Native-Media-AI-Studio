@@ -5,14 +5,37 @@ process-tree killing, heartbeats for long gates, and per-gate retries with
 exponential backoff. Two lanes (python | node) run concurrently.
 """
 
+import json
+import os
 import queue
 import subprocess
 import sys
 import threading
 import time
+from datetime import UTC, datetime
 
-from .gates import PNPM, PY, Gate
+from .gates import PNPM, PY, ROOT, Gate
 from .output import strip_ansi
+
+GATES_JSONL = ROOT / "tools" / "self-metrics" / "gates.jsonl"
+
+
+def _record_gate_metric(record: dict) -> None:
+    """Append one JSONL line per finished gate for trend analysis
+    (tools/report-self-metrics.py). Never raises — metrics must not break
+    the gate run that produced them. NMA_METRICS=off disables."""
+    if os.environ.get("NMA_METRICS", "").lower() in ("off", "0", "false"):
+        return
+    try:
+        GATES_JSONL.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts": datetime.now(UTC).isoformat(timespec="seconds"),
+            **record,
+        }
+        with GATES_JSONL.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    except OSError:
+        pass
 
 
 def _heartbeat(stop_event: threading.Event, label: str,
@@ -226,6 +249,7 @@ def run_lane(lane_name: str, lane_gates: list[Gate], python, pnpm,
                 f"[{status}] {g.name:<12} {spent:6.1f} s  {preview}{desc}{reg}\n")
             dest.flush()
             shared["results"][g.name] = record
+            _record_gate_metric(record)
             if code != 0:
                 # Keep the captured output for the JSON report as well as the
                 # console: "--json --save-json" is meant to be debuggable

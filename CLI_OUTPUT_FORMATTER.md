@@ -119,3 +119,25 @@ wording; it applies to every runner at once.
 - Tables use plain `+ - |` characters; art uses block characters only.
 - The formatter is cosmetic: all call sites wrap it so a formatter failure
   can never change a test run's exit code.
+
+## Self-metrics (closed loop)
+
+Every `format_test_results` / `formatTestResults` call also appends one
+JSON line to `tools/self-metrics/results.jsonl` (timestamped, same payload
+as `RESULT_JSON`). Gate runs append per-gate records to
+`tools/self-metrics/gates.jsonl` via `tools/gates/executor.py`. Both
+paths are gitignored local state.
+
+Aggregate them with:
+
+```powershell
+python tools/report-self-metrics.py          # last 30 days, ASCII report
+python tools/report-self-metrics.py --days 7 --suite vitest
+python tools/report-self-metrics.py --json   # machine-readable
+```
+
+The report shows per-suite pass rates, fail streaks, error-code
+histograms, and per-gate stability — so a red streak or a chronically
+failing gate is visible across runs instead of being a disposable
+snapshot. Set `NMA_METRICS=off` to disable recording (useful for demo or
+scratch runs that should not pollute the trend data).

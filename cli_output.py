@@ -14,9 +14,11 @@ Usage:
 """
 
 import json
+import os
 import random
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -64,6 +66,34 @@ ASCII_ART_LIBRARY: dict[str, list[str]] = _DATA["ascii_art"]
 VERDICT_LINES: dict[str, list[str]] = _DATA["verdict_lines"]
 ERROR_CODES: dict[str, dict[str, str]] = _DATA["error_codes"]
 CLASSIFY_RULES: list[dict[str, Any]] = _DATA["classify_rules"]
+
+# Self-metrics: every formatted test run appends one JSON line here so
+# tools/report-self-metrics.py can report verdict/error-code/duration trends
+# across runs. Local state only — the directory is gitignored.
+METRICS_DIR = Path(__file__).resolve().parent / "tools" / "self-metrics"
+RESULTS_JSONL = METRICS_DIR / "results.jsonl"
+GATES_JSONL = METRICS_DIR / "gates.jsonl"
+
+
+def _metrics_enabled() -> bool:
+    return os.environ.get("NMA_METRICS", "").lower() not in ("off", "0", "false")
+
+
+def record_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    """Append one timestamped JSON line. Never raises — metrics must not
+    break the test run that produced them."""
+    if not _metrics_enabled():
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "ts": datetime.now(UTC).isoformat(timespec="seconds"),
+            **payload,
+        }
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+    except OSError:
+        pass
 
 
 def classify_failure(message: str, phase: str | None = None) -> str:
@@ -327,7 +357,7 @@ class CLIOutput:
             f"skipped={skipped}",
             f"duration_s={duration_s:.1f}",
         ]
-        result_json = json.dumps({
+        result = {
             "verdict": "FAIL" if bad else (
                 "PASS_WITH_SKIPS" if skipped else "PASS"),
             "suite": suite,
@@ -344,10 +374,11 @@ class CLIOutput:
                     if str(f.get("code") or "") == code
                 ))
             } or None,
-        }, separators=(",", ":"))
+        }
+        record_jsonl(RESULTS_JSONL, result)
         lines.extend((
             "# " + " | ".join(agent_bits),
-            "# RESULT_JSON: " + result_json,
+            "# RESULT_JSON: " + json.dumps(result, separators=(",", ":")),
         ))
 
         return "\n".join(lines)

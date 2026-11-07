@@ -13,10 +13,13 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   5. tools/check-repo-layout.py         - generated output, duplicates, collisions
   6. tools/check-path-references.py     - stale repo-relative path references
   7. tools/report-nesting.py            - control-flow nesting vs baseline
-  8. tools/docs-triage.py               - report-only untagged-doc grouping
-   9. tools/docs-tracker.py              - report-only doc provenance
-  10. tools/report-path-orphans.py       - report-only dangling references
-  11. tools/check-hooks-installed.py     - report-only git hooks state
+  8. tools/check-db-integrity.py        - studio.db + newest backup quick_check
+  9. tools/check-secrets.py             - credential patterns in tracked files
+ 10. tools/check-staged-hygiene.py      - scratch files / over-broad staging
+ 11. tools/docs-triage.py               - report-only untagged-doc grouping
+ 12. tools/docs-tracker.py              - report-only doc provenance
+ 13. tools/report-path-orphans.py       - report-only dangling references
+ 14. tools/check-hooks-installed.py     - report-only git hooks state
 
 Run:  python tools/check-all.py     (-v also runs the report-only checks)
       python tools/check-all.py --changed docs/x.md packages/backend/app/y.py
@@ -76,6 +79,12 @@ CHECKS = [
     ("nesting", "report-nesting.py",
      ["--baseline", "tools/nesting-baseline.json", "packages/backend/app"],
      False),
+    # DB + secrets + staging guards: cheap scans for failure modes the
+    # content checks cannot see (corrupt backups, leaked keys, scratch
+    # files swept up by `git add -A`).
+    ("db integrity", "check-db-integrity.py", [], False),
+    ("secrets scan", "check-secrets.py", [], False),
+    ("staged hygiene", "check-staged-hygiene.py", [], False),
     # Report-only: exits 0 by design, so it cannot fail the run. Kept here so
     # one command gives the whole picture, including the outside-library view.
     ("docs triage (report)", "docs-triage.py", [], True),
@@ -103,6 +112,9 @@ CHECK_TIMEOUTS = {
     "check-repo-layout.py": 60,
     "check-path-references.py": 120,
     "report-nesting.py": 60,
+    "check-db-integrity.py": 30,
+    "check-secrets.py": 60,
+    "check-staged-hygiene.py": 30,
 }
 
 # Max concurrent check workers. Checks are independent read-only scans, so
@@ -302,6 +314,14 @@ def _run_one(c, timeout_map=CHECK_TIMEOUTS):
 
 
 def main():
+    # Child check output is decoded utf-8/replace upstream, so it can carry
+    # U+FFFD; on a cp1252 console printing that raises UnicodeEncodeError
+    # and kills the whole run. Degrade glyphs instead of crashing.
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(errors="replace")
+        except (OSError, ValueError):
+            pass
     parser = argparse.ArgumentParser(
         description="Run every documentation and repository check in one command "
                     "(cheapest first, output streamed per check). "

@@ -6,6 +6,10 @@
  * for the Python backend suite.
  */
 
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // Relative path (not @shared) so Playwright's reporter loader — which does
 // not resolve tsconfig/vite aliases — can import this file too.
 import outputData from '../../../../shared/cli-output-data.json' with { type: 'json' };
@@ -122,6 +126,27 @@ const ASCII_ART_LIBRARY: Record<string, string[]> = outputData.ascii_art;
 const VERDICT_LINES: Record<string, string[]> = outputData.verdict_lines;
 const CLASSIFY_RULES: { code: string; keywords: string[] }[] =
   outputData.classify_rules;
+
+// Self-metrics: mirrors record_jsonl() in cli_output.py — every formatted
+// run appends one JSON line so tools/report-self-metrics.py can report
+// trends. Local state only (gitignored); NMA_METRICS=off disables.
+const RESULTS_JSONL = fileURLToPath(
+  new URL('../../../../tools/self-metrics/results.jsonl', import.meta.url),
+);
+
+function recordTestResult(payload: Record<string, unknown>): void {
+  const flag = process.env.NMA_METRICS?.toLowerCase();
+  if (flag === 'off' || flag === '0' || flag === 'false') return;
+  try {
+    mkdirSync(dirname(RESULTS_JSONL), { recursive: true });
+    appendFileSync(
+      RESULTS_JSONL,
+      JSON.stringify({ ts: new Date().toISOString(), ...payload }) + '\n',
+    );
+  } catch {
+    // Metrics must never break the test run that produced them.
+  }
+}
 
 /** Assign a stable error code to a failure message — mirrors
  *  classify_failure() in cli_output.py; both read the same rules from
@@ -368,22 +393,20 @@ export class CLIOutput {
     for (const f of failures) {
       if (f.code) codeCounts[f.code] = (codeCounts[f.code] ?? 0) + 1;
     }
-    lines.push(
-      `# RESULT: ${result} | suite=${suite} | total=${total} | passed=${passed} | failed=${failed} | errors=${errors} | skipped=${skipped} | duration_s=${duration_s.toFixed(1)}`,
-    );
-    lines.push(
-      `# RESULT_JSON: ${JSON.stringify({
-        verdict: result,
-        suite,
-        total,
-        passed,
-        failed,
-        errors,
-        skipped,
-        duration_s: Number(duration_s.toFixed(1)),
-        codes: Object.keys(codeCounts).length ? codeCounts : null,
-      })}`,
-    );
+    const resultPayload: Record<string, unknown> = {
+      verdict: result,
+      suite,
+      total,
+      passed,
+      failed,
+      errors,
+      skipped,
+      duration_s: Number(duration_s.toFixed(1)),
+      codes: Object.keys(codeCounts).length ? codeCounts : null,
+    };
+    recordTestResult(resultPayload);
+    lines.push(`# RESULT: ${result} | suite=${suite} | total=${total} | passed=${passed} | failed=${failed} | errors=${errors} | skipped=${skipped} | duration_s=${duration_s.toFixed(1)}`);
+    lines.push(`# RESULT_JSON: ${JSON.stringify(resultPayload)}`);
 
     return lines.join('\n');
   }
