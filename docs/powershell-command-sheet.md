@@ -283,6 +283,11 @@ $env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 | **`powershell` on PATH** | May resolve to 5.1 | Use `pwsh` explicitly — 5.1 is retired |
 | **Module compatibility** | Assuming 5.1 modules work in 7.x | Use `Import-Module -UseWindowsPowerShell` for 5.1-only modules |
 | **Profile confusion** | Editing 5.1 profile | 7.x has separate profiles — edit the 7.x profile |
+| **Env-var prefix** | `FOO=bar python script.py` | `$env:FOO = "bar"; python script.py` — the `VAR=value` prefix is a bashism; pwsh parses `FOO=bar` as a command name and fails |
+| **`/dev/null`** | `2>/dev/null`, `>/dev/null` | `2>$null`, `>$null` — `/dev/null` resolves to `D:\dev\null` and errors "Could not find a part of the path" |
+| **`jq` / `yq`** | `... \| jq '.key'` | **Not installed.** Use `ConvertFrom-Json` / `ConvertTo-Json` (see §13) |
+| **`curl` flags** | `curl -s url \| jq` | `curl.exe` IS real (System32) and most flags work, but for JSON use `Invoke-RestMethod` — it parses for you and honors the UTF-8 console setup |
+| **`python` bare name** | `python script.py` in a `-NoProfile` shell | Resolves to `C:\Python314` — the wrong env. Dot-source `scripts/agent-shell-init.ps1` or use the absolute `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` path |
 
 ---
 
@@ -351,6 +356,75 @@ Per AGENTS.md: **On any PowerShell failure, fall back to Python immediately.** U
 # If a .ps1 script fails, diagnose with Python instead of retrying in pwsh
 D:\conda-envs\nma-studio-cuda\Scripts\python.exe tools/check-subprocess-encoding.py
 ```
+
+---
+
+## 13. Extended Unix → PowerShell Map (verified on this machine)
+
+Every row below was executed on this machine — these are the commands agents actually reach for that are NOT in the basic table above. Prefer the agent file tools (`read`/`grep`/`glob`) over shell equivalents where they exist.
+
+| Unix | PowerShell 7 (verified) |
+|------|------------------------|
+| `curl -s url` | `curl.exe -s url` works, but `(Invoke-RestMethod url).property` for JSON |
+| `wget url` | `Invoke-WebRequest url -OutFile f` (**wget not installed**) |
+| `jq '.a.b'` | `(cmd \| ConvertFrom-Json).a.b` (**jq not installed**) |
+| `sleep 5` | `Start-Sleep -Seconds 5` |
+| `which python` / `command -v` | `Get-Command python` → `.Source` (**note:** `type` is an alias for `Get-Content`, not command lookup) |
+| `ps aux` / `top` | `Get-Process` / `Get-Process \| Sort-Object CPU -Descending \| Select-Object -First 10` |
+| `kill -9 pid` | `Stop-Process -Id pid -Force` |
+| `netstat -tlnp` / `ss` / `lsof -i` | `Get-NetTCPConnection -State Listen` (add `-LocalPort N`); owning PID via `.OwningProcess` |
+| `nc -z host port` | `Test-NetConnection host -Port port -InformationLevel Quiet` |
+| `ping -c 1` | `Test-Connection host -Count 1` or `ping.exe` (native, works) |
+| `nslookup` / `dig` | `Resolve-DnsName name -Type A` |
+| `df -h` | `Get-PSDrive -PSProvider FileSystem` |
+| `free -h` / memory | `(Get-CimInstance Win32_OperatingSystem) \| Select-Object TotalVisibleMemorySize,FreePhysicalMemory` |
+| `nproc` | `$env:NUMBER_OF_PROCESSORS` |
+| `wc -l file` | `(Get-Content file).Count`; words/chars: `Get-Content file \| Measure-Object -Line -Word -Character` |
+| `sort \| uniq -c` | `... \| Sort-Object \| Group-Object \| Sort-Object Count -Descending` |
+| `head`/`tail`/`cat -n` | `Get-Content -Head/-Tail`; line numbers: `$i=1; gc f \| %{"{0,5}: {1}" -f $i++,$_}` (Select-String already emits `.LineNumber`) |
+| `grep -v` (invert) | `... \| Where-Object { $_ -notmatch 'pat' }` |
+| `sed -i 's/a/b/'` | `(gc f -Raw) -replace 'a','b' \| Set-Content f -NoNewline` — or edit the file with the edit tool |
+| `awk '{print $1}'` | `ForEach-Object { ($_ -split '\s+')[0] }` |
+| `tr a-z A-Z` | `-replace` or `.ToUpper()` on the string |
+| `cut -d: -f1` | `($_ -split ':')[0]` |
+| `tee file` | `Tee-Object file` (verified) |
+| `diff a b` | `Compare-Object (gc a) (gc b)`; for tracked files `git diff` |
+| `md5sum`/`sha256sum` | `Get-FileHash file -Algorithm SHA256` (verified) |
+| `base64 -d` | `[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))` |
+| `hexdump`/`xxd` | `Format-Hex` (verified, pwsh 7 native) |
+| `date +%s` | `[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()` (verified) |
+| `date` | `Get-Date` |
+| `uuidgen` | `[guid]::NewGuid()` (verified) |
+| `seq 5` | `1..5` (verified) |
+| `shuf` | `Get-Random -InputObject (1..N) -Count K` |
+| `echo $PATH` / `printenv` | `$env:Path` / `Get-ChildItem env:` |
+| `export VAR=x` | `$env:VAR = "x"` (session) or `[Environment]::SetEnvironmentVariable(...,"User")` (persistent) |
+| `source file` | `. .\file.ps1` — dot-sourcing syntax is the same |
+| `nohup cmd &` / `disown` | `Start-Process` or the agent `background_process` tool |
+| `timeout 30 cmd` | `$j = Start-Job { cmd }; Wait-Job $j -Timeout 30` then `Stop-Job`/`Remove-Job` |
+| `watch cmd` | `while($true){ cls; cmd; Start-Sleep 2 }` |
+| `history` | `Get-History` (current session only) |
+| `man cmd` / `--help` | `Get-Help cmd` / `cmd -?` for native tools |
+| `pbcopy`/`pbpaste` | `Set-Clipboard`/`Get-Clipboard` (verified) |
+| `open file` / `xdg-open` | `Invoke-Item file` or `Start-Process file` |
+| `mkdir -p a/b/c` | `New-Item -ItemType Directory -Force a/b/c` (creates intermediates) |
+| `touch file` | `New-Item file -Force` or `(Get-Item file).LastWriteTime = Get-Date` |
+| `ln -s` / `chmod` / `chown` | No-op on Windows — git tracks the executable bit; use `git update-index --chmod=+x` if ever needed |
+| `ssh`/`scp`/`sftp` | Real OpenSSH client installed (`C:\Windows\System32\OpenSSH`) — works natively |
+| `tar czf` | `tar.exe` exists (bsdtar, System32) — works; or `Compress-Archive`/`Expand-Archive` for zip |
+| `zip`/`unzip`/`7z` | **Not installed.** `Compress-Archive`/`Expand-Archive` for .zip; `tar.exe` handles .tar/.tar.gz |
+| `vim`/`nano`/`tmux`/`screen` | **Not installed.** Use file tools; no terminal multiplexers — one pwsh session per agent |
+| `make`/`cmake` | **Not installed.** Repo has no Makefile; gates run via `python tools/run-gates.py` |
+| `apt`/`yum`/`brew` | `winget install <pkg>` |
+| `crontab` | Windows Task Scheduler — see `scripts/install-maintenance-task.ps1` pattern |
+| `psql`/`mysql`/`sqlite3` | `sqlite3.exe` exists but is an Android SDK stray — use Python's `sqlite3` module instead |
+| `docker`/`kubectl` | **Not installed** — no containers on this machine |
+| `go`/`cargo`/`rustc`/`dotnet` | Installed and on PATH — invoke directly |
+| `node`/`npm`/`npx`/`yarn`/`pnpm` | `pnpm.cmd` preferred; `npm.cmd`/`npx.cmd` work; never bare `npm` in scripts (resolves via cmd shim) |
+| `pip install` | `python -m pip install` with the correct env python — never bare `pip` |
+| `python -m pytest`/`vitest`/`playwright` | `pytest` in `packages/backend/`; `pnpm test:unit` / `pnpm exec playwright test` in `packages/frontend/` |
+
+**Chaining that DOES work in pwsh 7:** `&&`, `||`, `;`, `$(subexpression)`, `|`, `>`, `>>`, `2>$null`. Redirects write UTF-8 (no BOM) by default in PS7 — unlike 5.1's UTF-16.
 
 ---
 

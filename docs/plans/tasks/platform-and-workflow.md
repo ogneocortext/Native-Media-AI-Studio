@@ -1167,3 +1167,34 @@ Rules: `docs/plans/tasks/README.md`
   exits 1 bare / 0 post-init; profile-loaded shell verified — PYUTF8=1,
   NMA_PYTHON set, studio python first on PATH.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-43 — Agent command-surface audit: kill unix-command drift
+- **Status:** done
+- **Goal:** Ensure every command an AI agent typically reaches for has a
+  verified pwsh path on this machine, so models stop emitting unix
+  commands that fail (or worse, hit the WSL `bash` launcher).
+- **What changed:**
+  - Probed the machine: real `curl.exe`, `tar.exe`, `ssh.exe`, `rg`,
+    `fd`, `go`, `cargo`, `dotnet`, `ffmpeg`, `ollama`, `fnm`, `zed` on
+    PATH; NOT installed: `jq`, `yq`, `wget`, `zip`/`7z`, `docker`,
+    `kubectl`, `vim`/`nano`/`tmux`, `make`, `openssl`.
+  - Executed-verified pwsh equivalents: Test-NetConnection,
+    Resolve-DnsName, Measure-Object -Line/-Word/-Character, Format-Hex,
+    Get-FileHash, ConvertFrom-Json, Tee-Object, Get-Clipboard,
+    ToUnixTimeSeconds, 1..N ranges, guid, base64.
+  - Confirmed two live traps: `FOO=bar cmd` env-prefix fails (parsed as
+    command name), `/dev/null` resolves to `D:\dev\null` and errors.
+  - docs/powershell-command-sheet.md: 5 new §9 trap rows + new §13
+    "Extended Unix → PowerShell Map" (~55 verified mappings including
+    what is NOT installed and its substitute).
+  - docs/agent-shell-cheatsheet.md: Commands-available section now
+    lists real vs missing tools, the two syntax traps, and the
+    check-shell-env self-check; python-resolution line points at
+    agent-shell-init.ps1.
+- **Files:** docs/powershell-command-sheet.md,
+  docs/agent-shell-cheatsheet.md, docs/plans/tasks/
+  platform-and-workflow.md.
+- **Acceptance:** every §13 mapping was executed on this machine, not
+  copied from docs; missing tools are named with their substitute;
+  trap rows describe the actual failure mode observed.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

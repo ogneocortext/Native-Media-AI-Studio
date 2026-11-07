@@ -8,14 +8,18 @@ Quick reference for shells used by agents in this repo. Full detail: `AGENTS.md`
 
 ## Interpreters
 - Default backend Python: `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` (3.11.9).
-- `python` resolves to 3.14 unless the user profile is loaded. In a no-profile shell use `tools\python.cmd` (or set `NMA_PYTHON`).
+- `python` resolves to 3.14 in a no-profile shell. Dot-source `scripts/agent-shell-init.ps1` first (sets PATH + `NMA_PYTHON` from `.python-env`), or use `tools\python.cmd` / the absolute env path.
 - Never use `comfyui-cuda` for backend work.
 
 ## Commands available
-- `rg` (ripgrep) is on PATH — use it for content search.
-- `grep`, `sed`, `head`, `tail` are NOT available — use `Select-String` or the agent `grep` tool.
-- No Unix shell at all: `bash` resolves to the WSL launcher and is forbidden by repo rule — use `pwsh` only.
+- `rg` (ripgrep) and `fd` are on PATH — use them for content/file search.
+- Real and working: `curl.exe`, `tar.exe`, `ssh.exe`, `ping.exe`, `git`, `go`, `cargo`, `dotnet`, `ffmpeg`, `ollama`, `fnm`, `zed`.
+- NOT installed: `jq`, `yq`, `wget`, `zip`/`7z`, `docker`, `kubectl`, `vim`/`nano`/`tmux`, `make`, `openssl`. Use `ConvertFrom-Json`, `Invoke-WebRequest`, `Compress-Archive`/`tar.exe`, file tools — full map in `docs/powershell-command-sheet.md` §13.
+- `grep`, `sed`, `head`, `tail` are NOT available — use `Select-String`, `rg`, or the agent `grep` tool.
+- No Unix shell at all: `bash`/`wsl` resolve to the WSL launcher and are forbidden by repo rule — use `pwsh` only.
 - `node` is an fnm alias — active default is v24.20.0 (v26.13.0 also installed); prefer `pnpm.cmd` with explicit cwd.
+- Env-var prefix (`FOO=bar cmd`) and `/dev/null` redirects FAIL in pwsh — use `$env:FOO='bar'; cmd` and `2>$null`. See command-sheet §9 traps.
+- Shell self-check: `pwsh -NoProfile -File scripts/check-shell-env.ps1` (exit 1 = missing contract pieces; fix with `. scripts/agent-shell-init.ps1`).
 
 ## Exit codes / encoding
 - Run gates via `python tools/run-gates.py` (owns UTF-8 + exit codes).
