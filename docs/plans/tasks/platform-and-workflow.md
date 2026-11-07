@@ -1260,11 +1260,21 @@ Rules: `docs/plans/tasks/README.md`
     referenced nowhere (eslint.config.js uses js/tseslint/prettier/custom
     rules only). Dead devDep.
   - pnpm-workspace.yaml `peerDependencyRules.allowedVersions` added with
-    scoped `parent>peer` entries: tabler-react + its transitive
-    react-popper/react-text-mask (React 19 tolerated, sole consumer
-    DataManagementPage, marked TECH DEBT for replacement) and
-    @newkrok/three-particles + three-utils (three 0.186 tolerated in the
-    visualizer).
+    scoped `parent>peer` entries: @newkrok/three-particles + three-utils
+    (three 0.186 tolerated in the visualizer). The tabler-react /
+    react-popper / react-text-mask React-19 allowlist entries were
+    retired in the follow-up below once the dependency was removed.
+  - FOLLOW-UP (same session): removed `tabler-react` entirely — sole
+    consumer was DataManagementPage. Its Table compound components were
+    replaced with semantic `<table>/<thead>/<tbody>/<tr>/<th>/<td>` +
+    tailwind classes matching DatabasePage conventions, the lone
+    `<Button color="primary" size="sm">` with a styled `<button>`, the
+    error `<Card>` with a plain alert `<div>`, and the content wrapper
+    `<Card>` with the shared components/common Card. Deleted
+    src/types/tabler-react.d.ts and the four allowlist entries;
+    pnpm install dropped 26 packages. One latent type error surfaced
+    (tabler's loose children typing hid `unknown` category) — fixed
+    with a typeof-string guard.
   - REGRESSION FOUND AND FIXED: catalog had `typescript: ^7.0.2` despite
     the documented constraint (a prior commit's own comment: "TypeScript
     stays on 5.x — typescript-eslint peer-caps <6.1.0"). typescript-eslint
@@ -1284,6 +1294,10 @@ Rules: `docs/plans/tasks/README.md`
   allowlist entry is needed for it.
 - **Files:** pnpm-workspace.yaml, pnpm-lock.yaml,
   packages/frontend/package.json,
+  packages/frontend/src/features/data-management/DataManagementPage.tsx,
+  the tabler-react ambient type stub (deleted),
   packages/frontend/src/utils/cli-output-formatter.ts,
   docs/plans/tasks/platform-and-workflow.md.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+- **Last session:** Devin, 2026-11-06 - tabler-react removed after
+  DataManagementPage refactor; peers check still clean, tsc clean,
+  eslint 0 errors on the touched file.

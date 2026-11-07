@@ -8,8 +8,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Table, Button, Card } from "tabler-react";
-import { EmptySection, ConfirmDialog } from "../../components/common";
+import { EmptySection, ConfirmDialog, Card } from "../../components/common";
 import {
   RefreshCw,
   FileText,
@@ -190,13 +189,13 @@ export function DataManagementPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            color="primary"
-            size="sm"
+          <button
+            type="button"
             onClick={() => {
               Object.keys(tabStates).forEach((key) => reloadTab(key));
             }}
             disabled={Object.values(tabStates).some((s) => s.loading)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {Object.values(tabStates).some((s) => s.loading) ? (
               <RefreshCw size={14} className="animate-spin mr-1" />
@@ -204,12 +203,12 @@ export function DataManagementPage() {
               <Activity size={14} className="mr-1" />
             )}
             {Object.values(tabStates).some((s) => s.loading) ? "Refreshing..." : "Refresh"}
-          </Button>
+          </button>
         </div>
       </div>
 
       {tabStates[activeTab].error && (
-        <Card className="mb-4 border-red-500/40 bg-red-500/10 p-3">
+        <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
           <div className="flex items-start gap-2">
             <AlertCircle size={16} className="text-red-400 mt-0.5" />
             <div className="text-sm text-red-300">
@@ -222,7 +221,7 @@ export function DataManagementPage() {
               </button>
             </div>
           </div>
-        </Card>
+        </div>
       )}
 
       <Card>
@@ -275,32 +274,32 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>Name</Table.ColHeader>
-                    <Table.ColHeader>Type</Table.ColHeader>
-                    <Table.ColHeader>Category</Table.ColHeader>
-                    <Table.ColHeader>Uses</Table.ColHeader>
-                    <Table.ColHeader>Favorite</Table.ColHeader>
-                    <Table.ColHeader>Last Used</Table.ColHeader>
-                    <Table.ColHeader>Created</Table.ColHeader>
-                    <Table.ColHeader className="text-right">Actions</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Name</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Type</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Category</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Uses</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Favorite</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Last Used</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Created</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left text-right!">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {prompts.map((p) => (
-                    <Table.Row key={p.id}>
-                      <Table.Col>
+                    <tr key={p.id}>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         <div className="font-medium">{p.name}</div>
                         {p.description && (
                           <div className="text-xs text-muted">{truncate(p.description, 80)}</div>
                         )}
-                      </Table.Col>
-                      <Table.Col>{p.prompt_type}</Table.Col>
-                      <Table.Col>{p.category}</Table.Col>
-                      <Table.Col>{p.use_count}</Table.Col>
-                      <Table.Col>
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{p.prompt_type}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{p.category}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{p.use_count}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -320,10 +319,10 @@ export function DataManagementPage() {
                                 `}
                           />
                         </button>
-                      </Table.Col>
-                      <Table.Col>{formatDate(p.last_used_at ?? p.created_at)}</Table.Col>
-                      <Table.Col>{formatDate(p.created_at)}</Table.Col>
-                      <Table.Col className="text-right">
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(p.last_used_at ?? p.created_at)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(p.created_at)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top text-right">
                         <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => {
@@ -350,11 +349,11 @@ export function DataManagementPage() {
                             <Trash2 size={12} />
                           </button>
                         </div>
-                      </Table.Col>
-                    </Table.Row>
+                      </td>
+                    </tr>
                   ))}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
 
@@ -372,36 +371,36 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>Filename</Table.ColHeader>
-                    <Table.ColHeader>Checkpoint</Table.ColHeader>
-                    <Table.ColHeader>Style</Table.ColHeader>
-                    <Table.ColHeader>Size</Table.ColHeader>
-                    <Table.ColHeader>Steps/CFG</Table.ColHeader>
-                    <Table.ColHeader>Favorite</Table.ColHeader>
-                    <Table.ColHeader>Created</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Filename</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Checkpoint</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Style</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Size</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Steps/CFG</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Favorite</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {visuals.map((v) => (
-                    <Table.Row key={v.id}>
-                      <Table.Col>{truncate(v.filename)}</Table.Col>
-                      <Table.Col>{truncate(v.checkpoint)}</Table.Col>
-                      <Table.Col>{v.style_id}</Table.Col>
-                      <Table.Col>
+                    <tr key={v.id}>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(v.filename)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(v.checkpoint)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{v.style_id}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         {v.width}×{v.height}
-                      </Table.Col>
-                      <Table.Col>
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         {v.steps}/{v.cfg}
-                      </Table.Col>
-                      <Table.Col>{v.is_favorite ? "★" : "☆"}</Table.Col>
-                      <Table.Col>{formatDate(v.created_at)}</Table.Col>
-                    </Table.Row>
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{v.is_favorite ? "★" : "☆"}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(v.created_at)}</td>
+                    </tr>
                   ))}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
 
@@ -419,32 +418,32 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>ID</Table.ColHeader>
-                    <Table.ColHeader>Status</Table.ColHeader>
-                    <Table.ColHeader>Frames</Table.ColHeader>
-                    <Table.ColHeader>Time</Table.ColHeader>
-                    <Table.ColHeader>Created</Table.ColHeader>
-                    <Table.ColHeader>Completed</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">ID</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Status</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Frames</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Time</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Created</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Completed</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {sessions.map((s) => (
-                    <Table.Row key={s.id}>
-                      <Table.Col>{truncate(s.id, 20)}</Table.Col>
-                      <Table.Col>{s.status}</Table.Col>
-                      <Table.Col>
+                    <tr key={s.id}>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(s.id, 20)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{s.status}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         {s.generated_frames}/{s.total_frames}
-                      </Table.Col>
-                      <Table.Col>{s.actual_time_seconds || s.estimated_time_seconds}s</Table.Col>
-                      <Table.Col>{formatDate(s.created_at)}</Table.Col>
-                      <Table.Col>{formatDate(s.completed_at ?? "")}</Table.Col>
-                    </Table.Row>
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{s.actual_time_seconds || s.estimated_time_seconds}s</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(s.created_at)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(s.completed_at ?? "")}</td>
+                    </tr>
                   ))}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
 
@@ -462,37 +461,37 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>Filename</Table.ColHeader>
-                    <Table.ColHeader>Artist/Title</Table.ColHeader>
-                    <Table.ColHeader>Duration</Table.ColHeader>
-                    <Table.ColHeader>Size</Table.ColHeader>
-                    <Table.ColHeader>Visual Style</Table.ColHeader>
-                    <Table.ColHeader>Status</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Filename</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Artist/Title</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Duration</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Size</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Visual Style</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {tracks.map((t) => (
-                    <Table.Row key={t.id}>
-                      <Table.Col>{truncate(t.filename, 30)}</Table.Col>
-                      <Table.Col>
+                    <tr key={t.id}>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(t.filename, 30)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         <div className="font-medium">{t.title}</div>
                         <div className="text-xs text-muted">{t.artist}</div>
-                      </Table.Col>
-                      <Table.Col>
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">
                         {t.duration_seconds
                           ? `${Math.floor(t.duration_seconds / 60)}:${String(t.duration_seconds % 60).padStart(2, "0")}`
                           : "-"}
-                      </Table.Col>
-                      <Table.Col>{t.size_mb ? `${t.size_mb.toFixed(1)} MB` : "-"}</Table.Col>
-                      <Table.Col>{truncate(t.visual_style, 40)}</Table.Col>
-                      <Table.Col>{t.status}</Table.Col>
-                    </Table.Row>
+                      </td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{t.size_mb ? `${t.size_mb.toFixed(1)} MB` : "-"}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(t.visual_style, 40)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{t.status}</td>
+                    </tr>
                   ))}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
 
@@ -510,26 +509,26 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>Filename</Table.ColHeader>
-                    <Table.ColHeader>Path</Table.ColHeader>
-                    <Table.ColHeader>Size</Table.ColHeader>
-                    <Table.ColHeader>Modified</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Filename</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Path</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Size</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Modified</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {scenes.map((s) => (
-                    <Table.Row key={s.path}>
-                      <Table.Col>{truncate(s.filename, 40)}</Table.Col>
-                      <Table.Col>{truncate(s.path, 60)}</Table.Col>
-                      <Table.Col>{formatBytes(s.size)}</Table.Col>
-                      <Table.Col>{formatDate(s.modified)}</Table.Col>
-                    </Table.Row>
+                    <tr key={s.path}>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(s.filename, 40)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(s.path, 60)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatBytes(s.size)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(s.modified)}</td>
+                    </tr>
                   ))}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
 
@@ -547,28 +546,28 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>Track</Table.ColHeader>
-                    <Table.ColHeader>Section</Table.ColHeader>
-                    <Table.ColHeader>Prompt</Table.ColHeader>
-                    <Table.ColHeader>Action</Table.ColHeader>
-                    <Table.ColHeader>Outcome</Table.ColHeader>
-                    <Table.ColHeader>Created</Table.ColHeader>
-                    <Table.ColHeader className="text-right">Actions</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Track</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Section</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Prompt</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Action</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Outcome</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Created</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left text-right!">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {history.map((h) => (
-                    <Table.Row key={h.id}>
-                      <Table.Col>{truncate(h.track_filename, 30)}</Table.Col>
-                      <Table.Col>{h.section}</Table.Col>
-                      <Table.Col>{truncate(h.prompt, 60)}</Table.Col>
-                      <Table.Col>{h.action}</Table.Col>
-                      <Table.Col>{h.outcome}</Table.Col>
-                      <Table.Col>{formatDate(h.created_at)}</Table.Col>
-                      <Table.Col className="text-right">
+                    <tr key={h.id}>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(h.track_filename, 30)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{h.section}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{truncate(h.prompt, 60)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{h.action}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{h.outcome}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top">{formatDate(h.created_at)}</td>
+                      <td className="px-3 py-2 border-b border-border/40 align-top text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -588,11 +587,11 @@ export function DataManagementPage() {
                         >
                           <Trash2 size={12} />
                         </button>
-                      </Table.Col>
-                    </Table.Row>
+                      </td>
+                    </tr>
                   ))}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
 
@@ -610,27 +609,27 @@ export function DataManagementPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColHeader>Key</Table.ColHeader>
-                    <Table.ColHeader>Category</Table.ColHeader>
-                    <Table.ColHeader>Value</Table.ColHeader>
-                    <Table.ColHeader className="text-right">Actions</Table.ColHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Key</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Category</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left">Value</th>
+                    <th className="px-3 py-2 font-medium text-muted border-b border-border/60 text-left text-right!">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {Object.entries(preferences).map(([key, value]) => {
                     const val = value as Record<string, unknown>;
                     const valueStr = JSON.stringify(val.value ?? value);
                     return (
-                      <Table.Row key={key}>
-                        <Table.Col>{key}</Table.Col>
-                        <Table.Col>{val.category ?? "general"}</Table.Col>
-                        <Table.Col className="max-w-xs truncate" title={valueStr}>
+                      <tr key={key}>
+                        <td className="px-3 py-2 border-b border-border/40 align-top">{key}</td>
+                        <td className="px-3 py-2 border-b border-border/40 align-top">{typeof val.category === "string" ? val.category : "general"}</td>
+                        <td className="px-3 py-2 border-b border-border/40 align-top max-w-xs truncate" title={valueStr}>
                           {truncate(valueStr, 80)}
-                        </Table.Col>
-                        <Table.Col className="text-right">
+                        </td>
+                        <td className="px-3 py-2 border-b border-border/40 align-top text-right">
                           <button
                             onClick={() => {
                               void navigator.clipboard.writeText(valueStr);
@@ -640,12 +639,12 @@ export function DataManagementPage() {
                           >
                             <Copy size={12} />
                           </button>
-                        </Table.Col>
-                      </Table.Row>
+                        </td>
+                      </tr>
                     );
                   })}
-                </Table.Body>
-              </Table>
+                </tbody>
+              </table>
             </div>
           ))}
       </Card>

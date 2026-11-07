@@ -200,16 +200,6 @@ minimumReleaseAgeExclude:
 # scoped to the dependent package so unrelated deps keep honest warnings.
 peerDependencyRules:
   allowedVersions:
-    # tabler-react 1.30.1 (last published 2022, unmaintained) declares
-    # React <=18 peers but its Table/Button/Card surface works on
-    # React 19 — sole consumer is DataManagementPage. TECH DEBT: replace
-    # with project components or plain tailwind tables, then remove
-    # these entries and the dependency. react-popper/react-text-mask are
-    # tabler-react's own transitive deps.
-    tabler-react>react: "19"
-    tabler-react>react-dom: "19"
-    react-popper>react: "19"
-    react-text-mask>react: "19"
     # @newkrok/three-particles is unmaintained (wants three ^0.182,
     # strict 0.x caret) but its particle system runs on three 0.186 in
     # the visualizer. three-utils is its transitive dep.
