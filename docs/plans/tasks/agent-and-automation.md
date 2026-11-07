@@ -136,6 +136,22 @@ Code: `packages/backend/app/agents/`
   compaction/rate limits; owner rule — Atomic calls are
   strictly serial, never parallel (single 8 GB GPU, shared
   with Hermes).
+- **Last session:** Orion, 2026-11-06 (later) — Definition and
+  config LANDED via the owner's chain test (Orion → Atomic/Bolt
+  → repo → Kilo/Devin): Bolt drafted `.kilo/agents/bolt-local.md`
+  from the qwen-local template in one serial call (44.8 s,
+  1,082 tokens); the draft passed all 9 mechanical checks
+  (exact model id, frontmatter discipline, five denies,
+  grounding rules, single-loaded-model 404 rule). Its
+  kilo.jsonc entry flattened the nested `limit` object into
+  `limit context`/`limit output` keys — values right
+  (16384/4096), structure wrong; Orion corrected the nesting
+  when landing. kilo.jsonc now carries the Bolt entry beside
+  the Qwen placeholder. Remaining for acceptance (Kilo-side,
+  owner's machine): `kilo agent list` shows bolt-local, and
+  one bounded scout job through Kilo with Bolt loaded
+  (summarize `packages/backend/app/agents`, read-only).
+  Logged in observed.jsonl 2026-11-06.
 
 ### T-AGT-05 — Design the cloud-agent bridge (backend service + Bridge panel)
 - **Status:** todo
