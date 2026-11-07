@@ -412,6 +412,10 @@
   top: 0.75rem;
   right: 0.75rem;
   z-index: 30;
+  /* Flex row: Tailwind's preflight makes <svg> display:block, which stacked
+     the RenderStatsBadge icons/text vertically into a tall narrow column. */
+  display: flex;
+  align-items: center;
   padding: 0.25rem 0.625rem;
   background: rgba(16, 185, 129, 0.15);
   border: 1px solid rgba(16, 185, 129, 0.3);
@@ -480,6 +484,26 @@
 /* --- Audio latency panel --- */
 .viz-latency-panel {
   pointer-events: none;
+}
+
+/* Compact stage readout (AudioLatencyCard variant="chip"). The panel
+   wrapper is pointer-events-none so the canvas stays clickable; the chip
+   re-enables events for its tooltip and the audio-ctx retry click. */
+.viz-latency-chip {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  background: rgba(16, 16, 22, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 2rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #cbd5e1;
+  cursor: default;
+  backdrop-filter: blur(8px);
 }
 
 /* --- Mode fade --- */
@@ -612,6 +636,18 @@
 
 .viz-latency-panel .viz-backend-badge {
   position: static;
+  /* The panel is shrink-to-fit; without nowrap the stats badge wraps its
+     "FPS / calls / tris" text into a tall narrow column (T-VIZ-47). */
+  white-space: nowrap;
+}
+
+/* Narrow stages: the centered preset bar's left edge reaches ~x464 at
+   1280px, so the ~208px telemetry stack would overlap it. The chip stays;
+   the full latency card lives in the inspector regardless. */
+@media (max-width: 1360px) {
+  .viz-latency-panel .viz-stats-stack {
+    display: none;
+  }
 }
 
 /* ===== Stage chrome auto-hide =====

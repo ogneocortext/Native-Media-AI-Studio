@@ -15,9 +15,15 @@ interface AudioLatencyCardProps {
    * once per second instead.
    */
   audioCtxRef: React.RefObject<AudioContext | null>;
+  /**
+   * `chip` renders a single-line readout for the visualizer stage — the full
+   * five-row card is inspector material and overflows the top-left corner
+   * into the BuilderFigure zone (T-VIZ-47).
+   */
+  variant?: "card" | "chip";
 }
 
-export function AudioLatencyCard({ audioCtxRef }: AudioLatencyCardProps) {
+export function AudioLatencyCard({ audioCtxRef, variant = "card" }: AudioLatencyCardProps) {
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(audioCtxRef.current);
 
   useEffect(() => {
@@ -34,6 +40,31 @@ export function AudioLatencyCard({ audioCtxRef }: AudioLatencyCardProps) {
     if (latency < 25) return "text-yellow-400";
     return "text-red-400";
   };
+
+  if (variant === "chip") {
+    const title = audioCtx
+      ? `Audio latency ${metrics.totalLatency.toFixed(1)} ms ` +
+        `(output ${metrics.outputLatency.toFixed(1)} + base ${metrics.baseLatency.toFixed(1)}) · ` +
+        `${metrics.sampleRate} Hz · ${metrics.contextState}`
+      : "Audio context not initialized — click to retry";
+    return (
+      <button
+        type="button"
+        className="viz-latency-chip"
+        title={title}
+        onClick={() => {
+          if (!audioCtx) {
+            window.dispatchEvent(new CustomEvent("viz-audio-ctx-retry"));
+          }
+        }}
+      >
+        <Clock size={11} />
+        <span className={audioCtx ? getLatencyColor(metrics.totalLatency) : "text-gray-500"}>
+          {audioCtx ? `${metrics.totalLatency.toFixed(1)} ms` : "audio off"}
+        </span>
+      </button>
+    );
+  }
 
   if (!audioCtx) {
     return (

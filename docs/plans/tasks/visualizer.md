@@ -1017,3 +1017,40 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   (2 pre-existing `??` warnings).
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-07 — commit pending.
+
+### T-VIZ-47 — Stage chrome overlap: latency card → chip, stats badge unwrap
+
+- **Status:** done
+- **Goal:** Owner report — overlapping elements on /render/visualizer.
+- **Audit (live geometry, 1600x900, all 3 modes):** `.viz-latency-panel`
+  measured 179x385px in 3D mode — the five-row AudioLatencyCard plus
+  the backend/RenderStatsBadge stack reached y=448 and overlapped
+  `.viz-builder-figure` (top y=376) by ~11.8k px2. In 2D/shader the
+  stats stack does not render so the card alone (262px) only just
+  cleared the figure — a near-miss at shorter viewports.
+- **Second defect found by line-by-line pass:** Tailwind preflight sets
+  `svg { display:block }`, so RenderStatsBadge's lucide icons each
+  forced a line break — the badge rendered as a 75x90px vertical stack
+  instead of a single-line pill.
+- **What changed:**
+  - `AudioLatencyCard` gained `variant="chip"` — a single-line pill
+    (clock icon + total latency, color-coded, full breakdown in the
+    tooltip, click-to-retry when the AudioContext is missing).
+  - Stage now renders the chip; the full card moved into the inspector
+    Tuning tab above ReactivityHUD.
+  - `.viz-backend-badge` is `display:flex; align-items:center` so the
+    stats badge stays one line; `white-space:nowrap` keeps it from
+    re-wrapping inside the shrink-to-fit panel.
+  - `@media (max-width: 1360px)` hides `.viz-stats-stack` — at 1280px
+    the centered preset bar's left edge (~x464) reached under the
+    ~208px telemetry stack (measured 616px2 overlap).
+  - `.viz-latency-chip` re-enables pointer events inside the
+    pointer-events-none panel so tooltip + retry work.
+- **Files:** components/AudioLatencyCard.tsx,
+  features/visualizer/Visualizer.tsx, styles/visualizer.css.
+- **Verification:** Playwright geometry probes at 1600x900 / 1366x768 /
+  1280x720 in 3D mode — latency∩figure = 0, latency∩presetBar = 0,
+  modeFade opacity 0 after settle; 2D + shader modes clean; inspector
+  opens and mounts the full Audio Latency card; `tsc -b` clean.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

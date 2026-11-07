@@ -1143,7 +1143,7 @@ export function Visualizer() {
               )}
               {/* Renderer backend + live stats render inside the latency
                   panel column below (viz-stats-stack) — keeping them here
-                  would collide with the AudioLatencyCard at top-right. */}
+                  would collide with the latency chip at top-left. */}
               {/* Stage chrome hierarchy (T-VIZ-42): the stage keeps only
                   glanceable + one-click controls — the quick preset bar
                   (3D/2D; shader mode's presets live in ShaderHud), the
@@ -1219,14 +1219,16 @@ export function Visualizer() {
             </div>
           )}
 
-          {/* Audio Latency card — the R3F probe only runs in 3D mode, so FPS
-              telemetry lives in the canvas stats stack (RenderStatsBadge)
-              instead of a card with fabricated jank/drop metrics.
+          {/* Audio latency chip + renderer stats — the R3F probe only runs
+              in 3D mode, so FPS telemetry lives in the canvas stats stack
+              (RenderStatsBadge). The full five-row latency card moved to
+              the inspector's Tuning tab: on stage it grew to ~385px and
+              overlapped the BuilderFigure (T-VIZ-47).
               Top-left: top-right is owned by mode chrome (ShaderHud in FX
               mode) — passive telemetry belongs on the free corner.
               pointer-events-none, so it can never swallow a control. */}
           <div className="absolute top-3 left-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
-            <AudioLatencyCard audioCtxRef={audioCtxRef} />
+            <AudioLatencyCard audioCtxRef={audioCtxRef} variant="chip" />
             {vizMode === "3d" && rendererReady && (
               <div className="viz-stats-stack">
                 <div className="viz-backend-badge">{rendererBackend}</div>
@@ -1272,7 +1274,9 @@ export function Visualizer() {
               </>
             ),
             tuning: (
-              <ReactivityHUD
+              <>
+                <AudioLatencyCard audioCtxRef={audioCtxRef} />
+                <ReactivityHUD
                 audioData={liveAudioData}
                 isPlaying={isPlaying}
                 gain={reactivityGain}
@@ -1284,7 +1288,8 @@ export function Visualizer() {
                 activeGenrePresetId={activeGenrePresetId}
                 onGenrePresetSelect={handleGenrePresetSelect}
                 vizMode={vizMode}
-              />
+                />
+              </>
             ),
             mixer: (
               <VizMixerTab
