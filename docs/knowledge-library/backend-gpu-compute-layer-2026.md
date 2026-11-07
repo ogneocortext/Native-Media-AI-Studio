@@ -49,7 +49,7 @@ this verdict.
 | `app/services/comfyui_manager.py` | Manages ComfyUI's GPU use (external process) | — |
 | `app/services/vram_manager.py` | **The discipline layer**: coordinates Ollama ↔ ComfyUI VRAM, offloads Ollama models so generation doesn't OOM | — |
 | `app/services/vram_monitor.py` | GPU stats via gpustat / pynvml / `torch.cuda` fallback; resident-model detection | Extracted from vram_manager |
-| `app/services/cuda/processor.py` | The GPU feature module: spectral analysis (audio), image preprocessing, viz FFT, GPU resample — audio is wired, see §3 | Each class carries its own CPU path |
+| `app/services/cuda/processor.py` | The GPU feature module: spectral analysis (audio), viz FFT, GPU resample — wired, see §3; image preprocessing still unconsumed | Each class carries its own CPU path |
 | `tools/lib/audio.py` | Tool-side torch.cuda analysis helpers | — |
 
 ## 3. The seam: partially wired, with a fallback that degraded silently
@@ -67,9 +67,20 @@ with CUDA and CPU paths. Its wiring is uneven:
   called the whole module orphaned — that survey grepped absolute
   import forms and missed the relative `from .cuda import`. The
   audio class was wired all along.)*
-- **`CudaImageProcessor` and `CudaVisualizationFFT` have no
-  consumers** — exported, demoed nowhere, called by nothing.
-  Their wire-or-remove decision is T-PLT-47's remaining scope.
+- **`CudaVisualizationFFT` was wired 2026-11-07** (see the
+  HyperFrames paragraph below) after the changelog archaeology
+  the owner pointed at: both it and the image processor date to
+  the Sept 2026 CUDA services build-out, built for consumers —
+  a live spectrum feed, backend ComfyUI tensor prep — that were
+  planned in the upgrades doc but never landed.
+- **`CudaImageProcessor` still has no consumer.** A verified
+  sweep of every plausible seam found contract mismatches
+  everywhere: `image_processor.py` is PIL-image editing,
+  `generate_thumbnail.py` renders GLB models, `export_matrix.py`
+  is ffmpeg, and ComfyUI ingests image files itself. Its fate —
+  build the ComfyUI-prep consumer it was designed for, leave it
+  documented, or remove it — is an explicit owner decision in
+  T-PLT-47, not something to fake-wire.
 
 The real defect the survey exposed was subtler than an orphan:
 `analyze_with_cuda` used the module only when CUDA was present,
@@ -95,10 +106,27 @@ the seam into one implementation:
   GPU-resample implementation; the analyzer's copy is now a thin
   delegation under its existing name.
 
-Verified statically + by a sandbox CPU smoke test (full feature
-dict, correct frame count and duration at two sample rates);
-the GPU path and endpoint behavior verify on the reference rig
-under T-PLT-47.
+**The viz wiring (2026-11-07, same owner direction)** closed
+the FFT class's gap with a discovery: the HyperFrames storyboard
+payload's 16 per-frame "bands" were **fabricated** — a decay ramp
+off the energy scalar (`energy * (1.0 - band / (bands * 1.6))`),
+not spectral data at all. The payload builder now accepts
+measured `band_frames`, the `/hyperframes-payload` endpoint
+computes them from the audio via the package's new
+`track_band_frames` helper (a fresh `CudaVisualizationFFT` driven
+across the track at payload fps; GPU when available, CPU
+otherwise), and the payload labels itself
+`bands_source: "measured"` — the ramp survives only as the
+labeled `"synthetic"` fallback when the audio file can't be
+loaded. Sandbox-verified: a 60 Hz half vs 8 kHz half synthetic
+track produced low-band shares of 0.539 vs 0.019 — the measured
+bands genuinely discriminate content, which the ramp never could.
+
+Verified statically + by sandbox CPU tests (full feature dict,
+correct frame count and duration at two sample rates; builder
+passes measured values through exactly and reproduces the old
+ramp exactly in fallback); the GPU path and on-rig endpoint
+behavior verify on the reference rig under T-PLT-47.
 
 ## 4. The kernel ladder on sm_61 — verdicts
 

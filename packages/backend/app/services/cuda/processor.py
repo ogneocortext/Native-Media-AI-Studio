@@ -586,6 +586,42 @@ class CudaVisualizationFFT:
         self._prev_spectrum = None
 
 
+def track_band_frames(
+    y, sr: int, *, fps: int = 30, num_bands: int = 16, fft_size: int = 2048
+) -> list[list[float]]:
+    """Per-frame band spectra for a whole track, via CudaVisualizationFFT.
+
+    Drives a fresh FFT instance across the track at `fps` frame times
+    (centered chunks), so a deterministic render payload (HyperFrames)
+    gets measured band data instead of a synthetic ramp. The instance
+    self-dispatches: GPU when CUDA is available, numpy otherwise; its
+    temporal smoothing runs across consecutive frames, as designed.
+    A fresh instance per call keeps smoothing state from leaking
+    between tracks.
+
+    Returns one list of `num_bands` floats (0-1) per output frame.
+    """
+    samples = np.asarray(y, dtype=np.float32)
+    if samples.size == 0 or sr <= 0:
+        return []
+    fft = CudaVisualizationFFT(fft_size=fft_size, num_bands=num_bands)
+    total_frames = max(1, int(len(samples) / sr * fps) + 1)
+    hop = sr / float(fps)
+    half = fft_size // 2
+    frames: list[list[float]] = []
+    for i in range(total_frames):
+        center = int(i * hop)
+        start = center - half
+        if start < 0:
+            chunk = np.pad(samples[0 : center + half], (-start, 0))
+        else:
+            chunk = samples[start : start + fft_size]
+            if len(chunk) < fft_size:
+                chunk = np.pad(chunk, (0, fft_size - len(chunk)))
+        frames.append(fft.get_spectrum(chunk))
+    return frames
+
+
 # ---------------------------------------------------------------------------
 # Module-level singletons
 # ---------------------------------------------------------------------------

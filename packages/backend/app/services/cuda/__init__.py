@@ -10,6 +10,7 @@ from .processor import (
     cuda_viz,
     device,
     resample_audio_gpu,
+    track_band_frames,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "cuda_viz",
     "device",
     "resample_audio_gpu",
+    "track_band_frames",
 ]

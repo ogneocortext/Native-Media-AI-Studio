@@ -1223,8 +1223,32 @@ async def get_hyperframes_payload(filename: str, fps: int = 30, bands: int = 16)
     transcript_path = get_transcript_path(filename)
     if transcript_path.exists():
         transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+    # Real per-frame band spectra for the payload, computed from the audio
+    # itself via the CUDA-package FFT (GPU when available, CPU otherwise).
+    # Without this the builder fabricates bands as a decay ramp off the
+    # energy scalar. Any failure here falls back to that ramp -- the
+    # payload must not get more fragile than it was.
+    band_frames = None
     try:
-        return build_hyperframes_audio_payload(analysis, transcript, fps=fps, bands=bands)
+        from ..services.cuda import track_band_frames
+        from tools.lib.audio import load_audio as _load_audio
+
+        normalized = filename.replace("\\", "/")
+        if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):
+            normalized = str(Path(normalized).relative_to(AUDIO_DIR).as_posix())
+        audio_path = AUDIO_DIR / normalized
+        if audio_path.exists():
+            y, sr_loaded = await asyncio.to_thread(_load_audio, str(audio_path), None)
+            if y is not None and len(y):
+                band_frames = await asyncio.to_thread(
+                    track_band_frames, y, sr_loaded, fps=fps, num_bands=bands
+                )
+    except Exception:
+        band_frames = None
+    try:
+        return build_hyperframes_audio_payload(
+            analysis, transcript, fps=fps, bands=bands, band_frames=band_frames
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
