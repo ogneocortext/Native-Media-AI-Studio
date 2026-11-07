@@ -207,14 +207,24 @@ artifacts are inspectable in the Media Library like any output.
     the T-VID-11 rig registry when it lands), regenerate via the I2V
     builders. Depth maps serve as a *validation/preview* artifact
     (does the new path stay inside the scene's real geometry envelope)
-    rather than model conditioning — no depth-ControlNet exists on
-    this install.
-  - **Deferred (conditioned lane):** depth/pose-conditioned view
-    rebuild needs ControlNet-aux-style nodes that are **not
-    installed**, plus a video model that accepts them. Named, not
-    designed — it spins out only if v0 proves the demand.
-- **8 GB verdict:** v0 FEASIBLE (same I2V builders); conditioned lane
-  NOT FEASIBLE today (missing nodes + unverified models).
+    rather than model conditioning.
+  - **Image-space conditioned lane (feasible today):** SD1.5
+    ControlNet weights for depth/openpose/canny/lineart/scribble are
+    **on disk** (`ComfyUI/models/controlnet/`) and ComfyUI's native
+    `ControlNetLoader`/`ControlNetApply` nodes are built in — what is
+    missing is only the *preprocessing* side, which §4.2's depth
+    stage and the pose-pass contract (verdicts doc §5) already
+    produce as images. So a still-frame rebuild conditioned on
+    estimated depth or pose is buildable now; per-frame video
+    conditioning is not.
+  - **Deferred (video-conditioned lane):** depth/pose-conditioned
+    *video* rebuild needs a video model that accepts control input
+    (Wan VACE-class or LTX conditioning) — **not on disk**
+    (`diffusion_models/` holds ltxv-2b distilled, wan2.1_t2v_1.3B,
+    Wan2.2-TI2V-5B GGUF; no VACE weights). Named, not designed.
+- **8 GB verdict:** v0 FEASIBLE (same I2V builders); image-space
+  ControlNet lane FEASIBLE (SD1.5 + on-disk weights + backend-produced
+  control images); video-conditioned lane NOT FEASIBLE today.
 
 ## 5. VRAM feasibility pass (8 GB, per `video-generation-vram-2026.md`)
 
@@ -231,7 +241,7 @@ job types. Analysis stages are CPU-side by design.
 | `propagate` — AnimateDiff | ~6 GB | Yes | FEASIBLE for stylized/loop transforms only |
 | True V2V — Wan VACE / LTX-V2V / CogVideoX-V2V | unverified, likely 8-14 GB | **No** | NOT v0 — revisit if a quantized VACE lands |
 | Video inpainting — E2FGVI / ProPainter | heavy; CPU fallback unusable at clip lengths | No | REJECTED — propagation covers the use case |
-| Depth/pose-conditioned rebuild — ControlNet aux + video model | needs uninstalled nodes + unverified models | No | DEFERRED (§4.4) |
+| Depth/pose-conditioned rebuild — ControlNet aux + video model | image-space ControlNet weights ARE on disk (SD1.5 depth/openpose/canny/lineart/scribble); video-model control input is not | Partial — image lane feasible, video lane deferred (§4.4) |
 
 Envelope: transforms are specced against **short clips** (≤ ~8 s,
 source-fps preserved, output ≤ 960×540 for Wan / 896×512 for LTX).
@@ -260,13 +270,232 @@ below; the route, job type, stages, and estimator are already done by
 this design. The registry ships **empty** in v0 — an unknown transform
 id is a 422, which is the correct failure until T-VID-08/09/10 land.
 
-## 7. Spec sections (reserved for T-VID-08/09/10)
+## 7. Character/object swap spec (T-VID-08 — Openjutsu pattern)
 
-- §8 — Character/object swap spec (T-VID-08)
-- §9 — First-frame paint → propagation spec (T-VID-09)
-- §10 — Re-shoot spec (T-VID-10)
+**Goal:** swap a character, outfit, or object inside existing footage
+while preserving the original motion and camera work.
 
-## 8. What implementation needs (owner's word required)
+### 7.1 Candidate chains and 8 GB verdicts
+
+Three lanes, in preference order:
+
+| Lane | Mechanism | 8 GB verdict |
+|------|-----------|--------------|
+| **A — asset composite** | `segment` → render replacement asset through the owned three.js pipeline from a matched camera path → composite over masked source (ffmpeg blend + boundary color match) | **FEASIBLE, preferred for CG swaps.** No video model in the loop; identity is deterministic because the asset is versioned ([[browser-character-pipeline-verdicts-2026]] HouseRig_v1). Cost = segmentation (CPU) + a light WebGL render + ffmpeg. Background is *untouched by construction* — the strongest possible preservation guarantee. |
+| **B — generative propagation** | edit frame 1 (swap subject via image model) → `propagate` via LTX/Wan I2V builders | **FEASIBLE for short clips, with drift limits.** Whole-frame regeneration means background/camera are re-synthesized, not preserved — acceptable only where shot regeneration is tolerable. |
+| **C — masked per-frame rebuild** | per-frame background inpaint + per-frame subject render/generation → composite | **DEFERRED.** Temporal flicker is the known failure; SD1.5 inpaint fits VRAM but consistency needs ControlNet video conditioning that isn't on disk. Revisit if Lane A/B prove demand. |
+| True V2V swap (Wan VACE replace / MiniMax-Genjutsu-class) | end-to-end video model | **NOT FEASIBLE today** — no VACE weights on disk (§5). |
+
+Lane A depends on the bones render lane (T-VID-17, still `todo`) for
+camera-matched rendering; until it lands, Lane A v0 accepts only
+**static-camera or explicitly parameterized camera** shots — the
+transform params carry the camera path, not a guess.
+
+### 7.2 Input contract
+
+```jsonc
+{
+  "source":   { /* route §2.2 — job_output | library | path */ },
+  "transform": "swap",
+  "params": {
+    "target": {
+      "kind": "asset | image | description",
+      "ref":  "<media-library asset id | image path | prompt text>"
+    },
+    "mask": {
+      "kind": "auto | provided | first_frame_prompt",
+      "ref":  "<optional mask sequence path | point/box prompt>"
+    },
+    "lane": "auto | asset_composite | generative",
+    "preserve": { "camera": true, "motion": true, "background": true }
+  }
+}
+```
+
+- `target.kind=asset` → Lane A (3D asset id from the media library,
+  resolved to mesh+material refs the renderer consumes).
+- `target.kind=image|description` → Lane B (reference image uploads
+  as the I2V/edit conditioning; description becomes prompt text).
+- `mask.kind=auto` runs the `segment` stage (§4.1); `provided`
+  accepts a mask image sequence (the painted-mask input shared with
+  T-VID-09 — the *format* is common, the paint UI stays out of scope
+  per that item); `first_frame_prompt` is a point/box hint to the
+  segment stage.
+- `lane=auto` resolves: asset target → A; image/description → B.
+
+### 7.3 Failure surface (design around these)
+
+- **Identity drift across frames** (Lane B): whole-frame regen
+  re-rolls everything. Mitigations: clip-length cap (route
+  `max_source_seconds`), edited-first-frame + last-frame constraint
+  where the builder supports it, and the acceptance metric below
+  rather than a promise of stability.
+- **Mask edge artifacts** (Lane A): per-frame mask noise → temporal
+  median filter over ±2 frames + edge feather (5-10 px); boundary
+  color mismatch → per-frame boundary color transfer sampled from
+  the ring just outside the mask.
+- **Motion faster than the tracker:** `segment` chunks at detected
+  scene cuts (ffmpeg scene-score or histogram diff — CPU-cheap)
+  rather than letting SAM2 memory smear across a cut; inside a shot,
+  fast motion degrades mask quality gracefully (erode + re-dilate
+  fallback).
+- **Camera mismatch** (Lane A): static-camera v0 only until T-VID-17
+  supplies matched paths; a moving-camera request with
+  `preserve.camera=true` is rejected at validation, not silently
+  approximated.
+
+### 7.4 Checkable "good"
+
+- **Same camera path:** outside the subject mask, Lane A is
+  bit-identical to source by construction; Lane B is judged by
+  background structural similarity (SSIM ≥ 0.80 at sampled frames).
+- **Same motion timing:** optical-flow magnitude correlation between
+  source and output inside the subject region ≥ 0.7 at sampled
+  frames; beat-section cuts land on the same frames.
+- **Swapped element consistent at section boundaries:** no visible
+  pop at shot boundaries — mask re-acquired per shot, identity
+  reference re-asserted at each chunk start.
+
+Registry entry: `"swap"`, stages `["segment", <lane>]`, params model
+`SwapParams`, `max_source_seconds: 8.0` (Lane B) / `30.0` (Lane A —
+no regeneration cost per frame beyond the render).
+
+## 8. First-frame paint → propagation spec (T-VID-09 — Paint a Plate pattern)
+
+**Goal:** the user paints the change onto the first frame (remove an
+object, relight a region, add an effect) and a propagation workflow
+carries it through the shot — the fix-a-panel tool the storyboard
+pipeline lacks. Paint UI is explicitly out of scope; this spec
+covers the pipeline contract only.
+
+### 8.1 Pipeline contract
+
+```
+source video ──┬──> probe (fps, frames, duration) ──> clip window
+               │
+edited frame 1 ─┤   (PNG, produced by whatever edit the caller made —
+(+ optional    │    painted, inpainted, graded, or composited offline)
+ mask, last    │
+ frame)        ─┘
+               ▼
+        propagate stage (§4.3 — I2V with constrained start frame)
+               ▼
+        output/video/transform_<ts>_<id>.mp4 + sidecar
+```
+
+Over the T-VID-07 route this is `transform: "paint-propagate"`,
+stages `["propagate"]` (+ `segment` only when the caller supplies a
+box/point hint instead of a full mask). Everything else — job type,
+VRAM lane, estimator, output registration — is already the route's.
+
+### 8.2 Edit classes v0 supports / doesn't
+
+| Class | v0 mechanism | Verdict |
+|-------|--------------|---------|
+| **Removal** | frame-1 inpaint: ffmpeg `delogo` for flat backgrounds (CPU, free), SD1.5 inpaint workflow for textured ones (on-disk checkpoint, ~6 GB) | SUPPORTED |
+| **Relight / grade** | frame-1 color adjustment (ffmpeg `eq`/`curves` or image ops) — global looks propagate naturally through I2V | SUPPORTED |
+| **Additive effect** | overlay PNG composited onto frame 1 (ffmpeg `overlay`) — smoke/fire/text-free elements | SUPPORTED |
+| Object replacement | that's T-VID-08's swap, not an edit | EXCLUDED |
+| Per-frame / temporal edits | needs true V2V conditioning — not on disk | EXCLUDED v0 |
+| Crisp text/logo across whole shot | regen softens edges; acceptable only as additive overlay on frame 1 | PARTIAL — flagged in params |
+
+### 8.3 Propagation candidates and 8 GB verdicts
+
+| Candidate | Verdict |
+|-----------|---------|
+| LTX-Video I2V (`_build_ltx_i2v_workflow`, ltxv-2b distilled fp8 on disk) | **PRIMARY** — 6-8 GB, 896×512, cfg 1.0 distilled, 25f@12fps; fast iteration |
+| Wan2.2-TI2V-5B GGUF I2V (`_build_wan_i2v_workflow`) | **QUALITY** — ~6 GB, 960×540, ≥40 steps; 2-10 min/clip |
+| AnimateDiff I2V | stylistic/loop transforms only — 512×512, 16f cap |
+| Per-frame propagation / VACE-class V2V | not on disk — deferred (§5) |
+
+### 8.4 Acceptance shape (with an honest correction)
+
+The task text says "unedited regions unchanged (frame-diff outside
+the mask ≈ 0)". **That is physically impossible under I2V
+propagation** — every output pixel is regenerated; there is no
+mechanism that copies source pixels through. The measurable proxy
+this spec adopts instead:
+
+- **Edit present and stable:** the edited attribute (absence of the
+  removed object, the grade shift, the overlay element) is detectable
+  at ≥ 80% of sampled output frames by the check method named per
+  edit class (region diff for removal, channel stats for grade,
+  template match for overlay).
+- **Unedited regions structurally preserved:** outside the edit
+  region, SSIM ≥ 0.80 and optical-flow motion correlation ≥ 0.7 vs
+  source at ≥ 3 sampled frames (same thresholds as §7.4 — one
+  preservation metric across the whole route).
+- **Temporal stability:** no single-frame pop inside the edit region
+  (frame-to-frame diff inside region below the shot's median motion
+  level).
+
+If a future implementation lands a true V2V lane that *does* copy
+source pixels, the acceptance tightens to the original frame-diff
+form — the spec keeps both statements so the upgrade path is visible.
+
+Registry entry: `"paint-propagate"`, stages `["propagate"]`, params
+`PaintPropagateParams { edited_frame_path, mask_path?, last_frame_path?,
+edit_class, propagation: "ltx" | "wan" }`, `max_source_seconds: 8.0`.
+
+## 9. Re-shoot spec (T-VID-10 — ReAngle pattern)
+
+**Goal:** estimate the shot's depth, author a new 3D camera path,
+rebuild the view — new coverage from a single rendered or recorded
+take.
+
+### 9.1 Stage and model verdicts
+
+| Piece | Candidate | 8 GB verdict |
+|-------|-----------|--------------|
+| Depth estimation | §4.2 `depth` stage — Depth Anything V2 Small/Base, CPU lane, <1 GB | FEASIBLE (owner-gated dep) |
+| Camera-path authoring | v0: existing `camera_motion` enum (8 values, `models/generation.py:162`) **plus** free-text path in the transform params ("slow 30° orbit left, hold 1 s"). T-VID-11's rig registry replaces the free text when it lands — v0 does not block on it | FEASIBLE now |
+| View rebuild | I2V builders with the new-angle direction in prompt + extracted start frame | FEASIBLE (§4.3) |
+| Image-space depth conditioning | SD1.5 depth ControlNet **on disk** + backend-produced depth maps → hero-frame rebuilds at arbitrary angles | FEASIBLE for stills; per-frame video conditioning deferred (no VACE-class weights) |
+| True geometry rebuild (NeRF/Gaussian/splat from depth) | research-grade, CPU-bound, hours per shot | REJECTED for v0 |
+
+### 9.2 Camera-path input — which vocabulary
+
+**v0 uses prompt-level paths, not the rig registry.** Rationale: the
+registry (T-VID-11) is itself `todo` and gated; blocking re-shoot on
+it inverts the dependency order. The transform params carry
+`camera_path: { kind: "enum" | "description", value: ... }` —
+`enum` maps onto the existing 8 `camera_motion` values losslessly,
+`description` is prompt text the implementation may later parse into
+registry ids. When T-VID-11 lands, `description` values migrate to
+rig ids without a contract change.
+
+### 9.3 Move envelope (the known limit, stated up front)
+
+I2V models re-imagine the scene behind the new viewpoint; they do
+not hold geometry. The spec's expected-degradation envelope —
+implementation must mark output `degraded` beyond it rather than
+silently shipping mush:
+
+| Move | Envelope | Beyond → expected failure |
+|------|----------|---------------------------|
+| Orbit / pan angle | ≤ ~45° continuous per shot | background geometry invents detail; identity drift |
+| Translation (dolly/truck) | ≤ ~20% of frame width equivalent | parallax errors, edge artifacts |
+| Compound moves (orbit+dolly+crane in one shot) | NOT supported v0 | guaranteed degradation — split into shots |
+| Shot length under move | ≤ `max_source_seconds` (8 s) | drift accumulates; cut and re-derive |
+
+### 9.4 Acceptance shape
+
+- **Framing matches authored path:** at ≥ 3 sampled timestamps
+  spanning the move, the rebuilt view's dominant camera direction
+  matches the authored path (manual review checklist + optional
+  pose-estimate sanity check when the pose-pass tooling lands).
+- **Subject identity/motion preserved:** subject-region perceptual
+  similarity vs source ≥ the §7.4/§8.4 thresholds; motion timing
+  correlation ≥ 0.7.
+- **Honest residual:** re-shoot output is a *reinterpretation*, not
+  footage — spec states this in the job result so downstream
+  (storyboard assembly) can weight it accordingly.
+
+Registry entry: `"reshoot"`, stages `["depth", "reshoot"]`, params
+`ReshootParams { camera_path, rebuild: "ltx" | "wan", depth_condition:
+"none" | "hero_frames" }`, `max_source_seconds: 8.0`.
+
+## 10. What implementation needs (owner's word required)
 
 1. `JobType.VIDEO_TRANSFORM` + `VideoTransformHandler` + processor
    registration + VRAM pricing row.
