@@ -44,6 +44,7 @@ date: 2026-09-30
 - [[browser-character-pipeline-verdicts-2026|✅ Browser Character Pipeline — Verdicts]] — The agenda answered: hybrid sourcing, HouseRig_v1 (49/61 bones), retarget + beat architecture, KTX2/single-material rules, runtime + disposal — distilled from an external research report and corrected against the studio's budgets (NEW 2026-11-06)
 - [[media-anti-patterns-audit-2026|🚫 Media Anti-Patterns — Audit]] — Measured verdict: the library teaches generation capability and almost no slop-avoidance (17 of 49 media docs carry any avoid-language; the 3 ComfyUI workflows ship positive-only adjective stacks with no negatives); the canonical anti-patterns doc + pointers + surface fixes are T-VID-25 (NEW 2026-11-07)
 - [[media-anti-patterns-2026|🚫 Media Anti-Patterns — The Canon]] — The single-source slop list for all media work: slop as specification failure, the six-point brief discipline, defect-vs-pattern negatives, and per-medium pattern tables (image, video/motion, 3D, music, lyrics) each with its replacement move, plus the five-question grading checklist (NEW 2026-11-07)
+- [[tracker-pattern-craft-2026|🎼 Tracker Pattern Craft]] — What a proper tracker pattern looks like: the 64-row grid, fixed channel roles, the 2-bar motif with ending-only variation, fake echo, effect discipline, and the nine named beginner failures — the chiptune generator's craft reference, with a built-to-spec exemplar set (NEW 2026-11-07)
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
@@ -51,8 +52,6 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
-- [[scene-layering-and-render-pass-decomposition-2026|layering]] — Scene layering and render-pass decomposition
-- [[texture-pipeline-ktx2-authoring-and-ingest-2026|texture pipeline]] — Texture Pipeline — KTX2 Authoring and Ingest
 - [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
 - [[database-operations-2026|🗄️ Database Operations 2026]] — studio.db paths/PRAGMAs, gpu_telemetry growth+retention, admin maintenance API, VACUUM/mmap caveat (NEW 2026-11-06)
 
@@ -74,6 +73,7 @@ date: 2026-09-30
 - [[javascript-upgrade-research-2026|🔧 JavaScript Upgrade Research 2026]] — TypeScript 7 adoption, deprecated mp4-muxer replacement, React 19 features, Vite 8/Rolldown optimization, Tailwind v4 container queries, CI gaps, Prettier adoption
 - [[hyperframes-results-improvement-2026|🎬 HyperFrames Results Improvement 2026]] — Audit findings & fix specs: real spectral bands, per-frame tween smear, render defaults, composition variety, vendored GSAP
 - [[wangp-local-video-generation-2026|🎬 WanGP Local Video Generation 2026]] — Local text-to-video on 8GB VRAM: GTX 10xx support, headless CLI/API integration paths, LTX alpha mattes, eval order
+- [[texture-pipeline-ktx2-authoring-and-ingest-2026|🧱 Texture Pipeline — KTX2 Authoring & Ingest]] — KTX2/Basis texture authoring, mip generation, and the ingest path into ComfyUI/three.js consumers (indexed 2026-11-08)
 
 ### 🎮 MCP & Platform Integrations
 
@@ -117,6 +117,7 @@ date: 2026-09-30
 - [[visualizer-ux-audit-2026-10|🔍 Visualizer UX Audit 2026-10]] — Screenshot-driven friction audit of /visualizer, /audio-analysis, /three-js-studio; two live bugs (stem separation down, shader analysis 404s) (NEW 2026-10-02)
 - [[audio-reactive-best-practices-2026|🎵 Audio-Reactive Best Practices 2026]] — 2026 research: signal stack, mel/gamma perception, <30 ms latency, per-band envelopes, genre routing — with verified gap analysis (NEW 2026-10-02)
 - [[three-js-render-motion-2026|🎥 Three.js Render + Motion 2026]] — Deterministic frame-accurate export (mediabunny, clock-hijack), headless Playwright 4K pipeline, motion-craft easing/choreography anchors, transparent-video codecs (NEW 2026-10-06)
+- [[scene-layering-and-render-pass-decomposition-2026|🧱 Scene Layering & Render-Pass Decomposition]] — Decomposing generated scenes into layered passes for compositing, ordering, and per-layer control (indexed 2026-11-08)
 
 ### ⚙️ Performance & Hardware (Optimization)
 
@@ -189,7 +190,7 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 21 documents |
+|| `#production/*` | Production workflow & creative guides | 22 documents |
 || `#technical/*` | System implementation & code | 26 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
@@ -212,7 +213,7 @@ date: 2026-09-30
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 8 documents |
-|| `#audio` | Audio analysis & processing | 24 documents |
+|| `#audio` | Audio analysis & processing | 25 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 20 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
