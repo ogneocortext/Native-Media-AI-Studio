@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import operator
 import re
 import sys
 import wave
@@ -129,8 +130,6 @@ SYSTEMS = {
         "label": "Full — same voices, no bandlimit, stereo",
     },
 }
-
-NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"]
 
 # Atari TIA pulse-duty quantization steps (fraction of period high).
 _ATARI_DUTIES = [0.0, 0.03125, 0.09375, 0.21875, 0.46875, 0.71875, 0.96875, 1.0]
@@ -487,6 +486,216 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
     return pcm, out_sr
 
 
+# ---------------------------------------------------------------------------
+# Pattern + signal analysis — measure before you listen.
+#
+# Two layers:
+#   pattern_report()  — music-theoretic metrics computed from the .chip data
+#                        itself (density, range, intervals, repetition,
+#                        voice utilization). This is the "is it too basic"
+#                        detector: it answers questions like "does the lead
+#                        ever leave one octave?" without decoding audio.
+#   signal_report()   — DSP metrics on the rendered PCM (level, crest,
+#                        spectral centroid/bandwidth, silence ratio, ZCR).
+#                        Catches what the pattern can't: clicks, DC offset,
+#                        bandlimit actually applied, dead channels.
+# ---------------------------------------------------------------------------
+
+_LETTER_SEMI = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_ACCIDENTAL = {"#": 1, "##": 2, "b": -1, "bb": -2, None: 0, "": 0, "-": 0}
+
+
+def _note_semitone(name: str) -> int | None:
+    """Note name -> absolute semitone index (C-4 = 60-ish scale, octave+1)*12."""
+    m = re.fullmatch(r"([A-Ga-g])(#{1,2}|b{1,2}|-)?(-?\d)", name)
+    if not m:
+        return None
+    letter = m.group(1).upper()
+    acc = m.group(2)
+    if acc == "-":
+        acc = None
+    if letter not in _LETTER_SEMI or acc not in _ACCIDENTAL:
+        return None
+    return (int(m.group(3)) + 1) * 12 + _LETTER_SEMI[letter] + _ACCIDENTAL[acc]
+
+
+def pattern_report(p: Pattern, sysname: str) -> dict:
+    """Music-theoretic metrics from the pattern data (pre-render)."""
+    spec = SYSTEMS[sysname]
+    slots = _assign_voices(p, spec["channels"], sysname)
+    bound = [s for s in slots if s]
+    n_cells = max(len(c) for _, _, _, c in bound) if bound else 0
+    bars = max(1, n_cells // 16)
+
+    chan_stats = []
+    all_intervals: list[int] = []
+    melodic_bars: list[tuple] = []
+    total_notes = 0
+    total_cells = 0
+    for name, wave_kind, _duty, cells in bound:
+        notes = rests = holds = ports = arps = noise_hits = 0
+        pitches: list[int] = []
+        prev = None
+        bar_hashes = []
+        for i in range(0, len(cells), 16):
+            bar = cells[i:i + 16]
+            bar_hashes.append(tuple(bar))
+            for cell in bar:
+                total_cells += 1
+                if cell == ".":
+                    rests += 1
+                elif cell == "-":
+                    holds += 1
+                elif cell == "x" and wave_kind == "noise":
+                    noise_hits += 1
+                else:
+                    if cell.startswith(">"):
+                        ports += 1
+                    if "~" in cell:
+                        arps += 1
+                    s = _note_semitone(cell.lstrip(">").split("~", 1)[0])
+                    if s is not None:
+                        notes += 1
+                        pitches.append(s)
+                        if prev is not None and wave_kind != "noise":
+                            all_intervals.append(s - prev)
+                        prev = s
+        melodic_bars.append(tuple(bar_hashes))
+        span = (max(pitches) - min(pitches)) if pitches else 0
+        chan_stats.append({
+            "name": name, "wave": wave_kind, "cells": len(cells),
+            "notes": notes, "rests": rests, "holds": holds,
+            "porta": ports, "arp": arps, "noise": noise_hits,
+            "density": (notes + noise_hits) / max(len(cells), 1),
+            "pitch_span_st": span,
+            "unique_pitches": len(set(pitches)),
+        })
+        total_notes += notes
+
+    # Repetition: fraction of adjacent 16-cell bars that are identical
+    # across ALL channels (the "is it a loop or a song" metric).
+    rep_bars = 0
+    comp_bars = 0
+    for bi in range(1, bars):
+        same = all(
+            cells[bi * 16:(bi + 1) * 16] == cells[(bi - 1) * 16:bi * 16]
+            for _, _, _, cells in bound if len(cells) >= (bi + 1) * 16
+        )
+        if same:
+            rep_bars += 1
+        comp_bars += 1
+    rep_ratio = rep_bars / max(comp_bars, 1)
+
+    # Lead-channel pitch variety: unique bar shapes in the busiest channel.
+    busiest = max(chan_stats, key=operator.itemgetter("notes"), default=None)
+    lead_unique = 0
+    if busiest:
+        lead_cells = next(c for n, _, _, c in bound if n == busiest["name"])
+        shapes = {tuple(lead_cells[i:i + 16]) for i in range(0, len(lead_cells), 16)}
+        lead_unique = len(shapes)
+
+    # Interval histogram (semitone deltas, folded to ±12).
+    iv_hist: dict[int, int] = {}
+    for d in all_intervals:
+        iv_hist[d] = iv_hist.get(d, 0) + 1
+    top_intervals = sorted(iv_hist.items(), key=lambda kv: -kv[1])[:5]
+
+    voices_used = len(bound)
+    voices_total = len(spec["channels"])
+
+    # --- Heuristic verdicts (labelled as heuristics, not truth) ---
+    flags = []
+    if busiest and busiest["density"] < 0.15:
+        flags.append(f"sparse lead ({busiest['density']:.0%} note density)")
+    if busiest and busiest["pitch_span_st"] < 12:
+        flags.append(f"narrow lead range ({busiest['pitch_span_st']}st)")
+    if rep_ratio > 0.6:
+        flags.append(f"highly repetitive ({rep_ratio:.0%} identical bars)")
+    if voices_used < voices_total * 0.6:
+        flags.append(f"under-voiced ({voices_used}/{voices_total} voices)")
+    if busiest and lead_unique <= max(2, bars // 3):
+        flags.append(f"few unique lead bars ({lead_unique}/{bars})")
+
+    return {
+        "system": sysname, "tempo": p.tempo, "cells": n_cells,
+        "bars_16th": bars, "duration_s": n_cells * 60 / p.tempo / 4,
+        "channels": chan_stats,
+        "total_notes": total_notes,
+        "note_density": total_notes / max(total_cells, 1),
+        "rep_ratio": rep_ratio,
+        "lead_unique_bars": lead_unique,
+        "interval_hist": top_intervals,
+        "voices_used": voices_used, "voices_total": voices_total,
+        "flags": flags,
+    }
+
+
+def signal_report(pcm: np.ndarray, sr: int) -> dict:
+    """DSP metrics on rendered PCM: level, crest, spectrum, silence, ZCR."""
+    x = pcm.astype(np.float64)
+    if x.ndim == 2:
+        mono = x.mean(axis=1)
+    else:
+        mono = x
+    n = len(mono)
+    if n == 0:
+        return {"error": "empty render"}
+    peak = float(np.max(np.abs(mono)))
+    rms = float(np.sqrt(np.mean(mono ** 2)))
+    # Frame-based silence + RMS envelope (50 ms windows).
+    w = max(1, int(0.05 * sr))
+    frames = mono[: n // w * w].reshape(-1, w)
+    frms = np.sqrt(np.mean(frames ** 2, axis=1))
+    silence = float(np.mean(frms < rms * 0.05)) if rms > 0 else 1.0
+    # Spectral centroid + bandwidth on a mid-file FFT.
+    seg = mono[n // 4: n // 4 + min(n // 2, 1 << 20)]
+    if len(seg) > 2048:
+        spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg))))
+        freqs = np.fft.rfftfreq(len(seg), 1 / sr)
+        total = spec.sum()
+        centroid = float((spec * freqs).sum() / total) if total else 0.0
+        bandwidth = float(np.sqrt((spec * (freqs - centroid) ** 2).sum() / total)) \
+            if total else 0.0
+    else:
+        centroid = bandwidth = 0.0
+    zcr = float(np.mean(np.abs(np.diff(np.signbit(mono)))))
+    return {
+        "duration_s": round(n / sr, 2), "sr": sr,
+        "peak_dbfs": round(20 * math.log10(max(peak / 32768, 1e-9)), 1),
+        "rms_dbfs": round(20 * math.log10(max(rms / 32768, 1e-9)), 1),
+        "crest": round(peak / max(rms, 1e-9), 2),
+        "spectral_centroid_hz": round(centroid),
+        "spectral_bandwidth_hz": round(bandwidth),
+        "silence_ratio": round(silence, 3),
+        "zcr": round(zcr, 3),
+    }
+
+
+def print_analysis(rep: dict, sig: dict) -> None:
+    print("\n[analysis] PATTERN (pre-render, music-theoretic)")
+    print(f"  system={rep['system']} tempo={rep['tempo']:g} "
+          f"cells={rep['cells']} bars={rep['bars_16th']} "
+          f"dur={rep['duration_s']:.2f}s")
+    for c in rep["channels"]:
+        print(f"  {c['name']:<8} {c['wave']:<7} dens={c['density']:.0%} "
+              f"notes={c['notes']} span={c['pitch_span_st']}st "
+              f"uniq={c['unique_pitches']} arp={c['arp']} porta={c['porta']}")
+    print(f"  note_density={rep['note_density']:.0%} "
+          f"rep_bars={rep['rep_ratio']:.0%} "
+          f"lead_unique_bars={rep['lead_unique_bars']}")
+    if rep["interval_hist"]:
+        top = ", ".join(f"{d}st×{n}" for d, n in rep["interval_hist"])
+        print(f"  top intervals: {top}")
+    print(f"  voices: {rep['voices_used']}/{rep['voices_total']} used")
+    if rep["flags"]:
+        print("  flags: " + "; ".join(rep["flags"]))
+    else:
+        print("  flags: none — pattern passes heuristic checks")
+    print("[analysis] SIGNAL (rendered PCM)")
+    for k, v in sig.items():
+        print(f"  {k}: {v}")
+
+
 def write_wav(path: Path, pcm: np.ndarray, sr: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as w:
@@ -506,6 +715,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="render across every system preset (A/B)")
     ap.add_argument("--out", help="output WAV path (default output/audio/<name>.wav)")
     ap.add_argument("--list", action="store_true", help="list system presets")
+    ap.add_argument("--analyze", action="store_true",
+                    help="print pattern + signal metrics after rendering")
+    ap.add_argument("--no-render", action="store_true",
+                    help="with --analyze: metrics only, skip WAV write")
     args = ap.parse_args(argv)
 
     if args.list:
@@ -540,6 +753,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[chiptune] {sysname}: {e}", file=sys.stderr)
             continue
         spec = SYSTEMS[sysname]
+        if args.analyze:
+            print_analysis(pattern_report(pat, sysname), signal_report(pcm, sr))
+        if args.no_render:
+            continue
         suffix = "" if sysname == pat.system and not args.all else f"-{sysname}"
         out = (Path(args.out) if args.out and len(systems) == 1
                else OUT_DIR / f"{name}{suffix}.wav")
