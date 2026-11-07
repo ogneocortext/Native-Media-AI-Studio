@@ -364,13 +364,32 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   or renders produced.
 
 ### T-VID-16 — Design the character identity layer: one asset, both layers
-- **Status:** todo
+- **Status:** done
 - **Goal:** A written design for the character asset as a single versioned definition — mesh, proportions, materials, rig, and identity reference set — consumed by the builder (geometry consistency) and by the generation lane (identity conditioning), so a character cannot drift between scenes or between layers. Design only.
 - **Plan:** Evidence: IP-Adapter is named in the declared integration (integrations_music_video.py:565) but no character-asset definition exists to key it to. Steps: (1) Character asset schema: identity block (reference set), geometry block (mesh/rig refs), material block, version field. (2) The consistency contract: same asset id + version ⇒ same proportions from the builder and same identity conditioning in the lane; what a version bump means and who approves it. (3) Reference-set curation rule: what images constitute an identity, minimum set, change procedure. (4) How scene specs instance characters (asset ref + per-scene overrides that may not touch identity fields).
 - **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 4); the T-VID-05 spec doc when written (asset refs)
 - **Acceptance:** A schema + contract exist that make "same character, new scene" a spec operation, not a hope; identity-affecting changes are versioned and gated by the curation rule.
 - **Depends on:** T-VID-05 (asset refs), T-VID-14 (lane identity inputs). **Gate:** as T-VID-13.
-- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/character-identity-layer-2026-11.md` (registered in plans
+  README, Status Proposed). Schema `character-asset/v1` at
+  `assets/characters/<id>/character.json`: identity block (curated,
+  sha256'd reference set + digest + proportions_hash), geometry block
+  (mesh sha256 + HouseRig_v1 manifest_sha256 + LOD chain), materials,
+  budget role. Consistency contract: id+version ⇒ identical geometry
+  (mesh hash), rig (manifest hash — interlocks with T-VID-13 §3.6
+  pose-archive binding already specced), identity (ref-set digest →
+  lane conditioning payload). Semver rules: MAJOR = identity/
+  proportions (owner-approved, new character lineage), MINOR =
+  materials/LOD, PATCH = docs; published versions immutable. Curation
+  rule v1: min 3 views (front mandatory), neutral expression/
+  lighting/framing, AI-self-references and generated-video frames
+  prohibited (identity laundering), candidate→owner-approve→publish.
+  Spec instancing with validator-enforced override whitelist
+  (transform/materials/animation/visibility) and identity-field
+  rejection. IP-Adapter honestly absent on disk (T-VID-14 verified) —
+  interface fixed model-agnostically via digest+ordered refs. No code
+  or renders produced.
 
 ### T-VID-17 — Design the bones render lane: deterministic capture spec
 - **Status:** todo
