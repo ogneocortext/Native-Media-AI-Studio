@@ -206,18 +206,23 @@ executors inside this system at all. If a local executor is ever
 fine-tuned, logged Kilo/Orion session traces plus the Harness Delta
 filter are the dataset recipe, and it is already paid for.
 
-## Candidate follow-ups (owner's call, not registered as tasks)
+## Follow-ups (owner decision 2026-11-07)
 
 1. Claim-scoring pass for executor reports (transcript-vs-summary),
    starting as a report-only checker in the consistency family.
+   **Registered as T-AGT-08.**
 2. Owner-review-required status for changes to `tools/check-*` and
    the trust roster (protect-the-monitors rule).
+   **Registered as T-AGT-09.**
 3. Instruction-conflict listing as a required first step in executor
-   packets.
+   packets. **Registered as T-AGT-10.**
 4. Read next from the same author: "Humans cannot keep up with
    agents and are struggling with approval fatigue" (Oct 22) — the
-   approval-card UX problem, directly relevant to this studio's
-   human-in-the-loop gates.
+   approval-card UX problem. **Not registered:** the owner reports
+   approval fatigue has been largely mitigated by his custom-skills
+   work of 2026-11-07 (skills carry the pre-approved patterns, so the
+   prompts stopped stacking up). The post stays on the reading list
+   as background only.
 
 ## Provenance
 

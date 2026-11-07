@@ -232,3 +232,69 @@ Code: `packages/backend/app/agents/`
   on the current tree; `route` mode produces per-skill trigger/FP rates
   for the seeded bank; results written under tools/skill-evals/results/.
 - **Last session:** — not started.
+
+### T-AGT-08 — Claim-scoring pass for executor reports
+- **Status:** todo
+- **Goal:** A report-only checker that scores executor session reports
+  against their evidence (the commit's own diff, named check outputs),
+  classifying completion claims with the taxonomy from
+  `docs/knowledge-library/cobus-harness-engineering-2026.md` §2 —
+  admission / omission / explicit overclaim. The mechanical version of
+  the cross-check lane's evidence-required reporting.
+- **Plan:** (1) Scope v1 to task-file Last session lines + commit
+  messages over a named commit range; evidence is the range's diffs
+  and any check runs the report names. (2) Implement
+  `tools/check-claims.py` in the consistency family's style:
+  per-claim verdicts with the evidence line for each; report-only
+  (exits 0 in v1 — shadow mode before any enforcement, per the
+  gateway lesson in the Cobus doc §3). (3) Trial on three past
+  executor sessions with known outcomes; append precision notes to
+  the Cobus doc §2.
+- **Files:** tools/check-claims.py,
+  docs/knowledge-library/cobus-harness-engineering-2026.md
+- **Acceptance:** Checker runs on the current tree and produces a
+  readable per-claim report for a named commit range; trial results
+  recorded in the Cobus doc; no existing gate behavior changed.
+- **Last session:** — registered 2026-11-07 by Orion at owner
+  direction (Cobus follow-up 1); not started.
+
+### T-AGT-09 — Protect the monitors: owner-review rule for checker and roster changes
+- **Status:** todo
+- **Goal:** Changes to the enforcement layer itself —
+  `tools/check-*.py`, `tools/validate-*.py`,
+  `tools/model-reliability/roster.md` — never land folded into a work
+  commit. They ship as dedicated commits whose messages state the
+  rule change, and the owner reviews them. (Cobus doc §2: an agent
+  must not be able to quietly edit the thing that checks it.)
+- **Plan:** (1) Write the rule into the repo AGENTS.md commit
+  discipline section (and the tasks README if that is where commit
+  rules live — check first, one home only). (2) Announce it in the
+  landing commit's message so every agent picks it up from the git
+  log. (3) Mechanical flagging of mixed commits is deferred to
+  T-AGT-08's checker rather than built twice.
+- **Files:** AGENTS.md (repo root), docs/plans/tasks/README.md
+- **Acceptance:** Rule text present in its governing doc; landing
+  commit message carries the announcement; no enforcement code added
+  under this item.
+- **Last session:** — registered 2026-11-07 by Orion at owner
+  direction (Cobus follow-up 2); not started.
+
+### T-AGT-10 — Instruction-conflict listing as the first step of executor work
+- **Status:** todo
+- **Goal:** Every executor packet — and every executor session that
+  starts from one — opens by listing which instructions could
+  conflict on the task and who resolves them (the planner), instead
+  of the executor settling conflicts alone mid-run. (Cobus doc §2,
+  commenter addition, from the OpenAI monitor cases: two instructions
+  pulled different ways and nobody had said which one wins.)
+- **Plan:** (1) Add the requirement to the governing docs: repo
+  AGENTS.md executor contract + docs/plans/tasks/README.md packet
+  rules — the first report section of any executor session is
+  "Instruction conflicts" (or "none found"). One home for the rule,
+  the other file links it. (2) First live use on the next real
+  packet; record the outcome here.
+- **Files:** AGENTS.md (repo root), docs/plans/tasks/README.md
+- **Acceptance:** Rule present in the governing docs; one real packet
+  executed with the conflicts section present in its report.
+- **Last session:** — registered 2026-11-07 by Orion at owner
+  direction (Cobus follow-up 3); not started.
