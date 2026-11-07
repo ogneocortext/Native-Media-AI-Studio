@@ -957,3 +957,34 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin, 2026-11-07 — vision-loop improvement pass;
   BuilderFigure silhouette confirmed as intentional toggleable layer,
   not a defect.
+
+### T-VIZ-45 — Track-select whiplash: real cover transition + figure mount fade
+
+- **Status:** done
+- **Goal:** Owner report — selecting a track "fires a preset all of a
+  sudden", things snap onto the canvas, especially the figure.
+- **Root cause:** `handleSelectLibraryTrack` applied the whole preset
+  bundle (kinetic + vizParams + bg + mesh + style + preset id) in ONE
+  batch and pulsed `modeFade` for only 220ms. The fade started fading IN
+  the same frame the new style/colors mounted — the black never covered
+  the swap, so every track change was a hard cut. Style change remounts
+  the entire R3F scene; BuilderFigure mounts/unmounted instantly too.
+- **What changed:**
+  - `useTrackSelection.ts` — two-phase transition: `setModeFade(1)`,
+    cover fully (380ms > the 300ms CSS fade-in), apply the bundle under
+    full black, reveal 80ms later. Stale-request and manual-preset-lock
+    guards re-checked inside both timeouts so a quick second selection
+    can't be clobbered or prematurely revealed.
+  - `visualizer-chrome.css` — `.viz-builder-figure` gets a one-shot
+    `viz-builder-in` keyframe (0.7s ease-out, fade + 14px rise) since it
+    returns null when hidden and snapped into existence.
+- **Files:** features/visualizer/useTrackSelection.ts,
+  styles/visualizer-chrome.css.
+- **Verification:** live probe sampling `.viz-mode-fade` opacity across
+  a track switch — cover engages (opacity 1) then reveals (0) across
+  the ~800ms window; tsc -b clean.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — note: BuilderFigure's flat
+  silhouette is deliberate art direction (character bible, near-black +
+  accent rim); "no textures" is by design. Richer figure animation is a
+  separate redesign task if wanted.

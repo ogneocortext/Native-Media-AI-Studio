@@ -437,19 +437,29 @@ export function useTrackSelection({
         if (visualPresetLockRef.current !== presetLockAtStart || isStale()) {
           // Skip auto-apply: user manually picked a preset while we were awaiting analysis/lyrics.
         } else {
-          // One kinetic write: the preset bundle's own kineticPreset wins;
-          // the genre heuristic is only the fallback when no preset applies.
-          setKineticPreset(visualPreset.kineticPreset);
-          setVizParams({ ...DEFAULT_VIZ_PARAMS, ...visualPreset.vizParams });
-          setBgColor(visualPreset.bgColor);
-          setMeshColor(visualPreset.meshColor);
-          setVisualizationStyle(visualPreset.visualizationStyle);
-          setActiveVisualPresetId(visualPresetId);
-          // Soft transition: params/colors snap in one frame, so pulse the
-          // mode-fade overlay to make the identity swap feel intentional
-          // rather than a flash of unrelated changes.
+          // Two-phase cover transition (T-VIZ-45): the old code applied the
+          // whole bundle and pulsed the fade in ONE batch — the black cover
+          // started fading in the same frame the new style/colors mounted,
+          // so it never actually covered the swap and every track change
+          // read as a hard cut ("whiplash"). Now: cover fully (~380ms > the
+          // 300ms CSS fade-in), apply the bundle under full black, then
+          // reveal. The style swap is a remount — only a real cover hides it.
           setModeFade(1);
-          window.setTimeout(() => setModeFade(0), 220);
+          window.setTimeout(() => {
+            if (isStale() || visualPresetLockRef.current !== presetLockAtStart) return;
+            // One kinetic write: the preset bundle's own kineticPreset wins;
+            // the genre heuristic is only the fallback when no preset applies.
+            setKineticPreset(visualPreset.kineticPreset);
+            setVizParams({ ...DEFAULT_VIZ_PARAMS, ...visualPreset.vizParams });
+            setBgColor(visualPreset.bgColor);
+            setMeshColor(visualPreset.meshColor);
+            setVisualizationStyle(visualPreset.visualizationStyle);
+            setActiveVisualPresetId(visualPresetId);
+            // Let the swap commit a frame under full cover, then reveal.
+            window.setTimeout(() => {
+              if (!isStale()) setModeFade(0);
+            }, 80);
+          }, 380);
           showToast(
             tunedTitle
               ? `Applied tuned visuals for "${tunedTitle}" (based on ${visualPreset.name})`
