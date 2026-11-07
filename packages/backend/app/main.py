@@ -413,6 +413,18 @@ async def lifespan(app: FastAPI):
     await idle_monitor.stop()
     logger.info("Idle monitor stopped")
 
+    # Release NVML handles held by the resource monitor and VRAM manager;
+    # both expose shutdown() for exactly this and it was never called, so
+    # repeated lifespan entries (tests, reloads) leaked the handle.
+    try:
+        from .diagnostics.resources import resource_monitor
+        from .services.vram_manager import vram_manager
+
+        resource_monitor.shutdown()
+        vram_manager.shutdown()
+    except Exception as e:
+        structured_logger.warning("gpu.nvml_shutdown_failed", error=str(e))
+
     # Remove the job-update fan-out subscription so a re-imported app
     # (e.g. tests that enter lifespan repeatedly) does not accumulate
     # duplicate subscribers on the queue manager.

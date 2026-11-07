@@ -409,13 +409,18 @@ class VRAMManager:
                 "atomic_chat_loaded": self._atomic_chat_loaded,
             }
 
-    async def _wait_for_vram(self) -> bool:
+    async def _wait_for_vram(self, required_mb: int | None = None) -> bool:
         """
         Wait for VRAM to free up naturally.
         Returns True if enough VRAM became available, False if timeout.
+
+        ``required_mb`` defaults to the 3D budget; callers with a larger
+        budget (music gen) must pass it or the wait exits at the wrong
+        threshold and forces an unnecessary offload.
         """
         import asyncio
 
+        needed = required_mb if required_mb is not None else self.MIN_VRAM_FOR_3D
         start = time.monotonic()
         while True:
             # Check before sleeping, not after. Sleeping first charged the full
@@ -424,7 +429,7 @@ class VRAMManager:
             # including the timeout, which overshot its own budget by up to
             # VRAM_POLL_INTERVAL.
             vram = await self.get_vram_status()
-            if vram.get("free_mb", 0) >= self.MIN_VRAM_FOR_3D:
+            if vram.get("free_mb", 0) >= needed:
                 logger.info(
                     "VRAM Manager: VRAM freed up naturally (%dMB free)", vram.get("free_mb", 0)
                 )
@@ -594,7 +599,7 @@ class VRAMManager:
         # their completion handlers). Waiting while holding it blocked all of
         # them for the full timeout on nothing but a GPU-memory condition.
         logger.info("VRAM Manager: Low VRAM (%dMB free), waiting for cleanup...", free_mb)
-        waited = await self._wait_for_vram()
+        waited = await self._wait_for_vram(vram_budget_mb)
 
         async with self._lock:
             if waited:
@@ -739,41 +744,9 @@ class VRAMManager:
 
             # Reload Atomic Chat model if it was offloaded
             if not self._atomic_chat_loaded:
-                last_ac_model = _resolve_atomic_chat_model(None)
-                if last_ac_model:
-                    free_mb = vram.get("free_mb", 0)
-                    if free_mb > self.MIN_VRAM_FOR_AUDIO:
-                        logger.info(
-                            "VRAM Manager: Reloading Atomic Chat model %s (free=%dMB)",
-                            last_ac_model,
-                            free_mb,
-                        )
-                    try:
-                        reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
-                        self._atomic_chat_loaded = reload_ok
-                        actions.append(
-                            {
-                                "action": "reload_atomic_chat",
-                                "success": reload_ok,
-                                "model": last_ac_model,
-                            }
-                        )
-                    except Exception as e:
-                        logger.warning("Failed to reload Atomic Chat after music gen: %s", e)
-                        actions.append(
-                            {
-                                "action": "reload_atomic_chat",
-                                "success": False,
-                                "error": str(e),
-                            }
-                        )
-                    else:
-                        logger.info(
-                            "VRAM Manager: Leaving Atomic Chat offloaded after music gen "
-                            "(free=%dMB, need >%dMB to reload)",
-                            free_mb,
-                            self.MIN_VRAM_FOR_AUDIO,
-                        )
+                await self._reload_atomic_chat_model(
+                    actions, vram, self.MIN_VRAM_FOR_AUDIO, "music gen"
+                )
 
             return {
                 "success": True,
@@ -782,6 +755,59 @@ class VRAMManager:
                 "ollama_loaded": self._ollama_loaded,
                 "atomic_chat_loaded": self._atomic_chat_loaded,
             }
+
+    async def _reload_atomic_chat_model(
+        self,
+        actions: list[dict[str, Any]],
+        vram: dict[str, Any],
+        min_free_mb: int,
+        context: str,
+    ) -> None:
+        """Reload the Atomic Chat model after a workload when VRAM allows.
+
+        Appends a ``reload_atomic_chat`` action entry either way so callers
+        get an honest record. Shared by the end_* handlers - the music-gen
+        copy used to run the reload unconditionally and log the opposite of
+        what happened.
+        """
+        last_ac_model = _resolve_atomic_chat_model(None)
+        if not last_ac_model:
+            return
+        free_mb = vram.get("free_mb", 0)
+        if free_mb <= min_free_mb:
+            logger.info(
+                "VRAM Manager: Leaving Atomic Chat offloaded after %s "
+                "(free=%dMB, need >%dMB to reload)",
+                context,
+                free_mb,
+                min_free_mb,
+            )
+            return
+        logger.info(
+            "VRAM Manager: Reloading Atomic Chat model %s after %s (free=%dMB)",
+            last_ac_model,
+            context,
+            free_mb,
+        )
+        try:
+            reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
+            self._atomic_chat_loaded = reload_ok
+            actions.append(
+                {
+                    "action": "reload_atomic_chat",
+                    "success": reload_ok,
+                    "model": last_ac_model,
+                }
+            )
+        except Exception as e:
+            logger.warning("Failed to reload Atomic Chat after %s: %s", context, e)
+            actions.append(
+                {
+                    "action": "reload_atomic_chat",
+                    "success": False,
+                    "error": str(e),
+                }
+            )
 
     async def begin_lipsync_generation(self, vram_budget_mb: int = 4096) -> dict[str, Any]:
         """
@@ -1463,7 +1489,6 @@ __all__ = [
     "VRAMManager",
     "vram_manager",
     "set_last_model_provider",
-    "set_last_atomic_chat_model_provider",
     "set_last_atomic_chat_model_provider",
     "_reload_ollama_models_sync",
     "_unload_ollama_models",

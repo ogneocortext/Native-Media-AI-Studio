@@ -1015,3 +1015,55 @@ Rules: `docs/plans/tasks/README.md`
   unload logic exercised directly (unloaded -> False, stale -> True +
   refs cleared, fresh -> False).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-36 - Perf-monitoring / load-balance wiring audit + repairs
+- **Status:** done
+- **Goal:** Verify resource monitoring and GPU load balancing are actually
+  wired end-to-end ("is it properly wired?"), fix what the line-by-line
+  pass found broken.
+- **What was verified working:** 30s `resource_monitoring_loop` in
+  lifespan; warnings -> SSE `system.resource_warning` -> notificationStore
+  (`system.*` prefix); gpu_telemetry writes + 7-day retention; backend
+  footprint log; `work_lane` held by queue processor (whole job) +
+  gen3d/music_gen/vision/transcription endpoints + separation worker;
+  begin/end VRAM bookkeeping with resident-state sync; stale-job reaper,
+  DLQ, retry classification, cancellation watcher.
+- **Bugs fixed:**
+  - `end_music_generation`: Atomic Chat reload ran regardless of free VRAM
+    (`try` sat outside the `free_mb > MIN_VRAM_FOR_AUDIO` guard) and the
+    `try/except/else` logged "Leaving offloaded" after a *successful*
+    reload. Restructured to match `end_audio_analysis`.
+  - `_wait_for_vram` hardcoded `MIN_VRAM_FOR_3D` for every workload -
+    music gen (6 GB budget) exited the wait at the 3D threshold and
+    forced an unnecessary offload. Now takes `required_mb`; music passes
+    its budget.
+  - `JobProcessor._process_loop` read `get_jobs_by_status(QUEUED)[0]`,
+    bypassing `get_next_job()` entirely - priority aging, `pause_queue`,
+    and rate-limit checks were dead code. Now selects via `get_next_job`.
+  - `resources._cleanup_old_temp_files` used `parents[3]` = `packages/`,
+    so it looked for `packages/output/*` which never exists - silent
+    no-op since introduction. Now uses `PROJECT_ROOT`.
+  - `broadcast_warnings` exempted CRITICAL from the 60s throttle, so a
+    persistent critical spammed SSE every 30s cycle (docstring claimed
+    max 60s). Critical now alerts instantly on level-change, repeats at
+    the same 60s cadence.
+  - `check_disk` measured `psutil.disk_usage(".")` (cwd-dependent); now
+    measures the drive holding `PROJECT_ROOT`.
+  - `resource_monitor.shutdown()` / `vram_manager.shutdown()` (NVML
+    release) existed but were never called - lifespan teardown now calls
+    both.
+  - Cosmetic: `_get_gpu_processes_sync` annotation said `list` but
+    returns a tuple; duplicate `__all__` entry removed.
+- **Known gaps NOT fixed (reported):** `preflight_lookahead` has zero
+  callers (dead advisory code; its 8192 MB/job reservation exceeds total
+  VRAM anyway); `/api/integrations/*/generate*` uses begin/end_3d but
+  not `work_lane` (ComfyUI serializes prompts internally, so exposure is
+  orchestration flags, not raw GPU overlap); `/api/audio/analyze` CUDA
+  pass uses begin/end_audio_analysis without the lane (sub-second GPU
+  work, borderline); `RATE_LIMIT_BY_TYPE` is empty so rate limiting is
+  inert even now that selection honors it.
+- **Files:** services/vram_manager.py, diagnostics/resources.py,
+  queue/processor.py, main.py.
+- **Verification:** ruff clean; 39 vram/resources/timing tests + 62
+  queue/work-lane tests pass.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

@@ -336,10 +336,12 @@ class JobProcessor:
                     last_reap, last_ttl_sweep
                 )
 
-                # Find next queued job (priority DESC, created_at ASC)
-                queued_jobs = await queue_manager.get_jobs_by_status(JobStatus.QUEUED)
-                if queued_jobs:
-                    job = queued_jobs[0]
+                # Select next job through the scheduler: effective-priority
+                # aging, pause state, and per-type rate limits all live in
+                # get_next_job(). Reading get_jobs_by_status()[0] bypassed
+                # every one of them (priority aging was dead code).
+                job = await queue_manager.get_next_job()
+                if job is not None:
                     await self._process_job(job)
                 else:
                     # Short wait for new jobs, then re-check to keep latency low

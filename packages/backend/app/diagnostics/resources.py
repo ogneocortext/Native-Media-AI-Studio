@@ -133,9 +133,11 @@ class ResourceMonitor:
         return None
 
     async def check_disk(self) -> dict[str, Any] | None:
-        """Check disk usage"""
+        """Check disk usage on the drive holding the project outputs."""
         try:
-            disk = psutil.disk_usage(".")
+            from ..core.config import PROJECT_ROOT
+
+            disk = psutil.disk_usage(str(PROJECT_ROOT))
             percent = disk.percent
 
             if percent >= self.thresholds.disk_critical:
@@ -309,10 +311,11 @@ class ResourceMonitor:
             }
         return None
 
-    def _get_gpu_processes_sync(self) -> list[dict[str, Any]]:
+    def _get_gpu_processes_sync(self) -> tuple[list[dict[str, Any]], bool]:
         """Get list of processes using the GPU with their memory usage.
         Uses nvidia-smi as primary source (works without admin).
-        Per-process memory requires NVML accounting mode (admin needed)."""
+        Per-process memory requires NVML accounting mode (admin needed).
+        Returns (processes, memory_available)."""
         processes = []
         memory_available = False
 
@@ -773,13 +776,15 @@ class ResourceMonitor:
             import time
             from pathlib import Path
 
+            from ..core.config import PROJECT_ROOT
+
             for sub in [
                 "output/video",
                 "output/previews",
                 "output/generated_3d",
                 "output/audio_analysis",
             ]:
-                p = Path(__file__).resolve().parents[3] / sub
+                p = Path(PROJECT_ROOT) / sub
                 if not p.exists():
                     continue
                 files = sorted(p.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)
@@ -873,12 +878,13 @@ class ResourceMonitor:
             last_level = self._last_warnings.get(resource_type)
             last_broadcast = self._last_broadcast_time.get(resource_type, 0.0)
 
-            # Broadcast if level changed, became critical, or enough time passed since last broadcast
-            should_broadcast = (
-                last_level != level
-                or level == WarningLevel.CRITICAL
-                or (now - last_broadcast) >= self._broadcast_interval_seconds
-            )
+            # Broadcast on level change or once the interval elapsed. A
+            # persistent CRITICAL repeats at the same 60s cadence as WARNING -
+            # exempting it made the docstring's "max once per 60s" a lie and
+            # spammed SSE clients every 30s cycle.
+            should_broadcast = last_level != level or (
+                now - last_broadcast
+            ) >= self._broadcast_interval_seconds
 
             if should_broadcast:
                 await sse_manager.broadcast("system.resource_warning", warning)
