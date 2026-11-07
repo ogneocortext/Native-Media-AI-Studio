@@ -723,6 +723,7 @@ This design ensures that:
 - No prompt leaks into the next generation cycle
 
 ---## Related
+- [[texture-pipeline-ktx2-authoring-and-ingest-2026]] :see-also — Texture Pipeline — KTX2 Authoring and Ingest
 
 - [[playwright-e2e-2026]] :see-also — Playwright E2E 2026
 - [[animatediff-evolved-2026]] :see-also — AnimateDiff Evolved node contract and 8 GB VRAM fit notes

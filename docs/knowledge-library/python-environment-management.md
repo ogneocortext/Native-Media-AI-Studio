@@ -249,3 +249,7 @@ Practical consequences:
    in-place** — it does not retarget a different base. To change base: recreate.
 4. `--system-site-packages` venvs (like `moto-vision-venv`) additionally leak every
    package from the base — extra coupling to be aware of.
+
+## Related
+
+- [[texture-pipeline-ktx2-authoring-and-ingest-2026]] :see-also — Texture Pipeline — KTX2 Authoring and Ingest

@@ -93,8 +93,9 @@ For each generated or authored asset:
    extract).
 3. **Downscale to role cap** — hero/mid ≤ 2048², background ≤ 1024².
    Lanczos/Bicubic; do not ship the generator's native resolution.
-4. **Encode KTX2** — `toktx --bcmp --assign_oetf srgb -i <src>
-   <name>_c.ktx2` for color; linear encode for `_n`/`_r`.
+4. **Encode KTX2** — `tools/ingest-texture.py map` does this: toktx
+   `--t2 --encode <etc1s|uastc>` (`--zcmp 18` auto-added for uastc),
+   sRGB for `_c`, linear for `_n`/`_r`.
 5. **Place + reference** — `assets/materials/`, wire into
    `config/material-library.json` as `mat-<id>`.
 6. **Validate** — `python tools/check-asset-budget.py <asset.glb>` must
@@ -106,14 +107,24 @@ For each generated or authored asset:
 |---|---|
 | Budget config + validator | ✅ `config/asset-budgets.json`, `tools/check-asset-budget.py` |
 | Material library spec | ✅ `docs/plans/scene-vocabulary-material-library-2026-11.md` (design) |
-| KTX2 encoder/injest script | ❌ not built — spec'd under T-VID-12 gated scope |
-| `assets/materials/` directory | ❌ does not exist yet |
+| KTX2 ingest script | ✅ `tools/ingest-texture.py` — `glb` mode (gltf-transform resize → etc1s/uastc → validate) and `map` mode (Pillow downscale → toktx → `assets/materials/<name>_{c,n,r}.ktx2`) |
+| KTX-Software binaries | ✅ vendored at `tools/vendor/ktx-software-bin/` (v4.4.2, gitignored — re-extract from the KhronosGroup release if wiped) |
+| `assets/materials/` directory | ✅ created on first `map` ingest |
+| gen3d auto-ingest wiring | ❌ still gated — the tool is manual/CLI; wiring it into the generation path is T-VID-12 owner-gated work |
 | KTX2Loader wiring in renderer | ❌ designed, not implemented |
 
-The ingest script (downscale → encode → validate → register) is the
-missing middle; it is part of T-VID-12's owner-gated gen3d ingest work.
-Until then, texture work is manual: encode with toktx by hand and let
-`check-asset-budget.py` verify.
+Verified 2026-11-07: `stage.glb` (22.4 MB, 26 PNG/JPG textures,
+20.6 MB embedded) → `etc1s` ingest → 1.76 MB GLB, 26/26 KTX2, 0.94 MB
+embedded texture memory; remaining budget FAIL is triangles only
+(decimation is separate gated work). Loose-map mode verified: 1920×1080
+PNG → 1024×576 `teststeel_c.ktx2` (UASTC + ZSTD) and `_n` (ETC1S).
+
+**Encoder notes (verified against toktx 4.4.2):** `toktx` arg order is
+`<outfile> <infile>`; `--encode uastc` stores UASTC texels uncompressed
+unless `--zcmp 18` is added (tool does this automatically); `--encode
+etc1s` self-supercompresses (KTX_SS_BASIS_LZ). gltf-transform's
+`uastc`/`etc1s` commands shell out to `ktx` on PATH — the vendored bin
+dir is prepended to PATH by the tool.
 
 ## Related
 

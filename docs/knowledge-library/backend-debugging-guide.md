@@ -529,5 +529,6 @@ mock output was still written on service failure (42 such files remain under
 6. **Queue Management** - Priority queue for urgent jobs
 
 ## Related
+- [[texture-pipeline-ktx2-authoring-and-ingest-2026]] :see-also — Texture Pipeline — KTX2 Authoring and Ingest
 
 - [[playwright-e2e-2026]] :see-also — Playwright E2E 2026
