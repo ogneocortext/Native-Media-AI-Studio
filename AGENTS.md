@@ -409,11 +409,16 @@ Write only the characters the content actually needs. Specifically banned
 in every tracked text file (enforced by `tools/check-banned-chars.py`, a
 hard gate in `tools/check-all.py`):
 
-- **Control characters** — BEL/BS/ESC and friends. C-escape accidents have
-  shipped real corruption: `\a`→BEL for 'a', `\b`→BS for 'b', `\e`→ESC for
-  'e' (decision-log.md carried `\x07gent_output`; video-editor/README.md
-  carried `\x08ash` and mangled code fences). If you mean a letter, type
-  the letter.
+- **Control characters** — BEL/BS/ESC and friends. Root cause found
+  2026-11-06: **PowerShell expandable strings eat backtick escapes** —
+  `` `a ``→BEL, `` `b ``→BS, `` `e ``→ESC, `` `t ``→TAB, `` `n ``→LF,
+  `` `0 ``→NUL, `` `u{...}` ``→unicode. Writing file content through
+  `"..."` or `@"..."@` turns every markdown `` `code` `` span into
+  control-char corruption (`audioFile`→BEL+`udioFile`, ```` ```tsx ````
+  fences destroyed — both repaired under T-PLT-40). **Rule: file content
+  goes through the write/edit tools, Python, or single-quoted
+  here-strings `@'...'@` — never `"..."` or `@"..."@`.** If you mean a
+  letter, type the letter.
 - **Invisible/format characters** — zero-width spaces/joiners, bidi
   controls, soft hyphen, BOM anywhere but byte 0. They break diffs,
   searches, and copy-paste invisibly.

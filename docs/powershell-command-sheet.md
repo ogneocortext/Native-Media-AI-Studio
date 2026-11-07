@@ -276,6 +276,8 @@ $env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 | **Text pipeline** | `Get-Content file \| grep "x"` | `Select-String -Path "file" -Pattern "x"` |
 | **Empty capture = success** | `$x = cmd.exe /c ...; if (-not $x) { ... }` | Check `$LASTEXITCODE` after native commands |
 | **UTF-8 decoding** | `subprocess.run(text=True)` (Python) | Pass `encoding="utf-8"` explicitly (see `tools/check-subprocess-encoding.py`) |
+| **File content via `"..."` / `@"..."@`** | Writing markdown/code through an expandable string or here-string | Backtick is PowerShell's escape char: `` `a ``→BEL, `` `b ``→BS, `` `e ``→ESC, `` `t ``→TAB, `` `n ``→LF, `` `0 ``→NUL, `` `u{...} ``→unicode. A markdown `` `code` `` span becomes control-char corruption (real incident: `audioFile`→BEL+`udioFile`, ```` ```tsx ```` fences destroyed). Use the write/edit tool, Python, or a **single-quoted** here-string `@'...'@` (literal, no escapes) — never `"..."` or `@"..."@` for file content. `tools/check-banned-chars.py` catches the output corruption after the fact. |
+| **Python stdio/file encoding** | Assuming Python reads/writes UTF-8 by default on Windows | `PYTHONUTF8=1` is set as a User env var and in the pwsh profile; it makes `open()` and stdio default to UTF-8. If a shell predates it, run `$env:PYTHONUTF8='1'` first or pass `python -X utf8`. |
 | **Background with `&`** | `pnpm run dev &` | Use `background_process` tool or `Start-Process` |
 | **`powershell` on PATH** | May resolve to 5.1 | Use `pwsh` explicitly — 5.1 is retired |
 | **Module compatibility** | Assuming 5.1 modules work in 7.x | Use `Import-Module -UseWindowsPowerShell` for 5.1-only modules |

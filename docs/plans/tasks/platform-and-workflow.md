@@ -1096,3 +1096,35 @@ Rules: `docs/plans/tasks/README.md`
   corpus; a planted BEL byte fails it (verified during dev); all
   check-all gates pass.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-41 — Permanent fix for command/file-write mangling
+- **Status:** done
+- **Goal:** Root-cause and permanently prevent the character mangling
+  agents hit while running commands and writing files.
+- **Root cause (verified live):** PowerShell expandable strings
+  (double-quoted and @"..."@) interpret the backtick as an escape
+  character — backtick-a -> BEL, backtick-b -> BS, backtick-e -> ESC,
+  backtick-t -> TAB, backtick-n -> LF, backtick-0 -> NUL,
+  backtick-u{hex} -> unicode, double-backtick -> literal backtick.
+  Any markdown `code` span inside such a string becomes control-char
+  corruption — the exact damage repaired under T-PLT-40. Verified with
+  pwsh: "``audioFile``" stays literal (double-backtick is the escape),
+  but `title` -> TAB + "itle".
+- **What changed:**
+  - PYTHONUTF8=1 set as a **User** env var (Machine needs admin) —
+    every new python.exe gets UTF-8 stdio + open() defaults,
+    killing mojibake at the source for all conda envs.
+  - $env:PYTHONUTF8='1' added to the pwsh profile's Python section
+    (covers shells spawned before the env var propagated).
+  - docs/powershell-command-sheet.md Common Traps gained two rows:
+    never write file content via expandable strings (use write tool /
+    Python / @'...'@), and the PYTHONUTF8 contract.
+  - AGENTS.md Character hygiene now names the root cause and the
+    single-quoted-here-string rule.
+- **Files:** AGENTS.md, docs/powershell-command-sheet.md,
+  docs/plans/tasks/platform-and-workflow.md; user-level: pwsh profile,
+  PYTHONUTF8 env var.
+- **Acceptance:** pwsh test proves backtick-a -> U+0007 etc.; profile +
+  env var verified set; command-sheet and AGENTS.md carry the rule;
+  check-banned-chars gate (T-PLT-40) remains the output-side net.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
