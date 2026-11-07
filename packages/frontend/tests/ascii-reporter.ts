@@ -19,15 +19,15 @@ import type {
 import {
   CLIOutput,
   buildTestInsights,
-  type SlowTest,
-  type TestFailure,
+  summarizeTestResults,
+  type NormalizedTestResult,
 } from "../src/utils/cli-output-formatter.ts";
 
 interface RecordedTest {
   name: string;
   file: string;
   line?: number;
-  outcome: "passed" | "failed" | "skipped" | "flaky";
+  outcome: NormalizedTestResult["outcome"];
   durationMs: number;
   error?: string;
   skipNote?: string;
@@ -48,7 +48,7 @@ function relFile(file: string): string {
   return rel || file;
 }
 
-function outcomeOf(test: TestCase, result: TestResult): RecordedTest["outcome"] {
+function outcomeOf(test: TestCase, result: TestResult): NormalizedTestResult["outcome"] {
   const outcome = test.outcome();
   if (outcome === "unexpected") return "failed";
   if (outcome === "flaky") return "flaky";
@@ -91,27 +91,10 @@ export default class AsciiReporter implements Reporter {
     const durationS = (Date.now() - this.startTime) / 1000;
     const tests = [...this.tests.values()];
 
-    const passed = tests.filter(
-      (t) => t.outcome === "passed" || t.outcome === "flaky",
-    ).length;
-    const failed = tests.filter((t) => t.outcome === "failed").length;
-    const skipped = tests.filter((t) => t.outcome === "skipped").length;
-    const flaky = tests.filter((t) => t.outcome === "flaky").length;
+    const summary = summarizeTestResults(tests);
+    const { passed, failed, skipped, flaky, failures, slowest, skipReasons } =
+      summary;
     const errors = result.status === "interrupted" ? 1 : 0;
-
-    const failures: TestFailure[] = tests
-      .filter((t) => t.outcome === "failed")
-      .map((t) => ({
-        name: t.name,
-        file: t.file,
-        line: t.line,
-        message: t.error,
-      }));
-
-    const slowest: SlowTest[] = [...tests]
-      .sort((a, b) => b.durationMs - a.durationMs)
-      .slice(0, 8)
-      .map((t) => ({ name: t.name, duration_s: t.durationMs / 1000 }));
 
     let insights = buildTestInsights({
       failed,
@@ -131,16 +114,8 @@ export default class AsciiReporter implements Reporter {
     }
 
     // Surface skip reasons so "skipped" is interpretable, not just a count.
-    const skipReasons = new Map<string, number>();
-    for (const t of tests) {
-      if (t.outcome === "skipped" && t.skipNote) {
-        skipReasons.set(t.skipNote, (skipReasons.get(t.skipNote) ?? 0) + 1);
-      }
-    }
-    if (skipReasons.size) {
-      const top = [...skipReasons.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
+    if (skipReasons.length) {
+      const top = skipReasons
         .map(([note, n]) => `${note} (${n})`)
         .join("; ");
       insights.push(`Skip reasons: ${top}`);

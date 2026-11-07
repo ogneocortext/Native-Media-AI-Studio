@@ -18,6 +18,7 @@ import random
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 # Force UTF-8 stdout on Windows
@@ -53,86 +54,14 @@ class CLIResult:
 
 
 # ---------------------------------------------------------------------------
-# ASCII art library
+# Display data — single-sourced in shared/cli-output-data.json so the Python
+# and TypeScript formatters can never drift on art, verdicts, or wording.
 # ---------------------------------------------------------------------------
 
-ASCII_ART_LIBRARY = {
-    "success": [
-        r"""
-   _____ _____ _____ _____ _____
-  |_   _|_   _|_   _|_   _|_   _|
-    | |   | |   | |   | |   | |
-    | |   | |   | |   | |   | |
-    |_|   |_|   |_|   |_|   |_|
-""",
-        r"""
-  _______________________
- /_  __/ ____/ ___/_  __/
- / / / __/  \__ \ / /
- / / / /___ ___/ // /
-/_/ /_____//____//_/
-""",
-        """
-+------------------------------------------+
-|        ALL TESTS PASSED!                 |
-+------------------------------------------+
-""",
-    ],
-    "failure": [
-        """
-+------------------------------------------+
-|        SOME TESTS FAILED!                |
-+------------------------------------------+
-""",
-        r"""
-  _______________________
- /_  __/ ____/ ___/_  __/
- / / / __/  \__ \ / /
- / / / /___ ___/ // /
-/_/ /_____//____//_/
-""",
-        """
-!  !  !  !  !  !  !  !  !  !  !  !
-!        SOME TESTS FAILED!         !
-!  !  !  !  !  !  !  !  !  !  !  !
-""",
-    ],
-    "warning": [
-        """
-+------------------------------------------+
-|     WARNING: TESTS SKIPPED / FLAKY       |
-+------------------------------------------+
-""",
-        """
-?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?
-?      SOME TESTS WERE SKIPPED        ?
-?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?
-""",
-    ],
-    "running": [
-        """
-+------------------------------------------+
-|             TESTS RUNNING...             |
-+------------------------------------------+
-""",
-    ],
-}
-
-# Deterministic, professional verdict lines — interpretation first, jokes last.
-VERDICT_LINES = {
-    "success": [
-        "ALL TESTS PASSED — suite is green; safe to proceed.",
-        "0 failures — nothing to fix; ship it.",
-    ],
-    "failure": [
-        "FAILURES PRESENT — fix the failing tests before merging.",
-        "One or more tests failed; see FAILURES section for repro commands.",
-    ],
-    "warning": [
-        "PASSED WITH SKIPS — verify skipped tests are intentionally excluded.",
-        "Suite passed but coverage is incomplete; skipped != verified.",
-    ],
-}
+_DATA_PATH = Path(__file__).resolve().parent / "shared" / "cli-output-data.json"
+_DATA = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
+ASCII_ART_LIBRARY: dict[str, list[str]] = _DATA["ascii_art"]
+VERDICT_LINES: dict[str, list[str]] = _DATA["verdict_lines"]
 
 
 def get_ascii_art(category: str) -> str:
@@ -374,7 +303,21 @@ class CLIOutput:
             f"skipped={skipped}",
             f"duration_s={duration_s:.1f}",
         ]
-        lines.append("# " + " | ".join(agent_bits))
+        result_json = json.dumps({
+            "verdict": "FAIL" if bad else (
+                "PASS_WITH_SKIPS" if skipped else "PASS"),
+            "suite": suite,
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "errors": errors,
+            "skipped": skipped,
+            "duration_s": round(duration_s, 1),
+        }, separators=(",", ":"))
+        lines.extend((
+            "# " + " | ".join(agent_bits),
+            "# RESULT_JSON: " + result_json,
+        ))
 
         return "\n".join(lines)
 

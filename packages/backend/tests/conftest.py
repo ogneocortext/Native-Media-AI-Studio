@@ -11,6 +11,7 @@ Provides:
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -199,10 +200,31 @@ def pytest_terminal_summary(terminalreporter) -> None:
                             reverse=True)[:8]
         ]
 
+        # Wall-clock duration to match the vitest/playwright reporters —
+        # summing per-test durations hides setup/teardown and fixture time.
+        session_start = getattr(terminalreporter, "_sessionstarttime", None)
+        wall_s = (
+            time.time() - session_start
+            if isinstance(session_start, (int, float)) else None
+        )
+        duration_s = (
+            wall_s if wall_s is not None and wall_s > 0
+            else sum(
+                float(getattr(r, "duration", 0.0) or 0.0)
+                for r in all_reports
+            )
+        )
+
         insights = build_test_insights(
             failed=failed, skipped=skipped, errors=errors,
             slowest=slowest or None,
         )
+        warning_count = len(stats.get("warnings", []))
+        if warning_count:
+            insights.append(
+                f"{warning_count} warning(s) emitted — review deprecations "
+                f"with `pytest -W` before they become failures."
+            )
         if skip_reasons:
             top = sorted(skip_reasons.items(), key=lambda kv: -kv[1])[:3]
             insights.append(
@@ -215,10 +237,7 @@ def pytest_terminal_summary(terminalreporter) -> None:
             passed=passed,
             failed=failed,
             skipped=skipped,
-            duration_s=sum(
-                float(getattr(r, "duration", 0.0) or 0.0)
-                for r in all_reports
-            ),
+            duration_s=duration_s,
             errors=errors,
             suite="pytest backend",
             failures=failures,

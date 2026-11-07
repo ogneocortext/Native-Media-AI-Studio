@@ -6,6 +6,10 @@
  * for the Python backend suite.
  */
 
+// Relative path (not @shared) so Playwright's reporter loader — which does
+// not resolve tsconfig/vite aliases — can import this file too.
+import outputData from '../../../../shared/cli-output-data.json' with { type: 'json' };
+
 export enum Status {
   SUCCESS = '[OK]',
   ERROR = '[ERR]',
@@ -35,86 +39,82 @@ export interface SlowTest {
   duration_s: number;
 }
 
-// ---------------------------------------------------------------------------
-// ASCII art library
-// ---------------------------------------------------------------------------
+/** Runner-agnostic per-test record — adapters map their native result types
+ *  into this so summarizeTestResults can aggregate identically everywhere. */
+export type TestOutcome = 'passed' | 'failed' | 'skipped' | 'flaky';
 
-const ASCII_ART_LIBRARY: Record<string, string[]> = {
-  success: [
-    `
-   _____ _____ _____ _____ _____
-  |_   _|_   _|_   _|_   _|_   _|
-    | |   | |   | |   | |   | |
-    | |   | |   | |   | |   | |
-    |_|   |_|   |_|   |_|   |_|
-`,
-    `
-  _______________________
- /_  __/ ____/ ___/_  __/
- / / / __/  \\__ \\ / /
- / / / /___ ___/ // /
-/_/ /_____//____//_/
-`,
-    `
-+------------------------------------------+
-|        ALL TESTS PASSED!                 |
-+------------------------------------------+
-`,
-  ],
-  failure: [
-    `
-+------------------------------------------+
-|        SOME TESTS FAILED!                |
-+------------------------------------------+
-`,
-    `
-  _______________________
- /_  __/ ____/ ___/_  __/
- / / / __/  \\__ \\ / /
- / / / /___ ___/ // /
-/_/ /_____//____//_/
-`,
-    `
-!  !  !  !  !  !  !  !  !  !  !  !
-!        SOME TESTS FAILED!         !
-!  !  !  !  !  !  !  !  !  !  !  !
-`,
-  ],
-  warning: [
-    `
-+------------------------------------------+
-|     WARNING: TESTS SKIPPED / FLAKY       |
-+------------------------------------------+
-`,
-    `
-?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?
-?      SOME TESTS WERE SKIPPED        ?
-?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?
-`,
-  ],
-  running: [
-    `
-+------------------------------------------+
-|             TESTS RUNNING...             |
-+------------------------------------------+
-`,
-  ],
-};
+export interface NormalizedTestResult {
+  name: string;
+  file?: string;
+  line?: number;
+  outcome: TestOutcome;
+  durationMs: number;
+  error?: string;
+  skipNote?: string;
+}
 
-const VERDICT_LINES: Record<string, string[]> = {
-  success: [
-    'ALL TESTS PASSED — suite is green; safe to proceed.',
-    '0 failures — nothing to fix; ship it.',
-  ],
-  failure: [
-    'FAILURES PRESENT — fix the failing tests before merging.',
-    'One or more tests failed; see FAILURES section for repro commands.',
-  ],
-  warning: [
-    'PASSED WITH SKIPS — verify skipped tests are intentionally excluded.',
-    'Suite passed but coverage is incomplete; skipped != verified.',
-  ],
-};
+export interface TestReportSummary {
+  passed: number;
+  failed: number;
+  skipped: number;
+  flaky: number;
+  failures: TestFailure[];
+  slowest: SlowTest[];
+  /** Top skip/skip-note reasons as [reason, count], max 3 entries. */
+  skipReasons: [string, number][];
+}
+
+/** Aggregate normalized test records into counts, failure rows, slowest
+ *  tests, and top skip reasons — shared by the Vitest and Playwright
+ *  reporters so both emit identical report semantics. */
+export function summarizeTestResults(
+  tests: readonly NormalizedTestResult[],
+): TestReportSummary {
+  const count = (o: TestOutcome | TestOutcome[]) =>
+    tests.filter((t) =>
+      Array.isArray(o) ? o.includes(t.outcome) : t.outcome === o,
+    ).length;
+
+  const failures: TestFailure[] = tests
+    .filter((t) => t.outcome === 'failed')
+    .map((t) => ({
+      name: t.name,
+      file: t.file,
+      line: t.line,
+      message: t.error,
+    }));
+
+  const slowest: SlowTest[] = [...tests]
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, 8)
+    .map((t) => ({ name: t.name, duration_s: t.durationMs / 1000 }));
+
+  const reasonCounts = new Map<string, number>();
+  for (const t of tests) {
+    if (t.outcome === 'skipped' && t.skipNote) {
+      reasonCounts.set(t.skipNote, (reasonCounts.get(t.skipNote) ?? 0) + 1);
+    }
+  }
+  const skipReasons = [...reasonCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  return {
+    // Flaky counts as passed: it did pass, just needed a retry.
+    passed: count(['passed', 'flaky']),
+    failed: count('failed'),
+    skipped: count('skipped'),
+    flaky: count('flaky'),
+    failures,
+    slowest,
+    skipReasons,
+  };
+}
+
+// Display data is single-sourced in shared/cli-output-data.json (loaded by
+// cli_output.py too) so the Python and TypeScript reports never drift.
+const ASCII_ART_LIBRARY: Record<string, string[]> = outputData.ascii_art;
+const VERDICT_LINES: Record<string, string[]> = outputData.verdict_lines;
 
 function pick<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)];
@@ -334,6 +334,18 @@ export class CLIOutput {
     const result = bad > 0 ? 'FAIL' : skipped > 0 ? 'PASS_WITH_SKIPS' : 'PASS';
     lines.push(
       `# RESULT: ${result} | suite=${suite} | total=${total} | passed=${passed} | failed=${failed} | errors=${errors} | skipped=${skipped} | duration_s=${duration_s.toFixed(1)}`,
+    );
+    lines.push(
+      `# RESULT_JSON: ${JSON.stringify({
+        verdict: result,
+        suite,
+        total,
+        passed,
+        failed,
+        errors,
+        skipped,
+        duration_s: Number(duration_s.toFixed(1)),
+      })}`,
     );
 
     return lines.join('\n');

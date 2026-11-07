@@ -16,8 +16,9 @@ import type {
 import {
   CLIOutput,
   buildTestInsights,
-  type SlowTest,
-  type TestFailure,
+  summarizeTestResults,
+  type NormalizedTestResult,
+  type TestOutcome,
 } from './cli-output-formatter.ts';
 
 interface RecordedTest {
@@ -71,16 +72,21 @@ export class AsciiArtVitestReporter implements Reporter {
   ): void {
     const durationS = (Date.now() - this.startTime) / 1000;
 
-    const passed = this.tests.filter((t) => t.state === 'passed').length;
-    const failed = this.tests.filter((t) => t.state === 'failed').length;
-    const skipped = this.tests.filter((t) => t.state === 'skipped').length;
+    const normalized: NormalizedTestResult[] = this.tests.map((t) => ({
+      name: t.name,
+      file: t.file,
+      outcome: t.state as TestOutcome,
+      durationMs: t.durationMs,
+      error: t.error,
+      skipNote: t.skipNote,
+    }));
+    const summary = summarizeTestResults(normalized);
+    const { passed, failed, skipped, failures, slowest, skipReasons } =
+      summary;
 
     // Module-level failures (e.g. import/suite errors) that produced no
     // per-test results still need to show up as failures.
     const recordedFiles = new Set(this.tests.map((t) => t.file));
-    const failures: TestFailure[] = this.tests
-      .filter((t) => t.state === 'failed')
-      .map((t) => ({ name: t.name, file: t.file, message: t.error }));
     let suiteLevelFailures = 0;
     for (const mod of testModules) {
       if (mod.state() === 'failed' && !recordedFiles.has(mod.moduleId)) {
@@ -98,11 +104,6 @@ export class AsciiArtVitestReporter implements Reporter {
       failures.push({ name: 'unhandled error', message: message.slice(0, 120) });
     }
     const totalErrors = unhandledErrors.length + suiteLevelFailures;
-
-    const slowest: SlowTest[] = [...this.tests]
-      .sort((a, b) => b.durationMs - a.durationMs)
-      .slice(0, 8)
-      .map((t) => ({ name: t.name, duration_s: t.durationMs / 1000 }));
 
     let insights = buildTestInsights({
       failed,
@@ -123,16 +124,8 @@ export class AsciiArtVitestReporter implements Reporter {
     }
 
     // Surface skip reasons so "N skipped" is interpretable, not just a count.
-    const skipReasons = new Map<string, number>();
-    for (const t of this.tests) {
-      if (t.state === 'skipped' && t.skipNote) {
-        skipReasons.set(t.skipNote, (skipReasons.get(t.skipNote) ?? 0) + 1);
-      }
-    }
-    if (skipReasons.size) {
-      const top = [...skipReasons.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
+    if (skipReasons.length) {
+      const top = skipReasons
         .map(([note, n]) => `${note} (${n})`)
         .join('; ');
       insights.push(`Skip reasons: ${top}`);

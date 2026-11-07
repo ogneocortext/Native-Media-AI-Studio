@@ -1,0 +1,35 @@
+{
+  "ascii_art": {
+    "success": [
+      "   _____ _____ _____ _____ _____\n  |_   _|_   _|_   _|_   _|_   _|\n    | |   | |   | |   | |   | |\n    | |   | |   | |   | |   | |\n    |_|   |_|   |_|   |_|   |_|",
+      "  _______________________\n /_  __/ ____/ ___/_  __/\n / / / __/  \\__ \\ / /\n / / / /___ ___/ // /\n/_/ /_____//____//_/",
+      "+------------------------------------------+\n|        ALL TESTS PASSED!                 |\n+------------------------------------------+"
+    ],
+    "failure": [
+      "+------------------------------------------+\n|        SOME TESTS FAILED!                |\n+------------------------------------------+",
+      "  _______________________\n /_  __/ ____/ ___/_  __/\n / / / __/  \\__ \\ / /\n / / / /___ ___/ // /\n/_/ /_____//____//_/",
+      "!  !  !  !  !  !  !  !  !  !  !  !\n!        SOME TESTS FAILED!         !\n!  !  !  !  !  !  !  !  !  !  !  !"
+    ],
+    "warning": [
+      "+------------------------------------------+\n|     WARNING: TESTS SKIPPED / FLAKY       |\n+------------------------------------------+",
+      "?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?\n?      SOME TESTS WERE SKIPPED        ?\n?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?  ?"
+    ],
+    "running": [
+      "+------------------------------------------+\n|             TESTS RUNNING...             |\n+------------------------------------------+"
+    ]
+  },
+  "verdict_lines": {
+    "success": [
+      "ALL TESTS PASSED — suite is green; safe to proceed.",
+      "0 failures — nothing to fix; ship it."
+    ],
+    "failure": [
+      "FAILURES PRESENT — fix the failing tests before merging.",
+      "One or more tests failed; see FAILURES section for repro commands."
+    ],
+    "warning": [
+      "PASSED WITH SKIPS — verify skipped tests are intentionally excluded.",
+      "Suite passed but coverage is incomplete; skipped != verified."
+    ]
+  }
+}

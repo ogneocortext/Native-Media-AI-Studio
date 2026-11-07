@@ -17,6 +17,9 @@ Every test surface prints the same report shape:
 - **vitest (frontend)** — `AsciiArtVitestReporter`
   (`packages/frontend/src/utils/ascii-test-reporter.ts`) is registered in
   `vitest.config.ts` alongside `verbose`.
+- **playwright (frontend E2E)** — `tests/ascii-reporter.ts` is registered in
+  `playwright.config.ts`; supplies its own `pnpm test <file> -g "<title>"`
+  repro lines and detects flaky tests via retries.
 
 ## Report anatomy
 
@@ -34,11 +37,13 @@ Every test surface prints the same report shape:
 
 --- SLOWEST TESTS ---                        (hidden when all < 50ms)
 --- INSIGHTS & NEXT STEPS ---                <- actionable bullets
-# RESULT: PASS | suite=pytest | total=N | passed=N | failed=N | skipped=N | duration_s=X
+# RESULT: PASS | suite=pytest | total=N | passed=N | failed=N | errors=N | skipped=N | duration_s=X
+# RESULT_JSON: {"verdict":"PASS","suite":"pytest", ...}   <- parse this, not the pipe line
 ```
 
-The final `# RESULT:` line is the machine-readable verdict for agents:
-`PASS`, `PASS_WITH_SKIPS`, or `FAIL`, plus counts and duration.
+Two machine-readable lines are emitted. Agents should parse
+`# RESULT_JSON:` (strict JSON, unambiguous field names); the `# RESULT:`
+pipe line is the human-scan-friendly summary of the same data.
 
 ## Python API
 
@@ -81,8 +86,16 @@ safe_print(format_duration(65720))   # "1m 6s"
 
 `packages/frontend/src/utils/cli-output-formatter.ts` exports the same
 surface: `CLIOutput`, `Status`, `CLIResult`, `formatDuration`,
-`formatProgress`, `buildTestInsights`, `getAsciiArt`. The reporter lives in
-`ascii-test-reporter.ts`.
+`formatProgress`, `buildTestInsights`, `getAsciiArt`, plus
+`summarizeTestResults` — the shared aggregator both frontend reporters use
+to turn runner-native results into counts, failure rows, slowest tests,
+and skip reasons identically.
+
+The ASCII art and verdict strings are **not** duplicated: both languages
+load `shared/cli-output-data.json` (Python via `json`, TypeScript via a
+`with { type: 'json' }` import — the attribute is required because
+Playwright loads reporters through native ESM). Edit the JSON to change
+wording; it applies to every runner at once.
 
 ## Cross-platform notes
 
