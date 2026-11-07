@@ -441,8 +441,23 @@ export function UnityControlPage() {
               className="w-full h-full object-contain"
             />
           ) : (
-            <div className="unity-preview-empty w-full h-full flex items-center justify-center text-sm text-gray-400">
-              No preview yet. Use “Refresh preview” to render the current Unity camera.
+            <div className="unity-preview-empty w-full h-full flex flex-col items-center justify-center gap-2 text-sm text-gray-400 px-6 text-center">
+              {statusState === "online" ? (
+                <>
+                  <Camera size={20} className="text-gray-500" />
+                  No preview yet. Use “Refresh preview” to render the current Unity camera.
+                </>
+              ) : statusState === "loading" ? (
+                <>
+                  <Loader2 size={20} className="animate-spin text-gray-500" />
+                  Checking Unity status…
+                </>
+              ) : (
+                <>
+                  <Camera size={20} className="text-gray-500" />
+                  Unity is offline — start the Unity Editor with the Pipeline package, then refresh.
+                </>
+              )}
             </div>
           )}
         </div>

@@ -1467,3 +1467,20 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Devin, 2026-11-08 — endpoint added, backend
   restarted, browser-verified. Walkthrough video + 5 vision analyses
   in `~/nav-walkthrough-2/` (local, not committed).
+
+- **Follow-up landed (same item):** unified the three divergent
+  ComfyUI-offline presentations into `components/common/
+  ServiceOfflineBanner.tsx` (amber status card, plain-language reason,
+  primary Start, ghost Retry) — adopted by ImageGeneration and
+  VideoGenerationPage; generate3d keeps its richer ServiceStatusCard.
+  Image-gen's status fetch was extracted to `fetchComfyStatus`
+  (useCallback) so Retry actually re-probes. UnityControlPage preview
+  empty-state is now status-aware: offline shows "start the Unity
+  Editor with the Pipeline package" instead of instructing a disabled
+  Refresh button. Suspense-warning investigation narrowed: devtools-off
+  A/B ruled out Vite DevTools; React internals show the warning fires
+  on thenable-as-child / transition-aware host paths — no app code
+  calls `use()`; remaining suspect is a dependency. Dev-only, benign.
+- **Last session (follow-up):** Devin, 2026-11-08 — banner unified,
+  verified live on /create/image + /create/video + /create/unity;
+  `tsc -b` clean.

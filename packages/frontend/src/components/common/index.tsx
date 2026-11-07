@@ -226,3 +226,4 @@ export { ErrorBoundary } from "./ErrorBoundary";
 export { EmptySection } from "./EmptySection";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { ToggleSwitch } from "./ToggleSwitch";
+export { ServiceOfflineBanner } from "./ServiceOfflineBanner";

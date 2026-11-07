@@ -34,7 +34,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { DS } from "../../styles/designSystem";
-import { StatusBadge } from "../../components/common";
+import { StatusBadge, ServiceOfflineBanner } from "../../components/common";
 import { startComfyUI } from "../../services/api";
 import { Link } from "react-router-dom";
 import { useVideoModels } from "./hooks/useVideoModels";
@@ -357,32 +357,15 @@ export function VideoGenerationPage() {
 
   return (
     <div className={DS.page}>
-      {/* ComfyUI Offline Banner — prominent placement at top */}
+      {/* ComfyUI Offline Banner — shared component, start inline */}
       {comfyStatus === "offline" && (
-        <div className={DS.cardError}>
-          <AlertTriangle size={20} />
-          <div>
-            <div className="text-sm font-semibold text-red-300">ComfyUI is offline</div>
-            <div className="text-xs text-red-200">
-              Video generation requires ComfyUI to be running. Start it, then generate — no need to
-              reload.
-            </div>
-          </div>
-          <button
-            onClick={handleStartComfy}
-            disabled={startingComfy}
-            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-red-500/20 border border-red-400/40 text-red-100 hover:bg-red-500/30 disabled:opacity-50 whitespace-nowrap ml-auto flex items-center gap-1.5"
-          >
-            {startingComfy ? <Loader2 size={12} className="animate-spin" /> : null}
-            {startingComfy ? "Starting…" : "Start ComfyUI"}
-          </button>
-          <button
-            onClick={refetchModels}
-            className="text-xs underline text-red-200 hover:text-white"
-          >
-            Retry
-          </button>
-        </div>
+        <ServiceOfflineBanner
+          service="ComfyUI"
+          detail="Video generation requires ComfyUI to be running. Start it, then generate — no need to reload."
+          onStart={handleStartComfy}
+          starting={startingComfy}
+          onRetry={() => void refetchModels()}
+        />
       )}
       {modelsError && (
         <div className={DS.cardError}>
