@@ -8,155 +8,28 @@
  * through an `<audio src>`, which the browser resolves same-origin, so it must
  * not be fetched through `fetchWithTimeout`.
  */
+
 import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import { getJson, postJson } from "./typed-fetch";
+import type {
+  RemixSource,
+  RemixProbe,
+  RemixRecipeSpec,
+  RemixPreview,
+  RemixPreviewAudio,
+  RemixDraft,
+  RemixSummary,
+  RemixEnhanceResult,
+  RemixJobAccepted,
+  RemixJobStatus,
+  RemixTrackLineage,
+  RemixVersion,
+  StemName,
+} from "./types";
 
 export const STEM_NAMES = ["vocals", "drums", "bass", "other"] as const;
 export type StemName = (typeof STEM_NAMES)[number];
 
-export interface RemixSource {
-  track: string;
-  model: string;
-  stems: Record<StemName, boolean>;
-  /** BPM from the cached probe, when one exists. */
-  bpm?: number | null;
-  duration_sec?: number | null;
-  first_audible_sec?: number | null;
-  /** B6: the library filename this stem directory joined to, when
-   *  unambiguous. Lets a picker speak the library's identity. */
-  library_file?: string;
-}
-
-export interface RemixProbe {
-  track: string;
-  bpm: number;
-  duration_sec: number;
-  first_audible_sec: number;
-  /** Advisory only. Detection is unreliable on this material - see key_confident. */
-  key_advisory: string;
-  key_correlation: number;
-  chroma_flatness: number;
-  key_confident: boolean;
-  beat_count: number;
-  analysed_stem: StemName;
-}
-
-export interface RemixLayerSpec {
-  track: string;
-  stem: StemName;
-  gain_db: number;
-  key_shift_semitones: number;
-  source_start_bar: number;
-  // B4 tone shaping; omitted/None leaves the stem untouched, and the
-  // renderer treats them the same way.
-  lowpass_hz?: number | null;
-  brightness_db?: number | null;
-}
-
-export interface RemixSlotSpec {
-  layers: RemixLayerSpec[];
-  bars: number;
-  crossfade_bars: number;
-}
-
-export interface RemixRecipeSpec {
-  name: string;
-  target_bpm: number;
-  slots: RemixSlotSpec[];
-  beats_per_bar: number;
-  key?: string | null;
-  overwrite?: boolean;
-}
-
-export interface RemixPreview {
-  duration_sec: number;
-  total_bars: number;
-  bar_seconds: number;
-  sample_rate: number;
-  stretch_ratios: Record<string, number>;
-  layers: {
-    track: string;
-    stem: StemName;
-    source_bpm: number;
-    measured_rms_db: number;
-    stretch_ratio: number;
-    source_start_bar: number;
-  }[];
-  warnings: string[];
-  /** Same facts as `warnings`, structured for agents:
-   * {code, layer_ref, field, measured_rms_db, suggestion}. */
-  warnings_detail?: {
-    code: string;
-    layer_ref: string;
-    field: string;
-    measured_rms_db: number;
-    suggestion: string;
-  }[];
-}
-
-export interface RemixBuildResult {
-  name: string;
-  directory: string;
-  stems: Record<StemName, string>;
-  duration_sec: number;
-  manifest: Record<string, unknown>;
-  warnings: string[];
-}
-
-export interface RemixSummary {
-  name: string;
-  duration_sec: number | null;
-  target_bpm: number | null;
-  source_tracks: string[];
-  stems: string[];
-  has_enhanced: boolean;
-}
-
-export interface RemixEnhanceResult {
-  name: string;
-  output_dir: string;
-  wav_path: string | null;
-  mp3_path: string | null;
-  duration_sec: number;
-  steps: { step: number; name: string }[];
-  error: string | null;
-}
-
-/**
- * Acknowledgement for a long-running remix operation.
- *
- * `/build` and `/enhance` return this immediately and run the
- * work in a background job; the full payload arrives via
- * `getRemixJob` once `state` is `done`.
- */
-export interface RemixJobAccepted {
-  job_id: string;
-  kind: string;
-  label: string;
-  state: string;
-}
-
-export interface RemixJobStatus {
-  job_id: string;
-  kind: "build" | "enhance";
-  label: string;
-  /**
-   * False for work with no safe point to stop at (an enhance runs
-   * inside one call), so the client can hide Cancel rather than
-   * offer a button that would only earn a 409.
-   */
-  cancellable?: boolean;
-  state: "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
-  /** Set when the backend capped a wedged job and reported it failed. */
-  timed_out?: boolean;
-  progress?: string | null;
-  /** The build/enhance payload, present once `state` is `done`. */
-  result?: RemixBuildResult | RemixEnhanceResult;
-  error?: string | null;
-  elapsed_sec: number;
-  started_at: number;
-  finished_at: number | null;
-}
 export type RemixRecipeRoundTrip = RemixRecipeSpec;
 
 /**
@@ -173,141 +46,82 @@ export interface RemixLineageEntry extends RemixSummary {
   recipe: RemixRecipeRoundTrip | null;
 }
 
-export interface RemixTrackLineage {
-  track: string;
-  remixes: RemixLineageEntry[];
-}
-
-async function unwrap<T>(res: Response, fallback: string): Promise<T> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: fallback }));
-    throw new Error(body.detail ?? fallback);
+/** Thrown when a job the caller was awaiting is cancelled. */
+export class RemixCancelledError extends Error {
+  constructor(message = "Cancelled") {
+    super(message);
+    this.name = "RemixCancelledError";
   }
-  return res.json() as Promise<T>;
 }
 
+const BASE = "/api/audio/remix";
+
+/**
+ * List all tracks with separated stems available for remixing.
+ */
 export async function getRemixSources(): Promise<RemixSource[]> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/sources`, {
-    timeout: 15000,
-  });
-  const body = await unwrap<{ sources: RemixSource[] }>(res, "Failed to list remix sources");
-  return body.sources;
-}
-
-export async function probeRemixTrack(track: string): Promise<RemixProbe> {
-  // Backend route is POST /api/audio/remix/probe?track=… — a GET returns 405.
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/probe?track=${encodeURIComponent(track)}`,
-    { method: "POST", timeout: 120000 },
-  );
-  return unwrap<RemixProbe>(res, `Failed to probe ${track}`);
-}
-
-export async function previewRemix(recipe: RemixRecipeSpec): Promise<RemixPreview> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(recipe),
-    // Preview loads and time-stretches every source to measure levels, so it is
-    // not free - but it writes nothing and skips the crossfade mixing.
-    timeout: 180000,
-  });
-  return unwrap<RemixPreview>(res, "Remix preview failed");
+  return getJson<{ sources: RemixSource[] }>(`${BASE}/sources`, { timeout: 15000 }).then((r) => r.sources);
 }
 
 /**
- * Render a bounded, playable excerpt of a recipe (A3). Same mix core as
- * the build, truncated to ~30 s and cached by recipe hash, so hearing the
- * arrangement costs one short render rather than a full build.
- *
- * R2: pass slotIndex (0-based) to audition one slot alone — the backend
- * renders that slot through the same path. Out of range is a 400.
+ * Probe a track for tempo and advisory key info.
+ * Backend route is POST /api/audio/remix/probe?track=… — a GET returns 405.
+ */
+export async function probeRemixTrack(track: string): Promise<RemixProbe> {
+  return postJson<RemixProbe>(`${BASE}/probe?track=${encodeURIComponent(track)}`, {}, { timeout: 120000 });
+}
+
+/**
+ * Preview a remix recipe (resolve timeline, measure levels, return warnings).
+ * Does not write audio.
+ */
+export async function previewRemix(recipe: RemixRecipeSpec): Promise<RemixPreview> {
+  return postJson<RemixPreview>(`${BASE}/preview`, recipe, { timeout: 180000 });
+}
+
+/**
+ * Render a bounded, playable excerpt of a recipe (A3).
+ * Same mix core as the build, truncated to ~30s and cached by recipe hash.
+ * Pass `slotIndex` (0-based) to audition one slot alone.
  */
 export async function previewRemixAudio(
   recipe: RemixRecipeSpec,
   slotIndex?: number,
 ): Promise<RemixPreviewAudio> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/preview-audio`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(slotIndex === undefined ? recipe : { ...recipe, slot_index: slotIndex }),
-    // A preview is one truncated render: a few seconds per source stretch.
-    timeout: 240000,
-  });
-  return unwrap<RemixPreviewAudio>(res, "Remix preview audio failed");
-}
-
-export interface RemixPreviewAudio {
-  /** Playable URL for the excerpt. */
-  url: string;
-  duration_sec: number;
-  /** True when the excerpt is shorter than the arrangement. */
-  truncated: boolean;
-  warnings: string[];
-}
-
-export interface RemixDraft {
-  /** The exact /build request shape, ready for review then render. */
-  recipe: RemixRecipeSpec;
-  explanation: string;
-  warnings: string[];
-  model_used: string | null;
-  source: "ollama" | "heuristic";
-  /** R1: human-readable diff of base vs revised; [] for fresh drafts. */
-  changes: string[];
+  const body = slotIndex === undefined ? recipe : { ...recipe, slot_index: slotIndex };
+  return postJson<RemixPreviewAudio>(`${BASE}/preview-audio`, body, { timeout: 240000 });
 }
 
 /**
  * Draft a mashup from one sentence, or revise a recipe with one sentence
- * (R1: pass the panel's live recipe as baseRecipe — "vocals up 2 dB").
- * Draft-only in both modes: the caller reviews before spending a render.
+ * (pass the panel's live recipe as `baseRecipe` — e.g. "vocals up 2 dB").
+ * Draft-only: the caller reviews before spending a render.
  */
 export async function draftRemixFromPrompt(
   prompt: string,
   baseRecipe?: RemixRecipeSpec,
 ): Promise<RemixDraft> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/from-prompt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(baseRecipe ? { prompt, base_recipe: baseRecipe } : { prompt }),
-    // The local model drafts; the deterministic fallback is fast, the
-    // model is not. Measured on this box: a COLD qwen3.5:9b under VRAM
-    // contention answered from-prompt in 167 s, so a 180 s budget aborted
-    // a request the backend was about to answer 200 on. 300 s covers the
-    // cold load with margin; the button spinner covers the wait.
-    timeout: 300000,
-  });
-  return unwrap<RemixDraft>(res, "Remix draft failed");
+  return postJson<RemixDraft>(
+    `${BASE}/from-prompt`,
+    baseRecipe ? { prompt, base_recipe: baseRecipe } : { prompt },
+    { timeout: 300000 },
+  );
 }
 
 /**
  * Start a build without waiting for it.
- *
- * The backend validates the recipe and checks the source stems
- * synchronously (so a bad recipe or a missing stem still throws
- * here), then renders in a background job. Await the terminal state
- * with `awaitRemixJob`, or cancel it with `cancelRemixJob` - the job
- * id is what makes a 7-23 s render stoppable.
+ * The backend validates the recipe and checks the source stems synchronously,
+ * then renders in a background job. Await the terminal state with `awaitRemixJob`,
+ * or cancel it with `cancelRemixJob`.
  */
 export async function startBuildRemix(recipe: RemixRecipeSpec): Promise<RemixJobAccepted> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/build`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(recipe),
-    // Validation and path checks only - the render itself is a
-    // background job, so this returns as soon as the recipe is
-    // accepted.
-    timeout: 15000,
-  });
-  return unwrap<RemixJobAccepted>(res, "Remix render failed");
+  return postJson<RemixJobAccepted>(`${BASE}/build`, recipe, { timeout: 15000 });
 }
 
 /**
- * Start a master without waiting for it.
- *
- * The backend checks the remix and its stems synchronously, then
- * runs the chain in a background job. Poll `getRemixJob` for the
- * result, or use `enhanceRemix` to await it.
+ * Start a master (enhance) without waiting for it.
+ * The backend checks the remix and its stems synchronously, then runs the chain
+ * in a background job. Poll `getRemixJob` for the result.
  */
 export async function startEnhanceRemix(
   name: string,
@@ -318,71 +132,48 @@ export async function startEnhanceRemix(
     master_ceiling_dbfs?: number;
   } = {},
 ): Promise<RemixJobAccepted> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/enhance`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options),
-      timeout: 15000,
-    },
+  return postJson<RemixJobAccepted>(
+    `${BASE}/${encodeURIComponent(name)}/enhance`,
+    options,
+    { timeout: 15000 },
   );
-  return unwrap<RemixJobAccepted>(res, `Failed to master remix ${name}`);
 }
 
-/** Status of one build/enhance job, including its result. */
+/**
+ * Get status of one build/enhance job, including its result when done.
+ */
 export async function getRemixJob(jobId: string): Promise<RemixJobStatus> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/jobs/${encodeURIComponent(jobId)}`,
-    { timeout: 10000 },
-  );
-  return unwrap<RemixJobStatus>(res, `Failed to load remix job ${jobId}`);
+  return getJson<RemixJobStatus>(`${BASE}/jobs/${encodeURIComponent(jobId)}`, { timeout: 10000 });
 }
 
-/** Recent jobs, newest first. */
+/**
+ * List recent remix jobs, newest first.
+ */
 export async function listRemixJobs(): Promise<RemixJobStatus[]> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/jobs`, { timeout: 10000 });
-  const body = await unwrap<{ jobs: RemixJobStatus[] }>(res, "Failed to list remix jobs");
-  return body.jobs;
+  return getJson<{ jobs: RemixJobStatus[] }>(`${BASE}/jobs`, { timeout: 10000 }).then((r) => r.jobs);
 }
 
 /**
  * Ask a running build to stop.
- *
- * Cooperative: the render polls the token between slots, so the job
- * reaches `cancelled` within one slot's render time (seconds), not
- * instantly. Rejects with a 409 message for an enhance (which runs
- * inside one call with no safe point) and for a job that already
- * finished - the refusals are honest rather than silent no-ops.
- *
- * Cancel is never destructive: a cancelled build writes nothing, so a
- * previous render under the same name survives untouched.
+ * Cooperative: the render polls the token between slots.
+ * Rejects with 409 for an enhance (runs inside one call with no safe point)
+ * and for a job that already finished.
+ * Cancel is never destructive: a cancelled build writes nothing.
  */
 export async function cancelRemixJob(jobId: string): Promise<RemixJobStatus> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/jobs/${encodeURIComponent(jobId)}/cancel`,
-    { method: "POST", timeout: 15000 },
+  return postJson<RemixJobStatus>(
+    `${BASE}/jobs/${encodeURIComponent(jobId)}/cancel`,
+    {},
+    { timeout: 15000 },
   );
-  return unwrap<RemixJobStatus>(res, "Remix cancel failed");
 }
 
 const JOB_POLL_INTERVAL_MS = 1000;
 
-/** Thrown when a job the caller was awaiting is cancelled. */
-export class RemixCancelledError extends Error {
-  constructor(message = "Cancelled") {
-    super(message);
-    this.name = "RemixCancelledError";
-  }
-}
-
 /**
  * Await a terminal job state.
- *
- * Resolves with the final status (done | failed | cancelled) rather
- * than throwing, so a caller that offers a Cancel button can tell
- * "the user stopped this" from "this broke" - the backend reports
- * both as terminal states, and only one of them is an error.
+ * Resolves with the final status (done | failed | cancelled) rather than throwing,
+ * so a caller with a Cancel button can distinguish "user stopped" from "it broke".
  * Rejects only on transport errors.
  */
 export async function awaitRemixJob(jobId: string): Promise<RemixJobStatus> {
@@ -391,9 +182,6 @@ export async function awaitRemixJob(jobId: string): Promise<RemixJobStatus> {
     if (status.state !== "queued" && status.state !== "running" && status.state !== "cancelling") {
       return status;
     }
-    // The backend caps a wedged job and reports it failed, and a
-    // server restart makes the job vanish (an error, not an
-    // infinite wait), so this loop always terminates.
     await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
   }
 }
@@ -409,68 +197,38 @@ async function awaitJob<T>(jobId: string, failure: string): Promise<T> {
   throw new Error(status.error ?? failure);
 }
 
+/**
+ * List all rendered remixes.
+ */
 export async function listRemixes(): Promise<RemixSummary[]> {
-  const res = await fetchWithTimeout(`${getApiBase()}/api/audio/remix/list`, {
-    timeout: 15000,
-  });
-  const body = await unwrap<{ remixes: RemixSummary[] }>(res, "Failed to list remixes");
-  return body.remixes;
+  return getJson<{ remixes: RemixSummary[] }>(`${BASE}/list`, { timeout: 15000 }).then((r) => r.remixes);
 }
 
 /**
  * Every rendered mashup that consumed `track`, each with its recipe.
- *
- * `track` is the library filename as the audio library reports it, which is what
- * the stem directories are named from - so this joins on the same key the stems
- * already use rather than re-deriving a match.
+ * `track` is the library filename as the audio library reports it.
  */
 export async function getTrackLineage(track: string): Promise<RemixTrackLineage> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/by-track/${encodeURIComponent(track)}`,
+  return getJson<RemixTrackLineage>(
+    `${BASE}/by-track/${encodeURIComponent(track)}`,
     { timeout: 15000 },
   );
-  return unwrap<RemixTrackLineage>(res, `Failed to load lineage for ${track}`);
-}
-
-/** One render in a remix's lineage: the current one or an archived version. */
-export interface RemixVersion {
-  version: number;
-  /** True for the live render, false for an archived one. */
-  current: boolean;
-  duration_sec?: number | null;
-  target_bpm?: number | null;
-  total_bars?: number | null;
-  source_tracks?: string[];
-  stems: string[];
-  has_enhanced: boolean;
 }
 
 /**
- * Every render of one remix, newest first.
- *
- * A rebuild archives the render it replaces (stems, manifest and master),
- * so this is the lineage of a name. Play any entry with
- * `remixFileUrl(name, which, version)`.
+ * List all versions of a remix (current + archived renders).
  */
 export async function listRemixVersions(name: string): Promise<RemixVersion[]> {
-  const res = await fetchWithTimeout(
-    `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/versions`,
+  return getJson<{ versions: RemixVersion[] }>(
+    `${BASE}/${encodeURIComponent(name)}/versions`,
     { timeout: 15000 },
-  );
-  const body = await unwrap<{ versions: RemixVersion[] }>(
-    res,
-    `Failed to load versions for ${name}`,
-  );
-  return body.versions;
+  ).then((r) => r.versions);
 }
 
 /**
  * Master a rendered remix, waiting for the background job to finish.
- *
  * Same contract as before the job split: resolves with the enhance
- * result or rejects with the failure. The chain is CPU bound and
- * measured at ~60 s, which no longer has to be held inside one
- * request - the job is polled in one-second steps instead.
+ * result or rejects with the failure.
  */
 export async function enhanceRemix(
   name: string,
@@ -482,12 +240,11 @@ export async function enhanceRemix(
 
 /**
  * URL for an `<audio src>`; resolves same-origin, so no fetch wrapper.
- *
  * `version` selects an archived render from `listRemixVersions`; omitted
  * means the current one. The backend 404s an unknown version rather than
  * answering with the current render, so a stale button fails loudly.
  */
 export function remixFileUrl(name: string, which: StemName | "master", version?: number): string {
-  const base = `${getApiBase()}/api/audio/remix/${encodeURIComponent(name)}/file/${which}`;
+  const base = `${getApiBase()}${BASE}/${encodeURIComponent(name)}/file/${which}`;
   return version ? `${base}?version=${version}` : base;
 }

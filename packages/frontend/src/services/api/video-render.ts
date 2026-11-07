@@ -1,33 +1,32 @@
-import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+/**
+ * Frontend client for /api/video/render — video rendering, export matrix, canvas loops, scene routing.
+ */
 
-export interface RenderEngineInfo {
-  id: string;
-  label: string;
-  notes: string;
-  available: boolean;
-  detail: string;
-}
+import { getJson, postJson } from "./typed-fetch";
+import type {
+  RenderEngineInfo,
+  RenderResponse,
+  ExportMatrixResponse,
+  CanvasLoopResponse,
+  RouteSceneResponse,
+  AssembleResponse,
+  StemVisualizationResponse,
+} from "./types";
 
-export interface RenderResponse {
-  success: boolean;
-  engine: string;
-  output_path: string;
-  relative_path: string | null;
-  render_s: number;
-  size_bytes: number;
-  error: string | null;
-  notes: string;
-}
+const BASE = "/api/video";
 
+/**
+ * Get available render engines.
+ */
 export async function getRenderEngines(): Promise<RenderEngineInfo[]> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/render/engines`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to list render engines");
-  const data = await res.json();
-  return data.engines;
+  return getJson<{ engines: RenderEngineInfo[] }>(`${BASE}/render/engines`, { timeout: 30000 })
+    .then((r) => r.engines);
 }
 
+/**
+ * Render a video clip.
+ * Long-running (up to 10 minutes).
+ */
 export async function renderClip(params: {
   kind: "color" | "frames" | "image";
   engine?: string;
@@ -42,72 +41,26 @@ export async function renderClip(params: {
   image_path?: string;
   audio_path?: string;
 }): Promise<RenderResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/render`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Render request failed");
-  }
-  return res.json();
+  return postJson<RenderResponse>(`${BASE}/render`, params, { timeout: 600000 });
 }
 
-export interface MatrixArtifact {
-  kind: "vertical" | "loop" | "thumbnail";
-  path: string;
-  relative_path: string;
-  width: number;
-  height: number;
-  duration: number;
-  notes: string;
-}
-
-export interface ExportMatrixResponse {
-  success: boolean;
-  source: string;
-  artifacts: MatrixArtifact[];
-  errors: { kind: string; error: string }[];
-  render_s: number;
-  manifest_path: string | null;
-  message: string;
-}
-
+/**
+ * Build export matrix (vertical, loop, thumbnail variants).
+ * Long-running (up to 10 minutes).
+ */
 export async function buildExportMatrix(params: {
   source_path: string;
   beat_times?: number[];
   sections?: { type: string; start: number; end: number; energy?: number }[];
   loop_seconds?: number;
 }): Promise<ExportMatrixResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/export-matrix`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Export matrix failed");
-  }
-  return res.json();
+  return postJson<ExportMatrixResponse>(`${BASE}/export-matrix`, params, { timeout: 600000 });
 }
 
-// A4 — Spotify Canvas loop extraction
-
-export interface CanvasLoopResponse {
-  success: boolean;
-  output_path: string | null;
-  duration: number | null;
-  width: number | null;
-  height: number | null;
-  error: string | null;
-  message: string | null;
-}
-
+/**
+ * Create Spotify Canvas loop.
+ * Long-running (up to 2 minutes).
+ */
 export async function createCanvasLoop(params: {
   source_path: string;
   start?: number | null;
@@ -117,64 +70,25 @@ export async function createCanvasLoop(params: {
   output_path?: string | null;
   crossfade?: number;
 }): Promise<CanvasLoopResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/canvas-loop`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 120000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Canvas loop creation failed");
-  }
-  return res.json();
+  return postJson<CanvasLoopResponse>(`${BASE}/canvas-loop`, params, { timeout: 120000 });
 }
 
-// A6 — Per-scene model routing
-
-export interface RouteSceneResponse {
-  model: string;
-  tier: string;
-  reason: string;
-  vram_required_mb: number | null;
-  cloud_fallback: string | null;
-  routing_note: string | null;
-}
-
+/**
+ * Route a scene to a model (per-scene model routing).
+ */
 export async function routeScene(params: {
   section_type: string;
   energy?: number | null;
   duration?: number | null;
   vram_available_mb?: number | null;
 }): Promise<RouteSceneResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/route-scene`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 30000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Scene routing failed");
-  }
-  return res.json();
+  return postJson<RouteSceneResponse>(`${BASE}/route-scene`, params, { timeout: 30000 });
 }
 
-// A3 — Beat-quantized assembly
-
-export interface AssembleResponse {
-  success: boolean;
-  output_path: string | null;
-  duration: number | null;
-  shots_used: number | null;
-  render_s: number | null;
-  error: string | null;
-  message: string | null;
-  engine: string | null;
-}
-
+/**
+ * Assemble beat-quantized video from shots.
+ * Long-running (up to 10 minutes).
+ */
 export async function assembleBeatQuantized(params: {
   shot_manifest: Record<string, unknown>[];
   output_path?: string | null;
@@ -184,57 +98,19 @@ export async function assembleBeatQuantized(params: {
   transition_duration?: number;
   beat_times?: number[] | null;
 }): Promise<AssembleResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/assemble`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Assembly failed");
-  }
-  return res.json();
+  return postJson<AssembleResponse>(`${BASE}/assemble`, params, { timeout: 600000 });
 }
 
-// A5 — Stem-reactive visualization uniforms
-// One entry per shader uniform, built by tools/stem_visualization in the
-// backend (see app/services/stem_visualization.get_stem_visualization_uniforms).
-
-export interface StemVisualizationUniform {
-  stem: string;
-  energy_curve: number[];
-  curve_points: number;
-  rms_mean: number;
-  rms_std: number;
-  centroid_mean: number;
-  zcr_mean: number;
-  duration: number;
-  file: string;
-  url: string;
-}
-
-export interface StemVisualizationResponse {
-  stems: Record<string, unknown>;
-  separated: boolean;
-  uniforms: Record<string, StemVisualizationUniform>;
-  curve_points: number;
-}
-
+/**
+ * Get stem visualization uniforms for shader reactivity.
+ * Long-running (up to 2 minutes).
+ */
 export async function getStemVisualization(params: {
   filename: string;
 }): Promise<StemVisualizationResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/stem-visualization`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 120000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Stem visualization failed");
-  }
-  return res.json();
+  return postJson<StemVisualizationResponse>(
+    `${BASE}/stem-visualization`,
+    params,
+    { timeout: 120000 },
+  );
 }

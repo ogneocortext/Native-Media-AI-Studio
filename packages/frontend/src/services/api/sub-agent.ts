@@ -16,110 +16,42 @@
  */
 
 import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import { postJson, getJson } from "./typed-fetch";
+import type {
+  SubAgentTask,
+  SubAgentRunRequest,
+  SubAgentRunResponse,
+  SubAgentEvent,
+} from "./types";
 
-export interface SubAgentTask {
-  task_id: string;
-  status: "running" | "completed" | "failed" | "cancelled";
-  result?: string;
-  error?: string;
-  error_detail?: string;
-  created_at: string;
-  model?: string;
-  has_result?: boolean;
-  has_error?: boolean;
-  metrics?: {
-    tool_calls: number;
-    iterations: number;
-    tool_usage: Record<string, number>;
-    context_truncations: number;
-    simulated_context_window?: number;
-    dry_run: boolean;
-  };
-}
+const BASE = "/api/sub-agent";
 
-export interface SubAgentRunRequest {
-  task: string;
-  model?: string;
-}
-
-export interface SubAgentRunResponse {
-  task_id: string;
-  status: string;
-  model?: string;
-}
-
-export interface SubAgentEvent {
-  type: "agent_output" | "agent_done" | "agent_error" | "agent_cancelled";
-  data: {
-    task_id: string;
-    text?: string;
-    result?: string;
-    error?: string;
-    error_detail?: string;
-    metrics?: {
-      tool_calls: number;
-      iterations: number;
-      tool_usage: Record<string, number>;
-      context_truncations: number;
-      simulated_context_window?: number;
-      dry_run: boolean;
-    };
-    timestamp: string;
-  };
-  timestamp?: string;
-}
-
+/**
+ * Start a sub-agent task.
+ */
 export async function runSubAgentTask(request: SubAgentRunRequest): Promise<SubAgentRunResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/sub-agent/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    timeout: 10000,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `Failed to start sub-agent task (${res.status})`);
-  }
-  return res.json();
+  return postJson<SubAgentRunResponse>(`${BASE}/run`, request, { timeout: 10000 });
 }
 
-export async function cancelSubAgentTask(
-  taskId: string,
-): Promise<{ task_id: string; status: string }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/sub-agent/cancel/${taskId}`, {
-    method: "POST",
-    timeout: 10000,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `Failed to cancel sub-agent task (${res.status})`);
-  }
-  return res.json();
+/**
+ * Cancel a running sub-agent task.
+ */
+export async function cancelSubAgentTask(taskId: string): Promise<{ task_id: string; status: string }> {
+  return postJson<{ task_id: string; status: string }>(`${BASE}/cancel/${taskId}`, {}, { timeout: 10000 });
 }
 
+/**
+ * Get task status.
+ */
 export async function getSubAgentTaskStatus(taskId: string): Promise<SubAgentTask> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/sub-agent/status/${taskId}`, {
-    timeout: 10000,
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to get task status (${res.status})`);
-  }
-  return res.json();
+  return getJson<SubAgentTask>(`${BASE}/status/${taskId}`, { timeout: 10000 });
 }
 
+/**
+ * List all sub-agent tasks.
+ */
 export async function listSubAgentTasks(): Promise<{ tasks: SubAgentTask[] }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/sub-agent/tasks`, {
-    timeout: 10000,
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to list tasks (${res.status})`);
-  }
-  return res.json();
+  return getJson<{ tasks: SubAgentTask[] }>(`${BASE}/tasks`, { timeout: 10000 });
 }
 
 /**
@@ -132,7 +64,7 @@ export function subscribeToSubAgentSSE(
   onError?: (error: Error) => void,
 ): EventSource {
   const base = getApiBase();
-  const url = `${base}/api/sub-agent/stream/${taskId}`;
+  const url = `${base}${BASE}/stream/${taskId}`;
 
   const eventSource = new EventSource(url);
 
@@ -149,7 +81,7 @@ export function subscribeToSubAgentSSE(
     try {
       const data = JSON.parse(e.data);
       onEvent({ type: "agent_done", data, timestamp: data.timestamp });
-      eventSource.close(); // Close on completion
+      eventSource.close();
     } catch (err) {
       onError?.(new Error(`Failed to parse agent_done event: ${err}`));
     }
@@ -159,7 +91,7 @@ export function subscribeToSubAgentSSE(
     try {
       const data = JSON.parse(e.data);
       onEvent({ type: "agent_error", data, timestamp: data.timestamp });
-      eventSource.close(); // Close on error
+      eventSource.close();
     } catch (err) {
       onError?.(new Error(`Failed to parse agent_error event: ${err}`));
     }
@@ -169,7 +101,7 @@ export function subscribeToSubAgentSSE(
     try {
       const data = JSON.parse(e.data);
       onEvent({ type: "agent_cancelled", data, timestamp: data.timestamp });
-      eventSource.close(); // Close on cancellation
+      eventSource.close();
     } catch (err) {
       onError?.(new Error(`Failed to parse agent_cancelled event: ${err}`));
     }

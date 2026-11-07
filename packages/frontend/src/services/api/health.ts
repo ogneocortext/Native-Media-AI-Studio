@@ -1,49 +1,51 @@
+/**
+ * Frontend client for /api/health — health checks and system status.
+ */
+
 import { getApiBase, withDirectBackendFallback } from "./core";
-import type { AggregateHealth, SystemHealth, ServiceStatus } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import { fetchJson } from "./typed-fetch";
+import type { AggregateHealth, SystemHealth, ServiceStatus } from "./types";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "../queryClient";
 
 /** Ping the backend (liveness probe). */
 export async function ping(): Promise<{ status: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/ping`, { timeout: 10000 });
-  if (!res.ok) throw new Error("Ping failed");
-  return res.json();
+  return fetchJson<{ status: string }>(`${base}/api/health/ping`, { timeout: 10000 });
 }
 
+/**
+ * Check aggregate health of all adapters.
+ * Uses direct backend fallback for reliability.
+ */
 export async function healthCheck(): Promise<AggregateHealth> {
   const base = getApiBase();
   return withDirectBackendFallback(
-    async () =>
-      fetchWithTimeout(`${base}/api/health`, { timeout: 30000 }).then(async (res) => {
-        if (!res.ok) throw new Error("Health check failed");
-        return res.json();
-      }),
+    async () => fetchJson<AggregateHealth>(`${base}/api/health`, { timeout: 30000 }),
     "/api/health",
   );
 }
 
+/**
+ * Get system health (CPU, memory, disk).
+ * Uses direct backend fallback for reliability.
+ */
 export async function getSystemHealth(): Promise<SystemHealth> {
   const base = getApiBase();
   return withDirectBackendFallback(
-    async () =>
-      fetchWithTimeout(`${base}/api/render/health`, { timeout: 30000 }).then(async (res) => {
-        if (!res.ok) throw new Error("Failed to get system health");
-        return res.json();
-      }),
+    async () => fetchJson<SystemHealth>(`${base}/api/render/health`, { timeout: 30000 }),
     "/api/render/health",
   );
 }
 
+/**
+ * Get service status (adapter details, connections).
+ * Uses direct backend fallback for reliability.
+ */
 export async function getServiceStatus(): Promise<ServiceStatus> {
   const base = getApiBase();
   return withDirectBackendFallback(
-    async () =>
-      fetchWithTimeout(`${base}/api/services/status`, { timeout: 30000 }).then(async (res) => {
-        if (!res.ok) throw new Error("Failed to get service status");
-        return res.json();
-      }),
+    async () => fetchJson<ServiceStatus>(`${base}/api/services/status`, { timeout: 30000 }),
     "/api/services/status",
   );
 }

@@ -51,10 +51,13 @@ noise type — i.e. the subgenre:
     snes     6 vox + noise, echo + vibrato, ~20 kHz
     genesis  3x FM + PSG tone/noise, ~16 kHz
     c64      3 mixed osc + noise, filter + ring-mod, ~9 kHz
-    atari    2x pulse + LFSR noise, ~8 kHz
-    pico8    2x pulse + triangle + noise @ 22.05 kHz output
-    loose    2x pulse + triangle + saw + noise, light bandlimit
-    full     same voices, no bandlimit, stereo spread
+    opl2     9x 2-op FM (AdLib), ~16 kHz
+    opl3     18x 2/4-op FM (SB16), ~16 kHz
+    mt32     8x LA32 partials + noise, 32 kHz stereo
+    sc55     16-part GM/GS, 32 kHz stereo
+    sc88     32-part GM/GS, 32 kHz stereo + echo
+    sc88pro  32-part GM/GS/XG-lite, 32 kHz stereo + echo/vibrato
+    psx      24 ADPCM voices + noise, 44.1 kHz stereo reverb
 
 Deterministic: same file + same system => byte-identical WAV (fixed seed
 for noise; PCM synthesis only, no wall-clock).
@@ -72,9 +75,10 @@ import numpy as np
 
 # Import the new hardware profiles
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import operator
+
 from packages.backend.app.core.chiptune_hardware import (
     ALL_SYSTEMS,
-    SYSTEM_ALIASES,
     get_system_spec,
 )
 
@@ -82,6 +86,25 @@ REPO = Path(__file__).resolve().parent.parent
 OUT_DIR = REPO / "output" / "audio"
 
 SR = 44100  # internal render rate; systems bandlimit on top
+
+# Public API exports
+__all__ = [
+    "Pattern",
+    "parse_chip",
+    "render",
+    "note_to_freq",
+    "import_midi",
+    "transpose_pattern",
+    "pattern_report",
+    "signal_report",
+    "normalize_loudness",
+    "render_roll",
+    "write_wav",
+    "SYSTEMS",
+    "DEMO",
+    "OUT_DIR",
+    "SR",
+]
 
 
 # Backwards compatibility: map old system names to new hardware specs
@@ -105,6 +128,7 @@ def _get_legacy_system(name: str) -> dict:
         "output_sr": spec.output_sample_rate or spec.sample_rate,
         "echo": spec.echo,
         "vibrato": spec.vibrato,
+        "core": spec.core.value,  # Add core for render core selection
     }
 
 
@@ -115,9 +139,6 @@ for name, _spec in ALL_SYSTEMS.items():
 
 # Note: SYSTEM_ALIASES are used by get_system_spec() for name resolution
 # but are NOT added to SYSTEMS to avoid duplicate entries in /api/chiptune/systems
-# for alias in SYSTEM_ALIASES:
-#     if alias not in SYSTEMS:
-#         SYSTEMS[alias] = SYSTEMS[SYSTEM_ALIASES[alias]]
 
 # Atari TIA pulse-duty quantization steps (fraction of period high).
 _ATARI_DUTIES = [0.0, 0.03125, 0.09375, 0.21875, 0.46875, 0.71875, 0.96875, 1.0]
@@ -485,6 +506,7 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
     tonal lines never consume a voice.
     Returns a list aligned to chan_specs; entries are
     (line_name, wave, duty, cells) or None for silent voices.
+    For FM voices, the duty field carries fm_index*10.
     """
     slots: list[tuple[str, str, int, list[str]] | None] = [None] * len(chan_specs)
     used: set[int] = set()
@@ -529,6 +551,11 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
         if target is None:
             break
         w, d = p.waves.get(name, chan_specs[target])
+        # For FM voices, store fm_index*10 in duty field
+        if w == "fm":
+            spec_obj = get_system_spec(sysname)
+            fm_channel = next((ch for ch in spec_obj.channels if ch.waveform.value == "fm"), None)
+            d = int((fm_channel.fm_index if fm_channel else 1.6) * 10) if fm_channel else int(1.6 * 10)
         slots[target] = (name, w, _quantize_duty(d, sysname), p.channels[name])
         used.add(target)
 
@@ -541,6 +568,11 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
         for i in tonal:
             if i not in used:
                 w, d = p.waves.get(name, chan_specs[i])
+                # For FM voices, store fm_index*10 in duty field
+                if w == "fm":
+                    spec_obj = get_system_spec(sysname)
+                    fm_channel = next((ch for ch in spec_obj.channels if ch.waveform.value == "fm"), None)
+                    d = int((fm_channel.fm_index if fm_channel else 1.6) * 10) if fm_channel else int(1.6 * 10)
                 slots[i] = (name, w, _quantize_duty(d, sysname), p.channels[name])
                 used.add(i)
                 break
@@ -555,9 +587,9 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
 # Nuked-OPN2 FM Voice Renderer
 # ------------------------------------------------------------
 def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
-                          starts: list[int], sr: int, cell_sec: float) -> np.ndarray | None:
+                          starts: list[int], sr: int, cell_sec: float, cpu_clock_hz: int = 7670454) -> np.ndarray | None:
     """Render an FM voice using Nuked-OPN2 cycle-accurate emulation.
-    
+
     Uses algorithm 7 (all 4 operators as carriers) for simplicity.
     Builds a register write timeline and runs the chip cycle-accurate.
     """
@@ -565,16 +597,16 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
         import nuked_opn2
     except ImportError:
         return None  # Fall back to behavioral
-    
+
     # Initialize chip with algorithm 7 (all 4 operators as carriers)
     chip = nuked_opn2.NukedOPN2()
     chip.set_chip_type(3)  # MODE_YM2612 | MODE_READMODE
-    
+
     # Disable DAC for pure FM
     chip.write_register(0x2B, 0x00)
     chip.write_register(0x22, 0x00)  # LFO off
     chip.write_register(0x20, 0x07)  # Algorithm 7: all carriers
-    
+
     # Configure all 4 operators as carriers with default envelope
     for op_base in [0x30, 0x34, 0x38, 0x3C]:
         chip.write_register(op_base, 0x00)        # MUL=1
@@ -584,19 +616,16 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
         chip.write_register(op_base + 0x40, 0x0F)  # SR=0, RR=15
         chip.write_register(op_base + 0x50, 0x00)  # SL=0
         chip.write_register(op_base + 0x60, 0x00)  # SSG-EG=0
-    
+
     # Build register write timeline from cells
     events = []  # (sample_index, register, value)
-    cur_f = 0.0
-    glide_f = 0.0
     arp_semitones = [0.0]
-    keyed = False
-    
+
     def freq_to_fnum_block(freq_hz: float) -> tuple[int, int]:
         """Convert frequency to F-Number and Block for YM2612."""
         if freq_hz <= 0:
             return 0, 0
-        master_clock = 7670454
+        master_clock = cpu_clock_hz
         internal_clock = master_clock / 6.0
         fnum = int(round(freq_hz * (2**20) / internal_clock))
         block = 0
@@ -604,18 +633,18 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
             fnum >>= 1
             block += 1
         return min(fnum, 0x3FF), block
-    
+
     for i, cell in enumerate(cells):
         start = starts[i]
         if start >= len(cells) * int(cell_sec * 44100):  # Approximate bound check
             continue
-        
+
         if cell == ".":
             events.append((start, 0x28, 0x00))  # Key off
             continue
         if cell == "-":
             continue
-        
+
         porta = cell.startswith(">")
         drop = cell.startswith("<")
         base, _, arp = (cell[1:] if (porta or drop) else cell).partition("~")
@@ -628,42 +657,40 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
                 arp_semitones = [float(x) for x in arp.split(",")]
             except ValueError:
                 arp_semitones = [0.0]
-        
+
         if target <= 0:
             continue
-        
+
         if porta:
             pass  # Portamento not supported in register-level yet
         elif drop:
             target *= 2.0
-        
+
         # Apply arpeggio (use first offset for simplicity)
         arp_offset = arp_semitones[0] if arp_semitones else 0.0
         final_freq = target * (2.0 ** (arp_offset / 12.0))
-        
+
         if final_freq > 0:
             fnum, block = freq_to_fnum_block(final_freq)
-            events.append((start, 0xA0, fnum & 0xFF))
-            events.append((start, 0xA4, ((block & 7) << 3) | (fnum >> 8)))
-            events.append((start, 0x28, 0xF0))  # Key on all operators
+            events.extend(((start, 160, fnum & 255), (start, 164, (block & 7) << 3 | fnum >> 8), (start, 40, 240)))  # Key on all operators
         else:
             events.append((start, 0x28, 0x00))
-    
+
     # Generate audio by running the chip in chunks between events
-    total_samples = len(starts) - 1  # Number of cells
-    if total_samples <= 0:
-        return np.zeros(0, dtype=np.float32)
-    
+
     # Sort events by sample index
-    events.sort(key=lambda x: x[0])
-    
+    events.sort(key=operator.itemgetter(0))
+
     # Convert events to time-based (seconds)
     time_events = [(idx / 44100.0, reg, val) for idx, reg, val in events]
-    time_events.sort(key=lambda x: x[0])
-    
+    time_events.sort(key=operator.itemgetter(0))
+
+    if not time_events:
+        return np.zeros(0, dtype=np.float32)
+
     output_chunks = []
     prev_time = 0.0
-    
+
     for ev_time, reg, val in time_events:
         if ev_time > prev_time:
             duration = ev_time - prev_time
@@ -671,41 +698,46 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
             if samples_needed > 0:
                 raw = chip.generate(samples_needed, stereo=False)
                 import struct
-                samples = struct.unpack('<' + 'h' * (len(raw)//2), raw)
+                samples = struct.unpack('<' + 'h' * (len(raw) // 2), raw)
                 chunk = np.array(samples, dtype=np.float32) / 32768.0
                 output_chunks.append(chunk)
         chip.write_register(reg, val)
         prev_time = ev_time
-    
-    # Generate remaining
-    total_duration = len(starts) * (60.0 / 120 / 4.0)  # Approximate
+
+    # Generate remaining - use pattern tempo and cells for total duration
+    total_duration = len(starts) * (60.0 / p.tempo / 4.0)  # Fixed: use p.tempo
     if prev_time < total_duration:
         duration = total_duration - prev_time
         samples_needed = int(duration * 44100)
         if samples_needed > 0:
             raw = chip.generate(samples_needed, stereo=False)
             import struct
-            samples = struct.unpack('<' + 'h' * (len(raw)//2), raw)
+            samples = struct.unpack('<' + 'h' * (len(raw) // 2), raw)
             chunk = np.array(samples, dtype=np.float32) / 32768.0
             output_chunks.append(chunk)
-    
+
     if output_chunks:
         full_output = np.concatenate(output_chunks)
         return full_output.astype(np.float32)
-    
+
     return None
 
 
 def render(p: Pattern, system_name: str | None = None, *, core: str | None = None) -> tuple[np.ndarray, int]:
     sysname = system_name or p.system
+    # Resolve alias to canonical system name
+    try:
+        sysname = get_system_spec(sysname).name
+    except ValueError:
+        pass  # Keep original if not an alias
     if sysname not in SYSTEMS:
         raise ValueError(f"unknown system {sysname!r}; choose from {sorted(SYSTEMS)}")
     spec = SYSTEMS[sysname]
     chan_specs = spec["channels"]
-    
+
     # Use core from spec if not explicitly provided
     render_core = core or spec.get("core", "behavioral")
-    
+
     sr = SR  # always synthesize at 44.1k; output_sr decimates once at end
 
     slots = _assign_voices(p, chan_specs, sysname)
@@ -740,7 +772,7 @@ def render(p: Pattern, system_name: str | None = None, *, core: str | None = Non
             nuked_chip = nuked_opn2.NukedOPN2()
             nuked_chip.set_chip_type(3)  # MODE_YM2612 | MODE_READMODE
             # Find FM voice indices in bound channels
-            for bi, (name, wave_kind, duty, cells) in enumerate(bound):
+            for bi, (name, wave_kind, duty, _cells) in enumerate(bound):
                 if wave_kind == "fm":
                     fm_voice_indices.append((bi, name, duty))
         except ImportError:
@@ -843,20 +875,22 @@ def render(p: Pattern, system_name: str | None = None, *, core: str | None = Non
         # 'vibrato <name> <depth_semi> <rate_hz>' pattern directive.
         vib = spec.get("vibrato")
         if vib:
-            freq *= 1.0 + vib["depth"] * np.sin(
-                2.0 * np.pi * vib["rate"] * t)
+            # Fix: vibrato depth is in semitones, use multiplicative formula like per-channel
+            freq *= 2.0 ** (vib["depth"] * np.sin(2.0 * np.pi * vib["rate"] * t) / 12.0)
         chan_vib = p.vibrato.get(name)
         if chan_vib:
             depth, rate = chan_vib
             freq *= 2.0 ** (depth * np.sin(2.0 * np.pi * rate * t) / 12.0)
         phase = np.cumsum(freq) / sr
         if wave_kind == "fm":
-            # duty field doubles as FM index*10 for fm voices (0 -> 1.6).
+            # Use channel spec's fm_index (stored in duty field by _assign_voices)
+            # Fall back to 1.6 if not set
             index = duty / 10.0 if duty else 1.6
             # Use Nuked-OPN2 if available and selected for this voice
             if render_core == "nuked-opn2" and nuked_chip is not None:
                 # Try Nuked-OPN2 cycle-accurate rendering for this voice
-                fm_audio = _render_fm_nuked_opn2(p, name, cells, starts, sr, cell_sec)
+                cpu_clock = spec.get("cpu_clock_hz", 7670454)
+                fm_audio = _render_fm_nuked_opn2(p, name, cells, starts, sr, cell_sec, cpu_clock)
                 if fm_audio is not None and len(fm_audio) == len(phase):
                     sig = fm_audio
                 else:
@@ -1361,14 +1395,18 @@ def write_wav(path: Path, pcm: np.ndarray, sr: int) -> None:
         w.setnchannels(2)
         w.setsampwidth(2)
         w.setframerate(sr)
-        w.writeframes(pcm.tobytes())
+        # Explicit little-endian for WAV format portability
+        w.writeframes(pcm.astype('<i2').tobytes())
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Render a .chip pattern to WAV.")
     ap.add_argument("file", nargs="?", help=".chip pattern file")
-    ap.add_argument("--system", choices=sorted(SYSTEMS),
-                    help="override the file's system preset")
+    # Include both canonical names and aliases
+    from packages.backend.app.core.chiptune_hardware import SYSTEM_ALIASES
+    all_names = sorted(set(SYSTEMS.keys()) | set(SYSTEM_ALIASES.keys()))
+    ap.add_argument("--system", choices=all_names,
+                    help="override the file's system preset (includes aliases like '2a03', 'dmc', etc.)")
     ap.add_argument("--demo", action="store_true", help="render the built-in demo")
     ap.add_argument("--all", action="store_true",
                     help="render across every system preset (A/B)")
@@ -1404,6 +1442,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if args.out:
             out = Path(args.out)
+            if out.suffix.lower() != ".chip":
+                print(f"[chiptune] warning: --midi output should use .chip extension, got {out.suffix}", file=sys.stderr)
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(chip_text, encoding="utf-8")
             print(f"[chiptune] wrote {out}")
@@ -1423,7 +1463,8 @@ def main(argv: list[str] | None = None) -> int:
         if not src.exists():
             print(f"[chiptune] file not found: {src}", file=sys.stderr)
             return 1
-        text, name = src.read_text(encoding="utf-8"), src.stem
+        text = src.read_text(encoding="utf-8").lstrip('\ufeff')  # Strip BOM if present
+        name = src.stem
     else:
         ap.error("provide a .chip file or --demo")
 
@@ -1440,13 +1481,20 @@ def main(argv: list[str] | None = None) -> int:
     systems = [args.system] if args.system else [pat.system]
     if args.all:
         systems = list(SYSTEMS)
-    for sysname in systems:
+    # Resolve aliases for each system
+    resolved_systems = []
+    for s in systems:
         try:
-            pcm, sr = render(pat, system_name=sysname)
+            resolved_systems.append(get_system_spec(s).name)
+        except ValueError:
+            resolved_systems.append(s)
+    for sysname, resolved_name in zip(systems, resolved_systems, strict=True):
+        try:
+            pcm, sr = render(pat, system_name=resolved_name)
         except ValueError as e:
             print(f"[chiptune] {sysname}: {e}", file=sys.stderr)
             continue
-        spec = SYSTEMS[sysname]
+        spec = SYSTEMS[resolved_name]
         loud_info = None
         if not args.no_loudnorm:
             pcm, loud_info = normalize_loudness(pcm, sr, args.loudness)

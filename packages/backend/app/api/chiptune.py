@@ -16,8 +16,12 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from ..core.config import OUTPUT_DIR, PROJECT_ROOT
 from ..core.chiptune_hardware import get_system_spec
+from ..core.config import OUTPUT_DIR, PROJECT_ROOT
+
+# Ensure tools module is importable
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -34,9 +38,6 @@ def _load():
     global _chip
     if _chip is not None:
         return _chip
-    root = str(PROJECT_ROOT)
-    if root not in sys.path:
-        sys.path.insert(0, root)
     try:
         import tools.chiptune as chip
     except ImportError as e:
@@ -119,7 +120,9 @@ async def import_midi_endpoint(file: UploadFile) -> dict[str, Any]:
     chip = _load()
     if not (file.filename or "").lower().endswith((".mid", ".midi")):
         raise HTTPException(status_code=400, detail="expected a .mid/.midi file")
-    tmp = PROJECT_ROOT / "output" / "tmp" / f"chiptune-import-{file.filename}"
+    # Sanitize filename to prevent path traversal
+    safe_name = _clean_name(file.filename or "import.mid")
+    tmp = PROJECT_ROOT / "output" / "tmp" / f"chiptune-import-{safe_name}"
     tmp.parent.mkdir(parents=True, exist_ok=True)
     tmp.write_bytes(await file.read())
     try:
@@ -247,8 +250,10 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
 def _pattern_path(name: str) -> Path:
     stem = _clean_name(name)
     path = (PATTERNS_DIR / f"{stem}.chip").resolve()
-    if PATTERNS_DIR.resolve() not in path.parents and path != PATTERNS_DIR:
-        raise HTTPException(status_code=400, detail="invalid pattern name")
+    try:
+        path.relative_to(PATTERNS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid pattern name") from None
     return path
 
 
@@ -284,7 +289,10 @@ async def save_pattern(name: str, req: SavePatternRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"invalid .chip: {e}") from e
     path = _pattern_path(name)
     PATTERNS_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_text(req.pattern, encoding="utf-8")
+    # Atomic write: write to temp file then rename
+    tmp_path = path.with_suffix(".chip.tmp")
+    tmp_path.write_text(req.pattern, encoding="utf-8")
+    tmp_path.replace(path)
     return {"name": path.stem, "saved": _out_rel(path)}
 
 

@@ -1,446 +1,171 @@
-import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
-
 /**
- * Ollama client for the Native Media AI Studio frontend.
- *
- * Ollama 0.40.14 compatibility note (2026-11-03):
- *   - OpenAI-compatible endpoints (/v1/chat/completions, /v1/completions,
- *     /v1/responses) no longer override model-packaged temperature/top_p
- *     when clients omit them — they now use the model's own defaults
- *     instead of 1.0. This client calls Ollama's **native** /api/chat
-     and /api/generate endpoints (via the backend integration layer),
-     which were never affected by this change.
- *   - All callers explicitly pass `temperature` where it matters
- *     (ollamaChatStream conditionally; generateVisualizerPreset always
- *     passes temperature=0.7), so explicit values continue to override
- *     model defaults under 0.40.14. No code change required for 0.40.14.
+ * Frontend client for /api/integrations/ollama — Ollama model management and chat.
  */
 
-export interface UnifiedModel {
-  source: "ollama" | "atomic-chat";
-  id: string;
-  name: string;
-  size: number;
-  digest: string;
-  capabilities: string[];
-  supports_tools: boolean;
-  supports_vision: boolean;
-  supports_thinking: boolean;
-  supports_embedding: boolean;
-  supports_rerank: boolean;
-  vram_required: number;
-  is_available: boolean;
-  verified: boolean;
-  verified_features: string[];
-  performance: { tokens_per_sec?: number; vision_latency_sec?: number };
-  verification_notes: string;
-  broken_reason: string;
-  chat_eligible: boolean;
-  task_routes: string[];
-  benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
+import { getApiBase } from "./core";
+import { getJson, postJson } from "./typed-fetch";
+import type {
+  OllamaModel,
+  UnifiedModel,
+  TaskModelRoute,
+  ChatMessage,
+  ToolDefinition,
+  OllamaBenchmarkResult,
+  HardwareBenchmarkSummary,
+  CodingBenchmarkResult,
+  OllamaChatResponse,
+  AIGeneratedPreset,
+} from "./types";
+
+const BASE = "/api/integrations/ollama";
+
+/**
+ * Get Ollama models with normalized fields.
+ */
+export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel[]> {
+  return getJson<OllamaModel[]>(`${BASE}/models?verified_only=${verifiedOnly}`, { timeout: 30000 });
 }
 
-export interface TaskModelRoute {
-  engine: string;
-  model: string;
-  reason: string;
-}
-
+/**
+ * Get unified models (Ollama + Atomic Chat).
+ */
 export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedModel[]> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/models/unified?verified_only=${verifiedOnly}`,
+  return getJson<UnifiedModel[]>(
+    `${BASE}/models/unified?verified_only=${verifiedOnly}`,
     { timeout: 30000 },
   );
-  if (!res.ok) throw new Error("Failed to get unified models");
-  const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : (payload.models ?? []);
-  return entries.map((m: UnifiedModel & Record<string, unknown>) => {
-    const caps = (m.capabilities as string[] | undefined) ?? [];
-    const pick = (...keys: string[]): unknown => {
-      for (const k of keys) {
-        if (m[k] !== undefined && m[k] !== null) return m[k];
-      }
-      return undefined;
-    };
-    return {
-      ...m,
-      source: (pick("source") as "ollama" | "atomic-chat") || "ollama",
-      name: m.name || m.id || "",
-      size: m.size ?? (pick("model_size") as number) ?? 0,
-      capabilities: caps,
-      supports_tools: (pick("supports_tools") as boolean | undefined) ?? caps.includes("tools"),
-      supports_vision: (pick("supports_vision") as boolean | undefined) ?? caps.includes("vision"),
-      supports_thinking:
-        (pick("supports_thinking") as boolean | undefined) ?? caps.includes("thinking"),
-      supports_embedding:
-        (pick("supports_embedding") as boolean | undefined) ?? caps.includes("embed"),
-      supports_rerank: (pick("supports_rerank") as boolean | undefined) ?? caps.includes("rerank"),
-      vram_required: (pick("vram_required") as number | undefined) ?? 0,
-      verified: pick("verified") as boolean | undefined,
-      verified_features: pick("verified_features") as string[] | undefined,
-      performance: pick("performance") as
-        { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
-      verification_notes: pick("verification_notes") as string | undefined,
-      broken_reason: pick("broken_reason") as string | undefined,
-      chat_eligible: (pick("chat_eligible") as boolean | undefined) ?? true,
-      task_routes: (pick("task_routes") as string[] | undefined) ?? [],
-    };
-  });
 }
 
+/**
+ * Get task model routes (which model for which task).
+ */
 export async function getTaskModelRoutes(): Promise<{
   routes: Record<string, TaskModelRoute>;
   excluded_from_chat: string[];
 }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/models/task-routes`, {
-    timeout: 10000,
-  });
-  if (!res.ok) throw new Error("Failed to get task model routes");
-  return res.json();
+  return getJson<{
+    routes: Record<string, TaskModelRoute>;
+    excluded_from_chat: string[];
+  }>(`${BASE}/models/task-routes`, { timeout: 10000 });
 }
 
-export interface OllamaModel {
-  name: string;
-  size: number;
-  modified_at?: string;
-  capabilities?: string[];
-  supportsTools?: boolean;
-  supportsVision?: boolean;
-  supportsThinking?: boolean;
-  vram_estimate_mb?: number;
-  benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
-  codingBenchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
-  // Verification fields
-  verified?: boolean;
-  verified_features?: string[];
-  performance?: { tokens_per_sec?: number; vision_latency_sec?: number };
-  verification_notes?: string;
-  broken_reason?: string;
-}
-
-export interface ChatMessage {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
-  timestamp?: Date;
-  tool_calls?: { name: string; arguments: Record<string, unknown> }[];
-  tool_name?: string;
-}
-
-export interface ToolDefinition {
-  type: "function";
-  function: {
-    name: string;
-    description: string;
-    parameters: {
-      type: string;
-      properties: Record<string, { type: string; description: string }>;
-      required?: string[];
-    };
-  };
-}
-
-export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel[]> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/ollama/models?verified_only=${verifiedOnly}`,
-    { timeout: 30000 },
-  );
-  if (!res.ok) throw new Error("Failed to get Ollama models");
-  const payload = await res.json();
-  const entries = Array.isArray(payload) ? payload : (payload.models ?? []);
-  // The two handlers that have served this path disagreed on field names: the one
-  // actually reachable returned snake_case (`model_name`, `supports_tools`,
-  // `vram_required`), while this type declared camelCase. `name` and `size` were
-  // already reconciled here, but `supportsTools` / `supportsVision` /
-  // `vram_estimate_mb` were not, so every consumer of them read `undefined` -
-  // measured consumers: the AI Tools model list, its sidebar badges, and the VRAM
-  // figure in Ollama Chat. Normalise all of them at this one boundary so the rest
-  // of the frontend can trust the type.
-  return entries
-    .map((model: OllamaModel & Record<string, unknown>) => {
-      const caps = model.capabilities ?? [];
-      const pick = (...keys: string[]): unknown => {
-        for (const k of keys) {
-          if (model[k] !== undefined && model[k] !== null) return model[k];
-        }
-        return undefined;
-      };
-      return {
-        ...model,
-        name: model.name || (pick("model_name", "id") as string) || "",
-        size: model.size ?? (pick("model_size") as number) ?? 0,
-        capabilities: caps,
-        // Prefer the server's explicit flags; fall back to the capability list,
-        // which Ollama populates authoritatively on 0.35.x.
-        supportsTools:
-          (pick("supportsTools", "supports_tools") as boolean | undefined) ??
-          caps.includes("tools"),
-        supportsVision:
-          (pick("supportsVision", "supports_vision") as boolean | undefined) ??
-          caps.includes("vision"),
-        supportsThinking:
-          (pick("supportsThinking", "supports_thinking") as boolean | undefined) ??
-          caps.includes("thinking"),
-        vram_estimate_mb: (pick("vram_estimate_mb", "vram_required") as number | undefined) ?? 0,
-        // Verification fields
-        verified: pick("verified") as boolean | undefined,
-        verified_features: pick("verified_features") as string[] | undefined,
-        performance: pick("performance") as
-          { tokens_per_sec?: number; vision_latency_sec?: number } | undefined,
-        verification_notes: pick("verification_notes") as string | undefined,
-        broken_reason: pick("broken_reason") as string | undefined,
-      };
-    })
-    .filter((m: OllamaModel) => {
-      const name = m.name.toLowerCase();
-      return (
-        name && !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt")
-      );
-    });
-}
-
+/**
+ * Check Ollama engine status.
+ */
 export async function ollamaEngineStatus(): Promise<{
   online: boolean;
   engine: string;
 }> {
   const base = getApiBase();
   try {
-    const res = await fetchWithTimeout(`${base}/api/health/ollama/models`, {
-      timeout: 5000,
-    });
-    if (!res.ok) return { online: false, engine: "ollama" };
-    const data = (await res.json()) as { loaded?: boolean; server_online?: boolean };
-    // A successful response means Ollama server is online even if no model
-    // is currently loaded in VRAM (models load on first request).
-    return { online: Boolean(data.server_online ?? data.loaded), engine: "ollama" };
+    const res = await getJson<{ loaded?: boolean; server_online?: boolean }>(
+      `${base}/api/health/ollama/models`,
+      { timeout: 5000 },
+    );
+    return { online: Boolean(res.server_online ?? res.loaded), engine: "ollama" };
   } catch {
     return { online: false, engine: "ollama" };
   }
 }
 
-export interface OllamaBenchmarkResult {
-  model: string;
-  success: boolean;
-  latency_ms: number;
-  chars: number;
-  lines: number;
-  validation: {
-    score: number;
-    raw_score: number;
-    max_score: number;
-    passed_rules: number;
-    total_rules: number;
-    details: { rule: string; description: string; weight: number; passed: boolean }[];
-    metrics: {
-      lines: number;
-      chars: number;
-      balanced_braces: boolean;
-      node_valid: boolean | null;
-      node_error: string | null;
-    };
-  };
-  preview: string;
-  error: string | null;
-  timestamp: string;
-}
-
+/**
+ * Get benchmark results.
+ */
 export async function getBenchmarkResults(): Promise<{
   updated_at: string | null;
   results: Record<string, OllamaBenchmarkResult>;
 }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/results`, {
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to get benchmark results");
-  return res.json();
+  return getJson<{
+    updated_at: string | null;
+    results: Record<string, OllamaBenchmarkResult>;
+  }>(`${BASE}/benchmark/results`, { timeout: 30000 });
 }
 
+/**
+ * Run benchmark for specified models.
+ * Long-running (up to 15 minutes).
+ */
 export async function runBenchmark(
   models?: string[],
   max_models = 8,
 ): Promise<{ updated_at: string | null; results: Record<string, OllamaBenchmarkResult> }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ models: models ?? null, max_models }),
-    timeout: 900000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Benchmark failed" }));
-    throw new Error(err.detail ?? "Benchmark failed");
-  }
-  return res.json();
+  return postJson<{
+    updated_at: string | null;
+    results: Record<string, OllamaBenchmarkResult>;
+  }>(`${BASE}/benchmark/run`, { models: models ?? null, max_models }, { timeout: 900000 });
 }
 
+/**
+ * Get best benchmark model.
+ */
 export async function getBestBenchmarkModel(): Promise<{
   best: string | null;
   result?: OllamaBenchmarkResult;
   results: { updated_at: string | null; results: Record<string, OllamaBenchmarkResult> };
 }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/benchmark/best`, {
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to get best benchmark model");
-  return res.json();
+  return getJson<{
+    best: string | null;
+    result?: OllamaBenchmarkResult;
+    results: { updated_at: string | null; results: Record<string, OllamaBenchmarkResult> };
+  }>(`${BASE}/benchmark/best`, { timeout: 30000 });
 }
 
-export interface HardwareBenchmarkMetrics {
-  median_latency_ms?: number;
-  avg_latency_ms?: number;
-  min_latency_ms?: number;
-  max_latency_ms?: number;
-  latency_q1_ms?: number;
-  latency_q3_ms?: number;
-  tokens_per_second?: number;
-  output_tokens?: number;
-  prompt_tokens?: number;
-}
-
-export interface HardwareBenchmarkRun {
-  run_id: string;
-  engine: string;
-  model: string;
-  status: string;
-  started_at: string;
-  completed_at?: string | null;
-  duration_ms?: number;
-  iterations?: number;
-  successful_iterations?: number;
-  error?: string | null;
-  metrics?: HardwareBenchmarkMetrics;
-}
-
-// Aggregated per model from raw GET /api/hardware/benchmarks rows. Only
-// completed ollama runs count toward the median: a timed-out run's
-// duration_ms is the timeout budget, not a latency measurement, and a
-// failed run has no meaningful latency at all.
-export interface HardwareBenchmarkSummary {
-  model: string;
-  median_latency_ms: number;
-  tokens_per_second: number | null;
-  runs: number;
-  last_run_at: string;
-}
-
-function medianLatency(values: number[]): number | null {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
+/**
+ * Get hardware benchmarks (aggregated).
+ */
 export async function getHardwareBenchmarks(): Promise<Record<string, HardwareBenchmarkSummary>> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/hardware/benchmarks?limit=200`, {
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to get hardware benchmarks");
-  const runs = (await res.json()) as HardwareBenchmarkRun[];
-  const byModel = new Map<string, HardwareBenchmarkRun[]>();
-  for (const run of runs) {
-    if (run.engine !== "ollama" || run.status !== "completed") continue;
-    const list = byModel.get(run.model) ?? [];
-    list.push(run);
-    byModel.set(run.model, list);
-  }
-  const summary: Record<string, HardwareBenchmarkSummary> = {};
-  for (const [model, list] of byModel) {
-    const latencies = list
-      .map((r) => r.metrics?.median_latency_ms ?? r.duration_ms)
-      .filter((v): v is number => typeof v === "number" && v > 0);
-    const tokPerSec = list
-      .map((r) => r.metrics?.tokens_per_second)
-      .filter((v): v is number => typeof v === "number" && v > 0);
-    const sortedRuns = [...list].sort((a, b) => b.started_at.localeCompare(a.started_at));
-    summary[model] = {
-      model,
-      median_latency_ms: medianLatency(latencies) ?? 0,
-      tokens_per_second: medianLatency(tokPerSec),
-      runs: list.length,
-      last_run_at: sortedRuns[0]?.started_at ?? "",
-    };
-  }
-  return summary;
+  return getJson<Record<string, HardwareBenchmarkSummary>>(
+    `${BASE}/hardware/benchmarks?limit=200`,
+    { timeout: 30000 },
+  );
 }
 
-export interface CodingBenchmarkTaskResult {
-  task: string;
-  weight: number;
-  success: boolean;
-  latency_ms: number;
-  validation: {
-    score: number;
-    raw_score: number;
-    max_score: number;
-    passed_rules: number;
-    total_rules: number;
-    details: { rule: string; passed: boolean; weight: number }[];
-    metrics: Record<string, unknown>;
-  };
-  preview: string;
-  error: string | null;
-}
-
-export interface CodingBenchmarkResult {
-  model: string;
-  success: boolean;
-  total_score: number;
-  raw_score: number;
-  max_score: number;
-  total_latency_ms: number;
-  tasks: CodingBenchmarkTaskResult[];
-  timestamp: string;
-}
-
+/**
+ * Get coding benchmark results.
+ */
 export async function getCodingBenchmarkResults(): Promise<{
   updated_at: string | null;
   results: Record<string, CodingBenchmarkResult>;
 }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/results`, {
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to get coding benchmark results");
-  return res.json();
+  return getJson<{
+    updated_at: string | null;
+    results: Record<string, CodingBenchmarkResult>;
+  }>(`${BASE}/coding-benchmark/results`, { timeout: 30000 });
 }
 
+/**
+ * Run coding benchmark for specified models.
+ * Long-running (up to 15 minutes).
+ */
 export async function runCodingBenchmark(
   models?: string[],
   max_models = 12,
 ): Promise<{ updated_at: string | null; results: Record<string, CodingBenchmarkResult> }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ models: models ?? null, max_models }),
-    timeout: 900000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Coding benchmark failed" }));
-    throw new Error(err.detail ?? "Coding benchmark failed");
-  }
-  return res.json();
+  return postJson<{
+    updated_at: string | null;
+    results: Record<string, CodingBenchmarkResult>;
+  }>(`${BASE}/coding-benchmark/run`, { models: models ?? null, max_models }, { timeout: 900000 });
 }
 
+/**
+ * Get best coding model.
+ */
 export async function getBestCodingModel(): Promise<{
   best: string | null;
   result?: CodingBenchmarkResult;
   results: { updated_at: string | null; results: Record<string, CodingBenchmarkResult> };
 }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/coding-benchmark/best`, {
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to get best coding model");
-  return res.json();
+  return getJson<{
+    best: string | null;
+    result?: CodingBenchmarkResult;
+    results: { updated_at: string | null; results: Record<string, CodingBenchmarkResult> };
+  }>(`${BASE}/coding-benchmark/best`, { timeout: 30000 });
 }
 
+/**
+ * Chat with Ollama (non-streaming).
+ * Long-running (up to 5 minutes).
+ */
 export async function ollamaChat(
   message: string,
   model = "gemma4:e2b-it-qat",
@@ -450,17 +175,11 @@ export async function ollamaChat(
     think?: boolean | string;
     maxToolCalls?: number;
   },
-): Promise<{
-  response: string;
-  model: string;
-  toolCalls: number;
-  toolDetails?: { name: string; arguments: Record<string, unknown>; result: string }[];
-}> {
+): Promise<OllamaChatResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  return postJson<OllamaChatResponse>(
+    `${base}${BASE}/chat`,
+    {
       message,
       model,
       history: options?.history ?? [],
@@ -468,13 +187,16 @@ export async function ollamaChat(
       think: options?.think,
       stream: false,
       max_tool_calls: options?.maxToolCalls ?? 5,
-    }),
-    timeout: 300000,
-  });
-  if (!res.ok) throw new Error("Failed to chat with Ollama");
-  return res.json();
+    },
+    { timeout: 300000 },
+  );
 }
 
+/**
+ * Chat with Ollama (streaming).
+ * Returns ReadableStream for SSE parsing.
+ * Long-running (up to 5 minutes).
+ */
 export async function ollamaChatStream(
   message: string,
   model = "gemma4:e2b-it-qat",
@@ -511,10 +233,9 @@ export async function ollamaChatStream(
   ]) {
     if (optionsRecord?.[k] !== undefined) ollamaOpts[k] = optionsRecord[k];
   }
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const response = await postJson<Response>(
+    `${base}${BASE}/chat`,
+    {
       message,
       model,
       history: options?.history ?? [],
@@ -524,16 +245,17 @@ export async function ollamaChatStream(
       max_tool_calls: options?.maxToolCalls ?? 5,
       system: options?.system,
       ...(Object.keys(ollamaOpts).length ? { options: ollamaOpts } : {}),
-    }),
-    signal,
-    timeout: 300000,
-  });
-  if (!res.ok) throw new Error("Failed to chat with Ollama");
-  const body = res.body;
+    },
+    { signal, timeout: 300000 },
+  );
+  const body = response.body;
   if (!body) throw new Error("Ollama chat response had no body");
   return body;
 }
 
+/**
+ * Parse Ollama SSE stream into typed events.
+ */
 export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): AsyncGenerator<{
   type: "content" | "tool_calls" | "tool_result" | "done" | "connected" | "error";
   data: unknown;
@@ -583,76 +305,25 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
   }
 }
 
+/**
+ * Generate with Ollama (non-chat).
+ */
 export async function ollamaGenerate(
   prompt: string,
   model = "gemma4:e2b-it-qat",
 ): Promise<{ response: string; model: string; done: boolean }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, model }),
-    timeout: 120000,
-  });
-  if (!res.ok) throw new Error("Failed to generate via Ollama");
-  return res.json();
+  return postJson<{ response: string; model: string; done: boolean }>(
+    `${base}${BASE}/generate`,
+    { prompt, model },
+    { timeout: 120000 },
+  );
 }
 
-export interface AIGeneratedPreset {
-  version: string;
-  id: string;
-  name: string;
-  description: string;
-  tags: string[];
-  theme: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    background: string;
-    text: string;
-    glow: string;
-  };
-  visualizer: {
-    style: string;
-    colors: string;
-    intensity: number;
-    particleCount: number;
-    speed: number;
-    scale: number;
-    glow: boolean;
-    rotation: boolean;
-  };
-  camera: {
-    keyframes: {
-      at: number;
-      position: [number, number, number];
-      target: [number, number, number];
-      easing?: string;
-    }[];
-    mode: string;
-    fov: number;
-  };
-  postfx: Record<string, number>;
-  lyrics: {
-    style: string;
-    glowIntensity: number;
-    fontSize: number;
-    fontWeight: number;
-    letterSpacing: number;
-    beatReact: boolean;
-    enterAnimation: string;
-    exitAnimation: string;
-  };
-  audioReactivity: {
-    bass: string;
-    mid: string;
-    treble: string;
-    beat: string;
-    beatDecay: number;
-    smoothing: number;
-  };
-}
-
+/**
+ * Generate visualizer preset using AI.
+ * Long-running (up to 2 minutes).
+ */
 export async function generateVisualizerPreset(
   description: string,
   model = "gemma4:e2b-it-qat",
@@ -660,19 +331,17 @@ export async function generateVisualizerPreset(
   track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
 ): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/ollama/visualizer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description, model, temperature, track }),
-    timeout: 120000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to generate visualizer preset");
-  }
-  return res.json();
+  return postJson<{ success: boolean; preset: AIGeneratedPreset; model: string }>(
+    `${base}${BASE}/visualizer`,
+    { description, model, temperature, track },
+    { timeout: 120000 },
+  );
 }
 
+/**
+ * Generate visualizer preset using Atomic Chat (local Qwen).
+ * Long-running (up to 2 minutes).
+ */
 export async function generateVisualizerPresetAtomic(
   description: string,
   model = "qwen3.5:4b",
@@ -680,15 +349,9 @@ export async function generateVisualizerPresetAtomic(
   track?: { bpm?: number; energy?: number; duration_seconds?: number; genre?: string },
 ): Promise<{ success: boolean; preset: AIGeneratedPreset; model: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/integrations/atomic-chat/visualizer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description, model, temperature, track }),
-    timeout: 120000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to generate visualizer preset");
-  }
-  return res.json();
+  return postJson<{ success: boolean; preset: AIGeneratedPreset; model: string }>(
+    `${base}/api/integrations/atomic-chat/visualizer`,
+    { description, model, temperature, track },
+    { timeout: 120000 },
+  );
 }

@@ -1,39 +1,42 @@
+/**
+ * Frontend client for /api/health/diagnostics — system diagnostics and memory cleanup.
+ */
+
 import { getApiBase } from "./core";
-import type { SystemHealth } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import { getJson, postJson } from "./typed-fetch";
+import type {
+  DiagnosticsResponse,
+  SystemHealth,
+  MemoryDiagnostics,
+  DiagnosticsModelsResponse,
+} from "./types";
 
-export async function getDiagnostics(): Promise<Record<string, unknown>> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/diagnostics`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get diagnostics");
-  return res.json();
+const BASE = "/api/health";
+
+/**
+ * Get full diagnostics (backend, adapters, queue, system).
+ */
+export async function getDiagnostics(): Promise<DiagnosticsResponse> {
+  return getJson<DiagnosticsResponse>(`${BASE}/diagnostics`, { timeout: 30000 });
 }
 
+/**
+ * Get system diagnostics (CPU, memory, disk).
+ */
 export async function getSystemDiagnostics(): Promise<SystemHealth> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/diagnostics/system`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get system diagnostics");
-  return res.json();
+  return getJson<SystemHealth>(`${BASE}/diagnostics/system`, { timeout: 30000 });
 }
 
-export interface MemoryDiagnostics {
-  memory: {
-    total_mb: number;
-    used_mb: number;
-    available_mb: number;
-    percent: number;
-  };
-  top_processes: { pid: number; name: string; mem_mb: number; mem_percent: number }[];
-  process_count: number;
-}
-
+/**
+ * Get memory diagnostics (top processes, process count).
+ */
 export async function getMemoryDiagnostics(): Promise<MemoryDiagnostics> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/diagnostics/memory`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get memory diagnostics");
-  return res.json();
+  return getJson<MemoryDiagnostics>(`${BASE}/diagnostics/memory`, { timeout: 30000 });
 }
 
+/**
+ * Cleanup system memory (drop caches, garbage collect).
+ */
 export async function cleanupSystemMemory(): Promise<{
   before_percent: number;
   after_percent: number;
@@ -41,53 +44,37 @@ export async function cleanupSystemMemory(): Promise<{
   actions: string[];
   memory: { total_mb: number; used_mb: number; available_mb: number; percent: number };
 }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/diagnostics/memory/cleanup`, {
-    method: "POST",
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to cleanup memory");
-  return res.json();
+  return postJson<{
+    before_percent: number;
+    after_percent: number;
+    freed_percent: number;
+    actions: string[];
+    memory: { total_mb: number; used_mb: number; available_mb: number; percent: number };
+  }>(`${BASE}/diagnostics/memory/cleanup`, {}, { timeout: 30000 });
 }
 
-export interface DiagnosticsModel {
-  name: string;
-  size_mb: number;
-  vram_mb: number;
-  expires_at: string;
-}
-
-export interface DiagnosticsModelsResponse {
-  loaded: boolean;
-  models: DiagnosticsModel[];
-  activity?: Record<
-    string,
-    { task: string; description: string; started_at: number; elapsed_seconds?: number }
-  >;
-  error?: string;
-}
-
+/**
+ * Get loaded Ollama models with VRAM info.
+ */
 export async function getLoadedModels(): Promise<DiagnosticsModelsResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/ollama/models`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get loaded models");
-  return res.json();
+  return getJson<DiagnosticsModelsResponse>(`${BASE}/ollama/models`, { timeout: 30000 });
 }
 
+/**
+ * Check a specific service health.
+ */
 export async function checkService(service: string): Promise<Record<string, unknown>> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/services/${service}/check`, {
-    method: "POST",
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error(`Failed to check service: ${service}`);
-  return res.json();
+  return postJson<Record<string, unknown>>(
+    `${BASE}/services/${service}/check`,
+    {},
+    { timeout: 30000 },
+  );
 }
 
-// Job Types
+/**
+ * Get job types available in the queue.
+ */
 export async function getJobTypes(): Promise<Record<string, unknown>> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/jobs/types`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get job types");
-  return res.json();
+  return getJson<Record<string, unknown>>(`${base}/api/jobs/types`, { timeout: 30000 });
 }

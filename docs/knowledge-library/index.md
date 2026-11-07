@@ -53,6 +53,7 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[frontend-typed-api-layer-2026|Frontend Typed API Layer]] — Frontend Typed API Layer
 - [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
 - [[database-operations-2026|🗄️ Database Operations 2026]] — studio.db paths/PRAGMAs, gpu_telemetry growth+retention, admin maintenance API, VACUUM/mmap caveat (NEW 2026-11-06)
 
@@ -196,7 +197,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 23 documents |
-|| `#technical/*` | System implementation & code | 26 documents |
+|| `#technical/*` | System implementation & code | 27 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |

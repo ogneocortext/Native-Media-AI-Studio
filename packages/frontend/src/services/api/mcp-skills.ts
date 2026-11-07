@@ -6,77 +6,29 @@
  */
 
 import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
-import { type ToolDefinition } from "./ollama";
+import { getJson, postJson } from "./typed-fetch";
+import type {
+  SkillInfo,
+  SkillContent,
+  ToolInfo,
+  ExecuteToolRequest,
+  ExecuteToolResponse,
+} from "./types";
 
-export interface SkillInfo {
-  name: string;
-  description: string;
-  version: string | null;
-  server: string | null;
-  tools: string[];
-  tags: string[];
-  uri: string;
-  resources: {
-    uri: string;
-    name: string;
-    mimeType: string;
-    size: number;
-  }[];
-}
-
-export interface SkillContent {
-  name: string;
-  version: string | null;
-  server: string | null;
-  tools: string[];
-  tags: string[];
-  frontmatter: Record<string, unknown>;
-  body: string;
-  resources: {
-    uri: string;
-    name: string;
-    mimeType: string;
-    size: number;
-  }[];
-}
-
-export interface ToolInfo {
-  name: string;
-  description: string;
-}
-
-export interface SkillResourceContent {
-  contents: {
-    uri: string;
-    mimeType: string;
-    text?: string;
-    blob?: string;
-  }[];
-}
+const BASE = "/api/mcp";
 
 /**
  * List all available skills with their frontmatter metadata.
  */
 export async function skillsList(): Promise<SkillInfo[]> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/mcp/skills/list`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error(`Failed to list skills (${res.status})`);
-  return res.json();
+  return getJson<SkillInfo[]>(`${BASE}/skills/list`, { timeout: 15000 });
 }
 
 /**
  * Get a skill's full content by URI (e.g. skill://vision/SKILL.md).
  */
 export async function skillsGet(uri: string): Promise<SkillContent> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/mcp/skills/get?uri=${encodeURIComponent(uri)}`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error(`Failed to get skill (${res.status})`);
-  return res.json();
+  return getJson<SkillContent>(`${BASE}/skills/get?uri=${encodeURIComponent(uri)}`, { timeout: 15000 });
 }
 
 /**
@@ -84,55 +36,44 @@ export async function skillsGet(uri: string): Promise<SkillContent> {
  */
 export async function skillsReadFile(uri: string): Promise<string> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}${uri.startsWith("/") ? uri : "/" + uri}`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error(`Failed to read skill file (${res.status})`);
-  return res.text();
+  const response = await fetch(`${base}${uri.startsWith("/") ? uri : "/" + uri}`);
+  if (!response.ok) throw new Error(`Failed to read skill file (${response.status})`);
+  return response.text();
 }
 
 /**
  * List all available tools with their descriptions.
  */
 export async function toolsList(): Promise<ToolInfo[]> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/mcp/tools`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error(`Failed to list tools (${res.status})`);
-  return res.json();
+  return getJson<ToolInfo[]>(`${BASE}/tools`, { timeout: 15000 });
 }
 
 /**
  * Execute a single MCP tool via the backend unified endpoint.
+ * Long-running (up to 2 minutes).
  */
-export interface ExecuteToolRequest {
-  tool_name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface ExecuteToolResponse {
-  success: boolean;
-  result?: unknown;
-  error?: string;
-}
-
 export async function executeTool(request: ExecuteToolRequest): Promise<ExecuteToolResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/mcp/execute-tool`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    timeout: 120000,
-  });
-  if (!res.ok) throw new Error(`Failed to execute tool (${res.status})`);
-  return res.json();
+  return postJson<ExecuteToolResponse>(`${BASE}/execute-tool`, request, { timeout: 120000 });
 }
 
 /**
  * Convert a SkillInfo into an Ollama ToolDefinition for use with ollamaChat.
  */
-export function skillToToolDefinition(skill: SkillInfo): ToolDefinition {
+export function skillToToolDefinition(skill: SkillInfo): {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: {
+        tool: { type: "string"; description: string };
+        arguments: { type: "object"; description: string };
+      };
+      required: ["tool", "arguments"];
+    };
+  };
+} {
   return {
     type: "function",
     function: {

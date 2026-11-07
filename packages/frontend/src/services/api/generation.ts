@@ -1,14 +1,20 @@
+/**
+ * Frontend client for video/image generation via ComfyUI and other backends.
+ */
+
 import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import { postJson, getJson } from "./typed-fetch";
+import type {
+  VideoGenerationResponse,
+  GenerationResultResponse,
+  GenerationProgressResponse,
+  GenerationPreviewResponse,
+} from "./types";
 
-export interface VideoGenerationResponse {
-  success: boolean;
-  output_path?: string;
-  seed?: number;
-  prompt_id?: string;
-  message?: string;
-}
-
+/**
+ * Generate a video using ComfyUI or other backend.
+ * Long-running (up to 10 minutes).
+ */
 export async function generateVideo(
   prompt: string,
   options: {
@@ -30,106 +36,73 @@ export async function generateVideo(
   } = {},
 ): Promise<VideoGenerationResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/${options.backend ?? "comfyui"}/generate-video`,
+  const backend = options.backend ?? "comfyui";
+
+  return postJson<VideoGenerationResponse>(
+    `${base}/api/integrations/${backend}/generate-video`,
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        negative_prompt: options.negativePrompt ?? "",
-        steps: options.steps ?? 15,
-        cfg_scale: options.cfgScale ?? 7.0,
-        width: options.width ?? 512,
-        height: options.height ?? 512,
-        seed: options.seed ?? -1,
-        sampler: options.sampler ?? "Euler a",
-        num_frames: options.numFrames ?? 16,
-        fps: options.fps ?? 8,
-        motion_module: options.motionModule ?? "",
-        motion_lora: options.motionLora ?? "",
-        motion_lora_strength: options.motionLoraStrength ?? 0.8,
-        model_variant: options.modelVariant ?? "standard",
-        ckpt_name: options.ckptName ?? "",
-      }),
-      timeout: 600000,
+      prompt,
+      negative_prompt: options.negativePrompt ?? "",
+      steps: options.steps ?? 15,
+      cfg_scale: options.cfgScale ?? 7.0,
+      width: options.width ?? 512,
+      height: options.height ?? 512,
+      seed: options.seed ?? -1,
+      sampler: options.sampler ?? "Euler a",
+      num_frames: options.numFrames ?? 16,
+      fps: options.fps ?? 8,
+      motion_module: options.motionModule ?? "",
+      motion_lora: options.motionLora ?? "",
+      motion_lora_strength: options.motionLoraStrength ?? 0.8,
+      model_variant: options.modelVariant ?? "standard",
+      ckpt_name: options.ckptName ?? "",
     },
+    { timeout: 600000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to generate video" }));
-    throw new Error(err.detail ?? "Failed to generate video");
-  }
-  return res.json();
 }
 
-export interface GenerationResultResponse {
-  status: string;
-  success?: boolean;
-  output_path?: string;
-  prompt_id: string;
-  error?: string;
-  kind?: string;
-}
-
+/**
+ * Get generation result by service name and prompt ID.
+ */
 export async function getGenerationResult(
   serviceName: string,
   promptId: string,
 ): Promise<GenerationResultResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/${serviceName}/result/${encodeURIComponent(promptId)}`,
+  const encoded = encodeURIComponent(promptId);
+  return getJson<GenerationResultResponse>(
+    `${base}/api/integrations/${serviceName}/result/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to get generation result" }));
-    throw new Error(err.detail ?? "Failed to get generation result");
-  }
-  return res.json();
 }
 
-export interface GenerationProgressResponse {
-  status: string;
-  prompt_id: string;
-  step?: number;
-  total_steps?: number;
-  queue_position?: number;
-  error?: string;
-}
-
+/**
+ * Get generation progress for a ComfyUI prompt.
+ */
 export async function getGenerationProgress(promptId: string): Promise<GenerationProgressResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/comfyui/progress/${encodeURIComponent(promptId)}`,
+  const encoded = encodeURIComponent(promptId);
+  return getJson<GenerationProgressResponse>(
+    `${base}/api/integrations/comfyui/progress/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to get generation progress" }));
-    throw new Error(err.detail ?? "Failed to get generation progress");
-  }
-  return res.json();
 }
 
-export interface GenerationPreviewResponse {
-  filename?: string;
-  subfolder?: string;
-  node_id?: string;
-  error?: string;
-}
-
+/**
+ * Get generation preview for a ComfyUI prompt.
+ */
 export async function getGenerationPreview(promptId: string): Promise<GenerationPreviewResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/comfyui/preview/${encodeURIComponent(promptId)}`,
+  const encoded = encodeURIComponent(promptId);
+  return getJson<GenerationPreviewResponse>(
+    `${base}/api/integrations/comfyui/preview/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to get generation preview" }));
-    throw new Error(err.detail ?? "Failed to get generation preview");
-  }
-  return res.json();
 }
 
-// Image generation
+/**
+ * Generate an image using ComfyUI or other backend.
+ */
 export async function generateImage(
   prompt: string,
   options: {
@@ -145,46 +118,38 @@ export async function generateImage(
   } = {},
 ): Promise<{ success: boolean; output_path: string; seed: number }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/${options.backend ?? "comfyui"}/generate`,
+  const backend = options.backend ?? "comfyui";
+
+  return postJson<{ success: boolean; output_path: string; seed: number }>(
+    `${base}/api/integrations/${backend}/generate`,
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        negative_prompt: options.negativePrompt ?? "",
-        steps: options.steps ?? 20,
-        cfg_scale: options.cfgScale ?? 7.0,
-        width: options.width ?? 512,
-        height: options.height ?? 512,
-        seed: options.seed ?? -1,
-        sampler: options.sampler ?? "Euler a",
-        ckpt_name: options.model ?? undefined,
-      }),
-      timeout: 30000,
+      prompt,
+      negative_prompt: options.negativePrompt ?? "",
+      steps: options.steps ?? 20,
+      cfg_scale: options.cfgScale ?? 7.0,
+      width: options.width ?? 512,
+      height: options.height ?? 512,
+      seed: options.seed ?? -1,
+      sampler: options.sampler ?? "Euler a",
+      ckpt_name: options.model ?? undefined,
     },
+    { timeout: 30000 },
   );
-  if (!res.ok) throw new Error("Failed to generate image");
-  return res.json();
 }
 
+/**
+ * Queue an image generation job.
+ */
 export async function queueImageJob(
   prompt: string,
   options: Record<string, unknown> = {},
 ): Promise<{ job_id: string; status: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/integrations/${options.backend ?? "comfyui"}/job`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        ...options,
-      }),
-      timeout: 30000,
-    },
+  const backend = (options.backend as string) ?? "comfyui";
+
+  return postJson<{ job_id: string; status: string }>(
+    `${base}/api/integrations/${backend}/job`,
+    { prompt, ...options },
+    { timeout: 30000 },
   );
-  if (!res.ok) throw new Error("Failed to queue image job");
-  return res.json();
 }

@@ -1,167 +1,90 @@
+/**
+ * Frontend client for MCP context and HyperFrames integration.
+ */
+
 import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import { getJson, postJson } from "./typed-fetch";
+import type {
+  MCPContext,
+  CompileStoryboardRequest,
+  CompileStoryboardResponse,
+  HyperFramesAudioPayload,
+  HyperFramesStatus,
+  HyperFramesExample,
+  RenderHyperFramesResponse,
+} from "./types";
 
-export interface MCPContext {
-  updatedAt?: number;
-  character?: {
-    name?: string;
-    notes?: string;
-    seed?: number;
-    prompt?: string;
-    visible?: boolean;
-    animation?: string;
-  };
-  scene?: {
-    name?: string;
-    objects?: string[];
-    camera?: string;
-  };
-  audio?: {
-    filename?: string;
-    bpm?: number;
-    energy?: number;
-    beat?: boolean;
-  };
-  visualization?: {
-    style?: string;
-    mode?: "3d" | "shader" | "2d";
-    preset?: string;
-  };
-}
+const BASE = "/api/health";
+const HF_BASE = "/api/hyperframes";
 
+/**
+ * Fetch current MCP context (character, scene, audio, visualization).
+ */
 export async function fetchMCPContext(): Promise<MCPContext> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/context`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to fetch MCP context");
-  return res.json();
+  return getJson<MCPContext>(`${BASE}/context`, { timeout: 30000 });
 }
 
+/**
+ * Update MCP context (merge patch).
+ */
 export async function updateMCPContext(patch: MCPContext): Promise<MCPContext> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/health/context`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to update MCP context");
-  return res.json();
+  return postJson<MCPContext>(`${BASE}/context`, patch, { timeout: 30000 });
 }
 
-export interface HyperFramesStatus {
-  test_project: string;
-  exists: boolean;
-  hyperframes_cli: string;
-  cli_available: boolean;
-  version: string;
-}
-
-export interface CompileStoryboardRequest {
-  storyboard: {
-    track?: string;
-    title?: string;
-    duration?: number;
-    scenes: {
-      id?: string;
-      title?: string;
-      description?: string;
-      start?: number;
-      end?: number;
-      duration_seconds?: number;
-      palette?: Record<string, string>;
-    }[];
-  };
-  name?: string;
-  title?: string;
-  audio_path?: string;
-  audio_data?: HyperFramesAudioPayload;
-}
-
-export interface CompileStoryboardResponse {
-  success: boolean;
-  composition: string;
-  manifest: string;
-  scene_count: number;
-  duration_seconds: number;
-  message: string;
-}
-
+/**
+ * Compile a storyboard into a HyperFrames composition.
+ */
 export async function compileStoryboard(
   params: CompileStoryboardRequest,
 ): Promise<CompileStoryboardResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/hyperframes/compile-storyboard`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+  return postJson<CompileStoryboardResponse>(`${base}${HF_BASE}/compile-storyboard`, params, {
     timeout: 30000,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to compile storyboard");
-  }
-  return res.json();
 }
 
-export interface HyperFramesAudioPayload {
-  fps: number;
-  duration: number;
-  bands: number;
-  totalFrames: number;
-  beat_times: number[];
-  downbeat_times: number[];
-  frames: {
-    time: number;
-    rms: number;
-    energy: number;
-    bands: number[];
-    isBeat: boolean;
-    isDownbeat: boolean;
-  }[];
-  lyrics: unknown[];
-}
-
+/**
+ * Get HyperFrames audio payload for a track.
+ */
 export async function getHyperFramesAudioPayload(
   filename: string,
   fps = 30,
   bands = 16,
 ): Promise<HyperFramesAudioPayload> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
+  return getJson<HyperFramesAudioPayload>(
     `${base}/api/audio/hyperframes-payload/${encodeURIComponent(filename)}?fps=${fps}&bands=${bands}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to build HyperFrames audio payload");
-  }
-  return res.json();
 }
 
+/**
+ * Get HyperFrames CLI status.
+ */
 export async function getHyperFramesStatus(): Promise<HyperFramesStatus> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/hyperframes/status`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get HyperFrames status");
-  return res.json();
+  return getJson<HyperFramesStatus>(`${base}${HF_BASE}/status`, { timeout: 30000 });
 }
 
-export async function getHyperFramesExamples(): Promise<Record<string, unknown>> {
+/**
+ * Get HyperFrames example compositions.
+ */
+export async function getHyperFramesExamples(): Promise<HyperFramesExample[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/hyperframes/examples`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get HyperFrames examples");
-  return res.json();
+  return getJson<HyperFramesExample[]>(`${base}${HF_BASE}/examples`, { timeout: 30000 });
 }
 
-export async function launchHyperFramesPreview(): Promise<Record<string, unknown>> {
+/**
+ * Launch HyperFrames preview server.
+ */
+export async function launchHyperFramesPreview(): Promise<{ url: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/hyperframes/preview`, {
-    method: "POST",
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to launch HyperFrames preview");
-  return res.json();
+  return getJson<{ url: string }>(`${base}${HF_BASE}/preview`, { method: "POST", timeout: 30000 });
 }
 
+/**
+ * Render a HyperFrames composition to video.
+ * Long-running (up to 5 minutes).
+ */
 export async function renderHyperFramesComposition(params: {
   composition?: string;
   format?: string;
@@ -169,17 +92,7 @@ export async function renderHyperFramesComposition(params: {
   quality?: string;
   workers?: string;
   output?: string;
-}): Promise<Record<string, unknown>> {
+}): Promise<RenderHyperFramesResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/hyperframes/render`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 300000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to render HyperFrames composition");
-  }
-  return res.json();
+  return postJson<RenderHyperFramesResponse>(`${base}${HF_BASE}/render`, params, { timeout: 300000 });
 }

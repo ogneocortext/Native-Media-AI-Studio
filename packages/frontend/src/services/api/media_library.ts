@@ -1,334 +1,185 @@
-import { fetchWithTimeout } from "../fetchWithTimeout";
+/**
+ * Frontend client for /api/media-library — favorites, collections, tags, trash.
+ */
 
-export interface Collection {
-  id: string;
-  name: string;
-  cover_path: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import { getJson, postJson, putJson, deleteJson, fetchJson } from "./typed-fetch";
+import type {
+  Collection,
+  CollectionDetail,
+  Tag,
+  TrashItem,
+  FavoriteToggleResponse,
+  CreateCollectionRequest,
+  CreateTagRequest,
+  ItemOrganization,
+} from "./types";
 
-export interface CollectionDetail extends Collection {
-  item_count: number;
-}
+const BASE = "/api/media-library";
 
-export interface Tag {
-  id: string;
-  name: string;
-  color: string;
-  created_at: string;
-}
-
-export interface TrashItem {
-  relative_path: string;
-  file_type: string;
-  deleted_at: string;
-  expires_at: string;
-}
-
-const MEDIA_LIBRARY_BASE = "/api/media-library";
-
-// ---------------------------------------------------------------------------
-// Favorites
-// ---------------------------------------------------------------------------
-
-export interface FavoriteToggleResponse {
-  relative_path: string;
-  favorited: boolean;
-}
+/* --------------------------------------------------------------------------- */
+/* Favorites                                                                   */
+/* --------------------------------------------------------------------------- */
 
 export async function listMediaFavorites(limit = 200): Promise<string[]> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/favorites?limit=${encodeURIComponent(String(limit))}`,
-    { timeout: 15000 },
-  );
-  if (!res.ok) throw new Error("Failed to list favorites");
-  return (await res.json()) as string[];
+  return getJson<string[]>(`${BASE}/favorites?limit=${encodeURIComponent(String(limit))}`, { timeout: 15000 });
 }
 
 export async function isMediaFavorite(relativePath: string): Promise<boolean> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/favorites/${encodeURIComponent(relativePath)}/status`,
+  return getJson<{ favorited: boolean }>(
+    `${BASE}/favorites/${encodeURIComponent(relativePath)}/status`,
     { timeout: 15000 },
-  );
-  if (!res.ok) return false;
-  const data = (await res.json()) as { favorited: boolean };
-  return !!data.favorited;
+  ).then((r) => r.favorited);
 }
 
 export async function toggleMediaFavorite(relativePath: string): Promise<FavoriteToggleResponse> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/favorites/${encodeURIComponent(relativePath)}`,
-    { method: "POST", timeout: 15000 },
+  return postJson<FavoriteToggleResponse>(
+    `${BASE}/favorites/${encodeURIComponent(relativePath)}`,
+    {},
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to toggle favorite");
-  return (await res.json()) as FavoriteToggleResponse;
 }
 
-// ---------------------------------------------------------------------------
-// Collections
-// ---------------------------------------------------------------------------
-
-export interface CreateCollectionRequest {
-  name: string;
-  cover_path?: string | null;
-}
+/* --------------------------------------------------------------------------- */
+/* Collections                                                                 */
+/* --------------------------------------------------------------------------- */
 
 export async function listCollections(): Promise<Collection[]> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/collections`, { timeout: 15000 });
-  if (!res.ok) throw new Error("Failed to list collections");
-  return (await res.json()) as Collection[];
+  return getJson<Collection[]>(`${BASE}/collections`, { timeout: 15000 });
 }
 
 export async function createCollection(body: CreateCollectionRequest): Promise<Collection> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/collections`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error("Failed to create collection");
-  return (await res.json()) as Collection;
+  return postJson<Collection>(`${BASE}/collections`, body, { timeout: 15000 });
 }
 
 export async function getCollectionDetail(collectionId: string): Promise<CollectionDetail> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}`,
-    { timeout: 15000 },
-  );
-  if (!res.ok) throw new Error("Failed to get collection");
-  return (await res.json()) as CollectionDetail;
+  return getJson<CollectionDetail>(`${BASE}/collections/${encodeURIComponent(collectionId)}`, { timeout: 15000 });
 }
 
 export async function updateCollection(
   collectionId: string,
   body: CreateCollectionRequest,
 ): Promise<Collection> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      timeout: 15000,
-    },
-  );
-  if (!res.ok) throw new Error("Failed to update collection");
-  return (await res.json()) as Collection;
+  return putJson<Collection>(`${BASE}/collections/${encodeURIComponent(collectionId)}`, body, { timeout: 15000 });
 }
 
 export async function deleteCollection(collectionId: string): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}`,
-    { method: "DELETE", timeout: 15000 },
-  );
-  if (!res.ok) throw new Error("Failed to delete collection");
+  await deleteJson<void>(`${BASE}/collections/${encodeURIComponent(collectionId)}`, { timeout: 15000 });
 }
 
 export async function listCollectionItems(collectionId: string): Promise<string[]> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}/items`,
+  return getJson<string[]>(
+    `${BASE}/collections/${encodeURIComponent(collectionId)}/items`,
     { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to list collection items");
-  return (await res.json()) as string[];
 }
 
-export async function addItemToCollection(
-  collectionId: string,
-  relativePath: string,
-): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(collectionId)}/items`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ relative_path: relativePath }),
-      timeout: 15000,
-    },
+export async function addItemToCollection(collectionId: string, relativePath: string): Promise<void> {
+  await postJson<void>(
+    `${BASE}/collections/${encodeURIComponent(collectionId)}/items`,
+    { relative_path: relativePath },
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to add item to collection");
 }
 
-export async function removeItemFromCollection(
-  collectionId: string,
-  relativePath: string,
-): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/collections/${encodeURIComponent(
-      collectionId,
-    )}/items/${encodeURIComponent(relativePath)}`,
-    { method: "DELETE", timeout: 15000 },
+export async function removeItemFromCollection(collectionId: string, relativePath: string): Promise<void> {
+  await deleteJson<void>(
+    `${BASE}/collections/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(relativePath)}`,
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to remove item from collection");
 }
 
 export async function listItemCollections(relativePath: string): Promise<Collection[]> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(relativePath)}/collections`,
+  return getJson<Collection[]>(
+    `${BASE}/items/${encodeURIComponent(relativePath)}/collections`,
     { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to list item collections");
-  return (await res.json()) as Collection[];
 }
 
-// ---------------------------------------------------------------------------
-// Tags
-// ---------------------------------------------------------------------------
-
-export interface CreateTagRequest {
-  name: string;
-  color?: string;
-}
+/* --------------------------------------------------------------------------- */
+/* Tags                                                                        */
+/* --------------------------------------------------------------------------- */
 
 export async function listTags(): Promise<Tag[]> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/tags`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error("Failed to list tags");
-  return (await res.json()) as Tag[];
+  return getJson<Tag[]>(`${BASE}/tags`, { timeout: 15000 });
 }
 
 export async function createTag(body: CreateTagRequest): Promise<Tag> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/tags`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error("Failed to create tag");
-  return (await res.json()) as Tag;
+  return postJson<Tag>(`${BASE}/tags`, body, { timeout: 15000 });
 }
 
 export async function listTagItems(tagId: string): Promise<string[]> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/tags/${encodeURIComponent(tagId)}/items`,
-    { timeout: 15000 },
-  );
-  if (!res.ok) throw new Error("Failed to list tag items");
-  return (await res.json()) as string[];
+  return getJson<string[]>(`${BASE}/tags/${encodeURIComponent(tagId)}/items`, { timeout: 15000 });
 }
 
 export async function listItemTags(relativePath: string): Promise<Tag[]> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(relativePath)}/tags`,
+  return getJson<{ tags: Tag[] }>(
+    `${BASE}/items/${encodeURIComponent(relativePath)}/tags`,
     { timeout: 15000 },
-  );
-  if (!res.ok) throw new Error("Failed to list item tags");
-  const data = (await res.json()) as { tags: Tag[] };
-  return data.tags;
-}
-
-export interface ItemOrganization {
-  tags: Record<string, Tag[]>;
-  collections: Record<string, Collection[]>;
+  ).then((r) => r.tags);
 }
 
 export async function listItemOrganization(): Promise<ItemOrganization> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/items/organization`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error("Failed to list item organization");
-  return (await res.json()) as ItemOrganization;
+  return getJson<ItemOrganization>(`${BASE}/items/organization`, { timeout: 15000 });
 }
 
 export async function addItemTag(relativePath: string, tagId: string): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(
-      relativePath,
-    )}/tags/${encodeURIComponent(tagId)}`,
-    { method: "POST", timeout: 15000 },
+  await postJson<void>(
+    `${BASE}/items/${encodeURIComponent(relativePath)}/tags/${encodeURIComponent(tagId)}`,
+    {},
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to add tag to item");
 }
 
 export async function removeItemTag(relativePath: string, tagId: string): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(
-      relativePath,
-    )}/tags/${encodeURIComponent(tagId)}`,
-    { method: "DELETE", timeout: 15000 },
+  await deleteJson<void>(
+    `${BASE}/items/${encodeURIComponent(relativePath)}/tags/${encodeURIComponent(tagId)}`,
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to remove tag from item");
-}
-
-export interface SetItemTagsRequest {
-  relative_paths: string[];
-  tag_ids: string[];
 }
 
 export async function setItemTags(relativePath: string, tagIds: string[]): Promise<Tag[]> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/items/${encodeURIComponent(relativePath)}/tags`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ relative_paths: [relativePath], tag_ids: tagIds }),
-      timeout: 15000,
-    },
+  return putJson<Tag[]>(
+    `${BASE}/items/${encodeURIComponent(relativePath)}/tags`,
+    { relative_paths: [relativePath], tag_ids: tagIds },
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to set item tags");
-  const data = (await res.json()) as { tags: Tag[] };
-  return data.tags;
 }
 
-// ---------------------------------------------------------------------------
-// Trash
-// ---------------------------------------------------------------------------
-
-export interface MoveToTrashRequest {
-  relative_path: string;
-}
+/* --------------------------------------------------------------------------- */
+/* Trash                                                                       */
+/* --------------------------------------------------------------------------- */
 
 export async function moveItemToTrash(
   relativePath: string,
   retentionDays = 30,
 ): Promise<TrashItem> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/trash?retention_days=${encodeURIComponent(String(retentionDays))}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ relative_path: relativePath }),
-      timeout: 15000,
-    },
+  return postJson<TrashItem>(
+    `${BASE}/trash?retention_days=${encodeURIComponent(String(retentionDays))}`,
+    { relative_path: relativePath },
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to move item to trash");
-  return (await res.json()) as TrashItem;
 }
 
 export async function listTrash(): Promise<TrashItem[]> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/trash`, {
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error("Failed to list trash");
-  return (await res.json()) as TrashItem[];
+  return getJson<TrashItem[]>(`${BASE}/trash`, { timeout: 15000 });
 }
 
 export async function restoreFromTrash(relativePath: string): Promise<boolean> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/trash/${encodeURIComponent(relativePath)}/restore`,
-    { method: "POST", timeout: 15000 },
-  );
-  if (!res.ok) throw new Error("Failed to restore item from trash");
-  const data = (await res.json()) as { restored: boolean };
-  return !!data.restored;
+  return postJson<{ restored: boolean }>(
+    `${BASE}/trash/${encodeURIComponent(relativePath)}/restore`,
+    {},
+    { timeout: 15000 },
+  ).then((r) => r.restored);
 }
 
 export async function purgeFromTrash(relativePath: string): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${MEDIA_LIBRARY_BASE}/trash/${encodeURIComponent(relativePath)}`,
-    { method: "DELETE", timeout: 15000 },
+  await deleteJson<void>(
+    `${BASE}/trash/${encodeURIComponent(relativePath)}`,
+    { timeout: 15000 },
   );
-  if (!res.ok) throw new Error("Failed to purge item from trash");
 }
 
 export async function emptyTrash(): Promise<number> {
-  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/trash`, {
-    method: "DELETE",
-    timeout: 15000,
-  });
-  if (!res.ok) throw new Error("Failed to empty trash");
-  const data = (await res.json()) as { removed: number };
-  return data.removed;
+  return fetchJson<{ removed: number }>(`${BASE}/trash`, { method: "DELETE", timeout: 15000 })
+    .then((r) => r.removed);
 }

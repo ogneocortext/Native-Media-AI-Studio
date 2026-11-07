@@ -26,68 +26,69 @@
  * Shape mirrors the backend request/response models exactly, so a field rename
  * on either side shows up as a type error rather than as undefined at runtime.
  */
+
 import { getApiBase, withDirectBackendFallback } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+import {
+  postForm,
+  getJson,
+  postJson,
+  fetchJson,
+} from "./typed-fetch";
+import type {
+  AudioUploadResponse,
+  StemSeparationResponse,
+  SeparationQualityOptions,
+  AudioStemsResponse,
+  AudioAnalysisResult,
+  EnsureAnalysisResponse,
+  TimingMetadata,
+  StemsAnalysisResponse,
+  StemsStatusResponse,
+  AudioFileListItem,
+  AudioBackendsResponse,
+  AudioAnalysisSummary,
+  AnalyzeAllPendingResponse,
+  LyricLine,
+  TranscriptionResult,
+  TracksWithLyricsResponse,
+  RenameAudioResponse,
+  TrimRange,
+  TrimAudioResponse,
+  ExtractAudioResponse,
+  VideoGenerateRequest,
+  VideoGenerateResponse,
+  KineticVideoRequest,
+  KineticVideoResponse,
+  EnhanceStemsResponse,
+  EnhanceStemsParams,
+  MasterMeasureResponse,
+  MasterTarget,
+  MasterRequest,
+  MasterFinishPreset,
+  MasterResponse,
+} from "./types";
 
-export interface AudioUploadResponse {
-  success: boolean;
-  filename: string;
-  stored_path: string;
-  size_bytes: number;
-  message: string;
-  /** True when the upload arrived as video and was converted to .m4a. */
-  converted?: boolean;
-  /** The video filename the user dropped, when `converted` is true. */
-  source_filename?: string | null;
-  /** True when the audio was remuxed with `-c:a copy` (bit-identical). */
-  lossless?: boolean;
-  /** True when an existing library file with the same content was reused. */
-  deduplicated?: boolean;
-  /** Output-relative path (e.g. "audio/video-extracted/x.m4a") for serving. */
-  relative_path: string;
-}
+const BASE = "/api/audio";
 
+/**
+ * Upload an audio file to the library.
+ * Accepts audio files and video files (which are converted to audio).
+ */
 export async function uploadAudioFile(file: File): Promise<AudioUploadResponse> {
-  const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
-
-  const res = await fetchWithTimeout(`${base}/api/audio/upload`, {
-    method: "POST",
-    body: formData,
-    timeout: 120000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-    throw new Error(err.detail ?? "Failed to upload audio file");
-  }
-  return res.json();
+  return postForm<AudioUploadResponse>(`${BASE}/upload`, formData, { timeout: 120000 });
 }
 
-export interface StemSeparationResponse {
-  success: boolean;
-  audio_file: string;
-  model: string;
-  stems: Record<string, string>;
-  duration: number;
-  computed_at: string;
-  error?: string | null;
-  stems_mp3?: Record<string, string>;
-}
-
-export interface SeparationQualityOptions {
-  mode?: "single" | "hierarchical";
-  segment_size?: number; // seconds; clamped to the model's trained max
-  overlap?: number; // 0.25–0.75
-  denoise?: boolean;
-}
-
+/**
+ * Separate stems from an uploaded file.
+ * Long-running operation (up to 10 minutes).
+ */
 export async function separateAudioStems(
   file: File,
   model = "mdx_extra_q",
   quality: SeparationQualityOptions = {},
 ): Promise<StemSeparationResponse> {
-  const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
   formData.append("model", model);
@@ -96,453 +97,225 @@ export async function separateAudioStems(
   if (quality.overlap != null) formData.append("overlap", String(quality.overlap));
   if (quality.denoise != null) formData.append("denoise", String(quality.denoise));
 
-  const res = await fetchWithTimeout(`${base}/api/audio/separate`, {
-    method: "POST",
-    body: formData,
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Separation failed" }));
-    throw new Error(err.detail ?? "Failed to separate audio stems");
-  }
-  return res.json();
+  return postForm<StemSeparationResponse>(`${BASE}/separate`, formData, { timeout: 600000 });
 }
 
-export interface AudioStemsResponse {
-  audio_file: string;
-  stems: Record<string, string>;
-  stems_mp3?: Record<string, string>;
-  found: boolean;
-}
-
+/**
+ * Get stems for a library file (already separated).
+ * Uses direct backend fallback for reliability.
+ */
 export async function getAudioStems(filename: string): Promise<AudioStemsResponse> {
-  const base = getApiBase();
   return withDirectBackendFallback(
-    async () =>
-      fetchWithTimeout(`${base}/api/audio/stems/${encodeURIComponent(filename)}`, {
-        timeout: 30000,
-      }).then(async (res) => {
-        if (!res.ok) throw new Error("Failed to load stems");
-        return res.json();
-      }),
+    async () => {
+      const encoded = encodeURIComponent(filename);
+      return getJson<AudioStemsResponse>(`${BASE}/stems/${encoded}`, { timeout: 30000 });
+    },
     `/api/audio/stems/${encodeURIComponent(filename)}`,
     { timeout: 30000 },
   );
 }
 
+/**
+ * Separate stems from a file already in the library.
+ * Long-running operation (up to 10 minutes).
+ */
 export async function separateAudioFile(
   filename: string,
   model = "mdx_extra_q",
   quality: SeparationQualityOptions = {},
 ): Promise<StemSeparationResponse> {
-  const base = getApiBase();
   const payload: Record<string, unknown> = { filename, model, ...quality };
   return withDirectBackendFallback(
     async () =>
-      fetchWithTimeout(`${base}/api/audio/separate-file`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        timeout: 600000,
-      }).then(async (res) => {
-        if (!res.ok) throw new Error("Stem separation failed");
-        return res.json();
-      }),
+      postJson<StemSeparationResponse>(`${BASE}/separate-file`, payload, { timeout: 600000 }),
     "/api/audio/separate-file",
     { method: "POST", body: payload, timeout: 600000 },
   );
 }
 
-export interface AudioAnalysisResult {
-  tempo_bpm: number;
-  duration_seconds: number;
-  beat_count: number;
-  sections: { type: string; start: number; end: number; energy: number }[];
-  beat_times: number[];
-  onset_times: number[];
-  energy_curve: number[];
-  confidence: number;
-  amplitude_envelope: number[];
-  stored_path: string | null;
-  /** Output-relative path (e.g. "audio/track.wav"), for /api/audio/file/*. */
-  relative_path?: string | null;
-  job_id: string | null;
-  beats_truncated?: boolean;
-  downbeat_times?: number[];
-  spectral?: {
-    centroid_mean?: number;
-    rolloff_mean?: number;
-    bandwidth_mean?: number;
-    zcr_mean?: number;
-  };
-  timing_contract?: {
-    filename: string;
-    duration: number;
-    bpm: number;
-    bpmConfidence: number;
-    beats: {
-      time: number;
-      drumType: string | null;
-      energy: number;
-      isDownbeat?: boolean;
-      bpm?: number;
-    }[];
-    sections: { type: string; start: number; end: number; energy: number }[];
-    energyCurve: { time: number; value: number }[];
-    amplitudeEnvelope: number[];
-  };
-  spectral_centroid?: number[];
-  spectral_rolloff?: number[];
-  spectral_bandwidth?: number[];
-  zero_crossing_rate?: number[];
-  // Key detection (schema v2+). key_confidence is the clamped display value;
-  // key_confidence_r is the raw correlation used by the chroma->hue mapper.
-  estimated_key?: string | null;
-  key_confidence?: number | null;
-  key_confidence_r?: number | null;
-  key_runner_up?: string | null;
-  key_runner_up_r?: number | null;
-  // Tier 2 chroma: per-frame 12-bin pitch-class vectors for the visualizer.
-  // Consumed by useKeyPalette; kept out of the analysis UI (large arrays).
-  chroma_frames?: {
-    fps?: number;
-    t0?: number;
-    pc?: number[];
-    conf?: number[];
-    [key: string]: unknown;
-  } | null;
-  schema_version?: number;
-  computed_on?: string | null;
-  suggested_visualization?: string;
-  suggested_visualization_confidence?: number;
-  suggested_visualization_candidates?: { value: string; confidence: number }[];
-  suggested_kinetic_preset?: string;
-  suggested_kinetic_preset_confidence?: number;
-  suggested_theme_seed?: string;
-  suggested_theme_seed_confidence?: number;
-  metadata?: {
-    backend?: string;
-    computed_on?: string;
-    duration_samples?: number;
-    hop_length?: number;
-    frame_length?: number;
-    sonara?: {
-      loudness_lufs?: number;
-      rms_mean?: number;
-      rms_max?: number;
-      dynamic_range_db?: number;
-      bpm_raw?: number;
-      n_beats?: number;
-      onset_density?: number;
-      [key: string]: unknown;
-    };
-    [key: string]: unknown;
-  };
-}
-
+/**
+ * Get cached analysis for a file by filename.
+ */
 export async function getAnalysis(filename: string): Promise<AudioAnalysisResult> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/analysis/by-filename/${encodeURIComponent(filename)}`,
+  const encoded = encodeURIComponent(filename);
+  return getJson<AudioAnalysisResult>(
+    `${BASE}/analysis/by-filename/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No cached analysis found");
-  }
-  return res.json();
 }
 
-export interface EnsureAnalysisResponse {
-  status: string;
-  analysis: AudioAnalysisResult;
-}
-
+/**
+ * Ensure analysis exists, computing if necessary.
+ * Long-running (up to 5 minutes).
+ */
 export async function ensureAnalysis(
   filename: string,
   backend = "sonara",
 ): Promise<EnsureAnalysisResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/ensure-analysis`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename, backend }),
-    timeout: 300000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to ensure analysis");
-  }
-  return res.json();
+  return postJson<EnsureAnalysisResponse>(
+    `${BASE}/ensure-analysis`,
+    { filename, backend },
+    { timeout: 300000 },
+  );
 }
 
+/**
+ * Get CUDA availability status.
+ */
 export async function getCudaStatus(): Promise<{
   available: boolean;
   gpu_name?: string;
   error?: string;
 }> {
   const base = getApiBase();
-  let res = await fetchWithTimeout(`${base}/api/integrations/cuda/status`, { timeout: 30000 });
-  if (!res.ok)
-    res = await fetchWithTimeout(`${base}/api/health/integrations/cuda/status`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get CUDA status");
-  return res.json();
+  let res = await fetchJson<{ available: boolean; gpu_name?: string; error?: string }>(
+    `${base}/api/integrations/cuda/status`,
+    { timeout: 30000 },
+  );
+  if (!res.available) {
+    res = await fetchJson<{ available: boolean; gpu_name?: string; error?: string }>(
+      `${base}/api/health/integrations/cuda/status`,
+      { timeout: 30000 },
+    );
+  }
+  return res;
 }
 
+/**
+ * Analyze an uploaded audio file.
+ * Long-running (up to 5 minutes).
+ */
 export async function analyzeAudio(file: File, backend = "sonara"): Promise<AudioAnalysisResult> {
-  const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/analyze?backend=${encodeURIComponent(backend)}`,
-    {
-      method: "POST",
-      body: formData,
-      timeout: 300000,
-    },
+  return postForm<AudioAnalysisResult>(
+    `${BASE}/analyze?backend=${encodeURIComponent(backend)}`,
+    formData,
+    { timeout: 300000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Analysis failed");
-  }
-  return res.json();
 }
 
+/**
+ * Analyze an uploaded audio file using CUDA acceleration.
+ * Long-running (up to 5 minutes).
+ */
 export async function analyzeAudioCuda(file: File): Promise<AudioAnalysisResult> {
-  const base = getApiBase();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetchWithTimeout(`${base}/api/audio/analyze-cuda`, {
-    method: "POST",
-    body: formData,
-    timeout: 300000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "CUDA analysis failed");
-  }
-  return res.json();
+  return postForm<AudioAnalysisResult>(`${BASE}/analyze-cuda`, formData, { timeout: 300000 });
 }
 
+/**
+ * Get analysis result by job ID.
+ */
 export async function getAnalysisResult(jobId: string): Promise<AudioAnalysisResult> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/analysis/${jobId}`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to get analysis result");
-  }
-  return res.json();
+  return getJson<AudioAnalysisResult>(`${BASE}/analysis/${jobId}`, { timeout: 30000 });
 }
 
-export interface TimingMetadata {
-  filename: string;
-  duration: number;
-  bpm: number;
-  bpmConfidence: number;
-  beats: {
-    time: number;
-    drumType: string | null;
-    energy: number;
-    isDownbeat?: boolean;
-    bpm?: number;
-  }[];
-  sections: { type: string; start: number; end: number; energy: number }[];
-  energyCurve: { time: number; value: number }[];
-  amplitudeEnvelope: number[];
-}
-
+/**
+ * Get timing metadata (beats, downbeats, sections) for a file.
+ */
 export async function getTimingMetadata(filename: string): Promise<TimingMetadata> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/timing-metadata/${encodeURIComponent(filename)}`,
+  const encoded = encodeURIComponent(filename);
+  return getJson<TimingMetadata>(
+    `${BASE}/timing-metadata/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No timing metadata found");
-  }
-  return res.json();
 }
 
-export interface StemsAnalysisResponse {
-  stems: Record<
-    string,
-    {
-      file: string;
-      url: string;
-      duration: number;
-      sample_rate: number;
-      rms_mean: number;
-      rms_std: number;
-      centroid_mean: number;
-      zcr_mean: number;
-      energy_curve: number[];
-      energy_curve_points: number;
-    }
-  >;
-  separated: boolean;
-}
-
+/**
+ * Get per-stem analysis (spectral, energy curves).
+ */
 export async function getStemsAnalysis(filename: string): Promise<StemsAnalysisResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/stems-analysis/${encodeURIComponent(filename)}`,
+  const encoded = encodeURIComponent(filename);
+  return getJson<StemsAnalysisResponse>(
+    `${BASE}/stems-analysis/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to load stems analysis" }));
-    throw new Error(err.detail ?? "Failed to load stems analysis");
-  }
-  return res.json();
 }
 
-export interface StemsStatusResponse {
-  tracks: Record<string, { has_stems: boolean; stems: string[] }>;
-}
-
+/**
+ * Get stems status for all tracks in the library.
+ */
 export async function getStemsStatus(): Promise<StemsStatusResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/stems-status`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to load stems status" }));
-    throw new Error(err.detail ?? "Failed to load stems status");
-  }
-  return res.json();
+  return getJson<StemsStatusResponse>(`${BASE}/stems-status`, { timeout: 30000 });
 }
 
-export async function listAudioFiles(): Promise<
-  {
-    filename: string;
-    relative_path: string;
-    folder: string;
-    size_bytes: number;
-    modified: number;
-  }[]
-> {
+/**
+ * List all audio files in the library.
+ * NOTE: Components should use useAudioLibrary() instead of calling this directly.
+ */
+export async function listAudioFiles(): Promise<AudioFileListItem[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/files`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to list audio files");
-  }
-  const data = await res.json();
+  const data = await fetchJson<AudioFileListItem[] | { files: AudioFileListItem[] }>(
+    `${base}${BASE}/files`,
+    { timeout: 30000 },
+  );
   return Array.isArray(data) ? data : (data?.files ?? []);
 }
 
-export interface AudioBackendsResponse {
-  available: string[];
-  default: string;
-}
-
+/**
+ * Get available audio analysis backends.
+ */
 export async function getAvailableAudioBackends(): Promise<AudioBackendsResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/backends`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to get audio backends");
-  }
-  return res.json();
+  return getJson<AudioBackendsResponse>(`${BASE}/backends`, { timeout: 30000 });
 }
 
-export async function getAnalysisSummary(filename: string): Promise<{
-  filename: string;
-  tempo_bpm: number | null;
-  duration_seconds: number | null;
-  beat_count: number | null;
-  confidence: number | null;
-  sections: { type: string; start: number; end: number; energy: number }[];
-  has_beat_times: boolean;
-  has_onset_times: boolean;
-  has_energy_curve: boolean;
-  has_spectral: boolean;
-  job_id: string | null;
-  stored_path: string | null;
-}> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/analysis/summary/${encodeURIComponent(filename)}`,
+/**
+ * Get analysis summary (lightweight, no large arrays).
+ */
+export async function getAnalysisSummary(filename: string): Promise<AudioAnalysisSummary> {
+  const encoded = encodeURIComponent(filename);
+  return getJson<AudioAnalysisSummary>(
+    `${BASE}/analysis/summary/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No analysis summary found");
-  }
-  return res.json();
 }
 
-export async function analyzeAllPending(backend = "sonara"): Promise<{
-  status: string;
-  analyzed: number;
-  total: number;
-  files: { filename: string; bpm: number; beats: number; confidence: number }[];
-  errors: { filename: string; error: string }[];
-}> {
+/**
+ * Analyze all pending files in the library.
+ * Long-running (up to 5 minutes).
+ */
+export async function analyzeAllPending(backend = "sonara"): Promise<AnalyzeAllPendingResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/analyze-all?backend=${encodeURIComponent(backend)}`,
-    {
-      method: "POST",
-      timeout: 300000,
-    },
+  return postJson<AnalyzeAllPendingResponse>(
+    `${base}${BASE}/analyze-all?backend=${encodeURIComponent(backend)}`,
+    {},
+    { timeout: 300000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "analyze-all failed");
-  }
-  return res.json();
 }
 
-export interface LyricLine {
-  start: number;
-  end: number;
-  text: string;
-  section?: string;
-  words?: {
-    word: string;
-    start: number;
-    end: number;
-  }[];
-}
-
-export interface TranscriptionResult {
-  filename: string;
-  language: string;
-  duration: number;
-  segments: LyricLine[];
-}
-
+/**
+ * Transcribe audio to lyrics.
+ * Long-running (up to 5 minutes).
+ */
 export async function transcribeAudio(
   filename: string,
   language?: string,
   modelSize?: string,
 ): Promise<TranscriptionResult> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/transcribe`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename, language, model_size: modelSize }),
-    timeout: 300000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Transcription failed");
-  }
-  return res.json();
+  return postJson<TranscriptionResult>(
+    `${base}${BASE}/transcribe`,
+    { filename, language, model_size: modelSize },
+    { timeout: 300000 },
+  );
 }
 
+/**
+ * Get transcription for a file.
+ */
 export async function getTranscription(filename: string): Promise<TranscriptionResult> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/transcript/${encodeURIComponent(filename)}`,
+  const encoded = encodeURIComponent(filename);
+  return getJson<TranscriptionResult>(
+    `${BASE}/transcript/${encoded}`,
     { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No transcription found");
-  }
-  return res.json();
 }
 
+/**
+ * Get lyrics for a track by track ID.
+ */
 export async function getLyricsForTrack(trackId: string): Promise<{
   track_id: string;
   title: string;
@@ -551,92 +324,83 @@ export async function getLyricsForTrack(trackId: string): Promise<{
   total_lines: number;
 }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No lyrics found");
-  }
-  return res.json();
+  return getJson<{
+    track_id: string;
+    title: string;
+    artist: string;
+    lines: LyricLine[];
+    total_lines: number;
+  }>(`${base}/api/lyrics/track/${trackId}`, { timeout: 30000 });
 }
 
+/**
+ * Save lyrics for a track.
+ */
 export async function saveLyricsForTrack(
   trackId: string,
   lines: LyricLine[],
 ): Promise<{ status: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lines }),
-    timeout: 30000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to save lyrics");
-  }
-  return res.json();
+  return postJson<{ status: string }>(
+    `${base}/api/lyrics/track/${trackId}`,
+    { lines },
+    { timeout: 30000 },
+  );
 }
 
+/**
+ * Delete lyrics for a track.
+ */
 export async function deleteLyricsForTrack(trackId: string): Promise<{ status: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}`, {
-    method: "DELETE",
-    timeout: 30000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to delete lyrics");
-  }
-  return res.json();
+  const { fetchJson } = await import("./typed-fetch");
+  const response = await fetchJson<{ status: string }>(
+    `${base}/api/lyrics/track/${trackId}`,
+    { method: "DELETE", timeout: 30000 },
+  );
+  return response;
 }
 
+/**
+ * Import LRC format lyrics for a track.
+ */
 export async function importLRC(
   trackId: string,
   lrcContent: string,
 ): Promise<{ status: string; lines_count: number }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/lyrics/import-lrc`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ track_id: trackId, lrc_content: lrcContent }),
-    timeout: 30000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to import LRC");
-  }
-  return res.json();
+  return postJson<{ status: string; lines_count: number }>(
+    `${base}/api/lyrics/import-lrc`,
+    { track_id: trackId, lrc_content: lrcContent },
+    { timeout: 30000 },
+  );
 }
 
+/**
+ * Export LRC format lyrics for a track.
+ */
 export async function exportLRC(trackId: string): Promise<{ lrc: string; format: string }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/lyrics/track/${trackId}/lrc`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to export LRC");
-  }
-  return res.json();
+  return getJson<{ lrc: string; format: string }>(
+    `${base}/api/lyrics/track/${trackId}/lrc`,
+    { timeout: 30000 },
+  );
 }
 
-export async function getTracksWithLyrics(): Promise<
-  {
-    id: string;
-    title: string;
-    artist: string;
-    filename: string;
-    duration_seconds: number;
-    lyric_count: number;
-  }[]
-> {
+/**
+ * Get all tracks that have lyrics.
+ */
+export async function getTracksWithLyrics(): Promise<TracksWithLyricsResponse[]> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/lyrics/tracks-with-lyrics`, { timeout: 30000 });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to get tracks");
-  }
-  return res.json();
+  return getJson<TracksWithLyricsResponse[]>(
+    `${base}/api/lyrics/tracks-with-lyrics`,
+    { timeout: 30000 },
+  );
 }
 
+/**
+ * Get lyrics by audio filename.
+ */
 export async function getLyricsByFilename(filename: string): Promise<{
   track_id: string;
   title: string;
@@ -645,334 +409,83 @@ export async function getLyricsByFilename(filename: string): Promise<{
   total_lines: number;
 }> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/lyrics/by-filename/${encodeURIComponent(filename)}`,
-    { timeout: 30000 },
-  );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No lyrics found");
-  }
-  return res.json();
+  const encoded = encodeURIComponent(filename);
+  return getJson<{
+    track_id: string;
+    title: string;
+    artist: string;
+    lines: LyricLine[];
+    total_lines: number;
+  }>(`${base}/api/lyrics/by-filename/${encoded}`, { timeout: 30000 });
 }
 
+/**
+ * Rename an audio file in the library.
+ */
 export async function renameAudioFile(
   oldFilename: string,
   newFilename: string,
-): Promise<{ success: boolean; new_filename: string }> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/rename`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ old_filename: oldFilename, new_filename: newFilename }),
-    timeout: 30000,
+): Promise<RenameAudioResponse> {
+  return postJson<RenameAudioResponse>(`${BASE}/rename`, {
+    old_filename: oldFilename,
+    new_filename: newFilename,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to rename file");
-  }
-  return res.json();
 }
 
-export interface TrimRange {
-  start: number;
-  end: number;
-}
-
-export interface TrimAudioResponse {
-  success: boolean;
-  filename: string;
-  stored_path: string;
-  relative_path: string;
-  size_bytes: number;
-  duration: number;
-  source_filename: string;
-  source_duration: number;
-  mode: "keep" | "remove";
-  kept: TrimRange[];
-  lossless: boolean;
-  render_s: number;
-  message: string;
-}
-
+/**
+ * Trim an audio file (keep or remove ranges).
+ * Long-running (up to 10 minutes).
+ */
 export async function trimAudioFile(params: {
   filename: string;
   mode: "keep" | "remove";
   ranges: TrimRange[];
 }): Promise<TrimAudioResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/trim`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to trim audio");
-  }
-  return res.json();
+  return postJson<TrimAudioResponse>(`${BASE}/trim`, params, { timeout: 600000 });
 }
 
-export interface ExtractAudioResponse {
-  success: boolean;
-  filename: string;
-  relative_path: string;
-  stored_path: string;
-  size_bytes: number;
-  render_s: number;
-  lossless: boolean;
-  source_codec: string | null;
-  source_sample_rate: string | null;
-  message: string;
-}
-
+/**
+ * Extract audio from a video file.
+ * Long-running (up to 10 minutes).
+ * Uses direct backend fallback for reliability.
+ */
 export async function extractVideoAudio(params: {
   source_path: string;
   format?: "original" | "mp3";
   bitrate?: "128k" | "192k" | "320k";
 }): Promise<ExtractAudioResponse> {
-  const base = getApiBase();
   return withDirectBackendFallback(
     async () =>
-      fetchWithTimeout(`${base}/api/audio/extract`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-        timeout: 600000,
-      }).then(async (res) => {
-        if (!res.ok) throw new Error("Audio extraction failed");
-        return res.json();
-      }),
+      postJson<ExtractAudioResponse>(`${BASE}/extract`, params, { timeout: 600000 }),
     "/api/audio/extract",
     { method: "POST", body: params, timeout: 600000 },
   );
 }
 
-export interface VideoGenerateRequest {
-  prompt: string;
-  negative_prompt?: string;
-  steps?: number;
-  cfg_scale?: number;
-  seed?: number;
-  section?: string;
-  duration?: number;
-  vertical_first?: boolean;
-  audio_path?: string;
-  audio_filename?: string;
-  method?: "comfyui" | "visualization";
-  model?: string;
-  /** Visualization config (mode, palette, …) for the `visualization` method. */
-  visualization?: Record<string, unknown>;
-}
-
-export interface VideoGenerateResponse {
-  success: boolean;
-  job_id: string | null;
-  output_path: string | null;
-  section: string;
-  error: string | null;
-  message: string | null;
-}
-
+/**
+ * Generate a video section from audio.
+ */
 export async function generateVideoSection(
   request: VideoGenerateRequest,
 ): Promise<VideoGenerateResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/generate-section`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to generate video section");
-  return res.json();
-}
-
-export interface KineticVideoRequest {
-  audio_filename: string;
-  duration: number;
-  preset_id: string;
-  lyrics?: LyricLine[];
-  prompt?: string;
-}
-
-export interface KineticVideoResponse {
-  success: boolean;
-  job_id: string | null;
-  output_path: string | null;
-  section: string;
-  error: string | null;
-  message: string | null;
-}
-
-export interface EnhanceStemsResponse {
-  success: boolean;
-  input_filename: string;
-  model: string;
-  stems: string[];
-  wav_path: string | null;
-  mp3_path: string | null;
-  steps: Record<string, unknown>[];
-  error: string | null;
-  duration: number;
-}
-
-export interface EnhanceStemsParams {
-  filename: string;
-  model?: string;
-  target_peak_dbfs?: number;
-  attack_ms?: number;
-  release_ms?: number;
-  ratio?: number;
-  threshold_dbfs?: number;
-  reverb_decay?: number;
-  reverb_mix?: number;
-  delay_mix?: number;
-  stereo_widen_amount?: number;
-  master_ceiling_dbfs?: number;
-  output_format?: "wav" | "mp3" | "both";
-  pre_highpass_hz?: number;
-  vocal_spectral_gate_threshold_db?: number;
-  vocal_dynamic_eq_max_reduction_db?: number;
-  vocal_expander?: boolean;
-  deess_freq_hz?: number;
-  air_boost_gain_db?: number;
-  air_boost_freq_hz?: number;
-  vocal_balance_db?: number;
-  parallel_weight_bus_db?: number;
-  sidechain_pocket_eq_enabled?: boolean;
-}
-
-export async function enhanceStems(params: EnhanceStemsParams): Promise<EnhanceStemsResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/enhance-stems`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to enhance stems");
-  }
-  return res.json();
-}
-
-/* ------------------------------------------------------------------ */
-/* Mastering — /api/audio/master  (backend module audio_mastering.py) */
-/* ------------------------------------------------------------------ */
-
-/** Delivery loudness presets offered to the user. Mirrors backend TARGET_LUFS. */
-export const MASTER_TARGETS: Record<string, number> = {
-  spotify: -14,
-  apple: -16,
-  competitive: -11,
-  amazon: -2,
-} as const;
-
-export type MasterTarget = keyof typeof MASTER_TARGETS;
-
-export interface MasterMeasureResponse {
-  filename: string;
-  integrated_lufs: number | null;
-  true_peak_dbtp: number | null;
-  lra_lu: number | null;
-  error: string | null;
-}
-
-export interface MasterRequest {
-  filename: string;
-  target_lufs?: MasterTarget;
-  ceiling_dbtp?: number;
-  tone_fixes?: boolean;
-  /** Manual trim in dB applied after normalization, before limiting. */
-  gain_trim_db?: number;
-  /** Apply corrective-balance finishing chain before loudness normalization. */
-  finishing?: boolean;
-  /** dB of low-shelf cut at 120 Hz (sub tame). Only applied when finishing. */
-  sub_cut_db?: number;
-  /** dB of peaking lift at 3.2 kHz (vocal presence). Only applied when finishing. */
-  presence_db?: number;
-}
-
-/** Predefined finishing-chain presets applied via the UI. */
-export interface MasterFinishPreset {
-  label: string;
-  sub_cut_db: number;
-  presence_db: number;
-}
-
-export const MASTER_FINISH_PRESETS: MasterFinishPreset[] = [
-  { label: "Gentle", sub_cut_db: 2, presence_db: 1.5 },
-  { label: "Standard", sub_cut_db: 3, presence_db: 2.5 },
-  { label: "Aggressive", sub_cut_db: 5, presence_db: 4 },
-];
-
-export interface MasterApplied {
-  gain_db: number;
-  gain_trim_db?: number;
-  target_lufs: number;
-  ceiling_dbtp: number;
-  tone_fixes: boolean;
-  gain_passes?: number;
-  finishing?: boolean;
-  sub_cut_db?: number;
-  presence_db?: number;
-  band_energy?: {
-    before: { sub_db: number; presence_db: number };
-    after: { sub_db: number; presence_db: number };
-  };
-}
-
-export interface MasterResponse {
-  filename: string;
-  mastered_path: string | null;
-  error: string | null;
-  before: MasterMeasureResponse | null;
-  after: MasterMeasureResponse | null;
-  applied: MasterApplied | null;
-}
-
-/** Measurement-only: LUFS / true peak / LRA of a file (preview, no write). */
-export async function measureMasterLoudness(filename: string): Promise<MasterMeasureResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/audio/master/measure/${encodeURIComponent(filename)}`,
-    { timeout: 60000 },
+  return postJson<VideoGenerateResponse>(
+    `${base}/api/video/generate-section`,
+    request,
+    { timeout: 30000 },
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to measure loudness");
-  }
-  return res.json();
 }
 
-/** Master a library file to a delivery loudness target and write a mastered
- *  copy under output/audio/mastered/. Returns a before/after QC report. */
-export async function masterAudio(body: MasterRequest): Promise<MasterResponse> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/audio/master`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    timeout: 600000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to master audio");
-  }
-  return res.json();
-}
-
+/**
+ * Generate a kinetic typography lyric video.
+ */
 export async function generateKineticVideo(
   request: KineticVideoRequest,
 ): Promise<KineticVideoResponse> {
   const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/video/generate-section`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  return postJson<KineticVideoResponse>(
+    `${base}/api/video/generate-section`,
+    {
       prompt: request.prompt ?? `Kinetic typography lyric video with ${request.preset_id} preset`,
       negative_prompt: "blurry, low quality, distorted text, unreadable",
       steps: 20,
@@ -991,12 +504,54 @@ export async function generateKineticVideo(
         preset_id: request.preset_id,
         lyrics: request.lyrics ?? [],
       },
-    }),
-    timeout: 30000,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Failed to generate kinetic video");
-  }
-  return res.json();
+    },
+    { timeout: 30000 },
+  );
+}
+
+/**
+ * Enhance stems with mastering chain.
+ * Long-running (up to 10 minutes).
+ */
+export async function enhanceStems(params: EnhanceStemsParams): Promise<EnhanceStemsResponse> {
+  return postJson<EnhanceStemsResponse>(`${BASE}/enhance-stems`, params, { timeout: 600000 });
+}
+
+/* ------------------------------------------------------------------ */
+/* Mastering — /api/audio/master  (backend module audio_mastering.py) */
+/* ------------------------------------------------------------------ */
+
+/** Delivery loudness presets offered to the user. Mirrors backend TARGET_LUFS. */
+export const MASTER_TARGETS: Record<MasterTarget, number> = {
+  spotify: -14,
+  apple: -16,
+  competitive: -11,
+  amazon: -2,
+} as const;
+
+/** Predefined finishing-chain presets applied via the UI. */
+export const MASTER_FINISH_PRESETS: MasterFinishPreset[] = [
+  { label: "Gentle", sub_cut_db: 2, presence_db: 1.5 },
+  { label: "Standard", sub_cut_db: 3, presence_db: 2.5 },
+  { label: "Aggressive", sub_cut_db: 5, presence_db: 4 },
+];
+
+/**
+ * Measurement-only: LUFS / true peak / LRA of a file (preview, no write).
+ */
+export async function measureMasterLoudness(filename: string): Promise<MasterMeasureResponse> {
+  const encoded = encodeURIComponent(filename);
+  return getJson<MasterMeasureResponse>(
+    `${BASE}/master/measure/${encoded}`,
+    { timeout: 60000 },
+  );
+}
+
+/**
+ * Master a library file to a delivery loudness target and write a mastered
+ * copy under output/audio/mastered/. Returns a before/after QC report.
+ * Long-running (up to 10 minutes).
+ */
+export async function masterAudio(body: MasterRequest): Promise<MasterResponse> {
+  return postJson<MasterResponse>(`${BASE}/master`, body, { timeout: 600000 });
 }

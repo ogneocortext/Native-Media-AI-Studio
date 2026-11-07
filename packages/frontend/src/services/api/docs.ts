@@ -1,41 +1,38 @@
-import { getApiBase } from "./core";
-import { fetchWithTimeout } from "../fetchWithTimeout";
+/**
+ * Frontend client for /api/docs — documentation search and project structure.
+ */
 
+import { getJson } from "./typed-fetch";
+import type { DocSearchResult, DocsBootstrap, ProjectStructure } from "./types";
+
+const BASE = "/api/docs";
+
+/**
+ * Search documentation.
+ */
 export async function searchDocs(
   q: string,
   limit = 20,
-): Promise<
-  {
-    path: string;
-    title: string;
-    score: number;
-    snippet: string | null;
-  }[]
-> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(
-    `${base}/api/docs/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+): Promise<DocSearchResult[]> {
+  return getJson<DocSearchResult[]>(
+    `${BASE}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     { timeout: 30000 },
   );
-  if (!res.ok) throw new Error("Failed to search docs");
-  return res.json();
 }
 
-export async function getDocsBootstrap(): Promise<Record<string, unknown>> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/docs/bootstrap`, { timeout: 30000 });
-  if (!res.ok) throw new Error("Failed to get docs bootstrap");
-  return res.json();
+/**
+ * Get docs bootstrap data (structure + index).
+ */
+export async function getDocsBootstrap(): Promise<DocsBootstrap> {
+  return getJson<DocsBootstrap>(`${BASE}/bootstrap`, { timeout: 30000 });
 }
 
-export async function getProjectStructure(depth = 3): Promise<{
-  root: string;
-  structure: Record<string, unknown>;
-}> {
-  const base = getApiBase();
-  const res = await fetchWithTimeout(`${base}/api/docs/structure?depth=${depth}`, {
-    timeout: 30000,
-  });
-  if (!res.ok) throw new Error("Failed to get project structure");
-  return res.json();
+/**
+ * Get project structure (directory tree).
+ */
+export async function getProjectStructure(depth = 3): Promise<ProjectStructure> {
+  return getJson<ProjectStructure>(
+    `${BASE}/structure?depth=${depth}`,
+    { timeout: 30000 },
+  );
 }

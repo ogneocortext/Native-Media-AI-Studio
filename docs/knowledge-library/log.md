@@ -174,6 +174,8 @@ for AI agents.
 ---
 - Added `docs/knowledge-library/scene-layering-and-render-pass-decomposition-2026.md` → `#technical`
 
+- Added `docs/knowledge-library/frontend-typed-api-layer-2026.md` → `#technical`
+
 
 ## How to use this log
 

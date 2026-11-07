@@ -73,6 +73,16 @@ function stripMarkdownFences(content: string): string {
 let modelSelectionCache: { model: string; expiresAt: number } | null = null;
 const MODEL_SELECTION_TTL_MS = 30_000;
 
+interface OllamaModel {
+  name: string;
+  size?: number;
+  is_available?: boolean;
+  capabilities?: string[];
+  supports_tools?: boolean;
+  supports_vision?: boolean;
+  verified?: boolean;
+}
+
 /**
  * Automatically select the best model to use, preferring a model already
  * loaded in memory (resident) to avoid wasteful unload/load cycles.
@@ -273,16 +283,6 @@ export function clearModelSelectionCache(): void {
   modelSelectionCache = null;
 }
 
-interface OllamaModel {
-  name: string;
-  size?: number;
-  is_available?: boolean;
-  capabilities?: string[];
-  supports_tools?: boolean;
-  supports_vision?: boolean;
-  verified?: boolean;
-}
-
 export interface AgentLoopResult {
   success: boolean;
   finalResponse: string;
@@ -297,13 +297,13 @@ async function executeToolByName(
   toolName: string,
   toolArgs: Record<string, unknown>,
 ): Promise<ExecuteToolResponse> {
-  return executeTool({ tool_name: toolName, arguments: toolArgs });  
+  return executeTool({ tool_name: toolName, arguments: toolArgs });
 }
 
 /**
  * Convert skills to Ollama ToolDefinitions. Each skill becomes one tool that
  * accepts a "tool" (which sub-tool within the skill) and "arguments" object.
- * This keeps the tool set small while giving the model access to all 19 tools.
+ * This keeps the tool set small while giving the model access to all tools.
  */
 function skillsToToolDefinitions(skills: SkillInfo[]): ToolDefinition[] {
   return skills.map((skill) => ({
@@ -439,9 +439,7 @@ The current user request is: "${userMessage}"`;
         maxToolCalls: 5,
       });
 
-      // Check if the model made tool calls (toolDetails contains the actual calls)
-      // Backend returns snake_case "tool_details"; frontend type uses camelCase.
-      // res.json() is untyped, so accept both shapes.
+      // Check if the model made tool calls
       const rawResponse = response as {
         tool_details?: { name: string; arguments: Record<string, unknown>; result: string }[];
         toolDetails?: { name: string; arguments: Record<string, unknown>; result: string }[];
@@ -471,8 +469,6 @@ The current user request is: "${userMessage}"`;
           });
 
           // Map skill_* tool names to actual tool names
-          // The tool name from ollama is like "skill_audio" but we need the actual tool name
-          // from the arguments. The model should put the actual tool name in arguments.tool.
           const actualToolName = (toolArgs.tool as string) || toolName.replace(/^skill_/, "");
 
           let result: ExecuteToolResponse;

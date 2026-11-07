@@ -63,7 +63,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (25/25 completed) ✅
+### 🛠️ Technical Implementation (26/26 completed) ✅
+- ✅ `frontend-typed-api-layer-2026.md`  → `#technical`
 - ✅ `scene-layering-and-render-pass-decomposition-2026.md`  → `#technical`
 - ✅ `texture-pipeline-ktx2-authoring-and-ingest-2026.md`  → `#technical`
 - ✅ `playwright-e2e-2026.md`  → `#technical`

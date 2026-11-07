@@ -5,7 +5,7 @@ Based on documented datasheets and reverse-engineering.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
@@ -23,6 +23,17 @@ class Waveform(Enum):
 class NoiseType(Enum):
     LFSR = "lfsr"  # Periodic (NES, GB, Atari)
     WHITE = "white"  # True white noise
+
+
+class CoreType(Enum):
+    """Available render cores for hardware-accurate emulation."""
+    BEHAVIORAL = "behavioral"
+    NUKED_OPN2 = "nuked-opn2"
+    NUKED_OPM = "nuked-opm"
+    NUKED_OPL3 = "nuked-opl3"
+    RESIDFP = "residfp"
+    SNES_SPC = "snes-spc"
+    SAMEBOY = "sameboy"
 
 
 @dataclass
@@ -49,9 +60,8 @@ class SystemSpec:
     sample_rate: int = 44100
     output_sample_rate: int | None = None  # For PICO-8 native 22050
 
-    # Core selection: "behavioral" (current Python impl), "nuked-opn2", "nuked-opm", 
-    # "nuked-opl3", "residfp", "snes-spc", "sameboy"
-    core: str = "behavioral"
+    # Core selection
+    core: CoreType = CoreType.BEHAVIORAL
 
     # System-specific effects
     echo: dict[str, float] | None = None  # time_s, feedback, mix
@@ -93,8 +103,8 @@ NES_SPEC = SystemSpec(
 
 # NTSC/PAL variants
 NES_NTSC = NES_SPEC
-NES_PAL = SystemSpec(
-    **{k: v for k, v in NES_SPEC.__dict__.items() if k not in ("cpu_clock_hz", "frame_sequencer_hz", "label")},
+NES_PAL = replace(
+    NES_SPEC,
     cpu_clock_hz=1662607,
     frame_sequencer_hz=198.4,
     label="NES/Famicom PAL - Ricoh 2A07 APU",
@@ -130,16 +140,15 @@ GAMEBOY_DMG_SPEC = SystemSpec(
     sample_rate=44100,
     cpu_clock_hz=4194304,
     frame_sequencer_hz=512.0,  # 4.194304 MHz / 8192
-    core="sameboy",  # Use SameBoy for cycle-accurate APU emulation
+    core=CoreType.SAMEBOY,  # Use SameBoy for cycle-accurate APU emulation
 )
 
-GAMEBOY_CGB_SPEC = SystemSpec(
-    **{k: v for k, v in GAMEBOY_DMG_SPEC.__dict__.items() if k not in ("cpu_clock_hz", "frame_sequencer_hz", "label", "name", "core")},
+GAMEBOY_CGB_SPEC = replace(
+    GAMEBOY_DMG_SPEC,
     name="gameboy_cgb",
     cpu_clock_hz=8388608,
     frame_sequencer_hz=1024.0,
     label="Game Boy Color - Sharp SM83 2x",
-    core="sameboy",  # Use SameBoy for cycle-accurate APU emulation
 )
 
 # Register map
@@ -174,7 +183,7 @@ SNES_SPEC = SystemSpec(
     frame_sequencer_hz=0,  # No frame sequencer - driver handles timing
     echo={"time_s": 0.09, "feedback": 0.38, "mix": 0.22},
     vibrato={"rate": 5.5, "depth": 0.005},  # ~5.5 Hz, 0.5 cent depth
-    core="snes-spc",  # Use snes-spc for cycle-accurate SPC700 emulation
+    core=CoreType.SNES_SPC,  # Use snes-spc for cycle-accurate SPC700 emulation
 )
 
 # SPC700 register map (partial)
@@ -224,7 +233,7 @@ GENESIS_SPEC = SystemSpec(
     sample_rate=53267,  # YM2612 native DAC rate
     output_sample_rate=44100,
     cpu_clock_hz=7670454,  # NTSC master clock
-    core="nuked-opn2",  # Use Nuked-OPN2 for cycle-accurate FM
+    core=CoreType.NUKED_OPN2,  # Use Nuked-OPN2 for cycle-accurate FM
 )
 
 # YM2612 Algorithms (8 per channel)
@@ -308,15 +317,14 @@ SID_6581_SPEC = SystemSpec(
     cpu_clock_hz=1022727,  # NTSC 1.022 MHz
     filter_cutoff_hz=8000,
     filter_q=4.0,
-    core="residfp",  # Use reSIDfp for cycle-accurate SID emulation
+    core=CoreType.RESIDFP,  # Use reSIDfp for cycle-accurate SID emulation
 )
 
-SID_8580_SPEC = SystemSpec(
-    **{k: v for k, v in SID_6581_SPEC.__dict__.items() if k not in ("cpu_clock_hz", "label", "name", "core")},
+SID_8580_SPEC = replace(
+    SID_6581_SPEC,
     name="c64_8580",
     label="C64 SID 8580 (R4/R5) - cleaner filter, HMOS",
     cpu_clock_hz=1022727,
-    core="residfp",  # Use reSIDfp for cycle-accurate SID emulation
 )
 
 SID_REGISTERS = {
@@ -407,7 +415,7 @@ OPL2_SPEC = SystemSpec(
     sample_rate=49716,
     output_sample_rate=44100,
     cpu_clock_hz=3579545,
-    core="nuked-opl3",  # Use Nuked-OPL3 (supports OPL2 mode)
+    core=CoreType.NUKED_OPL3,  # Use Nuked-OPL3 (supports OPL2 mode)
 )
 
 OPL3_SPEC = SystemSpec(
@@ -420,7 +428,7 @@ OPL3_SPEC = SystemSpec(
     sample_rate=49716,
     output_sample_rate=44100,
     cpu_clock_hz=14318180,
-    core="nuked-opl3",  # Use Nuked-OPL3 for cycle-accurate FM
+    core=CoreType.NUKED_OPL3,  # Use Nuked-OPL3 for cycle-accurate FM
     # 4-op mode: channels 0-5 pair as 4-op, 6-17 remain 2-op
 )
 
@@ -539,7 +547,7 @@ SPU_REGISTERS = {
     0x08: "V_ADSR1",       # ADSR Attack/Decay
     0x0A: "V_ADSR2",       # ADSR Sustain/Release
     0x0C: "V_ADSR_VOL",    # Current ADSR volume
-    0x0E: "V_REPEAT_ADDR", # Loop repeat address
+    0x0E: "V_REPEAT_ADDR",  # Loop repeat address
     # Voice flags (six 1-bit flags per voice at 0x1F801D88)
     0x100: "V_PLAYING",    # Key on/off
     0x101: "V_NOISE",      # Noise enable
@@ -549,9 +557,9 @@ SPU_REGISTERS = {
     0x105: "V_FM",         # Pitch modulation (LFO) enable
     # SPU control
     0x1F801D80: "MVOL_LEFT",  # Main volume left
-    0x1F801D82: "MVOL_RIGHT", # Main volume right
+    0x1F801D82: "MVOL_RIGHT",  # Main volume right
     0x1F801D84: "EVOL_LEFT",  # Reverb output volume left
-    0x1F801D86: "EVOL_RIGHT", # Reverb output volume right
+    0x1F801D86: "EVOL_RIGHT",  # Reverb output volume right
     0x1F801D88: "PMON0",      # Pitch modulation enable voice 1..15
     0x1F801D8A: "PMON1",      # Pitch modulation enable voice 16..23
     0x1F801D8C: "NON0",       # Noise enable voice 0..15
@@ -570,12 +578,12 @@ SPU_REGISTERS = {
     0x1F801DA6: "TS_ADDR",    # Transfer size / address
     0x1F801DA8: "FADDR",      # FIFO address
     0x1F801DAA: "CONTROL",    # SPU control (enable, mute, DMA, etc.)
-    0x1F801DAC: "CDVOL_LEFT", # CD volume left
-    0x1F801DAE: "CDVOL_RIGHT",# CD volume right
-    0x1F801DB0: "EXVOL_LEFT", # External volume left
-    0x1F801DB2: "EXVOL_RIGHT",# External volume right
+    0x1F801DAC: "CDVOL_LEFT",  # CD volume left
+    0x1F801DAE: "CDVOL_RIGHT",  # CD volume right
+    0x1F801DB0: "EXVOL_LEFT",  # External volume left
+    0x1F801DB2: "EXVOL_RIGHT",  # External volume right
     0x1F801DB4: "CVOL_LEFT",  # Main volume left (alt)
-    0x1F801DB6: "CVOL_RIGHT", # Main volume right (alt)
+    0x1F801DB6: "CVOL_RIGHT",  # Main volume right (alt)
     # Reverb configuration (0x1F801DC0 - 0x1F801DFF)
     0x1F801DC0: "dAPF1", 0x1F801DC2: "dAPF2",
     0x1F801DC4: "vIIR", 0x1F801DC6: "vCOMB1", 0x1F801DC8: "vCOMB2",
