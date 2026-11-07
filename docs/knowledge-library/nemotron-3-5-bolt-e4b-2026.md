@@ -311,3 +311,43 @@ idiom 1). The Python outputs were also executed and pass.
   `tools/model-reliability/run_threejs_benchmark.py` (benchmark runner),
   `tools/model-reliability/ab_measure.py` (Ollama vs Atomic Chat A/B
   tool).
+
+## External references — GitHub ecosystem (checked 2026-11-06)
+
+NVIDIA does not keep Bolt itself on GitHub (the model lives on
+Hugging Face, above). What GitHub holds is the ecosystem around it:
+
+- The GGUF served here is Unsloth's build:
+  [unsloth/NVIDIA-Nemotron-3.5-Bolt-E4B-GGUF](https://huggingface.co/unsloth/NVIDIA-Nemotron-3.5-Bolt-E4B-GGUF).
+  A community recipe,
+  [laroccacharly/bolt](https://github.com/laroccacharly/bolt), serves
+  that GGUF with llama.cpp (b11840, CUDA) behind the Pi coding
+  harness on an 8 GB VRAM NVIDIA GPU — this machine's hardware
+  class; it uses the UD-Q4_K_XL quant where Atomic Chat serves
+  Q4_K_M.
+- [AtomicBot-ai/Atomic-Chat](https://github.com/AtomicBot-ai/Atomic-Chat)
+  — the serving app's own repo. Confirms the bridge's assumptions:
+  OpenAI-compatible server at `:1337/v1`, bound to 127.0.0.1 by
+  default with a host setting to expose it, API-key auth as a
+  documented feature. Also documents why the app's MCP connections
+  and built-in web search do not surface through the raw API, and
+  MTP speculative decoding (30–70% throughput boost on supported
+  models). Sibling repos: `atomic-chat-core`, `atomic-chat-conf`.
+- Family facts (the flagship, NOT this E4B — do not transfer its
+  numbers): [canonical/nemotron-3.5-bolt-snap](https://github.com/canonical/nemotron-3.5-bolt-snap)
+  describes Bolt as compressed from Nemotron 3.5 Super with a
+  hybrid MoE + Mamba architecture; the flagship is 74B total /
+  ~9B active, routed and shared experts at IQ2_XXS (2.06-bit),
+  Mamba layers in NVFP4, LM head in Q8_0 (ModelOpt mixed
+  precision).
+  [MiaAI-Lab/Nemotron-3.5-Bolt-TensorFold-DGX-Spark](https://github.com/MiaAI-Lab/Nemotron-3.5-Bolt-TensorFold-DGX-Spark)
+  adds deep serving notes on that checkpoint: 262,144-token
+  context, `enable_thinking` as the model card's own reasoning
+  flag (matching the API behavior measured in this doc), the
+  card's tool parser named `qwen3_coder`, structured output and
+  forced tool choice in the stack.
+- E4B is the family's edge variant: community guides run it in
+  4 GB on phones (Termux/Android NPU), and
+  [aminbaybon/persian-nemotron-gemma](https://github.com/aminbaybon/persian-nemotron-gemma)
+  benchmarks it head-to-head against Gemma 4 E2B — the class
+  NVIDIA's own BF16 card benchmarks it against (see Sources).

@@ -37,7 +37,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (16/16 completed) ✅
+### 🎬 Production Pipeline (17/17 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -55,6 +55,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `storyboard-enrichment-from-track-practice-2026.md`  → `#production`, `#audio`, `#visualization`
 - ✅ `acestep-agent-drive-2026.md`  → `#production`, `#audio`
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
+- ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
 ### 🛠️ Technical Implementation (20/20 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
@@ -131,10 +132,11 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (19/19 completed) ✅
+### 🤖 AI & ML (20/20 completed) ✅
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `nemotron-3-5-bolt-e4b-2026.md`  → `#ai`, `#ai-agents`, `#platform-atomic-chat`
+- ✅ `local-model-operating-brief-2026.md`  → `#ai`, `#ai-agents`
 - ✅ `vision-model-reliability-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `finetuning-best-practices-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `3d-generation-options-2026.md`  → `#ai`, `#hardware-pascal`, `#hardware-8gb`, `#platform-comfyui`
@@ -153,7 +155,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
 - ✅ `agent-chat-architecture-2026.md`  → `#ai`, `#agent`, `#architecture`, `#documentation`
 
-### 📊 Research & Reference (22/22 completed)
+### 📊 Research & Reference (23/23 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -178,6 +180,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `local-rag-redesign-2026.md` → `#research`, `#architecture`
 - ✅ `ascii-art-trends-2026.md` → `#research`, `#ascii-art`, `#terminal`, `#generative-art`, `#visualization`
 - ✅ `animatediff-evolved-2026.md` → `#research`, `#animate-diff`, `#comfyui`, `#video-generation`, `#animate-diff-evolved`
+- ✅ `external-book-sources-2026.md` → `#research`, `#documentation`, `#knowledge-library`
 
 ## 📝 Migration Template
 

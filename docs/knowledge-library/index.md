@@ -44,6 +44,7 @@ date: 2026-09-30
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
 - [[video-intro-recipe-schema-2026-10|🎬 Video Intro Recipe Schema 2026-10]] — Deterministic, parameterized 3–7 s video intro specification; brand elements explicit, nothing hard-coded per render (NEW 2026-10-27)
+- [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
 - [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
@@ -120,6 +121,7 @@ date: 2026-09-30
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
 - [[nemotron-3-5-bolt-e4b-2026|🤖 Nemotron 3.5 Bolt E4B 4GB]] — Local agent model reference: strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, routing guidance for cloud models (NEW 2026-11-01)
+- [[local-model-operating-brief-2026|📋 Local Model Operating Brief]] — The six-part system-prompt method for small local models (role, grounding, output contract, stopping rule, sampling discipline, verification), with the 2026-11-06 before/after evidence on Bolt E4B (NEW 2026-11-06)
 - [[nemotron-3-5-super-vl-prompting-2026|👁️ Nemotron 3.5 Super VL Prompting]] - Prompting reference for Nemotron 3.5 Super VL via the Kilo route (indexed 2026-11-06)
 - [[custom-agent-design|🤖 Custom Agent Design]] - Native Media AI Studio agent architecture and design notes (indexed 2026-11-06)
 - [[programmatic-tool-calling-2026|🛠️ Programmatic Tool Calling 2026]] - PTC patterns taken from Factory Droid 1.0 (indexed 2026-11-06)
@@ -163,6 +165,7 @@ date: 2026-09-30
 - [[tempo-estimation-octave-errors-2026|⏱️ Tempo Estimation Octave Errors 2026]] — Measured octave errors on real tracks; madmom vs librosa comparison; recommended tempo-candidate rescoring pass (NEW 2026-10-21)
 - [[lyria-3.5-brief-library-README|🎵 Lyria 3.5 Brief Library]] - Research briefs on Lyria 3.5 music generation (indexed 2026-11-06)
 - [[suno-v6-style-tags-README|🎼 Suno v6 Style-Tag Library]] - Suno v6 style-tag reference for music prompts (indexed 2026-11-06)
+- [[external-book-sources-2026|📚 External Book Sources]] — Which free-EPUB sources actually apply to agent work here: the public-repo license rule, per-title license verdicts (Think DSP, DSP Guide, D2L, Goodfellow), the distill-don't-dump pattern, and the pandoc extraction recipe (NEW 2026-11-06)
 
 ---
 
@@ -172,13 +175,13 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 16 documents |
+|| `#production/*` | Production workflow & creative guides | 17 documents |
 || `#technical/*` | System implementation & code | 21 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 19 documents |
-|| `#research/*` | Industry trends & analysis | 21 documents |
+|| `#ai/*` | AI models, training & ML | 20 documents |
+|| `#research/*` | Industry trends & analysis | 22 documents |
 
 ### Cross-Cutting Tags
 

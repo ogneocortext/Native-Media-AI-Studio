@@ -121,6 +121,37 @@ Code: `packages/backend/app/agents/`
 - **Last session:** Orion, 2026-11-01 — Item created from the
   cloud↔local bridge work of the same day (the bridge
   integration's Layer 1); not started.
+- **Last session:** Orion, 2026-11-06 — Still todo: the Kilo
+  definition itself is unbuilt. Supporting evidence for the
+  role it encodes, gathered owner-requested via the
+  Orion→Atomic route (not the Kilo route this item builds):
+  one serial Bolt call reviewed
+  `packages/backend/app/services/stem_curves.py` — accurate
+  summary, edge cases reported "none found" (defensible on
+  contract; missed position-dependent NaN behavior in max()
+  chunks, caught by mechanical verification: 3,000-case
+  property test, 0 failures). Logged in observed.jsonl
+  2026-11-06. Owner's framing: Bolt as gap-filler while Devin
+  SWE 2.0 is rate-limit-stalled and Nemotron-via-Kilo hits
+  compaction/rate limits; owner rule — Atomic calls are
+  strictly serial, never parallel (single 8 GB GPU, shared
+  with Hermes).
+- **Last session:** Orion, 2026-11-06 (later) — Definition and
+  config LANDED via the owner's chain test (Orion → Atomic/Bolt
+  → repo → Kilo/Devin): Bolt drafted `.kilo/agents/bolt-local.md`
+  from the qwen-local template in one serial call (44.8 s,
+  1,082 tokens); the draft passed all 9 mechanical checks
+  (exact model id, frontmatter discipline, five denies,
+  grounding rules, single-loaded-model 404 rule). Its
+  kilo.jsonc entry flattened the nested `limit` object into
+  `limit context`/`limit output` keys — values right
+  (16384/4096), structure wrong; Orion corrected the nesting
+  when landing. kilo.jsonc now carries the Bolt entry beside
+  the Qwen placeholder. Remaining for acceptance (Kilo-side,
+  owner's machine): `kilo agent list` shows bolt-local, and
+  one bounded scout job through Kilo with Bolt loaded
+  (summarize `packages/backend/app/agents`, read-only).
+  Logged in observed.jsonl 2026-11-06.
 
 ### T-AGT-05 — Design the cloud-agent bridge (backend service + Bridge panel)
 - **Status:** todo
