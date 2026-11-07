@@ -49,6 +49,7 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[scene-layering-and-render-pass-decomposition-2026|layering]] — Scene layering and render-pass decomposition
 - [[texture-pipeline-ktx2-authoring-and-ingest-2026|texture pipeline]] — Texture Pipeline — KTX2 Authoring and Ingest
 - [[playwright-e2e-2026|Playwright]] — Playwright E2E 2026
 - [[database-operations-2026|🗄️ Database Operations 2026]] — studio.db paths/PRAGMAs, gpu_telemetry growth+retention, admin maintenance API, VACUUM/mmap caveat (NEW 2026-11-06)
@@ -184,7 +185,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 19 documents |
-|| `#technical/*` | System implementation & code | 24 documents |
+|| `#technical/*` | System implementation & code | 25 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
