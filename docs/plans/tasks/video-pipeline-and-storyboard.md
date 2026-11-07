@@ -323,7 +323,15 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   re-validates the final asset and lands under `budget` in the result.
   Verified: `_role_budget` returns role caps; `check-asset-budget --json`
   stdout parses (nonzero exit on FAIL is expected and handled);
-  ruff clean on both touched files. STILL GATED/OPEN: LOD chain
+  ruff clean on both touched files. 2026-11-07 addendum: owner asked for
+  a way to *see* triangle counts vs the ceiling — `tools/preview-tri-budget.py`
+  + `tools/blender/tri_ladder.py` landed: re-imports the GLB per level,
+  COLLAPSE-decimates to each target, auto-frames a 3/4 camera, renders
+  640px PNGs (Eevee→Workbench fallback), and PIL-assembles a labeled
+  contact sheet at `output/tests/tri-ladder/<stem>/<stem>-tri-ladder.png`.
+  Default ladder = role caps + half-steps + original; `--counts` overrides.
+  Verified live on stage.glb: 5 levels in ~50 s, real face deltas
+  (15,702→2,521), non-blank renders. STILL GATED/OPEN: LOD chain
   generation (LOD0/1/2 + sprite card), T-VID-05 scene-spec validator
   budget wiring, RenderStatsBadge budget-vs-actual.
 
