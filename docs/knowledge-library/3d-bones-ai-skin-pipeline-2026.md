@@ -15,7 +15,7 @@ tags:
 > AI under geometric control. Written 2026-11-06, the day the hardware
 > baseline became fully verified ([[ryzen-5500-cpu-playbook-2026]],
 > [[pascal-3d-budget-discipline-2026]], and the reconciled
-> `config/hardware-profile.json`, T-PLT-35) — every feasibility claim
+> `config/hardware-profile.json`, T-PLT-46) — every feasibility claim
 > below is a lookup against those numbers, not an experiment.
 
 ## 1. Two routes to the same footage
@@ -53,7 +53,7 @@ Now it is a table lookup:
   baked lighting — the bones must be authored to these budgets or the
   real-time side stalls.
 - **Coexistence**: the VRAM manager offloads Ollama before ComfyUI
-  loads; CPU heavy jobs run in lanes (T-PLT-35) — batch renders and
+  loads; CPU heavy jobs run in lanes (T-PLT-46) — batch renders and
   CPU stages queue, they don't collide.
 
 ## 3. The pipeline shape
@@ -88,7 +88,7 @@ owned scenes, so its passes are exact, not estimated.
 | V2V route for existing footage | T-VID-07..10, design registered — the *input* side; complementary, not overlapping |
 | Camera direction as data | T-VID-11 — a typed rig registry, but scoped to the I2V prompt path |
 | Real-time 3D budgets | T-VID-12 + [[pascal-3d-budget-discipline-2026]] |
-| Hardware baseline | Hardware profile v2 reconciled (T-PLT-35); CPU playbook; Pascal GPU doc |
+| Hardware baseline | Hardware profile v2 reconciled (T-PLT-46); CPU playbook; Pascal GPU doc |
 | ControlNet integration | **Declared, not built**: `packages/backend/app/api/integrations_music_video.py:565` catalogs "Advanced AnimateDiff with controlnet and IP-adapter" (`mm_sd_v15_v2.safetensors`, `controlnet_openpose`); `Settings.tsx` offers a "ControlNet + Image" mode. But `config/comfyui/workflows/` holds exactly 3 workflows (audio-reactive visualizer, music-video scene, stem-mixer preview) — none control-based, and nothing produces control inputs from owned scenes (grep-verified 2026-11-06: no pass/AOV support anywhere in scene/gen3d code) |
 
 ## 5. The five gaps

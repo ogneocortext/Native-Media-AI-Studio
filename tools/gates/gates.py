@@ -51,8 +51,8 @@ def gates(*, fix: bool = False, verbose: bool = False) -> list[Gate]:
     docs_extra = ["-v"] if verbose else []
     ruff_argv = ([PY, "-m", "ruff", "check", ".", "--output-format=concise"]
                  + (["--fix"] if fix else []))
-    lint_argv = ([PNPM, "exec", "eslint", "--fix", "src"] if fix
-                 else [PNPM, "lint"])
+    lint_argv = ([PNPM, "exec", "eslint", "--format=stylish", "--fix", "src"] if fix
+                 else [PNPM, "exec", "eslint", "--format=stylish", "src"])
     return [
         Gate("docs", [PY, "tools/check-all.py"] + docs_extra, ROOT,
              desc="documentation and repo hygiene (7 checks via check-all.py)"),
@@ -68,7 +68,7 @@ def gates(*, fix: bool = False, verbose: bool = False) -> list[Gate]:
         Gate("type", [PNPM, "type-check"], FRONTEND, lane="node",
              desc="TypeScript type check (tsc --noEmit + test config)"),
         Gate("lint", lint_argv, FRONTEND, lane="node",
-             desc="ESLint on frontend src"),
+             desc="ESLint on frontend src (--format=stylish; ~60s typical)"),
         # `-v --durations=10` rather than `-q`: the runner streams each line as
         # it is produced, so a verbose reporter is what makes "which test is
         # running right now" visible. `--durations=10` then names the ten
