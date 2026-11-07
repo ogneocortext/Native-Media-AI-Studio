@@ -1,129 +1,93 @@
-# CLI Output Formatter - Cross-Platform Terminal Output
+# CLI Output Formatter — Cross-Platform Terminal Output
 
 ## Overview
-A cross-platform CLI output formatter that works on Windows (cp1252), Linux, and macOS. Handles encoding issues on Windows by forcing UTF-8 stdout and using ASCII-safe characters.
 
-## Features
+`cli_output.py` is the canonical terminal formatter for the repo. It produces
+ASCII-art test reports with actionable insights so both humans and AI agents
+can interpret test results without parsing raw runner output.
 
-### Core Classes
-- **CLIOutput**: Main formatter class with methods for formatting CLI results
-- **CLIResult**: Dataclass for storing command results
-- **Status**: Enum for result statuses (SUCCESS, ERROR, WARNING, INFO, RUNNING, PENDING)
+Every test surface prints the same report shape:
 
-### Formatting Methods
+- **pytest (backend)** — `packages/backend/tests/conftest.py` →
+  `pytest_terminal_summary` prints the report at the end of *every* run,
+  including `pytest`, `pytest -k ...`, and `tools/test_insights.py`.
+- **`tools/test_insights.py`** — appends the same report (stdout) after its
+  feature-breakdown analysis; richer insights (flaky tests, trends,
+  per-feature pass rates) are included. `--no-ascii` disables it.
+- **vitest (frontend)** — `AsciiArtVitestReporter`
+  (`packages/frontend/src/utils/ascii-test-reporter.ts`) is registered in
+  `vitest.config.ts` alongside `verbose`.
 
-| Method | Description |
-|--------|-------------|
-| `format_result()` | Format a single CLI command result |
-| `format_table()` | ASCII table with headers and rows |
-| `format_json()` | Pretty-print JSON with code block |
-| `format_summary()` | Summary of multiple results |
-| `format_kv_pairs()` | Key-value pairs as table |
-| `format_progress()` | Progress bar with percentage |
-| `format_duration()` | Human-readable duration formatting |
-| `format_command_help()` | Command help table |
+## Report anatomy
 
-### Status Icons (ASCII-safe)
-- `[OK]` - Success
-- `[ERR]` - Error
-- `[WARN]` - Warning
-- `[INFO]` - Info
-- `[RUN]` - Running
-- `[...]` - Pending/Other
+```
+================ TEST RESULTS ================
+        <ASCII art: PASSED / FAILED / WARN>
+  VERDICT: <one-line interpretation>
 
-### Cross-Platform Support
-- **Windows**: Forces UTF-8 stdout via `sys.stdout.reconfigure()` or `io.TextIOWrapper`
-- **Linux/macOS**: Uses native UTF-8 support
-- All output uses ASCII-safe characters (no Unicode box-drawing)
++---------+-------+-------+   counts + share %
+  Duration: 1m 6s | commit abc1234 | branch main
 
-## Usage Examples
+--- FAILURES — reproduce individually ---
+| Test | Location | Error (first line) |
+  python -m pytest tests/test_x.py::test_y -x     <- ready-made repro commands
+
+--- SLOWEST TESTS ---                        (hidden when all < 50ms)
+--- INSIGHTS & NEXT STEPS ---                <- actionable bullets
+# RESULT: PASS | suite=pytest | total=N | passed=N | failed=N | skipped=N | duration_s=X
+```
+
+The final `# RESULT:` line is the machine-readable verdict for agents:
+`PASS`, `PASS_WITH_SKIPS`, or `FAIL`, plus counts and duration.
+
+## Python API
 
 ```python
-from cli_output import CLIOutput, CLIResult, Status, safe_print, format_test_results
-
-cli = CLIOutput()
-
-# 1. Single command result
-result = CLIResult(
-    status=Status.SUCCESS,
-    command="pytest tests/test_retrieval_routes.py -x -q",
-    output="44 passed in 65.72s",
-    duration_ms=65720,
-    exit_code=0
+from cli_output import (
+    CLIOutput, CLIResult, Status,
+    build_test_insights, format_duration, format_progress,
+    format_command_help, safe_print,
 )
-safe_print(cli.format_result(result))
-
-# 2. Table formatting
-headers = ["Endpoint", "Method", "Status"]
-rows = [
-    ["/api/visualizer/state", "GET", "[OK] 200"],
-    ["/api/visualizer/track", "POST", "[OK] 200"],
-]
-safe_print(cli.format_table(headers, rows, "API Endpoints"))
-
-# 3. JSON with code block
-data = {"endpoint": "/api/visualizer/track", "status": 200}
-safe_print(cli.format_json(data, "API Response"))
-
-# 4. Test summary
-safe_print(format_test_results(44, 0, 0, 65720))
-
-# 5. Key-value pairs
-config = {"backend_url": "http://127.0.0.1:8000", "model": "gemma4:e2b-it-qat"}
-safe_print(cli.format_kv_pairs(config, "Configuration"))
-
-# 6. Progress bar
-safe_print(format_progress(42, 100, "Processing", 30))
-
-# 7. Duration formatting
-safe_print(f"Duration: {format_duration(65720)}")  # "1m 6s"
-
-# 8. Command help
-commands = {"visualizer_open": "Open Visualizer with track"}
-safe_print(format_command_help(commands, "Available Tools"))
-```
-
-## Cross-Platform Encoding Handling
-
-The module automatically detects Windows and reconfigures stdout to use UTF-8 with error replacement:
-
-```python
-if sys.platform == "win32":
-    if hasattr(sys.stdout, 'reconfigure'):
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    else:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-```
-
-All output uses ASCII-safe characters:
-- Tables use `+`, `-`, `|` instead of Unicode box-drawing
-- Status uses `[OK]`, `[ERR]`, `[WARN]` instead of emoji
-- Progress bars use ASCII `█` and `░` (with fallback)
-
-## Integration with Safe Print
-
-The `safe_print()` function handles encoding errors gracefully:
-
-```python
-from cli_output import safe_print, CLIOutput, CLIResult, Status
 
 cli = CLIOutput()
-result = CLIResult(status=Status.SUCCESS, command="test", output="done", duration_ms=100)
-safe_print(cli.format_result(result))
+
+# Generic command result
+safe_print(cli.format_result(CLIResult(
+    status=Status.SUCCESS, command="pytest tests/ -q",
+    output="44 passed", duration_ms=65720, exit_code=0)))
+
+# Tables / KV / JSON
+safe_print(cli.format_table(["Endpoint", "Status"], [["/api/health", "[OK]"]], "API"))
+safe_print(cli.format_kv_pairs({"backend_url": "http://127.0.0.1:8000"}, "Config"))
+safe_print(cli.format_json({"ok": True}, "Response"))
+
+# Test report (what the runners call)
+safe_print(cli.format_test_results(
+    passed=44, failed=0, skipped=2, duration_s=65.7,
+    suite="pytest backend",
+    failures=[{"name": "tests/test_x.py::test_y", "file": "tests/test_x.py",
+               "line": 42, "message": "AssertionError: ..."}],
+    slowest=[{"name": "tests/test_x.py::test_slow", "duration_s": 12.4}],
+    insights=build_test_insights(failed=0, skipped=2, errors=0),
+    meta={"commit": "abc1234", "branch": "main"},
+    rerun_hint="python -m pytest",
+))
+
+safe_print(format_progress(42, 100, "Processing"))
+safe_print(format_duration(65720))   # "1m 6s"
 ```
 
-On Windows, if UTF-8 fails, it falls back to ASCII with replacement characters.
+## TypeScript API (frontend mirror)
 
-## Integration with Project
+`packages/frontend/src/utils/cli-output-formatter.ts` exports the same
+surface: `CLIOutput`, `Status`, `CLIResult`, `formatDuration`,
+`formatProgress`, `buildTestInsights`, `getAsciiArt`. The reporter lives in
+`ascii-test-reporter.ts`.
 
-The formatter is used throughout the Native Media AI Studio project for:
-- Backend API test results
-- Frontend build output
-- API endpoint testing
-- Configuration display
-- Progress tracking for long-running operations
-- JSON API response formatting
+## Cross-platform notes
 
-## Files
-- `cli_output.py` - Main formatter module
-- `cli_output.py` (in project root) - Demo script
+- Windows stdout is forced to UTF-8 (`errors="replace"`); `safe_print`
+  falls back to ASCII if encoding still fails.
+- Tables use plain `+ - |` characters; art uses block characters only.
+- The formatter is cosmetic: all call sites wrap it so a formatter failure
+  can never change a test run's exit code.

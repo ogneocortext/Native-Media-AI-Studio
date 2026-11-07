@@ -10,6 +10,7 @@ Provides:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,8 +22,14 @@ from httpx import ASGITransport, AsyncClient
 # package root (``packages/backend``).
 # ---------------------------------------------------------------------------
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
-if str(BACKEND_ROOT) not in __import__("sys").path:
-    __import__("sys").path.insert(0, str(BACKEND_ROOT))
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+# Repo root holds cli_output.py — the shared ASCII report formatter used by
+# the terminal summary below and by tools/test_insights.py.
+REPO_ROOT = BACKEND_ROOT.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from typing import TYPE_CHECKING
 
@@ -135,6 +142,102 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
             cleanup_dead_symlinks(basetemp)
     except PermissionError:
+        pass
+
+
+def pytest_terminal_summary(terminalreporter) -> None:
+    """Print the ASCII-art results report with actionable insights.
+
+    Runs for every pytest invocation so agents and users get the same
+    interpretable summary regardless of how the suite was launched. Any
+    failure inside the formatter is swallowed — cosmetics must never change
+    the exit code.
+    """
+    try:
+        from cli_output import (
+            CLIOutput,
+            build_test_insights,
+            safe_print,
+        )
+
+        stats = terminalreporter.stats
+        reports = {
+            key: list(stats.get(key, []))
+            for key in (
+                "passed", "failed", "error", "skipped",
+                "xfailed", "xpassed",
+            )
+        }
+        all_reports = [r for group in reports.values() for r in group]
+        if not all_reports:
+            return
+
+        passed = len(reports["passed"]) + len(reports["xpassed"])
+        failed = len(reports["failed"])
+        errors = len(reports["error"])
+        skipped = len(reports["skipped"]) + len(reports["xfailed"])
+
+        def _failure_entry(report) -> dict:
+            longrepr = getattr(report, "longrepr", None)
+            text = str(longrepr) if longrepr is not None else ""
+            # Prefer pytest's "E "-prefixed assertion lines; they carry the
+            # actual error, unlike traceback frame headers.
+            message = ""
+            fallback = ""
+            for line in text.splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("=") \
+                        or "Traceback" in stripped:
+                    continue
+                if stripped.startswith("E ") or "Error" in stripped \
+                        or "assert" in stripped:
+                    message = stripped.lstrip("E ").strip() or stripped
+                    break
+                if not fallback:
+                    fallback = stripped
+            if not message:
+                message = fallback
+            nodeid = getattr(report, "nodeid", "?")
+            lineno = getattr(report, "lineno", None)
+            return {
+                "name": nodeid,
+                "file": nodeid.split("::")[0],
+                "line": lineno if isinstance(lineno, int) else None,
+                "message": message[:120],
+            }
+
+        failures = [_failure_entry(r) for r in reports["failed"] + reports["error"]]
+        slowest = [
+            {"name": getattr(r, "nodeid", "?"),
+             "duration_s": float(getattr(r, "duration", 0.0) or 0.0)}
+            for r in sorted(all_reports,
+                            key=lambda r: getattr(r, "duration", 0.0) or 0.0,
+                            reverse=True)[:8]
+        ]
+
+        insights = build_test_insights(
+            failed=failed, skipped=skipped, errors=errors,
+            slowest=slowest or None,
+            suite="pytest backend",
+        )
+
+        safe_print("")
+        safe_print(CLIOutput().format_test_results(
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            duration_s=sum(
+                float(getattr(r, "duration", 0.0) or 0.0)
+                for r in all_reports
+            ),
+            errors=errors,
+            suite="pytest backend",
+            failures=failures,
+            slowest=slowest,
+            insights=insights,
+            rerun_hint="python -m pytest",
+        ))
+    except Exception:
         pass
 
 

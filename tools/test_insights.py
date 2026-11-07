@@ -872,6 +872,8 @@ def main() -> int:
                         help="write HTML report")
     parser.add_argument("--json", action="store_true",
                         help="write JSON summary")
+    parser.add_argument("--no-ascii", action="store_true",
+                        help="skip the ASCII-art console summary")
     parser.add_argument("--no-run", action="store_true",
                         help="re-analyse the last JUnit XML without running pytest")
     parser.add_argument("extra_args", nargs="*",
@@ -930,7 +932,72 @@ def main() -> int:
     for rec in report.recommendations:
         print(f"  • {rec}", file=sys.stderr)
 
+    if not args.no_ascii:
+        print_ascii_summary(report, flaky)
+
     return 0 if report.failed == 0 else 1
+
+
+def print_ascii_summary(report: InsightsReport,
+                        flaky: list[dict[str, Any]]) -> None:
+    """Print the shared ASCII-art report (cli_output.py) to stdout.
+
+    The plain-text recommendation lines above stay on stderr so this block
+    is the single canonical 'how do I read this run' surface for both humans
+    and agents.
+    """
+    try:
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from cli_output import (
+            CLIOutput,
+            build_test_insights,
+            safe_print,
+        )
+
+        failures = [
+            {
+                "name": t.node_id,
+                "file": t.file,
+                "line": None,
+                "message": (t.message or "").splitlines()[0][:120]
+                if t.message else "",
+            }
+            for t in report.all_failures[:20]
+        ]
+        slowest = [
+            {"name": t.node_id, "duration_s": t.duration}
+            for t in report.overall_slowest[:8]
+        ]
+        insights = list(report.recommendations)
+        if flaky:
+            insights.insert(
+                0,
+                f"{len(flaky)} flaky test(s) detected — results changed "
+                f"between runs; treat pass/fail for these as unreliable.",
+            )
+        if not insights:
+            insights = build_test_insights(
+                failed=report.failed, skipped=report.skipped, errors=0,
+                slowest=slowest or None, suite="pytest backend",
+            )
+
+        safe_print("")
+        safe_print(CLIOutput().format_test_results(
+            passed=report.passed,
+            failed=report.failed,
+            skipped=report.skipped,
+            duration_s=report.total_duration,
+            suite="pytest backend",
+            failures=failures,
+            slowest=slowest,
+            insights=insights,
+            meta={"commit": report.commit or "", "branch": report.branch or ""},
+            rerun_hint="python -m pytest",
+        ))
+    except Exception as exc:  # cosmetics must never break the report
+        print(f"[test_insights] ascii summary skipped: {exc}",
+              file=sys.stderr)
 
 
 if __name__ == "__main__":

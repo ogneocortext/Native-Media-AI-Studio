@@ -1,99 +1,126 @@
 /**
- * ASCII Art Vitest Reporter
- * Provides beautiful ASCII art test output for Vitest (Vite)
- * Works alongside the Python CLI output formatter for consistent test reporting
+ * ASCII Art Vitest Reporter (Vitest 5 Reporter API)
+ *
+ * Prints the shared ASCII-art test summary with actionable insights at the
+ * end of every `vitest run`, matching the Python backend's pytest output so
+ * agents and users read both suites the same way.
  */
 
-import { Reporter } from 'vitest/reporter';
-import { CliOutputFormatter, formatDuration } from './cli-output-formatter';
+import type { Reporter, TestCase, TestModule } from 'vitest/node';
 
-export class AsciiArtVitestReporter implements Reporter {
-  private cli: CliOutputFormatter;
-  private startTime: number;
-  private testResults: Array<{
-    name: string;
-    status: 'passed' | 'failed' | 'skipped';
-    durationMs: number;
-  }> = [];
+import {
+  CLIOutput,
+  buildTestInsights,
+  type SlowTest,
+  type TestFailure,
+} from './cli-output-formatter';
 
-  constructor(options: any) {
-    super(options);
-    this.cli = new CliOutputFormatter();
-    this.startTime = Date.now();
-  }
-
-  onStart(config: any): void {
-    this.cli.printTestSuiteStart('Test Suite', config.testCount);
-    console.log('\n');
-  }
-
-  onTestFileStart(file: any): void {
-    console.log(`\n📁 Testing: ${file.name}`);
-  }
-
-  onTestFileFinish(file: any, result: any): void {
-    const testResult = result.results?.find((t: any) => t.state === 'failed') ||
-      result.results?.[0] ||
-      { status: result.status, duration: result.duration || 0 };
-
-    this.testResults.push({
-      name: file.name,
-      status: testResult.status || result.status || 'passed',
-      durationMs: testResult.duration || result.duration || 0
-    });
-  }
-
-  onTestStart(test: any): void {
-    // Could log individual test start if verbose mode
-  }
-
-  async onTestResult(test: any, result: any): Promise<void> {
-    this.testResults.push({
-      name: test.name,
-      status: result.status || 'passed',
-      durationMs: result.duration || 0
-    });
-
-    if (result.status === 'failed') {
-      const firstError = result.errors?.[0] || {};
-      const errorMessage = firstError.message || 'Unknown error';
-      const errorStack = firstError.stack || '';
-      
-      this.cli.printTestFailure(test.name, errorMessage, errorStack);
-    }
-  }
-
-  onTestFileFinish(file: any, result: any): void {
-    // Already handled in onTestResult for individual tests
-  }
-
-  async onTestRunEnd(result: any): Promise<void> {
-    const totalDurationMs = Date.now() - this.startTime;
-    const passed = result.passedCount || this.testResults.filter(r => r.status === 'passed').length;
-    const failed = result.failedCount || this.testResults.filter(r => r.status === 'failed').length;
-    const skipped = result.skippedCount || this.testResults.filter(r => r.status === 'skipped').length;
-
-    this.cli.printTestSummary(passed, failed, skipped, totalDurationMs);
-    this.cli.printPerformanceSummary({
-      totalDurationMs,
-      averageDurationMs: totalDurationMs / Math.max(1, this.testResults.length),
-      maxDurationMs: Math.max(...this.testResults.map(r => r.durationMs), 0),
-      p95DurationMs: this.testResults
-        .sort((a, b) => b.durationMs - a.durationMs)
-        .slice(0, Math.ceil(this.testResults.length * 0.05))
-        .map(r => r.durationMs)[0] || 0
-    });
-
-    // Summary of failed tests
-    if (failed > 0) {
-      this.cli.printTestFailures(this.testResults.filter(r => r.status === 'failed'));
-    }
-  }
+interface RecordedTest {
+  name: string;
+  file: string;
+  state: string;
+  durationMs: number;
+  error?: string;
 }
 
-function msToTime(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  return s % 60 === 0 ? `${m}m` : `${m}m ${s % 60}s`;
+function firstErrorLine(errors: readonly unknown[] | undefined): string {
+  const first = errors?.[0] as { message?: string } | undefined;
+  const message = first?.message ?? '';
+  const line = message.split('\n').find((l) => l.trim().length > 0) ?? '';
+  return line.trim().slice(0, 120);
+}
+
+export class AsciiArtVitestReporter implements Reporter {
+  private cli = new CLIOutput();
+  private startTime = 0;
+  private tests: RecordedTest[] = [];
+
+  onTestRunStart(): void {
+    this.startTime = Date.now();
+    this.tests = [];
+    console.log('');
+    console.log(this.cli.formatTestSuiteStart('Vitest Unit Suite'));
+  }
+
+  onTestCaseResult(testCase: TestCase): void {
+    const result = testCase.result();
+    if (result.state === 'pending') return;
+
+    const diagnostic = testCase.diagnostic();
+    this.tests.push({
+      name: testCase.fullName,
+      file: testCase.module.moduleId,
+      state: result.state,
+      durationMs: diagnostic?.duration ?? 0,
+      error:
+        result.state === 'failed' ? firstErrorLine(result.errors) : undefined,
+    });
+  }
+
+  onTestRunEnd(
+    testModules: readonly TestModule[],
+    unhandledErrors: readonly unknown[],
+    reason: string,
+  ): void {
+    const durationS = (Date.now() - this.startTime) / 1000;
+
+    const passed = this.tests.filter((t) => t.state === 'passed').length;
+    const failed = this.tests.filter((t) => t.state === 'failed').length;
+    const skipped = this.tests.filter((t) => t.state === 'skipped').length;
+
+    // Module-level failures (e.g. import/suite errors) that produced no
+    // per-test results still need to show up as failures.
+    const recordedFiles = new Set(this.tests.map((t) => t.file));
+    const failures: TestFailure[] = this.tests
+      .filter((t) => t.state === 'failed')
+      .map((t) => ({ name: t.name, file: t.file, message: t.error }));
+    let suiteLevelFailures = 0;
+    for (const mod of testModules) {
+      if (mod.state() === 'failed' && !recordedFiles.has(mod.moduleId)) {
+        suiteLevelFailures += 1;
+        failures.push({
+          name: mod.moduleId,
+          file: mod.moduleId,
+          message: 'module failed (suite-level error)',
+        });
+      }
+    }
+    for (const err of unhandledErrors) {
+      const raw = (err as { message?: unknown }).message;
+      const message = typeof raw === 'string' ? raw : String(err);
+      failures.push({ name: 'unhandled error', message: message.slice(0, 120) });
+    }
+    const totalErrors = unhandledErrors.length + suiteLevelFailures;
+
+    const slowest: SlowTest[] = [...this.tests]
+      .sort((a, b) => b.durationMs - a.durationMs)
+      .slice(0, 8)
+      .map((t) => ({ name: t.name, duration_s: t.durationMs / 1000 }));
+
+    const insights = buildTestInsights({
+      failed,
+      skipped,
+      errors: totalErrors,
+      slowest,
+    });
+    if (reason !== 'passed' && reason !== 'failures') {
+      insights.unshift(`Run ended early (${reason}) — results may be incomplete.`);
+    }
+
+    console.log('');
+    console.log(
+      this.cli.formatTestResults({
+        passed,
+        failed,
+        skipped,
+        errors: totalErrors,
+        duration_s: durationS,
+        suite: 'vitest',
+        failures,
+        slowest,
+        insights,
+        rerunHint: 'pnpm vitest run',
+      }),
+    );
+  }
 }

@@ -1,6 +1,7 @@
 import { defineConfig, configDefaults } from "vitest/config";
 import path from "path";
 import { fileURLToPath } from "url";
+import { AsciiArtVitestReporter } from "./src/utils/ascii-test-reporter";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -84,7 +85,9 @@ export default defineConfig({
     // Setup file runs before each test file; `onTestFinished` inside it runs
     // cleanup even when an assertion fails.
     setupFiles: ["./src/setupTests.ts"],
-    reporters: "verbose",
+    // verbose keeps per-test lines; the ASCII reporter adds the verdict,
+    // failure repro commands, slowest tests and insights block at the end.
+    reporters: ["verbose", new AsciiArtVitestReporter()],
     // Coverage: v8 provider, thresholds enforced per file, `all: true` so
     // files never imported by tests show 0% instead of hiding.
     coverage: {
