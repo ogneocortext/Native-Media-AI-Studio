@@ -1090,3 +1090,27 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   scope); `tsc -b` clean.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-VIZ-49 — Temporal overlap: inspector-open preset-bar collision
+
+- **Status:** done
+- **Goal:** Owner report — overlapping elements persist; verify with
+  real-time motion data, not static snapshots.
+- **Method:** Playwright `recordVideo` (~16s: track load, play, 3D→2D→
+  shader→3D, preset click, inspector toggle) + a rAF geometry sampler
+  logging rects and elementFromPoint hits at ~8Hz → 60 samples.
+- **Finding the stills missed:** at t≈12.1s the inspector docked and the
+  canvas-wrap shrank ~320px; the centered preset bar re-centered left
+  into `.viz-latency-panel` — 2970px² overlap sustained while the
+  inspector stayed open. Viewport media queries cannot see container
+  width, so the `max-width:1360px` stats-stack hide never fired at a
+  1600px viewport.
+- **Fix:** `.viz-canvas-wrap` is now `container-type: inline-size`;
+  `@container (max-width: 1200px)` hides `.viz-stats-stack` keyed to
+  real stage width (viewport media query kept as fallback).
+- **Verification:** post-fix audit at 1600x900, inspector open+closed,
+  3D/2D/shader — zero chrome-zone intersections; canvas 1020px with
+  inspector docked.
+- **Files:** styles/visualizer.css.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

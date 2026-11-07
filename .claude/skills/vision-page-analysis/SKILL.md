@@ -48,10 +48,34 @@ and verifying that dashboards/charts render correctly.
 
 - `--low` — resize to 640px max (faster, smaller payload)
 - `--high` — resize to 1280px max (higher detail)
-- `--mode ui|responsive|regression|compare|consistency|music-video|ocr|table|chart` — analysis mode
+- `--mode ui|responsive|regression|compare|consistency|music-video|ocr|table|chart|video` — analysis mode
 - `--viewport WxH` — intended viewport size
 - `--label "name"` — screen/label name
 - `--json` — machine-readable output
+
+**Video analysis (`--video`):** for defects that only exist *over time* —
+layers colliding mid-transition, controls drifting during panel open/close,
+snap-vs-animate jank — a still cannot see them. Record a short interaction
+clip (Playwright `recordVideo`, ~10–15 s of real clicks/mode switches), then:
+
+```bash
+node tools/vision/analyze.mjs --video clip.webm --json
+# tune with: --video-fps 2 --video-frames 30 --video-keyframes 8
+```
+
+The tool ffprobes duration, extracts frames at `--video-fps`, pixel-diffs
+consecutive frames, and sends only the strongest change boundaries (plus
+first/last) to the model as a chronological keyframe strip with a
+temporal-analysis prompt and a `video` JSON schema (`per_frame`,
+`transitions`, `overlaps`). Requires ffmpeg/ffprobe on PATH. Provenance
+records every keyframe timestamp, so findings map back to video time.
+
+**Pair video with geometry sampling:** the VLM sees semantics; the DOM sees
+geometry. While recording, run a rAF sampler that logs
+`getBoundingClientRect()` + `elementFromPoint()` for the chrome zones —
+transient overlaps (e.g. a centered bar colliding with a telemetry stack
+only while the inspector is open) are caught deterministically, not by
+asking the model to squint at frames.
 
 **Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...`)
 

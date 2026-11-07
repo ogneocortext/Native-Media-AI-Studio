@@ -137,6 +137,48 @@ export const MODE_SCHEMAS = {
     required: ['differences'],
   },
 
+  video: {
+    type: 'object',
+    properties: {
+      per_frame: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            t: loose,
+            visible_regions: { type: 'array', items: loose },
+            notes: loose,
+          },
+        },
+      },
+      transitions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            t: loose,
+            change: loose,
+            severity: { type: 'string', enum: ['critical', 'major', 'minor', 'info'] },
+          },
+        },
+      },
+      overlaps: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            t: loose,
+            elements: loose,
+            severity: { type: 'string', enum: ['critical', 'major', 'minor', 'info'] },
+          },
+        },
+      },
+      uncertain: { type: 'array', items: loose },
+      summary: loose,
+    },
+    required: ['transitions', 'summary'],
+  },
+
   ocr: {
     type: 'object',
     properties: {

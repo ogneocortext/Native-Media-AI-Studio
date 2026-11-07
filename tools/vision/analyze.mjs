@@ -23,6 +23,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { baseName, encodeImage, probeImageMeta, diffImagesRegion, cropImageToFile, residentVisionModels, pickFallbackModel, getRunningModels, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
 import { schemaForMode } from './schemas.mjs';
+import { probeVideo, extractFrames, selectKeyframes } from './video-frames.mjs';
 import { buildGemma4Prompt, GEMMA4_SYSTEM, GEMMA4_MODE_PROMPTS } from './prompts/gemma4-ui.mjs';
 import { buildQwen35Prompt, QWEN35_UI_PROMPT, QWEN35_MODE_PROMPTS, QWEN35_THINKING_CONFIG } from './prompts/qwen35-ui.mjs';
 
@@ -110,7 +111,7 @@ async function resolveModel(args, forcedModel, backend = 'auto') {
 }
 // Modes where text legibility decides the result — research (DocVLM, CVPR'25)
 // shows reading-intensive VLM tasks need materially higher resolution.
-const TEXT_MODES = new Set(['ui', 'responsive', 'regression', 'compare', 'ocr', 'table', 'chart']);
+const TEXT_MODES = new Set(['ui', 'responsive', 'regression', 'compare', 'ocr', 'table', 'chart', 'video']);
 // Grounding + uncertainty footer appended to EVERY prompt (built-in modes
 // and custom prompts alike). Research consensus (Prompt Bench 2026, CodeWorm
 // production patterns, Anthropic vision guidance): these lines convert silent
@@ -162,11 +163,16 @@ function parseArgs(argv) {
     scale: 1,
     dom: null,
     noDiffGate: false,
+    video: null,
+    videoFps: 1,
+    videoFrames: 24,
+    videoKeyframes: 6,
+    modeSet: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--mode' && argv[i + 1]) { args.mode = argv[++i]; }
+    if (arg === '--mode' && argv[i + 1]) { args.mode = argv[++i]; args.modeSet = true; }
     else if (arg === '--viewport' && argv[i + 1]) { args.viewport = argv[++i]; }
     else if (arg === '--label' && argv[i + 1]) { args.label = argv[++i]; }
     else if (arg === '--context' && argv[i + 1]) { args.context = argv[++i]; }
@@ -184,6 +190,10 @@ function parseArgs(argv) {
     else if (arg === '--scale' && argv[i + 1]) { args.scale = parseFloat(argv[++i]); }
     else if (arg === '--dom' && argv[i + 1]) { args.dom = argv[++i]; }
     else if (arg === '--no-diff-gate') { args.noDiffGate = true; }
+    else if (arg === '--video' && argv[i + 1]) { args.video = argv[++i]; }
+    else if (arg === '--video-fps' && argv[i + 1]) { args.videoFps = parseFloat(argv[++i]); }
+    else if (arg === '--video-frames' && argv[i + 1]) { args.videoFrames = parseInt(argv[++i], 10); }
+    else if (arg === '--video-keyframes' && argv[i + 1]) { args.videoKeyframes = parseInt(argv[++i], 10); }
     else if (!arg.startsWith('--')) {
       // Files always win: an existing path is an image, never prompt text.
       // (The old order swallowed the 2nd+ image path as the prompt and dropped
@@ -217,6 +227,7 @@ function parseArgs(argv) {
 
 function buildPrompt(args, activeModel) {
   if (args.prompt) return args.prompt;
+  if (args.videoManifest) return buildVideoPrompt(args.videoManifest);
 
   const section = args.section ? ` for a ${args.section} section` : '';
   const profile = profileFor(activeModel);
@@ -250,6 +261,29 @@ function buildPrompt(args, activeModel) {
     ui: `You are a senior frontend engineer auditing a Native Media AI Studio UI screenshot. Do NOT give generic descriptions. Give ONLY actionable feedback organized as: 1. ELEMENTS 2. TEXT 3. LAYOUT 4. ERRORS 5. NEXT_ACTION.`,
   };
   return (fallbackPrompts[args.mode] || fallbackPrompts.ui) + GROUNDING_SUFFIX;
+}
+
+/**
+ * Video mode prompt — the attached images are chronological keyframes
+ * sampled from a screen recording. The model must reason about TIME:
+ * what changed between frames, what collided mid-transition, what
+ * snapped vs. animated. A still-frame audit prompt would waste the
+ * multi-image input.
+ */
+function buildVideoPrompt(manifest) {
+  const frames = manifest.keyframes
+    .map((k) => `  t=${k.t.toFixed(1)}s`)
+    .join('\n');
+  return `You are given ${manifest.keyframes.length} keyframes sampled chronologically from a ${manifest.duration_s.toFixed(1)}s screen recording of an interactive UI.
+The frames in order:
+${frames}
+
+Analyze this as a TEMPORAL sequence, not independent screenshots:
+1. PER-FRAME STATE: for each keyframe, note which UI regions are visible (top bar, stage canvas, preset bar, inspector, telemetry chips, bottom bar).
+2. TRANSITIONS: what appeared, disappeared, moved, or resized between consecutive keyframes? Flag any element that SNAPS into place vs. animating smoothly, and any frame where two UI layers visually collide or overlap illegibly.
+3. OVER TIME: does the layout stay stable, or do controls drift/crowd each other during mode switches or panel open/close?
+4. TOP FIXES: ranked concrete changes that would make the chrome feel stable and professional during interaction.
+Report what you can actually see in the frames; mark anything uncertain as uncertain.`;
 }
 
 function buildMetadata(args) {
@@ -633,11 +667,16 @@ function renderTextSections(text, C, out) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  if (args.images.length === 0) {
+  if (args.images.length === 0 && !args.video) {
     console.error('Usage: node tools/vision/analyze.mjs <image_path> ["prompt"] [options]');
+    console.error('       node tools/vision/analyze.mjs --video <recording.webm|mp4> [options]');
     console.error('');
   console.error('Options:');
-  console.error('  --mode ui|responsive|regression|compare');
+  console.error('  --mode ui|responsive|regression|compare|video');
+  console.error('  --video file    (screen recording; frames are extracted and keyframe-selected)');
+  console.error('  --video-fps N   (sampling rate, default 1)');
+  console.error('  --video-frames N (max frames extracted, default 24)');
+  console.error('  --video-keyframes N (max keyframes sent to the model, default 6)');
   console.error('  --viewport WxH  (intended window size)');
   console.error('  --label "name"  (screen/label name)');
   console.error('  --prompt "text" (custom prompt; or pass bare text positionally)');
@@ -653,6 +692,51 @@ async function main() {
   console.error('  --no-diff-gate  (skip pixel-diff gating on compare/multicomp)');
   console.error('  --json          (machine-readable output + provenance)');
     process.exit(1);
+  }
+
+  // --video: expand a screen recording into a chronological keyframe set.
+  // Still snapshots miss the failure mode this mode exists for — layers
+  // that collide only mid-transition. Frames are sampled at --video-fps,
+  // then the pixel-diff gate picks the boundaries where the UI actually
+  // changed, so the model sees state changes instead of N near-dupes.
+  let videoTmpDir = null;
+  let videoManifest = null;
+  if (args.video) {
+    if (!fs.existsSync(args.video)) {
+      console.error(`Error: Video not found: ${args.video}`);
+      process.exit(1);
+    }
+    const meta = probeVideo(args.video);
+    if (!meta) {
+      console.error('Error: --video requires ffprobe/ffmpeg on PATH and a readable video file');
+      process.exit(1);
+    }
+    const sampleFps = Number.isFinite(args.videoFps) && args.videoFps > 0 ? args.videoFps : 1;
+    const { dir, frames, error } = extractFrames(args.video, {
+      fps: sampleFps,
+      maxFrames: Math.max(2, args.videoFrames || 24),
+    });
+    if (error || !frames.length) {
+      console.error(`Error: ${error || 'no frames extracted'}`);
+      process.exit(1);
+    }
+    videoTmpDir = dir;
+    const { keyframes, diffs } = await selectKeyframes(frames, args.videoKeyframes);
+    args.images = keyframes.map((k) => k.path);
+    if (!args.modeSet) args.mode = 'video';
+    videoManifest = {
+      duration_s: meta.duration,
+      width: meta.width,
+      height: meta.height,
+      source_fps: meta.fps,
+      sample_fps: sampleFps,
+      frames_extracted: frames.length,
+      keyframes: keyframes.map((k) => ({ t: k.t, path: k.path })),
+      diff_ratios: diffs.map((d) => ({ t: +(d.index / sampleFps).toFixed(2), changedRatio: d.changedRatio })),
+    };
+    args.videoManifest = videoManifest;
+    console.error(`[vision] Video: ${meta.duration.toFixed(1)}s ${meta.width}x${meta.height} — ` +
+      `${frames.length} frames @${args.videoFps}fps, ${keyframes.length} keyframes selected`);
   }
 
   // Verify images exist
@@ -748,6 +832,7 @@ async function main() {
     crop: cropRect,
     scale: args.scale === 1 ? undefined : args.scale,
     dom_file: args.dom || undefined,
+    video: videoManifest || undefined,
     images: [],
     diff_gate: undefined,
   };
@@ -850,6 +935,14 @@ async function main() {
   }
   fullPrompt += domContext;
 
+  // Custom --prompt + --video: the default video prompt already lists the
+  // keyframe timestamps; a user prompt doesn't, so append the manifest.
+  if (videoManifest && args.prompt) {
+    fullPrompt += `\n\nVIDEO SOURCE: ${videoManifest.duration_s.toFixed(1)}s recording; ` +
+      `attached frames are chronological keyframes at: ` +
+      videoManifest.keyframes.map((k) => `t=${k.t.toFixed(1)}s`).join(', ') + '.';
+  }
+
   console.error(`Analyzing ${args.images.length} image(s) with ${activeModel} (${modelWhy})...`);
   console.error(`Mode: ${args.mode}`);
   console.error(`Backend: ${args.backend}`);
@@ -878,7 +971,7 @@ async function main() {
     // exhausts num_predict re-evaluating and never emits content.
     let lastFromThinking = false;
     // Auto-enable reasoning for complex analysis modes on capable models.
-    const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp']);
+    const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp', 'video']);
     const autoThink = args.think || reasoningModes.has(args.mode);
     // With --backend atomic the resolved model is an Atomic Chat resident
     // (e.g. "unsloth/Qwen3_5-4B-GGUF-...") which does NOT exist in Ollama —
@@ -1021,6 +1114,15 @@ async function main() {
     if (provenance.diff_tmpdir) {
       try {
         fs.rmSync(provenance.diff_tmpdir, { recursive: true, force: true });
+      } catch {
+        /* tmp cleanup is best-effort */
+      }
+    }
+    // Extracted video frames likewise — the manifest in provenance keeps
+    // the timestamps/paths that mattered.
+    if (videoTmpDir) {
+      try {
+        fs.rmSync(videoTmpDir, { recursive: true, force: true });
       } catch {
         /* tmp cleanup is best-effort */
       }

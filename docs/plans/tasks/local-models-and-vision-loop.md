@@ -214,3 +214,39 @@ Rules: `docs/plans/tasks/README.md`
   correctly (bbox in A-pixels, scaled for B).
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-07 — commit pending.
+
+### T-MOD-08 — Video analysis mode (--video) for temporal UI defects
+
+- **Status:** done
+- **Goal:** Owner request — stills cannot catch layers that collide only
+  mid-transition; add frame-by-frame video analysis to the vision
+  skillbase and use a real interaction recording to find live defects.
+- **What changed:**
+  - New `tools/vision/video-frames.mjs`: `probeVideo` (ffprobe),
+    `extractFrames` (ffmpeg fps sampling into temp dir),
+    `selectKeyframes` (consecutive-frame pixel diff via the existing
+    `diffImagesRegion`; keeps first/last + strongest change boundaries
+    with min-gap enforcement, budget-capped).
+  - `analyze.mjs --video <file>`: expands a recording into a
+    chronological keyframe set, defaults mode to `video` (custom
+    `--mode`/`--prompt` still honored; custom prompts get the keyframe
+    timestamp manifest appended), `video` added to TEXT_MODES and
+    reasoningModes. Provenance records source meta, sample fps,
+    per-boundary diff ratios, and every keyframe timestamp; temp dir
+    cleaned after the run.
+  - `schemas.mjs`: `video` schema — `per_frame`, `transitions`,
+    `overlaps` arrays + `uncertain`/`summary`.
+  - Self-review fixes: NaN/negative `--video-fps` clamped, keyframe
+    budget floored at 2.
+  - Skills updated: `vision-page-analysis` documents `--video` +
+    the geometry-sampler pairing; `visual-qa-loop` gained the
+    recordVideo capture step.
+- **Files:** tools/vision/{video-frames.mjs (new), analyze.mjs,
+  schemas.mjs}, .claude/skills/{vision-page-analysis,visual-qa-loop}/SKILL.md.
+- **Verification:** live run on a 24s Playwright recording — ffprobe
+  meta, 24 frames @1fps, 6 diff-peak keyframes (f0001/010/014/019/022/024
+  spanning the mode switches), schema-shaped temporal JSON in ~67s.
+  Honest limit: gemma4's per-frame semantics are coarse — geometry
+  sampling remains the authoritative overlap detector.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

@@ -69,6 +69,10 @@
   min-height: 0;
   overflow: hidden;
   background: #050507;
+  /* Query container so stage chrome can react to the STAGE width, not the
+     viewport: opening the 320px inspector shrinks this box ~25% while the
+     viewport media queries stay blind to it (T-VIZ-49). */
+  container-type: inline-size;
 }
 
 /* --- Loading spinner --- */
@@ -784,9 +788,18 @@
   white-space: nowrap;
 }
 
-/* Narrow stages: the centered preset bar's left edge reaches ~x464 at
-   1280px, so the ~208px telemetry stack would overlap it. The chip stays;
-   the full latency card lives in the inspector regardless. */
+/* Narrow stages: the centered preset bar's left edge reaches under the
+   telemetry stack once the canvas is ~<1200px — which happens BOTH at
+   small viewports AND at 1600px when the inspector docks (canvas-wrap
+   shrinks ~320px while viewport media queries see nothing). The chip
+   stays; the full latency card lives in the inspector regardless.
+   Container query keys off the real stage width (T-VIZ-49). */
+@container (max-width: 1200px) {
+  .viz-latency-panel .viz-stats-stack {
+    display: none;
+  }
+}
+/* Viewport fallback for engines without container-query support. */
 @media (max-width: 1360px) {
   .viz-latency-panel .viz-stats-stack {
     display: none;

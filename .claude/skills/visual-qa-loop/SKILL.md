@@ -53,6 +53,28 @@ await page.screenshot({ path: "out/<style>.png" });
 ```
 
 For a plain web page, `await page.screenshot({ path, fullPage: true })`.
+
+**Motion defects need motion evidence.** Stills cannot show layers that
+collide only mid-transition, controls that drift while a panel opens, or
+snap-vs-animate jank. For interaction review, record ~10–15 s of real
+input and analyze it as video:
+
+```js
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 900 },
+  recordVideo: { dir: "out/video", size: { width: 1600, height: 900 } },
+});
+// ...drive real clicks / mode switches / panel toggles...
+await context.close(); // flushes the .webm
+```
+
+Then `node tools/vision/analyze.mjs --video out/video/*.webm --json`
+(diff-peak keyframe selection + temporal prompt + `video` schema — see
+[[vision-page-analysis]]). While recording, also run a rAF sampler that
+logs `getBoundingClientRect()`/`elementFromPoint()` for the chrome zones —
+transient geometry collisions are deterministic DOM facts, not something
+to ask the VLM to squint at.
+
 Save captures to a scratch dir outside the repo (e.g. `%TEMP%\kilo\`) or
 `packages/frontend/tests/browser/out/` (gitignored).
 
