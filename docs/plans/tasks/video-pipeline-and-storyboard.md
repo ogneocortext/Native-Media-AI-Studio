@@ -420,13 +420,28 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   renders produced.
 
 ### T-VID-18 — Design the scene vocabulary + material library (what the builder can choose from)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A written design that lifts the Three.js Studio's content ceiling: parameterized primitives (sizes as spec fields, not factory constants), a named PBR material library with texture sets, GLTF asset references as first-class vocabulary, and the mesh factory refactored into a consumer of that library. Design only.
 - **Plan:** Evidence: [[three-js-studio-scene-quality-2026]] (2026-11-06) — the factory (`useMeshFactory.ts`) offers 7 fixed-size shapes (crown/sphere/box/cylinder/cone/torus/bars) and one 5-scalar `MeshStandardMaterial` with no texture maps; the owner's recorded scene is a single `crown` preset ("Objects 1"). The same doc records the unused asset: the factory already loads GLTF models with animation mixers — the generator never routes through it. Steps: (1) Vocabulary audit + expansion design: which parameterized primitives and composite presets earn a place; every size becomes a spec field with budget-doc bounds. (2) Material library: named PBR materials with texture sets (color/normal/roughness), KTX2 delivery per [[pascal-3d-budget-discipline-2026]], emissive discipline (bloom-safe ranges, ties to T-VID-15 rigs). (3) Asset vocabulary: gen3d output and curated GLTFs referenced by asset id from scene specs (T-VID-05 schema), with T-VID-12 budget reports as the admission ticket. (4) Reconcile the dead path: `packages/backend/app/api/ai.py` `POST /generate-scene` is a placeholder stub — remove it or route it to the real generator, so the codebase stops advertising a route that does not exist. (5) Factory-as-consumer: the mesh factory builds from library entries; no geometry constants or material scalars defined inline.
 - **Files:** docs/knowledge-library/three-js-studio-scene-quality-2026.md (evidence); packages/frontend/src/features/three-js-studio/hooks/useMeshFactory.ts; packages/backend/app/api/ai.py (stub); the T-VID-05 spec doc when written
 - **Acceptance:** A vocabulary + material library design exists with named entries and spec representation; a scene spec can express a textured, asset-bearing scene the current factory cannot; the stub endpoint's fate is decided in the design (remove or wire).
 - **Depends on:** T-VID-05 (spec fields the vocabulary plugs into), T-VID-12 (texture/budget rules). **Gate:** as T-VID-13.
-- **Last session:** Orion, 2026-11-06 — registered with the scene-quality findings at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/scene-vocabulary-material-library-2026-11.md` (registered
+  in plans README, Status Proposed). Vocabulary: 7 existing types
+  parameterized (all sizes → spec fields with budget bounds) + 4 new
+  (capsule, plane, ico, parameterized `bars`/`crown` composites);
+  bespoke geometry explicitly routed to GLTF assets not new primitives.
+  Material library `config/material-library.json`: named PBR entries
+  with KTX2 color/normal/roughness sets (≤2048²/≤1 GB per budget doc),
+  `bloom_safe` emissive discipline tied to T-VID-15 looks, ~10 seed
+  entries. Asset vocabulary: `asset`/`asset-ref` schemas with
+  check-asset-budget PASS as admission ticket; characters consume
+  T-VID-16's character-asset/v1 through the factory's already-real
+  GLTFLoader+AnimationMixer path. Factory-as-consumer acceptance is
+  grep-verifiable (no inline Geometry args/material scalars). Stub
+  endpoint verified zero callers → design recommends removal (§6),
+  pending owner approval. No code or renders produced.
 
 ### T-VID-19 — Research: character sourcing, auto-rigging, and the house skeleton standard
 - **Status:** done
