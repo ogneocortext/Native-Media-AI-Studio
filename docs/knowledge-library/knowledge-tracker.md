@@ -37,7 +37,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (17/17 completed) ✅
+### 🎬 Production Pipeline (18/18 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -47,6 +47,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `character-animation-2026-summer-synthesis.md`  → `#production`, `#3d`
 - ✅ `silhouette-character-animation.md`  → `#production`, `#3d`
 - ✅ `character-driven-visualization-research.md`  → `#production`, `#3d`
+- ✅ `browser-character-pipeline-research-2026.md`  → `#production`, `#3d`, `#research`
 - ✅ `lyric-beat-visualization-2026.md`  → `#production`, `#audio`, `#platform-remotion`
 - ✅ `music-video-vision-prompts.md`  → `#production`, `#ai`
 - ✅ `a1-a6-media-pipeline-tooling-2026.md`  → `#production`, `#audio`, `#tooling`, `#platform-comfyui`
