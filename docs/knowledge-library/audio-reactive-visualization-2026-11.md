@@ -175,3 +175,7 @@ Concrete budgets from practitioner sources:
 
 _Automated research synthesis — verify constants against the linked
 sources before treating thresholds as final._
+
+## Related
+
+- [[stylized-3d-character-design-for-audio-reactive-visualization-2026]] :see-also — Stylized 3D Character Design for Audio-Reactive Visualization

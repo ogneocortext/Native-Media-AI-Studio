@@ -176,6 +176,12 @@ for AI agents.
 
 - Added `docs/knowledge-library/frontend-typed-api-layer-2026.md` → `#technical`
 
+- Added `docs/knowledge-library/stylized-3d-character-design-for-audio-reactive-visualization-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/facial-expression-systems-for-stylized-real-time-characters-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/stylized-3d-environment-design-for-browser-music-visualizers-2026.md` → `#technical`
+
 
 ## How to use this log
 

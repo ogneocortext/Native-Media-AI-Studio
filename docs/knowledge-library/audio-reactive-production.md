@@ -160,3 +160,7 @@ Each layer reacts to a different aspect of the audio:
 - [Freebeat.ai](https://freebeat.ai) - Structure-aware visualization
 - [Remotion Audio Docs](https://www.remotion.dev/docs/using-audio/)
 - [Music Visualizer Research](https://github.com/KaranChandekar/music-visualizer) - R3F + Web Audio API patterns
+
+## Related
+
+- [[stylized-3d-character-design-for-audio-reactive-visualization-2026]] :see-also — Stylized 3D Character Design for Audio-Reactive Visualization

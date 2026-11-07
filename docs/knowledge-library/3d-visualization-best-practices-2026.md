@@ -165,3 +165,7 @@ Plus: `ShaderVisualizer` (fullscreen GLSL modes), `Canvas2DVisualizer` (7 modes,
 - phase-viz audio-reactive architecture (June 2026) — https://discourse.threejs.org/t/audio-reactive-3d-visualizer-three-js-web-audio-api-with-in-browser-mp4-export/92234
 - WCAG 2.3.1 Three Flashes — https://www.w3.org/WAI/WCAG22/Understanding/three-flashes-or-below-threshold.html
 - MDN seizure accessibility — https://developer.mozilla.org/en-US/docs/Web/Accessibility/Seizure_disorders
+
+## Related
+
+- [[stylized-3d-character-design-for-audio-reactive-visualization-2026]] :see-also — Stylized 3D Character Design for Audio-Reactive Visualization

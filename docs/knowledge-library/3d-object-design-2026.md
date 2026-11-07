@@ -183,3 +183,7 @@ For StillIRise V4, replace `blender-character.png` with:
 ---
 
 _Last updated: 2026-09-08_
+
+## Related
+
+- [[stylized-3d-environment-design-for-browser-music-visualizers-2026]] :see-also — Stylized 3D Environment Design for Browser Music Visualizers
