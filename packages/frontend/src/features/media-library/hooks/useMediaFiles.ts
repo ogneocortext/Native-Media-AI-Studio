@@ -42,10 +42,24 @@ export function useMediaFiles() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithTimeout("/api/outputs", { timeout: 15000 });
-      if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
-      const data = await res.json();
-      const outputFiles: MediaFile[] = data.outputs ?? [];
+      // The API caps pages at 500; the library must show ALL generated
+      // media, so page through until the reported total is reached.
+      const PAGE = 500;
+      const allRaw: Record<string, unknown>[] = [];
+      let total = Infinity;
+      while (allRaw.length < total) {
+        const res = await fetchWithTimeout(
+          `/api/outputs?limit=${PAGE}&offset=${allRaw.length}`,
+          { timeout: 15000 },
+        );
+        if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
+        const data = await res.json();
+        const batch = (data.outputs ?? []) as Record<string, unknown>[];
+        if (typeof data.total === "number") total = data.total;
+        allRaw.push(...batch);
+        if (batch.length < PAGE) break;
+      }
+      const outputFiles: MediaFile[] = allRaw as unknown as MediaFile[];
       const mediaFiles: MediaFile[] = outputFiles.map((f) => ({
         filename: f.filename || f.relative_path || "unknown",
         path: f.path || "",

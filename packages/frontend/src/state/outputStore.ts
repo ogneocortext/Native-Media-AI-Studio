@@ -118,7 +118,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
   selectedOutput: null,
   isLoading: false,
   error: null,
-  filter: { type: "all", limit: 200, offset: 0 },
+  filter: { type: "all", limit: 500, offset: 0 },
   counts: { total: 0, images: 0, videos: 0, audio: 0, models_3d: 0 },
   setOutputs: (outputs) => set({ outputs, error: null }),
   setRecentOutputs: (recentOutputs) => set({ recentOutputs, error: null }),

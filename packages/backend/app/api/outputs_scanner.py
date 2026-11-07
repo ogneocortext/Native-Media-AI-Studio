@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import threading
 from datetime import datetime
@@ -25,6 +26,29 @@ logger = logging.getLogger(__name__)
 
 # Sidecar extensions cleaned/renamed alongside a media file.
 _SIDECAR_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+# Top-level dirs under output/ that are internal state, caches, QA
+# artifacts, or derivative assets — never library items. Anything else
+# under output/ is scanned recursively so generated media is visible no
+# matter which producer subdir it lands in (remotion, previews, videos,
+# stems, packages-output, ...). Quarantine holding pens are excluded by
+# prefix.
+_SCAN_EXCLUDE_DIRS = frozenset({
+    "agent-state", "audio_analysis", "beat_data", "benchmarks", "cache",
+    "fingerprints", "interaction-audit", "kb-context-cache",
+    "kb-embed-cache", "logs", "metadata", "runtime", "scratch",
+    "screenshots", "setup-env", "structure", "tests", "thumbnails",
+    "workflows",
+})
+
+# Frame-sequence dumps (frame_0001.png, f000123.png) are pipeline
+# intermediates, not library items — a 360-frame clip would flood the
+# grid. Matches the T-VID-13 frame-package naming too.
+_FRAME_SEQ_RE = re.compile(r"^(?:frame[_-]?|f)\d{3,6}$", re.IGNORECASE)
+
+# Non-media suffixes still worth listing (classified "other"): subtitles
+# and lyrics sidecars.
+_EXTRA_LISTED_EXTS = frozenset({".lrc", ".srt", ".vtt"})
 
 
 def _sidecar_candidates(full_path: Path) -> list[Path]:
@@ -75,24 +99,54 @@ _output_cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 30  # Refresh cache every 30 seconds max
 
 
+def _iter_scannable_dirs(output_base: Path):
+    """Top-level dirs under output/ that the library scans.
+
+    Yields ``(dir_path, top_name)`` for every non-excluded directory.
+    Mirrors the filter used by ``_scan_with_cache`` so mtime watching and
+    scanning always cover the same tree — a new producer subdir is picked
+    up by both automatically.
+    """
+    try:
+        entries = sorted(output_base.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if not entry.is_dir():
+                continue
+        except OSError:
+            continue
+        if entry.name in _SCAN_EXCLUDE_DIRS or entry.name.startswith("quarantine"):
+            continue
+        yield entry, entry.name
+
+
 def _get_dir_mtime() -> float:
-    """Get the latest mtime across all output subdirectories (recursive)."""
+    """Get the latest mtime across all scannable output dirs (recursive)."""
     output_base = Path(config.output_dir)
     latest = 0.0
-    for subdir in ["images", "video", "audio", "previews", "generated_3d"]:
-        dir_path = output_base / subdir
-        if dir_path.exists():
+    for dir_path, _name in _iter_scannable_dirs(output_base):
+        try:
+            latest = max(latest, dir_path.stat().st_mtime)
+            for f in dir_path.rglob("*"):
+                try:
+                    if f.is_file():
+                        latest = max(latest, f.stat().st_mtime)
+                except OSError:
+                    continue
+        except OSError:
+            pass
+    # Root-level files count too.
+    try:
+        for f in output_base.iterdir():
             try:
-                mtime = dir_path.stat().st_mtime
-                latest = max(latest, mtime)
-                for f in dir_path.rglob("*"):
-                    try:
-                        if f.is_file():
-                            latest = max(latest, f.stat().st_mtime)
-                    except OSError:
-                        continue
+                if f.is_file():
+                    latest = max(latest, f.stat().st_mtime)
             except OSError:
-                pass
+                continue
+    except OSError:
+        pass
     # Also watch ComfyUI output dir for 3D asset changes
     comfyui_output = comfyui_output_dir()
     if comfyui_output.exists():
@@ -262,6 +316,73 @@ def _iter_media_files(dir_path: Path):
         return
 
 
+def _scan_file(
+    file_path: Path,
+    top_name: str,
+    media_stems: dict,
+    output_base: Path,
+) -> OutputFile | None:
+    """Classify one file into an OutputFile, or None if it should be skipped."""
+    if file_path.suffix.lower() == ".json":
+        return None
+    if _FRAME_SEQ_RE.match(file_path.stem):
+        return None
+    file_type = get_file_type(file_path.name)
+    if file_type == "other" and file_path.suffix.lower() not in _EXTRA_LISTED_EXTS:
+        return None
+    # Skip cover/thumbnail sidecars in audio/video folders (they share
+    # a stem with a sibling media file). Standalone artwork is kept.
+    if top_name in ("audio", "video") and _is_cover_sidecar(
+        file_path, media_stems.get(file_path.parent)
+    ):
+        return None
+
+    try:
+        stat = file_path.stat()
+    except OSError:
+        return None
+
+    # Skip broken renders: 1x1 placeholder PNGs (70 bytes) and tiny files
+    # These are failed ComfyUI outputs that clutter the library with red thumbnails
+    if stat.st_size < 1024 and file_path.suffix.lower() in (
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+    ):
+        return None
+    if stat.st_size < 10240 and file_path.suffix.lower() in (
+        ".gif",
+        ".mp4",
+        ".webm",
+        ".mov",
+    ):
+        return None
+
+    # Fast metadata load (no FFmpeg)
+    metadata = load_sidecar_metadata(file_path)
+    rel_path = file_path.relative_to(output_base).as_posix()
+    cover_rel = _find_cover_cached(file_path, top_name, output_base)
+
+    # Extract audio analysis fields from sidecar metadata
+    audio_fields = _extract_audio_fields(metadata) if file_type == "audio" else {}
+
+    return OutputFile(
+        filename=file_path.name,
+        path=str(file_path),
+        relative_path=rel_path,
+        file_type=file_type,
+        size_bytes=stat.st_size,
+        created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+        modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        cover_image=cover_rel,
+        has_cover=cover_rel is not None,
+        metadata=metadata,
+        job_id=metadata.get("job_id") if metadata else None,
+        **audio_fields,
+    )
+
+
 def _scan_with_cache() -> list[OutputFile]:
     """Scan outputs with in-memory caching."""
     import time
@@ -283,72 +404,27 @@ def _scan_with_cache() -> list[OutputFile]:
     all_outputs: list[OutputFile] = []
     output_base = Path(config.output_dir)
 
-    # Scan standard output directories (recursive: nested folders included)
-    for subdir in ["images", "video", "audio", "generated_3d", "remixes"]:
-        dir_path = output_base / subdir
-        if not dir_path.exists():
-            continue
-
+    # Scan every non-excluded top-level dir under output/ recursively, so
+    # generated media is listed no matter which producer subdir it lands
+    # in (images, video, audio, remixes, previews, videos, stems,
+    # packages-output, ...). A new producer dir needs no code change.
+    for dir_path, top_name in _iter_scannable_dirs(output_base):
         # Pre-compute media stems for O(1) sidecar lookups instead of O(N^2)
         media_stems = _build_media_stem_set(dir_path)
-
         for file_path in _iter_media_files(dir_path):
-            if file_path.suffix.lower() == ".json":
-                continue
-            # Skip cover/thumbnail sidecars in audio/video folders (they share
-            # a stem with a sibling media file). Standalone artwork is kept.
-            if subdir in ("audio", "video") and _is_cover_sidecar(
-                file_path, media_stems.get(file_path.parent)
-            ):
-                continue
+            out = _scan_file(file_path, top_name, media_stems, output_base)
+            if out is not None:
+                all_outputs.append(out)
 
-            try:
-                stat = file_path.stat()
-            except OSError:
-                continue
-
-            # Skip broken renders: 1x1 placeholder PNGs (70 bytes) and tiny files
-            # These are failed ComfyUI outputs that clutter the library with red thumbnails
-            if stat.st_size < 1024 and file_path.suffix.lower() in (
-                ".png",
-                ".jpg",
-                ".jpeg",
-                ".webp",
-            ):
-                continue
-            if stat.st_size < 10240 and file_path.suffix.lower() in (
-                ".gif",
-                ".mp4",
-                ".webm",
-                ".mov",
-            ):
-                continue
-
-            # Fast metadata load (no FFmpeg)
-            metadata = load_sidecar_metadata(file_path)
-            file_type = get_file_type(file_path.name)
-            rel_path = file_path.relative_to(output_base).as_posix()
-            cover_rel = _find_cover_cached(file_path, subdir, output_base)
-
-            # Extract audio analysis fields from sidecar metadata
-            audio_fields = _extract_audio_fields(metadata) if file_type == "audio" else {}
-
-            all_outputs.append(
-                OutputFile(
-                    filename=file_path.name,
-                    path=str(file_path),
-                    relative_path=rel_path,
-                    file_type=file_type,
-                    size_bytes=stat.st_size,
-                    created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                    modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    cover_image=cover_rel,
-                    has_cover=cover_rel is not None,
-                    metadata=metadata,
-                    job_id=metadata.get("job_id") if metadata else None,
-                    **audio_fields,
-                )
-            )
+    # Root-level files (rare, but keep coverage complete)
+    try:
+        root_files = [f for f in output_base.iterdir() if f.is_file()]
+    except OSError:
+        root_files = []
+    for file_path in root_files:
+        out = _scan_file(file_path, "", {}, output_base)
+        if out is not None:
+            all_outputs.append(out)
 
     # Scan ComfyUI output directory for 3D assets
     comfyui_output = comfyui_output_dir()

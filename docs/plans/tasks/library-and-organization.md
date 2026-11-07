@@ -120,3 +120,32 @@ Rules: `docs/plans/tasks/README.md`
   report-only phase needed); `_check_relevant` scopes it to docs/
   changes; docstring check list renumbered. Acceptance met: check-all
   run shows the consistency section and passes with it included.
+
+### T-LIB-07 — Scan all of output/ so generated media is always listed
+- **Status:** done
+- **Goal:** Every media file a producer writes under `output/` appears in
+  the Media Library without per-directory code changes; package-local
+  render output (`packages/video-editor/output/`) is reachable too.
+- **Files:** packages/backend/app/api/outputs_scanner.py,
+  packages/frontend/src/features/media-library/hooks/useMediaFiles.ts,
+  packages/frontend/src/state/outputStore.ts
+- **Acceptance:** `GET /api/outputs?limit=500` returns media from every
+  producer subdir (stems, remixes, packages-output, videos, music,
+  previews, video-editor, comfyui, generated_3d, ...); internal dirs
+  (logs, caches, beat_data, thumbnails, screenshots, quarantine-*) and
+  frame-sequence dumps (frame_0001.png / f000123.png) stay excluded; the
+  library UI fetches past the API's 500/page cap so nothing is silently
+  truncated.
+- **Last session:** Devin, 2026-11-07 — replaced the hardcoded 5-subdir
+  scan list with recursive coverage of every non-excluded top-level dir
+  under `output/` (`_SCAN_EXCLUDE_DIRS` + quarantine prefix +
+  `_FRAME_SEQ_RE` + media-ext filter via `get_file_type`); per-file logic
+  extracted to `_scan_file`; `_get_dir_mtime` watches the same tree via
+  `_iter_scannable_dirs`. Added `output/video-editor` junction →
+  `packages/video-editor/output` (machine-local, output/ is gitignored —
+  recreate with `New-Item -ItemType Junction` if output/ is wiped) so
+  Remotion CLI renders list and serve under `output_base`. Frontend:
+  `useMediaFiles` paginates `/api/outputs` until `total` is reached;
+  outputStore default limit 200→500. Verified live: API returns 409
+  outputs across 16 top dirs (was ~10 from 5 dirs); tsc errors seen are
+  unrelated untracked admin-page WIP; eslint clean on touched files.
