@@ -98,7 +98,7 @@ date: 2026-09-30
 - [[advanced-visualization-techniques-2026|✨ Advanced Visualization Techniques 2026]] — ⚠️ Consolidated 2026-10-06 → see [[visualization-effects]] §11
 - [[canvas2d-bar-visualization-research|📊 Canvas2D Bar Visualization Research]] — Modern bar-mode improvements: smoothing, glow, reflections, HiDPI rendering
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules
-- [[visual-style-system-2026|🎭 Visual Style System — House Looks]] — Six named looks (Studio Console, Arcade Velocity, Vice Sunset, Analog Print, Monochrome Signal, Night Broadcast) spec'd as shared style records across scene gen, visualizer, HyperFrames and the AI skin; anti-style rules; registry as T-VID-24 (NEW 2026-11-07)
+- [[visual-style-system-2026|🎭 Visual Style System — House Looks]] — Nine named looks spec'd as shared style records across scene gen, visualizer, HyperFrames and the AI skin: the original six (Studio Console, Arcade Velocity, Vice Sunset, Analog Print, Monochrome Signal, Night Broadcast) plus three created from the 14-track comparison (Dial-Up, Future Gloss, Drift); §6 maps every real track to its look; registry as T-VID-24 (NEW 2026-11-07)
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py`
 - [[dark-ui-color-system-2026|🌙 Dark UI Color System 2026]] — OKLCH dark-mode tokens, contrast, accessibility
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy

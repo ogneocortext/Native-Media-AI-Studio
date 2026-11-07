@@ -72,10 +72,13 @@ about the one that doesn't (materials, until T-VID-18):
    line in the standing AVOID list.
 7. **Best-for** — the track types and surfaces it serves.
 
-## 3. The starter catalog — six house looks
+## 3. The starter catalog — nine house looks
 
 Each is a proposal in the record format, sourced from the
-owner's own canon and kit — curation is his call (§5).
+owner's own canon and kit — curation is his call (§5). The
+first six were written from the canon; §3.7–3.9 were created
+2026-11-07 from the §6 track comparison, at the owner's
+direction, to close the gaps the real catalog exposed.
 
 ### 3.1 Studio Console — the house default
 - **Palette:** Console BG `#131826` base, Violet `#5533A8`
@@ -176,6 +179,76 @@ owner's own canon and kit — curation is his call (§5).
   backdrop, no particles." **Best-for:** night-ride footage,
   DJ-set visuals, the visualizer's home turf.
 
+### 3.7 Dial-Up — the early-web look (created from §6)
+- **Trait source:** Screen Name Days' world — the AIM-era
+  internet of screen names, away messages, T9 texting, forum
+  threads, and Sharpie-labeled burned mixes. Not 1980s, not
+  modern: the desktop of 1999–2004 as a place.
+- **Palette:** CRT base `#0B0E0B` (declared exception), kit
+  Cyan `#22D3EE` as phosphor primary, buddy-list amber
+  `#FFB000` accent (declared exception), chrome gray `#9AA3B2`
+  structure, Console FG text. **Lighting:** screen-glow only —
+  flat emissive UI light, no modeled key; the monitor is the
+  light source. **Material:** flat UI panels and beveled
+  chrome edges; pixel geometry over smooth geometry.
+  **Post:** scanlines, slight CRT vignette, chromatic fringing
+  on edges, tracking-glitch offsets on transients; pixel-sharp
+  — bloom would blur the era away. **Motion:** stepped and
+  chunky: window pops, typing reveals, a cursor blinking on
+  the beat grid; measured bands drive EQ-bar UI elements, not
+  glows. **Skin:** "early-2000s desktop UI, CRT monitor glow,
+  pixel type and beveled chrome windows, buddy-list panels,
+  scanlines, flat screen light, no modern minimalism, no neon
+  cyberpunk." **Best-for:** Screen Name Days (its home — the
+  track this look exists for), any early-web era piece;
+  alternate for Human in the Loop's digital-nostalgia edge.
+
+### 3.8 Future Gloss — the polished bright look (created from §6)
+- **Trait source:** the catalog's gloss family — Prototype
+  Heart's electro-pop cinema, Patch Notes' "polished wide
+  modern production," Unproductive's bright major-key lift.
+  Three real tracks were homeless in a catalog of dark looks;
+  this is the light one.
+- **Palette:** Paper `#FBFAF7` base — the catalog's only
+  light-base scene look — Violet `#5533A8` structure, Magenta
+  `#E14E8A` primary energy, Cyan `#22D3EE` secondary, Ink
+  text. **Lighting:** bright, even key; soft shadows; the
+  anti-Broadcast. **Material:** glossy feature pieces (low
+  roughness), satin elsewhere; emissive as *sheen*, never
+  glow. **Post:** tight minimal bloom; the kit's one designed
+  gradient permitted in accents; no grain, no haze.
+  **Motion:** swells, not pulses — energy blooms on drops,
+  melodic arcs, medium-long smoothing, downbeat lifts.
+  **Skin:** "glossy electro-pop, bright clean studio light,
+  polished chrome and satin surfaces, magenta and cyan accents
+  on paper white, glitch-cut details, no darkness, no grit."
+  **Best-for:** Prototype Heart (home), Patch Notes,
+  Unproductive (v6-mini); future bright masters and the
+  channel's daylight face.
+
+### 3.9 Drift — the phonk look (created from §6)
+- **Trait source:** Unproductive (Valley Phonk) and Rinse and
+  Repeat — Memphis drift phonk: distorted 808s, detuned
+  cowbell, eerie bells, chopped soul samples, lo-fi texture.
+  Night Broadcast is *clean* dark; this is dirty dark, and
+  the catalog has both.
+- **Palette:** asphalt base `#12100E` (declared exception),
+  Violet Deep `#3A2270` structure dimmed by haze, Magenta
+  `#E14E8A` as the haze accent, Cyan rare and distant, washed
+  Console FG text (low contrast is the aesthetic — so Drift
+  is never the look for text-led pieces). **Lighting:** low
+  and hazy, practicals through smoke, shadows soft and lost.
+  **Material:** rough and dusty; emissive near zero; grain is
+  the material (carried by post until T-VID-18). **Post:**
+  heavy grain, VHS chroma bleed, strong vignette, bloom OFF —
+  haze replaces it. **Motion:** swung and lazy — halftime
+  weight, triplet shuffle in the cuts, bass band driving slow
+  swells through long smoothing. **Skin:** "Memphis drift
+  phonk, lo-fi grain, dusty vinyl and VHS chroma bleed, deep
+  808 darkness, eerie bell tones, night-drive haze, no clean
+  gloss, no neon." **Best-for:** Unproductive (Valley Phonk)
+  (home), Rinse and Repeat; alternate for Ad Nauseam's grit.
+
 ## 4. Anti-styles — what no house look may become
 
 From the owner's standing image rules, applied to motion:
@@ -202,7 +275,7 @@ and Route B render the *same* look two ways. That registry is
 registered as **T-VID-24** (design-first, same gate as its
 siblings).
 
-The six looks above are proposals at the owner's usual terms:
+The nine looks above are proposals at the owner's usual terms:
 he curates — strikes, renames, re-palettes — before any of
 them is treated as house law, and the registry's first version
 contains only the looks that survive his pass.
@@ -218,18 +291,18 @@ prompt + BPM) and the session packages. Fourteen tracks:
 |---|---|---|---|
 | The Last Original (sets 1–2) | Sparse synthwave, 130, dry intimate vocal, "raw human mix, not overproduced" | Monochrome Signal | Vice Sunset (palette only — see below) |
 | Human in the Loop | G-funk × riddim, 145, talkbox, dark digital + warm analog | Studio Console | Night Broadcast |
-| Rinse and Repeat | Phonk hip-hop, trade-off verses, chantable hooks | Night Broadcast | Analog Print |
-| Unproductive (v6-mini) | Future bass, 140, bright major-key lift, cathartic drop | Studio Console | Analog Print (bright variant) |
-| Unproductive (Valley Phonk) | Memphis drift phonk, 136, eerie bells, lo-fi grit | Night Broadcast | — |
+| Rinse and Repeat | Phonk hip-hop, trade-off verses, chantable hooks | Drift | Analog Print |
+| Unproductive (v6-mini) | Future bass, 140, bright major-key lift, cathartic drop | Future Gloss | Studio Console |
+| Unproductive (Valley Phonk) | Memphis drift phonk, 136, eerie bells, lo-fi grit | Drift | Night Broadcast |
 | Ad Nauseam | Hip-hop double-time, 145, heavy 808, haunting strings | Night Broadcast | Analog Print (satire) |
-| Patch Notes | Indie electronic × future bass, 150, polished wide modern | Studio Console | Arcade Velocity |
+| Patch Notes | Indie electronic × future bass, 150, polished wide modern | Future Gloss | Arcade Velocity |
 | Out for Delivery | Satirical synth-pop, 130, playful exasperated | Analog Print | Studio Console |
-| Prototype Heart | Electro-pop × cinematic bass, 128, glitch vocals, robotic harmonies, anthem chorus | Studio Console (stretched — see below) | — |
+| Prototype Heart | Electro-pop × cinematic bass, 128, glitch vocals, robotic harmonies, anthem chorus | Future Gloss | — |
 | Stay Until the Lights Come On | Psychedelic bass / melodic dubstep, 145, wobble, vinyl fragments | Night Broadcast | Arcade Velocity |
 | Screen Said Wait (set 5) | Metalstep DnB, double-time, crushing reese, dark aggressive | Arcade Velocity | Monochrome Signal (subject: a screen's message) |
 | Don't Recommend | Industrial darkwave / EBM, 145, relentless sequencer, factory clang | Monochrome Signal | Arcade Velocity (motion) |
 | Built My Own | Self-built-life anthem (Nov 2026 session) | Studio Console | Arcade Velocity |
-| Screen Name Days | Era romance — screen names, away messages, T9, burned mixes (ungenerated) | **none — gap** | — |
+| Screen Name Days | Era romance — screen names, away messages, T9, burned mixes (ungenerated) | Dial-Up | — |
 
 ### What the comparison forces
 
@@ -238,8 +311,9 @@ prompt + BPM) and the session packages. Fourteen tracks:
    CD-R Sharpie), which is *not* Vice Sunset's 1980s coast.
    Candidate seventh look, born from this comparison:
    **Dial-Up** — phosphor-green/cyan on CRT black, pixel UI
-   geometry, scanline texture, chunky stepped motion. The
-   owner's curation decides whether it joins.
+   geometry, scanline texture, chunky stepped motion.
+   **Resolved the same night at the owner's direction:
+   created as §3.7.**
 2. **Vice Sunset is nearly trackless.** Only The Last
    Original leans toward it, and only in palette — that
    track's production is dry and restrained, the opposite of
@@ -258,16 +332,22 @@ prompt + BPM) and the session packages. Fourteen tracks:
    declared gloss variant or Prototype Heart stands as a
    deliberate one-off; pretending the fit is clean would be
    exactly the improvisation this system exists to end.
+   **Resolved the same night: Future Gloss created (§3.8) —
+   and the comparison's third creation, Drift (§3.9), splits
+   the phonk pair out of Night Broadcast, whose cleanliness
+   never matched their grit.**
 5. **Style attaches to the render, not the lyric set.**
    Unproductive exists as a bright future-bass take and a dark
    phonk take — one lyric set, two looks. Registry rule: a
    style assignment is per track *render*, inherited from the
    take's production character, never from the song title.
 
-Net effect on §3: Night Broadcast and Studio Console carry
-the catalog (4 and 4–5 primaries) — they are the house. Arcade
-Velocity is the energy register of the house rather than a
-separate room. Analog Print owns the satires. Monochrome
-Signal owns the two coldest, most conceptual tracks and fits
-them exactly. The curation pass in T-VID-24 now starts from
-this evidence instead of from taste alone.
+Net effect, after the three creations: the working catalog
+is balanced — Future Gloss 3 primaries, Studio Console /
+Night Broadcast / Drift / Monochrome Signal 2 each, Analog
+Print / Arcade Velocity / Dial-Up 1 each plus alternates.
+Arcade Velocity remains the energy register rather than a
+separate room (it is the also-serves on five rows). Vice
+Sunset alone stands unclaimed — its strike is the curation
+pass's clearest decision. That pass (T-VID-24) now starts
+from this evidence instead of from taste alone.
