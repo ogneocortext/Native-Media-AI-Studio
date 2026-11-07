@@ -204,6 +204,11 @@ test_*.py
 backend/test_*.py
 # ...except the tracked backend test suite
 !packages/backend/tests/test_*.py
+# ...and the test-analytics modules: named test_* but they are app code,
+# not tests — without these the committed main.py imports a module that
+# can never be committed (clean checkouts cannot boot).
+!packages/backend/app/api/test_analytics.py
+!packages/backend/app/core/test_analytics.py
 # Generated demo outputs (regenerable)
 tools/output/beat_data.json
 tools/output/analyze_output.txt

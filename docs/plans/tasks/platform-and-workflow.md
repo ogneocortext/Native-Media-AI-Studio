@@ -1337,3 +1337,48 @@ Rules: `docs/plans/tasks/README.md`
 - **Gate:** Executor lane; step 1's direction (commit the module vs remove the router) is the owner's call. Registered 2026-11-07 by Orion on the owner's direction to document the portable-install proof.
 - **Last session:** Orion, 2026-11-07 — registered with the full boot-chain evidence (three failures, three workarounds, then a verified boot: 378 routes, health + proxy + page checks green). The sandbox mirror still runs with exactly these workarounds until this item lands.
 
+
+### T-PLT-50 — Fix the test-analytics pipeline end to end
+- **Status:** done
+- **Goal:** The Test Analytics panel showed stale data (last run
+  2026-11-07), nonsense phase durations, a dropdown promising gates that
+  never record, and a dead per-test drill-down. Find out why and fix the
+  whole path: gate runner → parser → DB → API → panel.
+- **Plan:** Evidence gathered live: `storage/studio.db` had real rows
+  through 2026-11-07 then nothing; the entire feature (api/core modules,
+  cli.py writer, migrations, models, dashboard tab) was uncommitted
+  working-tree state while committed `main.py` already imported the
+  router — a clean checkout could not boot (T-PLT-49 item 1). Fixes:
+  (a) `complete_version_checkpoint` mixed naive-UTC `started_at`
+  (SQLite `datetime('now')`) with naive-local `completed_at`
+  (`datetime.now()`) → `duration_days` ≈ −0.29 everywhere; now both
+  normalized to aware UTC, default completed_at written UTC, duration
+  clamped ≥ 0, and `get_phase_durations` filters corrupt negatives.
+  (b) The cli.py writer recorded `r.get("total_tests")` which never
+  exists → every new row would be 0 tests; it also recorded SKIP/scoped-out
+  gates as bogus runs. Rewrote `_save_gate_results_to_db` to skip
+  non-executed gates, parse real totals from runner summary lines
+  (pytest `=== N passed ===`, vitest `Tests N passed | M failed`), and
+  deduplicated verbose+summary per-test entries; executor now retains a
+  256 KB output tail for the four test gates so PASS runs are parseable.
+  (c) Analytics outcome (`saved/skipped/error`) now surfaces in the
+  gate JSON report instead of stderr-only silence.
+  (d) `GET /runs` `total` was page-size, not COUNT(*) — added
+  `count_test_runs`. (e) Panel gate dropdown is derived from summary
+  keys with a selection-validity effect. (f) Committed the previously
+  untracked feature modules so the repo boots on a clean checkout
+  (closes the code half of T-PLT-49 item 1).
+- **Files:** packages/backend/app/core/test_analytics.py,
+  packages/backend/app/api/test_analytics.py,
+  packages/backend/app/core/{database,migrations,models}.py,
+  tools/gates/{cli,executor}.py,
+  packages/frontend/src/features/admin/AdminDashboard.tsx
+- **Acceptance:** Function-level probe against a throwaway DB: pytest
+  FAIL run recorded with correct 1p/1f/1s totals and 3 deduplicated
+  per-test rows; SKIP gate not recorded; `count_test_runs`=55;
+  checkpoint round-trip yields positive ~1.2 s duration; ruff clean on
+  all touched files; `tsc -b` clean.
+- **Last session:** Devin, 2026-11-07 — implemented and verified per
+  Acceptance. Note: pre-existing corrupt checkpoint rows remain in
+  studio.db (filtered from aggregates, not rewritten); recording resumes
+  on the next real pytest/unit/tools-pytest gate run.

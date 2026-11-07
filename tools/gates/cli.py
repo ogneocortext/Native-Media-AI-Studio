@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -13,6 +14,19 @@ from .executor import _materialize, run_lane
 from .gates import gates
 from .interpreter import _describe, candidate_list, read_cache, resolve_pnpm, resolve_python
 from .selection import changed_from_git, gate_relevant, select_gates
+
+# Import test analytics for saving results
+try:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "packages" / "backend"))
+    from app.core.database import (
+        get_app_version,
+        save_test_results,
+        save_test_run,
+    )
+    TEST_ANALYTICS_AVAILABLE = True
+except Exception:
+    TEST_ANALYTICS_AVAILABLE = False
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -73,6 +87,157 @@ def _build_parser() -> argparse.ArgumentParser:
                         "file and passed via --changed-from-file to avoid the "
                         "OS command-line length limit.")
     return p
+
+
+# Gates whose output is retained (bounded tail) for test-analytics parsing.
+TEST_ANALYTICS_GATES = {"pytest", "pytest-integration", "tools-pytest", "unit"}
+
+
+def _save_gate_results_to_db(results, shared) -> dict:
+    """Parse gate output and save test run results to database.
+
+    Returns a small status dict for the JSON report; analytics must never
+    break the gate run, so all failures are captured, not raised.
+    """
+    outcome = {"saved": 0, "skipped": 0, "error": None}
+    try:
+        for r in results:
+            gate_name = r["name"]
+            if gate_name not in TEST_ANALYTICS_GATES:
+                continue
+            # Only record gates that actually executed — a scoped-out or
+            # skipped gate has no counts and would write a bogus 0-test row.
+            if r["status"] not in ("PASS", "FAIL", "TIME"):
+                outcome["skipped"] += 1
+                continue
+
+            output = (
+                shared.get("gate_output", {}).get(gate_name)
+                or shared.get("failed_output", {}).get(gate_name, "")
+            )
+            individual_results, totals = _parse_gate_output(output, gate_name)
+
+            run_id = save_test_run(
+                gate_name=gate_name,
+                suite_name=gate_name,
+                total_tests=totals["total_tests"],
+                passed=totals["passed"],
+                failed=totals["failed"],
+                skipped=totals["skipped"],
+                errors=totals["errors"],
+                duration_ms=int(r["elapsed"] * 1000),
+                app_version=get_app_version(),
+            )
+            if individual_results:
+                save_test_results(run_id, individual_results)
+            outcome["saved"] += 1
+    except Exception as e:
+        outcome["error"] = str(e)
+        print(f"[test-analytics] Failed to save results: {e}", file=sys.stderr)
+    return outcome
+
+
+# pytest -v emits "<nodeid> PASSED|FAILED|SKIPPED|ERROR [ NN%]"; the short
+# test summary emits "FAILED <nodeid> - reason". vitest verbose emits
+# "✓/✗ <file > suite > test>" lines plus a "Tests  N passed | M failed" tally.
+_PYTEST_VERBOSE = re.compile(
+    r"^(\S+::\S+)\s+(PASSED|FAILED|SKIPPED|ERROR|XFAIL|XPASS)\b")
+_PYTEST_SUMMARY = re.compile(
+    r"^(PASSED|FAILED|SKIPPED|ERROR|XFAIL|XPASS)\s+(\S+::\S+)\b")
+_PYTEST_COUNT = re.compile(r"(\d+)\s+(passed|failed|skipped|errors?|xfailed|xpassed|deselected)\b")
+_VITEST_MARK = re.compile(r"^([✓✔×✗✕])\s+(.+?)\s*$")
+_VITEST_FAIL = re.compile(r"^FAIL\s+(.+?)\s*$")
+_VITEST_COUNT = re.compile(r"(\d+)\s+(passed|failed|skipped|todo)\b")
+
+
+def _empty_totals() -> dict:
+    return {"total_tests": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0}
+
+
+def _result_entry(name: str, status: str) -> dict:
+    return {
+        "name": name,
+        "file_path": "",
+        "status": status.lower(),
+        "duration_ms": 0,
+        "error_message": None,
+        "error_type": None,
+        "traceback": None,
+    }
+
+
+def _parse_gate_output(output: str, gate_name: str) -> tuple[list[dict], dict]:
+    """Parse a test gate's captured output into (individual results, totals).
+
+    Aggregate counts come from the runner's own summary line (authoritative);
+    individual entries come from verbose per-test lines when present.
+    """
+    results: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    totals = _empty_totals()
+    if not output:
+        return results, totals
+
+    def _add(name: str, status: str) -> None:
+        key = (name, status.lower())
+        if key not in seen:
+            seen.add(key)
+            results.append(_result_entry(name, status))
+
+    count_re = _VITEST_COUNT if gate_name == "unit" else _PYTEST_COUNT
+    count_lines = []
+    for line in output.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if gate_name == "unit":
+            m = _VITEST_MARK.match(s)
+            if m:
+                mark, name = m.group(1), m.group(2)
+                name = re.sub(r"\s*\d+m?s$", "", name)
+                status = "failed" if mark in "×✗✕" else "passed"
+                _add(name, status)
+                continue
+            m = _VITEST_FAIL.match(s)
+            if m:
+                _add(m.group(1), "failed")
+                continue
+        else:
+            m = _PYTEST_VERBOSE.match(s)
+            if m:
+                _add(m.group(1), m.group(2))
+                continue
+            m = _PYTEST_SUMMARY.match(s)
+            if m:
+                _add(m.group(2), m.group(1))
+                continue
+        if "passed" in s or "failed" in s:
+            count_lines.append(s)
+
+    # Last matching summary line wins — earlier lines can be per-file or
+    # per-phase tallies; the final ===/Tests line is the run total.
+    if count_lines:
+        counts: dict[str, int] = {}
+        for m in count_re.finditer(count_lines[-1]):
+            counts[m.group(2)] = int(m.group(1))
+        totals["passed"] = counts.get("passed", 0)
+        totals["failed"] = counts.get("failed", 0)
+        totals["skipped"] = counts.get("skipped", 0) + counts.get("todo", 0)
+        totals["errors"] = counts.get("error", 0) + counts.get("errors", 0)
+        totals["total_tests"] = (
+            totals["passed"] + totals["failed"]
+            + totals["skipped"] + totals["errors"]
+        )
+
+    # Individual entries are a bonus — if the summary gave no counts, fall
+    # back to tallying what we parsed so the run isn't recorded as 0 tests.
+    if totals["total_tests"] == 0 and results:
+        for r in results:
+            key = {"passed": "passed", "failed": "failed",
+                   "skipped": "skipped"}.get(r["status"], "errors")
+            totals[key] += 1
+        totals["total_tests"] = len(results)
+    return results, totals
 
 
 def _prepare_console() -> None:
@@ -303,6 +468,8 @@ def main(argv=None) -> int:
         "print_lock": threading.Lock(),
         "results": {},
         "failed_output": {},
+        "gate_output": {},
+        "capture_gates": TEST_ANALYTICS_GATES,
         "stream": not args.no_stream,
         "out_file": stream_to,
         "fail_fast": bool(args.fail_fast),
@@ -337,6 +504,11 @@ def main(argv=None) -> int:
     failed = [r["name"] for r in results
               if r["status"] not in ("PASS", "SKIP")]
 
+    # Save test results to database for historical analytics
+    analytics_outcome = {"saved": 0, "skipped": 0, "error": None}
+    if TEST_ANALYTICS_AVAILABLE:
+        analytics_outcome = _save_gate_results_to_db(results, shared)
+
     # Build final summary for AI agents
     final_summary = {
         "gates_run": [r["name"] for r in results if r["status"] == "PASS"],
@@ -346,6 +518,7 @@ def main(argv=None) -> int:
         "setup_time_seconds": round(setup_seconds, 1),
         "environment": summary["environment"],
         "changed_files_count": len(changed) if changed else 0,
+        "test_analytics": analytics_outcome,
     }
 
     if args.json or args.save_json:

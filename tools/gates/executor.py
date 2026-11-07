@@ -250,6 +250,12 @@ def run_lane(lane_name: str, lane_gates: list[Gate], python, pnpm,
             dest.flush()
             shared["results"][g.name] = record
             _record_gate_metric(record)
+            capture = shared.get("capture_gates")
+            if capture and g.name in capture:
+                # Larger tail for test-analytics parsing — pass gates have
+                # no failed_output entry, and an 8 KB tail would keep only
+                # the last ~100 pytest -v lines of a 2000-test suite.
+                shared["gate_output"][g.name] = _tail(out, limit=262144)
             if code != 0:
                 # Keep the captured output for the JSON report as well as the
                 # console: "--json --save-json" is meant to be debuggable

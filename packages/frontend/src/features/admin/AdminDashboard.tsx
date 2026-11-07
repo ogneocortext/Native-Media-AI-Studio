@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   TestTube,
   Server,
@@ -20,9 +20,15 @@ import {
   ChevronRight,
   ChevronLeft,
   Rocket,
+  Keyboard,
+  TrendingUp,
+  GitBranch,
+  Clock,
 } from "lucide-react";
 import { Card } from "../../components/common";
-import { NavLink, useLocation, useSearchParams } from "react-router-dom";
+import { NavLink, useLocation, useSearchParams, useNavigate } from "react-router-dom";
+import { CommandPalette } from "./CommandPalette";
+import { useGlobalShortcuts } from "../../hooks/useKeyboardShortcuts";
 
 interface DashboardTab {
   id: string;
@@ -34,6 +40,7 @@ interface DashboardTab {
 const TABS: DashboardTab[] = [
   { id: "overview", label: "Overview", icon: <BarChart3 size={18} />, keywords: "overview summary stats" },
   { id: "tests", label: "Test Results", icon: <TestTube size={18} />, keywords: "tests playwright pytest results" },
+  { id: "test-analytics", label: "Test Analytics", icon: <BarChart3 size={18} />, keywords: "test history trends version checkpoints" },
   { id: "backend", label: "Backend Tests", icon: <Server size={18} />, keywords: "backend pytest python coverage" },
   { id: "services", label: "Services", icon: <Mic2 size={18} />, keywords: "services ports architecture mcp" },
   { id: "audio", label: "Audio Pipeline", icon: <Music size={18} />, keywords: "audio stems remix enhance visualize" },
@@ -115,12 +122,39 @@ const BADGE_VARIANTS: Record<string, string> = {
   output: "bg-green-500/10 text-green-500 border-green-500/20",
   monitoring: "bg-amber-500/10 text-amber-500 border-amber-500/20",
   docs: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  // Phase variants for version checkpoints - higher opacity for visibility
+  planning: "bg-indigo-500/20 text-indigo-600 border-indigo-500/30",
+  development: "bg-blue-500/20 text-blue-600 border-blue-500/30",
+  testing: "bg-amber-500/20 text-amber-600 border-amber-500/30",
+  release: "bg-green-500/20 text-green-600 border-green-500/30",
+  maintenance: "bg-slate-500/20 text-slate-600 border-slate-500/30",
 };
 
 function StatusDot({ status }: { status: string }) {
   const colorClass = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || "text-slate-500";
-  return <span className={`flex items-center gap-1.5 ${colorClass}`}><span className="w-2 h-2 rounded-full bg-current" />{status}</span>;
+  const bgClass = STATUS_BG[status] || "bg-slate-500/20";
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${colorClass} ${bgClass} border border-current/20`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+      {status}
+    </span>
+  );
 }
+
+const STATUS_BG: Record<string, string> = {
+  pass: "bg-green-500/20",
+  fail: "bg-red-500/20",
+  warn: "bg-amber-500/20",
+  skip: "bg-amber-500/20",
+  running: "bg-green-500/20",
+  stopped: "bg-red-500/20",
+  optional: "bg-amber-500/20",
+  active: "bg-green-500/20",
+  experimental: "bg-amber-500/20",
+  stable: "bg-green-500/20",
+  deprecated: "bg-red-500/20",
+  config: "bg-blue-500/20",
+};
 
 function Badge({ variant, children }: { variant: string; children: React.ReactNode }) {
   const className = BADGE_VARIANTS[variant] || "bg-slate-500/10 text-slate-500 border-slate-500/20";
@@ -756,6 +790,283 @@ function ConfigTab() {
   );
 }
 
+interface GateSummary {
+  avg_success_rate: number;
+  run_count: number;
+  total_tests: number;
+  total_passed: number;
+  total_failed: number;
+  avg_duration_ms: number;
+}
+
+interface TrendPoint {
+  day: string;
+  avg_success_rate: number;
+}
+
+interface VersionCheckpoint {
+  id: string;
+  version: string;
+  phase?: string | null;
+  milestone?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  duration_days?: number | null;
+  is_active?: number | boolean;
+}
+
+interface PhaseDuration {
+  phase: string;
+  checkpoint_count: number;
+  avg_duration_days?: number | null;
+  min_duration_days?: number | null;
+  max_duration_days?: number | null;
+  total_duration_days?: number | null;
+}
+
+function TestAnalyticsTab() {
+  const [summary, setSummary] = useState<Record<string, GateSummary> | null>(null);
+  const [trends, setTrends] = useState<TrendPoint[]>([]);
+  const [checkpoints, setCheckpoints] = useState<VersionCheckpoint[]>([]);
+  const [phaseDurations, setPhaseDurations] = useState<PhaseDuration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedGate, setSelectedGate] = useState<string>("pytest");
+  const [days, setDays] = useState(30);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [summaryRes, trendsRes, checkpointsRes, phasesRes] = await Promise.all([
+        fetch(`/api/test-analytics/summary?days=${days}`).then(async r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }),
+        fetch(`/api/test-analytics/trends/${selectedGate}?days=${days}`).then(async r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }),
+        fetch(`/api/test-analytics/version-checkpoints?limit=20`).then(async r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }),
+        fetch(`/api/test-analytics/phase-durations`).then(async r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        }),
+      ]);
+      setSummary(summaryRes);
+      setTrends(trendsRes);
+      setCheckpoints(checkpointsRes.checkpoints || []);
+      setPhaseDurations(phasesRes);
+    } catch (e) {
+      console.error("Failed to fetch test analytics:", e);
+      setError(e instanceof Error ? e.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, [days, selectedGate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Only gates that actually record runs appear in the summary — deriving
+  // the list from data keeps the dropdown honest instead of promising
+  // gates that can never have rows.
+  const gates = useMemo(() => {
+    const recorded = summary ? Object.keys(summary).sort() : [];
+    return recorded.length > 0 ? recorded : ["pytest", "unit", "tools-pytest"];
+  }, [summary]);
+
+  // Keep the selection valid when the recorded-gate set changes.
+  useEffect(() => {
+    if (summary && gates.length > 0 && !gates.includes(selectedGate)) {
+      setSelectedGate(gates[0]);
+    }
+  }, [summary, gates, selectedGate]);
+
+  const formatDuration = (days: number | null | undefined) => {
+    if (days === null || days === undefined || days < 0) return "—";
+    if (days < 1) return `${(days * 24).toFixed(1)}h`;
+    return `${days.toFixed(2)}d`;
+  };
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Controls */}
+      <Card>
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 sm:gap-4 mb-4">
+          <h3 className="font-semibold flex items-center gap-2"><BarChart3 size={20} /> Test Analytics</h3>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-muted-foreground whitespace-nowrap">Gate:</label>
+            <select
+              value={selectedGate}
+              onChange={(e) => setSelectedGate(e.target.value)}
+              className="px-3 py-1.5 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
+            >
+              {gates.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-muted-foreground whitespace-nowrap">Days:</label>
+            <select
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="px-3 py-1.5 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
+            >
+              <option value={7}>7</option>
+              <option value={30}>30</option>
+              <option value={90}>90</option>
+            </select>
+          </div>
+          <button onClick={fetchData} disabled={loading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50 w-full sm:w-auto">
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+        {error && (
+          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg border border-destructive/20">
+            {error}
+          </div>
+        )}
+      </Card>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+          {Object.entries(summary).map(([gate, data]) => (
+            <Card key={gate} className={`p-4 ${gate === selectedGate ? "border-primary/50 bg-primary/5" : ""}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-sm">{gate}</span>
+                <StatusDot status={data.avg_success_rate >= 90 ? "pass" : data.avg_success_rate >= 50 ? "warn" : "fail"} />
+              </div>
+              <div className="text-2xl font-bold">{data.avg_success_rate.toFixed(1)}%</div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div>Runs: {data.run_count}</div>
+                <div>Tests: {data.total_tests} ({data.total_passed} passed, {data.total_failed} failed)</div>
+                <div>Avg Duration: {(data.avg_duration_ms / 1000).toFixed(1)}s</div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Trends Chart */}
+      <Card>
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><TrendingUp size={20} /> {selectedGate} Trend (Last {days} Days)</h3>
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading trends...</div>
+        ) : trends.length > 0 ? (
+          <div className="space-y-2">
+            {/* Simple bar chart using divs */}
+            <div className="overflow-x-auto pb-4">
+              <div className="flex items-end gap-2 sm:gap-3 h-[200px] sm:h-[256px] min-w-max" style={{ alignItems: 'flex-end', minWidth: `${Math.max(trends.length * 56, 700)}px` }}>
+                {trends.map((t, i: number) => {
+                  const maxRate = Math.max(...trends.map((x) => x.avg_success_rate || 0), 100);
+                  const height = Math.max((t.avg_success_rate / maxRate) * 100, 2);
+                  const dateStr = new Date(t.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                  return (
+                    <div key={i} className="w-[44px] sm:w-[50px] flex-shrink-0 flex flex-col items-center relative" title={`${t.day}: ${t.avg_success_rate.toFixed(1)}%`}>
+                      <div
+                        className={`w-full rounded-t transition-all duration-300 ${t.avg_success_rate >= 90 ? "bg-green-500" : t.avg_success_rate >= 50 ? "bg-yellow-500" : "bg-red-500"}`}
+                        style={{ height: `${height}%`, minHeight: '4px' }}
+                      />
+                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full text-xs text-foreground/80 whitespace-nowrap rotate-45 origin-bottom-center transform-gpu">
+                        {dateStr}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs text-foreground/70">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500 rounded" /> ≥90%</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-yellow-500 rounded" /> 50-89%</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500 rounded" /> {"<50%"}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-foreground/60">No trend data available for {selectedGate}</div>
+        )}
+      </Card>
+
+      {/* Version Checkpoints */}
+      <Card>
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><GitBranch size={20} /> Version Checkpoints</h3>
+        {checkpoints.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+<th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Version</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Phase</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Milestone</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Started</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Completed</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Duration</th>
+                      <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checkpoints.map((c) => (
+                  <tr key={c.id} className="border-b border-border/50 hover:bg-muted/50">
+                    <td className="py-2 px-3 font-mono text-sm">{c.version}</td>
+                    <td className="py-2 px-3"><Badge variant={c.phase || "unknown"}>{c.phase}</Badge></td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground">{c.milestone || "—"}</td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground">{c.started_at ? new Date(c.started_at).toLocaleDateString() : "—"}</td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground">{c.completed_at ? new Date(c.completed_at).toLocaleDateString() : "—"}</td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground">{formatDuration(c.duration_days)}</td>
+                    <td className="py-2 px-3"><StatusDot status={c.is_active ? "running" : "pass"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">No version checkpoints recorded</div>
+        )}
+      </Card>
+
+      {/* Phase Durations */}
+      <Card>
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><Clock size={20} /> Phase Duration Statistics</h3>
+        {phaseDurations.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Phase</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Checkpoints</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Avg Duration (days)</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Min (days)</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Max (days)</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground whitespace-nowrap">Total (days)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {phaseDurations.map((p) => (
+                  <tr key={p.phase} className="border-b border-border/50">
+                    <td className="py-2 px-3 font-medium">{p.phase}</td>
+                    <td className="py-2 px-3 text-muted-foreground">{p.checkpoint_count}</td>
+                    <td className="py-2 px-3 text-muted-foreground">{formatDuration(p.avg_duration_days)}</td>
+                    <td className="py-2 px-3 text-muted-foreground">{formatDuration(p.min_duration_days)}</td>
+                    <td className="py-2 px-3 text-muted-foreground">{formatDuration(p.max_duration_days)}</td>
+                    <td className="py-2 px-3 text-muted-foreground">{formatDuration(p.total_duration_days)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">No completed phases yet</div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function AdminNavCard({ item, isActive }: { item: AdminNavItem; isActive?: boolean }) {
   const categoryColors: Record<string, string> = {
     core: "border-blue-500/30 bg-blue-500/5",
@@ -886,6 +1197,22 @@ export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [filter, setFilter] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Keyboard shortcuts
+  useGlobalShortcuts(navigate);
+
+  // Command palette toggle
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.type === "cmd-palette-open") {
+        setCmdPaletteOpen(true);
+      }
+    };
+    window.addEventListener("cmd-palette-open", handler as EventListener);
+    return () => window.removeEventListener("cmd-palette-open", handler as EventListener);
+  }, []);
 
   // Sync activeTab with query param
   useEffect(() => {
@@ -909,24 +1236,33 @@ export function AdminDashboard() {
   const isHubView = !searchParams.has("tab");
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-w-0">
+      {/* Command Palette */}
+      <CommandPalette isOpen={cmdPaletteOpen} onClose={() => setCmdPaletteOpen(false)} />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
-        <div>
-          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b border-border min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold truncate">Admin Dashboard</h1>
           <p className="text-muted-foreground text-sm">System health, test results, service architecture, audio pipeline, and configuration</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+          <div className="relative flex-1 min-w-[200px]">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
             <input
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter tabs…"
-              className="pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+          <Keyboard
+            className="text-muted-foreground hover:text-foreground cursor-pointer p-2 rounded-lg hover:bg-muted transition-colors"
+            size={18}
+            onClick={() => setCmdPaletteOpen(true)}
+            aria-label="Open Command Palette (⌘K)"
+          />
         </div>
       </div>
 
@@ -935,43 +1271,39 @@ export function AdminDashboard() {
 
       {/* Tab Navigation - Show when tab selected */}
       {!isHubView && (
-        <div className="flex items-center justify-between mb-6 pb-1 border-b border-border">
-          <NavLink to="/system/admin" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-1 border-b border-border min-w-0">
+          <NavLink to="/system/admin" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors whitespace-nowrap flex-shrink-0">
             <ChevronLeft size={16} />
-            Back to Hub
+            <span className="hidden sm:inline">Back to Hub</span>
           </NavLink>
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full min-w-0">
+            <div className="relative flex-1 min-w-[180px]">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
               <input
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Filter tabs…"
-                className="pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+            <div className="flex gap-1 overflow-x-auto pb-1 mx-0 px-0 whitespace-nowrap flex-wrap sm:flex-nowrap">
+              {filteredTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                    activeTab === tab.id
+                      ? "bg-primary text-primary-foreground border-b-2 border-primary -mb-px"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  {tab.icon}
+                  <span className="hidden xs:inline">{tab.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Tab Navigation */}
-      {!isHubView && (
-        <div className="flex gap-1 mb-6 border-b border-border pb-1 overflow-x-auto">
-          {filteredTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "bg-primary text-primary-foreground border-b-2 border-primary -mb-px"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
         </div>
       )}
 
@@ -981,6 +1313,7 @@ export function AdminDashboard() {
           <>
             {activeTab === "overview" && <OverviewTab />}
             {activeTab === "tests" && <TestsTab />}
+            {activeTab === "test-analytics" && <TestAnalyticsTab />}
             {activeTab === "backend" && <BackendTab />}
             {activeTab === "services" && <ServicesTab />}
             {activeTab === "audio" && <AudioTab />}

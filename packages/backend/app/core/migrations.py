@@ -719,6 +719,122 @@ def _migrate_v22(conn: sqlite3.Connection):
             pass  # column already exists
 
 
+def _migrate_v23(conn: sqlite3.Connection):
+    """Test analytics tables for historical test result tracking.
+
+    test_runs: one row per gate run (pytest, unit, lint, etc.) with aggregate stats
+    test_results: one row per individual test case with pass/fail, duration, error
+    version_checkpoints: app version milestones with timestamps and phase info
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS test_runs (
+            id TEXT PRIMARY KEY,
+            gate_name TEXT NOT NULL,
+            suite_name TEXT,
+            total_tests INTEGER NOT NULL DEFAULT 0,
+            passed INTEGER NOT NULL DEFAULT 0,
+            failed INTEGER NOT NULL DEFAULT 0,
+            skipped INTEGER NOT NULL DEFAULT 0,
+            errors INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            success_rate REAL NOT NULL DEFAULT 0.0,
+            git_commit TEXT,
+            git_branch TEXT,
+            app_version TEXT,
+            environment TEXT,
+            machine_id TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_test_runs_gate ON test_runs(gate_name);
+        CREATE INDEX IF NOT EXISTS idx_test_runs_created ON test_runs(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_test_runs_commit ON test_runs(git_commit);
+        CREATE INDEX IF NOT EXISTS idx_test_runs_version ON test_runs(app_version);
+
+        CREATE TABLE IF NOT EXISTS test_results (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            test_name TEXT NOT NULL,
+            file_path TEXT,
+            status TEXT NOT NULL,  -- pass, fail, skip, error
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT,
+            error_type TEXT,
+            traceback TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (run_id) REFERENCES test_runs(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_test_results_run ON test_results(run_id);
+        CREATE INDEX IF NOT EXISTS idx_test_results_status ON test_results(status);
+        CREATE INDEX IF NOT EXISTS idx_test_results_name ON test_results(test_name);
+        CREATE INDEX IF NOT EXISTS idx_test_results_created ON test_results(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS version_checkpoints (
+            id TEXT PRIMARY KEY,
+            version TEXT NOT NULL,  -- Not unique: multiple phases per version
+            phase TEXT,  -- planning, development, testing, release, maintenance
+            milestone TEXT,  -- e.g., "v2.5-alpha", "v2.5-beta", "v2.5-release"
+            description TEXT,
+            git_commit TEXT,
+            git_branch TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            completed_at TEXT,
+            duration_days REAL,
+            is_active INTEGER DEFAULT 1,
+            metadata TEXT DEFAULT '{}'  -- JSON for flexible fields
+        );
+        CREATE INDEX IF NOT EXISTS idx_version_checkpoints_version ON version_checkpoints(version);
+        CREATE INDEX IF NOT EXISTS idx_version_checkpoints_phase ON version_checkpoints(phase);
+        CREATE INDEX IF NOT EXISTS idx_version_checkpoints_active ON version_checkpoints(is_active);
+    """)
+
+
+def _migrate_v24(conn: sqlite3.Connection):
+    """Fix version_checkpoints: remove UNIQUE constraint on version to allow multiple phases per version.
+
+    The v23 migration incorrectly added UNIQUE constraint on version. We need to allow
+    multiple checkpoints per version (e.g., planning, development, testing, release phases).
+    This migration recreates the table without the UNIQUE constraint.
+    """
+    # Check if the UNIQUE constraint exists
+    cursor = conn.execute("PRAGMA table_info(version_checkpoints)")
+    columns = cursor.fetchall()
+    version_col = next((c for c in columns if c[1] == 'version'), None)
+
+    if version_col and 'UNIQUE' in str(version_col[3]):
+        # UNIQUE constraint exists, need to recreate table
+        conn.executescript("""
+            -- Create new table without UNIQUE constraint
+            CREATE TABLE version_checkpoints_new (
+                id TEXT PRIMARY KEY,
+                version TEXT NOT NULL,
+                phase TEXT,
+                milestone TEXT,
+                description TEXT,
+                git_commit TEXT,
+                git_branch TEXT,
+                started_at TEXT NOT NULL DEFAULT (datetime('now')),
+                completed_at TEXT,
+                duration_days REAL,
+                is_active INTEGER DEFAULT 1,
+                metadata TEXT DEFAULT '{}'
+            );
+
+            -- Copy data
+            INSERT INTO version_checkpoints_new SELECT * FROM version_checkpoints;
+
+            -- Drop old table
+            DROP TABLE version_checkpoints;
+
+            -- Rename new table
+            ALTER TABLE version_checkpoints_new RENAME TO version_checkpoints;
+
+            -- Recreate indexes
+            CREATE INDEX IF NOT EXISTS idx_version_checkpoints_version ON version_checkpoints(version);
+            CREATE INDEX IF NOT EXISTS idx_version_checkpoints_phase ON version_checkpoints(phase);
+            CREATE INDEX IF NOT EXISTS idx_version_checkpoints_active ON version_checkpoints(is_active);
+        """)
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -836,6 +952,10 @@ def init_db(db_path: Path | None = None):
                         _migrate_v21(conn)
                     if current_version < 22:
                         _migrate_v22(conn)
+                    if current_version < 23:
+                        _migrate_v23(conn)
+                    if current_version < 24:
+                        _migrate_v24(conn)
 
                     set_schema_version(conn, SCHEMA_VERSION)
                     logger.info("Database initialized at version %d", SCHEMA_VERSION)

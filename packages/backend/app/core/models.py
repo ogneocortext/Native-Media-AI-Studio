@@ -267,3 +267,59 @@ class CharacterBibleRow:
     prompt: str | None
     created_at: str
     updated_at: str
+
+
+@dataclass
+class TestRunRow:
+    """Typed representation of a test_runs table row."""
+
+    id: str
+    gate_name: str
+    suite_name: str | None
+    total_tests: int
+    passed: int
+    failed: int
+    skipped: int
+    errors: int
+    duration_ms: int
+    success_rate: float
+    git_commit: str | None
+    git_branch: str | None
+    app_version: str | None
+    environment: str | None
+    machine_id: str | None
+    created_at: str
+
+
+@dataclass
+class TestResultRow:
+    """Typed representation of a test_results table row."""
+
+    id: str
+    run_id: str
+    test_name: str
+    file_path: str | None
+    status: str
+    duration_ms: int
+    error_message: str | None
+    error_type: str | None
+    traceback: str | None
+    created_at: str
+
+
+@dataclass
+class VersionCheckpointRow:
+    """Typed representation of a version_checkpoints table row."""
+
+    id: str
+    version: str
+    phase: str | None
+    milestone: str | None
+    description: str | None
+    git_commit: str | None
+    git_branch: str | None
+    started_at: str
+    completed_at: str | None
+    duration_days: float | None
+    is_active: int
+    metadata: str

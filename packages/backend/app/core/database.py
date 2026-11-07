@@ -74,6 +74,24 @@ from .connection import (
     safe_vacuum,
 )
 
+# Re-export test analytics CRUD
+from .test_analytics import (
+    complete_version_checkpoint,
+    count_test_runs,
+    create_version_checkpoint,
+    get_app_version,
+    get_phase_durations,
+    get_test_results_for_run,
+    get_test_run,
+    get_test_run_summary,
+    get_test_runs,
+    get_test_trends,
+    get_version_checkpoint,
+    get_version_checkpoints,
+    save_test_results,
+    save_test_run,
+)
+
 #: Database file path. Defined independently here so that monkeypatching
 #: ``database.DB_PATH`` in tests actually takes effect. ``get_db`` and
 #: ``init_db`` below sync it into the connection module before delegating.
@@ -136,6 +154,8 @@ from .media import (
     create_tag,
     delete_collection,
     empty_trash,
+    get_all_item_collections,
+    get_all_item_tags,
     get_collection,
     get_collections_for_item,
     get_items_in_collection,
@@ -200,7 +220,10 @@ from .models import (
     SessionRow,
     StudioSceneRow,
     SystemResourceRow,
+    TestResultRow,
+    TestRunRow,
     TrackRow,
+    VersionCheckpointRow,
     VisionOcrRow,
     VizPresetRow,
 )
@@ -312,7 +335,7 @@ __all__ = [
     "release_connection",
     "run_db_sync",
     "safe_vacuum",
-    # migrations
+# migrations
     "_migrate_v1",
     "_migrate_v10",
     "_migrate_v11",
@@ -348,9 +371,12 @@ __all__ = [
     "SessionRow",
     "StudioSceneRow",
     "SystemResourceRow",
+    "TestResultRow",
+    "TestRunRow",
     "TrackRow",
-    "VisionOcrRow",
+    "VersionCheckpointRow",
     "VizPresetRow",
+    "VisionOcrRow",
     # media
     "_collection_row_to_dict",
     "_tag_row_to_dict",
@@ -367,6 +393,8 @@ __all__ = [
     "get_items_with_tag",
     "get_or_create_tag",
     "get_tags_for_item",
+    "get_all_item_collections",
+    "get_all_item_tags",
     "is_media_favorite",
     "list_collections",
     "list_media_favorites",
@@ -470,6 +498,21 @@ __all__ = [
     "get_benchmark_result",
     "insert_benchmark_result",
     "list_benchmark_results",
+    # test_analytics
+    "complete_version_checkpoint",
+    "count_test_runs",
+    "create_version_checkpoint",
+    "get_app_version",
+    "get_phase_durations",
+    "get_test_results_for_run",
+    "get_test_run",
+    "get_test_run_summary",
+    "get_test_runs",
+    "get_test_trends",
+    "get_version_checkpoint",
+    "get_version_checkpoints",
+    "save_test_results",
+    "save_test_run",
     # native_opens
     "list_native_opens",
     "log_native_open",
