@@ -112,20 +112,41 @@ direction, to close the gaps the real catalog exposed.
   **Best-for:** the 140–150 BPM ride tracks; anything whose job
   is momentum.
 
-### 3.3 Vice Sunset — the era look, used sparingly
-- **Trait source:** GTA Vice City / Wave 103 — the canon's
-  1980s entry, kept as a *palette* discipline, not a costume.
-- **Palette:** the kit's one allowed gradient made literal —
-  deep violet → magenta → warm peach horizon; chrome-pastel
-  accents; Ink text on light scenes, Paper on dark.
-  **Lighting:** low golden key, long shadows. **Material:**
-  glossy accents against matte fields. **Post:** soft bloom,
-  slight grain, vignette on. **Motion:** slow flows, downbeat
-  swells, generous smoothing. **Skin:** "1980s coastal sunset
-  palette, violet-to-peach gradient sky discipline, pastel
-  chrome, film grain, no neon cyberpunk." **Best-for:** era
-  pieces and synth-leaning tracks — one track in six, not the
-  default, or it becomes the costume it must avoid.
+### 3.3 Vice Sunset — redesigned 2026-11-07 under the anti-slop rule
+- **Why it was rebuilt:** as first written (gradient sky,
+  pastel chrome, bloom) it *was* the vaporwave cliché — the
+  single most generated "style" in AI media and a §4 pattern
+  wearing a catalog number. The owner directed a redesign
+  under the rule that now governs the whole system (§4).
+- **Trait source, re-read:** GTA Vice City / Wave 103 as
+  *place and broadcast*, not genre poster — Ocean Drive's
+  deco district, pastel architecture, 1980s film and TV
+  texture. The era is in the buildings and the film stock,
+  not in a neon sky.
+- **Palette:** pastels with capped saturation — the opposite
+  of neon. Deep teal base `#14424A` (declared), dusty pink
+  primary (kit Magenta as a 40%-saturation tint), seafoam
+  accent (kit Cyan as a tint), Paper as the cream. Skies and
+  backgrounds are **flat banded color fields** (deco stripes),
+  never blended gradient washes — this look spends the kit's
+  gradient allowance on *bands*, not blends. **Lighting:**
+  golden-hour film key, flat and soft; long light, matte
+  surfaces, no specular neon. **Material:** matte pastel
+  stucco and deco geometry; chrome only as thin trim, never
+  the subject. **Post:** fine film grain, slight broadcast
+  softness, light vignette — **no bloom, no glow**.
+  **Motion:** slow broadcast pans, downbeat swells, generous
+  smoothing, title-safe negative space. **Skin:** "1980s
+  Miami deco district photographed on film, matte pastel
+  architecture, dusty pink and seafoam, deep teal shadows,
+  flat banded color fields, fine film grain, no neon, no
+  gradient sky, no palm silhouettes, no vaporwave."
+  **Banned by name in this look:** the outrun sun disc,
+  chrome grid floors, palm-tree silhouettes, gradient-wash
+  skies, neon signage glow. **Best-for:** era pieces under
+  pastel discipline; The Last Original's palette duty (its
+  restraint finally matches); storyboard pastel work. Screen
+  Name Days stays Dial-Up — different decade, different look.
 
 ### 3.4 Analog Print — the editorial look
 - **Trait source:** the owner's anti-slop image rules —
@@ -249,7 +270,15 @@ direction, to close the gaps the real catalog exposed.
   gloss, no neon." **Best-for:** Unproductive (Valley Phonk)
   (home), Rinse and Repeat; alternate for Ad Nauseam's grit.
 
-## 4. Anti-styles — what no house look may become
+## 4. Anti-styles — the governing rule
+
+**The owner's governing rule (2026-11-07): avoiding AI slop
+patterns goes through everything** — every look in this
+catalog, every record in the future registry, and every
+generated asset in any medium, not just image briefs. A style
+that cannot state how it avoids the patterns below does not
+enter the registry; §3.3's redesign is the worked example of
+a look being rebuilt until it could.
 
 From the owner's standing image rules, applied to motion:
 no glow/neon-gradient wash as a *background* (the default AI
@@ -319,7 +348,11 @@ prompt + BPM) and the session packages. Fourteen tracks:
    track's production is dry and restrained, the opposite of
    Vice Sunset's gloss. As written it is the catalog's strike
    candidate; its honest remaining job is era *palette* duty
-   inside other looks.
+   inside other looks. **Redesigned 2026-11-07 at the
+   owner's direction (§3.3): rebuilt under the anti-slop
+   rule from place-and-broadcast traits, its vaporwave
+   elements banned by name — it stands as the catalog's
+   era-pastel register rather than a primary-carrier.**
 3. **Arcade Velocity is not a niche.** Four-plus tracks live
    at 145–158 BPM with transient-led energy; Velocity is the
    generated catalog's energy default. It and Night Broadcast
@@ -348,6 +381,7 @@ Night Broadcast / Drift / Monochrome Signal 2 each, Analog
 Print / Arcade Velocity / Dial-Up 1 each plus alternates.
 Arcade Velocity remains the energy register rather than a
 separate room (it is the also-serves on five rows). Vice
-Sunset alone stands unclaimed — its strike is the curation
-pass's clearest decision. That pass (T-VID-24) now starts
-from this evidence instead of from taste alone.
+Sunset, redesigned under the governing anti-slop rule, is
+the era-pastel register: no primaries today, real alternates,
+a clear job. That pass (T-VID-24) now starts from this
+evidence instead of from taste alone.
