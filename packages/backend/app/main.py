@@ -1123,8 +1123,11 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-if config.output_dir.exists():
-    app.mount("/output", StaticFiles(directory=str(config.output_dir)), name="output")
+# Serve render outputs unconditionally: on a clean checkout the dir may
+# not exist yet at boot, and a missing mount 404s every roll/WAV the UI
+# links to (the chiptune page's previews were the visible symptom).
+config.output_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/output", StaticFiles(directory=str(config.output_dir)), name="output")
 
 
 @app.get("/", response_model=dict)

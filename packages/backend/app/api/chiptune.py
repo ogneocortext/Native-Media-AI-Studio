@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from ..core.config import PROJECT_ROOT
+from ..core.config import OUTPUT_DIR, PROJECT_ROOT
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,6 +45,14 @@ def _load():
         ) from e
     _chip = chip
     return chip
+
+
+def _out_rel(path: Path) -> str:
+    """Path relative to the /output mount so UI URLs resolve."""
+    try:
+        return str(path.relative_to(OUTPUT_DIR))
+    except ValueError:
+        return str(path.relative_to(PROJECT_ROOT))
 
 
 def _clean_name(name: str) -> str:
@@ -137,8 +145,14 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
     if req.tempo:
         pat.tempo = req.tempo
 
-    systems = (list(chip.SYSTEMS) if req.system == "all"
-               else [req.system or pat.system])
+    # "file" (the UI default) means the pattern's own system; the raw
+    # value is not a SYSTEMS key and must be translated, not rejected.
+    if req.system == "all":
+        systems = list(chip.SYSTEMS)
+    elif req.system in (None, "", "file"):
+        systems = [pat.system]
+    else:
+        systems = [req.system]
     bad = [s for s in systems if s not in chip.SYSTEMS]
     if bad:
         raise HTTPException(
@@ -159,7 +173,7 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
                 metrics = chip.pattern_report(pat, sysname)
                 results.append({
                     "system": sysname,
-                    "roll": str(roll_path.relative_to(PROJECT_ROOT)),
+                    "roll": _out_rel(roll_path),
                     "metrics": _jsonable(metrics),
                 })
                 continue
@@ -192,8 +206,8 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
                     "waves": pat.waves or None,
                 },
                 "output": {
-                    "wav": str(wav_path.relative_to(PROJECT_ROOT)),
-                    "roll": str(roll_path.relative_to(PROJECT_ROOT)),
+                    "wav": _out_rel(wav_path),
+                    "roll": _out_rel(roll_path),
                     "duration_s": round(len(pcm) / sr, 3),
                     "sample_rate": sr,
                 },
@@ -204,10 +218,9 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
             )
             results.append({
                 "system": sysname,
-                "wav": str(wav_path.relative_to(PROJECT_ROOT)),
-                "roll": str(roll_path.relative_to(PROJECT_ROOT)),
-                "record": str(wav_path.with_suffix(".render.json")
-                              .relative_to(PROJECT_ROOT)),
+                "wav": _out_rel(wav_path),
+                "roll": _out_rel(roll_path),
+                "record": _out_rel(wav_path.with_suffix(".render.json")),
                 "loudnorm": _jsonable(loud_info),
                 "metrics": _jsonable(chip.pattern_report(pat, sysname)),
                 "signal": _jsonable(chip.signal_report(pcm, sr)),
@@ -263,7 +276,7 @@ async def save_pattern(name: str, req: SavePatternRequest) -> dict[str, Any]:
     path = _pattern_path(name)
     PATTERNS_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(req.pattern, encoding="utf-8")
-    return {"name": path.stem, "saved": str(path.relative_to(PROJECT_ROOT))}
+    return {"name": path.stem, "saved": _out_rel(path)}
 
 
 @router.delete("/patterns/{name}")
