@@ -182,6 +182,7 @@ date: 2026-09-30
 - [[lyria-3.5-brief-library-README|🎵 Lyria 3.5 Brief Library]] - Research briefs on Lyria 3.5 music generation (indexed 2026-11-06)
 - [[suno-v6-style-tags-README|🎼 Suno v6 Style-Tag Library]] - Suno v6 style-tag reference for music prompts (indexed 2026-11-06)
 - [[happyshrimp-platform-2026|🦐 HappyShrimp Platform]] — Alibaba's one-prompt song model: prose brief recipe (Situation+Genre+Voice+Instruments+Tempo+Arc), Custom Lyrics mode, owner field data (40 credits/generation, ~4 songs/day, tempo-drag mitigation), and the unverified 1.1 label (NEW 2026-11-07)
+- [[cobus-harness-engineering-2026|🧰 Harness Engineering (Cobus Greyling)]] — Six distilled Substack posts with studio verdicts: model/harness/agent vocabulary, overclaiming + claim-ledger verification (strongest transfer), protect-the-monitors, PayPal gateway governance (principles only), data layering, harness-aware distillation (NEW 2026-11-07)
 - [[external-book-sources-2026|📚 External Book Sources]] — Which free-EPUB sources actually apply to agent work here: the public-repo license rule, per-title license verdicts (Think DSP, DSP Guide, D2L, Goodfellow), the distill-don't-dump pattern, and the pandoc extraction recipe (NEW 2026-11-06)
 - [[sheet-music-reference-rotation-2026|🎼 Sheet-Music Reference Rotation]] — The curated rotation for professional-arrangement study (MuseScore viewing, NinSheetMusic, Ichigo's, VGMusic, Hooktheory TheoryTab, IMSLP), the two-source agreement rule for measured baselines, and the private-study protocol (NEW 2026-11-07)
 - [[animatediff-evolved-2026|🎬 AnimateDiff Evolved 2026]] — ComfyUI-AnimateDiff-Evolved (Kosinkadink) reference: node contract, motion-module workflow, and Pascal/8 GB VRAM fit notes (NEW 2026-11-06)
@@ -200,7 +201,7 @@ date: 2026-09-30
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 21 documents |
-|| `#research/*` | Industry trends & analysis | 24 documents |
+|| `#research/*` | Industry trends & analysis | 25 documents |
 
 ### Cross-Cutting Tags
 

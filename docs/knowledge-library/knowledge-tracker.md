@@ -171,7 +171,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `agent-chat-architecture-2026.md`  → `#ai`, `#agent`, `#architecture`, `#documentation`
 - ✅ `skill-eval-harness-spec-2026-11.md`  → `#ai`, `#agent`, `#skills`, `#documentation`
 
-### 📊 Research & Reference (25/25 completed)
+### 📊 Research & Reference (26/26 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -199,6 +199,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `external-book-sources-2026.md` → `#research`, `#documentation`, `#knowledge-library`
 - ✅ `sheet-music-reference-rotation-2026.md` → `#research`, `#documentation`, `#knowledge-library`
 - ✅ `happyshrimp-platform-2026.md` → `#research`, `#documentation`, `#knowledge-library`
+- ✅ `cobus-harness-engineering-2026.md` → `#research`, `#documentation`, `#knowledge-library`
 
 ## 📝 Migration Template
 
