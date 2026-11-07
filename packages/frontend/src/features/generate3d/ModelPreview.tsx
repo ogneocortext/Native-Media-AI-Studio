@@ -1,9 +1,10 @@
 import { Suspense, useEffect, useRef, useState, Component, type ReactNode } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, useGLTF, Environment } from "@react-three/drei";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { OrbitControls, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { SimplifyModifier } from "three/examples/jsm/modifiers/SimplifyModifier.js";
+import { getGLTFLoader } from "../../utils/gltfLoader";
 import { Eye, AlertCircle, RotateCw } from "lucide-react";
 
 /**
@@ -29,7 +30,13 @@ import { Eye, AlertCircle, RotateCw } from "lucide-react";
  *    materials have IBL reflections and look real instead of flat
  */
 function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) => void }) {
-  const { scene } = useGLTF(url);
+  // GLBs from the backend carry KTX2/Basis-compressed textures
+  // (KHR_texture_basisu). useGLTF's bare GLTFLoader can't decode them, so
+  // we load through a shared loader that has a KTX2Loader attached
+  // (transcoder at /basis/, see utils/gltfLoader.ts). getGLTFLoader caches
+  // per renderer, so useLoader's [loader, url] cache key stays stable.
+  const gl = useThree((s) => s.gl);
+  const { scene } = useLoader(getGLTFLoader(gl), url);
   const outerGroupRef = useRef<THREE.Group>(null);
   const [cloned, setCloned] = useState<THREE.Object3D | null>(null);
   const [ready, setReady] = useState(false);

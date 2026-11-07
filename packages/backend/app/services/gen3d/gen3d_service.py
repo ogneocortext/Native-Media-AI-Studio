@@ -26,6 +26,7 @@ import json
 import logging
 import operator
 import shutil
+import time
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -1102,17 +1103,44 @@ class Gen3DService:
                     "warning": f"Mesh exported but could not be copied to backend outputs: {e}",
                 }
 
-            # Post-process: decimate if mesh is too large. When the request
-            # carries an asset-budget role, the role's max_triangles cap is
-            # the ceiling instead of the flat per-backend target (T-VID-12).
-            budget = _role_budget(role)
-            target_faces = (
-                int(budget["max_triangles"]) if budget and budget.get("max_triangles") else self.target_faces
+            return self._postprocess_glb(
+                dst, role=role, prompt_id=prompt_id, apply_chrome=True
             )
-            decimate_result = self._decimate_if_needed(dst, target_faces)
-            # Apply chrome PBR if prompt looks metallic. Only for Hy3D backends —
-            # their meshes are untextured gray, while TripoSR already carries
-            # vertex colors that a chrome override would destroy.
+        # Source file not found -- surface what ComfyUI reported.
+        logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
+        return {
+            "success": True,
+            "prompt_id": prompt_id,
+            "model_path": str(OUTPUT_DIR / Path(image_path).name),
+            "warning": "Mesh exported but file could not be located in backend outputs.",
+        }
+
+    def _postprocess_glb(
+        self,
+        dst: Path,
+        role: str | None,
+        prompt_id: str,
+        *,
+        apply_chrome: bool,
+    ) -> dict[str, Any]:
+        """Decimate + texture-ingest + budget-check a finished GLB in place.
+
+        Shared by the generation path (_upload_image) and the ingest path
+        (ingest_existing_glb) so every GLB that reaches the preview canvas
+        has passed the same cleanup stages.
+        """
+        # Post-process: decimate if mesh is too large. When the request
+        # carries an asset-budget role, the role's max_triangles cap is
+        # the ceiling instead of the flat per-backend target (T-VID-12).
+        budget = _role_budget(role)
+        target_faces = (
+            int(budget["max_triangles"]) if budget and budget.get("max_triangles") else self.target_faces
+        )
+        decimate_result = self._decimate_if_needed(dst, target_faces)
+        # Apply chrome PBR if prompt looks metallic. Only for Hy3D backends —
+        # their meshes are untextured gray, while TripoSR already carries
+        # vertex colors that a chrome override would destroy.
+        if apply_chrome:
             try:
                 if self.backend in HY3D_BACKENDS and (
                     any(k in dst.name.lower() for k in ("chrome", "robot", "metal"))
@@ -1124,53 +1152,96 @@ class Gen3DService:
             except Exception as e:
                 logger.debug("Chrome apply skipped: %s", e)
 
-            # T-VID-12 ingest post-step: downscale textures to the role cap
-            # and convert to KTX2 in place. Failures are reported, never fatal
-            # — the mesh is still usable uncompressed.
-            ingest_role = role if role in _VALID_ROLES else "mid"
-            ingest = _run_tool(
-                "ingest-texture.py",
-                ["glb", str(dst), "--role", ingest_role, "--codec", "etc1s", "--out", str(dst)],
-                timeout=900,
-            )
-            ingest_result: dict[str, Any] = {"ran": True, "ok": ingest["ok"]}
-            if not ingest["ok"]:
-                ingest_result["error"] = (ingest["stderr"] or ingest["stdout"])[-400:]
-                logger.warning("Texture ingest failed for %s: %s", dst.name, ingest_result["error"])
+        # T-VID-12 ingest post-step: downscale textures to the role cap
+        # and convert to KTX2 in place. Failures are reported, never fatal
+        # — the mesh is still usable uncompressed.
+        ingest_role = role if role in _VALID_ROLES else "mid"
+        ingest = _run_tool(
+            "ingest-texture.py",
+            ["glb", str(dst), "--role", ingest_role, "--codec", "etc1s", "--out", str(dst)],
+            timeout=900,
+        )
+        ingest_result: dict[str, Any] = {"ran": True, "ok": ingest["ok"]}
+        if not ingest["ok"]:
+            ingest_result["error"] = (ingest["stderr"] or ingest["stdout"])[-400:]
+            logger.warning("Texture ingest failed for %s: %s", dst.name, ingest_result["error"])
 
-            # Budget report: re-validate the final asset so generation results
-            # carry PASS/FAIL evidence instead of a silent hard-coded target.
-            check = _run_tool(
-                "check-asset-budget.py",
-                [str(dst), "--role", ingest_role, "--json"],
-                timeout=120,
-            )
-            budget_report: dict[str, Any]
-            try:
-                budget_report = json.loads(check["stdout"])
-            except json.JSONDecodeError:
-                budget_report = {
-                    "verdict": "error" if not check["ok"] else "unknown",
-                    "detail": (check["stderr"] or check["stdout"])[-400:],
-                }
-
-            return {
-                "success": True,
-                "model_path": str(dst),
-                "prompt_id": prompt_id,
-                "decimate": decimate_result,
-                "budget": budget_report,
-                "texture_ingest": ingest_result,
-                "role": role,
+        # Budget report: re-validate the final asset so generation results
+        # carry PASS/FAIL evidence instead of a silent hard-coded target.
+        check = _run_tool(
+            "check-asset-budget.py",
+            [str(dst), "--role", ingest_role, "--json"],
+            timeout=120,
+        )
+        budget_report: dict[str, Any]
+        try:
+            budget_report = json.loads(check["stdout"])
+        except json.JSONDecodeError:
+            budget_report = {
+                "verdict": "error" if not check["ok"] else "unknown",
+                "detail": (check["stderr"] or check["stdout"])[-400:],
             }
-        # Source file not found -- surface what ComfyUI reported.
-        logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
+
         return {
             "success": True,
+            "model_path": str(dst),
             "prompt_id": prompt_id,
-            "model_path": str(OUTPUT_DIR / Path(image_path).name),
-            "warning": "Mesh exported but file could not be located in backend outputs.",
+            "decimate": decimate_result,
+            "budget": budget_report,
+            "texture_ingest": ingest_result,
+            "role": role,
         }
+
+    # Roots an ingest source path may resolve under. Anything else is rejected
+    # so the endpoint can't be used to decimate arbitrary files on disk.
+    _INGEST_ROOTS = (
+        "packages/frontend/public",
+    )
+
+    def ingest_existing_glb(self, src: str, role: str | None = None) -> dict[str, Any]:
+        """Run the generation cleanup pipeline on an existing GLB/GLTF.
+
+        Covers assets produced outside the generate flow (experiments,
+        downloads, hand-built meshes). The source is copied into
+        OUTPUT_DIR under a sanitized ``ingest_`` name so the original is
+        never modified; the copy then goes through decimate -> KTX2 texture
+        ingest -> asset-budget validation, same as a fresh generation.
+        """
+        src_path = Path(src)
+        if not src_path.is_absolute():
+            src_path = _REPO_ROOT / src_path
+        try:
+            resolved = src_path.resolve()
+        except OSError:
+            return {"success": False, "error": "path could not be resolved"}
+
+        allowed_roots = [
+            (_REPO_ROOT / rel).resolve() for rel in self._INGEST_ROOTS
+        ] + [app_config.output_dir.resolve(), COMFYUI_OUTPUT_DIR.resolve()]
+        if not any(resolved.is_relative_to(root) for root in allowed_roots):
+            return {
+                "success": False,
+                "error": "path is outside the allowed asset roots "
+                f"({', '.join(str(r) for r in allowed_roots)})",
+            }
+        if resolved.suffix.lower() not in {".glb", ".gltf"} or not resolved.is_file():
+            return {"success": False, "error": "source is not a .glb/.gltf file"}
+
+        dst = OUTPUT_DIR / f"ingest_{self._sanitize_name(resolved.stem)}_{int(time.time())}.glb"
+        try:
+            shutil.copy2(resolved, dst)
+        except OSError as e:
+            return {"success": False, "error": f"could not stage source: {e}"}
+
+        # Chrome auto-apply is name-triggered only for ingested assets — the
+        # generation path's blanket 'any decimated mesh' rule would repaint
+        # vertex-colored imports.
+        apply_chrome = any(k in dst.name.lower() for k in ("chrome", "robot", "metal"))
+        result = self._postprocess_glb(
+            dst, role=role, prompt_id="ingest", apply_chrome=apply_chrome
+        )
+        result["source"] = str(resolved)
+        return result
 
     def _decimate_if_needed(self, glb_path: Path, target_faces: int = 50000) -> dict:
         """Decimate a GLB mesh if it exceeds the target face count.

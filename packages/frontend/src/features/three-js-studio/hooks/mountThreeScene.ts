@@ -21,6 +21,7 @@ import {
   type CameraTransitionState,
 } from "../services/cameraTransitions";
 import { beatPhraseScale } from "../services/beatPhrasing";
+import { registerGLTFRenderer } from "../../../utils/gltfLoader";
 import { SECTION_WIPE_SEC, type SectionMotionProfile } from "../services/sectionDriver";
 import { createSeededRandom } from "../services/videoExport";
 import type { SectionDriverHandle } from "./useTrackMetadata";
@@ -236,6 +237,10 @@ export function mountThreeScene(ctx: MountContext) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     rendererRef.current = renderer;
+    // Lets ad-hoc GLTFLoader creation (useMeshFactory) attach a KTX2Loader
+    // with detectSupport bound to this renderer — needed for the backend's
+    // Basis-compressed GLB textures.
+    registerGLTFRenderer(renderer);
     (window as any).__renderer = renderer;
 
     const controls = new OrbitControls(camera, renderer.domElement);

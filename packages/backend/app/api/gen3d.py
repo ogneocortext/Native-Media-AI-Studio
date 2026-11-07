@@ -128,6 +128,48 @@ ALLOWED_REF_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_REF_IMAGE_BYTES = 15 * 1024 * 1024
 
 
+class Gen3DIngestRequest(BaseModel):
+    """Request to clean up an existing GLB/GLTF through the 3D pipeline."""
+
+    path: str
+    role: str | None = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("hero", "mid", "background", "far"):
+            raise ValueError("role must be one of: hero, mid, background, far")
+        return v
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("path must not be empty")
+        if len(v) > 1000:
+            raise ValueError("path must be at most 1000 characters")
+        return v
+
+
+@router.post("/ingest")
+async def gen3d_ingest(body: Gen3DIngestRequest) -> dict:
+    """Clean up an existing GLB/GLTF: decimate to the role's triangle cap,
+    KTX2-compress textures, and validate against the asset budget.
+
+    The source file is copied into the generated_3d output dir first, so
+    the original is never modified. CPU-only (Blender + toktx), so no VRAM
+    work lane is needed — runs in a thread to avoid blocking the loop.
+    """
+    import asyncio
+
+    from ..services.gen3d.gen3d_service import gen3d_service
+
+    return await asyncio.to_thread(
+        gen3d_service.ingest_existing_glb, body.path, body.role
+    )
+
+
 def _sniff_image_type(head: bytes) -> str | None:
     """Return the real image MIME type from magic bytes, or None."""
     if head.startswith(b"\x89PNG\r\n\x1a\n"):

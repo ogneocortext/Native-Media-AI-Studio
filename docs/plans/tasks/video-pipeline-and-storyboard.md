@@ -334,6 +334,28 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   (15,702→2,521), non-blank renders. STILL GATED/OPEN: LOD chain
   generation (LOD0/1/2 + sprite card), T-VID-05 scene-spec validator
   budget wiring, RenderStatsBadge budget-vs-actual.
+  2026-11-07 addendum (owner: clean up existing/experiment assets
+  before they hit the live preview canvas): `POST /api/3d/ingest`
+  accepts `{path, role?}` for any .glb/.gltf already on disk —
+  path must resolve under `output/`, `packages/frontend/public/`, or
+  the ComfyUI output tree (rejects everything else). The source is
+  copied to `output/generated_3d/ingest_<stem>_<ts>.glb` (original
+  never modified) and runs the SAME post-process as a fresh
+  generation — the decimate/ingest/budget block was extracted from
+  `_upload_image` into `_postprocess_glb()` so both paths share it.
+  Chrome PBR auto-apply is name-triggered only for ingests (the
+  generation path's blanket rule would repaint vertex-colored
+  imports). Verified live: `stage.glb` (background role) → Blender
+  decimate ran, 26/26 textures KTX2, honest budget FAIL surfaced
+  (10,006 tris vs 10,000 cap); `Y_Bot.glb` correctly reported
+  "not a GLB" — it is a 14-byte `404: Not Found` placeholder from a
+  failed download, not a model. Companion frontend fix (same
+  commit): the preview had NO KTX2Loader, so every KTX2-compressed
+  texture the pipeline emits would render untextured — new
+  `src/utils/gltfLoader.ts` attaches `KTX2Loader` (transcoder in
+  `public/basis/`, ~585 KB) per-renderer; `ModelPreview` and the
+  three-js-studio loaders now use it. ruff clean on both backend
+  files; `tsc -b` shows no new errors.
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
 - **Status:** done

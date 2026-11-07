@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { createGLTFLoader } from "../../../utils/gltfLoader";
 import { BLOOM_LAYER } from "../threeStudioConfig";
 
 export function useMeshFactory() {
@@ -48,7 +48,9 @@ export function useMeshFactory() {
     } else if (obj.type === "bars") {
       meshGroup = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1, 0.12), mat);
     } else if (obj.modelUrl) {
-      const loader = new GLTFLoader();
+      // KTX2/Basis textures need the scene's renderer for detectSupport;
+      // mountThreeScene registers it via registerGLTFRenderer on boot.
+      const loader = createGLTFLoader();
       const url = obj.modelUrl;
       meshGroup = await new Promise<any>((resolve, _reject) => {
         loader.load(

@@ -1322,5 +1322,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Next:** BuilderFigure integration pass (react to audio or remove per
   mode — now the top finding across the 2D family); motion=3 residual;
   then foggyNoir/fireCrown/spectralReactor shader tier.
+- **Files:** packages/frontend/src/features/visualizer/canvas2dModes.ts,
+  canvas2dModes.test.ts
+- **Acceptance:** both modes re-scored ≥3.0 on verified audio (met: 4.0/4.0)
 - **Last session:** Devin, 2026-11-07 — commit 857a5573 + re-score
 evidence above.
