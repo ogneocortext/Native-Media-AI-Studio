@@ -339,13 +339,29 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   renders produced.
 
 ### T-VID-15 — Design lighting + look rigs as spec data (the T-VID-11 pattern, scene side)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A rig registry for the 3D/scene side mirroring T-VID-11's camera registry: named lighting rigs (three-point, studio, practical archetypes as data), a lens set, and look/grade presets that T-VID-05 scene specs reference by name — so cinematography is a vocabulary, not per-scene improvisation. Design only.
 - **Plan:** Evidence: T-VID-11 covers camera for the I2V prompt path; no lighting/look vocabulary exists for scenes, and Route A output has no defined grade step. Steps: (1) Rig archetype list v0 with parameters (positions, intensities, color temps) expressed in spec terms. (2) Lens set (focal lengths + the look each implies) aligned with T-VID-11's vocabulary where they overlap — one camera language across both paths. (3) Look presets: LUT/grade references as spec fields; Route A's grade step named in the pipeline. (4) Budget conformance: rigs respect the budget doc's baked/static lighting + dynamic-light cap (≤3).
 - **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 3); docs/knowledge-library/pascal-3d-budget-discipline-2026.md (lighting caps); T-VID-11's registry design when written
 - **Acceptance:** A registry design exists with named rigs/lenses/looks and their spec representation; every rig provably fits the dynamic-light cap; overlap with T-VID-11's camera vocabulary is reconciled, not duplicated.
 - **Gate:** as T-VID-13.
-- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/lighting-look-rigs-2026-11.md` (registered in plans
+  README, Status Proposed). Reconciliation call made (T-VID-11
+  deferred it here): one numeric vocabulary two representations —
+  `focal_mm` shared verbatim, look ids shared across both paths
+  (camera-rigs `look.grade` string now *means* a registry id, no
+  schema change), lighting rigs scene-side-only with prose fragments
+  on the I2V side. Registry shape `config/cinematography-rigs.json`
+  mirrors T-VID-11's load/validate/fail-fast rules. Seed data: 6-lens
+  set (14–135 mm, aligned to T-VID-11 focal_mm), 5 looks incl.
+  `look-neutral` lossless seed, **7 lighting rigs with dynamic counts
+  {3,2,1,2,1,1,1} — all provably ≤3** (baked/emissive explicitly not
+  dynamic). Route A grade step named: `grade` stage in finishing chain
+  reading `look`+`grade_strength`, LUT `.cube` under `assets/looks/`
+  or parametric fields. Spec fields `lighting_rig`/`lens`/`look`/
+  `grade_strength` defined with validator membership checks. No code
+  or renders produced.
 
 ### T-VID-16 — Design the character identity layer: one asset, both layers
 - **Status:** todo
