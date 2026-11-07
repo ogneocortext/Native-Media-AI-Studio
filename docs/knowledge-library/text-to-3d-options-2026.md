@@ -15,6 +15,8 @@ type: comparison
 
 # Text-to-3D Options for 8GB VRAM / Pascal (2026)
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > **Scope:** open-source or free-to-use models you can run locally on a GTX 1070 Ti (8 GB VRAM, sm_61) or similar Pascal cards.
 > **Last updated:** 2026-09-29
 

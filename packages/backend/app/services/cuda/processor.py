@@ -51,6 +51,42 @@ def device():
     return _DEVICE
 
 
+def resample_audio_gpu(y, orig_sr: int, target_sr: int):
+    """Resample 1-D mono audio, preferring GPU via torchaudio.
+
+    The single GPU-resample implementation for the backend (moved
+    here from `audio_analyzer` 2026-11-07 so the CUDA package owns
+    all GPU audio plumbing). Uses ``torchaudio.functional.resample``
+    on CUDA when torch + CUDA are available; otherwise falls back
+    to ``librosa.resample`` on CPU.
+
+    Args:
+        y: 1-D mono waveform samples.
+        orig_sr: Original sample rate.
+        target_sr: Target sample rate.
+
+    Returns:
+        Resampled audio as a numpy array (float32).
+    """
+    audio = np.asarray(y, dtype=np.float32)
+    if orig_sr == target_sr:
+        return audio
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            import torchaudio.functional as _taf
+
+            tensor = torch.as_tensor(audio, device="cuda:0")
+            out = _taf.resample(tensor, orig_freq=orig_sr, new_freq=target_sr)
+            return out.cpu().numpy().astype(np.float32)
+    except Exception:
+        logger.debug("GPU resample unavailable -- falling back to librosa", exc_info=True)
+    import librosa
+
+    return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr).astype(np.float32)
+
+
 # ---------------------------------------------------------------------------
 # Audio analysis (GPU STFT + spectral features)
 # ---------------------------------------------------------------------------
@@ -548,6 +584,42 @@ class CudaVisualizationFFT:
     def reset_smoothing(self):
         """Reset temporal smoothing state (e.g., on new track)."""
         self._prev_spectrum = None
+
+
+def track_band_frames(
+    y, sr: int, *, fps: int = 30, num_bands: int = 16, fft_size: int = 2048
+) -> list[list[float]]:
+    """Per-frame band spectra for a whole track, via CudaVisualizationFFT.
+
+    Drives a fresh FFT instance across the track at `fps` frame times
+    (centered chunks), so a deterministic render payload (HyperFrames)
+    gets measured band data instead of a synthetic ramp. The instance
+    self-dispatches: GPU when CUDA is available, numpy otherwise; its
+    temporal smoothing runs across consecutive frames, as designed.
+    A fresh instance per call keeps smoothing state from leaking
+    between tracks.
+
+    Returns one list of `num_bands` floats (0-1) per output frame.
+    """
+    samples = np.asarray(y, dtype=np.float32)
+    if samples.size == 0 or sr <= 0:
+        return []
+    fft = CudaVisualizationFFT(fft_size=fft_size, num_bands=num_bands)
+    total_frames = max(1, int(len(samples) / sr * fps) + 1)
+    hop = sr / float(fps)
+    half = fft_size // 2
+    frames: list[list[float]] = []
+    for i in range(total_frames):
+        center = int(i * hop)
+        start = center - half
+        if start < 0:
+            chunk = np.pad(samples[0 : center + half], (-start, 0))
+        else:
+            chunk = samples[start : start + fft_size]
+            if len(chunk) < fft_size:
+                chunk = np.pad(chunk, (0, fft_size - len(chunk)))
+        frames.append(fft.get_spectrum(chunk))
+    return frames
 
 
 # ---------------------------------------------------------------------------

@@ -37,7 +37,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (19/19 completed) ✅
+### 🎬 Production Pipeline (21/21 completed) ✅
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`
@@ -49,6 +49,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `character-driven-visualization-research.md`  → `#production`, `#3d`
 - ✅ `browser-character-pipeline-research-2026.md`  → `#production`, `#3d`, `#research`
 - ✅ `browser-character-pipeline-verdicts-2026.md`  → `#production`, `#3d`, `#research`
+- ✅ `media-anti-patterns-audit-2026.md`  → `#production`, `#ai`, `#video-generation`
+- ✅ `media-anti-patterns-2026.md`  → `#production`, `#ai`, `#video-generation`
 - ✅ `lyric-beat-visualization-2026.md`  → `#production`, `#audio`, `#platform-remotion`
 - ✅ `music-video-vision-prompts.md`  → `#production`, `#ai`
 - ✅ `a1-a6-media-pipeline-tooling-2026.md`  → `#production`, `#audio`, `#tooling`, `#platform-comfyui`
@@ -59,7 +61,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (24/24 completed) ✅
+### 🛠️ Technical Implementation (25/25 completed) ✅
 - ✅ `scene-layering-and-render-pass-decomposition-2026.md`  → `#technical`
 - ✅ `texture-pipeline-ktx2-authoring-and-ingest-2026.md`  → `#technical`
 - ✅ `playwright-e2e-2026.md`  → `#technical`
@@ -83,6 +85,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `remotion-agent-skills-2026.md`  → `#technical`, `#remotion`, `#skills`, `#ai-agents`
 - ✅ `higgsfield-comfyui-challenge-2026.md`  → `#technical`, `#comfyui`, `#video-generation`, `#open-source`
 - ✅ `3d-bones-ai-skin-pipeline-2026.md`  → `#technical`, `#3d`, `#comfyui`, `#video-generation`
+- ✅ `backend-gpu-compute-layer-2026.md`  → `#technical`, `#cuda`, `#hardware-pascal`, `#hardware-8gb`
 - ✅ `three-js-studio-scene-quality-2026.md`  → `#technical`, `#3d`, `#three-js`
 - ✅ `programmatic-tool-calling-2026.md`  → `#technical`, `#ai-agents`, `#tooling`
 
@@ -102,11 +105,13 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unity-audio-visualization-2026.md`  → `#platform`, `#platform-unity`,
   `#audio`, `#visualization`
 
-### 🎨 Creative & Visual (22/22 completed)
+### 🎨 Creative & Visual (24/24 completed)
 
 - ✅ `visualization-effects.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`, `#audio`
 - ✅ `3d-visualization-best-practices-2026.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`
 - ✅ `color-strategy-2026.md`  → `#creative`, `#design`
+- ✅ `visual-style-system-2026.md`  → `#creative`, `#design`
+- ✅ `visual-storytelling-grammar-2026.md`  → `#creative`, `#design`
 - ✅ `design-philosophy-2026.md`  → `#creative`, `#design`
 - ✅ `visualizer-state-analysis-2026.md`  → `#creative`, `#visualization`, `#ai`
 - ✅ `2d-visualization-2026.md`  → `#creative`, `#visualization`, `#audio`

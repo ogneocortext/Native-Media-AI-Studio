@@ -41,7 +41,9 @@ date: 2026-09-30
 - [[silhouette-character-animation|🎭 Silhouette Character Animation]] — Character rigging & motion
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[browser-character-pipeline-research-2026|🦴 Browser Character Pipeline — Research Agenda]] — The 11 unresearched engineering categories between character design and a rendered browser character: sourcing, auto-rigging, the house skeleton, retargeting, beat-mapped blending, character textures/KTX2, skinned LOD, mixer runtime, pose-pass encoding (NEW 2026-11-06)
-- [[browser-character-pipeline-verdicts-2026|✅ Browser Character Pipeline — Verdicts]] — The agenda answered: hybrid sourcing, HouseRig_v1 (47/59 bones), retarget + beat architecture, KTX2/single-material rules, runtime + disposal — distilled from an external research report and corrected against the studio's budgets (NEW 2026-11-06)
+- [[browser-character-pipeline-verdicts-2026|✅ Browser Character Pipeline — Verdicts]] — The agenda answered: hybrid sourcing, HouseRig_v1 (49/61 bones), retarget + beat architecture, KTX2/single-material rules, runtime + disposal — distilled from an external research report and corrected against the studio's budgets (NEW 2026-11-06)
+- [[media-anti-patterns-audit-2026|🚫 Media Anti-Patterns — Audit]] — Measured verdict: the library teaches generation capability and almost no slop-avoidance (17 of 49 media docs carry any avoid-language; the 3 ComfyUI workflows ship positive-only adjective stacks with no negatives); the canonical anti-patterns doc + pointers + surface fixes are T-VID-25 (NEW 2026-11-07)
+- [[media-anti-patterns-2026|🚫 Media Anti-Patterns — The Canon]] — The single-source slop list for all media work: slop as specification failure, the six-point brief discipline, defect-vs-pattern negatives, and per-medium pattern tables (image, video/motion, 3D, music, lyrics) each with its replacement move, plus the five-question grading checklist (NEW 2026-11-07)
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
@@ -65,6 +67,7 @@ date: 2026-09-30
 - [[higgsfield-comfyui-challenge-2026|🎥 Open Source Higgsfield Challenge]] — ComfyUI's $10K challenge and its 8 open-source recreations: gap-checked against this library, 6 missing techniques recorded (indexed 2026-11-06)
 - [[3d-bones-ai-skin-pipeline-2026|🦴 3D Bones, AI Skin — Pipeline Gap Analysis]] — Two routes to footage (3D standing alone vs 3D bones driving AI skin), the frame-package contract, and the five gaps between the current studio and that pipeline, each feasibility-checked against the verified hardware baseline (NEW 2026-11-06)
 - [[three-js-studio-scene-quality-2026|🔍 Three.js Studio Scene Quality — Findings]] — Why generated studio scenes look like a mess: the crown-preset exhibit, the 7-shape vocabulary and 5-scalar material ceiling, the dead /generate-scene stub, and the fix shape (NEW 2026-11-06)
+- [[backend-gpu-compute-layer-2026|🖥️ Backend GPU Compute Layer — As-Built Map]] — No custom CUDA kernels (verified): the live torch.cuda touchpoints, the orphaned services/cuda module nobody imports (T-PLT-47), the sm_61 kernel ladder verdicts, and VRAM arbitration as the real GPU discipline (NEW 2026-11-07)
 - [[npx-best-practices-2026|🔒 npx Best Practices 2026]] — Supply-chain-safe npx usage, pinning, and audit habits (indexed 2026-11-06)
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
@@ -99,6 +102,8 @@ date: 2026-09-30
 - [[advanced-visualization-techniques-2026|✨ Advanced Visualization Techniques 2026]] — ⚠️ Consolidated 2026-10-06 → see [[visualization-effects]] §11
 - [[canvas2d-bar-visualization-research|📊 Canvas2D Bar Visualization Research]] — Modern bar-mode improvements: smoothing, glow, reflections, HiDPI rendering
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules
+- [[visual-style-system-2026|🎭 Visual Style System — House Looks]] — Nine named looks spec'd as shared style records across scene gen, visualizer, HyperFrames and the AI skin: the original six (Studio Console, Arcade Velocity, Vice Sunset, Analog Print, Monochrome Signal, Night Broadcast) plus three created from the 14-track comparison (Dial-Up, Future Gloss, Drift); §6 maps every real track to its look; registry as T-VID-24 (NEW 2026-11-07)
+- [[visual-storytelling-grammar-2026|🎬 Visual Storytelling Grammar]] — The grammar the shot lists never had: the four modes and choosing per track, the motivated cut (four legal motivations, on-beat vs off-beat semantics), measured section grammar (the delta rule, stillness budget), coverage/motif/retention rules, per-look cut grammars for all nine looks, and worked paper boards (Human in the Loop, The Last Original) beside the V5 reference; storyboard source for T-VID-02 Step 5, registered as T-VID-27 (NEW 2026-11-07)
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py`
 - [[dark-ui-color-system-2026|🌙 Dark UI Color System 2026]] — OKLCH dark-mode tokens, contrast, accessibility
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
@@ -184,10 +189,10 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 19 documents |
-|| `#technical/*` | System implementation & code | 25 documents |
+|| `#production/*` | Production workflow & creative guides | 21 documents |
+|| `#technical/*` | System implementation & code | 26 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
-|| `#creative/*` | Design, effects & visualization | 22 documents |
+|| `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
 || `#research/*` | Industry trends & analysis | 22 documents |
@@ -201,12 +206,12 @@ date: 2026-09-30
 || `#platform-blender` | Blender-specific | 3 documents |
 || `#platform-comfyui` | ComfyUI-specific | 7 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
-|| `#hardware-8gb` | 8GB VRAM constraints | 16 documents |
-|| `#hardware-pascal` | Pascal architecture specifics | 9 documents |
+|| `#hardware-8gb` | 8GB VRAM constraints | 17 documents |
+|| `#hardware-pascal` | Pascal architecture specifics | 10 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
-|| `#design` | Design systems & UX | 6 documents |
+|| `#design` | Design systems & UX | 8 documents |
 || `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 20 documents |

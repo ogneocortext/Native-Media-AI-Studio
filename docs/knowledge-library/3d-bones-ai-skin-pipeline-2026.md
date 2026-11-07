@@ -14,6 +14,8 @@ cssclasses:
 
 # 3D Bones, AI Skin — Pipeline Gap Analysis 2026
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > The gap analysis for a pipeline that either renders 3D well enough to
 > stand beside AI-generated media, or — the stronger route on this
 > hardware — uses 3D as the bones that drive AI visuals: geometry,
@@ -23,6 +25,10 @@ cssclasses:
 > [[pascal-3d-budget-discipline-2026]], and the reconciled
 > `config/hardware-profile.json`, T-PLT-46) — every feasibility claim
 > below is a lookup against those numbers, not an experiment.
+> **Expanded 2026-11-07** at the owner's direction: the character
+> verdicts flowed back (§4.1), pose-pass and lane specifics landed
+> in Gaps 1–2, a sixth gap (asset intake, T-VID-26) was registered,
+> and skin acceptance gates were added (§6).
 
 ## 1. Two routes to the same footage
 
@@ -97,7 +103,23 @@ owned scenes, so its passes are exact, not estimated.
 | Hardware baseline | Hardware profile v2 reconciled (T-PLT-46); CPU playbook; Pascal GPU doc |
 | ControlNet integration | **Declared, not built**: `packages/backend/app/api/integrations_music_video.py:565` catalogs "Advanced AnimateDiff with controlnet and IP-adapter" (`mm_sd_v15_v2.safetensors`, `controlnet_openpose`); `Settings.tsx` offers a "ControlNet + Image" mode. But `config/comfyui/workflows/` holds exactly 3 workflows (audio-reactive visualizer, music-video scene, stem-mixer preview) — none control-based, and nothing produces control inputs from owned scenes (grep-verified 2026-11-06: no pass/AOV support anywhere in scene/gen3d code) |
 
-## 5. The five gaps
+### 4.1 Settled downstream — the character verdicts
+
+[[browser-character-pipeline-verdicts-2026]] answered the character
+half of this pipeline the same day this analysis was written; its
+decisions are inputs here, and this doc now consumes them:
+
+| Verdict | Consumed by |
+|---|---|
+| HouseRig_v1: **49 base / 61 hero** bones, Mixamo-compatible names, meters / Y-up / +Z, no leaf bones in delivery | Gap 4's asset schema; Gap 1's pose pass |
+| Sourcing: Mixamo primary; license intake rejects CC BY-NC; raw-asset redistribution prohibited | Gap 6's intake gate |
+| Retarget: offline (Auto-Rig Pro class); planted-foot drift <0.02 m/s; loop closure ≤0.5° | Gap 5's capture spec |
+| Pose = one evaluated pose → OpenPose image + fixed-bounds depth + **Float32 numeric archive** | Gap 1's pose element — a format, not a noun |
+| Textures: KTX2 residency (hero ≤64 MiB / mid ≤24 / bg ≤8); verify the actual transcode format (RGBA8-fallback trap) | Gap 6's intake checks |
+| LOD by projected height (350/140/60 px); hair as cap + alphaTest cards | Gap 4's asset definition |
+| Beat: audio clock + piecewise interpolation over **measured** timestamps, never uniform-beat math | §1's beat bindings, made precise |
+
+## 5. The six gaps
 
 ### Gap 1 — Control-pass rendering (the keystone) → T-VID-13
 
@@ -108,7 +130,10 @@ and camera metadata — exported as a versioned frame package.
 negligible GPU next to beauty); the real cost is storage and write
 lanes on the SATA SSD, which the profile's risk notes already bound.
 *Design work:* the passes contract in the T-VID-05 spec (pass list,
-formats, resolution relative to beauty, naming/versioning).
+formats, resolution relative to beauty, naming/versioning). The pose
+element's format is already decided by the verdicts (§4.1): an
+OpenPose image plus fixed-bounds depth, with a Float32 numeric
+archive as the lossless record.
 
 ### Gap 2 — Control-conditioned generation lane → T-VID-14
 
@@ -119,7 +144,10 @@ AnimateDiff), the lane assignment under the profile's VRAM rules, and
 a seed/parameter contract so a render is reproducible. *Baseline
 answer:* SD 1.5-class is the profile's blessed tier for exactly this;
 SDXL/Flux-class control stacks are out on 8 GB. *Depends on:* Gap 1's
-contract.
+contract. *Lane tiers (2026-11-07):* SD 1.5 + AnimateDiff is the
+iteration tier; **Wan 2.2 TI2V-5B GGUF** — already in the studio's
+ComfyUI inventory — is the quality tier for passes where its
+conditioning applies; HunyuanVideo-class lanes are 24 GB and out.
 
 ### Gap 3 — Lighting and look rigs → T-VID-15
 
@@ -160,11 +188,54 @@ tied to the budget doc, deterministic frame stepping (the discipline
 [[three-js-render-motion-2026]] already establishes on the web side,
 applied to the bpy side).
 
-## 6. Sequencing and gates
+### Gap 6 — Asset intake & retopology gate → T-VID-26
+
+Every gap above assumes assets arrive usable; generated assets do
+not. Text/image-to-3D output is marching-cubes triangle soup —
+dense, non-manifold, detail painted into textures, hidden sides
+hallucinated — and no rig binds to it. *Missing:* an intake gate
+between generation and the pipeline: (1) input discipline for
+image-to-3D — single object, clean/transparent background, even
+neutral light, 3/4 view, image-to-3D preferred over text-to-3D;
+(2) generated output treated as **blockout by default**; (3)
+**built-in auto-retopology first** (Meshy Remesh / Tripo Smart
+Mesh-class quad remesh) before export; (4) manual retopology
+reserved for rigged/hero assets, where deformation decides;
+(5) the verdicts' checks enforced at the gate — KTX2 residency,
+transcode-format verification, license intake (§4.1). *Baseline
+answer:* retopology is CPU/offline work in the playbook's lanes;
+the gate is a checklist plus a script seam, not a model.
+*Depends on:* Gap 4's asset definition — the gate enforces it.
+
+## 6. Skin acceptance gates
+
+Route B output is judged as motion, not frames (the anti-patterns
+canon's temporal rule, [[media-anti-patterns-2026]] §5). A skin
+pass ships when, on sampled frames (first / middle / last + every
+beat-cut):
+
+- **Identity holds** — the character reads as the same character
+  at every sample; drift is a fail, not a grade.
+- **Texture is still where the scene is still** — static regions
+  do not swim, crawl, or re-detail between frames.
+- **Control held** — output edges track the depth/segmentation
+  passes; visible washout means the control-weight/denoise
+  balance is wrong, and the fix is in the lane settings, not a
+  re-roll.
+- **Permanence** — objects present in the bones stay present;
+  nothing is invented into occluded space.
+- **Plausibility** — the canon's question 6: shadows,
+  reflections, and mechanisms would actually work.
+
+These gates are T-VID-14's acceptance evidence when the lane is
+built; until then they are the review checklist for any skin
+experiment.
+
+## 7. Sequencing and gates
 
 T-VID-13 is the keystone: its frame-package contract unblocks
 T-VID-14 and T-VID-16; T-VID-15 and T-VID-17 are independent design.
-All five items are **design-first under the T-VID-07 gate pattern**:
+All six items are **design-first under the T-VID-07 gate pattern**:
 design work may start any time; implementation waits on the owner's
 word and sits downstream of T-VID-02 and the storyboard critical
 path. This analysis registers design work only — the standing

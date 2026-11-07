@@ -90,6 +90,8 @@ type: synthesis
 | Bridge     | 10-20s           | Visual pivot, abstract/surprise         |
 | Outro      | 5-15s            | Wind down, defocus, final frame         |
 
+> **Superseded as method (2026-11-07):** this table is the generic prior. House method is [[visual-storytelling-grammar-2026]] — treatments derive from the track's *measured* sections and energy deltas (the delta rule), its mode, and its look's cut grammar, not from typical durations. Keep this table as a fallback sketch for unmeasured tracks only.
+
 ---
 
 ## Audio Analysis

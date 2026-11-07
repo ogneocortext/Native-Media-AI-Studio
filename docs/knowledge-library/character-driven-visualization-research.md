@@ -14,6 +14,8 @@ type: source
 
 # Character-Driven Visualization — Research Report
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here. (This doc's own character negative list remains the local specimen the canon generalizes.)
+
 > Generated: 2026-09-01
 > Scope: Comprehensive audit of character creation, rigging, rendering, and animation infrastructure across the Native Media AI Studio codebase.
 

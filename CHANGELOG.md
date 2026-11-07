@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - CUDA services seam unified (`packages/backend/app/services/cuda/`, T-PLT-47)
+- **`analyze_with_cuda` CPU fallback no longer degrades silently**: it used the CUDA module only when a GPU was present and hand-rolled a 60-point-envelope fallback with no spectral features. It now always delegates to `CudaAudioAnalyzer.analyze()` (self-dispatching CUDA/CPU, one result shape on both devices), and builds a per-call analyzer at the caller's real sample rate when it differs from the 22050 Hz singleton (the `/analyze-cuda` endpoint loads audio at native rate, so spectral frequencies were computed against the wrong rate).
+- **`resample_audio_gpu()` moved into `services/cuda/processor.py`** as the single GPU-resample implementation; the copy in `audio_analyzer.py` is now a thin delegation under its existing name.
+- **HyperFrames payload bands are now measured, not fabricated**: `build_hyperframes_audio_payload` used to derive all 16 bands as a decay ramp off the energy scalar. The `/hyperframes-payload` endpoint now computes real per-frame band spectra from the audio via the new `services.cuda.track_band_frames` helper (drives `CudaVisualizationFFT` across the track; GPU when available, CPU otherwise) and the payload labels itself `bands_source: "measured"` — the ramp remains only as the fallback when the audio file cannot be loaded, labeled `"synthetic"`.
+
 ### Added - Frontend 3D Studio MCP Bridge (`tools/mcp/frontend-3d-mcp.mjs`)
 New MCP server exposing 16 tools bridging AI agent to interactive frontend 3D editors:
 - **Visualizer**: `visualizer_open`, `visualizer_set_track`, `visualizer_set_style`

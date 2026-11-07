@@ -286,7 +286,7 @@ contract input.
 | Source claim | Verdict here |
 |---|---|
 | <50 draw calls, <250 MB textures, 5–10 characters | Generic-web targets. **Our measured budgets govern**: ≤150 calls, ≤1 GB scene textures, ≤8 skinned (budget doc) |
-| 54-bone skeleton, full fingers, no twists | Rebalanced to 47/59 with twist bones (§2) |
+| 54-bone skeleton, full fingers, no twists | Rebalanced to 49/61 with twist bones (§2) |
 | Beat controller math (uniform beats) | Wrong for real songs; interpolate the measured grid (§3) |
 | VRAM table (~32 MB per character) | Conflates file size with decoded size; KTX2 stays GPU-compressed — account per the budget doc, measure with RenderStatsBadge |
 | "Pose extraction" = OpenPose on video (report 1) | Different problem (foreign footage). Report 2's render-from-owned-skeleton answer adopted (§5) |

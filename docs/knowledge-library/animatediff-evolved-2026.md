@@ -16,6 +16,10 @@ type: source
 
 # 🎬 AnimateDiff Evolved — Knowledge Library Entry (November 2026)
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
+> **Currency (2026-11-07):** in the wider open ecosystem AnimateDiff is now a legacy/niche route — ComfyUI's video center is Wan 2.x and HunyuanVideo 1.5. It remains documented here, and remains this studio's primary 8GB video lane, as a **hardware-niche decision** (SD checkpoints + motion modules fit Pascal 8GB; see [[comfyui-workflows]] and [[ai-video-trends-2026]]), not as a general recommendation.
+
 > **Context**: Comprehensive documentation of AnimateDiff Evolved (ComfyUI-AnimateDiff-Evolved by Kosinkadink) — the leading community implementation of AnimateDiff for ComfyUI as of November 2026.
 
 ---

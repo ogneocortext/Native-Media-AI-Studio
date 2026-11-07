@@ -172,6 +172,8 @@ Geographic documentary style, 4k detail"
 
 ## Negative Prompts
 
+> **Defect vs pattern negatives:** the strings below fight *defects* (blur, deformity, watermarks). They do not fight *slop* — a flawless render can still be generic. Pattern negatives and the full anti-pattern canon live in [[media-anti-patterns-2026]] §2; a complete negative carries both classes.
+
 ### Universal Negative Prompt
 
 > [!tip] Standard Negative

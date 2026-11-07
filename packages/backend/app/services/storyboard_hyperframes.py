@@ -77,8 +77,15 @@ def build_hyperframes_audio_payload(
     transcript: dict[str, Any] | None = None,
     fps: int = 30,
     bands: int = 16,
+    band_frames: list[list[float]] | None = None,
 ) -> dict[str, Any]:
-    """Build deterministic, compact AUDIO_DATA from cached analysis + lyrics."""
+    """Build deterministic, compact AUDIO_DATA from cached analysis + lyrics.
+
+    When `band_frames` (measured per-frame band spectra, e.g. from
+    `services.cuda.track_band_frames`) is supplied, frames carry real
+    spectral data; otherwise bands fall back to a synthetic decay ramp
+    off the energy scalar, and the payload says so in `bands_source`.
+    """
     duration = float(analysis.get("duration_seconds") or analysis.get("duration") or 0)
     if duration <= 0:
         raise ValueError("analysis duration must be positive")
@@ -98,9 +105,18 @@ def build_hyperframes_audio_payload(
     frames = []
     for index in range(total_frames):
         energy = energy_curve[min(index, len(energy_curve) - 1)] if energy_curve else 0.0
-        band_values = [
-            max(0.0, min(1.0, energy * (1.0 - band / (bands * 1.6)))) for band in range(bands)
-        ]
+        if band_frames:
+            src = band_frames[min(index, len(band_frames) - 1)]
+            band_values = [
+                max(0.0, min(1.0, float(src[band]))) if band < len(src) else 0.0
+                for band in range(bands)
+            ]
+        else:
+            # Fallback when no measured spectra are available: a synthetic
+            # decay ramp off the energy scalar. Not spectral data.
+            band_values = [
+                max(0.0, min(1.0, energy * (1.0 - band / (bands * 1.6)))) for band in range(bands)
+            ]
         frames.append(
             {
                 "time": round(index / fps, 4),
@@ -115,6 +131,7 @@ def build_hyperframes_audio_payload(
         "fps": fps,
         "duration": duration,
         "bands": bands,
+        "bands_source": "measured" if band_frames else "synthetic",
         "totalFrames": total_frames,
         "beat_times": beats,
         "downbeat_times": sorted(downbeats),
