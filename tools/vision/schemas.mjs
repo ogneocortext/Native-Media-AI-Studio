@@ -181,6 +181,43 @@ export const MODE_SCHEMAS = {
     required: ['transitions', 'summary'],
   },
 
+  vizmode: {
+    type: 'object',
+    properties: {
+      mode_id: loose,
+      scores: {
+        type: 'object',
+        properties: {
+          composition: { type: 'number' },
+          reactivity: { type: 'number' },
+          readability: { type: 'number' },
+          motion: { type: 'number' },
+          color: { type: 'number' },
+          polish: { type: 'number' },
+          overall: { type: 'number' },
+        },
+      },
+      strengths: { type: 'array', items: loose },
+      findings: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            severity: { type: 'string', enum: ['critical', 'major', 'minor', 'cosmetic', 'info'] },
+            confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+            element: loose,
+            issue: loose,
+            fix: loose,
+          },
+        },
+      },
+      top_fixes: { type: 'array', items: loose },
+      uncertain: { type: 'array', items: loose },
+      summary: loose,
+    },
+    required: ['scores', 'summary'],
+  },
+
   ocr: {
     type: 'object',
     properties: {

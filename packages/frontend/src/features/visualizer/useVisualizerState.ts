@@ -74,6 +74,7 @@ export interface VisualizerState {
     loadedPresetName: string | null;
     storyboard: unknown;
     activeVisualPresetId: string | null;
+    activeShaderPreset: ShaderPresetName | undefined;
     visualsVisible: boolean;
     lyricsVisible: boolean;
     characterVisible: boolean;
@@ -89,6 +90,7 @@ export interface VisualizerState {
     loadedPresetName: string | null;
     storyboard: unknown;
     activeVisualPresetId: string | null;
+    activeShaderPreset: ShaderPresetName | undefined;
     visualsVisible: boolean;
     lyricsVisible: boolean;
     characterVisible: boolean;
@@ -310,6 +312,7 @@ export function useVisualizerState() {
     loadedPresetName: string | null;
     storyboard: unknown;
     activeVisualPresetId: string | null;
+    activeShaderPreset: ShaderPresetName | undefined;
     visualsVisible: boolean;
     lyricsVisible: boolean;
     characterVisible: boolean;
@@ -334,6 +337,7 @@ export function useVisualizerState() {
     loadedPresetName: null,
     storyboard: null,
     activeVisualPresetId: null,
+    activeShaderPreset: undefined,
     visualsVisible: true,
     lyricsVisible: true,
     characterVisible: true,

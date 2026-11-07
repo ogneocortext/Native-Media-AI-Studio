@@ -23,6 +23,7 @@ import { cleanTrackName } from "./visualizerHelpers";
 import { CANVAS_2D_MODES, type Canvas2DMode } from "./visualizerHelpers";
 import type { VizMode } from "./visualizerHelpers";
 import type { VisualizationStyle } from "./trackConceptAnalyzer";
+import type { ShaderPresetName } from "./shaders";
 import type { VisualizerStateSetters } from "./useVisualizerState";
 
 interface TestState {
@@ -36,6 +37,7 @@ interface TestState {
   loadedPresetName: string | null;
   storyboard: unknown;
   activeVisualPresetId: string | null;
+  activeShaderPreset: ShaderPresetName | undefined;
   visualsVisible: boolean;
   lyricsVisible: boolean;
   characterVisible: boolean;
@@ -70,6 +72,7 @@ export interface UseVisualizerLifecycleOptions {
     characterVisible: boolean;
     canvas2DMode: Canvas2DMode;
     activeVisualPresetId: string | null;
+    activeShaderPreset: ShaderPresetName | undefined;
   };
   setters: Pick<
     VisualizerStateSetters,
@@ -85,6 +88,7 @@ export interface UseVisualizerLifecycleOptions {
     | "setCharacterVisible"
     | "setModeFade"
     | "setVisualizationStyle"
+    | "setActiveShaderPreset"
   >;
   refs: {
     audioElRef: React.MutableRefObject<HTMLAudioElement | null>;
@@ -124,6 +128,7 @@ export function useVisualizerLifecycle({
     characterVisible,
     canvas2DMode,
     activeVisualPresetId,
+    activeShaderPreset,
   } = state;
   const {
     setLoopRegion,
@@ -138,6 +143,7 @@ export function useVisualizerLifecycle({
     setCharacterVisible,
     setModeFade,
     setVisualizationStyle,
+    setActiveShaderPreset,
   } = setters;
   const { audioElRef, audioElapsedRef, prevModeRef, testStateRef, prevTestState } = refs;
   const {
@@ -332,7 +338,8 @@ export function useVisualizerLifecycle({
       prevTestState.current.visualsVisible !== visualsVisible ||
       prevTestState.current.lyricsVisible !== lyricsVisible ||
       prevTestState.current.characterVisible !== characterVisible ||
-      prevTestState.current.canvas2DMode !== canvas2DMode
+      prevTestState.current.canvas2DMode !== canvas2DMode ||
+      prevTestState.current.activeShaderPreset !== activeShaderPreset
     ) {
       testStateRef.current = {
         vizMode,
@@ -345,6 +352,7 @@ export function useVisualizerLifecycle({
         loadedPresetName: loadedPreset?.name ?? null,
         storyboard,
         activeVisualPresetId,
+        activeShaderPreset,
         visualsVisible,
         lyricsVisible,
         characterVisible,
@@ -364,6 +372,7 @@ export function useVisualizerLifecycle({
     lyricsVisible,
     characterVisible,
     canvas2DMode,
+    activeShaderPreset,
   ]);
 
   // __VIZ_TEST__ harness — dev-only, registered once.
@@ -382,6 +391,8 @@ export function useVisualizerLifecycle({
       setMode: (mode: "3d" | "shader" | "2d") => setVizMode(mode),
       setStyle: (style: VisualizationStyle) => setVisualizationStyle(style),
       set2DMode: (mode: Canvas2DMode) => setCanvas2DMode(mode),
+      setShaderPreset: (preset: ShaderPresetName) => setActiveShaderPreset(preset),
+      togglePlay: () => togglePlayPause(),
       getState: () => ({ ...testStateRef.current }),
       toggleTestPanel: () => setShowTestPanel((v) => !v),
       setLayerVisible: (layer: "visuals" | "lyrics" | "character", v: boolean) => {

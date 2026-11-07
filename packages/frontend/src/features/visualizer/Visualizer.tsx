@@ -687,6 +687,7 @@ export function Visualizer() {
       characterVisible,
       canvas2DMode,
       activeVisualPresetId,
+      activeShaderPreset,
     },
     setters: {
       setLoopRegion,
@@ -701,6 +702,7 @@ export function Visualizer() {
       setCharacterVisible,
       setModeFade,
       setVisualizationStyle,
+      setActiveShaderPreset,
     },
     refs: {
       audioElRef,

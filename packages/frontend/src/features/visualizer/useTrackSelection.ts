@@ -368,7 +368,7 @@ export function useTrackSelection({
       setLyrics(trackLyrics);
       setLyricsVisible(trackLyrics.length > 0);
 
-      const energy = analysis.energy_curve.length
+      const energy = analysis?.energy_curve?.length
         ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
         : 0.5;
       // Kinetic preset resolution happens ONCE below: the visual preset
@@ -379,7 +379,7 @@ export function useTrackSelection({
       let fallbackKineticId = selectPresetForTrack(cleanName, energy);
       if (
         fallbackKineticId === "cinematic" &&
-        analysis.suggested_kinetic_preset &&
+        analysis?.suggested_kinetic_preset &&
         (analysis.suggested_kinetic_preset_confidence ?? 0) > 0.6
       ) {
         fallbackKineticId = analysis.suggested_kinetic_preset;
@@ -417,7 +417,7 @@ export function useTrackSelection({
       if (
         !trackProfile &&
         visualPresetId === "balanced" &&
-        analysis.suggested_visualization &&
+        analysis?.suggested_visualization &&
         (analysis.suggested_visualization_confidence ?? 0) > 0.55
       ) {
         const styleMapped = visualizationStyleToPresetId(analysis.suggested_visualization);

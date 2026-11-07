@@ -1150,3 +1150,51 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   before commit.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-VIZ-51 — Mode-presentation QA pipeline: video-capture → per-mode scoring → scorecard
+
+- **Status:** done
+- **Goal:** Owner request — build skills that measure each visualizer
+  mode's presentation across real playback frames (not static snaps),
+  as the measurement foundation for a ground-up mode redesign using the
+  knowledge-library 3D/audio-reactive research.
+- **What changed:**
+  - `tools/vision/viz-capture.mjs` (new): drives `/render/visualizer`
+    through `__VIZ_TEST__` — selects a library track, starts playback,
+    cycles every mode (3d + 8 FX shader presets + 14 Canvas2D modes) with
+    a dwell per mode, records one continuous Playwright webm, writes
+    `marks.json` (mode id, kind, video-clock timestamp, state snapshot).
+    Modes grammar: `all` | `3d` | `shader` | `2d` | `shader:id` | `2d:id`.
+  - `tools/vision/viz-score.mjs` (new): slices the webm per mark into
+    per-mode segments, extracts N steady-state frames per mode (settle
+    excluded), runs `analyze.mjs --mode vizmode` on each mode's frame
+    set, normalizes gemma4 JSON scores and qwen3.5 `=== SCORES ===` text
+    into `scorecard.md`/`scorecard.json` ranked by overall.
+  - `analyze.mjs`/`schemas.mjs`/prompts: new `vizmode` analyze mode —
+    rubric scores composition / reactivity / readability / motion /
+    color / polish (1-5) + honest overall + per-mode findings +
+    cross-mode top_fixes; `vizmode` schema; gemma4 + qwen3.5 prompts.
+  - `__VIZ_TEST__` harness (useVisualizerLifecycle + Visualizer +
+    useVisualizerState): added `setShaderPreset(id)`, `togglePlay()`,
+    `activeShaderPreset` in `getState()` — the capture could not reach
+    FX presets or guarantee playback before this.
+  - `useTrackSelection.ts`: fixed a real crash — `analysis.energy_curve`
+    and suggested-preset dereferences threw when a track had no cached
+    analysis (the toast promised live-audio fallback, then crashed).
+    Guards added; `tsc -b` clean.
+  - `.claude/skills/visualizer-mode-qa/SKILL.md` (new, mirrored to
+    .devin/.agents/.kilo — mirrors are gitignored): pipeline usage,
+    rubric dimensions, scorecard interpretation, redesign loop pointing
+    at the knowledge-library docs, gotchas (dev-only harness, autoplay,
+    per-mode song-section caveat, GPU budget).
+- **Files:** tools/vision/{viz-capture,viz-score}.mjs,
+  tools/vision/{analyze.mjs,schemas.mjs,prompts/gemma4-ui.mjs,
+  prompts/qwen35-ui.mjs}, features/visualizer/{Visualizer.tsx,
+  useVisualizerLifecycle.ts,useVisualizerState.ts,useTrackSelection.ts},
+  .claude/skills/visualizer-mode-qa/SKILL.md.
+- **Verification:** smoke capture (3 modes) produced webm + marks +
+  per-mode scores; full 23-mode baseline on "Ship It Anyway" running at
+  commit time — scorecard lands in viz-capture-*/scorecard.md.
+- **Acceptance:** satisfied at completion (baseline scorecard is the
+  redesign input; redesign itself is the next item).
+- **Last session:** Devin, 2026-11-08 — commit c482736b.

@@ -76,6 +76,7 @@ const MODE_MODEL = {
   compare: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   multicomp: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   'music-video': 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  vizmode: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   depth: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   consistency: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
 };
@@ -992,7 +993,7 @@ async function main() {
     // exhausts num_predict re-evaluating and never emits content.
     let lastFromThinking = false;
     // Auto-enable reasoning for complex analysis modes on capable models.
-    const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp', 'video']);
+    const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp', 'video', 'vizmode']);
     const autoThink = args.think || reasoningModes.has(args.mode);
     // With --backend atomic the resolved model is an Atomic Chat resident
     // (e.g. "unsloth/Qwen3_5-4B-GGUF-...") which does NOT exist in Ollama —

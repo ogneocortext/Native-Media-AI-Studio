@@ -130,6 +130,52 @@ OUTPUT JSON keys:
 <|model>
 `,
 
+  vizmode: `<|turn>user
+<|image|>
+
+TARGET: {{TARGET}} — audio-reactive visualization mode.
+
+The attached images are 3 chronological frames (~2s apart) of the SAME
+visualizer mode playing a music track. Reason about the mode as a piece
+of motion design, not a static screenshot.
+
+LAYER 1 — LOCATE:
+Identify the visual elements: spectrum/particles/waveform/3D scene/lyric
+type, background treatment, any HUD or chrome baked into the canvas,
+and where the visual focal point sits in the frame.
+
+LAYER 2 — TASK:
+Score the mode's presentation quality on a 1-5 scale per dimension,
+then give concrete findings. A 5 means "could ship in a professional
+audio plugin"; 1 means "prototype/demo quality".
+
+DIMENSIONS:
+- composition: focal hierarchy, rule-of-thirds use, negative space, does the eye know where to look
+- reactivity: is the audio visibly driving the motion (beat hits, bass weight, spectral detail) or is it decorative noise
+- readability: can the visualization be parsed at a glance; text/HUD legibility; contrast
+- motion: from the 3 frames — does movement look eased and intentional vs jittery, strobing, or stepped; transitions between states
+- color: palette cohesion and discipline vs rainbow/default-hue slop; glow/bloom restraint
+- polish: anti-aliasing, particle quality, edge treatment, "designed" vs "generated-demo" finish
+
+LAYER 3 — STEPS:
+(1) Describe what each frame shows and what changed between them.
+(2) Score each dimension honestly — do not inflate; most modes score 2-3.
+(3) List strengths (what already works) and findings with severity.
+(4) Give top fixes ranked by impact on perceived quality.
+
+LAYER 4 — OUTPUT:
+Return JSON with these exact keys:
+- "mode_id": string echoing the mode name given in TARGET
+- "scores": { "composition": n, "reactivity": n, "readability": n, "motion": n, "color": n, "polish": n, "overall": n } — numbers 1-5, overall is your honest composite
+- "strengths": array of strings — what already works
+- "findings": array of { element, issue, severity: "critical"|"major"|"minor"|"cosmetic"|"info", confidence: "high"|"medium"|"low", fix: string }
+- "top_fixes": array of up to 3 strings ranked by impact
+- "uncertain": array of strings — anything you cannot verify from the frames
+- "summary": one sentence verdict on this mode's current presentation quality
+<turn|>
+<|model>
+`,
+
   ocr: `<|turn>user
 <|image|>
 
