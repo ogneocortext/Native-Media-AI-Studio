@@ -101,6 +101,7 @@ date: 2026-09-30
 - [[canvas2d-bar-visualization-research|📊 Canvas2D Bar Visualization Research]] — Modern bar-mode improvements: smoothing, glow, reflections, HiDPI rendering
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules
 - [[visual-style-system-2026|🎭 Visual Style System — House Looks]] — Nine named looks spec'd as shared style records across scene gen, visualizer, HyperFrames and the AI skin: the original six (Studio Console, Arcade Velocity, Vice Sunset, Analog Print, Monochrome Signal, Night Broadcast) plus three created from the 14-track comparison (Dial-Up, Future Gloss, Drift); §6 maps every real track to its look; registry as T-VID-24 (NEW 2026-11-07)
+- [[visual-storytelling-grammar-2026|🎬 Visual Storytelling Grammar]] — The grammar the shot lists never had: the four modes and choosing per track, the motivated cut (four legal motivations, on-beat vs off-beat semantics), measured section grammar (the delta rule, stillness budget), coverage/motif/retention rules, per-look cut grammars for all nine looks, and worked paper boards (Human in the Loop, The Last Original) beside the V5 reference; storyboard source for T-VID-02 Step 5, registered as T-VID-27 (NEW 2026-11-07)
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py`
 - [[dark-ui-color-system-2026|🌙 Dark UI Color System 2026]] — OKLCH dark-mode tokens, contrast, accessibility
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
@@ -189,7 +190,7 @@ date: 2026-09-30
 || `#production/*` | Production workflow & creative guides | 21 documents |
 || `#technical/*` | System implementation & code | 24 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
-|| `#creative/*` | Design, effects & visualization | 23 documents |
+|| `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
 || `#research/*` | Industry trends & analysis | 22 documents |
@@ -208,7 +209,7 @@ date: 2026-09-30
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
-|| `#design` | Design systems & UX | 7 documents |
+|| `#design` | Design systems & UX | 8 documents |
 || `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 19 documents |

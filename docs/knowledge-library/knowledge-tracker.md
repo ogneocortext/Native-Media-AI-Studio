@@ -103,12 +103,13 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unity-audio-visualization-2026.md`  → `#platform`, `#platform-unity`,
   `#audio`, `#visualization`
 
-### 🎨 Creative & Visual (23/23 completed)
+### 🎨 Creative & Visual (24/24 completed)
 
 - ✅ `visualization-effects.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`, `#audio`
 - ✅ `3d-visualization-best-practices-2026.md`  → `#creative`, `#visualization`, `#webgpu`, `#3d`
 - ✅ `color-strategy-2026.md`  → `#creative`, `#design`
 - ✅ `visual-style-system-2026.md`  → `#creative`, `#design`
+- ✅ `visual-storytelling-grammar-2026.md`  → `#creative`, `#design`
 - ✅ `design-philosophy-2026.md`  → `#creative`, `#design`
 - ✅ `visualizer-state-analysis-2026.md`  → `#creative`, `#visualization`, `#ai`
 - ✅ `2d-visualization-2026.md`  → `#creative`, `#visualization`, `#audio`

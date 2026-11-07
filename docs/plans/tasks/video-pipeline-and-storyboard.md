@@ -364,3 +364,12 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
 - **Acceptance:** Checklist published in the Gap 6 design; intake script runs against a real generated asset and reports the mechanical checks; a blockout-class asset and a hero-class asset both pass through the gate with recorded verdicts.
 - **Gate:** Design-first under the T-VID-07 pattern — design anytime on the owner's word; implementation downstream of T-VID-16's asset definition and the storyboard critical path.
 - **Last session:** Orion, 2026-11-07 — registered with the bones/skin doc expansion at the owner's direction; not started.
+
+### T-VID-27 — Visual storytelling grammar as storyboard source
+- **Status:** todo
+- **Goal:** Make [[visual-storytelling-grammar-2026]] a consumed input of storyboard enrichment (T-VID-02 Step 5), the way the practice doc's R1–R6 rules already are: today a board can be grammatically empty — panels with framings and timings but no mode, no motivated-cut rationale, no motif — and nothing downstream can tell.
+- **Plan:** (1) Board schema grows the grammar fields from the doc's §10: `mode` (performance/narrative/conceptual/hybrid), `cut_grammar` (the active look's §8 row), per-section treatment rationale citing a §3 motivation, `motif` + payoff section, opening/re-hook/last-frame decisions. (2) The storyboard generator's prompt/contract names the grammar doc as required reading alongside the practice doc; a board missing the fields is incomplete, not stylistically different. (3) Review pass: one existing board (or the next one produced) annotated against the grammar as the worked acceptance — every section's treatment traceable to a rule.
+- **Files:** docs/knowledge-library/visual-storytelling-grammar-2026.md (source, landed); storyboard generator + board schema (Step 5 homes, per T-VID-02); docs/knowledge-library/music-video-production.md (pointer landed with the grammar)
+- **Acceptance:** Schema carries the §10 fields; one board exists with all fields populated and rule-cited treatments; check-all docs gate no worse than baseline.
+- **Gate:** Design/schema work — research lane on the owner's word; implementation inside Step 5's existing gate (downstream of T-VID-02).
+- **Last session:** Orion, 2026-11-07 — registered with the grammar doc at the owner's direction; not started.
