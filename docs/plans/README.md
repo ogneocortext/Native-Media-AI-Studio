@@ -39,6 +39,7 @@ they live in git, not in a chat window.
 - **control-conditioned-lane-2026-11.md** — T-VID-14 Route B lane design (depth+OpenPose ControlNet + AnimateDiff on SD1.5, verified model inventory, reproducibility contract)
 - **lighting-look-rigs-2026-11.md** — T-VID-15 scene-side cinematography registry (7 lighting rigs ≤3 dynamic lights, 6-lens set, 5 looks + Route A grade step; reconciles T-VID-11 vocabulary)
 - **character-identity-layer-2026-11.md** — T-VID-16 character asset schema + consistency contract (id+version ⇒ geometry/rig/identity, sha256-pinned, curation rule, override whitelist)
+- **bones-render-capture-spec-2026-11.md** — T-VID-17 capture spec (Eevee decided lane, Cycles = luxury not loop, determinism rules, throughput cost model)
 - **music-track-stack-integration.md** — Part 1 landed 2026-09-22; follow-ups partially landed
 
 ### In progress

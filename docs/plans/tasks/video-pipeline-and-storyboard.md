@@ -392,13 +392,32 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   or renders produced.
 
 ### T-VID-17 — Design the bones render lane: deterministic capture spec
-- **Status:** todo
+- **Status:** done
 - **Goal:** A written capture spec for turning scenes into frame packages: Eevee-class real-time raster as the decided engine lane, sampling/denoise settings, a resolution ladder tied to the budget doc, and deterministic frame export. Design only — the decision and its settings, no renders.
 - **Plan:** Evidence: no engine/settings decision exists for scene capture; the baseline argues it (§5 Gap 5 of the gap doc): no RT cores and a 6-physical-core CPU fallback make a Cycles-class lane unable to be the iteration loop on this hardware. Steps: (1) Engine decision recorded with the baseline reasoning (Eevee-class default; Cycles-class named as final-frame luxury, explicitly not the loop). (2) Capture settings: samples/denoise, resolution ladder (draft/final) mapped to budget-doc caps and the profile's 768×768 ComfyUI input expectations for Route B. (3) Determinism: frame stepping + seed discipline — the [[three-js-render-motion-2026]] clock discipline applied to the bpy side. (4) Throughput expectations per lane (CPU playbook: batch renders are solo/split-lane jobs).
 - **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 5); docs/knowledge-library/ryzen-5500-cpu-playbook-2026.md (lanes); config/hardware-profile.json
 - **Acceptance:** A capture spec exists with the engine decision and its reasoning recorded; an implementer can cost a scene (frames × settings → wall-clock lane) from the spec alone.
 - **Gate:** as T-VID-13.
-- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/bones-render-capture-spec-2026-11.md` (registered in plans
+  README, Status Proposed). Engine decision recorded with reasoning:
+  Blender bpy + Eevee is THE capture lane (no RT cores + 6 physical
+  cores ⇒ Cycles CPU fallback can't iterate; budget doc IS Eevee's
+  quality strategy); Cycles named final-frame luxury explicitly not
+  the loop; Three.js Studio = preview surface not package authority
+  (no AOV pipeline — v2 question). Settings table: draft 540p/16spp,
+  final spec-native ≤1080p/64spp, OIDN denoise, AgX view transform;
+  control passes as separate bpy render layers at 0.2–0.4× beauty
+  cost. Resolution ladder draft/review/final mapped to budget caps +
+  Route B's 768×768 lane input (lane downscales, package ships
+  scene-native). Determinism: six bpy-side rules mirroring
+  three-js-render-motion-2026 — pure function of frame_set(f), seeded
+  randomness (scene.nma_seed+f), baked sims, beat→frame quantization,
+  builder version in manifest, fixed samples/res/color-mgmt.
+  Throughput cost model with worked example: 5,760-frame scene ≈
+  30–35 min final / 5–8 min draft, solo-lane batch job; golden-scene
+  measurement named as the calibration step (verdicts §7). No code or
+  renders produced.
 
 ### T-VID-18 — Design the scene vocabulary + material library (what the builder can choose from)
 - **Status:** todo
