@@ -165,7 +165,7 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   comparison (±2 BPM tolerance).
 
 ### T-VID-05 — Design a spec-driven 3D scene builder (scenes as data)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A written spec for 3D scene generation in which the
   model emits a validated scene spec (JSON) and a deterministic
   builder executes it — the intro-recipe pattern extended to
@@ -198,10 +198,36 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
 - **Acceptance:** The spec document exists with the schema,
   validator rules, both builder outlines, and the worked example;
   no code or renders produced.
-- **Last session:** Orion, 2026-11-01 — Item created with the
-  knowledge doc; not started. GPT-6, 2026-11-01 — amended the plan
-  to include the existing ESSL 1.00 compile gate if a future Three.js
-  builder emits custom GLSL.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/scene-spec-v0-2026-11.md` (registered in plans README,
+  Status Proposed) — the capstone integrating this session's
+  vocabulary docs: camera (T-VID-11), lighting/look (T-VID-15),
+  passes (T-VID-13), characters (T-VID-16), primitives/materials/
+  assets (T-VID-18) all cited as field authority, never re-decided.
+  Schema v0: stage/camera/lighting/look/objects/characters/passes/
+  analysis/features_used. v0 owns two new field families:
+  `relations` (7 declarative spatial constraints, spec-order
+  deterministic resolution, no cycles, fixed conventions — metres,
+  Y-up, glTF frame, degrees, feet-at-origin) and `bindings`
+  (audio-reactive props bound to measured-grid features only —
+  beat→frame quantization, never metadata BPM). `analysis` block
+  pins the spec to a specific measured beat-grid/stem-analysis —
+  caught during the worked-example walk: feature names are
+  track-relative so the binding had to become explicit data.
+  Validator: 8 ordered rule groups. Builders: bpy generator
+  (spec→bpy script, never model-written Python), Unity SpecLoader
+  (spec IS the scene JSON — Holodeck's solver step correctly
+  inverted), Three.js preview consumer. Worked example: 30 s
+  monolith scene walked through all three builders; ambiguities
+  found were fixed in-schema (analysis_ref→analysis field,
+  heightVar_dist, degrees, feet-at-origin) not left as prose. Four
+  owner open questions recorded (asset-library source, third
+  builder?, analysis hash-vs-path, multi-shot v0). ESSL 1.00 GLSL
+  gate note carried per T-PLT-10. No code or renders produced.
+  Prior: Orion, 2026-11-01 — Item created with the knowledge doc;
+  not started. GPT-6, 2026-11-01 — amended the plan to include the
+  existing ESSL 1.00 compile gate if a future Three.js builder
+  emits custom GLSL.
 
 ### T-VID-06 — Decompose music-video steps.tsx into per-step modules
 - **Status:** done
