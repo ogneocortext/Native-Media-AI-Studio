@@ -281,13 +281,34 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   RenderStatsBadge budget-vs-actual.
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
-- **Status:** todo
+- **Status:** done
 - **Goal:** A written spec for the frame package the 3D builder emits per scene: beauty frames plus the control passes Route B consumes — depth, normals, segmentation/object-ID, pose for rigged characters, and camera metadata — versioned as one contract that [[3d-bones-ai-skin-pipeline-2026]] §3 defines as the pipeline's interface. Design only.
 - **Plan:** Evidence (2026-11-06): grep finds no pass/AOV support anywhere in scene/gen3d code; T-VID-05's spec covers objects/materials/lights/camera/bindings but no passes. Steps: (1) Pass list + semantics (what each pass encodes, value ranges, color space). (2) Formats + resolution relationship to beauty (full/half), naming and package versioning. (3) Storage/write budget on the SATA SSD (profile risk notes) — pass set sized so a song-length scene stays sane. (4) How the T-VID-05 spec requests passes (per-scene pass block) and how the validator checks them against the T-VID-12 scene caps.
 - **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 1); the T-VID-05 spec doc when written; docs/knowledge-library/pascal-3d-budget-discipline-2026.md (caps)
 - **Acceptance:** A frame-package spec exists that a builder implementer and a lane implementer (T-VID-14) can each build against without asking the other questions; pass set + formats + versioning are named decisions, not options.
 - **Gate:** Design work may start any time; any implementation item spun out of it waits on the owner's word and sits downstream of T-VID-02 and the storyboard critical path.
-- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/frame-package-contract-2026-11.md` (registered in
+  plans README, Status Proposed). Named decisions, not options: pass
+  set = beauty (PNG sRGB 8-bit) + depth (16-bit gray, fixed shot
+  bounds, nearer-white) + normals (8-bit RGB **world-space** —
+  view-space rejected: re-encodes under camera moves) +
+  segmentation (16-bit object index + palette, spec-stable IDs) +
+  pose (OpenPose RGB, verdicts-doc contract adopted verbatim, pose
+  from evaluated owned skeleton never re-estimated) + pose_archive
+  (float32 `[frame][joint][10]` + JSON, HouseRig_v1 joint order,
+  sha256-bound to asset rig manifest) + camera.jsonl (glTF
+  cam-to-world 4×4 per frame, depth bounds repeated per frame).
+  Versioning: `frame-package/v1` string in manifest; major = encoding/
+  precision/layout change, minor = optional fields. Scene-spec
+  `passes` block defined incl. `pose:"auto"` and per-pass `scale`
+  1.0/0.5; validator checks pass set against
+  `config/asset-budgets.json` caps as a write-bandwidth estimate.
+  Storage honesty: full set ≈20–38 GB per 4-min song at 1080p30 —
+  passes are selectable and half-res is the pressure valve; sequential
+  per-directory writes mandated for the SATA SSD. Seven validator
+  checks enumerated (§10). Unblocks T-VID-14 (lane inputs), T-VID-16
+  (identity refs), informs T-VID-15/17. No code or renders produced.
 
 ### T-VID-14 — Design the control-conditioned generation lane (frame packages → AI skin)
 - **Status:** todo
