@@ -44,6 +44,7 @@ date: 2026-09-30
 - [[browser-character-pipeline-verdicts-2026|✅ Browser Character Pipeline — Verdicts]] — The agenda answered: hybrid sourcing, HouseRig_v1 (49/61 bones), retarget + beat architecture, KTX2/single-material rules, runtime + disposal — distilled from an external research report and corrected against the studio's budgets (NEW 2026-11-06)
 - [[media-anti-patterns-audit-2026|🚫 Media Anti-Patterns — Audit]] — Measured verdict: the library teaches generation capability and almost no slop-avoidance (17 of 49 media docs carry any avoid-language; the 3 ComfyUI workflows ship positive-only adjective stacks with no negatives); the canonical anti-patterns doc + pointers + surface fixes are T-VID-25 (NEW 2026-11-07)
 - [[media-anti-patterns-2026|🚫 Media Anti-Patterns — The Canon]] — The single-source slop list for all media work: slop as specification failure, the six-point brief discipline, defect-vs-pattern negatives, and per-medium pattern tables (image, video/motion, 3D, music, lyrics) each with its replacement move, plus the five-question grading checklist (NEW 2026-11-07)
+- [[tracker-pattern-craft-2026|🎼 Tracker Pattern Craft]] — What a proper tracker pattern looks like: the 64-row grid, fixed channel roles, the 2-bar motif with ending-only variation, fake echo, effect discipline, and the nine named beginner failures — the chiptune generator's craft reference, with a built-to-spec exemplar set (NEW 2026-11-07)
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
@@ -187,7 +188,7 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 21 documents |
+|| `#production/*` | Production workflow & creative guides | 22 documents |
 || `#technical/*` | System implementation & code | 24 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
@@ -210,7 +211,7 @@ date: 2026-09-30
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 8 documents |
-|| `#audio` | Audio analysis & processing | 24 documents |
+|| `#audio` | Audio analysis & processing | 25 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 19 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
