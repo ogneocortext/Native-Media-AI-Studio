@@ -987,6 +987,7 @@ Rules: `docs/plans/tasks/README.md`
   health green for 2mv; live `POST /api/3d/generate-image?model=hunyuan3d_2mv`
   → success, `mv_e2e_test_00001_.glb` (1.1 MB decimated) in
   `generated_3d/`, timing queue 2ms / inference 222s / post 20s.
+<<<<<<< HEAD
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
 - **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit. Same-day LTX follow-through: the "already dispatched" claim hid a broken graph — `LTXVConditioning` was fed raw prompt strings (it only retimes CONDITIONING), `CLIPLoader type` was `"ltx"` not `"ltxv"`, `VHS_VideoCombine` format was the invalid `"video/mp4"`, and the I2V path's VAEEncode output was never wired into the sampler. All repaired to the native node contract; live `adapter.generate()` → `output/video/NativeMediaAI_LTX_00005.mp4` (25f 768×512, ~130 s). Stale-test repairs landed alongside: fake-clock monotonic patch, Atomic Chat auth-aware skip, vram fixture attrs, hardware-profile num_ctx/version, starlette/anyio filterwarning, Ollama `eval_count` pass-through.
 ### T-PLT-35 — Retrieval reranker idle-unload (in-process RAM)
@@ -1271,8 +1272,8 @@ Rules: `docs/plans/tasks/README.md`
     `<Button color="primary" size="sm">` with a styled `<button>`, the
     error `<Card>` with a plain alert `<div>`, and the content wrapper
     `<Card>` with the shared components/common Card. Deleted
-    src/types/tabler-react.d.ts and the four allowlist entries;
-    pnpm install dropped 26 packages. One latent type error surfaced
+    src/types/tabler-react.d.ts and the four allowlist entries; pnpm
+    install dropped 26 packages. One latent type error surfaced
     (tabler's loose children typing hid `unknown` category) — fixed
     with a typeof-string guard.
   - REGRESSION FOUND AND FIXED: catalog had `typescript: ^7.0.2` despite
@@ -1301,3 +1302,15 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Devin, 2026-11-06 - tabler-react removed after
   DataManagementPage refactor; peers check still clean, tsc clean,
   eslint 0 errors on the touched file.
+=======
+- **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit. Same-day LTX follow-through: the "already dispatched" claim hid a broken graph — `LTXVConditioning` was fed raw prompt strings (it only retimes CONDITIONING), `CLIPLoader type` was `"ltx"` not `"ltxv"`, `VHS_VideoCombine` format was the invalid `"video/mp4"`, and the I2V path's VAEEncode output was never wired into the sampler. All repaired to the native node contract; live `adapter.generate()` → `output/video/NativeMediaAI_LTX_00005.mp4` (25f 768×512, ~130 s). Stale-test repairs landed alongside: fake-clock monotonic patch, Atomic Chat auth-aware skip, vram fixture attrs, hardware-profile num_ctx/version, starlette/anyio filterwarning, Ollama `eval_count` pass-through.
+
+### T-PLT-35 — Reconcile config/hardware-profile.json with the hardware playbooks
+- **Status:** doing
+- **Goal:** The hardware profile (v2, landed in d8d32311) predates the three hardware playbooks written 2026-11-06 ([[pascal-gpu-optimization-2026]], [[pascal-3d-budget-discipline-2026]], [[ryzen-5500-cpu-playbook-2026]]). Audit every profile value against the docs, resolve the contradictions, and add the verified fields the docs now establish — so the app targets hardware from the same numbers the docs prescribe.
+- **Plan:** Audit (Orion, 2026-11-06) found: (1) `limits.torch_num_threads: 12` and `optimizations.pytorch.cpu_threads: 12` contradict the CPU playbook §2 — 12 is a solo-lane value; a job sharing the chip caps at 6 physical cores. The config needs the lane distinction, not a single number. (2) `limits.ffmpeg_threads: 12` + `ffmpeg_max_concurrent: 2` contradict playbook §4/§5 — two concurrent encodes is an NVENC-draft allowance; x264 masters are solo-lane. (3) The encode decision itself (NVENC drafts / x264 masters, playbook §5) is unexpressed — the profile carries only an NVENC preset. (4) Verified fields missing (CPU-Z, 2026-11-06): memory channels (2×64-bit) and bandwidth class, L3 16 MB, GPU PCIe gen/link width, board identity. (5) Workload blocks missing: faster-whisper (int8, cpu_threads 6), stem-separation thread caps, dataloader workers ≤ 2. (6) No pointer to the 3D scene budgets — cross-reference T-VID-12's config when it lands; never duplicate the table. Steps: (a) line-by-line audit table, each value marked agree / contradict / missing / profile-only (the Ollama and ComfyUI limits are profile-only and stay — the docs don't govern them); (b) apply resolutions: lane-aware thread values (solo vs shared cap, in whatever shape the loader supports), encoder-scoped ffmpeg concurrency, an encode-decision block, the verified hardware fields, whisper + separation blocks; (c) update the loader and benchmark service for the new shape with backward-compatible defaults; (d) verify per Acceptance.
+- **Files:** config/hardware-profile.json; packages/backend/app/core/hardware_profile.py (loader); packages/backend/app/api/hardware.py; packages/backend/app/services/hardware_benchmark.py; source docs: docs/knowledge-library/ryzen-5500-cpu-playbook-2026.md, pascal-gpu-optimization-2026.md, pascal-3d-budget-discipline-2026.md
+- **Acceptance:** The audit table has no "contradict" rows left; `/api/hardware` serves the reconciled profile; a shared-lane CPU job demonstrably runs capped at 6 threads while a solo-lane job may take 12; backend tests + ruff clean.
+- **Gate:** Config-side reconciliation approved by the owner and applied 2026-11-06 (this item's doing commit). The loader-consumption half (new HardwareLimits fields + services honoring the shared cap) is executor-lane work on the owner's machine.
+- **Last session:** Orion, 2026-11-06 — config half landed in this commit: verified fields added (CPU arch/L3, dual-channel memory + kit, motherboard, GPU PCIe/memory/tdp), lane caps added alongside the solo values (torch shared cap 6, ffmpeg x264 concurrency 1, dataloader max 2, heavy-job max 1), the encode decision expressed (NVENC drafts / x264 masters), and new `lanes`, `workloads` (whisper, Demucs, Blender decimate, LLM CPU fallback), and `scene_3d_budgets` pointer blocks. Loader-live HardwareLimits fields untouched; loader tolerance verified by code read (all 6 models `extra="ignore"`; the thread/ffmpeg keys have no service consumers yet — grep-verified). Remaining: loader fields + service wiring for the shared cap, and the on-machine `/api/hardware` verification. JSON validated; sandbox loader smoke test blocked on missing psutil in the sandbox env (backend env has it).
+>>>>>>> origin/main

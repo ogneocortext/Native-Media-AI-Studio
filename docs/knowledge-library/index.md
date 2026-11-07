@@ -59,6 +59,8 @@ date: 2026-09-30
 - [[remotion-guide|🎬 Remotion Video Compositing]] — Programmatic video with React
 - [[remotion-agent-skills-2026|🎬 Remotion Agent Skills]] — Agent skills for Remotion video work (indexed 2026-11-06)
 - [[higgsfield-comfyui-challenge-2026|🎥 Open Source Higgsfield Challenge]] — ComfyUI's $10K challenge and its 8 open-source recreations: gap-checked against this library, 6 missing techniques recorded (indexed 2026-11-06)
+- [[3d-bones-ai-skin-pipeline-2026|🦴 3D Bones, AI Skin — Pipeline Gap Analysis]] — Two routes to footage (3D standing alone vs 3D bones driving AI skin), the frame-package contract, and the five gaps between the current studio and that pipeline, each feasibility-checked against the verified hardware baseline (NEW 2026-11-06)
+- [[three-js-studio-scene-quality-2026|🔍 Three.js Studio Scene Quality — Findings]] — Why generated studio scenes look like a mess: the crown-preset exhibit, the 7-shape vocabulary and 5-scalar material ceiling, the dead /generate-scene stub, and the fix shape (NEW 2026-11-06)
 - [[npx-best-practices-2026|🔒 npx Best Practices 2026]] — Supply-chain-safe npx usage, pinning, and audit habits (indexed 2026-11-06)
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
@@ -110,6 +112,8 @@ date: 2026-09-30
 ### ⚙️ Performance & Hardware (Optimization)
 
 - [[pascal-gpu-optimization-2026|🐴 Pascal GPU Optimization 2026]] — GTX 1070 Ti / sm_61 constraints: torch version, SDPA backends, torch.compile limits, VRAM optimization stack for ACE-Step Tier 3
+- [[pascal-3d-budget-discipline-2026|🎮 Pascal 3D Budget Discipline 2026]] — Real-time render budgets for the 1070 Ti: draw calls, per-role triangle/texture caps, LOD + impostors, baked lighting, CPU-side frame rules — the render-side companion to Pascal GPU Optimization (NEW 2026-11-06)
+- [[ryzen-5500-cpu-playbook-2026|🧮 Ryzen 5 5500 CPU Playbook 2026]] — Thread budgets and concurrency lanes for the 6C/12T Zen 3: Demucs/faster-whisper/llama.cpp caps, Blender decimate parallelism, NVENC-vs-x264 encode rule, PCIe 3.0 platform facts (NEW 2026-11-06)
 - [[hardware-verified-models|🖥️ Hardware-Verified Models]] — 8GB VRAM model matrix
 - [[music-gen-hardware-fit-2026|🎵 Music Gen Hardware Fit 2026]] — ACE-Step 1.5 on GTX 1070 Ti; install paths, VRAM budgets
 - [[hardware-benchmark-harness|🖥️ Hardware Benchmark Harness]] — Workstation hardware profile + bounded Ollama/ComfyUI benchmark runner with SQLite history
@@ -180,7 +184,7 @@ date: 2026-09-30
 || `#technical/*` | System implementation & code | 21 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
-|| `#performance/*` | Hardware & optimization | 7 documents |
+|| `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
 || `#research/*` | Industry trends & analysis | 22 documents |
 
@@ -191,17 +195,17 @@ date: 2026-09-30
 || `#platform-youtube` | YouTube-specific content | 4 documents |
 || `#platform-unity` | Unity-specific integration | 3 documents |
 || `#platform-blender` | Blender-specific | 3 documents |
-|| `#platform-comfyui` | ComfyUI-specific | 6 documents |
+|| `#platform-comfyui` | ComfyUI-specific | 7 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
 || `#hardware-8gb` | 8GB VRAM constraints | 16 documents |
-|| `#hardware-pascal` | Pascal architecture specifics | 8 documents |
+|| `#hardware-pascal` | Pascal architecture specifics | 9 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
-|| `#audio` | Audio analysis & processing | 23 documents |
+|| `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
-|| `#3d` | 3D generation & rendering | 14 documents |
+|| `#3d` | 3D generation & rendering | 17 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---

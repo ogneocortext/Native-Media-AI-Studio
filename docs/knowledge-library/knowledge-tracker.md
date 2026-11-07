@@ -57,7 +57,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (20/20 completed) ✅
+### 🛠️ Technical Implementation (22/22 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
 - ✅ `database-operations-2026.md`  → `#technical`, `#database`, `#gpu`, `#telemetry`
 
@@ -78,6 +78,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `npx-best-practices-2026.md`  → `#technical`, `#security`, `#nodejs`, `#npx`, `#supply-chain`
 - ✅ `remotion-agent-skills-2026.md`  → `#technical`, `#remotion`, `#skills`, `#ai-agents`
 - ✅ `higgsfield-comfyui-challenge-2026.md`  → `#technical`, `#comfyui`, `#video-generation`, `#open-source`
+- ✅ `3d-bones-ai-skin-pipeline-2026.md`  → `#technical`, `#3d`, `#comfyui`, `#video-generation`
+- ✅ `three-js-studio-scene-quality-2026.md`  → `#technical`, `#3d`, `#three-js`
 - ✅ `programmatic-tool-calling-2026.md`  → `#technical`, `#ai-agents`, `#tooling`
 
 ### 🎮 MCP & Platform Integrations (12/12 completed) ✅
@@ -122,9 +124,11 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `three-js-render-motion-2026.md`  → `#creative`, `#3d`
 - ✅ `video-to-glsl-shader-recreation-2026.md`  → `#creative`, `#visualization`
 
-### ⚙️ Performance & Hardware (7/7 completed)
+### ⚙️ Performance & Hardware (9/9 completed)
 
 - ✅ `pascal-gpu-optimization-2026.md`  → `#performance`, `#hardware-pascal`, `#hardware-8gb`
+- ✅ `pascal-3d-budget-discipline-2026.md`  → `#performance`, `#hardware-pascal`, `#3d`, `#three-js`
+- ✅ `ryzen-5500-cpu-playbook-2026.md`  → `#performance`, `#audio`
 - ✅ `hardware-verified-models.md`  → `#performance`, `#hardware-8gb`
 - ✅ `music-gen-hardware-fit-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`
 - ✅ `hardware-benchmark-harness.md`  → `#performance`, `#hardware-8gb`
