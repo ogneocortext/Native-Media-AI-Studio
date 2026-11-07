@@ -126,6 +126,19 @@ async def list_outputs(
     )
 
 
+@router.get("/recent", response_model=list[OutputFile])
+async def list_recent_outputs(
+    limit: int = Query(20, ge=1, le=200, description="Maximum number of results"),
+) -> list[OutputFile]:
+    """List the most recently created outputs.
+
+    Must be declared before ``/{file_type}`` — otherwise ``recent`` is
+    captured as a file_type and rejected with 400.
+    """
+    # _scan_with_cache() returns results sorted by created_at descending.
+    return _scan_with_cache()[:limit]
+
+
 @router.get("/{file_type}", response_model=list[OutputFile])
 async def list_outputs_by_type(
     file_type: str, limit: int = Query(50, ge=1, le=200)

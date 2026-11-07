@@ -1431,3 +1431,39 @@ Rules: `docs/plans/tasks/README.md`
   console run reported 13 errors (uncached-promise Suspense warnings +
   one 400) that isolated page loads did not reproduce — transition-
   focused retest with request logging still owed.
+
+### T-PLT-52 — Walkthrough set 2 (create pages 6-10) + /api/outputs/recent 400 root cause
+
+- **Status:** done (endpoint fix); findings logged below
+- **Goal:** Same recorded-walkthrough method over the next five sidebar
+  destinations: Music Gen, Chiptune, Remix/Mashup, Animation Studio,
+  Unity Control.
+- **Defect found + fixed:** every dashboard load fired
+  `GET /api/outputs/recent?limit=4` → **400**. Root cause:
+  `/api/outputs/recent` was never implemented — the request fell through
+  to `GET /api/outputs/{file_type}` which rejects unknown types. The
+  dashboard's "Your recent videos" grid and StageHero `latestVideo`
+  have therefore been permanently empty since the feature shipped.
+  Added `GET /api/outputs/recent` (declared before `/{file_type}`;
+  `_scan_with_cache()` is already created_at-desc). Verified: endpoint
+  200 with real rows, dashboard grid populates, zero 4xx on load.
+- **Recurring pattern (open):** every generation page greets a stopped
+  service — ComfyUI (video/3D/image), ACE-Step (music-gen), Unity
+  (black preview + static "Checking Unity status..."). Per-page banner
+  implementations disagree; a shared service-status surface is the real
+  fix. Unity Control's preview is a black void with no loading/empty
+  affordance. Animation Studio preset cards lack descriptions;
+  playback controls lack standard iconography.
+- **Unresolved signal:** 2-4 "uncached promise" React warnings fire on
+  EVERY page load (app-shell-wide, not route-specific). No app code
+  calls `use()` — `useModernForms.tsx` promise helpers have zero
+  importers. Suspect is a dev-only dependency (Vite 8 built-in
+  devtools is enabled in vite.config) or TanStack Query internals;
+  production build does not emit the warning path. Not fixed — needs
+  a production-build A/B or devtools-off restart to isolate.
+- **Files:** packages/backend/app/api/outputs_endpoints.py
+- **Acceptance:** `/api/outputs/recent?limit=4` → 200 JSON array;
+  dashboard "Your recent videos" renders real files; ruff clean.
+- **Last session:** Devin, 2026-11-08 — endpoint added, backend
+  restarted, browser-verified. Walkthrough video + 5 vision analyses
+  in `~/nav-walkthrough-2/` (local, not committed).
