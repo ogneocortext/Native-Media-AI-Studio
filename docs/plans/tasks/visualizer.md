@@ -988,3 +988,32 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   silhouette is deliberate art direction (character bible, near-black +
   accent rim); "no textures" is by design. Richer figure animation is a
   separate redesign task if wanted.
+
+### T-VIZ-46 — BuilderFigure render pass: volume, set dressing, idle drift
+
+- **Status:** done
+- **Goal:** Owner report — character render is "poorly animated with no
+  textures". Improve via vision + line-by-line review.
+- **Review findings (BuilderFigure.tsx, all 587 lines):** body pass was
+  flat `#050508` (zero internal volume); lamp glowed but never lit the
+  figure; bench/lamp were one flat fill with no tonal separation; no
+  floor contact shadow; `rootX`/`rootY` never drifted so idle read
+  mannequin-stiff. LIMB proportions left frozen per character bible.
+- **What changed:**
+  - `drawFigure` pass stack now 4 layers: accent halo → lamp-offset
+    accent wash (+1.4,-1.4px, energy/pulse-scaled alpha) → near-white
+    edge → vertical gradient body (`#34345c` shoulders → `#06060f`
+    feet) replacing flat BODY.
+  - Static layer (`buildStatic`): tonal separation (lit bench top
+    `#0b0b14`, shaded legs `#040408`), lamp bulb `#7aa2e8`, workpiece
+    on bench, radial floor contact shadow.
+  - Idle life: `driftX`/`driftY` slow sine pairs on root position
+    (±2.9px / ±1.1px), zero under `calm`.
+- **Files:** features/visualizer/components/BuilderFigure.tsx.
+- **Verification:** canvas exported raw + 3x-upscaled; gemma4 vision —
+  at 1x "no shading" (240px below model threshold), at 3x confirms
+  "visible shading: yes, reads as person: yes". Pixel probe confirms
+  torso ~(36,36,68) vs legs ~(15,15,33). tsc -b + eslint clean
+  (2 pre-existing `??` warnings).
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — commit pending.

@@ -29,8 +29,10 @@ import type { StoryBeat, StoryMotif } from "../storyboard";
  *   between acts (slow, purposeful) but breath/sway/beat accents go to zero.
  *
  * Art direction is unchanged: same frozen proportions (LIMB/HIP_Y), same
- * motif acting choices (POSES), same per-joint springs, same near-black
- * silhouette + single-accent rim + lamp.
+ * motif acting choices (POSES), same per-joint springs, near-black
+ * silhouette + accent rim + lamp. Volume comes from a vertical body
+ * gradient, a lamp-offset accent wash, and a floor shadow — all still
+ * inside the silhouette, so thumbnail readability is preserved.
  */
 
 interface Props {
@@ -396,17 +398,22 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       const b = bench.getContext("2d");
       if (!b) return;
       b.scale(ss, ss);
-      b.fillStyle = BODY;
+      // Tonal separation inside the silhouette family: lit top surfaces vs
+      // shaded legs, so the bench/lamp read as objects, not one black blob.
+      b.fillStyle = "#0b0b14";
       const rect = (x: number, y: number, w: number, h: number, r = 2) => {
         b.beginPath();
         b.roundRect(x, y, w, h, r);
         b.fill();
       };
       rect(52, 238, 150, 10);
+      b.fillStyle = BODY;
       rect(60, 248, 8, 56, 0);
       rect(186, 248, 8, 56, 0);
+      b.fillStyle = "#08080f";
       rect(18, 252, 30, 8);
       rect(28, 260, 8, 44, 0);
+      b.fillStyle = "#040408";
       rect(176, 180, 5, 58, 0);
       b.beginPath();
       b.moveTo(178, 180);
@@ -415,7 +422,30 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       b.lineTo(172, 196);
       b.closePath();
       b.fill();
-      rect(110, 226, 26, 12);
+      // Lamp bulb: the one cool-light source, drawn under the housing.
+      b.fillStyle = "#7aa2e8";
+      b.beginPath();
+      b.arc(184, 190, 3.2, 0, Math.PI * 2);
+      b.fill();
+      // Workpiece on the bench — gives the seated acts something to build on.
+      b.fillStyle = "#0d0d17";
+      rect(104, 230, 34, 8, 1);
+      b.fillStyle = "#040408";
+      rect(108, 226, 10, 4, 1);
+      rect(118, 228, 8, 3, 1);
+      // Floor contact shadow: grounds the whole group so it stops floating.
+      const sh = b.createRadialGradient(120, 308, 4, 120, 308, 95);
+      sh.addColorStop(0, "rgba(0,0,0,0.5)");
+      sh.addColorStop(1, "rgba(0,0,0,0)");
+      b.save();
+      b.translate(120, 308);
+      b.scale(1, 0.16);
+      b.translate(-120, -308);
+      b.fillStyle = sh;
+      b.beginPath();
+      b.arc(120, 308, 95, 0, Math.PI * 2);
+      b.fill();
+      b.restore();
     };
 
     // Lamp-glow sprite: radial gradient, drawn per frame with live alpha.
@@ -500,10 +530,16 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       const hammerSwing = isWorking ? cur.hammer * (1 - raise) : 0;
 
       const stageW = 240;
-      const rootX = cur.rootX * stageW;
       const bobVal =
         cur.bob * (0.35 + 0.65 * pulse) + (isCalm ? 0 : Math.abs(Math.sin(t * 2.2)) * energy * 1.2);
-      const rootY = HIP_Y - (1 - cur.sit) * STAND_LIFT - bobVal;
+      // Idle weight-shift: the root drifts a few px on slow sine pairs so the
+      // figure breathes spatially, not just rotationally. Calm holds it still.
+      const driftX = isCalm
+        ? 0
+        : Math.sin(t * Math.PI * 2 * 0.07) * 2.2 + Math.sin(t * Math.PI * 2 * 0.13 + 1.7) * 0.7;
+      const driftY = isCalm ? 0 : Math.sin(t * Math.PI * 2 * 0.09 + 0.6) * 1.1;
+      const rootX = cur.rootX * stageW + driftX;
+      const rootY = HIP_Y - (1 - cur.sit) * STAND_LIFT - bobVal + driftY;
       const nodSign = target === POSES.payoff || target === POSES.triumph ? -5 : 2;
 
       const angles: DrawAngles = {
@@ -556,12 +592,25 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       ctx.fillStyle = accent;
       ctx.globalAlpha = isCalm ? 0.5 : 0.5 + energy * 0.2;
       drawFigure(ctx, angles, 4);
+      // Lamp-side wash: the same accent offset toward the lamp (~up-right)
+      // at low alpha. Reads as inner volume/rim light, not a second outline.
+      ctx.save();
+      ctx.translate(1.4, -1.4);
+      ctx.globalAlpha = isCalm ? 0.05 : 0.16 + energy * 0.08 + pulse * 0.06;
+      drawFigure(ctx, angles);
+      ctx.restore();
       ctx.strokeStyle = "#f4f4f5";
       ctx.fillStyle = "#f4f4f5";
       ctx.globalAlpha = isCalm ? 0.5 : 0.45 + energy * 0.15;
       drawFigure(ctx, angles, 1.4);
-      ctx.strokeStyle = BODY;
-      ctx.fillStyle = BODY;
+      // Body pass: vertical gradient (lamp-lit shoulders → shaded feet)
+      // replaces the flat fill — cheap internal volume, same silhouette.
+      const bodyGrad = ctx.createLinearGradient(0, -95, 0, 62);
+      bodyGrad.addColorStop(0, "#34345c");
+      bodyGrad.addColorStop(0.5, "#14142a");
+      bodyGrad.addColorStop(1, "#06060f");
+      ctx.strokeStyle = bodyGrad;
+      ctx.fillStyle = bodyGrad;
       ctx.globalAlpha = 1;
       drawFigure(ctx, angles);
       ctx.restore();
