@@ -5,15 +5,27 @@
 Emitted in v1 (verified on Blender 5.2.3):
     beauty/f%06d.png            8-bit sRGB PNG (tier resolution)
     normals/f%06d.png           8-bit RGB, world-space n*0.5+0.5
+    depth/f%06d.png             16-bit gray PNG, Z-depth normalized over
+                                [near,far] via MapRange (real Z pass, not mist)
     camera.jsonl                intrinsics + cam-to-world per frame
     manifest.json               frame-package/v1 descriptor (claims only real passes)
 
-Deferred to v1.1 (documented, not faked): depth, segmentation, pose.
-Blender 5.x's compositor Output File node writes FLOAT items as a single
-overwritten f.exr with no per-frame numbering and read-only format — there
-is no working PNG16 extraction path yet. v1.1 renders data passes to
-multilayer EXR and post-converts. "pose" additionally needs the rigged-
-character binding that does not exist yet.
+Deferred (documented, not faked):
+- segmentation: Blender 5.2's compositor exposes no object-index socket
+  (use_pass_object_index produces no RLayers output; only Cryptomatte
+  object passes exist, which need hash-manifest decode — v1.1 work).
+- pose: needs the rigged-character binding that does not exist yet.
+
+Blender 5.x Output File notes (all verified live):
+- node.format.media_type defaults to MULTI_LAYER_IMAGE, which locks
+  file_format to OPEN_EXR_MULTILAYER — set media_type='IMAGE' first.
+- FLOAT file_output_items force EXR multilayer; use 'RGBA' items and let
+  the float->color socket conversion write gray.
+- file_name only gets a frame suffix in animation renders; in still
+  mode set node.file_name per frame (done in the render loop).
+- ShaderNodeMapRange (not CompositorNodeMapRange) is the working node.
+- RLayers pass sockets in 5.x: 'Depth' (was 'Z'), 'Normal', 'Mist';
+  no 'IndexOB'.
 
 Determinism: every frame is bpy.context.scene.frame_set(f); orbit is a
 pure function of frame index; no wall-clock or unseeded randomness.
@@ -113,7 +125,8 @@ def _world_normal_material() -> bpy.types.Material:
     return mat
 
 
-def _setup_compositor(out_dir: Path, *, want_depth: bool, want_seg: bool, seg_max: int = 1) -> set[str]:
+def _setup_compositor(out_dir: Path, *, want_depth: bool, want_seg: bool,
+                      seg_max: int = 1, near_far: tuple[float, float] = (0.1, 100.0)) -> dict[str, bpy.types.Node]:
     """File Output node writes depth (Mist) and seg (Object Index) PNGs.
 
     Returns the set of passes actually wired — the manifest must only claim
@@ -138,14 +151,55 @@ def _setup_compositor(out_dir: Path, *, want_depth: bool, want_seg: bool, seg_ma
     base.is_active_output = True
     nt.links.new(rl.outputs["Image"], base.inputs["Image"])
 
-    # Blender 5.x Output File nodes write FLOAT items as a single overwritten
-    # f.exr (no per-frame numbering, format read-only) — there is no working
-    # PNG16 path through the compositor yet. depth/segmentation/pose are
-    # therefore NOT emitted in v1; the manifest records only real passes.
-    # v1.1: render data passes to multilayer EXR and post-convert to PNG16.
-    emitted: set[str] = set()
-    if want_depth or want_seg:
-        print("[pkg] NOTE: depth/segmentation passes not emitted in v1 (see docstring)")
+    # Blender 5.x Output File: one node per pass. Format lives on the nested
+    # `format` struct (fo.format.file_format / .color_depth) — the flat
+    # attributes are read-only. Research note: industry AOV practice is
+    # float EXR, but the frame-package/v1 contract fixes PNG16-gray; the
+    # real Z 'Depth' pass is normalized over [near,far] via MapRange, which
+    # preserves the contract's linear-normalized semantics.
+    emitted: dict[str, bpy.types.Node] = {}
+    jobs = (
+        (want_depth, "depth", "Depth", "Depth", "depthmap"),
+        (want_seg, "segmentation", "Segmentation", "Object Index", "segmap"),
+    )
+    for want, pass_name, label, sock, kind in jobs:
+        if not want:
+            continue
+        try:
+            fo = nt.nodes.new("CompositorNodeOutputFile")
+            fo.directory = str(out_dir / pass_name)
+            # Blender 5.x: node media_type defaults to MULTI_LAYER_IMAGE which
+            # locks file_format to OPEN_EXR_MULTILAYER. media_type='IMAGE'
+            # unlocks PNG; color_depth '16' gives 16-bit output.
+            fo.format.media_type = "IMAGE"
+            fo.format.file_format = "PNG"
+            fo.format.color_depth = "16"
+            fo.format.color_mode = "BW"  # true grayscale colortype
+            # RGBA socket + FLOAT MapRange result -> 16-bit gray PNG.
+            fo.file_output_items.new("RGBA", label)
+            fo.file_name = "f"
+            src_socket = rl.outputs[sock]
+            mr = nt.nodes.new("ShaderNodeMapRange")
+            if kind == "depthmap":
+                mr.inputs["From Min"].default_value = near_far[0]
+                mr.inputs["From Max"].default_value = near_far[1]
+                mr.inputs["To Min"].default_value = 0.0
+                mr.inputs["To Max"].default_value = 1.0
+                if hasattr(mr, "clamp"):
+                    mr.clamp = True
+            else:
+                # Object index 1..N -> i/65535 so PNG16 stores the exact index.
+                mr.inputs["From Min"].default_value = 1.0
+                mr.inputs["From Max"].default_value = float(max(2, seg_max))
+                mr.inputs["To Min"].default_value = 1.0 / 65535.0
+                mr.inputs["To Max"].default_value = 1.0
+                if hasattr(mr, "clamp"):
+                    mr.clamp = True
+            nt.links.new(src_socket, mr.inputs["Value"])
+            nt.links.new(mr.outputs["Result"], fo.inputs[label])
+            emitted[pass_name] = fo
+        except Exception as e:
+            print(f"[pkg] WARN: {pass_name} output failed: {e}")
     return emitted
 
 
@@ -237,18 +291,19 @@ def main() -> int:
                 break
     scene.view_settings.view_transform = "AgX"
     scene.frame_start, scene.frame_end = 1, n_frames
-    scene.world.mist_settings.start = near
-    scene.world.mist_settings.depth = far - near
-    scene.world.mist_settings.falloff = "LINEAR"
+    vl_pass = scene.view_layers[0]
     if "depth" in passes:
-        scene.view_layers[0].use_pass_mist = True
+        vl_pass.use_pass_z = True  # real Z depth; normalized over clip bounds below
     if "segmentation" in passes:
-        scene.view_layers[0].use_pass_object_index = True
+        vl_pass.use_pass_object_index = True
         for i, obj in enumerate(meshes, start=1):
             obj.pass_index = i
     want_depth = "depth" in passes
     want_seg = "segmentation" in passes
-    emitted = _setup_compositor(out_dir, want_depth=want_depth, want_seg=want_seg, seg_max=len(meshes))
+    emitted = _setup_compositor(
+        out_dir, want_depth=want_depth, want_seg=want_seg,
+        seg_max=len(meshes), near_far=(near, far),
+    )
     if "depth" in passes and "depth" not in emitted:
         print("[pkg] WARN: depth pass requested but not emitted (no slot)")
     if "segmentation" in passes and "segmentation" not in emitted:
@@ -281,6 +336,11 @@ def main() -> int:
     rendered = []
     for f in range(1, n_frames + 1):
         scene.frame_set(f)
+        # Output File only appends frame numbers in animation renders; in
+        # still mode every pass would overwrite one file. Set file_name per
+        # frame so each pass writes f<frame><Slot>.png.
+        for node in emitted.values():
+            node.file_name = f"f{f:06d}"
         if orbit:
             ang = math.radians(orbit) * (f - 1) / max(n_frames - 1, 1)
             direction = Vector((math.cos(ang), math.sin(ang), 0.45)).normalized()
@@ -317,9 +377,10 @@ def main() -> int:
         if not d.is_dir():
             continue
         for p in d.glob("f*.png"):
-            m = _re.fullmatch(r"f(\d+)\.png", p.name)
-            if m and len(m.group(1)) != 6:
-                p.rename(d / f"f{int(m.group(1)):06d}.png")
+            # Names look like f000001Depth.png (file_name + slot name).
+            m6 = _re.fullmatch(r"f(\d{6})[A-Za-z]*\.png", p.name)
+            if m6:
+                p.rename(d / f"f{m6.group(1)}.png")
 
     if pass_scale < 1.0:
         for d in (out_dir / "depth", out_dir / "normals", out_dir / "segmentation"):
@@ -354,7 +415,7 @@ def main() -> int:
         effective.add("beauty")
     if "normals" in passes:
         effective.add("normals")  # rendered via material override, not compositor
-    effective |= emitted
+    effective |= set(emitted)
     if "camera" in passes:
         effective.add("camera")
     manifest_passes = {"beauty": True} if "beauty" in effective else {}

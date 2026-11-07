@@ -479,6 +479,20 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   ffmpeg renderer refuses gapped sequences unless extra.allow_gaps,
   `tools/frame-sequence.py` CLI, and /api/threestudio/export now returns
   honest 501 instead of mock success.
+  2026-11-07 research-alignment addendum (current-best-practices pass on
+  AOV/ControlNet conventions): the "no PNG16 path" conclusion was WRONG —
+  Blender 5.2's Output File node defaults media_type to
+  MULTI_LAYER_IMAGE (locks format to OPEN_EXR_MULTILAYER); setting
+  media_type='IMAGE' + file_format='PNG' + color_depth='16' +
+  color_mode='BW' emits true 16-bit grayscale. Also: FLOAT items force
+  EXR (use 'RGBA' items), file_name only gets frame suffixes in
+  animation renders (still mode sets it per frame), ShaderNodeMapRange
+  replaces the removed CompositorNodeMapRange, and the depth pass is now
+  the real Z 'Depth' socket normalized over [near,far] — not mist.
+  Verified live: depth/f%06d.png 16-bit gray colortype-0, values
+  20213–65535 across frame. Segmentation stays honestly un-emitted —
+  5.2 exposes no object-index compositor socket (Cryptomatte is the
+  modern replacement; needs manifest decode, v1.1).
   Route B's 768×768 lane input (lane downscales, package ships
   scene-native). Determinism: six bpy-side rules mirroring
   three-js-render-motion-2026 — pure function of frame_set(f), seeded
