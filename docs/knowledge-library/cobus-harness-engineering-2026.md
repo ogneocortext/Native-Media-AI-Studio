@@ -245,13 +245,15 @@ quota gate, T-AGT-09):
   heavy-work pause, and options widgets all force a real decision
   at key points, but nothing asks the post's question ("what
   assumption does this approval rest on?") at high-stakes approvals.
-  Residual gap, candidate only.
+  Residual gap — **registered as T-AGT-13** (owner direction,
+  2026-11-07: fill the applicable gaps into the planning docs).
 - **Fatigue tracking — not implemented.** No instrumentation of
   review time vs approval rate exists. The working substitutes are
   self-report (the owner caught his own fatigue and named it) and
   the 20-minute checkpoint convention. Recorded as a watch item;
   instrumenting a single owner's attention is likely more apparatus
-  than the problem wants. Residual gap, candidate only.
+  than the problem wants. Stays a documented watch in this section —
+  deliberately not a task.
 - **Organisational protocols — scale-mismatched, principles partly
   embodied.** Rotation is impossible for a single owner. Workload
   limits exist as the quota gate and task tiers. "Keep domain
@@ -262,8 +264,8 @@ quota gate, T-AGT-09):
   in the current system specifically counters it, and it compounds
   as executors improve. The cross-check lane (a different model
   reviews than wrote; the owner spot-checks diffs) is partial
-  exercise of the judgement muscle. Named here as the one diagnosis
-  with no real answer yet — watch, do not build.
+  exercise of the judgement muscle. **Registered as T-AGT-12**
+  (design-and-adopt countermeasures; owner direction, 2026-11-07).
 - **False success signal (diagnosis) — guarded by design.** Success
   in this repo is verified outcomes (gates, tests, headed checks),
   never approval or completion rates; the trust roster already
@@ -274,8 +276,10 @@ Net: the post's prescription — fewer, better decisions — is the
 studio's current operating shape, arrived at independently. Of four
 mitigations, one is fully implemented (as skills, not settings),
 one is partial, one is a watch item, one is scale-mismatched. The
-three residual gaps above are reported to the owner as candidates;
-none is registered as a task under T-AGT-11, per its Plan.
+residual gaps were reported as candidates under T-AGT-11; on
+2026-11-07 the owner directed the applicable ones into the
+planning docs — skill atrophy as T-AGT-12, deliberate friction as
+T-AGT-13 — while fatigue tracking stays a documented watch here.
 
 ## Follow-ups (owner decision 2026-11-07)
 

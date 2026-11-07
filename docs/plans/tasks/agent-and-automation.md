@@ -337,3 +337,55 @@ Code: `packages/backend/app/agents/`
   the live residual risk; false-success-signal guarded by design.
   Residual gaps reported to the owner as candidates in the landing
   commit's message; none registered, per this item's Plan.
+
+### T-AGT-12 — Skill-atrophy countermeasures (design and adopt)
+- **Status:** todo
+- **Goal:** A written, adopted set of countermeasures for the one
+  Cobus diagnosis with no counter yet (doc §6): as executors
+  improve, the owner's review judgement gets less exercise, and the
+  oversight loop weakens even while approvals look fine. The aim is
+  deliberate reps for load-bearing judgements, not more process.
+- **Plan:** (1) Inventory the judgements that are load-bearing if
+  they dull: headed visual verification, diff spot-checks in the
+  cross-check lane, price/menu verification, lyric and mix verdicts,
+  payout-figure checks. (2) For each, name the rep that keeps it
+  sharp (owner performs it unaided on a cadence; a second model
+  reviews rather than the same one; planted-defect spot checks where
+  cheap). (3) Write the adopted set into the area behavior ledger
+  (`docs/plans/focus-areas-and-behavior-ledgers-2026-10.md` §3.7)
+  with the cadence per judgement. Design-first: the owner picks
+  which reps are worth his time before anything is adopted.
+- **Files:** docs/plans/focus-areas-and-behavior-ledgers-2026-10.md,
+  docs/knowledge-library/cobus-harness-engineering-2026.md
+- **Acceptance:** Countermeasure set present in the §3.7 ledger with
+  a cadence per load-bearing judgement; first rep of at least one
+  kind logged in this item's Last session.
+- **Last session:** — registered 2026-11-07 by Orion at owner
+  direction (T-AGT-11 residual gap 1, promoted to a planning item);
+  not started.
+
+### T-AGT-13 — Deliberate friction: the assumption line on high-stakes approvals
+- **Status:** todo
+- **Goal:** Close the deliberate-friction gap from the Cobus §6
+  verdict: at high-stakes approvals, the request carries one line
+  naming the assumption it rests on ("what assumption does this
+  approval rest on?"), so the owner's click is a decision, not a
+  reflex. Low-stakes flow stays frictionless — friction is spent
+  only where it buys thought.
+- **Plan:** (1) Define the high-stakes tier by example, reusing
+  existing boundaries: irreversible or external actions (sends,
+  pushes to shared state, purchases), money movement, and changes
+  to the enforcement layer (T-AGT-09's protected paths). (2) Write
+  the rule into the repo AGENTS.md approval discipline: an approval
+  request at that tier states its load-bearing assumption in one
+  line; if the assumption is wrong, the approval should not happen.
+  (3) First live uses noted here; if the line proves to be noise in
+  practice, say so and narrow the tier rather than letting it
+  become another reflex.
+- **Files:** AGENTS.md (repo root)
+- **Acceptance:** Rule present in AGENTS.md with the tier defined;
+  at least two live approval requests carried the assumption line,
+  with outcomes noted in this item's Last session.
+- **Last session:** — registered 2026-11-07 by Orion at owner
+  direction (T-AGT-11 residual gap 2, promoted to a planning item);
+  not started.
