@@ -105,7 +105,8 @@ Get-Service | Where-Object Name -EQ w32time
 # Run a project script (REQUIRED method)
 # start-services.ps1 takes only -ComfyUI / -VideoEditor switches — it starts
 # the default service set itself. For per-service control use manage-servers.ps1.
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1
+# Agent tip: add -NonInteractive so a stray prompt fails fast instead of hanging.
+pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\start-services.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-services.ps1 -ComfyUI -VideoEditor
 
 # Check ports
@@ -152,10 +153,11 @@ D:\conda-envs\nma-studio-cuda\Scripts\python.exe tools/run-gates.py --only ruff 
 ### Node.js / pnpm
 
 ```powershell
-# node is an fnm alias (may be older). Prefer pnpm.cmd with explicit cwd.
-pnpm.cmd install
-pnpm.cmd test:unit
-pnpm.cmd run dev
+# Bare pnpm/npm resolve to .ps1 shims in pwsh (standard arg passing —
+# verified). Use pnpm.cmd only when a caller explicitly needs the .cmd.
+pnpm install
+pnpm test:unit
+pnpm run dev
 
 # From Python with explicit cwd:
 D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import subprocess; subprocess.run(['pnpm.cmd','test:unit'], cwd='packages/frontend', shell=True)"
@@ -288,6 +290,10 @@ $env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 | **`jq` / `yq`** | `... \| jq '.key'` | **Not installed.** Use `ConvertFrom-Json` / `ConvertTo-Json` (see §13) |
 | **`curl` flags** | `curl -s url \| jq` | `curl.exe` IS real (System32) and most flags work, but for JSON use `Invoke-RestMethod` — it parses for you and honors the UTF-8 console setup |
 | **`python` bare name** | `python script.py` in a `-NoProfile` shell | Resolves to `C:\Python314` — the wrong env. Dot-source `scripts/agent-shell-init.ps1` or use the absolute `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` path |
+| **`pwsh -Command` exit codes** | `pwsh -Command "native-cmd"` then checking `$LASTEXITCODE` outside | A failing NATIVE command inside `-Command` flattens to exit `1` regardless of the real code (verified). `pwsh -File` preserves it; inside `-Command` append `; exit $LASTEXITCODE` |
+| **Interactive hangs** | `pwsh -File script.ps1` that hits a prompt | Add `-NonInteractive` — prompts fail fast instead of hanging an agent shell forever |
+| **`.cmd`/`.bat` arg passing** | Complex quoted args through `pnpm.cmd`/`npm.cmd`/`npx.cmd` | `$PSNativeCommandArgumentPassing` = `Windows` on this machine (verified): `.cmd`/`.bat` targets always get LEGACY quoting rules. Bare `pnpm`/`npm`/`npx` in pwsh resolve to the `.ps1` shims (standard arg passing) — verified — so prefer bare names or `*.ps1`; only use `.cmd` when a caller explicitly requires it |
+| **Wildcard paths** | `Get-Content 'dir[1]\file.txt'` | `[ ]` are wildcard chars — use `-LiteralPath` for real paths; `-Path` only when wildcards are intended |
 
 ---
 
@@ -420,7 +426,7 @@ Every row below was executed on this machine — these are the commands agents a
 | `psql`/`mysql`/`sqlite3` | `sqlite3.exe` exists but is an Android SDK stray — use Python's `sqlite3` module instead |
 | `docker`/`kubectl` | **Not installed** — no containers on this machine |
 | `go`/`cargo`/`rustc`/`dotnet` | Installed and on PATH — invoke directly |
-| `node`/`npm`/`npx`/`yarn`/`pnpm` | `pnpm.cmd` preferred; `npm.cmd`/`npx.cmd` work; never bare `npm` in scripts (resolves via cmd shim) |
+| `node`/`npm`/`npx`/`yarn`/`pnpm` | Bare `pnpm`/`npm`/`npx` resolve to `.ps1` shims (verified — standard arg passing). `pnpm.cmd`/`npm.cmd` also work but get legacy `.cmd` quoting — see §9 |
 | `pip install` | `python -m pip install` with the correct env python — never bare `pip` |
 | `python -m pytest`/`vitest`/`playwright` | `pytest` in `packages/backend/`; `pnpm test:unit` / `pnpm exec playwright test` in `packages/frontend/` |
 

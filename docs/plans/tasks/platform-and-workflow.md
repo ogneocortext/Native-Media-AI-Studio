@@ -1191,6 +1191,18 @@ Rules: `docs/plans/tasks/README.md`
     lists real vs missing tools, the two syntax traps, and the
     check-shell-env self-check; python-resolution line points at
     agent-shell-init.ps1.
+  - Research pass 1 (web): added §9 rows for `pwsh -Command` native
+    exit-code flattening (verified live: fail -> outer sees 1, with
+    `; exit $LASTEXITCODE` -> real code; `-File` preserves it),
+    `-NonInteractive` for agent script runs, `.cmd`/`.bat` legacy arg
+    passing under `$PSNativeCommandArgumentPassing=Windows`, and
+    `-LiteralPath` for bracketed paths.
+  - Research pass 2 (live verification): executed every remaining §13
+    row (Invoke-Item, Get-PSDrive, CIM memory, Compress/Archive
+    roundtrip, Wait-Job -Timeout, clipboard, tar bsdtar 3.7.7,
+    Test-Connection all pass). Corrected an earlier claim: bare
+    `pnpm`/`npm`/`npx` resolve to `.ps1` shims with STANDARD arg
+    passing — only explicit `.cmd` calls get legacy quoting.
 - **Files:** docs/powershell-command-sheet.md,
   docs/agent-shell-cheatsheet.md, docs/plans/tasks/
   platform-and-workflow.md.
