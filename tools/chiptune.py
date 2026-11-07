@@ -299,12 +299,42 @@ def midi_pitch_name(pitch: int) -> str:
     return f"{_PC_SHARP[pitch % 12]}-{pitch // 12 - 1}"
 
 
+_MAX_LANES = 4  # monophonic lanes per MIDI channel before collapse
+
+
+def _split_lanes(notes: list[tuple[float, float, int]],
+                 max_lanes: int = _MAX_LANES
+                 ) -> list[list[tuple[float, float, int]]]:
+    """Interval-graph coloring: greedy lane assignment so overlapping
+    notes land on different lanes (each lane ~monophonic)."""
+    lanes: list[list[tuple[float, float, int]]] = []
+    lane_end: list[float] = []
+    for s, e, p in sorted(notes):
+        for li in range(len(lanes)):
+            if lane_end[li] <= s:
+                lanes[li].append((s, e, p))
+                lane_end[li] = e
+                break
+        else:
+            if len(lanes) < max_lanes:
+                lanes.append([(s, e, p)])
+                lane_end.append(e)
+            else:
+                # Over cap: fold into the lane ending soonest — its
+                # per-cell top-note rule absorbs the overlap.
+                li = min(range(len(lanes)), key=lambda i: lane_end[i])
+                lanes[li].append((s, e, p))
+                lane_end[li] = max(lane_end[li], e)
+    return lanes
+
+
 def import_midi(path: str | Path) -> str:
     """MIDI file -> .chip text (v1 importer).
 
     Limitations (documented, not silent):
-      - top simultaneous pitch per 16th cell per MIDI channel (chords
-        collapse to the highest note)
+      - polyphony is preserved by splitting each MIDI channel into
+        monophonic lanes (up to _MAX_LANES per channel); voices beyond
+        the cap collapse to the lane's top note
       - constant tempo = first set_tempo event; tempo changes ignored
       - velocity, time signature, CC ignored
       - channel 10 (drums) -> 'x' noise hits; other channels -> melodic
@@ -424,10 +454,18 @@ def import_midi(path: str | Path) -> str:
         if ch == 9:
             lines.append(f"drums: {' '.join(_drum_cells(notes))}")
         else:
-            mean_pitch = sum(p for _, _, p in notes) / len(notes)
-            melodic.append((mean_pitch, ch))
-    for _, ch in sorted(melodic, reverse=True):
-        lines.append(f"{_ch_name(ch)}: {' '.join(_cells_for(chan_notes[ch]))}")
+            lanes = _split_lanes(notes)
+            lane_stats = sorted(
+                ((sum(p for _, _, p in lane) / len(lane), lane)
+                 for lane in lanes),
+                key=lambda x: -x[0])
+            ch_mean = sum(p for _, _, p in notes) / len(notes)
+            melodic.append((ch_mean, ch, lane_stats))
+    for _, ch, lane_stats in sorted(melodic, reverse=True):
+        base = _ch_name(ch)
+        for li, (_, lane) in enumerate(lane_stats):
+            suffix = "" if li == 0 else f"_{li + 1}"
+            lines.append(f"{base}{suffix}: {' '.join(_cells_for(lane))}")
     return "\n".join(lines) + "\n"
 
 
