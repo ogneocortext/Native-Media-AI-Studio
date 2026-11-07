@@ -733,15 +733,57 @@ const TOOL_IMPLEMENTATIONS = {
   },
 
   take_screenshot: async ({ url, selector, full_page = false }) => {
-    let browser;
+    let chromium;
     try {
-      const { chromium } = await import("playwright");
-      browser = await chromium.launch({ headless: true });
-    } catch (e) {
+      ({ chromium } = await import("playwright"));
+    } catch {
       return {
-        error: "playwright not available. Install it: pnpm add -D playwright",
+        error: "playwright package not resolvable from tools/mcp",
         hint: "Or use the existing scripts/capture-visualizer-frames.mjs workflow.",
       };
+    }
+    // The installed playwright pins a specific browser build
+    // (chromium_headless_shell-<rev>) that may not be downloaded on this
+    // machine — patchright's chromium-1248 usually is. Try the pinned
+    // launch first, then fall back to the newest on-disk chromium build.
+    const launchOptions = { headless: true };
+    try {
+      browser = await chromium.launch(launchOptions);
+    } catch (firstErr) {
+      const browsersDir = path.join(
+        process.env.LOCALAPPDATA || "",
+        "ms-playwright",
+      );
+      const exeCandidates = [];
+      try {
+        for (const dir of fs.readdirSync(browsersDir)) {
+          const shell = path.join(
+            browsersDir, dir, "chrome-headless-shell-win64",
+            "chrome-headless-shell.exe",
+          );
+          const full = path.join(
+            browsersDir, dir, "chrome-win64", "chrome.exe",
+          );
+          if (existsSync(shell)) exeCandidates.push(shell);
+          if (existsSync(full)) exeCandidates.push(full);
+        }
+      } catch { /* no browsers dir */ }
+      exeCandidates.sort().reverse();
+      let lastErr = firstErr;
+      for (const exe of exeCandidates) {
+        try {
+          browser = await chromium.launch({ ...launchOptions, executablePath: exe });
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (!browser) {
+        return {
+          error: `chromium launch failed: ${String(lastErr?.message || lastErr).split("\n")[0]}`,
+          hint: "Run 'pnpm --filter frontend exec playwright install chromium' or use scripts/capture-visualizer-frames.mjs.",
+        };
+      }
     }
     const context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
