@@ -218,11 +218,13 @@ filter are the dataset recipe, and it is already paid for.
    packets. **Registered as T-AGT-10.**
 4. Read next from the same author: "Humans cannot keep up with
    agents and are struggling with approval fatigue" (Oct 22) — the
-   approval-card UX problem. **Not registered:** the owner reports
-   approval fatigue has been largely mitigated by his custom-skills
-   work of 2026-11-07 (skills carry the pre-approved patterns, so the
-   prompts stopped stacking up). The post stays on the reading list
-   as background only.
+   approval-card UX problem. **Registered as T-AGT-11**, reframed:
+   the owner reports approval fatigue has been largely mitigated by
+   his custom-skills work of 2026-11-07 (skills carry the
+   pre-approved patterns, so the prompts stopped stacking up), and
+   directed the same day that the post is still worth an
+   applicability read against the mitigated state — what still
+   applies, what is already solved, what residual gaps remain.
 
 ## Provenance
 

@@ -298,3 +298,33 @@ Code: `packages/backend/app/agents/`
   executed with the conflicts section present in its report.
 - **Last session:** — registered 2026-11-07 by Orion at owner
   direction (Cobus follow-up 3); not started.
+
+### T-AGT-11 — Applicability read: approval fatigue vs the post-skills studio
+- **Status:** todo
+- **Goal:** A verdict, not a fix: read Cobus Greyling's "Humans
+  cannot keep up with agents and are struggling with approval
+  fatigue" (Oct 22, 2026) against the studio's CURRENT approval
+  surface — after the owner's 2026-11-07 custom-skills leap, which
+  he reports largely mitigated the fatigue (skills carry the
+  pre-approved patterns). What still applies, what is already solved
+  here, and what residual gaps remain, if any.
+- **Plan:** (1) Read the post in full via public browse; distill its
+  claims and proposed mitigations (batching, risk-tiered approvals,
+  async review, trust budgets — whatever it actually names; do not
+  assume). (2) Inventory the studio's live approval points as they
+  stand now: runtime approval cards, the exact-approval-scope rule,
+  custom skills' pre-approved patterns, Kilo permission config,
+  T-AGT-09's owner-review rule. (3) Write the applicability verdict
+  as a dated section appended to
+  `docs/knowledge-library/cobus-harness-engineering-2026.md`,
+  per-claim: applies / already solved / residual gap. Any residual
+  gap is reported to the owner as a candidate task — not registered
+  under this item.
+- **Files:** docs/knowledge-library/cobus-harness-engineering-2026.md
+- **Acceptance:** Verdict section present in the Cobus doc covering
+  every mitigation the post names, each mapped to the studio's
+  current state with evidence; owner informed of any residual gaps
+  in the same commit's message.
+- **Last session:** — registered 2026-11-07 by Orion at owner
+  direction (Cobus follow-up 4, reframed as an applicability read
+  after the owner's mitigation report); not started.
