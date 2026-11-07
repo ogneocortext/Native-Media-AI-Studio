@@ -120,6 +120,7 @@ date: 2026-09-30
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
 - [[nemotron-3-5-bolt-e4b-2026|🤖 Nemotron 3.5 Bolt E4B 4GB]] — Local agent model reference: strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, routing guidance for cloud models (NEW 2026-11-01)
+- [[local-model-operating-brief-2026|📋 Local Model Operating Brief]] — The six-part system-prompt method for small local models (role, grounding, output contract, stopping rule, sampling discipline, verification), with the 2026-11-06 before/after evidence on Bolt E4B (NEW 2026-11-06)
 - [[nemotron-3-5-super-vl-prompting-2026|👁️ Nemotron 3.5 Super VL Prompting]] - Prompting reference for Nemotron 3.5 Super VL via the Kilo route (indexed 2026-11-06)
 - [[custom-agent-design|🤖 Custom Agent Design]] - Native Media AI Studio agent architecture and design notes (indexed 2026-11-06)
 - [[programmatic-tool-calling-2026|🛠️ Programmatic Tool Calling 2026]] - PTC patterns taken from Factory Droid 1.0 (indexed 2026-11-06)
@@ -177,7 +178,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 7 documents |
-|| `#ai/*` | AI models, training & ML | 19 documents |
+|| `#ai/*` | AI models, training & ML | 20 documents |
 || `#research/*` | Industry trends & analysis | 20 documents |
 
 ### Cross-Cutting Tags
