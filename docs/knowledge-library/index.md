@@ -60,6 +60,7 @@ date: 2026-09-30
 - [[remotion-agent-skills-2026|🎬 Remotion Agent Skills]] — Agent skills for Remotion video work (indexed 2026-11-06)
 - [[higgsfield-comfyui-challenge-2026|🎥 Open Source Higgsfield Challenge]] — ComfyUI's $10K challenge and its 8 open-source recreations: gap-checked against this library, 6 missing techniques recorded (indexed 2026-11-06)
 - [[3d-bones-ai-skin-pipeline-2026|🦴 3D Bones, AI Skin — Pipeline Gap Analysis]] — Two routes to footage (3D standing alone vs 3D bones driving AI skin), the frame-package contract, and the five gaps between the current studio and that pipeline, each feasibility-checked against the verified hardware baseline (NEW 2026-11-06)
+- [[three-js-studio-scene-quality-2026|🔍 Three.js Studio Scene Quality — Findings]] — Why generated studio scenes look like a mess: the crown-preset exhibit, the 7-shape vocabulary and 5-scalar material ceiling, the dead /generate-scene stub, and the fix shape (NEW 2026-11-06)
 - [[npx-best-practices-2026|🔒 npx Best Practices 2026]] — Supply-chain-safe npx usage, pinning, and audit habits (indexed 2026-11-06)
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
@@ -203,7 +204,7 @@ date: 2026-09-30
 || `#design` | Design systems & UX | 6 documents |
 || `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
-|| `#3d` | 3D generation & rendering | 16 documents |
+|| `#3d` | 3D generation & rendering | 17 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |
 
 ---
