@@ -27,13 +27,14 @@ import functools
 import json
 import logging
 import logging.handlers
+import platform
 import re
 import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from ..core.config import PROJECT_ROOT
 
@@ -386,6 +387,68 @@ BACKUP_COUNT = 5
 LOG_RETENTION_DAYS = 7
 
 
+# ---------------------------------------------------------------------------
+# Safe Rotating File Handler for Windows
+# ---------------------------------------------------------------------------
+# On Windows, the standard RotatingFileHandler uses os.rename for rotation,
+# which fails with PermissionError if the file is locked by another process
+# (e.g., another logger instance, antivirus, backup software). This custom
+# handler wraps the rotation in a retry loop with a short delay, and falls
+# back to truncating the current file if rotation persistently fails.
+# ---------------------------------------------------------------------------
+
+class SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
+    """RotatingFileHandler that handles Windows file locking gracefully.
+
+    On Windows, os.rename fails with PermissionError if the file is locked
+    by another process. This handler wraps rotation in a retry loop with
+    exponential backoff, and falls back to truncating the current file
+    if rotation persistently fails.
+    """
+
+    def __init__(self, *args, max_retries: int = 3, retry_delay: float = 0.1, **kwargs):
+        self._max_retries = max_retries
+        self._retry_delay = retry_delay
+        super().__init__(*args, **kwargs)
+
+    @override
+    def doRollover(self):
+        """Override to add retry logic for Windows file locking."""
+        if platform.system() == "Windows":
+            self._safe_rollover()
+        else:
+            super().doRollover()
+
+    def _safe_rollover(self):
+        """Perform rollover with retry logic for Windows file locking."""
+        import time
+
+        for attempt in range(self._max_retries):
+            try:
+                super().doRollover()
+                return  # Success
+            except PermissionError:
+                if attempt < self._max_retries - 1:
+                    time.sleep(self._retry_delay * (2 ** attempt))  # Exponential backoff
+                    continue
+                else:
+                    # Last resort: truncate the current file instead of rotating
+                    if self.stream:
+                        self.stream.close()
+                        self.stream = None
+                    try:
+                        with open(self.baseFilename, "w") as f:
+                            f.truncate(0)
+                        self.stream = open(self.baseFilename, "a", encoding=self.encoding)
+                    except Exception:
+                        pass  # Best effort
+                    return
+            except Exception:
+                # For any other error, fall back to parent behavior
+                super().doRollover()
+                return
+
+
 class _StdCapture:
     """Redirect stdout/stderr to logging while preserving console output."""
 
@@ -427,10 +490,21 @@ class _StreamWrapper:
         self.level = level
         self.original = original
         self._buffer = ""
+        self._recursion_guard = False
         # Mirror common TextIO attributes so third-party code that probes
         # the stream (encoding checks, writelines, closed, etc.) keeps working.
         self.encoding = getattr(original, "encoding", "utf-8")
         self.errors = getattr(original, "errors", "replace")
+
+    def _process_line(self, line: str) -> None:
+        """Process a single complete line: log it if non-empty and not in recursion."""
+        if not line.strip() or self._recursion_guard:
+            return
+        self._recursion_guard = True
+        try:
+            self.logger.log(self.level, line.strip())
+        finally:
+            self._recursion_guard = False
 
     def write(self, text: str):
         # Pass through to original stream
@@ -439,14 +513,17 @@ class _StreamWrapper:
         self._buffer += text
         while "\n" in self._buffer:
             line, self._buffer = self._buffer.split("\n", 1)
-            if line.strip():
-                self.logger.log(self.level, line.strip())
+            self._process_line(line)
 
     def flush(self):
         # Emit any partial line still in the buffer before flushing.
-        if self._buffer.strip():
-            self.logger.log(self.level, self._buffer.strip())
-            self._buffer = ""
+        if self._buffer.strip() and not self._recursion_guard:
+            self._recursion_guard = True
+            try:
+                self.logger.log(self.level, self._buffer.strip())
+            finally:
+                self._recursion_guard = False
+                self._buffer = ""
         self.original.flush()
 
     def writelines(self, lines):
@@ -577,8 +654,8 @@ def setup_logging(
     root_logger.addHandler(console_handler)
 
     # === App Log (all messages) ===
-    app_handler = logging.handlers.RotatingFileHandler(
-        APP_LOG, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
+    app_handler = SafeRotatingFileHandler(
+        APP_LOG, "a", MAX_BYTES, BACKUP_COUNT, encoding="utf-8"
     )
     app_handler.setLevel(logging.DEBUG)
     app_handler.addFilter(_request_filter)
@@ -588,8 +665,8 @@ def setup_logging(
     root_logger.addHandler(app_handler)
 
     # === Error Log (errors only) ===
-    error_handler = logging.handlers.RotatingFileHandler(
-        ERROR_LOG, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
+    error_handler = SafeRotatingFileHandler(
+        ERROR_LOG, "a", MAX_BYTES, BACKUP_COUNT, encoding="utf-8"
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.addFilter(_request_filter)
@@ -601,8 +678,8 @@ def setup_logging(
     # === Queue-specific Logger ===
     queue_logger = logging.getLogger("app.queue")
     queue_logger.propagate = True
-    queue_handler = logging.handlers.RotatingFileHandler(
-        QUEUE_LOG, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
+    queue_handler = SafeRotatingFileHandler(
+        QUEUE_LOG, "a", MAX_BYTES, BACKUP_COUNT, encoding="utf-8"
     )
     queue_handler.setLevel(logging.DEBUG)
     queue_handler.setFormatter(app_fmt)
@@ -614,8 +691,8 @@ def setup_logging(
     # === ComfyUI-specific Logger ===
     comfyui_logger = logging.getLogger("app.adapters.comfyui")
     comfyui_logger.propagate = True
-    comfyui_handler = logging.handlers.RotatingFileHandler(
-        COMFYUI_LOG, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
+    comfyui_handler = SafeRotatingFileHandler(
+        COMFYUI_LOG, "a", MAX_BYTES, BACKUP_COUNT, encoding="utf-8"
     )
     comfyui_handler.setLevel(logging.DEBUG)
     comfyui_handler.setFormatter(app_fmt)
@@ -627,8 +704,8 @@ def setup_logging(
     # === Ollama-specific Logger ===
     ollama_logger = logging.getLogger("app.adapters.ollama")
     ollama_logger.propagate = True
-    ollama_handler = logging.handlers.RotatingFileHandler(
-        OLLAMA_LOG, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
+    ollama_handler = SafeRotatingFileHandler(
+        OLLAMA_LOG, "a", MAX_BYTES, BACKUP_COUNT, encoding="utf-8"
     )
     ollama_handler.setLevel(logging.DEBUG)
     ollama_handler.setFormatter(app_fmt)
