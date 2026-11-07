@@ -27,6 +27,30 @@
   overflow: hidden;
   background: #050507;
   color: #eaeaea;
+
+  /* ===== Chrome design tokens (T-VIZ-48) =====
+     One accent, one control spec, one elevation ladder. The interactive
+     accent is --color-primary (blue); violet is reserved for AI/creation
+     surfaces (viz-ai-*) so the two never compete. All stage/topbar/
+     inspector chrome consumes these instead of hardcoded rgba values. */
+  --viz-accent: var(--color-primary);
+  --viz-accent-soft: color-mix(in oklch, var(--color-primary) 16%, transparent);
+  --viz-accent-border: color-mix(in oklch, var(--color-primary) 45%, transparent);
+  --viz-surface: oklch(100% 0 0 / 0.04);
+  --viz-surface-hover: oklch(100% 0 0 / 0.08);
+  --viz-surface-raised: oklch(18% 0.012 260 / 0.94);
+  --viz-border: oklch(100% 0 0 / 0.09);
+  --viz-border-subtle: oklch(100% 0 0 / 0.06);
+  --viz-border-strong: oklch(100% 0 0 / 0.16);
+  --viz-text-1: var(--text-primary);
+  --viz-text-2: var(--text-secondary);
+  --viz-text-3: var(--text-tertiary);
+  --viz-radius-ctl: 7px;
+  --viz-radius-panel: 10px;
+  --viz-elev-1: 0 1px 2px oklch(0% 0 0 / 0.35);
+  --viz-elev-2: 0 10px 28px oklch(0% 0 0 / 0.5);
+  --viz-elev-3: 0 20px 50px oklch(0% 0 0 / 0.55);
+  --viz-ctl-h: 30px;
 }
 
 .viz-content {
@@ -288,7 +312,7 @@
 .viz-playhead-track {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #8b5cf6 0%, #d946ef 100%);
+  background: var(--viz-accent, #8b5cf6);
   transform: scaleX(0);
   transform-origin: left;
   height: 100%;
@@ -301,7 +325,7 @@
   transform: translateY(-50%);
   width: 10px;
   height: 10px;
-  background: #8b5cf6;
+  background: var(--viz-accent, #8b5cf6);
   border: 2px solid #ffffff;
   border-radius: 50%;
   pointer-events: none;
@@ -326,7 +350,7 @@
 }
 
 .viz-loop-region {
-  background: rgba(139, 92, 246, 0.15);
+  background: color-mix(in oklch, var(--viz-accent, #8b5cf6) 15%, transparent);
 }
 
 .viz-loop-anchor {
@@ -416,6 +440,7 @@
      the RenderStatsBadge icons/text vertically into a tall narrow column. */
   display: flex;
   align-items: center;
+  font-variant-numeric: tabular-nums;
   padding: 0.25rem 0.625rem;
   background: rgba(16, 185, 129, 0.15);
   border: 1px solid rgba(16, 185, 129, 0.3);
@@ -496,14 +521,132 @@
   gap: 0.3rem;
   padding: 0.2rem 0.55rem;
   background: rgba(16, 16, 22, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--viz-border, rgba(255, 255, 255, 0.14));
   border-radius: 2rem;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
   color: #cbd5e1;
   cursor: default;
   backdrop-filter: blur(8px);
+}
+
+/* ===== Quick preset bar (stage chrome) =====
+   Semantic replacement for the old Tailwind-styled bar — utilities beat
+   the components layer, so restyling via CSS required dropping the
+   utility classes in QuickPresetBar.tsx. One control spec: pills share
+   the chrome radius/border/surface tokens; the active pill takes the
+   accent tint, matching .viz-icon-btn.active and .viz-mode-btn.active. */
+.viz-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: var(--viz-surface-raised);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--viz-border);
+  border-radius: var(--viz-radius-panel);
+  box-shadow: var(--viz-elev-2);
+}
+
+.viz-mode-pills {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--viz-surface);
+  border: 1px solid var(--viz-border-subtle);
+  border-radius: var(--viz-radius-ctl);
+}
+
+.viz-mode-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--viz-text-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.viz-mode-pill:hover {
+  color: var(--viz-text-1);
+  background: var(--viz-surface-hover);
+}
+
+.viz-mode-pill.active {
+  background: var(--viz-accent-soft);
+  color: var(--viz-accent);
+}
+
+.viz-preset-divider {
+  inline-size: 1px;
+  block-size: 16px;
+  background: var(--viz-border);
+  flex-shrink: 0;
+}
+
+.viz-preset-pills {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-block: 2px;
+  max-inline-size: 100%;
+}
+
+.viz-preset-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.viz-preset-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--viz-radius-ctl);
+  background: transparent;
+  color: var(--viz-text-2);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.viz-preset-pill:hover {
+  color: var(--viz-text-1);
+  background: var(--viz-surface-hover);
+}
+
+.viz-preset-pill.active {
+  background: var(--viz-accent-soft);
+  border-color: var(--viz-accent-border);
+  color: var(--viz-text-1);
+  font-weight: 600;
+}
+
+/* Per-preset identifier dot — kept as a data cue (Serato-pad style),
+   small enough not to fight the single-accent chrome. */
+.viz-preset-dot {
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* --- Mode fade --- */
@@ -682,8 +825,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(16, 16, 22, 0.92);
-  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--viz-surface-raised);
+  border-left: 1px solid var(--viz-border-subtle);
   backdrop-filter: blur(10px);
 }
 
@@ -736,8 +879,8 @@
 }
 
 .viz-inspector-tab.active {
-  background: rgba(139, 92, 246, 0.18);
-  color: #c4b5fd;
+  background: var(--viz-accent-soft);
+  color: var(--viz-accent);
 }
 
 .viz-inspector-tab.disabled {
@@ -814,9 +957,9 @@
 }
 
 .viz-inspector-mixer-toggle.active {
-  background: rgba(139, 92, 246, 0.25);
-  border-color: rgba(139, 92, 246, 0.5);
-  color: #ddd6fe;
+  background: var(--viz-accent-soft);
+  border-color: var(--viz-accent-border);
+  color: var(--viz-accent);
 }
 
 .viz-inspector-ai {
@@ -835,9 +978,9 @@
   margin-top: 0.75rem;
   padding: 0.6rem 0.75rem;
   border-radius: 9px;
-  border: 1px dashed rgba(139, 92, 246, 0.35);
-  background: rgba(139, 92, 246, 0.07);
-  color: rgba(255, 255, 255, 0.8);
+  border: 1px dashed var(--viz-accent-border);
+  background: var(--viz-accent-soft);
+  color: var(--viz-text-1);
   font-size: 12px;
   font-weight: 600;
   text-align: left;
@@ -848,8 +991,8 @@
 }
 
 .viz-inspector-linkcard:hover {
-  background: rgba(139, 92, 246, 0.14);
-  border-color: rgba(139, 92, 246, 0.6);
+  background: color-mix(in oklch, var(--color-primary) 24%, transparent);
+  border-color: var(--viz-accent);
 }
 
 .viz-inspector-linkcard span {
@@ -896,15 +1039,16 @@
 }
 
 .viz-mode-btn.active {
-  background: rgba(139, 92, 246, 0.85);
-  color: #fff;
+  background: var(--viz-accent-soft);
+  border-color: var(--viz-accent-border);
+  color: var(--viz-accent);
 }
 
 /* ===== Bottom transport bar ===== */
 .viz-audio-player {
   margin-top: 0;
   padding: 0.4rem 0.75rem 0.6rem;
-  background: rgba(14, 14, 18, 0.9);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--viz-surface-raised);
+  border-top: 1px solid var(--viz-border-subtle);
   flex-shrink: 0;
 }

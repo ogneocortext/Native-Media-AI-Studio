@@ -46,6 +46,12 @@ const FEATURED_2D_MODES: { mode: Canvas2DMode; label: string }[] = [
   { mode: "aurora", label: "Aurora" },
 ];
 
+const MODE_PILLS: { id: "3d" | "shader" | "2d"; label: string; icon: typeof Flame }[] = [
+  { id: "shader", label: "FX", icon: Flame },
+  { id: "3d", label: "3D", icon: Sparkles },
+  { id: "2d", label: "2D", icon: Activity },
+];
+
 export const QuickPresetBar = memo(function QuickPresetBar({
   vizMode,
   onVizModeChange,
@@ -60,57 +66,33 @@ export const QuickPresetBar = memo(function QuickPresetBar({
 }: QuickPresetBarProps) {
   return (
     <div
-      className={`viz-quick-preset-bar flex items-center gap-2 p-1.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl ${className}`}
+      className={`viz-preset-bar ${className}`}
       role="toolbar"
       aria-label="Visualization quick vibes"
     >
       {/* Mode pills — optional; the topbar segmented control is the
           persistent switch, this bar focuses on per-mode presets. */}
       {showModeSwitch && (
-        <div className="flex items-center bg-white/5 rounded-lg p-0.5 border border-white/10">
-          <button
-            onClick={() => onVizModeChange("shader")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-              vizMode === "shader"
-                ? "bg-violet-600 text-white shadow"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-            title="Switch to Shader / GLSL FX Mode"
-          >
-            <Flame size={12} />
-            <span>FX</span>
-          </button>
-          <button
-            onClick={() => onVizModeChange("3d")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-              vizMode === "3d"
-                ? "bg-violet-600 text-white shadow"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-            title="Switch to 3D Stage Mode"
-          >
-            <Sparkles size={12} />
-            <span>3D</span>
-          </button>
-          <button
-            onClick={() => onVizModeChange("2d")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-              vizMode === "2d"
-                ? "bg-violet-600 text-white shadow"
-                : "text-white/60 hover:text-white hover:bg-white/5"
-            }`}
-            title="Switch to Canvas 2D Mode"
-          >
-            <Activity size={12} />
-            <span>2D</span>
-          </button>
+        <div className="viz-mode-pills">
+          {MODE_PILLS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => onVizModeChange(id)}
+              className={`viz-mode-pill ${vizMode === id ? "active" : ""}`}
+              aria-pressed={vizMode === id}
+              title={`Switch to ${label} mode`}
+            >
+              <Icon size={12} />
+              <span>{label}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {showModeSwitch && <div className="h-4 w-px bg-white/15 mx-0.5" />}
+      {showModeSwitch && <div className="viz-preset-divider" aria-hidden="true" />}
 
       {/* Mode specific quick switchers */}
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5 max-w-full">
+      <div className="viz-preset-pills">
         {vizMode === "3d" &&
           FEATURED_3D_PRESETS.map((p) => {
             const isActive = active3DPresetId === p.id;
@@ -118,17 +100,11 @@ export const QuickPresetBar = memo(function QuickPresetBar({
               <button
                 key={p.id}
                 onClick={() => onSelect3DPreset(p.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-all whitespace-nowrap ${
-                  isActive
-                    ? "bg-white/20 text-white font-medium border border-white/25 shadow-sm"
-                    : "text-white/70 hover:text-white hover:bg-white/10"
-                }`}
+                className={`viz-preset-pill ${isActive ? "active" : ""}`}
+                aria-pressed={isActive}
                 title={visualPresets[p.id].description ?? p.name}
               >
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ background: p.color }}
-                />
+                <span className="viz-preset-dot" style={{ background: p.color }} />
                 <span>{p.name}</span>
               </button>
             );
@@ -141,11 +117,8 @@ export const QuickPresetBar = memo(function QuickPresetBar({
               <button
                 key={item.mode}
                 onClick={() => onSelect2DMode(item.mode)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-all whitespace-nowrap ${
-                  isActive
-                    ? "bg-white/20 text-white font-medium border border-white/25 shadow-sm"
-                    : "text-white/70 hover:text-white hover:bg-white/10"
-                }`}
+                className={`viz-preset-pill ${isActive ? "active" : ""}`}
+                aria-pressed={isActive}
               >
                 <span>{item.label}</span>
               </button>
@@ -161,11 +134,8 @@ export const QuickPresetBar = memo(function QuickPresetBar({
               <button
                 key={key}
                 onClick={() => onSelectShaderPreset?.(key)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-all whitespace-nowrap ${
-                  isActive
-                    ? "bg-white/20 text-white font-medium border border-white/25 shadow-sm"
-                    : "text-white/70 hover:text-white hover:bg-white/10"
-                }`}
+                className={`viz-preset-pill ${isActive ? "active" : ""}`}
+                aria-pressed={isActive}
                 title={info.description}
               >
                 <span>{info.name}</span>

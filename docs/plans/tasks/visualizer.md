@@ -1054,3 +1054,39 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   opens and mounts the full Audio Latency card; `tsc -b` clean.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-VIZ-48 — Chrome design-token pass + preset-bar restyle
+
+- **Status:** done
+- **Goal:** Owner request — professional redesign of /render/visualizer
+  chrome using design/best-practices skills, fixing the "inconsistent
+  tags / flat / cluttered" verdict from the prior vision audit.
+- **Design direction:** one interactive accent (blue `--color-primary`),
+  violet reserved for AI/creation surfaces only; one control spec
+  (30px height, 7px radius, hairline border, subtle surface); one
+  elevation ladder; tabular numerals on telemetry.
+- **What changed:**
+  - `visualizer.css`: new `--viz-*` token block on `.viz-page`
+    (accent/soft/border, surfaces, text ramp, radii, elevations,
+    control height). Inspector, mode switch, playhead/loop markers,
+    audio player, latency chip, backend badge migrated to tokens.
+  - `visualizer-chrome.css`: `.viz-icon-btn`, `.viz-track-select`,
+    `.viz-analyze-btn` unified to the control spec; NEW
+    `.viz-enhance-btn` in AI violet (creation CTA); menus, preset
+    badge, tuning/settings groups, sliders (`accent-color`),
+    bottombar, reset migrated to tokens.
+  - `QuickPresetBar.tsx`: Tailwind utility classes replaced with
+    semantic `.viz-preset-bar` / `.viz-mode-pill` / `.viz-preset-pill`
+    classes (utilities were beating the components layer, which is why
+    restyling had failed before). Per-preset hue dots kept as small
+    data cues.
+- **Files:** styles/visualizer.css, styles/visualizer-chrome.css,
+  components/QuickPresetBar.tsx.
+- **Verification:** Playwright audit at 1600x900 across 3D/2D/shader +
+  inspector open/closed — zero chrome-zone collisions; chip hit-test
+  lands inside chip; accent resolves `oklch(55% 0.22 260)`; gemma4
+  ui-mode vision audit reports good dark-mode contrast and color
+  consistency (remaining complaints are app-shell sidebar, out of
+  scope); `tsc -b` clean.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.
