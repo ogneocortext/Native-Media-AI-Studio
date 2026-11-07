@@ -81,6 +81,19 @@
 #  scripts, tools). Note that `docs/knowledge/` is a _separate_ doc
 > set from the library and `docs/notes/` and `docs/scratch/` are explicitly not
 > authoritative (D12).
+>
+> **Adding knowledge-library documents is scaffolded, not hand-written.**
+> Create new `docs/knowledge-library/*.md` articles with
+> `python tools/kb-add.py --title "..." --category <primary> --type <type>`
+> — it writes schema-compliant frontmatter (primary category tag FIRST,
+> then `aliases:`/`cssclasses:`/`date:`/`type:`), auto-links related docs,
+> registers the file in `index.md` + `knowledge-tracker.md` + `log.md`,
+> and runs the validator. Hand-rolled frontmatter gets rejected at commit
+> by `tools/validate-knowledge-tags.py` (primary-tag-first rule, required
+> fields, tracker/index count sync). The full contract is
+> `docs/knowledge-library/_schema.md`; tag taxonomy is `tagging-guide.md`.
+> Editing an existing article's frontmatter? Keep the same invariants —
+> first tag a primary category, all four required fields present.
 
 ## Project Overview
 
