@@ -1,7 +1,14 @@
 ---
 title: "Three.js Studio Scene Quality — Findings 2026"
 date: 2026-11-06
+type: synthesis
+aliases:
+  - Three.js Studio Scene Quality
+  - Scene Quality Findings
+cssclasses:
+  - technical-audit
 tags:
+  - technical
   - 3d
   - three-js
 ---

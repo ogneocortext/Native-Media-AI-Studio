@@ -106,6 +106,11 @@ code touches:
 - For heuristic/data tables, feed **real examples from the codebase's domain**
   (actual error messages the system produces), not invented ones.
 - Run lint + typecheck on touched files; run the relevant unit tests.
+- **Rendered-output changes** (UI pages, shaders, visualizer styles): when the
+  acceptance criterion is visual, optionally run the `visual-qa-loop` skill —
+  screenshot → vision-model analysis → fix → re-capture. It is an addon, not a
+  required step; skip it for non-visual changes. `vision-page-analysis` covers
+  the single-page capture+analyze half.
 
 ### 6. Report findings honestly
 

@@ -8,7 +8,7 @@ aliases:
 cssclasses:
   - performance-guide
 date: 2026-11-06
-type: reference
+type: source
 status: current
 ---
 

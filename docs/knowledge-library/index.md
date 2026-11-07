@@ -182,12 +182,12 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 17 documents |
-|| `#technical/*` | System implementation & code | 21 documents |
+|| `#technical/*` | System implementation & code | 22 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
-|| `#research/*` | Industry trends & analysis | 22 documents |
+|| `#research/*` | Industry trends & analysis | 24 documents |
 
 ### Cross-Cutting Tags
 

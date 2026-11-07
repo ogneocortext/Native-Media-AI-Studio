@@ -131,6 +131,8 @@ class DependencyChecker:
                 cwd=self.workspace_root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=180,
                 shell=True  # Needed for .cmd on Windows
             )

@@ -1,7 +1,14 @@
 ---
 title: "Browser Character Pipeline — Research Agenda 2026"
 date: 2026-11-06
+type: synthesis
+aliases:
+  - Browser Character Pipeline Research
+  - Character Pipeline Research Agenda
+cssclasses:
+  - research-guide
 tags:
+  - research
   - 3d
 ---
 
