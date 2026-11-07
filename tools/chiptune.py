@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import operator
 import re
 import sys
 import wave
@@ -146,23 +145,15 @@ def _quantize_duty(duty: int, system: str) -> int:
 # A minor-ish demo: 8 bars, i - VI - III - VII vibe in A minor.
 
 
-DEMO = """\
-# chiptune demo — built-in pattern (A minor, 8 bars)
+DEMO = """
+# chiptune demo - built-in pattern (A minor, 8 bars x 16 cells)
 system nes
 tempo 150
 
-lead: A-4 . . C-5 . . E-5 . . | D-5 . . C-5 . . A-4 . . | \
-G-4 . . A-4 . . C-5 . . | B-4 . . A-4 . . G-4 . . | \
-A-4 . . C-5 . . E-5 . . | D-5 . . E-5 . . D-5 . . | \
-C-5 . . >B-4 . . >A-4 . . | >G-4 - - - - - - - - - - |
-bass: A-2 . . . . . . . . . . | F-2 . . . . . . . . . . | \
-C-3 . . . . . . . . . . . | G-2 . . . . . . . . . . . | \
-A-2 . . . . . . . . . . . | F-2 . . . . . . . . . . . | \
-E-2 . . . . . . . . . . . | E-2 - - - - - - - - - - |
-hat: x . . x . . x . | x . . x . . x . | \
-x . . x . . x . | x . . x . . x . | \
-x . . x . . x . | x . . x . . x . | \
-x . . x . . x . | x . . x . . x - |
+lead: A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | C-5 . E-5 . G-5 . C-6 . . B-5 . . G-5 . E-5 . | F-5 . . E-5 . . D-5 . . E-5 . . >D-5 . . . | E-5 . G-5 . B-5 . E-6 . . D-6 . . B-5 . G-5 . | A-5 . . G-5 . . F-5 . . E-5 . . D-5 . . . | C-5 . E-5 . A-5 . C-6 . . B-5 . . G-5 . E-5 . | >A-4 - - - - - - - - - - - - - - -
+harmony: C-5 . . E-5 . . A-5 . . C-6 . . E-6 . . . | B-4 . . G-4 . . D-5 . . B-4 . . G-4 . . . | E-5 . . G-5 . . C-6 . . E-6 . . G-6 . . . | D-5 . . C-5 . . A-4 . . D-5 . . F-5 . . . | G-5 . . B-5 . . E-6 . . G-6 . . B-6 . . . | E-5 . . C-5 . . A-4 . . E-5 . . G-5 . . . | E-5 . . A-5 . . C-6 . . E-6 . . A-6 . . . | A-4 - - - - - - - - - - - - - - -
+bass: A-2 . A-2 . A-2 . A-2 . A-2 . A-2 . A-2 . A-2 . | F-2 . F-2 . F-2 . F-2 . F-2 . F-2 . F-2 . F-2 . | C-3 . C-3 . C-3 . C-3 . G-2 . G-2 . G-2 . G-2 . | A-2 . A-2 . A-2 . A-2 . G-2 . G-2 . E-2 . E-2 . | F-2 . F-2 . F-2 . F-2 . C-3 . C-3 . C-3 . C-3 . | F-2 . F-2 . F-2 . F-2 . E-2 . E-2 . E-2 . E-2 . | A-2 . A-2 . A-2 . A-2 . E-2 . E-2 . E-2 . E-2 . | A-2 - - - - - - - - - - - - - - -
+hat: x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x -
 """
 
 
@@ -191,6 +182,9 @@ def note_to_freq(name: str) -> float:
 
 def parse_chip(text: str) -> Pattern:
     p = Pattern()
+    # Backslash-newline continues the previous logical line — channel blocks
+    # may span physical lines (the built-in DEMO relies on this).
+    text = re.sub(r"\\\s*\n", " ", text)
     for raw in text.splitlines():
         line = raw.split("#", 1)[0].strip()
         if not line:
@@ -586,13 +580,29 @@ def pattern_report(p: Pattern, sysname: str) -> dict:
         comp_bars += 1
     rep_ratio = rep_bars / max(comp_bars, 1)
 
-    # Lead-channel pitch variety: unique bar shapes in the busiest channel.
-    busiest = max(chan_stats, key=operator.itemgetter("notes"), default=None)
+    # Lead channel = named lead/melody/main, else the tonal channel with the
+    # highest mean pitch (the "busiest" bass would mislabel the range flag).
+    def _mean_pitch(ch):
+        name, wave, _d, cells = ch
+        semis = [_note_semitone(c.lstrip(">").split("~", 1)[0])
+                 for c in cells if c not in (".", "-") and "~" not in c]
+        semis = [s for s in semis if s is not None]
+        return sum(semis) / len(semis) if semis else -1
+
+    tonal = [ch for ch in bound if ch[1] != "noise"]
+    lead_ch = next(
+        (ch for ch in tonal
+         if any(k in ch[0].lower() for k in ("lead", "melody", "main"))),
+        max(tonal, key=_mean_pitch, default=None),
+    )
     lead_unique = 0
-    if busiest:
-        lead_cells = next(c for n, _, _, c in bound if n == busiest["name"])
+    lead_stats = None
+    if lead_ch:
+        lead_name = lead_ch[0]
+        lead_cells = next(c for n, _, _, c in bound if n == lead_name)
         shapes = {tuple(lead_cells[i:i + 16]) for i in range(0, len(lead_cells), 16)}
         lead_unique = len(shapes)
+        lead_stats = next(c for c in chan_stats if c["name"] == lead_name)
 
     # Interval histogram (semitone deltas, folded to ±12).
     iv_hist: dict[int, int] = {}
@@ -605,15 +615,15 @@ def pattern_report(p: Pattern, sysname: str) -> dict:
 
     # --- Heuristic verdicts (labelled as heuristics, not truth) ---
     flags = []
-    if busiest and busiest["density"] < 0.15:
-        flags.append(f"sparse lead ({busiest['density']:.0%} note density)")
-    if busiest and busiest["pitch_span_st"] < 12:
-        flags.append(f"narrow lead range ({busiest['pitch_span_st']}st)")
+    if lead_stats and lead_stats["density"] < 0.15:
+        flags.append(f"sparse lead ({lead_stats['density']:.0%} note density)")
+    if lead_stats and lead_stats["pitch_span_st"] < 12:
+        flags.append(f"narrow lead range ({lead_stats['pitch_span_st']}st)")
     if rep_ratio > 0.6:
         flags.append(f"highly repetitive ({rep_ratio:.0%} identical bars)")
     if voices_used < voices_total * 0.6:
         flags.append(f"under-voiced ({voices_used}/{voices_total} voices)")
-    if busiest and lead_unique <= max(2, bars // 3):
+    if lead_stats and lead_unique <= max(2, bars // 3):
         flags.append(f"few unique lead bars ({lead_unique}/{bars})")
 
     return {
