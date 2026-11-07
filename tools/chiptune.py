@@ -14,6 +14,8 @@ Pattern file format (line-based, # comments):
     tempo 140           # BPM; one cell = 1/16 note
     swing 0.58          # optional shuffle: 0.5 straight, >0.5 delays off-8ths
     vibrato lead 0.12 5.0  # optional per-channel LFO: depth in semitones, rate Hz
+    filter 2500 0.7        # optional resonant lowpass on the tonal bus (SID-style)
+    ringmod lead 2.0       # optional: voice osc x carrier osc at ratio x freq
     wave lead pulse 25  # optional per-channel override: pulse|triangle|saw|noise + duty%
 
     lead: C-4 . . E-4~0,4,7 . . | G-4 . . A-4 . . | ...
@@ -116,6 +118,16 @@ SYSTEMS = {
         "stereo": False,
         "label": "Sega Genesis — 3x FM + PSG tone/noise",
     },
+    "c64": {
+        # MOS 6581 SID: 3 mixed-waveform osc voices (pulse/saw/triangle/
+        # noise per voice via 'wave' overrides) + filter + ring-mod.
+        "channels": [("pulse", 50), ("saw", 0), ("triangle", 0),
+                     ("noise", 0)],
+        "bandwidth": 9000,
+        "noise": "lfsr",
+        "stereo": False,
+        "label": "C64 SID — 3 mixed osc + noise, filter + ring-mod",
+    },
     "loose": {
         "channels": [("pulse", 50), ("pulse", 50), ("triangle", 0),
                      ("saw", 0), ("noise", 0)],
@@ -176,6 +188,8 @@ class Pattern:
         self.swing = 0.5
         self.waves: dict[str, tuple[str, int]] = {}
         self.vibrato: dict[str, tuple[float, float]] = {}
+        self.filter: tuple[float, float] | None = None
+        self.ringmod: dict[str, float] = {}
         self.channels: dict[str, list[str]] = {}
 
 
@@ -223,6 +237,10 @@ def parse_chip(text: str) -> Pattern:
             p.swing = float(parts[1])
         elif parts[0] == "vibrato" and len(parts) >= 4:
             p.vibrato[parts[1]] = (float(parts[2]), float(parts[3]))
+        elif parts[0] == "filter" and len(parts) >= 3:
+            p.filter = (float(parts[1]), float(parts[2]))
+        elif parts[0] == "ringmod" and len(parts) >= 3:
+            p.ringmod[parts[1]] = float(parts[2])
     if not p.channels:
         raise ValueError("no channel lines found (expected 'name: cells ...')")
     return p
@@ -348,6 +366,7 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
     total = n_cells * cell_sec
     t = np.arange(int(total * sr)) / sr
     mix = np.zeros(len(t), dtype=np.float64)
+    tonal = np.zeros(len(t), dtype=np.float64)  # filtered as a bus (SID-style)
 
     # Per-voice gains — keep headroom for 5-voice sums.
     voice_gain = 0.22 if len(chan_specs) <= 4 else 0.16
@@ -464,6 +483,14 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
             sig = _fm_voice(phase, index=index)
         else:
             sig = _osc(wave_kind, duty, phase)
+        ring = p.ringmod.get(name)
+        if ring:
+            # SID ring-mod: voice osc x carrier osc at ratio x freq.
+            carrier_kind = (wave_kind if wave_kind in
+                            ("pulse", "triangle", "saw", "wave", "vox")
+                            else "pulse")
+            phase2 = np.cumsum(freq * ring) / sr
+            sig = sig * _osc(carrier_kind, duty, phase2)
         sig = np.where(freq > 0, sig, 0.0)
         # 3 ms raised-cosine anti-click envelope on every cell boundary.
         atk = int(0.003 * sr)
@@ -475,7 +502,22 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
                 env[s:e] = np.minimum(env[s:e],
                                       0.5 - 0.5 * np.cos(
                                           np.pi * np.arange(e - s) / (e - s)))
-        mix += sig * env * voice_gain
+        tonal += sig * env * voice_gain
+
+    # 'filter <cutoff_hz> <q>' — resonant lowpass on the tonal bus only
+    # (SID-style voice filter; noise hits stay unfiltered, like hardware).
+    if p.filter:
+        from scipy.signal import lfilter
+        fc, q = p.filter
+        w0 = 2 * math.pi * fc / sr
+        alpha = math.sin(w0) / (2 * q)
+        cosw = math.cos(w0)
+        b0 = (1 - cosw) / 2
+        b1 = 1 - cosw
+        a0 = 1 + alpha
+        tonal = lfilter([b0 / a0, b1 / a0, b0 / a0],
+                        [1.0, -2 * cosw / a0, (1 - alpha) / a0], tonal)
+    mix += tonal
 
     # Bandlimit: one-pole lowpass approximating the system's audio
     # bandwidth (lfilter, not a Python loop — 500k+ samples).
@@ -553,6 +595,42 @@ def _note_semitone(name: str) -> int | None:
     if letter not in _LETTER_SEMI or acc not in _ACCIDENTAL:
         return None
     return (int(m.group(3)) + 1) * 12 + _LETTER_SEMI[letter] + _ACCIDENTAL[acc]
+
+
+_PC_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def _shift_note(name: str, semi: int) -> str:
+    """Transpose a note name by `semi` semitones; returns name unchanged
+    if it isn't a note or would leave octave range 0-8."""
+    s = _note_semitone(name)
+    if s is None or semi == 0:
+        return name
+    midi = s + semi
+    if not 0 <= midi <= 127:
+        return name
+    return f"{_PC_NAMES[midi % 12]}-{midi // 12 - 1}"
+
+
+def transpose_pattern(p: Pattern, semi: int) -> None:
+    """Shift every note cell in the pattern (keeps >, <, ~arp, x, ., -)."""
+    if not semi:
+        return
+    for ch, cells in p.channels.items():
+        out = []
+        for cell in cells:
+            body = cell
+            pre = ""
+            while body[:1] in (">", "<"):
+                pre += body[0]
+                body = body[1:]
+            base, sep, arp = body.partition("~")
+            if base in (".", "-", "x") or not base:
+                out.append(cell)
+                continue
+            shifted = _shift_note(base, semi)
+            out.append(pre + shifted + (sep + arp if sep else ""))
+        p.channels[ch] = out
 
 
 def pattern_report(p: Pattern, sysname: str) -> dict:
@@ -924,6 +1002,10 @@ def main(argv: list[str] | None = None) -> int:
                          "(owner rule: -20); ignored with --no-loudnorm")
     ap.add_argument("--no-loudnorm", action="store_true",
                     help="skip loudness normalization + 0.7 peak ceiling")
+    ap.add_argument("--transpose", type=int, default=0, metavar="N",
+                    help="shift all notes by N semitones (genre/key tool)")
+    ap.add_argument("--tempo", type=float, default=None, metavar="BPM",
+                    help="override the pattern's tempo")
     args = ap.parse_args(argv)
 
     if args.list:
@@ -947,6 +1029,10 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as e:
         print(f"[chiptune] {e}", file=sys.stderr)
         return 1
+    if args.transpose:
+        transpose_pattern(pat, args.transpose)
+    if args.tempo:
+        pat.tempo = args.tempo
 
     systems = [args.system] if args.system else [pat.system]
     if args.all:
