@@ -566,6 +566,7 @@ def pattern_report(p: Pattern, sysname: str) -> dict:
             "density": (notes + noise_hits) / max(len(cells), 1),
             "pitch_span_st": span,
             "unique_pitches": len(set(pitches)),
+            "_pitches": pitches,
         })
         total_notes += notes
 
@@ -613,6 +614,43 @@ def pattern_report(p: Pattern, sysname: str) -> dict:
         iv_hist[d] = iv_hist.get(d, 0) + 1
     top_intervals = sorted(iv_hist.items(), key=lambda kv: -kv[1])[:5]
 
+    # --- EV-inspired complexity metrics (Eerola & Vipond 2023, EV8) ---
+    # Expectancy-violation models treat pitch-class entropy, interval
+    # entropy, and mean interval size as complexity predictors. We report
+    # them normalized to [0,1] so they read as "how spread is the material".
+    def _entropy_norm(counts: dict, k: int) -> float:
+        total = sum(counts.values())
+        if total == 0:
+            return 0.0
+        h = -sum((c / total) * math.log2(c / total) for c in counts.values())
+        return h / math.log2(k) if k > 1 else 0.0
+
+    lead_pc_entropy = lead_iv_entropy = lead_mean_iv = 0.0
+    if lead_stats:
+        lp = lead_stats["_pitches"]
+        pc: dict[int, int] = {}
+        for s in lp:
+            pc[s % 12] = pc.get(s % 12, 0) + 1
+        lead_pc_entropy = _entropy_norm(pc, 12)
+        iv: dict[int, int] = {}
+        for a, b in zip(lp, lp[1:], strict=False):
+            iv[b - a] = iv.get(b - a, 0) + 1
+        lead_iv_entropy = _entropy_norm(iv, 25)  # deltas clamped to ±12
+        if iv:
+            lead_mean_iv = sum(abs(d) * c for d, c in iv.items()) / sum(iv.values())
+
+    # Arrangement contrast: per-bar note count across all bound channels.
+    bar_activity = [0] * bars
+    for _, _, _, cells in bound:
+        for bi in range(bars):
+            seg = cells[bi * 16:(bi + 1) * 16]
+            if len(seg) == 16:
+                bar_activity[bi] += sum(
+                    1 for c in seg if c not in (".", "-"))
+    act_mean = sum(bar_activity) / max(bars, 1)
+    act_cv = (math.sqrt(sum((a - act_mean) ** 2 for a in bar_activity) / bars)
+              / act_mean) if act_mean else 0.0
+
     voices_used = len(bound)
     voices_total = len(spec["channels"])
 
@@ -628,6 +666,10 @@ def pattern_report(p: Pattern, sysname: str) -> dict:
         flags.append(f"under-voiced ({voices_used}/{voices_total} voices)")
     if lead_stats and lead_unique <= max(2, bars // 3):
         flags.append(f"few unique lead bars ({lead_unique}/{bars})")
+    if lead_stats and lead_pc_entropy < 0.45:
+        flags.append(f"pitch-class concentration ({lead_pc_entropy:.2f})")
+    if act_cv < 0.15:
+        flags.append(f"flat arrangement density (bar CV {act_cv:.2f})")
 
     return {
         "system": sysname, "tempo": p.tempo, "cells": n_cells,
@@ -638,6 +680,10 @@ def pattern_report(p: Pattern, sysname: str) -> dict:
         "rep_ratio": rep_ratio,
         "lead_unique_bars": lead_unique,
         "interval_hist": top_intervals,
+        "lead_pc_entropy": round(lead_pc_entropy, 3),
+        "lead_iv_entropy": round(lead_iv_entropy, 3),
+        "lead_mean_interval_st": round(lead_mean_iv, 2),
+        "bar_activity_cv": round(act_cv, 3),
         "voices_used": voices_used, "voices_total": voices_total,
         "flags": flags,
     }
@@ -696,6 +742,10 @@ def print_analysis(rep: dict, sig: dict) -> None:
     print(f"  note_density={rep['note_density']:.0%} "
           f"rep_bars={rep['rep_ratio']:.0%} "
           f"lead_unique_bars={rep['lead_unique_bars']}")
+    print(f"  lead pc_entropy={rep['lead_pc_entropy']} "
+          f"iv_entropy={rep['lead_iv_entropy']} "
+          f"mean_iv={rep['lead_mean_interval_st']}st "
+          f"bar_cv={rep['bar_activity_cv']}")
     if rep["interval_hist"]:
         top = ", ".join(f"{d}st×{n}" for d, n in rep["interval_hist"])
         print(f"  top intervals: {top}")
