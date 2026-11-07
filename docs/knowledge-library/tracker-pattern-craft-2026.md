@@ -68,3 +68,18 @@ Each of these is a named, sourced beginner failure; the generator's example set 
 
 - **Honesty note**: no published corpus statistic exists for unique-pattern counts or note density across real tracks. The anatomy, hardware, and effect facts above are manual-grade; the density figures in §3 are **derivations** from worked examples and convergent tutorials, labelled as guidance — not measured averages. Jeroen Tel-specific pattern-level analysis was not found in citable form (Hubbard disassembly practice was used for the C64 parallel instead).
 - **Exemplars** (built to this doc, 2026-11-07; data + piano-roll previews in the owner's files, `chiptune-exemplar-*`): three 64-row patterns in D minor at the canonical 150 — **A** (2-bar motif, ending-only repeat, programmatic fake echo on Pulse 2, gated walking triangle, fixed kit; 15 lead onsets, rests in every bar), **A′** (A with exactly one element changed: the final note lifts D6), **B** (A with exactly one channel changed: Pulse 2 echo → chord-tone arpeggio at `037`/`047`, dropping out in bar 4). Engine implication for T-MUS-06: the sandbox engine's 16-row sections should grow into 64-row patterns, and its always-on arp channel is failure #3 by default — arp becomes a per-pattern P2 *mode*, not a fixture.
+
+## 7. The measured contrast — bad vs good, as a gate
+
+The owner's prediction, verified the same night: comparing the three rejected renders against the exemplar set, a measurable signature separates them. A lint pass over the pattern JSONs (sandbox `pattern_lint.py`; thresholds from §3's ranges, calibrated on this small judged set — v1, to be sharpened as more judged pieces accumulate) reports:
+
+| Piece | P2 coverage | Mean active channels | Lead bars with real rests | Motif restated in-phrase | Verdict |
+|---|---|---|---|---|---|
+| Grid Royale v1 (rejected: jingle) | 1.00 | 2.89 | 0% | 0.05 | fail ×5 |
+| Grid Royale v2 (rejected: mess) | 1.00 | 2.83 | 100% | 0.00 | fail ×4 |
+| Neon Freeway theme (rejected: noise) | 1.00 | 2.82 | 0% | 0.09 | fail ×4 |
+| Motif cut (unjudged musically) | 1.00 | 3.00 | 54% | **0.96** | fail ×3 |
+| Exemplar A | 0.45 | 2.48 | 100% | 0.50 | **pass** |
+| Exemplar song (A + A′ + B) | 0.57 | 2.59 | 100% | 0.50 | **pass** |
+
+Three findings matter more than the table. (1) **Every sandbox-engine piece ever rendered has P2 coverage 1.00** — the engine's always-on arpeggio is a single habit poisoning every composition regardless of its notes; the lint fingers the engine, not just the composing. (2) **The motif cut proves the metrics are independent**: it fixed composition (motif restatement 0.96) and still fails on the engine's fixture habits — its lint output is literally the engine's fix list (arp drops out between sections; bass stops bouncing at full coverage; lead bars get real rests). (3) Exemplar B alone flags marginal on the wall metric (2.78 vs the 2.6 line) during its arp bars; the threshold was **not** relaxed to pass it — the song-level pass is the operative verdict, and a single dense pattern inside a resting song is period-correct. The prevention stack this creates: **lint (numeric, silent) → roll (visual, silent) → audio only on the owner's go**. Bad now has to pass two gates before it can reach anyone's ears.
