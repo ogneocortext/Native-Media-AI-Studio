@@ -88,12 +88,15 @@ def _setup_camera_light(mins: Vector, maxs: Vector) -> None:
 
 def _render(out_dir: Path, name: str) -> None:
     scene = bpy.context.scene
-    for eng in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE", "BLENDER_WORKBENCH"):
+    # Blender 5.x renamed the engine id back to BLENDER_EEVEE (4.2-4.5 used
+    # BLENDER_EEVEE_NEXT); try both, then Workbench as headless fallback.
+    for eng in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT", "BLENDER_WORKBENCH"):
         try:
             scene.render.engine = eng
             break
         except TypeError:
             continue
+    print(f"[ladder] engine={scene.render.engine}", flush=True)
     scene.render.resolution_x = 640
     scene.render.resolution_y = 640
     scene.render.resolution_percentage = 100
