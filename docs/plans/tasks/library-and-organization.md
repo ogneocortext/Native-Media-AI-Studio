@@ -52,3 +52,49 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Cline, 2026-10-29 — vision-reviewed /library/audio,
   found raw hash names displayed and type chips shown on scoped page;
   applied all three fixes; verified live.
+
+### T-LIB-04 — Normalize all task blocks to the R1 format
+- **Status:** todo
+- **Goal:** Every task block in `docs/plans/tasks/` matches R1 of
+  `docs/knowledge-library/organizational-consistency-2026.md`: em-dash
+  heading, all five fields present, status in the canonical vocabulary;
+  the three `T-PLT-XX` placeholder blocks are numbered or converted to
+  plain backlog lines. Formatting only — no task content changes.
+- **Files:** docs/plans/tasks/*.md
+- **Acceptance:** `python tools/check-consistency.py` reports zero R1
+  violations, and an independent recount finds the same tasks with the
+  same statuses as before the sweep (nothing lost, nothing invented).
+- **Last session:** Orion, 2026-11-06 — census measured the drift (43
+  hyphen headings, 13 blocks missing Acceptance, 11 missing Last
+  session, 3 placeholder IDs); spec + checker landed in the same commit
+  as this item. The sweep itself is this item.
+
+### T-LIB-05 — Reconcile the three library ledgers to one source
+- **Status:** todo
+- **Goal:** `index.md` listings, `knowledge-tracker.md` sections, and the
+  Tags Index counts agree with each other and with the files on disk,
+  per R2–R4 of the consistency doc: `visualization-effects` gets one
+  primary category (cross-refs become see-also), meta files are
+  classified per R4, `animatediff-evolved-2026` is categorized, and the
+  tracker's library total (113, vs 121 files on disk) is corrected.
+- **Files:** docs/knowledge-library/index.md,
+  docs/knowledge-library/knowledge-tracker.md, frontmatter of affected
+  docs
+- **Acceptance:** `tools/check-consistency.py` R2/R4 census is clean;
+  the docs gate's knowledge-tags check passes (the `#research says 20,
+  actual 21` class of failure is gone); every printed count in the three
+  ledgers is reproducible from the files.
+- **Last session:** Orion, 2026-11-06 — census table in the consistency
+  doc records the three-way disagreement this item closes.
+
+### T-LIB-06 — Wire check-consistency.py into the docs gate
+- **Status:** todo
+- **Goal:** `tools/check-all.py` runs the consistency checker so format
+  and ledger drift fail the gate instead of accumulating silently.
+- **Files:** tools/check-all.py, tools/check-consistency.py
+- **Acceptance:** A check-all run shows a consistency section; the gate
+  passes with it included. Land only after T-LIB-04 and T-LIB-05 bring
+  the census to zero (or wire it report-only first, by owner decision).
+- **Last session:** Orion, 2026-11-06 — checker written and run
+  standalone in the consistency commit; wiring deliberately deferred
+  until the census is clean.
