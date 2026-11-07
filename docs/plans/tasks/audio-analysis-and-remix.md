@@ -354,5 +354,5 @@ Rules: `docs/plans/tasks/README.md`
   ruff clean; tsc -b clean; eslint 0 errors. Also repaired a syntax
   error in uncommitted ``ollama_tools.py`` WIP (stray ``]`` closing the
   tools list mid-dict) that had taken the whole backend down.
-- **Last session:** Devin, 2026-11-06
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06

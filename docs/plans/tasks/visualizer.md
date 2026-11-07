@@ -854,5 +854,5 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   UPDATE (T-AUD-14): `_key_and_chroma_features` in audio_analyzer.py now
   emits key + chroma_frames for every backend, so the live API path
   produces the same payload — schema bumped to v3.
-- **Last session:** Devin, 2026-11-06 - implementation swept into `8b322e70`; audioContext singleton + shader texture2D fix in the follow-up commit.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - implementation swept into `8b322e70`; audioContext singleton + shader texture2D fix in the follow-up commit.

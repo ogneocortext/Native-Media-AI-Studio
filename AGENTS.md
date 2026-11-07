@@ -403,6 +403,32 @@ and in this repo it has been wrong.
 
 ## Development Guidelines
 
+### Character hygiene: ASCII punctuation in source, always
+
+Write only the characters the content actually needs. Specifically banned
+in every tracked text file (enforced by `tools/check-banned-chars.py`, a
+hard gate in `tools/check-all.py`):
+
+- **Control characters** — BEL/BS/ESC and friends. C-escape accidents have
+  shipped real corruption: `\a`→BEL for 'a', `\b`→BS for 'b', `\e`→ESC for
+  'e' (decision-log.md carried `\x07gent_output`; video-editor/README.md
+  carried `\x08ash` and mangled code fences). If you mean a letter, type
+  the letter.
+- **Invisible/format characters** — zero-width spaces/joiners, bidi
+  controls, soft hyphen, BOM anywhere but byte 0. They break diffs,
+  searches, and copy-paste invisibly.
+- **Mojibake** — UTF-8 read as cp1252 (mojibake triples like the
+  right-single-quote sequence, accented-letter pairs, the BOM triple).
+  Files are UTF-8; never paste text that has been through a
+  legacy-codepage round trip. Re-type it.
+- **Smart quotes in code** — `‘’“”` belong in user-facing display strings
+  only, never in identifiers, commands, paths, or code you generate for
+  shells/JSON. Use `'`/`"` there.
+
+Non-ASCII is fine where it is the product (ASCII-art borders in
+`cli_output.py`, UI display strings, docs typography) — the gate bans the
+*broken* classes, not typography. When in doubt: ASCII.
+
 ### Commit attribution: every commit carries a Co-authored-by trailer
 
 Multiple agents commit to this repo, so every commit message ends with a

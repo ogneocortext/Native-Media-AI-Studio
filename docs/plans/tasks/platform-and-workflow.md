@@ -741,8 +741,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** Playwright - grid renders 2 boards, detail view
   renders scene list, zero console/page errors. tsc + eslint clean
   (3 pre-existing warnings).
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-25 — Ollama model thrash under RAM pressure
 - **Status:** done
 - **Goal:** Fix Ollama issues - models being evicted mid-request.
@@ -762,8 +762,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** 13 resource tests pass incl. new cooldown test;
   ruff clean. Ollama itself verified healthy: v0.40.14, 11 models,
   llama3.2:3b generate OK in ~8s cold.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-26 — Backend footprint logging + dead DB cleanup
 - **Status:** done
 - **Goal:** Resource-leak audit follow-ups.
@@ -775,8 +775,8 @@ Rules: `docs/plans/tasks/README.md`
   Nov 2 migration (live `studio.db` untouched at 22 MB).
 - **Files:** diagnostics/resources.py.
 - **Verification:** 16 resource/SSE tests pass; ruff clean.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-27 — Doc reconciliation with on-disk model/node reality
 - **Status:** done
 - **Goal:** Align setup/knowledge docs with the verified C:/D: model
@@ -800,8 +800,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** Paths cross-checked against live `ComfyUI\models\`
   and `custom_nodes\` listings; remaining docs grepped for stale
   install/download claims (none left).
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-28 — Model-listing gaps: AnimateDiff LoRAs + TripoSR filter
 - **Status:** done
 - **Goal:** Surface every installed model on the frontend; stop
@@ -818,8 +818,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** Live endpoint returns all 8 unique LoRA names
   (ZoomIn deduped by the frontend's by-name map); ruff clean; eslint
   0 errors on touched file.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-29 — 3D model selector: fast/turbo variants + real backend plumbing
 - **Status:** done
 - **Goal:** Expose the on-disk Hunyuan3D-2mini fast/turbo DiT variants and
@@ -841,8 +841,8 @@ Rules: `docs/plans/tasks/README.md`
   three variants (ComfyUI currently offline → `available: false`, correct);
   14 checkpoint-filtering tests pass; ruff clean; tsc -b clean; eslint
   0 errors.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-30 — gen3d.py hardening: request validation + upload sniffing
 - **Status:** done
 - **Goal:** Line-by-line review of the 3D API router; close unvalidated
@@ -862,8 +862,8 @@ Rules: `docs/plans/tasks/README.md`
   `Hunyuan3D-2mini-Turbo` (mixed case) resolves to the turbo backend,
   fake PNG with `type=image/png` → 415 via magic bytes; ruff clean;
   14 checkpoint tests pass.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-31 — useGeneration3D.ts hardening: upload race, leaks, dead params
 - **Status:** done
 - **Goal:** Line-by-line review of the 3D generation hook; fix resource
@@ -884,8 +884,8 @@ Rules: `docs/plans/tasks/README.md`
   services/api/gpu-3d.ts.
 - **Verification:** tsc -b clean; eslint 0 errors (warnings are the
   file's pre-existing `any`-fetch style).
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-32 — Real 3D generation timing (replaces fabricated breakdown)
 - **Status:** done
 - **Goal:** The Timing card showed invented numbers (total−2s "queue
@@ -908,8 +908,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** ruff clean, py_compile OK, tsc -b clean, eslint
   0 errors. ComfyUI offline so live timing unverified end-to-end —
   phase math is unit-simple and degrades to nulls safely.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-33 — TripoSR image-to-3D actually works end-to-end
 - **Status:** done
 - **Goal:** `triposr.ckpt` sat in checkpoints but the backend's TripoSR
@@ -952,8 +952,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** services/gen3d/gen3d_service.py,
   features/generate3d/useGeneration3D.ts,
   docs/comfyui-workflows/comfyui-workflows.md.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-34 — Loose-end sweep: DLQ purge, orphan prompts, MCP output schemas, Hunyuan3D-2mv weights + node wiring
 - **Status:** done
 - **Goal:** Close the five platform-side loose ends recorded against Q6/D31
@@ -987,8 +987,8 @@ Rules: `docs/plans/tasks/README.md`
   health green for 2mv; live `POST /api/3d/generate-image?model=hunyuan3d_2mv`
   → success, `mv_e2e_test_00001_.glb` (1.1 MB decimated) in
   `generated_3d/`, timing queue 2ms / inference 222s / post 20s.
-- **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit. Same-day LTX follow-through: the "already dispatched" claim hid a broken graph — `LTXVConditioning` was fed raw prompt strings (it only retimes CONDITIONING), `CLIPLoader type` was `"ltx"` not `"ltxv"`, `VHS_VideoCombine` format was the invalid `"video/mp4"`, and the I2V path's VAEEncode output was never wired into the sampler. All repaired to the native node contract; live `adapter.generate()` → `output/video/NativeMediaAI_LTX_00005.mp4` (25f 768×512, ~130 s). Stale-test repairs landed alongside: fake-clock monotonic patch, Atomic Chat auth-aware skip, vram fixture attrs, hardware-profile num_ctx/version, starlette/anyio filterwarning, Ollama `eval_count` pass-through.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit. Same-day LTX follow-through: the "already dispatched" claim hid a broken graph — `LTXVConditioning` was fed raw prompt strings (it only retimes CONDITIONING), `CLIPLoader type` was `"ltx"` not `"ltxv"`, `VHS_VideoCombine` format was the invalid `"video/mp4"`, and the I2V path's VAEEncode output was never wired into the sampler. All repaired to the native node contract; live `adapter.generate()` → `output/video/NativeMediaAI_LTX_00005.mp4` (25f 768×512, ~130 s). Stale-test repairs landed alongside: fake-clock monotonic patch, Atomic Chat auth-aware skip, vram fixture attrs, hardware-profile num_ctx/version, starlette/anyio filterwarning, Ollama `eval_count` pass-through.
 ### T-PLT-35 — Retrieval reranker idle-unload (in-process RAM)
 - **Status:** done
 - **Goal:** Stop the cross-encoder reranker from holding torch +
@@ -1015,8 +1015,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** ruff clean; 44 retrieval service+route tests pass;
   unload logic exercised directly (unloaded -> False, stale -> True +
   refs cleared, fresh -> False).
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 ### T-PLT-36 — Perf-monitoring / load-balance wiring audit + repairs
 - **Status:** done
 - **Goal:** Verify resource monitoring and GPU load balancing are actually
@@ -1067,5 +1067,32 @@ Rules: `docs/plans/tasks/README.md`
   queue/processor.py, main.py.
 - **Verification:** ruff clean; 39 vram/resources/timing tests + 62
   queue/work-lane tests pass.
-- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-40 — Ban improper characters: gate + corpus repair
+- **Status:** done
+- **Goal:** Stop agents shipping control chars, invisible chars, and
+  mojibake into tracked files; repair the corruption already on main.
+- **What changed:**
+  - New `tools/check-banned-chars.py` — hard gate in `check-all.py`
+    (12th active check). Bans C0 controls (excl TAB/LF/CR), DEL, C1,
+    U+FFFD, zero-width/format chars, soft hyphen, mid-file BOM, and
+    cp1252-mojibake bigrams (table generated from real chars, source
+    kept ASCII via \u escapes). `check-subprocess-encoding.py` exempt
+    from the mojibake rule — it documents the phenomenon on purpose.
+  - Corpus repairs: `decision-log.md` BEL-for-'a' (`\x07gent_*`)
+    and ESC-for-'e' (`\x1brror_detail`, `\x09ools`); video-editor
+    `README.md` 19 mangled chars (`\x08ash`→bash, `\x08pm`→npm,
+    `\x08ackground`→background, `\x09itle`→title, `\x09ransitions`
+    →transitions, `\x1bnd`→end, 9 `\\\`+TAB+sx fences → `	sx);
+    `repair-audio-db.py` 5 mojibake em-dashes → real '—'.
+  - `AGENTS.md` gained a "Character hygiene" rule so agents see the
+    convention before the gate does.
+- **Files:** tools/check-banned-chars.py, tools/check-all.py,
+  AGENTS.md, docs/architecture/decision-log.md,
+  packages/video-editor/README.md, tools/repair-audio-db.py.
+- **Acceptance:** `check-banned-chars.py` exits 0 on the repaired
+  corpus; a planted BEL byte fails it (verified during dev); all
+  check-all gates pass.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

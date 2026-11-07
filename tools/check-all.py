@@ -9,18 +9,19 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   1. tools/check-docs-map.py            - docs/README.md is an accurate map
   2. tools/check-text-encoding.py       - rejects UTF-16 / NUL / invalid UTF-8
   3. tools/check-subprocess-encoding.py - rejects text=True with no encoding=
-  4. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
-  5. tools/check-consistency.py         - R1-R4 task-block/library consistency
-  6. tools/check-repo-layout.py         - generated output, duplicates, collisions
-  7. tools/check-path-references.py     - stale repo-relative path references
-  8. tools/report-nesting.py            - control-flow nesting vs baseline
-  9. tools/check-db-integrity.py        - studio.db + newest backup quick_check
- 10. tools/check-secrets.py             - credential patterns in tracked files
- 11. tools/check-staged-hygiene.py      - scratch files / over-broad staging
- 12. tools/docs-triage.py               - report-only untagged-doc grouping
- 13. tools/docs-tracker.py              - report-only doc provenance
- 14. tools/report-path-orphans.py       - report-only dangling references
- 15. tools/check-hooks-installed.py     - report-only git hooks state
+  4. tools/check-banned-chars.py        - control/invisible/mojibake chars
+  5. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
+  6. tools/check-consistency.py         - R1-R4 task-block/library consistency
+  7. tools/check-repo-layout.py         - generated output, duplicates, collisions
+  8. tools/check-path-references.py     - stale repo-relative path references
+  9. tools/report-nesting.py            - control-flow nesting vs baseline
+ 10. tools/check-db-integrity.py        - studio.db + newest backup quick_check
+ 11. tools/check-secrets.py             - credential patterns in tracked files
+ 12. tools/check-staged-hygiene.py      - scratch files / over-broad staging
+ 13. tools/docs-triage.py               - report-only untagged-doc grouping
+ 14. tools/docs-tracker.py              - report-only doc provenance
+ 15. tools/report-path-orphans.py       - report-only dangling references
+ 16. tools/check-hooks-installed.py     - report-only git hooks state
 
 Run:  python tools/check-all.py     (-v also runs the report-only checks)
       python tools/check-all.py --changed docs/x.md packages/backend/app/y.py
@@ -66,6 +67,9 @@ CHECKS = [
     ("docs map", "check-docs-map.py", [], False),
     ("text encoding", "check-text-encoding.py", [], False),
     ("subprocess encoding", "check-subprocess-encoding.py", [], False),
+    # Control/invisible/mojibake characters: C-escape accidents (BEL for 'a',
+    # BS for 'b', ESC for 'e') and cp1252 mojibake have both shipped to main.
+    ("banned chars", "check-banned-chars.py", [], False),
     ("knowledge tags", "validate-knowledge-tags.py", [], False),
     # R1-R4 organizational consistency (task-block format, one category per
     # doc, meta-file class). Hard gate since the 2026-11-06 census reached
@@ -113,6 +117,7 @@ CHECKS = [
 # Per-check timeouts in seconds. None means the checker's own default.
 CHECK_TIMEOUTS = {
     "check-subprocess-encoding.py": 60,
+    "check-banned-chars.py": 30,
     "validate-knowledge-tags.py": 60,
     "check-repo-layout.py": 60,
     "check-path-references.py": 120,
@@ -283,6 +288,9 @@ def _check_relevant(script: str, changed: set[str]) -> bool:
     if script == "check-subprocess-encoding.py":
         # A locale-decoding bug can only be introduced in a Python file.
         return py_changed
+    if script == "check-banned-chars.py":
+        # Any tracked text file can carry a bad character.
+        return text_changed
     if script == "validate-knowledge-tags.py":
         # Cross-refs span the library, but only knowledge-library edits can
         # break them.

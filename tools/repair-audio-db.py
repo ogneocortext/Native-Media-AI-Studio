@@ -9,21 +9,21 @@ library lists but can never serve.
 
 What this repairs, and what it refuses to guess at:
 
-  * **exact** â€” the path already matches; nothing to do.
-  * **prefix** â€” stripping one or more stale `<8hex>_` prefixes finds a real
+  * **exact** — the path already matches; nothing to do.
+  * **prefix** — stripping one or more stale `<8hex>_` prefixes finds a real
     file. Applied.
-  * **unique-basename** â€” the file exists under the same basename in a different
+  * **unique-basename** — the file exists under the same basename in a different
     folder (typically `Suno-V6-Mini/x.m4a` recorded as root `x.m4a`). Applied
     *only* when exactly one file has that basename, so an ambiguous name is
     never guessed at.
-  * **ambiguous** / **missing** â€” no single defensible target. Reported, never
+  * **ambiguous** / **missing** — no single defensible target. Reported, never
     applied. Resolving these is a human decision.
 
 It also backfills `file_size`, which the uploader never populated (0 on every
 row), so content can be compared later.
 
 Dry-run by default; pass --apply to write. Always takes a timestamped backup
-first unless --no-backup is given. Rows are never deleted here â€” retiring a row
+first unless --no-backup is given. Rows are never deleted here — retiring a row
 that points at content you may still want is a separate, explicit act.
 
 Usage::

@@ -39,13 +39,13 @@ The Remotion Studio provides:
 ## Quick Start
 
 1. **Install dependencies:**
-   `ash
+   `bash
    cd packages/video-editor
    npm install
    `
 
 2. **Start the preview:**
-   `ash
+   `bash
    npm run dev
    `
 
@@ -85,7 +85,7 @@ Place your assets in the public/ folder:
 
 Copy src/compositions/Template.tsx and customize:
 
-\\\	sx
+```tsx
 import { AbsoluteFill, Audio, staticFile } from "remotion";
 import { useAudioAnalysis, LyricDisplay, AudioWaveform } from "../components";
 
@@ -115,7 +115,7 @@ export const MyVideo = () => {
 
 Add your composition to Composition.tsx\:
 
-\\\	sx
+```tsx
 import { MyVideo } from "./compositions/YourVideo";
 
 export const compositionRegistry = {
@@ -131,7 +131,7 @@ export const compositionRegistry = {
 
 Preview in the Remotion Player, then render:
 
-\\\ash
+\\\bash
 npm run build -- --composition=my-video
 \\\
 
@@ -141,7 +141,7 @@ npm run build -- --composition=my-video
 
 Hook that provides real-time audio analysis data.
 
-\\\	sx
+```tsx
 const analysis = useAudioAnalysis("my-track.mp3");
 // analysis.spectrum  - Frequency spectrum array (64 bands)
 // analysis.waveform  - Waveform data array (280 points)
@@ -155,7 +155,7 @@ const analysis = useAudioAnalysis("my-track.mp3");
 
 Renders animated lyrics that sync to timing data.
 
-\\\	sx
+```tsx
 <LyricDisplay
   lyrics={LYRICS}
   style="chorus" | "verse" | "bridge" | "intro"
@@ -167,7 +167,7 @@ Renders animated lyrics that sync to timing data.
 
 SVG waveform visualization that reacts to audio.
 
-\\\	sx
+```tsx
 <AudioWaveform
   color="#6366f1"
   height={92}
@@ -179,7 +179,7 @@ SVG waveform visualization that reacts to audio.
 
 Frequency spectrum bar visualizer.
 
-\\\	sx
+```tsx
 <SpectrumBars
   color="#6366f1"
   height={100}
@@ -191,7 +191,7 @@ Frequency spectrum bar visualizer.
 
 Flash/transition effect at specified times.
 
-\\\	sx
+```tsx
 <SceneTransition
   times={[45, 90, 120]}  // Transition times in seconds
   color="#6366f1"
@@ -202,7 +202,7 @@ Flash/transition effect at specified times.
 
 Displays track metadata with progress bar.
 
-\\\	sx
+```tsx
 <TrackInfo
   title="My Song"
   artist="My Artist"
@@ -217,20 +217,20 @@ Displays track metadata with progress bar.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| udioFile | string | Path to audio file in public/ |
-| 	itle | string | Track title |
-| rtist | string | Artist name |
-| pm | number | Beats per minute |
+| audioFile | string | Path to audio file in public/ |
+| title | string | Track title |
+| artist | string | Artist name |
+| bpm | number | Beats per minute |
 | key | string | Musical key |
 | loudness | number | Loudness in LUFS |
-| ccentColor | string | Primary color (hex/hsl) |
-| ackgroundColor | string | Background color |
+| accentColor | string | Primary color (hex/hsl) |
+| backgroundColor | string | Background color |
 | durationSeconds | number | Total duration |
-| 	ransitions | number[] | Transition times (seconds) |
+| transitions | number[] | Transition times (seconds) |
 
 ## Lyric Format
 
-\\\	sx
+```tsx
 const LYRICS = [
   {
     start: 0,      // Start time in seconds
@@ -244,29 +244,29 @@ const LYRICS = [
 
 ## Tips for Great Videos
 
-1. **Sync transitions to beat drops** — Use the 	ransitions array at musically significant moments
+1. **Sync transitions to beat drops** — Use the transitions array at musically significant moments
 2. **Use section colors** — Different sections (verse, chorus, bridge) can have different accent colors
 3. **Layer effects** — Combine waveform, spectrum, and particles for rich visuals
-4. **Animate with bass** — Use nalysis.bass to drive scale, position, and opacity animations
+4. **Animate with bass** — Use analysis.bass to drive scale, position, and opacity animations
 5. **Add depth** — Use multiple layers with different opacity and blur for parallax effect
 
 ## Rendering
 
 Render to video file:
 
-\\\ash
+\\\bash
 npx remotion render src/index.tsx MyVideo out.mp4
 \\\
 
 Render with custom quality:
 
-\\\ash
+\\\bash
 npx remotion render src/index.tsx MyVideo out.mp4 --codec=h265 --quality=95
 \\\
 
 ## Troubleshooting
 
 - **Audio not loading:** Ensure file is in public/ folder and referenced with staticFile()
-- **Lyrics out of sync:** Verify start and nd times match the audio
+- **Lyrics out of sync:** Verify start and end times match the audio
 - **Performance issues:** Reduce particle count or spectrum resolution
 - **Build errors:** Check that all imports are from @remotion/* packages
