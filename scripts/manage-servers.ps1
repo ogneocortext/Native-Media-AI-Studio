@@ -107,6 +107,8 @@ $ServiceConfig = @{
         # Fallback when package manager path has spaces: run vite directly via node
         NodeScript = Join-Path -Path $ProjectRoot -ChildPath 'packages', 'frontend', 'node_modules', 'vite', 'bin', 'vite.js'
         NodeArgs = @('--port', "$($Ports.frontend_port)")
+        # Frontend needs more time for Vite dependency optimization (can take 45-60s on first run)
+        MaxWaitSeconds = 60
     }
     comfyui = @{
         Name = 'ComfyUI'
@@ -371,52 +373,18 @@ function Start-StudioService {
         $packageManager = Resolve-Pnpm
         if (-not $packageManager) { $packageManager = Resolve-Npm }
         
-        if ($packageManager -and $packageManager -notmatch '\s') {
-            # Only use package manager if its path has no spaces (spaces break cmd.exe /c quoting)
+        if ($packageManager) {
+            # Use package manager directly via Start-Process (handles spaces in path correctly)
+            # instead of going through cmd.exe /c which breaks on paths with spaces
             $argString = ($config.Args | ForEach-Object { "`"$_`"" }) -join ' '
-            $proc = Start-Process -FilePath 'cmd.exe' `
-                -ArgumentList '/c', "`"$packageManager`" $argString" `
+            $proc = Start-Process -FilePath $packageManager `
+                -ArgumentList $config.Args `
                 -WorkingDirectory $config.WorkingDir `
                 -WindowStyle Hidden `
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError $errFile `
                 -PassThru
             Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
-        }
-        elseif ($packageManager -and $packageManager -match '\s') {
-            # Package manager path has spaces — use node directly with the package script
-            $pmName = [System.IO.Path]::GetFileNameWithoutExtension($packageManager)
-            Write-Warn "$pmName path has spaces ($packageManager), using node fallback"
-            $node = Resolve-NodeExe
-            if ($config.LocalCmd -and (Test-Path $config.LocalCmd)) {
-                # e.g. video editor: node_modules\.bin\remotion.cmd studio
-                # Call the .cmd directly (not through cmd.exe /c) to handle spaces in path
-                $allArgs = @($config.LocalArgs | ForEach-Object { "$_" })
-                $proc = Start-Process -FilePath $config.LocalCmd `
-                    -ArgumentList $allArgs `
-                    -WorkingDirectory $config.WorkingDir `
-                    -WindowStyle Hidden `
-                    -RedirectStandardOutput $logFile `
-                    -RedirectStandardError $errFile `
-                    -PassThru
-                Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
-            }
-            elseif ($node -and $config.NodeScript -and (Test-Path $config.NodeScript)) {
-                $nodeArgs = @("`"$($config.NodeScript)`"")
-                $nodeArgs += $config.NodeArgs
-                $proc = Start-Process -FilePath $node `
-                    -ArgumentList $nodeArgs `
-                    -WorkingDirectory $config.WorkingDir `
-                    -WindowStyle Hidden `
-                    -RedirectStandardOutput $logFile `
-                    -RedirectStandardError $errFile `
-                    -PassThru
-                Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
-            }
-            else {
-                Write-Err "No node fallback available for $($config.Name) ($pmName path has spaces)"
-                return
-            }
         }
         elseif ($config.LocalCmd -and (Test-Path $config.LocalCmd)) {
             # e.g. video editor: node_modules\.bin\remotion.cmd studio
@@ -460,14 +428,15 @@ function Start-StudioService {
     # Use Wait-ForPort for the TCP listen, then a quick health probe loop
     # so a service that binds but doesn't respond fails fast (~5s) instead
     # of waiting the full window.
-    $portOpened = Wait-ForPort -Port $port -Name $config.Name -MaxSeconds 15
+    $maxWait = $config.MaxWaitSeconds ?? 15
+    $portOpened = Wait-ForPort -Port $port -Name $config.Name -MaxSeconds $maxWait
     if (-not $portOpened) {
         Write-Warn "$($config.Name) did not open port $($config.Port) within 15s"
         return
     }
 
     # Confirm the service responds to HTTP (not just bound the port).
-    for ($i = 1; $i -le 5; $i++) {
+    for ($i = 1; $i -le 2; $i++) {
         if (Test-ServiceRunning -Port $port -HealthPath $config.HealthPath -TimeoutSec 2) {
             Write-Ok "$($config.Name) responding on port $($config.Port)"
             return
@@ -618,7 +587,7 @@ if ($PSBoundParameters.ContainsKey('Action')) {
                 Write-Warn "Failed to stop $($config.Name): $_"
             }
         }
-        Start-Sleep -Seconds 1
+        Start-Sleep -Milliseconds 500
         foreach ($svc in $serviceList) {
             $config = $ServiceConfig[$svc]
             try {

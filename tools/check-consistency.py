@@ -39,7 +39,7 @@ def check_tasks():
         if path.name in ("README.md", "template.md"):
             continue
         text = path.read_text(encoding="utf-8")
-        for block in re.split(r"(?=^### T-)", text, flags=re.M):
+        for block in re.split(r"(?=^### T-)", text, flags=re.MULTILINE):
             h = re.match(r"^### (T-[A-Z]+-(\d+|XX))\s*(.)", block)
             if not h:
                 continue
@@ -56,7 +56,7 @@ def check_tasks():
                     missing[f] += 1
                     violations.append(
                         f"R1 missing field {f}: {h.group(1)} in {path.name}")
-            m = re.search(r"^-\s+\*\*Status:\*\*\s*(\S+)", block, re.M)
+            m = re.search(r"^-\s+\*\*Status:\*\*\s*(\S+)", block, re.MULTILINE)
             if m and m.group(1).lower() not in STATUS_VOCAB:
                 bad_status.append(f"{h.group(1)}: {m.group(1)}")
                 violations.append(

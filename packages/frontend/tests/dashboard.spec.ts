@@ -17,6 +17,7 @@ test.describe('Dashboard', () => {
   test('renders hero headline and CTA', async ({ page }) => {
     await navigateAndWait(page, '/');
     // Scope to main content to avoid matching the sidebar's h1
+    // The h1 contains "Drop your song." + <br/> + "Get your video." -> textContent = "Drop your song.Get your video."
     await expect(page.locator('main h1').first()).toContainText('Drop your song');
     await expect(page.locator('main h1').first()).toContainText('Get your video');
   });

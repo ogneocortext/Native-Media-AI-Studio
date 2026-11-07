@@ -1,7 +1,7 @@
+import pathlib
 import re
 
-with open('tools/mcp/frontend-3d-mcp.mjs', 'r') as f:
-    content = f.read()
+content = pathlib.Path('tools/mcp/frontend-3d-mcp.mjs').read_text()
 
 # Count tools registered
 tools_count = content.count('server.registerTool(')

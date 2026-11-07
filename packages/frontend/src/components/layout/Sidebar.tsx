@@ -30,6 +30,7 @@ import {
   Film,
   Rocket,
   Video,
+  Monitor,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -208,15 +209,26 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: "system",
-    title: "System",
-    collapsedByDefault: true,
+    id: "admin",
+    title: "Admin",
     items: [
+      {
+        path: "/system/admin",
+        label: "Admin Dashboard",
+        icon: <Monitor size={18} />,
+        keywords: "admin dashboard system test services config overview",
+      },
       {
         path: "/system",
         label: "Dashboard",
         icon: <Home size={18} />,
         keywords: "home overview start",
+      },
+      {
+        path: "/system/health",
+        label: "Health",
+        icon: <Activity size={18} />,
+        keywords: "health status diagnostics adapters",
       },
       {
         path: "/system/queue",
@@ -229,12 +241,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Settings",
         icon: <Settings size={18} />,
         keywords: "settings config preferences",
-      },
-      {
-        path: "/system/health",
-        label: "Health",
-        icon: <Activity size={18} />,
-        keywords: "health status diagnostics adapters",
       },
       {
         path: "/system/data-management",

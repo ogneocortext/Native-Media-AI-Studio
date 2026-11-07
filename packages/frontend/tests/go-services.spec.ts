@@ -21,6 +21,14 @@ test.describe("GoServicesCard", () => {
     await mockGoServiceHealth(page);
     await navigateWithWait(page, "/health");
 
+    // Debug: count all cards
+    const allCards = page.locator(".card");
+    console.log("Total cards:", await allCards.count());
+    
+    // Debug: check for Go Sidecars text anywhere
+    const goSidecarsText = page.locator("text=Go Sidecars");
+    console.log("Go Sidecars text count:", await goSidecarsText.count());
+
     const card = page.locator(".card", { hasText: "Go Sidecars" });
     await expect(card).toBeVisible({ timeout: 10_000 });
     await expect(card.locator("h3")).toContainText("5/5 online");

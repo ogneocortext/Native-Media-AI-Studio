@@ -78,7 +78,7 @@ async def test_init_db_creates_media_tables(media_db):
     }
     assert expected <= tables, f"missing media tables: {expected - tables}"
     with sqlite3.connect(media_db) as conn:
-        assert migrations_module.get_schema_version(conn) == 21
+        assert migrations_module.get_schema_version(conn) == 22
 
 
 # ---------------------------------------------------------------------------

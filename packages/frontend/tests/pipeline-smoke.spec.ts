@@ -13,7 +13,7 @@ const PIPELINE_PAGES = [
   { path: '/health', label: 'Health' },
   { path: '/queue', label: 'Queue' },
   { path: '/audio-analysis', label: 'Audio Analysis' },
-  { path: '/generate-3d', label: '3D Model Generation' },
+  { path: '/generate-3d', label: 'Three.js Studio' },
   { path: '/video-generation', label: 'Video Generation' },
   { path: '/music-video-wizard', label: 'Upload Your Track' },
 ];
@@ -43,7 +43,7 @@ test.describe('Pipeline smoke', () => {
     await expect(page.locator('main').first()).toContainText('Audio Analysis');
 
     await navigateWithWait(page, '/generate-3d');
-    await expect(page.locator('main').first()).toContainText('3D Model Generation', { timeout: 10_000 });
+    await expect(page.locator('main').first()).toContainText('Three.js Studio', { timeout: 10_000 });
 
     await navigateWithWait(page, '/video-generation');
     await expect(page.locator('main').first()).toContainText('Video Generation', { timeout: 10_000 });

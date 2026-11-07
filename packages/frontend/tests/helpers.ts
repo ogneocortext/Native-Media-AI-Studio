@@ -452,22 +452,43 @@ export async function mockApiHealth(
  * COMPOSABLE: Does NOT call cleanupRoutes().
  */
 export async function mockApiQueueEmpty(page: Page): Promise<void> {
+  const emptyMetrics = {
+    stats: { success_rate: 100, total_jobs: 0, pending: 0, queued: 0, running: 0, retrying: 0, completed: 0, failed: 0, cancelled: 0, active_jobs: 0, terminal_jobs: 0, is_healthy: true },
+    queue_depth: 0,
+    current_job_id: null,
+    current_job_type: null,
+    current_job_started_at: null,
+    processing_rate_per_min: 0,
+    avg_wait_seconds: 0,
+    avg_duration_seconds: 0,
+    dead_letter_count: 0,
+    dead_letter_sample: [],
+  };
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
     if (
       pathname === "/api/jobs" ||
-      (pathname.startsWith("/api/jobs/") && !pathname.includes("/stats"))
+      (pathname.startsWith("/api/jobs/") && !pathname.includes("/stats") && !pathname.includes("/metrics"))
     ) {
+      console.log('[MOCK] Intercepted /api/jobs request');
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([]),
       });
     } else if (pathname === "/api/jobs/stats" || pathname.startsWith("/api/jobs/stats/")) {
+      console.log('[MOCK] Intercepted /api/jobs/stats request');
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ pending: 0, running: 0, completed: 0, failed: 0, total: 0 }),
+        body: JSON.stringify({ total_jobs: 0, pending: 0, queued: 0, running: 0, retrying: 0, completed: 0, failed: 0, cancelled: 0, active_jobs: 0, terminal_jobs: 0, success_rate: 100, is_healthy: true }),
+      });
+} else if (pathname === "/api/jobs/metrics" || pathname.startsWith("/api/jobs/metrics/")) {
+      console.log('[MOCK] Intercepted /api/jobs/metrics request');
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(emptyMetrics),
       });
     } else {
       await route.fallback();
@@ -475,10 +496,6 @@ export async function mockApiQueueEmpty(page: Page): Promise<void> {
   });
 }
 
-/**
- * Mock the `/api/jobs` endpoint with a queue containing multiple jobs.
- * COMPOSABLE: Does NOT call cleanupRoutes().
- */
 export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void> {
   const cycle: Array<"running" | "pending" | "completed" | "failed"> = [
     "running",
@@ -502,20 +519,28 @@ export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void>
       max_retries: 3,
     };
   });
-  const stats = {
-    pending: jobs.filter((j) => j.status === "pending").length,
-    running: jobs.filter((j) => j.status === "running").length,
-    completed: jobs.filter((j) => j.status === "completed").length,
-    failed: jobs.filter((j) => j.status === "failed").length,
-    total: count,
-    total_jobs: count,
+  const completed = jobs.filter((j) => j.status === "completed").length;
+  const total = count;
+  const successRate = total > 0 ? (completed / total) * 100 : 100;
+  const failedCount = jobs.filter((j) => j.status === "failed").length;
+  const metrics = {
+    stats: { success_rate: successRate, total_jobs: total, pending: jobs.filter((j) => j.status === "pending").length, queued: 0, running: jobs.filter((j) => j.status === "running").length, retrying: 0, completed, failed: failedCount, cancelled: 0, active_jobs: jobs.filter((j) => j.status === "running").length, terminal_jobs: completed + failedCount, is_healthy: failedCount === 0 },
+    queue_depth: jobs.filter((j) => j.status === "pending" || j.status === "running").length,
+    current_job_id: jobs.find((j) => j.status === "running")?.id ?? null,
+    current_job_type: jobs.find((j) => j.status === "running")?.job_type ?? null,
+    current_job_started_at: jobs.find((j) => j.status === "running")?.created_at ?? null,
+    processing_rate_per_min: 2,
+    avg_wait_seconds: 5,
+    avg_duration_seconds: 30,
+    dead_letter_count: failedCount,
+    dead_letter_sample: [],
   };
 
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
     if (
       pathname === "/api/jobs" ||
-      (pathname.startsWith("/api/jobs/") && !pathname.includes("/stats"))
+      (pathname.startsWith("/api/jobs/") && !pathname.includes("/stats") && !pathname.includes("/metrics"))
     ) {
       await route.fulfill({
         status: 200,
@@ -526,7 +551,13 @@ export async function mockApiQueueWithJobs(page: Page, count = 2): Promise<void>
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(stats),
+        body: JSON.stringify({ total_jobs: total, pending: jobs.filter((j) => j.status === "pending").length, queued: 0, running: jobs.filter((j) => j.status === "running").length, retrying: 0, completed, failed: failedCount, cancelled: 0, active_jobs: jobs.filter((j) => j.status === "running").length, terminal_jobs: completed + failedCount, success_rate: successRate, is_healthy: failedCount === 0 }),
+      });
+    } else if (pathname === "/api/jobs/metrics" || pathname.startsWith("/api/jobs/metrics/")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(metrics),
       });
     } else {
       await route.fallback();
@@ -824,8 +855,23 @@ export async function mockHealthPage(
     url: "http://localhost:8188",
   });
 
+  // Mock port config endpoint - needed by fetchSystemStatus
+  const portConfigBody = JSON.stringify({
+    backend_url: "http://127.0.0.1:8000",
+    backend_port: 8000,
+    frontend_port: 5173,
+    ws_port: 8000,
+    events_url: "http://127.0.0.1:3847/events",
+    sse_url: "http://127.0.0.1:3847/events",
+    dashboard_port: 3847,
+    dashboard_url: "http://127.0.0.1:3847",
+  });
+
   registerRouteHandler(page, async (route) => {
     const pathname = getPathname(route.request().url());
+    if (pathname.startsWith("/api/")) {
+      console.log(`[MOCK] ${route.request().method()} ${pathname}`);
+    }
     if (pathname === "/api/health") {
       await route.fulfill({
         status: healthStatus,
@@ -851,6 +897,12 @@ export async function mockHealthPage(
         status: 200,
         contentType: "application/json",
         body: comfyuiStatusBody,
+      });
+    } else if (pathname === "/api/integrations/config/ports") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: portConfigBody,
       });
     } else {
       await route.fallback();

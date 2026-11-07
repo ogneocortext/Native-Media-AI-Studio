@@ -47,7 +47,7 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
                 : status.installed && !status.running
                   ? "Not running — click Start below"
                   : "Not installed"}
-              {status.version.version && ` • v${status.version.version.replace(/^v+/, "")}`}
+              {status.version?.version && ` • v${status.version.version.replace(/^v+/, "")}`}
             </p>
           </div>
         </div>

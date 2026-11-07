@@ -113,8 +113,8 @@ test.describe('Media Library', () => {
     await expect(page.locator('main h1').first()).toContainText('Media Library', { timeout: 10_000 });
 
     const allTab = page.locator('button', { hasText: 'All Files' }).first();
-    const imagesTab = page.locator('button', { hasText: 'Images' }).first();
-    const videosTab = page.locator('button', { hasText: 'Videos' }).first();
+    const imagesTab = page.locator('button', { hasText: 'Image' }).first();
+    const videosTab = page.locator('button', { hasText: 'Video' }).first();
     const audioTab = page.locator('button', { hasText: 'Audio' }).first();
 
     await expect(allTab).toBeVisible();

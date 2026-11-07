@@ -74,7 +74,8 @@ test.describe("Onboarding — the 5-minute path", () => {
   test("exiting the path lands on the normal studio", async ({ page }) => {
     await page.goto("/onboarding");
     await page.getByTestId("onboarding-exit").click();
-    await expect(page).toHaveURL(/\/$/);
+    // Root redirects to /system (see App.tsx: <Route path="/" element={<Navigate to="/system" replace />} />)
+    await expect(page).toHaveURL(/\/system$/);
     // The Dashboard, not the path.
     await expect(page.getByTestId("onboarding-flow")).toHaveCount(0);
   });

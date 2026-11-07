@@ -6,18 +6,15 @@ Provides endpoints for ASCII art generation and manipulation.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from ..services.ascii_art_service import (
     AsciiArtService,
     AsciiOptions,
-    AsciiResult,
     get_ascii_service,
-    image_to_ascii,
-    text_to_banner,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,7 +39,7 @@ class ImageToAsciiRequest(BaseModel):
     color_mode: str = Field(default="240", pattern=r"^(none|16|240|256|full)$")
     color_space: str = Field(default="din99d", pattern=r"^(rgb|din99d)$")
     format: str = Field(default="symbols", pattern=r"^(symbols|braille|blocks)$")
-    symbol_classes: str = Field(default="block+border+stipple+braille", 
+    symbol_classes: str = Field(default="block+border+stipple+braille",
         pattern=r"^(all|none|space|solid|stipple|block|border|diagonal|dot|quad|half|hhalf|vhalf|inverted|braille|technical|geometric|ascii|legacy|sextant|octant|wedge|wide|narrow|[\+\-](?:space|solid|stipple|block|border|diagonal|dot|quad|half|hhalf|vhalf|inverted|braille|technical|geometric|ascii|legacy|sextant|octant|wedge|wide|narrow|u[0-9a-fA-F]{4})(?:,[\+\-](?:space|solid|stipple|block|border|diagonal|dot|quad|half|hhalf|vhalf|inverted|braille|technical|geometric|ascii|legacy|sextant|octant|wedge|wide|narrow|u[0-9a-fA-F]{4}))*)$")
     invert: bool = False
     dither: str = Field(default="ordered", pattern=r"^(none|ordered|floyd-steinberg)$")
@@ -93,9 +90,9 @@ async def image_to_ascii_endpoint(
 ):
     """
     Convert an uploaded image to ASCII art.
-    
+
     Supports: PNG, JPG, JPEG, WebP, BMP, TIFF, GIF (first frame)
-    
+
     Best practices (Nov 2026):
     - Use color_mode=240 for reliability (not 256)
     - Use symbol_classes=block+border+stipple+braille for best quality
@@ -109,14 +106,13 @@ async def image_to_ascii_endpoint(
             status_code=400,
             detail=f"Unsupported file type: {file.content_type}. Allowed: {', '.join(allowed_types)}"
         )
-    
+
     # Save uploaded file temporarily
-    import tempfile
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = Path(tmp.name)
-    
+
     try:
         options = AsciiOptions(
             width=width,
@@ -134,9 +130,9 @@ async def image_to_ascii_endpoint(
             work_level=work_level,
             scale=scale,
         )
-        
+
         result = await service.image_to_ascii(tmp_path, options)
-        
+
         return {
             "success": True,
             "data": {
@@ -172,7 +168,7 @@ async def text_to_banner_endpoint(
             color=request.color,
             font_list=request.font_list,
         )
-        
+
         return {
             "success": True,
             "data": {
@@ -204,7 +200,7 @@ async def banner_endpoint(
             width=request.width,
             color=request.color,
         )
-        
+
         return {
             "success": True,
             "ascii_art": result.ascii_art,
@@ -225,7 +221,7 @@ async def list_fonts(
     """
     try:
         result = await service.text_to_banner("", font_list=True)
-        
+
         return {
             "success": True,
             "fonts": result.metadata.get("fonts", []) if result.metadata else [],
@@ -244,7 +240,7 @@ async def get_tools(
     Get available ASCII tools and their status.
     """
     tools = service.get_available_tools()
-    
+
     return {
         "success": True,
         "tools": tools,
@@ -261,7 +257,7 @@ async def get_fonts(
     Get available figlet/toilet fonts (simple list).
     """
     fonts = service.get_available_fonts()
-    
+
     return {
         "success": True,
         "fonts": fonts,
@@ -277,7 +273,7 @@ async def health_check(
     Health check for ASCII art service.
     """
     tools = service.get_available_tools()
-    
+
     return {
         "status": "healthy",
         "service": "ascii-art",
@@ -287,6 +283,3 @@ async def health_check(
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
-
-import tempfile
-from pathlib import Path

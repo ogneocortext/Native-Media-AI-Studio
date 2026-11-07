@@ -36,6 +36,7 @@ const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: str
 const Dashboard = lazyNamed(async () => import("./features/dashboard/Dashboard"), "Dashboard");
 const Queue = lazyNamed(async () => import("./features/queue/Queue"), "Queue");
 const Settings = lazyNamed(async () => import("./features/settings/Settings"), "Settings");
+const AdminDashboard = lazyNamed(async () => import("./features/admin/AdminDashboard"), "AdminDashboard");
 const MasteringPage = lazyNamed(
   async () => import("./features/mastering/MasteringPage"),
   "MasteringPage",
@@ -202,6 +203,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/system/queue": "Queue",
   "/system/settings": "Settings",
   "/system/health": "Health",
+  "/system/admin": "Admin Dashboard",
   "/system/data-management": "Data Management",
   "/system/database": "Database",
   "/system/log-analytics": "Log Analytics",
@@ -276,6 +278,7 @@ function App() {
               <Route path="/system/queue" element={withErrorBoundary(<Queue />)} />
               <Route path="/system/settings" element={withErrorBoundary(<Settings />)} />
               <Route path="/system/health" element={withErrorBoundary(<HealthPage />)} />
+              <Route path="/system/admin" element={withErrorBoundary(<AdminDashboard />)} />
               <Route
                 path="/system/data-management"
                 element={withErrorBoundary(<DataManagementPage />)}

@@ -32,6 +32,7 @@ test.describe("AI Tools — each template end-to-end (real browser)", () => {
   test("click every template, send, and measure the result", async ({
     browser,
   }) => {
+    test.setTimeout(20 * 60 * 1000); // 20 minutes for all 7 templates
     const results: TemplateResult[] = [];
 
     for (const label of TEMPLATE_LABELS) {

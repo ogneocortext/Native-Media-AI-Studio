@@ -913,7 +913,6 @@ async def switch_backend_model(body: dict) -> dict:
     return await vram_manager.switch_backend_model(backend, model)
 
 
-@router.post("/ollama/chat")
 async def _emit_tool_call_events(
     tool_calls: list[dict[str, Any]],
     assistant_content: str,
@@ -1224,6 +1223,7 @@ async def _run_nonstream_chat(
     }
 
 
+@router.post("/ollama/chat")
 async def ollama_chat(body: OllamaChatRequest) -> Any:
     """
     Chat with Ollama or Atomic Chat using the /api/chat endpoint with tool calling support.

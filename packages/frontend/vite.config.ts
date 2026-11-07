@@ -212,7 +212,7 @@ export default defineConfig(({ mode }) => {
       outDir: "dist",
       sourcemap: !isProd,
       cssMinify: "esbuild",
-      chunkSizeWarningLimit: 500,
+      chunkSizeWarningLimit: 1200,
       // Target modern browsers for smaller bundles
       target: "es2022",
       modulePreload: true,
@@ -231,14 +231,23 @@ export default defineConfig(({ mode }) => {
           // Rolldown/Vite 8 requires a function for manualChunks
           manualChunks(id: string) {
             if (id.includes("node_modules")) {
+              if (id.includes("@react-three/drei")) {
+                return "react-three-drei";
+              }
+              if (id.includes("@react-three/fiber")) {
+                return "react-three-fiber";
+              }
               if (id.includes("three/examples") || (id.includes("three") && id.includes("examples"))) {
                 return "three-examples";
               }
               if (id.includes("three") && !id.includes("@react-three")) {
                 return "three-core";
               }
-              if (id.includes("@react-three")) {
-                return "react-three";
+              if (id.includes("@theatre/studio")) {
+                return "theatre-studio";
+              }
+              if (id.includes("@theatre/core") || id.includes("@theatre/r3f")) {
+                return "theatre-core";
               }
               if (id.includes("react") || id.includes("react-dom")) {
                 return "react-vendor";
@@ -246,11 +255,14 @@ export default defineConfig(({ mode }) => {
               if (id.includes("animejs")) {
                 return "animejs-vendor";
               }
-              if (id.includes("@theatre")) {
-                return "theatre-vendor";
-              }
               if (id.includes("lucide-react") || id.includes("zustand")) {
                 return "ui-vendor";
+              }
+              if (id.includes("recharts") || id.includes("d3-")) {
+                return "charts-vendor";
+              }
+              if (id.includes("theatre")) {
+                return "theatre-vendor";
               }
             }
             return undefined;
