@@ -526,6 +526,15 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+.viz-enhance-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.viz-preset-pill:focus-visible,
+.viz-mode-pill:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--viz-accent));
+  outline-offset: 1px;
+}
 .viz-slider-row input[type="range"]:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;

@@ -250,3 +250,28 @@ Rules: `docs/plans/tasks/README.md`
   sampling remains the authoritative overlap detector.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-MOD-09 — Line-by-line review of T-MOD-08 video mode
+
+- **Status:** done
+- **Goal:** Self-review the --video pipeline before it calcifies.
+- **Findings fixed:**
+  - **Coverage bug (real):** `-frames:v` caps output count, so a video
+    longer than maxFrames/sampleFps seconds was silently truncated —
+    only its first N seconds reached the model. Sampling rate now thins
+    to `maxFrames/duration` (floor 0.1fps) so frames span the full
+    recording; `sample_fps` in provenance records the effective rate.
+  - `probeVideo` used only `avg_frame_rate` — containers reporting
+    "0/0" got fps=0. Falls back to `r_frame_rate`.
+  - `runStartedAt` was declared after video extraction, so
+    `duration_ms` excluded ffmpeg+diff time (~20-30s on real clips).
+    Moved before the video block; provenance now reflects the full run.
+  - Log line printed the raw `--video-fps` arg instead of the clamped
+    `sampleFps`.
+- **Files:** tools/vision/{video-frames.mjs, analyze.mjs},
+  docs/plans/tasks/local-models-and-vision-loop.md.
+- **Verification:** node --check clean; math checked for 16s clip
+    (fps stays 1, 16 frames) and hypothetical 120s clip (fps→0.2,
+    24 frames spanning full duration).
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

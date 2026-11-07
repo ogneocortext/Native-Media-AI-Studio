@@ -27,9 +27,12 @@ export function probeVideo(videoPath) {
     const vs = (j.streams || []).find((s) => s.codec_type === 'video');
     if (!vs) return null;
     // avg_frame_rate arrives as "30000/1001" — reduce to a number.
-    let fps = 0;
-    const [num, den] = String(vs.avg_frame_rate || '0/1').split('/').map(Number);
-    if (num && den) fps = num / den;
+    // Some containers report avg_frame_rate "0/0"; fall back to r_frame_rate.
+    const rate = (r) => {
+      const [num, den] = String(r || '0/1').split('/').map(Number);
+      return num && den ? num / den : 0;
+    };
+    const fps = rate(vs.avg_frame_rate) || rate(vs.r_frame_rate);
     return {
       duration: parseFloat(j.format?.duration) || 0,
       width: vs.width || 0,

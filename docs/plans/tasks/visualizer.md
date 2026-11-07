@@ -1114,3 +1114,39 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Files:** styles/visualizer.css.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-VIZ-50 — Token pass completion + a11y/scroll polish (pro-tool pass)
+
+- **Status:** done
+- **Goal:** Owner request — line-by-line review + current-best-practices
+  (Ableton SDK design guide, Vector DSP workflow, BeatConnect layout
+  patterns, Audio Tech Hub visual-grammar notes) → next professional
+  changes, verified against a fresh interaction recording.
+- **Motion-data verification first:** new 28s Playwright recording
+  (preset clicks, 3D→2D→shader→3D, inspector open + all 4 tab switches)
+  with 136 rAF geometry samples — zero real chrome collisions (the 190
+  raw hits were ancestor/descendant pairs: mode-switch inside topbar,
+  tabs inside inspector). The T-VIZ-49 container-query fix held.
+- **Research applied:** two-size control family already holds (30px
+  spec); disabled-over-hidden already practiced (`.disabled` tabs);
+  signal-flow tab order already correct. What was missing: the token
+  pass had NOT reached the inspector interior and mode switch, and the
+  new pill controls had no focus-visible rings.
+- **What changed:**
+  - `.viz-inspector-tabs`/`.viz-inspector-tab`/`.viz-inspector-empty`/
+    `.viz-inspector-mixer-toggle`/`.viz-inspector-linkcard small`/
+    `.viz-mode-switch` migrated to `--viz-*` tokens (were the last
+    hardcoded rgba chrome colors).
+  - `:focus-visible` rings added for `.viz-preset-pill`,
+    `.viz-mode-pill`, `.viz-inspector-tab`, `.viz-inspector-mixer-toggle`,
+    `.viz-enhance-btn` (icon-btn/track-select/analyze already had them).
+  - `.viz-preset-pills`: `scroll-snap-type: x proximity` +
+    `padding-inline-end` + `scroll-snap-align` so clipped pills scroll
+    cleanly and the last pill never hugs the fade edge.
+- **Files:** styles/visualizer.css, styles/visualizer-chrome.css.
+- **Verification:** Playwright geometry audit post-change — all modes +
+  inspector states, zero intersections; CSS brace balance checked;
+  self-review caught and fixed a malformed `.viz-preset-pill` rule
+  before commit.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

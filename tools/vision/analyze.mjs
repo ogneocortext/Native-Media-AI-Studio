@@ -694,6 +694,8 @@ async function main() {
     process.exit(1);
   }
 
+  const runStartedAt = Date.now();
+
   // --video: expand a screen recording into a chronological keyframe set.
   // Still snapshots miss the failure mode this mode exists for — layers
   // that collide only mid-transition. Frames are sampled at --video-fps,
@@ -711,10 +713,17 @@ async function main() {
       console.error('Error: --video requires ffprobe/ffmpeg on PATH and a readable video file');
       process.exit(1);
     }
-    const sampleFps = Number.isFinite(args.videoFps) && args.videoFps > 0 ? args.videoFps : 1;
+    // Coverage bug (self-review): -frames:v caps OUTPUT count, so a long
+    // video at fps=1 would silently analyze only its first maxFrames
+    // seconds. Thin the sampling rate so frames span the whole duration.
+    const maxFrames = Math.max(2, args.videoFrames || 24);
+    const requestedFps = Number.isFinite(args.videoFps) && args.videoFps > 0 ? args.videoFps : 1;
+    const sampleFps = meta.duration > 0
+      ? Math.min(requestedFps, Math.max(0.1, maxFrames / meta.duration))
+      : requestedFps;
     const { dir, frames, error } = extractFrames(args.video, {
       fps: sampleFps,
-      maxFrames: Math.max(2, args.videoFrames || 24),
+      maxFrames,
     });
     if (error || !frames.length) {
       console.error(`Error: ${error || 'no frames extracted'}`);
@@ -736,7 +745,7 @@ async function main() {
     };
     args.videoManifest = videoManifest;
     console.error(`[vision] Video: ${meta.duration.toFixed(1)}s ${meta.width}x${meta.height} — ` +
-      `${frames.length} frames @${args.videoFps}fps, ${keyframes.length} keyframes selected`);
+      `${frames.length} frames @${sampleFps.toFixed(2)}fps, ${keyframes.length} keyframes selected`);
   }
 
   // Verify images exist
@@ -746,8 +755,6 @@ async function main() {
       process.exit(1);
     }
   }
-
-  const runStartedAt = Date.now();
 
   // --crop "x,y,w,h" in source pixels; --scale N enlarges the result
   // (small element captures need it — a 240px canvas is below the useful
