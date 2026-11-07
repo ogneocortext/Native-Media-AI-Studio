@@ -153,3 +153,36 @@ Rules: `docs/plans/tasks/README.md`
   `--label` interpolation and analyze.mjs's local analyzeWithOllama
   duplicating vision-common (intentional: it needs format:json +
   per-model profiles the shared helper lacks).
+
+### T-MOD-06 — Vision pipeline upgrades from 2026 best-practices research
+
+- **Status:** done
+- **Goal:** Apply current VLM-analysis best practices (researched via
+  current-best-practices skill) to tools/vision.
+- **What changed:**
+  - `--crop "x,y,w,h"` + `--scale N` ROI support in `encodeImage`
+    (vision-common.mjs) — element-level captures no longer invisible to
+    the model at 1x (proven this session: 240px figure canvas read
+    "no shading" at 1x, confirmed at 3x).
+  - `--dom file` — inject serialized DOM/a11y snapshot as ground truth;
+    2026 consensus is tree-first, pixels-second for UI analysis.
+  - `tools/vision/schemas.mjs` — per-mode JSON schemas (ui, responsive,
+    regression, compare, multicomp, ocr) passed as Ollama `format`
+    objects = constrained decoding, replacing bare `format:'json'`.
+  - Diff gate for compare/multicomp: `diffImagesRegion` pixel-diffs the
+    two frames, skips the VLM entirely below threshold, else crops both
+    to the changed bbox (+margin) — VLM-SubtleBench: crops beat
+    side-by-side full frames. `--no-diff-gate` escapes.
+  - Provenance in `--json`: per-image orig dims/bytes, crop/scale, dom
+    file, diff_gate result, prompt_sha256, duration_ms.
+  - `probeImageMeta`, `cropImageToFile` helpers; dead `execSync` import
+    removed; renderJsonSections gained summary/uncertain keys.
+- **Files:** tools/vision/{analyze.mjs,vision-common.mjs,schemas.mjs},
+  docs/plans/tasks/local-models-and-vision-loop.md.
+- **Verification:** `node --check` clean x3; encodeImage crop+scale
+  → 360x480 PNG correct; identical-image compare exits via
+  deterministic-diff-gate with provenance; modified-image compare
+  cropped to 116x116 region and returned schema-shaped JSON in 23s;
+  `--dom` injection + ui schema returned findings/summary shape.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — commit pending.

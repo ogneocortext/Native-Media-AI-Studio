@@ -135,9 +135,17 @@ export async function resolveVisionModel(forcedModel) {
  */
 export async function encodeImage(imagePath, opts = {}) {
   const { maxDim = VISION_MAX_DIM, quality = VISION_QUALITY, pngPassthrough = false } = opts;
+  // ROI support: crop = {left, top, width, height} in SOURCE pixels, applied
+  // before resize. scale = enlargement factor (>1 allowed — small element
+  // captures like a 240px canvas need it; VLM-SubtleBench 2026: crops beat
+  // full frames for detail work). Both are provenance-relevant: callers
+  // should record them alongside the result.
+  const crop = opts.crop && Number.isFinite(opts.crop.left) ? opts.crop : null;
+  const scale = Number.isFinite(opts.scale) && opts.scale > 0 ? opts.scale : 1;
   const fs = await import('fs');
   const buffer = fs.readFileSync(imagePath);
-  if (buffer.length < 50000) return buffer.toString('base64');
+  const roiActive = !!crop || scale !== 1;
+  if (buffer.length < 50000 && !roiActive) return buffer.toString('base64');
 
   let sharp;
   try {
@@ -146,18 +154,175 @@ export async function encodeImage(imagePath, opts = {}) {
     return buffer.toString('base64');
   }
 
+  let pipeline = sharp(buffer);
+  // Effective source dims after crop — sharp.metadata() reports the INPUT
+  // image, not post-extract state, so track the crop rect ourselves.
+  let srcW = 0;
+  let srcH = 0;
+  if (crop) {
+    // Clamp the rect to the image bounds — a stale selector box or a
+    // hand-typed crop must not throw EINVAL out of sharp.extract.
+    const meta0 = await pipeline.metadata();
+    const iw = meta0.width || 1;
+    const ih = meta0.height || 1;
+    const left = Math.max(0, Math.min(crop.left, iw - 1));
+    const top = Math.max(0, Math.min(crop.top, ih - 1));
+    srcW = Math.max(1, Math.min(crop.width, iw - left));
+    srcH = Math.max(1, Math.min(crop.height, ih - top));
+    pipeline = pipeline.extract({
+      left: Math.round(left),
+      top: Math.round(top),
+      width: Math.round(srcW),
+      height: Math.round(srcH),
+    });
+  } else {
+    const meta0 = await pipeline.metadata();
+    srcW = meta0.width || 0;
+    srcH = meta0.height || 0;
+  }
+
   // Text-legibility mode: JPEG at q80 smears glyph edges, so PNG sources stay
   // PNG. Small-enough sources skip the sharp round-trip entirely — re-encoding
-  // pixel-identical data only re-compresses it.
-  const meta = await sharp(buffer).metadata();
-  const needsResize = Math.max(meta.width || 0, meta.height || 0) > maxDim;
+  // pixel-identical data only re-compresses it. A crop forces the pipeline
+  // even when the result fits — the original buffer contains the uncropped
+  // pixels.
+  const meta = await pipeline.metadata();
+  const needsResize = scale !== 1 || Math.max(srcW, srcH) > maxDim;
   const isPng = (meta.format || '').toLowerCase() === 'png';
-  if (pngPassthrough && isPng && !needsResize) {
+  if (!crop && !needsResize && pngPassthrough && isPng) {
     return buffer.toString('base64');
   }
-  const resized = sharp(buffer).resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true });
-  const out = pngPassthrough && isPng ? await resized.png().toBuffer() : await resized.jpeg({ quality }).toBuffer();
+  // scale===1 keeps the historical contract: fit inside maxDim, never
+  // enlarge. scale>1 enlarges by that factor (small ROIs need it) with the
+  // long edge still capped at maxDim for token budget.
+  const boxW = scale === 1 ? maxDim : Math.min(maxDim, Math.max(1, Math.round(srcW * scale)));
+  const boxH = scale === 1 ? maxDim : Math.min(maxDim, Math.max(1, Math.round(srcH * scale)));
+  const resized = pipeline.resize(boxW, boxH, {
+    fit: 'inside',
+    withoutEnlargement: scale === 1,
+  });
+  // PNG when the source is PNG in passthrough mode, or whenever an explicit
+  // upscale ran (JPEG would smear the very detail the ROI was cut for).
+  const preferPng = isPng ? pngPassthrough || scale !== 1 : scale !== 1;
+  const out = preferPng
+    ? await resized.png().toBuffer()
+    : await resized.jpeg({ quality }).toBuffer();
   return out.toString('base64');
+}
+
+/**
+ * Source-image metadata for provenance records: pixel dims, byte size, format.
+ * Metadata-only (no pixel decode) so it is cheap even on large screenshots.
+ * Returns nulls when sharp is unavailable or the file is unreadable.
+ */
+export async function probeImageMeta(imagePath) {
+  const fs = await import('fs');
+  let bytes = 0;
+  try {
+    bytes = fs.statSync(imagePath).size;
+  } catch {
+    /* reported as 0 */
+  }
+  try {
+    const sharp = (await import('sharp')).default;
+    const meta = await sharp(imagePath).metadata();
+    return { width: meta.width || 0, height: meta.height || 0, bytes, format: meta.format || '' };
+  } catch {
+    return { width: 0, height: 0, bytes, format: '' };
+  }
+}
+
+/**
+ * Pixel-diff two images and return the bounding box of changed pixels.
+ * Deterministic gate for compare/regression flows: when nothing changed,
+ * the VLM call is pure cost. Samples on a stride for speed on large frames.
+ *
+ * Returns { changedRatio, bbox: {left,top,width,height} | null, reason }.
+ * bbox is padded by `margin` px and clamped to image bounds; null when the
+ * diff is below `threshold` ratio (caller decides what "no change" means).
+ */
+export async function diffImagesRegion(pathA, pathB, opts = {}) {
+  const { maxDim = 800, threshold = 0.002, margin = 48, channelDelta = 24 } = opts;
+  let sharp;
+  try {
+    sharp = (await import('sharp')).default;
+  } catch {
+    return { changedRatio: -1, bbox: null, reason: 'sharp-unavailable' };
+  }
+  try {
+    const [a, b] = await Promise.all([
+      sharp(pathA).resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true }).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+      sharp(pathB).resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true }).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    ]);
+    // Different aspect ratios resize to different dims — compare on the
+    // overlapping region only, reported against total pixels of A.
+    const w = Math.min(a.info.width, b.info.width);
+    const h = Math.min(a.info.height, b.info.height);
+    if (w < 8 || h < 8) return { changedRatio: -1, bbox: null, reason: 'images-too-small' };
+    const ch = a.info.channels;
+    const stride = 4; // sample every 4th pixel — diffs are regional, not salt
+    let changed = 0;
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    const total = Math.ceil(w / stride) * Math.ceil(h / stride);
+    for (let y = 0; y < h; y += stride) {
+      for (let x = 0; x < w; x += stride) {
+        const i = (y * a.info.width + x) * ch;
+        const j = (y * b.info.width + x) * ch;
+        const d = Math.abs(a.data[i] - b.data[j]) + Math.abs(a.data[i + 1] - b.data[j + 1]) + Math.abs(a.data[i + 2] - b.data[j + 2]);
+        if (d > channelDelta * 3) {
+          changed++;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    const ratio = changed / total;
+    if (ratio < threshold || maxX < 0) {
+      return { changedRatio: ratio, bbox: null, reason: 'below-threshold' };
+    }
+    // Map sampled coords back to source-A pixels (A was resized fit-inside).
+    const metaA = await sharp(pathA).metadata();
+    const sx = (metaA.width || w) / a.info.width;
+    const sy = (metaA.height || h) / a.info.height;
+    const padX = Math.round(margin * sx);
+    const padY = Math.round(margin * sy);
+    const left = Math.max(0, Math.round(minX * sx) - padX);
+    const top = Math.max(0, Math.round(minY * sy) - padY);
+    const right = Math.min(metaA.width || w, Math.round((maxX + stride) * sx) + padX);
+    const bottom = Math.min(metaA.height || h, Math.round((maxY + stride) * sy) + padY);
+    return {
+      changedRatio: ratio,
+      bbox: { left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) },
+      reason: 'changed',
+    };
+  } catch (e) {
+    return { changedRatio: -1, bbox: null, reason: `error:${e.message}` };
+  }
+}
+
+/**
+ * Write a cropped PNG of `srcPath` to `outPath` (sharp extract). Used by the
+ * compare diff-gate to hand the VLM only the changed region of each frame.
+ * Returns the output path, or null on failure.
+ */
+export async function cropImageToFile(srcPath, bbox, outPath) {
+  try {
+    const sharp = (await import('sharp')).default;
+    const meta = await sharp(srcPath).metadata();
+    const left = Math.max(0, Math.min(bbox.left, (meta.width || 1) - 1));
+    const top = Math.max(0, Math.min(bbox.top, (meta.height || 1) - 1));
+    const width = Math.max(1, Math.min(bbox.width, (meta.width || 1) - left));
+    const height = Math.max(1, Math.min(bbox.height, (meta.height || 1) - top));
+    await sharp(srcPath)
+      .extract({ left: Math.round(left), top: Math.round(top), width: Math.round(width), height: Math.round(height) })
+      .png()
+      .toFile(outPath);
+    return outPath;
+  } catch {
+    return null;
+  }
 }
 
 /**

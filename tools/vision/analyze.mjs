@@ -17,10 +17,12 @@
  */
 
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
-import { baseName, encodeImage, residentVisionModels, pickFallbackModel, getRunningModels, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
+import { baseName, encodeImage, probeImageMeta, diffImagesRegion, cropImageToFile, residentVisionModels, pickFallbackModel, getRunningModels, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
+import { schemaForMode } from './schemas.mjs';
 import { buildGemma4Prompt, GEMMA4_SYSTEM, GEMMA4_MODE_PROMPTS } from './prompts/gemma4-ui.mjs';
 import { buildQwen35Prompt, QWEN35_UI_PROMPT, QWEN35_MODE_PROMPTS, QWEN35_THINKING_CONFIG } from './prompts/qwen35-ui.mjs';
 
@@ -156,6 +158,10 @@ function parseArgs(argv) {
     model: null,
     think: (process.env.VISION_THINK || '').toLowerCase() === 'true',
     skipVramCheck: false,
+    crop: null,
+    scale: 1,
+    dom: null,
+    noDiffGate: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -174,6 +180,10 @@ function parseArgs(argv) {
     else if (arg === '--skip-vram-check') { args.skipVramCheck = true; }
     else if (arg === '--model' && argv[i + 1]) { args.model = argv[++i]; }
     else if (arg === '--think') { args.think = true; }
+    else if (arg === '--crop' && argv[i + 1]) { args.crop = argv[++i]; }
+    else if (arg === '--scale' && argv[i + 1]) { args.scale = parseFloat(argv[++i]); }
+    else if (arg === '--dom' && argv[i + 1]) { args.dom = argv[++i]; }
+    else if (arg === '--no-diff-gate') { args.noDiffGate = true; }
     else if (!arg.startsWith('--')) {
       // Files always win: an existing path is an image, never prompt text.
       // (The old order swallowed the 2nd+ image path as the prompt and dropped
@@ -340,7 +350,7 @@ async function isAtomicChatReady() {
   return atomicChatReady;
 }
 
-async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}, think = false, keepAlive = VISION_KEEP_ALIVE) {
+async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOpts = {}, think = false, keepAlive = VISION_KEEP_ALIVE, jsonSchema = null) {
   const imageData = await Promise.all(images.map((p) => encodeImage(p, encOpts)));
   const profile = profileFor(model);
 
@@ -370,10 +380,13 @@ async function analyzeWithOllama(images, prompt, model, numPredict = 1024, encOp
     }
   };
 
-  // Gemma 4: native JSON structured output — reliable machine-readable results.
-  // Qwen3.5: structured JSON NOT supported when thinking enabled → text output.
+  // Gemma 4: structured output. Prefer a per-mode JSON SCHEMA (constrained
+  // decoding at the sampler level — more reliable for small models than
+  // format:"json" + prompt instructions); fall back to bare 'json' when the
+  // mode has no dedicated shape. Qwen3.5: structured output NOT supported
+  // when thinking enabled → text output.
   if (profile.jsonOutput) {
-    body.format = 'json';
+    body.format = jsonSchema || 'json';
   }
 
   // Ollama 0.21.3+ supports think parameter for reasoning models.
@@ -538,6 +551,8 @@ function renderJsonSections(obj, C, out) {
     { key: 'empty_states', title: 'EMPTY STATES', color: C.dim },
     { key: 'findings', title: 'FINDINGS', color: C.red },
     { key: 'top_3_fixes', title: 'TOP 3 FIXES', color: C.red },
+    { key: 'summary', title: 'SUMMARY', color: C.white },
+    { key: 'uncertain', title: 'UNCERTAIN', color: C.yellow },
   ];
 
   for (const { key, title, color } of sections) {
@@ -632,7 +647,11 @@ async function main() {
   console.error('  --think        (enable extended reasoning for complex modes: compare, music-video, regression)');
   console.error('  --low           (768px, faster, worse for text)');
   console.error('  --high          (1600px, text-dense detail)');
-  console.error('  --json          (machine-readable output)');
+  console.error('  --crop "x,y,w,h" (ROI in source pixels, before resize)');
+  console.error('  --scale N       (enlarge result Nx, e.g. 3 for small element captures)');
+  console.error('  --dom file      (inject serialized DOM/a11y snapshot as ground truth)');
+  console.error('  --no-diff-gate  (skip pixel-diff gating on compare/multicomp)');
+  console.error('  --json          (machine-readable output + provenance)');
     process.exit(1);
   }
 
@@ -642,6 +661,25 @@ async function main() {
       console.error(`Error: Image not found: ${img}`);
       process.exit(1);
     }
+  }
+
+  const runStartedAt = Date.now();
+
+  // --crop "x,y,w,h" in source pixels; --scale N enlarges the result
+  // (small element captures need it — a 240px canvas is below the useful
+  // threshold for detail questions at 1x). Invalid input fails loudly.
+  let cropRect = null;
+  if (args.crop) {
+    const parts = String(args.crop).split(',').map((s) => parseFloat(s.trim()));
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n)) || parts[2] <= 0 || parts[3] <= 0) {
+      console.error('Error: --crop expects "x,y,width,height" in source pixels');
+      process.exit(1);
+    }
+    cropRect = { left: parts[0], top: parts[1], width: parts[2], height: parts[3] };
+  }
+  if (!Number.isFinite(args.scale) || args.scale <= 0) {
+    console.error('Error: --scale expects a positive number');
+    process.exit(1);
   }
 
   // VRAM preflight check — protect the 8 GB card from compounding model loads.
@@ -700,7 +738,78 @@ async function main() {
     quality: EXTRACT_MODES.has(args.mode) ? 85 : VISION_QUALITY,
     pngPassthrough: textMode && !args.low,
     extractMode: EXTRACT_MODES.has(args.mode),
+    crop: cropRect,
+    scale: args.scale,
   };
+
+  // Provenance: what the model actually saw. Recorded for --json and echoed
+  // to stderr so a surprising answer can be traced to its inputs.
+  const provenance = {
+    crop: cropRect,
+    scale: args.scale === 1 ? undefined : args.scale,
+    dom_file: args.dom || undefined,
+    images: [],
+    diff_gate: undefined,
+  };
+  for (const img of args.images) {
+    provenance.images.push({ path: img, ...(await probeImageMeta(img)) });
+  }
+
+  // DOM / accessibility ground truth (--dom file.json): serialized a11y or
+  // DOM snapshot injected as text. 2026 consensus for UI analysis is
+  // tree-first, pixels-second — the tree supplies roles/state the pixels
+  // can't, and disagreements between them are diagnostic signal.
+  let domContext = '';
+  if (args.dom) {
+    try {
+      const domText = fs.readFileSync(args.dom, 'utf-8').slice(0, 12000);
+      domContext = `\n\nPAGE GROUND TRUTH (serialized DOM/accessibility snapshot — authoritative for roles, names, and state; the image shows appearance only. Report conflicts between them):\n${domText}`;
+      console.error(`[vision] Injected DOM context from ${args.dom}`);
+    } catch (e) {
+      console.error(`[vision] WARNING: --dom file unreadable, continuing without it: ${e.message}`);
+    }
+  }
+
+  // Diff gate (compare/multicomp, exactly 2 images): deterministic pixel diff
+  // first — VLM-SubtleBench 2026 showed full side-by-side frames hurt accuracy;
+  // cropping to the changed region focuses attention and cuts tokens. Below
+  // threshold the answer is deterministic and the VLM call is skipped.
+  const DIFF_GATE_MODES = new Set(['compare', 'multicomp']);
+  if (DIFF_GATE_MODES.has(args.mode) && args.images.length === 2 && !args.noDiffGate) {
+    const diff = await diffImagesRegion(args.images[0], args.images[1]);
+    provenance.diff_gate = diff;
+    if (diff.reason === 'below-threshold' || diff.reason === 'images-too-small') {
+      console.error(`[vision] Diff gate: changed_ratio=${diff.changedRatio.toFixed(4)} — no VLM call needed.`);
+      if (args.json) {
+        console.log(JSON.stringify({
+          images: args.images, mode: args.mode, model: 'none', backend: 'deterministic-diff-gate',
+          analysis: `No significant pixel difference detected (changed_ratio=${diff.changedRatio.toFixed(4)}). Pass --no-diff-gate to force a VLM comparison.`,
+          provenance,
+        }, null, 2));
+      } else {
+        console.log(`No significant pixel difference detected (changed_ratio=${diff.changedRatio.toFixed(4)}).`);
+      }
+      process.exit(0);
+    }
+    if (diff.bbox) {
+      // Hand the model only the changed region of each frame.
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viz-diff-'));
+      const crops = [];
+      for (let i = 0; i < 2; i++) {
+        const out = path.join(dir, `crop-${i}.png`);
+        const ok = await cropImageToFile(args.images[i], diff.bbox, out);
+        if (ok) crops.push(out);
+      }
+      if (crops.length === 2) {
+        console.error(`[vision] Diff gate: changed_ratio=${diff.changedRatio.toFixed(4)}, cropped to ${diff.bbox.width}x${diff.bbox.height}+${diff.bbox.left},${diff.bbox.top}`);
+        args.images = crops;
+      } else {
+        console.error('[vision] Diff gate: crop failed, sending full frames');
+      }
+    } else {
+      console.error(`[vision] Diff gate unavailable (${diff.reason}), sending full frames`);
+    }
+  }
 
   const prompt = buildPrompt(args, activeModel);
   const metadata = buildMetadata(args);
@@ -720,6 +829,7 @@ async function main() {
     fullPrompt += `\n\nSOURCE CODE UNDER REVIEW:\n${src}`;
     console.error(`[vision] Attached ${Math.min(args.sourceFiles.length, 3)} source file(s) to prompt`);
   }
+  fullPrompt += domContext;
 
   console.error(`Analyzing ${args.images.length} image(s) with ${activeModel} (${modelWhy})...`);
   console.error(`Mode: ${args.mode}`);
@@ -763,8 +873,11 @@ async function main() {
       }
       return atomicFallbackModel;
     };
+    // Per-mode JSON schema (constrained decoding) for models whose profile
+    // supports structured output; null → bare format:'json' or plain text.
+    const jsonSchema = profile.jsonOutput ? schemaForMode(args.mode) : null;
     const ollamaAttempt = async (model, budget, keepAlive) => {
-      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink, keepAlive);
+      const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink, keepAlive, jsonSchema);
       lastDoneReason = r.done_reason;
       lastFromThinking = !!r.fromThinking;
       analysis = r.text;
@@ -886,6 +999,8 @@ async function main() {
       analysis = best;
     }
     const ok = typeof analysis === 'string' && analysis.trim().length > 0;
+    provenance.prompt_sha256 = crypto.createHash('sha256').update(fullPrompt).digest('hex').slice(0, 16);
+    provenance.duration_ms = Date.now() - runStartedAt;
     if (args.json) {
       console.log(JSON.stringify({
         images: args.images,
@@ -897,6 +1012,7 @@ async function main() {
         done_reason: lastDoneReason,
         analysis: ok ? analysis : '',
         error: ok ? undefined : 'empty-analysis',
+        provenance,
       }, null, 2));
     } else if (ok) {
       console.log(renderHumanFriendly(analysis, activeModel));
