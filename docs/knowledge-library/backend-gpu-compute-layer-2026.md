@@ -49,31 +49,56 @@ this verdict.
 | `app/services/comfyui_manager.py` | Manages ComfyUI's GPU use (external process) | — |
 | `app/services/vram_manager.py` | **The discipline layer**: coordinates Ollama ↔ ComfyUI VRAM, offloads Ollama models so generation doesn't OOM | — |
 | `app/services/vram_monitor.py` | GPU stats via gpustat / pynvml / `torch.cuda` fallback; resident-model detection | Extracted from vram_manager |
-| `app/services/cuda/processor.py` | **Nothing — see §3** | — |
+| `app/services/cuda/processor.py` | The GPU feature module: spectral analysis (audio), image preprocessing, viz FFT, GPU resample — audio is wired, see §3 | Each class carries its own CPU path |
 | `tools/lib/audio.py` | Tool-side torch.cuda analysis helpers | — |
 
-## 3. The finding: an orphaned GPU module
+## 3. The seam: partially wired, with a fallback that degraded silently
 
-`packages/backend/app/services/cuda/` (`processor.py`, ~550 lines)
-contains a complete, seriously-built GPU acceleration module —
-`CudaAudioAnalyzer`, `CudaImageProcessor`, `CudaVisualizationFFT`,
-each with CUDA and CPU paths. Its git history shows real
-investment (GPU resampling, CPU-fallback spectral features,
-torchaudio window fixes).
+`packages/backend/app/services/cuda/` (`processor.py`, ~590 lines)
+holds `CudaAudioAnalyzer`, `CudaImageProcessor`,
+`CudaVisualizationFFT`, a GPU resample helper, and module-level
+singletons (`cuda_audio`, `cuda_image`, `cuda_viz`), each class
+with CUDA and CPU paths. Its wiring is uneven:
 
-**Nothing imports it.** Repo-wide, the three classes are
-referenced only by their own package `__init__.py`. Meanwhile
-`audio_analyzer.py` grew its own parallel CUDA path (§2), which is
-the one the API actually serves. The repo therefore carries two
-implementations of GPU audio analysis: one live, one orphaned —
-and no task item owns the duplication.
+- **`CudaAudioAnalyzer` is live.** `audio_analyzer.analyze_with_cuda`
+  (behind `/api/audio/analyze-cuda`) and the shared
+  `tools/lib/audio.py` both call the `cuda_audio` singleton.
+  *(Correction, 2026-11-07: the first version of this section
+  called the whole module orphaned — that survey grepped absolute
+  import forms and missed the relative `from .cuda import`. The
+  audio class was wired all along.)*
+- **`CudaImageProcessor` and `CudaVisualizationFFT` have no
+  consumers** — exported, demoed nowhere, called by nothing.
+  Their wire-or-remove decision is T-PLT-47's remaining scope.
 
-Decision framing for T-PLT-47: the burden of proof sits on the
-orphan. Either a measurement on a shared fixture shows its paths
-beat the live analyzer's (then wire it in and delete the duplicate
-logic from the analyzer), or it is removed. What it must not do
-is sit a third year as plausible-looking dead weight that future
-agents mistake for the live path.
+The real defect the survey exposed was subtler than an orphan:
+`analyze_with_cuda` used the module only when CUDA was present,
+and hand-rolled its own CPU fallback — a 60-point envelope with
+**no spectral features at all**. A GPU-less machine therefore got
+a degraded, differently-shaped result from the same endpoint,
+silently. Meanwhile the analyzer also carried its own inline GPU
+resample, duplicating plumbing the CUDA package should own.
+
+**The merge (2026-11-07, at the owner's direction)** collapsed
+the seam into one implementation:
+
+- `analyze_with_cuda` now always delegates feature extraction to
+  `CudaAudioAnalyzer.analyze()`, which self-dispatches — CUDA when
+  available, the full numpy CPU feature set when not. Same dict
+  shape on both devices; the degraded fallback survives only as a
+  last resort if the CUDA package itself fails to import.
+- When the caller's audio is not at the singleton's 22050 Hz, a
+  per-call analyzer is built at the real sample rate, so spectral
+  frequencies and duration are no longer computed against the
+  wrong rate (the endpoint loads audio at its native rate).
+- `resample_audio_gpu` moved into the CUDA package as the single
+  GPU-resample implementation; the analyzer's copy is now a thin
+  delegation under its existing name.
+
+Verified statically + by a sandbox CPU smoke test (full feature
+dict, correct frame count and duration at two sample rates);
+the GPU path and endpoint behavior verify on the reference rig
+under T-PLT-47.
 
 ## 4. The kernel ladder on sm_61 — verdicts
 
@@ -115,5 +140,5 @@ All three, not any one:
    measure-first rule applies to kernels exactly as to models.
 
 Until then: no custom CUDA work is a finding to be proud of, not
-a gap. The gap was that no doc said so — and that §3's module sat
-unowned. T-PLT-47 owns §3.
+a gap. The gap was that no doc said so — and that §3's seam sat
+unexamined. T-PLT-47 owns what remains of §3.

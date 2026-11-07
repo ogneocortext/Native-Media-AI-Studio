@@ -9,6 +9,7 @@ from .processor import (
     cuda_image,
     cuda_viz,
     device,
+    resample_audio_gpu,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "cuda_image",
     "cuda_viz",
     "device",
+    "resample_audio_gpu",
 ]

@@ -75,32 +75,14 @@ MADMOM_ACTIVATION_FPS = 100.0
 def resample_audio_gpu(y, orig_sr: int, target_sr: int):
     """Resample 1-D mono audio, preferring GPU via torchaudio.
 
-    Uses ``torchaudio.functional.resample`` on CUDA when torch + CUDA are
-    available; otherwise falls back to ``librosa.resample`` on CPU.
-
-    Args:
-        y: 1-D mono waveform samples.
-        orig_sr: Original sample rate.
-        target_sr: Target sample rate.
-
-    Returns:
-        Resampled audio as a numpy array (float32).
+    Thin delegation: the single implementation lives in
+    ``app.services.cuda.processor`` (the CUDA package owns all GPU
+    audio plumbing since the 2026-11-07 merge). Kept under this
+    name because existing callers in this module use it.
     """
-    audio = np.asarray(y, dtype=np.float32)
-    if orig_sr == target_sr:
-        return audio
-    try:
-        import torch
+    from .cuda.processor import resample_audio_gpu as _impl
 
-        if torch.cuda.is_available():
-            import torchaudio.functional as _taf
-
-            tensor = torch.as_tensor(audio, device="cuda:0")
-            out = _taf.resample(tensor, orig_freq=orig_sr, new_freq=target_sr)
-            return out.cpu().numpy().astype(np.float32)
-    except Exception:
-        logger.debug("GPU resample unavailable -- falling back to librosa", exc_info=True)
-    return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr).astype(np.float32)
+    return _impl(y, orig_sr, target_sr)
 
 
 def _madmom_beats_downbeats(y_44k):
@@ -1061,7 +1043,7 @@ def analyze_with_cuda(
     """Analyze audio using GPU acceleration when available.
 
     Uses the CUDA audio analyzer for FFT and spectral features,
-    falling back to CPU (librosa) if CUDA is unavailable.
+    falling back to the CPU feature path if CUDA is unavailable.
 
     Args:
         audio_path: Path to audio file.
@@ -1080,20 +1062,32 @@ def analyze_with_cuda(
     if sr is None:
         raise ValueError("sr is required when y is provided")
 
-    cuda_ok = False
+    result = None
     try:
-        from .cuda import cuda_audio, cuda_available
+        from .cuda import CudaAudioAnalyzer, cuda_audio
 
-        if cuda_available():
-            result = dict(cuda_audio.analyze(y))
-            result["cuda"] = True
-            result["computed_on"] = "GPU"
-            cuda_ok = True
+        # One implementation, one result shape on both devices:
+        # CudaAudioAnalyzer.analyze() self-dispatches -- CUDA when
+        # available, the full numpy CPU feature set when not. (The
+        # hand-rolled fallback that used to sit here returned only a
+        # 60-point envelope with no spectral features, so a GPU-less
+        # machine silently got a degraded, differently-shaped result.)
+        # The singleton is built for 22050 Hz; when the caller's audio
+        # is at another rate, use a per-call analyzer so the spectral
+        # frequencies and duration use the real rate.
+        analyzer = cuda_audio
+        if sr is not None and sr != cuda_audio.sample_rate:
+            analyzer = CudaAudioAnalyzer(sample_rate=sr)
+        result = dict(analyzer.analyze(y))
+        on_gpu = result.get("computed_on") == "cuda"
+        result["cuda"] = on_gpu
+        result["computed_on"] = "GPU" if on_gpu else "CPU"
     except Exception as e:
-        logger.warning(f"CUDA analysis failed ({e}), falling back to CPU")
+        logger.warning(f"CUDA package analysis failed ({e}), falling back to simple envelope")
 
-    if not cuda_ok:
-        # CPU fallback -- reuse already-loaded audio for RMS + beats
+    if result is None:
+        # Last-resort fallback -- only when the CUDA package itself is
+        # unusable (e.g. its imports fail). RMS envelope only.
         rms = librosa.feature.rms(y=y, hop_length=512)[0]
         rms_norm = (rms - rms.min()) / (rms.max() - rms.min() + 1e-10)
         target_points = 60
@@ -1104,7 +1098,6 @@ def analyze_with_cuda(
             "cuda": False,
             "computed_on": "CPU",
         }
-
     # Beat tracking (still CPU -- librosa beat_track has no GPU equivalent)
     if include_beats:
         beat_result = analyze_beats(y, sr, use_gpu=False)
