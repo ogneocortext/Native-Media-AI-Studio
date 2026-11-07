@@ -21,6 +21,11 @@ cssclasses:
 > [[media-anti-patterns-audit-2026]]. It carries the owner's
 > governing rule into the library his executors actually read:
 > **avoiding AI slop patterns goes through everything.**
+> Amended the same day by an alignment pass against current
+> vendor documentation and practitioner research (§13 lists
+> the basis): per-model negatives, the expired typography
+> ban, temporal video tells, Suno v5-line field findings, and
+> new UI / voice / social sections.
 
 ## 1. The mechanism — slop is a specification failure
 
@@ -43,10 +48,24 @@ adjective; it is a decision, stated.
    dust — or its deliberate absence).
 5. Carry an explicit **AVOID list** into the brief, the
    prompt, and the negative prompt — every time.
-6. **Grade the result** against §9 before presenting it as
+6. **Grade the result** against §12 before presenting it as
    done. A failing result gets one targeted revision naming
    the single thing to change; a second failure means
    re-brief (change medium or composition), never re-roll.
+
+The mechanism has a name in the current literature:
+Anthropic's prompting guidance calls it **distributional
+convergence** — safe choices dominate the training data, so
+an unguided model regresses to them. Two corollaries the
+alignment research added: **volume is itself a tell** (slop
+is "produced usually in quantity" — a flood of unreviewed
+output reads as slop regardless of per-piece quality), and
+**universal ban lists converge too** — a fixed anti-slop
+aesthetic (the cream-and-serif look currently sweeping AI
+frontends) becomes the next slop cluster. The durable fix is
+a *project-owned* spec — which is what this studio's style
+records and budgets already are. This canon names patterns;
+the project's own specs outrank it wherever they speak.
 
 ## 2. Defect negatives ≠ pattern negatives
 
@@ -55,7 +74,24 @@ adjective; it is a decision, stated.
 but know its limit: a technically flawless render can still
 be pure slop. **Pattern negatives** fight the aesthetic
 tells below (glow wash, bokeh filler, average composition).
-A complete negative carries both classes.
+
+**But negative prompting is now per-model** (verified
+against vendor documentation in the 2026-11-07 alignment
+pass) — the "one universal negative" era is over:
+
+| Surface | Negative support | Current practice |
+|---|---|---|
+| SDXL / SD-class (ComfyUI) | Real negative field | Keep it short and concrete; both classes |
+| Midjourney | `--no` parameter (≈ −0.5 weight) | 3–5 concrete terms, no strings |
+| FLUX.2 / FLUX 3 (BFL) | **Not supported** — FLUX 3 has no negative field at all | Positive specification only |
+| Gemini / GPT Image | No negative field | **Semantic negatives**: describe the absence positively ("empty, deserted street", not "no cars") |
+| Runway Gen-4/4.5 | Vendor warns negatives "may result in the opposite happening" | Positive phrasing only |
+| Kling | In-prompt negatives (legacy API field) | State exclusions inside the prompt |
+| Veo (API) | Field exists | Google still teaches positive reframing as the default |
+
+Where a surface takes no negatives, the AVOID list moves
+into the positive brief as decided presences and semantic
+absences — the discipline survives the mechanism.
 
 ## 3. Cross-medium patterns
 
@@ -69,6 +105,11 @@ A complete negative carries both classes.
 
 ## 4. Image patterns
 
+Each pattern below is a tell as an *unmotivated default*;
+the same element, decided and placed, is craft — Google's
+own model examples use neon, bokeh, and flare on purpose.
+The pattern is reaching for them without a reason.
+
 - **Neon glow wash on a dark cosmic background** — the #1
   tell. Replacement: a named light source in a place, or the
   flat disciplines of Analog Print / Monochrome Signal.
@@ -79,15 +120,48 @@ A complete negative carries both classes.
   the scene's light earns it — which is almost never.
 - **Floating-in-void product/subject shots.** Replacement: a
   ground, a surface, a shadow — a place.
-- **Typography from the image model.** Replacement: compose
-  text in layout afterward, always.
+- **Long or load-bearing text from the image model.**
+  Amended 2026-11-07: the blanket ban expired. Current
+  text-strong models (Nano Banana Pro, GPT Image, Ideogram,
+  FLUX.2-flex) render short quoted, placed text reliably —
+  one 200-prompt test put short phrases near 100% and
+  sub-15-word sentences near 95%, degrading past ~30 words;
+  Midjourney remains weak at text. Rule: short placed text
+  is permitted on text-strong models; paragraphs, prices,
+  and brand-critical type are still set in layout.
 - **The generic AI face/character** (the one in
   `character-driven-visualization-research`'s negative list):
   symmetric, airbrushed, ageless. Replacement: the character
   pipeline's identity rules — asymmetry, age, wear, a
   decided face.
+- **Waxy/plastic skin and the house gloss** — the current
+  models' default finish (pore-less skin, everything
+  slightly lacquered, oversaturated teal-orange grade).
+  Replacement: name the finish (matte, film grain, a
+  decided grade) — the medium decision of §1 again.
+- **Functional implausibility** — the most prevalent and
+  least noticed tell class in current studies (a cited CHI
+  2025 analysis puts it in ~59% of AI images): objects that
+  could not work — impossible shadows, wrong reflections,
+  tools with no mechanism, text-like signage. Faces, by
+  contrast, are now near chance-level as a tell.
+  Replacement: the grading pass checks *plausibility*, not
+  just prettiness (§12, question 6).
 
 ## 5. Video & motion patterns
+
+The current framing is **temporal**: any single frame can
+pass while the clip fails — identity drift across frames,
+texture swimming, background morphing, objects losing
+permanence, physics and cadence errors. Grade motion as
+motion. Vendor formulas have also converged (Veo:
+cinematography + subject + action + context + style;
+Runway's image-to-video rule below) — and two currency
+notes from the alignment pass: **Sora is discontinued**
+(app/web April 2026, API September 2026) and **AnimateDiff
+is legacy** in the open stack, whose center is now Wan 2.x
+and HunyuanVideo 1.5; native audio/dialogue is a first-class
+prompt slot on current video models.
 
 - **Gradient-wash skies and backgrounds.** Replacement: flat
   banded fields or a real environment (see Vice Sunset's
@@ -109,6 +183,13 @@ A complete negative carries both classes.
 - **AI-skin smear accepted unchecked.** Replacement: the
   frame-package contract (depth/normals/ID/pose) verified per
   [[3d-bones-ai-skin-pipeline-2026]] before skin is trusted.
+- **Re-describing the image in image-to-video.** Runway's
+  Gen-4 guidance (verified in the alignment pass): the
+  prompt describes **motion only** — start with one essential
+  motion, add one element at a time, one scene per clip.
+  Cross-model rule: one camera move + one subject action per
+  shot, action in timed beats; reference ingredients /
+  first-and-last-frame are the pro workflow, not prose.
 
 ## 6. 3D patterns
 
@@ -144,6 +225,14 @@ A complete negative carries both classes.
 - **Model-vocabulary smuggling** — one platform's prompt
   language pasted into another's brief. Style descriptors
   are model-specific; translate traits, never wording.
+- **Field indiscipline on current Suno (v5-line findings,
+  alignment pass):** the style field is **front-weighted** —
+  the first descriptor dominates, so order is a decision;
+  layer 1–2 genre tags at a time (Suno's own guidance)
+  rather than dumping the pile; the dedicated **Exclude
+  Styles** field is more reliable than inline "no X";
+  BPM now lands within roughly ±3, so tempo asks are
+  honest numbers, not wishes.
 
 ## 8. Lyric patterns
 
@@ -164,10 +253,64 @@ A complete negative carries both classes.
   uplift is a deliberate exception, never the mean.
 - **Diary-entry specifics** that make a song unusable in
   public. Generalize the situation; keep the texture.
+- The stakes are measured, not aesthetic: in a 2025 listener
+  study, **lyric songs were the easiest AI music to unmask
+  (~75%)** — lyric slop is the most detectable slop this
+  studio ships. Production-side tells compound it: missing
+  or evenly-spaced breaths, smeared sibilants, uniform
+  reverb distance — the mix decisions of the finishing stage
+  are anti-pattern work too.
 
-## 9. The grading checklist
+## 9. UI & frontend patterns
 
-Before any media result is presented as done, five questions:
+Added in the alignment pass — the best-documented slop
+domain of all, previously missing here:
+
+- **The default AI frontend**: Inter for everything, purple
+  gradient accents, identical rounded cards in a row, dark
+  hero with an aurora glow. It is distributional convergence
+  with a CSS file. Replacement: the project's own type,
+  palette, and component decisions — the brand kit and style
+  records are exactly this spec.
+- **Template sameness**: every section the same rhythm
+  (heading, three cards, CTA). Replacement: information
+  decides layout; a page whose sections are interchangeable
+  has no decisions in it.
+
+## 10. Voice & TTS patterns
+
+- **The stability trade-off ignored**: high stability reads
+  flat and robotic; low reads chaotic — the default middle
+  is neither directed nor natural. Replacement: set the
+  voice parameters per piece, like a casting decision.
+- **Prose read aloud**: text written for the eye (long
+  subordinate sentences, parentheticals) trips every TTS.
+  Replacement: script for the ear — short breath units,
+  spoken contractions — and a full listen-through before
+  shipping, the audio equivalent of the say-it test.
+
+## 11. Social, thumbnails & platform enforcement
+
+- **Thumbnail sameness** — shocked face, red arrow, yellow
+  text: the feed's own average, and the owner's long-standing
+  complaint about misleading packaging made formal. The
+  house thumbnail is a decided frame from the work, type set
+  in layout (§4's rule), no borrowed outrage.
+- **Platforms now enforce an operational definition of
+  slop**: YouTube's "inauthentic content" policy (renamed
+  July 2025) demonetizes generic, unoriginal AI templates;
+  Deezer tags AI tracks and de-recommends them (~90k AI
+  uploads/day by mid-2026, over half of intake, at 1–3% of
+  streams). Mass-templated output is not just an aesthetic
+  failure — it is a distribution failure.
+- **Provenance is part of shipping**: SynthID-class
+  watermarking and platform AI labels are the default
+  expectation; plan disclosure in the brief, not as an
+  afterthought.
+
+## 12. The grading checklist
+
+Before any media result is presented as done, six questions:
 
 1. Could this be **any** tool's stock output for the category?
 2. Count the **glow effects**. Is each one decided?
@@ -178,10 +321,12 @@ Before any media result is presented as done, five questions:
    is the #1 palette tell)?
 5. Can the brief's **AVOID list** be pointed to in the result
    — i.e., is it actually absent?
+6. Would the things in it **actually work** — shadows,
+   reflections, mechanisms, physics plausible (§4)?
 
 Any "no" → §1 rule 6: one targeted revision, then re-brief.
 
-## 10. How this doc is referenced
+## 13. How this doc is referenced
 
 Pattern lists live **here only**. Other docs point (one line,
 in the relevant section) rather than copying subsets — copies
@@ -189,3 +334,18 @@ drift. The style system's §4 remains the governing statement
 for style records and cross-references this canon for the
 per-medium lists. Pointer rollout + workflow surface fixes:
 T-VID-25 steps 2–3.
+
+**Alignment-pass research basis (2026-11-07):** Anthropic
+Claude Cookbook prompting guidance (distributional
+convergence); Black Forest Labs FLUX prompting documentation
+(visible-only specification, negative support); Google's Veo
+3.1 and Gemini image prompting guides (formula, semantic
+negatives, text-in-image); Runway Gen-4 guide (motion-only
+image-to-video); Kobak et al., *Science Advances* 2025
+(excess-vocabulary measurement); Wikipedia, "Signs of AI
+writing" (living catalogue); Suno v5-line field guides
+(front-weighting, Exclude Styles, BPM accuracy); Deezer and
+YouTube policy reporting (AI-track volume, inauthentic-content
+enforcement). Full working notes live outside the repo with
+the research agent's session files; claims above are stated
+at the strength the sources support.
