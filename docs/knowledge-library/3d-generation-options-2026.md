@@ -16,6 +16,8 @@ type: comparison
 
 # 🧊 3D Generation Options for Pascal / 8GB VRAM (PyTorch 2.14)
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > [!info] Scope
 > What local image-to-3D models run on **GTX 1070 Ti (8GB VRAM, sm_61)** after the
 > PyTorch 2.14.0+cu126 upgrade, and what new workflows are unlocked in ComfyUI.

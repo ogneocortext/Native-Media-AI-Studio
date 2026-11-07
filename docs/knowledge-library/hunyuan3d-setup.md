@@ -15,6 +15,8 @@ type: entity
 
 # 🧊 Hunyuan3D-2mini ComfyUI Setup
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > [!info] Model
 > **Hunyuan3D-2mini** by Tencent - 0.6B parameter image-to-shape model optimized for 5-6 GB VRAM
 

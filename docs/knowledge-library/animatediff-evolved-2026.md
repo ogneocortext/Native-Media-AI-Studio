@@ -16,6 +16,8 @@ type: source
 
 # 🎬 AnimateDiff Evolved — Knowledge Library Entry (November 2026)
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > **Context**: Comprehensive documentation of AnimateDiff Evolved (ComfyUI-AnimateDiff-Evolved by Kosinkadink) — the leading community implementation of AnimateDiff for ComfyUI as of November 2026.
 
 ---

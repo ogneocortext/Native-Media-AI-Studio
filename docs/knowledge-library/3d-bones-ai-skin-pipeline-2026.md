@@ -14,6 +14,8 @@ cssclasses:
 
 # 3D Bones, AI Skin — Pipeline Gap Analysis 2026
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > The gap analysis for a pipeline that either renders 3D well enough to
 > stand beside AI-generated media, or — the stronger route on this
 > hardware — uses 3D as the bones that drive AI visuals: geometry,

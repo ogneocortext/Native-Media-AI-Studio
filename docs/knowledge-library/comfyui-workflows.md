@@ -14,6 +14,8 @@ type: entity
 
 # 🎨 ComfyUI Workflows
 
+> **Anti-patterns:** generation work here follows [[media-anti-patterns-2026]] — the canonical slop list: the brief discipline, the per-medium patterns, and the grading checklist live there only; nothing is copied here.
+
 > [!info] Scope
 > Custom ComfyUI workflows for music video production.
 > Covers image generation, video generation, and 3D model creation.
