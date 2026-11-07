@@ -311,13 +311,32 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   (identity refs), informs T-VID-15/17. No code or renders produced.
 
 ### T-VID-14 — Design the control-conditioned generation lane (frame packages → AI skin)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A written design for the ComfyUI lane that consumes frame packages (T-VID-13) and paints appearance under geometric control: depth/pose/segmentation conditioning + AnimateDiff-class temporal modeling on the profile's blessed SD 1.5 tier. Design only.
 - **Plan:** Evidence (2026-11-06): the integration is declared but unbuilt — `packages/backend/app/api/integrations_music_video.py:565` catalogs "Advanced AnimateDiff with controlnet and IP-adapter" (`mm_sd_v15_v2.safetensors`, `controlnet_openpose`) and `Settings.tsx` offers a "ControlNet + Image" mode, yet `config/comfyui/workflows/` holds 3 workflows, none control-based. Steps: (1) Workflow graph design: which passes feed which control units, weights per pass class. (2) Lane assignment under the hardware profile (768×768 fp16 defaults, VRAM-manager coexistence with Ollama, CPU lane for batch). (3) Seed/parameter contract for reproducibility (same package + params ⇒ same skin). (4) Failure vocabulary: what the lane reports when a package is malformed or a model is missing.
 - **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 2); config/comfyui/workflows/ (inventory); config/hardware-profile.json (lanes)
 - **Acceptance:** A workflow design exists that names every node class, input pass, and parameter; the model set fits the profile's limits without exception requests; reproducibility contract stated.
 - **Depends on:** T-VID-13 (frame-package contract). **Gate:** as T-VID-13.
-- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit. Evidence:
+  `docs/plans/control-conditioned-lane-2026-11.md` (registered in plans
+  README, Status Proposed). Model inventory verified on disk, not
+  catalog-trusted: SD1.5 `v1-5-pruned-emaonly` + AnimateDiff
+  `mm_sd_v15_v2.ckpt` (catalog said .safetensors — actual file is .ckpt)
+  + fp16 depth & openpose ControlNets all present; **no** seg/normal
+  controlnet and **no** IP-Adapter — normals pass reserved, seg gets
+  honest v1 uses (post-composite mask, v1.1 lineart-from-edges);
+  unidentified 1.38 GB `diffusion_pytorch_model.safetensors` flagged
+  do-not-wire-blind. VRAM math ≈5.5–6.5 GB peak fits 8 GB with the
+  existing Ollama-offload rule — zero exception requests. Graph names
+  every node class (VHS_LoadImagePath → ADE loader/context/keyframe →
+  2× ControlNetApplyAdvanced @0.75/0.85 → KSampler 20 steps CFG 7.5 →
+  VAEDecode → VHS_VideoCombine); frame alignment contractual, gaps are
+  hard errors. Reproducibility: `package_manifest_sha256` + full param
+  block recorded per job; model-file substitution must bump recorded
+  files. Failure vocabulary: 8 named codes. SCENE_SKIN job type
+  proposed (sibling to REMOTION_RENDER, not video_transform).
+  Implementation items enumerated §9, all owner-gated. No code or
+  renders produced.
 
 ### T-VID-15 — Design lighting + look rigs as spec data (the T-VID-11 pattern, scene side)
 - **Status:** todo
