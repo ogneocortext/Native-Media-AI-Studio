@@ -75,6 +75,7 @@ function parseArgs(argv) {
     viewport: '1600x900',
     analyze: false,
     model: null,
+    frames: null,
     noVideo: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -82,13 +83,14 @@ function parseArgs(argv) {
     const next = () => argv[++i];
     if (a === '--track') args.track = next();
     else if (a === '--modes') args.modes = next();
-    else if (a === '--dwell') args.dwellMs = parseInt(next(), 10);
-    else if (a === '--settle') args.settleMs = parseInt(next(), 10);
+    else if (a === '--dwell') args.dwellMs = Math.max(500, parseInt(next(), 10) || 6000);
+    else if (a === '--settle') args.settleMs = Math.max(0, parseInt(next(), 10) || 1200);
     else if (a === '--out') args.out = next();
     else if (a === '--base') args.base = next();
     else if (a === '--viewport') args.viewport = next();
     else if (a === '--analyze') args.analyze = true;
     else if (a === '--model') args.model = next();
+    else if (a === '--frames') args.frames = next();
     else if (a === '--no-video') args.noVideo = true;
     else if (a === '--help' || a === '-h') {
       console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0]);
@@ -133,8 +135,16 @@ function expandModes(spec) {
     process.exit(1);
   }
   // Canonical order regardless of spec order: 3d → shader presets → 2d modes.
-  list.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
-  return list;
+  // Dedupe — "all,2d:bars" must not capture bars twice.
+  const seen = new Set();
+  return list
+    .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+    .filter((m) => {
+      const key = `${m.kind}:${m.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 async function main() {
@@ -145,6 +155,10 @@ async function main() {
   }
   const modes = expandModes(args.modes);
   const [vw, vh] = args.viewport.split('x').map((n) => parseInt(n, 10));
+  if (!vw || !vh || vw < 320 || vh < 240) {
+    console.error(`Bad --viewport "${args.viewport}" (want WxH, e.g. 1600x900)`);
+    process.exit(1);
+  }
 
   const outDir = args.out
     ? path.resolve(args.out)
@@ -161,6 +175,18 @@ async function main() {
 
   await page.goto(args.base + '/render/visualizer', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__VIZ_TEST__, { timeout: 30000 });
+  // Fail fast on a stale frontend build — a missing harness method would
+  // otherwise crash mid-capture after minutes of recording.
+  const harnessOk = await page.evaluate(() => {
+    const t = window.__VIZ_TEST__;
+    return ['selectTrack', 'setMode', 'set2DMode', 'setShaderPreset', 'togglePlay', 'getState']
+      .every((k) => typeof t[k] === 'function');
+  });
+  if (!harnessOk) {
+    console.error('__VIZ_TEST__ harness incomplete — is the dev server running current code?');
+    await context.close();
+    process.exit(1);
+  }
   await page.waitForTimeout(1500);
 
   // Load the track and ensure playback — the whole point is audio-reactive
@@ -192,6 +218,25 @@ async function main() {
   }
   const finalState = await page.evaluate(() => window.__VIZ_TEST__.getState());
   console.log(`track=${finalState.currentFilename} playing=${finalState.isPlaying}`);
+
+  // Verify playback ACTUALLY advances — isPlaying is React state synced from
+  // the <audio> element's onPlay, but a stalled/dead backend leaves the
+  // element at readyState 0 forever: isPlaying can read true while currentTime
+  // never moves, and every mode then scores idle visuals instead of
+  // audio-reactive ones. Poll currentTime twice ~2.5s apart.
+  const probePlayback = () => page.evaluate(() => {
+    const el = document.querySelector('audio');
+    return el ? { t: el.currentTime, paused: el.paused, rs: el.readyState, dur: el.duration } : null;
+  });
+  const p1 = await probePlayback();
+  await page.waitForTimeout(2500);
+  const p2 = await probePlayback();
+  const audioVerified = !!(p1 && p2 && !p2.paused && p2.t > p1.t + 0.01);
+  if (!audioVerified) {
+    console.log(`WARNING: audio not advancing (t=${p1?.t}→${p2?.t}, paused=${p2?.paused}, readyState=${p2?.rs}, dur=${p2?.dur}) — capture will score IDLE visuals, reactivity dimension invalid`);
+  } else {
+    console.log(`audio verified advancing: ${p1.t.toFixed(2)}s → ${p2.t.toFixed(2)}s`);
+  }
 
   const marks = [];
   for (const [i, m] of modes.entries()) {
@@ -234,6 +279,7 @@ async function main() {
 
   const manifest = {
     track: args.track,
+    audioVerified,
     dwellMs: args.dwellMs,
     settleMs: args.settleMs,
     viewport: [vw, vh],
@@ -247,6 +293,7 @@ async function main() {
   if (args.analyze && videoPath) {
     const scoreArgs = [SCORE, '--dir', outDir];
     if (args.model) scoreArgs.push('--model', args.model);
+    if (args.frames) scoreArgs.push('--frames', args.frames);
     const res = spawnSync(process.execPath, scoreArgs, { stdio: 'inherit' });
     if (res.status !== 0) process.exit(res.status ?? 1);
   }

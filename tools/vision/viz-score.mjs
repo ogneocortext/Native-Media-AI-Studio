@@ -26,18 +26,17 @@ import { probeVideo } from './video-frames.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ANALYZE = path.join(HERE, 'analyze.mjs');
 
-const SCORE_KEYS = ['composition', 'reactivity', 'readability', 'motion', 'color', 'polish', 'overall'];
-
 function parseArgs(argv) {
-  const args = { dir: null, model: null, frames: 3, only: null, skipAnalyze: false, fps: null };
+  const args = { dir: null, model: null, frames: 3, only: null, skipAnalyze: false, fromAnalyses: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
     if (a === '--dir') args.dir = next();
     else if (a === '--model') args.model = next();
-    else if (a === '--frames') args.frames = parseInt(next(), 10);
+    else if (a === '--frames') args.frames = Math.max(1, parseInt(next(), 10) || 3);
     else if (a === '--only') args.only = next();
     else if (a === '--skip-analyze') args.skipAnalyze = true;
+    else if (a === '--from-analyses') args.fromAnalyses = true;
     else if (a === '--help' || a === '-h') {
       console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0]);
       process.exit(0);
@@ -73,7 +72,7 @@ function grabFrame(videoPath, sec, outPath) {
 }
 
 /** Parse the === SCORES === section of qwen structured text into an object. */
-function parseTextScores(text) {
+export function parseTextScores(text) {
   const m = String(text || '').match(/===\s*SCORES\s*===([\s\S]*?)(?====|$)/i);
   if (!m) return null;
   const scores = {};
@@ -92,18 +91,60 @@ function parseTextList(text, section) {
     .filter((l) => l.length > 3 && !l.startsWith('==='));
 }
 
-function parseTextFindings(text) {
+/** Parse one [SEVERITY: x] block. Models emit two shapes:
+ *  a) inline:  "[SEVERITY: major] elem | issue | fix"
+ *  b) block:   "[SEVERITY: major] Element | Issue | Shortest Fix" (literal
+ *     header echo) followed by prose lines — last line is the fix.
+ *  Returns {severity, element, issue, fix} or null. */
+function parseSeverityBlock(sev, rest, followingLines) {
+  const severity = sev.toLowerCase();
+  let body = rest.trim();
+  // Strip a literal column-header echo: "Element | Issue | Shortest Fix".
+  body = body.replace(/^Element\s*\|\s*Issue\s*\|\s*(Shortest\s+)?Fix\s*$/i, '').trim();
+  if (body.includes('|')) {
+    // Drop literal column-header tokens models echo back ("Element", "Issue",
+    // "Shortest Fix") — observed in real qwen output as a 4-col row where
+    // cols[0] === 'Element' literally.
+    const cols = body.split('|').map((c) => c.trim()).filter(Boolean)
+      .filter((c) => !/^(element|issue|shortest fix|fix|severity|description|details?)$/i.test(c));
+    if (cols.length >= 3) {
+      return { severity, element: cols[0], issue: cols[1], fix: cols.slice(2).join(' | ') };
+    }
+    // 1-2 real cols: fold into the prose path so continuation lines survive.
+    body = cols.join(' | ');
+  }
+  // Block format: gather following prose lines until the next severity tag
+  // or section end. Issue = all but last line; fix = last line.
+  const prose = [];
+  for (const l of followingLines) {
+    if (/\[SEVERITY:/i.test(l) || /^===/.test(l.trim())) break;
+    const t = l.trim().replace(/^\|+|\|+$/g, '').trim();
+    if (!t || /^:?-{3,}:?$/.test(t) || /^[-:| ]+$/.test(t)) continue; // md table separators
+    prose.push(t);
+  }
+  if (body) prose.unshift(body);
+  if (!prose.length) return null;
+  const fix = prose.length > 1 ? prose.pop() : '';
+  const issue = prose.join(' ');
+  if (!issue) return null;
+  return { severity, element: '', issue, fix };
+}
+
+export function parseTextFindings(text) {
   const m = String(text || '').match(/===\s*FINDINGS\s*===([\s\S]*?)(?====|$)/i);
   if (!m) return [];
+  const lines = m[1].split('\n');
   const out = [];
-  for (const line of m[1].split('\n')) {
-    const f = line.match(/\[SEVERITY:\s*(\w+)\]\s*([^|]+)\|\s*Issue:\s*([^|]+)\|\s*(?:Shortest\s+)?Fix:\s*(.+)/i);
-    if (f) out.push({ severity: f[1].toLowerCase(), element: f[2].trim(), issue: f[3].trim(), fix: f[4].trim() });
+  for (let i = 0; i < lines.length; i++) {
+    const sev = lines[i].match(/\[SEVERITY:\s*(\w+)\]\s*(.*)/i);
+    if (!sev) continue;
+    const parsed = parseSeverityBlock(sev[1], sev[2], lines.slice(i + 1));
+    if (parsed) out.push(parsed);
   }
   return out;
 }
 
-function normalizeResult(raw) {
+export function normalizeResult(raw) {
   // gemma path: analysis_parsed is the schema-shaped object
   const parsed = raw?.analysis_parsed;
   if (parsed && typeof parsed === 'object') {
@@ -164,6 +205,7 @@ async function main() {
     process.exit(1);
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const audioDead = manifest.audioVerified === false;
   const videoPath = manifest.video || findVideo(dir);
   if (!videoPath || !fs.existsSync(videoPath)) {
     console.error('No .webm recording found — recapture without --no-video');
@@ -189,7 +231,24 @@ async function main() {
   const dwell = manifest.dwellMs ?? 6000;
 
   const results = [];
-  for (const [i, m] of modes.entries()) {
+  // --from-analyses: rebuild the scorecard from existing analysis-*.json
+  // files with the CURRENT parser — no ffmpeg, no GPU. Use after parser
+  // fixes or to recover a run that died before writing scorecard.md.
+  if (args.fromAnalyses) {
+    for (const [i, m] of modes.entries()) {
+      const af = path.join(dir, `analysis-${m.kind}-${m.id}.json`);
+      if (!fs.existsSync(af)) {
+        results.push({ mode: m, error: 'no analysis file' });
+        continue;
+      }
+      let raw;
+      try { raw = JSON.parse(fs.readFileSync(af, 'utf8')); }
+      catch { raw = { analysis: fs.readFileSync(af, 'utf8') }; }
+      results.push({ mode: m, ...normalizeResult(raw), analysisFile: path.basename(af) });
+      console.log(`[viz-score] ${i + 1}/${modes.length} ${m.label} — from ${path.basename(af)}`);
+    }
+  }
+  for (const [i, m] of args.fromAnalyses ? [] : modes.entries()) {
     const segStart = m.t;
     const segEnd = modes[i + 1]?.t ?? Math.min(durationMs, segStart + settle + dwell + 2000);
     // Steady-state window: skip the settle + first fifth of dwell (mode fade
@@ -225,11 +284,21 @@ async function main() {
     const context = [
       `Visualizer mode under test: ${m.kind}${m.id !== m.kind ? ` / ${m.id}` : ''} (${m.label}).`,
       `Track: ${manifest.track || 'unknown'}.`,
-      `Frames are chronological samples from one continuous playback session; the canvas chrome (topbar, preset bar, inspector) is part of the page, score the visualization stage itself.`,
+      audioDead
+        ? 'WARNING: audio playback was NOT verified during capture — the transport may have been stalled. Score visual quality, but treat reactivity/motion scores as measuring idle visuals, not audio-driven motion.'
+        : 'Audio playback was verified advancing during capture.',
+      `Frames are chronological samples from one continuous playback session; app chrome (topbar, preset bar, inspector, HUD text) is part of the page — score the visualization stage itself and only flag chrome that degrades or overlaps the stage.`,
     ].join(' ');
     const raw = runAnalyze(frames, `${m.kind}:${m.id}`, context, path.join(dir, `analysis-${m.kind}-${m.id}.json`), args.model);
     const norm = normalizeResult(raw || {});
     results.push({ mode: m, ...norm, analysisFile: `analysis-${m.kind}-${m.id}.json` });
+    // Checkpoint partial results — a 23-mode run is ~30-60 min of GPU time;
+    // a crash at mode 20 must not lose modes 1-19 (analysis-*.json survive,
+    // but the assembled scorecard would not exist).
+    fs.writeFileSync(
+      path.join(dir, 'results-partial.json'),
+      JSON.stringify({ manifest, results }, null, 1),
+    );
   }
 
   // Scorecard — sorted by overall desc, unscored last.
@@ -238,7 +307,7 @@ async function main() {
     .sort((a, b) => (b.overall ?? -1) - (a.overall ?? -1));
 
   const card = ['# Visualizer mode scorecard', ''];
-  card.push(`Track: ${manifest.track || '?'} | modes: ${results.length} | frames/mode: ${args.frames}`);
+  card.push(`Track: ${manifest.track || '?'} | modes: ${results.length} | frames/mode: ${args.frames}${audioDead ? ' | ⚠ AUDIO NOT VERIFIED — reactivity scores measure idle visuals' : ''}`);
   card.push('');
   card.push('| # | Mode | Overall | Comp | React | Read | Motion | Color | Polish | Findings |');
   card.push('|---|------|---------|------|-------|------|--------|-------|--------|----------|');
@@ -274,7 +343,9 @@ async function main() {
   console.log(`scorecard: ${path.join(dir, 'scorecard.md')}`);
 }
 
-main().catch((e) => {
-  console.error(`viz-score failed: ${e.message}`);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => {
+    console.error(`viz-score failed: ${e.message}`);
+    process.exit(1);
+  });
+}

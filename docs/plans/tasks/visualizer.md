@@ -1198,3 +1198,32 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** satisfied at completion (baseline scorecard is the
   redesign input; redesign itself is the next item).
 - **Last session:** Devin, 2026-11-08 — commit c482736b.
+
+- **Review follow-up (same day, line-by-line pass on the new tooling):**
+  real-output testing exposed that the first baseline captured a DEAD
+  backend — audio element sat at readyState 0, every mode scored idle
+  visuals (qwen repeatedly reported "0:00/0:00" + "Analyzing..."). Fixes:
+  - viz-capture now polls `<audio>.currentTime` twice after load and
+    writes `audioVerified` into marks.json; warns loudly when playback
+    is not advancing instead of silently scoring idle frames.
+  - viz-score banners `audioVerified:false` scorecards and tells the
+    model reactivity/motion measured idle visuals; `--from-analyses`
+    rebuilds scorecard.md/json from existing analysis-*.json with the
+    current parser (no ffmpeg/GPU) — used to recover the dead-audio run.
+  - parseTextFindings rewritten for REAL qwen output: findings arrive as
+    `[SEVERITY: x]` blocks (header-echo + prose lines), not the assumed
+    single-line `elem | Issue: | Fix:` format — old regex matched zero
+    findings. Now handles inline pipes, literal column-header echoes
+    ("Element"/"Issue" tokens), and markdown table separators.
+  - Harness/arg hardening: fail-fast check that all __VIZ_TEST__ methods
+    exist before recording; mode dedupe ("all,2d:bars"); NaN guards on
+    --dwell/--settle/--frames/--viewport; --frames passthrough to scorer;
+    per-mode results-partial.json checkpoint so a mid-run crash keeps
+    completed modes; dead fps arg + SCORE_KEYS removed.
+  - electricHorizon scored "—": qwen hit num_predict inside thinking
+    (done_reason "length", 15.7k chars of reasoning, empty SCORES) —
+    known reasoning-budget failure mode, retry or raise budget.
+  - Also fixed (uncommitted, another agent's file): restored the
+    accidentally deleted `class _StdCapture:` line in
+    logging_config.py — its absence nested _StdCapture's __init__ inside
+    SafeRotatingFileHandler, crashing backend startup on maxBytes.

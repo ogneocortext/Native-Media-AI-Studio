@@ -43,6 +43,9 @@ node tools/vision/viz-capture.mjs --track "x.wav" --modes all --analyze --model 
   recapturing (needs the same marks.json + webm in --dir).
 - `--skip-analyze` extracts frames only (cheap sanity check of the
   segment boundaries before spending GPU time).
+- `--from-analyses` rebuilds scorecard.md/json from existing
+  `analysis-*.json` files with the current parser — no ffmpeg, no GPU.
+  Use after parser fixes or to recover a run that died mid-scoring.
 
 ## What gets measured
 
@@ -103,6 +106,15 @@ means whichever model is warm usually wins unless `--model` is passed.
 - Audio autoplay in headless Chromium is gesture-gated — the capture
   script clicks the transport button as fallback; if `isPlaying` stays
   false in marks, the video shows idle visuals and scores will be wrong.
+- **Playback is verified, not assumed**: after load, viz-capture polls
+  the `<audio>` element's `currentTime` twice — if it isn't advancing,
+  it logs a loud warning and writes `audioVerified: false` into
+  marks.json; viz-score then banners the scorecard and tells the model
+  reactivity/motion scores measured idle visuals. A dead backend leaves
+  the element at `readyState 0` forever while `isPlaying` can still read
+  true — this actually happened (2026-11-07 baseline scored a dead
+  backend's idle visuals). Check `audioVerified` before trusting
+  reactivity scores.
 - The recording is one continuous playback — different modes sample
   different song sections. That's intentional (real usage), but don't
   compare a mode captured on a quiet verse against one on a drop without
