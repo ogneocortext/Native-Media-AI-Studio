@@ -1,6 +1,6 @@
 # Setup Summary — Native Media AI Studio
 
-> **Last Updated:** 2026-11-05 — ports corrected to canonical `config/ports.json` values (backend 8000, frontend 5173); earlier snapshot claimed 8001/5174. ComfyUI started via `manage-servers.ps1` (`--disable-pinned-memory`, no `--enable-manager`).
+> **Last Updated:** 2026-11-07 — clean-environment install verified from a fresh clone (see *Clean-environment verification* below); earlier: 2026-11-05 — ports corrected to canonical `config/ports.json` values (backend 8000, frontend 5173); earlier snapshot claimed 8001/5174. ComfyUI started via `manage-servers.ps1` (`--disable-pinned-memory`, no `--enable-manager`).
 
 ## ✅ Current System Status
 
@@ -59,6 +59,40 @@ External install at `D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI`
 | 3D | `output/generated_3d/*.glb` |
 
 ---
+
+### Clean-environment verification (2026-11-07)
+
+The full stack was installed and run from a **fresh clone of main**
+(`c02ef2c6`) on a clean Linux VM with none of the owner's
+custom-configured tooling on PATH — no conda env, no CUDA, 8 GB RAM.
+Backend booted on :8000 (**378 routes**, `/api/health` answering),
+frontend served by Vite on :5173, and the API verified end-to-end
+through the Vite proxy. ComfyUI and Ollama report offline and the
+app degrades gracefully, as designed.
+
+Verified recipe (deltas from the rig's setup):
+
+- **Backend**: Python 3.12 venv; `requirements.txt` **minus the
+  three `opentelemetry-*` lines** (that pin stack does not resolve
+  on Python 3.12 — it expects the rig's 3.11) **plus `openai`**
+  (imported at module load via `tools.qwen_subagent`, missing from
+  requirements.txt); `requirements-torch.txt` skipped (no GPU).
+- **Frontend**: `pnpm install --frozen-lockfile` at the **repo
+  root** (pnpm 12.17.0 workspace; the frontend's `catalog:` deps
+  mean npm cannot install this project at all).
+- **Versions proven**: Python 3.12.3, Node 24.22, pnpm 12.17.0 —
+  below the README's Node 26+ line, which reflects the rig, not a
+  hard floor.
+
+Known cold-boot gaps on main (the rig's uncommitted working tree
+covers both; fix list registered as **T-PLT-49**):
+
+1. `app/main.py` imports `app/api/test_analytics.py`, which is not
+   committed — a clean checkout cannot boot without it.
+2. `app/core/database.py`'s media re-export omits
+   `get_all_item_collections` and `get_all_item_tags`; both exist
+   in `app/core/media.py` and `app/api/media_library.py` imports
+   them from `database`.
 
 ## 🚀 Quick Start (Current)
 

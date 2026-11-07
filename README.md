@@ -35,6 +35,12 @@ The app is deliberately tuned for modest hardware — models are quantized and
 jobs run one at a time, so an 8 GB card is a supported target, not a
 workaround.
 
+Portability check (2026-11-07): the full stack was installed and run
+from a clean checkout on a plain Linux VM (Python 3.12, Node 24,
+pnpm 12.17) — CPU feature surface; GPU generation still needs the
+Windows setup above. Recipe and known gaps:
+`docs/setup/SETUP_SUMMARY.md`.
+
 ## Getting started
 
 ```powershell
