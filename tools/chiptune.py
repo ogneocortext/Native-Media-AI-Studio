@@ -513,7 +513,9 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
 
     Names containing noise/hat/perc/drum -> the noise voice; 'bass' ->
     the low voice (triangle/wave/saw if the system has one, else last
-    pulse); everything else fills remaining tonal voices in file order.
+    pulse); everything else fills remaining tonal voices, densest
+    line first so busy imported lanes outlive sparse pads. All-rest
+    tonal lines never consume a voice.
     Returns a list aligned to chan_specs; entries are
     (line_name, wave, duty, cells) or None for silent voices.
     """
@@ -521,13 +523,23 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
     used: set[int] = set()
     names = list(p.channels)
 
+    def _is_noise(name: str) -> bool:
+        low = name.lower()
+        return any(k in low for k in ("noise", "hat", "perc", "drum"))
+
+    def _is_rest_line(name: str) -> bool:
+        return all(c in ".-" for c in p.channels[name])
+
+    def _density(name: str) -> float:
+        cells = p.channels[name]
+        return sum(1 for c in cells if c not in ".-") / max(len(cells), 1)
+
     def _is_noise_slot(i: int) -> bool:
         return chan_specs[i][0] == "noise"
 
     # Pass 1: noise lines -> noise slots.
     for name in names:
-        low = name.lower()
-        if not any(k in low for k in ("noise", "hat", "perc", "drum")):
+        if not _is_noise(name):
             continue
         for i, spec in enumerate(chan_specs):
             if i not in used and _is_noise_slot(i):
@@ -536,28 +548,29 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
                 used.add(i)
                 break
 
-    # Pass 2: bass lines -> deepest tonal slot.
+    # Pass 2: bass lines -> deepest free low-voice slots, densest first.
     tonal = [i for i in range(len(chan_specs)) if not _is_noise_slot(i)]
     low_waves = {"triangle", "wave", "saw", "vox", "fm"}
-    for name in names:
-        low = name.lower()
-        if "bass" not in low or any(k in low for k in ("noise", "hat", "perc", "drum")):
-            continue
-        target = next((i for i in reversed(tonal)
-                       if chan_specs[i][0] in low_waves), tonal[-1] if tonal else None)
-        if target is None or target in used:
-            continue
+    low_slots = [i for i in reversed(tonal)
+                 if chan_specs[i][0] in low_waves] or list(reversed(tonal))
+    bass_names = sorted(
+        (n for n in names if "bass" in n.lower() and not _is_noise(n)
+         and not _is_rest_line(n)),
+        key=lambda n: -_density(n))
+    for name in bass_names:
+        target = next((i for i in low_slots if i not in used), None)
+        if target is None:
+            break
         w, d = p.waves.get(name, chan_specs[target])
         slots[target] = (name, w, _quantize_duty(d, sysname), p.channels[name])
         used.add(target)
 
-    # Pass 3: remaining lines fill remaining tonal voices in order.
-    for name in names:
-        if name in {s[0] for s in slots if s}:
-            continue
-        low = name.lower()
-        if any(k in low for k in ("noise", "hat", "perc", "drum")):
-            continue  # unmatched noise line on a noiseless system
+    # Pass 3: remaining lines fill remaining tonal voices, densest
+    # first so imported polyphony keeps its busiest lanes.
+    rest = [n for n in names
+            if n not in {s[0] for s in slots if s}
+            and not _is_noise(n) and not _is_rest_line(n)]
+    for name in sorted(rest, key=lambda n: (-_density(n), names.index(n))):
         for i in tonal:
             if i not in used:
                 w, d = p.waves.get(name, chan_specs[i])
