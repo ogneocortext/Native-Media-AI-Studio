@@ -185,6 +185,45 @@ MODEL_BACKENDS = {
 # Default backend for new requests
 DEFAULT_BACKEND = "hunyuan3d_2mini"
 
+# Asset-budget roles (T-VID-12): hero/mid/background/far caps from
+# config/asset-budgets.json. A request may pass role=...; the role's
+# max_triangles becomes the decimation ceiling and max_texture_px the
+# ingest resize cap. No role -> legacy per-backend target_faces.
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+_BUDGETS_PATH = _REPO_ROOT / "config" / "asset-budgets.json"
+_VALID_ROLES = ("hero", "mid", "background", "far")
+
+
+def _role_budget(role: str | None) -> dict[str, Any] | None:
+    if not role:
+        return None
+    try:
+        budgets = json.loads(_BUDGETS_PATH.read_text(encoding="utf-8"))
+        entry = budgets["roles"][role]
+    except (OSError, json.JSONDecodeError, KeyError):
+        return None
+    return entry
+
+
+def _run_tool(script: str, argv: list[str], timeout: int) -> dict[str, Any]:
+    """Run a repo tool script; never raises — returns {ok, stdout, stderr}."""
+    import subprocess
+    import sys
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(_REPO_ROOT / "tools" / script), *argv],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        return {"ok": proc.returncode == 0, "stdout": proc.stdout or "", "stderr": proc.stderr or ""}
+    except Exception as e:  # noqa: BLE001 - tool failure must not fail generation
+        return {"ok": False, "stdout": "", "stderr": str(e)}
+
+
 # ComfyUI node classes each backend's workflows depend on. Startup checks
 # verify these are actually registered (custom node pack installed AND
 # importing cleanly) so a broken pack surfaces as "backend unavailable"
@@ -337,6 +376,7 @@ class Gen3DService:
         seed: int = 42,
         cfg: float = 7.0,
         backend: str = DEFAULT_BACKEND,
+        role: str | None = None,
     ) -> dict[str, Any]:
         """Generate a 3D model from a text prompt.
 
@@ -346,6 +386,8 @@ class Gen3DService:
             steps: Diffusion steps (lower = faster, 10-20 typical).
             seed: Random seed for reproducibility.
             backend: Model backend override (hunyuan3d_2mini, hunyuan3d_2mv, triposr, stable_fast_3d).
+            role: Asset-budget role (hero|mid|background|far) — selects the
+                decimation ceiling, texture cap, and budget report (T-VID-12).
 
         Returns:
             Dict with 'success', 'model_path', 'preview_path', 'metadata'.
@@ -355,7 +397,7 @@ class Gen3DService:
             svc = Gen3DService(backend=backend)
             if not svc.available:
                 return {"success": False, "error": f"Backend '{backend}' not available"}
-            return await svc.generate_from_text(prompt, output_name, steps, seed, cfg)
+            return await svc.generate_from_text(prompt, output_name, steps, seed, cfg, role=role)
 
         if not self.available:
             return {"success": False, "error": "3D generation service not available"}
@@ -380,7 +422,7 @@ class Gen3DService:
             try:
                 # Build workflow for text-to-3D via Kijai Wrapper
                 workflow = self._build_text23d_workflow(prompt, output_name, steps, seed, cfg)
-                result = await self._submit_workflow(workflow, output_path)
+                result = await self._submit_workflow(workflow, output_path, role=role)
                 return result
             finally:
                 # VRAM Management: Reload Ollama after 3D generation
@@ -401,6 +443,7 @@ class Gen3DService:
         output_name: str | None = None,
         steps: int = 15,
         backend: str = DEFAULT_BACKEND,
+        role: str | None = None,
     ) -> dict[str, Any]:
         """Generate a 3D model from an input image.
 
@@ -417,7 +460,7 @@ class Gen3DService:
             svc = Gen3DService(backend=backend)
             if not svc.available:
                 return {"success": False, "error": f"Backend '{backend}' not available"}
-            return await svc.generate_from_image(image_path, output_name, steps)
+            return await svc.generate_from_image(image_path, output_name, steps, role=role)
 
         if not self.available:
             return {"success": False, "error": "3D generation service not available"}
@@ -434,7 +477,7 @@ class Gen3DService:
 
             try:
                 workflow = self._build_image23d_workflow(image_path, output_name, steps)
-                result = await self._submit_workflow(workflow, output_path)
+                result = await self._submit_workflow(workflow, output_path, role=role)
                 return result
             finally:
                 # VRAM Management: Reload Ollama after 3D generation
@@ -1035,7 +1078,7 @@ class Gen3DService:
         shutil.copy2(src, dst)
         return src.name
 
-    def _upload_image(self, image_path: str, prompt_id: str) -> dict[str, Any]:
+    def _upload_image(self, image_path: str, prompt_id: str, role: str | None = None) -> dict[str, Any]:
         """Copy the ComfyUI-exported .glb into the backend output dir, decimate if needed, and return its path."""
         logger.info("Finalizing output: %s", image_path)
         cand = Path(image_path)
@@ -1059,8 +1102,14 @@ class Gen3DService:
                     "warning": f"Mesh exported but could not be copied to backend outputs: {e}",
                 }
 
-            # Post-process: decimate if mesh is too large
-            decimate_result = self._decimate_if_needed(dst, self.target_faces)
+            # Post-process: decimate if mesh is too large. When the request
+            # carries an asset-budget role, the role's max_triangles cap is
+            # the ceiling instead of the flat per-backend target (T-VID-12).
+            budget = _role_budget(role)
+            target_faces = (
+                int(budget["max_triangles"]) if budget and budget.get("max_triangles") else self.target_faces
+            )
+            decimate_result = self._decimate_if_needed(dst, target_faces)
             # Apply chrome PBR if prompt looks metallic. Only for Hy3D backends —
             # their meshes are untextured gray, while TripoSR already carries
             # vertex colors that a chrome override would destroy.
@@ -1075,11 +1124,44 @@ class Gen3DService:
             except Exception as e:
                 logger.debug("Chrome apply skipped: %s", e)
 
+            # T-VID-12 ingest post-step: downscale textures to the role cap
+            # and convert to KTX2 in place. Failures are reported, never fatal
+            # — the mesh is still usable uncompressed.
+            ingest_role = role if role in _VALID_ROLES else "mid"
+            ingest = _run_tool(
+                "ingest-texture.py",
+                ["glb", str(dst), "--role", ingest_role, "--codec", "etc1s", "--out", str(dst)],
+                timeout=900,
+            )
+            ingest_result: dict[str, Any] = {"ran": True, "ok": ingest["ok"]}
+            if not ingest["ok"]:
+                ingest_result["error"] = (ingest["stderr"] or ingest["stdout"])[-400:]
+                logger.warning("Texture ingest failed for %s: %s", dst.name, ingest_result["error"])
+
+            # Budget report: re-validate the final asset so generation results
+            # carry PASS/FAIL evidence instead of a silent hard-coded target.
+            check = _run_tool(
+                "check-asset-budget.py",
+                [str(dst), "--role", ingest_role, "--json"],
+                timeout=120,
+            )
+            budget_report: dict[str, Any]
+            try:
+                budget_report = json.loads(check["stdout"])
+            except json.JSONDecodeError:
+                budget_report = {
+                    "verdict": "error" if not check["ok"] else "unknown",
+                    "detail": (check["stderr"] or check["stdout"])[-400:],
+                }
+
             return {
                 "success": True,
                 "model_path": str(dst),
                 "prompt_id": prompt_id,
                 "decimate": decimate_result,
+                "budget": budget_report,
+                "texture_ingest": ingest_result,
+                "role": role,
             }
         # Source file not found -- surface what ComfyUI reported.
         logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
@@ -1199,7 +1281,12 @@ class Gen3DService:
         except Exception as e:
             return {"success": False, "reason": str(e)}
 
-    async def _submit_workflow(self, workflow: dict[str, Any], output_path: Path) -> dict[str, Any]:
+    async def _submit_workflow(
+        self,
+        workflow: dict[str, Any],
+        output_path: Path,
+        role: str | None = None,
+    ) -> dict[str, Any]:
         """Submit a workflow to ComfyUI and wait for completion.
 
         Uses async polling so the event loop stays responsive. The Hy3DExportMesh
@@ -1289,7 +1376,7 @@ class Gen3DService:
                     if glb_rel:
                         logger.info("3D generation complete: %s", glb_rel)
                         return self._finish_with_timing(
-                            glb_rel, prompt_id, t_submit, submit_done, exec_start, exec_end
+                            glb_rel, prompt_id, t_submit, submit_done, exec_start, exec_end, role
                         )
 
                     # Check for errors
@@ -1314,6 +1401,7 @@ class Gen3DService:
                                     submit_done,
                                     exec_start,
                                     exec_end,
+                                    role,
                                 )
 
                         # Fallback: search for any new GLB in the output directory
@@ -1332,6 +1420,7 @@ class Gen3DService:
                                     submit_done,
                                     exec_start,
                                     exec_end,
+                                    role,
                                 )
 
             except Exception as e:
@@ -1354,6 +1443,7 @@ class Gen3DService:
         submit_done: float,
         exec_start: float | None,
         exec_end: float | None,
+        role: str | None = None,
     ) -> dict[str, Any]:
         """Run the output finalize step and attach real phase timings.
 
@@ -1366,7 +1456,7 @@ class Gen3DService:
         import time
 
         post_t0 = time.time()
-        res = self._upload_image(glb_ref, prompt_id)
+        res = self._upload_image(glb_ref, prompt_id, role=role)
         post_ms = (time.time() - post_t0) * 1000
         exec_done = exec_end or time.time()
         res["timing"] = {

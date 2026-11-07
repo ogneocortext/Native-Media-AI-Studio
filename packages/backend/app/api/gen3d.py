@@ -25,6 +25,14 @@ class Gen3DGenerateRequest(BaseModel):
     seed: int = 42
     cfg: float = 7.0
     model: str | None = None
+    role: str | None = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("hero", "mid", "background", "far"):
+            raise ValueError("role must be one of: hero, mid, background, far")
+        return v
 
     @field_validator("prompt")
     @classmethod
@@ -112,6 +120,7 @@ async def gen3d_generate(body: Gen3DGenerateRequest) -> dict:
             seed=body.seed,
             cfg=body.cfg,
             backend=_resolve_backend(body.model),
+            role=body.role,
         )
 
 
@@ -136,6 +145,7 @@ async def gen3d_generate_image(
     steps: int = Query(15, ge=1, le=50),
     output_name: str | None = Query(None, max_length=200),
     model: str | None = Query(None, max_length=100),
+    role: str | None = Query(None, max_length=16),
 ) -> dict:
     """Generate a 3D model from a reference image (face/body lock source).
 
@@ -183,6 +193,7 @@ async def gen3d_generate_image(
                 output_name=output_name,
                 steps=steps,
                 backend=_resolve_backend(model),
+                role=role,
             )
     finally:
         if tmp_path is not None:
