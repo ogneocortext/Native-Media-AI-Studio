@@ -9,13 +9,13 @@ __description__ = "Automated research for current best practices (as of current 
 
 # Import from the research module
 from current_best_practices.research import (
-    get_current_context,
-    get_domain_queries,
-    build_search_queries,
-    format_findings,
-    research_via_websearch,
     DOMAIN_QUERIES,
     TRUSTED_SOURCES,
+    build_search_queries,
+    format_findings,
+    get_current_context,
+    get_domain_queries,
+    research_via_websearch,
 )
 
 __all__ = [
