@@ -778,7 +778,11 @@ async function main() {
   if (DIFF_GATE_MODES.has(args.mode) && args.images.length === 2 && !args.noDiffGate) {
     const diff = await diffImagesRegion(args.images[0], args.images[1]);
     provenance.diff_gate = diff;
-    if (diff.reason === 'below-threshold' || diff.reason === 'images-too-small') {
+    // Only a real measurement may short-circuit. 'images-too-small',
+    // 'channel-mismatch', 'sharp-unavailable' and 'error:*' all mean "could
+    // not compare" — falling through to the VLM on full frames is correct.
+    if (diff.reason === 'below-threshold') {
+      provenance.duration_ms = Date.now() - runStartedAt;
       console.error(`[vision] Diff gate: changed_ratio=${diff.changedRatio.toFixed(4)} — no VLM call needed.`);
       if (args.json) {
         console.log(JSON.stringify({
@@ -792,17 +796,32 @@ async function main() {
       process.exit(0);
     }
     if (diff.bbox) {
-      // Hand the model only the changed region of each frame.
+      // Hand the model only the changed region of each frame. The bbox is in
+      // image-A source pixels — scale it per image or a differently-sized B
+      // gets the wrong region (cropImageToFile clamps, so it wouldn't crash,
+      // just silently crop the wrong area).
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'viz-diff-'));
+      provenance.diff_tmpdir = dir;
+      const dimA = provenance.images[0];
       const crops = [];
       for (let i = 0; i < 2; i++) {
+        const dimI = provenance.images[i];
+        const sx = dimA.width > 0 && dimI.width > 0 ? dimI.width / dimA.width : 1;
+        const sy = dimA.height > 0 && dimI.height > 0 ? dimI.height / dimA.height : 1;
+        const rect = i === 0 ? diff.bbox : {
+          left: diff.bbox.left * sx,
+          top: diff.bbox.top * sy,
+          width: diff.bbox.width * sx,
+          height: diff.bbox.height * sy,
+        };
         const out = path.join(dir, `crop-${i}.png`);
-        const ok = await cropImageToFile(args.images[i], diff.bbox, out);
+        const ok = await cropImageToFile(args.images[i], rect, out);
         if (ok) crops.push(out);
       }
       if (crops.length === 2) {
         console.error(`[vision] Diff gate: changed_ratio=${diff.changedRatio.toFixed(4)}, cropped to ${diff.bbox.width}x${diff.bbox.height}+${diff.bbox.left},${diff.bbox.top}`);
         args.images = crops;
+        provenance.sent_images = crops.map((c) => ({ path: c }));
       } else {
         console.error('[vision] Diff gate: crop failed, sending full frames');
       }
@@ -997,6 +1016,14 @@ async function main() {
     if ((typeof analysis !== 'string' || !analysis.trim()) && best.trim()) {
       console.error('[vision] Using best non-empty result from an earlier attempt.');
       analysis = best;
+    }
+    // Diff-gate crops were single-use inputs — free the temp dir.
+    if (provenance.diff_tmpdir) {
+      try {
+        fs.rmSync(provenance.diff_tmpdir, { recursive: true, force: true });
+      } catch {
+        /* tmp cleanup is best-effort */
+      }
     }
     const ok = typeof analysis === 'string' && analysis.trim().length > 0;
     provenance.prompt_sha256 = crypto.createHash('sha256').update(fullPrompt).digest('hex').slice(0, 16);

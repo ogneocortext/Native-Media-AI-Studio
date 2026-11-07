@@ -140,7 +140,10 @@ export async function encodeImage(imagePath, opts = {}) {
   // captures like a 240px canvas need it; VLM-SubtleBench 2026: crops beat
   // full frames for detail work). Both are provenance-relevant: callers
   // should record them alongside the result.
-  const crop = opts.crop && Number.isFinite(opts.crop.left) ? opts.crop : null;
+  const crop = opts.crop &&
+    ['left', 'top', 'width', 'height'].every((k) => Number.isFinite(opts.crop[k]))
+    ? opts.crop
+    : null;
   const scale = Number.isFinite(opts.scale) && opts.scale > 0 ? opts.scale : 1;
   const fs = await import('fs');
   const buffer = fs.readFileSync(imagePath);
@@ -151,6 +154,9 @@ export async function encodeImage(imagePath, opts = {}) {
   try {
     sharp = (await import('sharp')).default;
   } catch {
+    // sharp missing: ROI requests degrade to the full image. Warn — the
+    // caller's provenance will claim a crop that never happened otherwise.
+    if (roiActive) console.error('[vision] sharp unavailable — crop/scale ignored');
     return buffer.toString('base64');
   }
 
@@ -259,6 +265,11 @@ export async function diffImagesRegion(pathA, pathB, opts = {}) {
     const w = Math.min(a.info.width, b.info.width);
     const h = Math.min(a.info.height, b.info.height);
     if (w < 8 || h < 8) return { changedRatio: -1, bbox: null, reason: 'images-too-small' };
+    // Both sides went through removeAlpha(), but a grayscale/palette source
+    // can still surface a different channel count — indexing would misalign.
+    if (a.info.channels !== b.info.channels) {
+      return { changedRatio: -1, bbox: null, reason: 'channel-mismatch' };
+    }
     const ch = a.info.channels;
     const stride = 4; // sample every 4th pixel — diffs are regional, not salt
     let changed = 0;

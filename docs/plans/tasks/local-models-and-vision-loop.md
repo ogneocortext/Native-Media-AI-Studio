@@ -186,3 +186,31 @@ Rules: `docs/plans/tasks/README.md`
   `--dom` injection + ui schema returned findings/summary shape.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-07 — commit pending.
+
+### T-MOD-07 — Line-by-line review of T-MOD-06 vision upgrades
+
+- **Status:** done
+- **Goal:** Self-review the just-landed ROI/dom/schema/diff-gate/
+  provenance changes before they calcify.
+- **Findings fixed:**
+  - `encodeImage` crop guard checked only `.left` — a partial crop
+    object passed NaN into sharp.extract. Now validates all four fields.
+  - sharp-missing fallback silently ignored crop/scale while provenance
+    claimed them applied — now warns on stderr.
+  - `diffImagesRegion` indexed both buffers with `a.info.channels` —
+    a grayscale/palette source could misalign the diff. Channel-count
+    guard added (`channel-mismatch` reason).
+  - Diff gate short-circuited on `images-too-small` — "could not
+    compare" was reported as "no difference". Only `below-threshold`
+    exits now; all failure reasons fall through to full-frame VLM.
+  - Same bbox was applied to image B — wrong region whenever the pair
+    differs in size. Bbox now scales per-image dims.
+  - Temp crop dir (`os.tmpdir()/viz-diff-*`) leaked per run — removed
+    after analysis; `sent_images` + `diff_tmpdir` recorded in provenance.
+- **Files:** tools/vision/{analyze.mjs,vision-common.mjs},
+  docs/plans/tasks/local-models-and-vision-loop.md.
+- **Verification:** node --check clean; identical-image compare still
+  exits via deterministic gate; different-dims pair diffs and crops
+  correctly (bbox in A-pixels, scaled for B).
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — commit pending.
