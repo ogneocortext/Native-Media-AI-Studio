@@ -44,7 +44,8 @@ BASE = REPO / "docs" / "knowledge-library"
 INDEX = BASE / "index.md"
 TRACKER = BASE / "knowledge-tracker.md"
 LOG = BASE / "log.md"
-SKIP = ("index.md", "README.md", "_schema.md", "log.md")
+SKIP = ("index.md", "README.md", "_schema.md", "log.md",
+        "knowledge-tracker.md")
 
 CATEGORIES = {
     "1": ("production", "Production Pipeline"),
@@ -139,18 +140,63 @@ def suggest_type_from_title(title: str) -> str | None:
     return None
 
 
+# Words that carry no topical signal for link prediction. Years and
+# generic doc-nouns are excluded so "guide"/"2026" don't create phantom
+# matches between unrelated documents.
+_LINK_STOPWORDS = {
+    "the", "and", "for", "with", "from", "that", "this", "are", "was",
+    "were", "has", "have", "had", "not", "but", "all", "can", "will",
+    "one", "our", "out", "its", "into", "over", "under", "guide",
+    "guides", "documentation", "docs", "notes", "note", "overview",
+    "introduction", "reference", "references", "handbook", "analysis",
+    "technique", "techniques", "implementation", "best", "practice",
+    "practices", "current", "modern", "complete", "comprehensive",
+    "system", "systems", "management", "workflow", "workflows",
+}
+
+# Minimum score for a candidate to be suggested at all, and the higher
+# bar for writing a back-link into the candidate's Related section.
+# Rationale: a bare category match (+1) must never qualify a link —
+# observed failure mode was top-5-alphabetical junk links.
+MIN_LINK_SCORE = 4
+BACKLINK_MIN_SCORE = 6
+MAX_BACKLINKS = 3
+
+
+def _link_tokens(text: str) -> set[str]:
+    """Significant lowercase tokens (len>=4, non-stopword, non-year)."""
+    return {
+        t for t in re.findall(r"[a-z0-9]+", text.lower())
+        if len(t) >= 4 and t not in _LINK_STOPWORDS and not t.isdigit()
+    }
+
+
 def find_related_docs(category: str, ptype: str, cross_tags: list[str],
-                      limit: int = 5) -> list[tuple[str, str, str]]:
+                      title: str = "", aliases: list[str] | None = None,
+                      slug: str = "", limit: int = 5,
+                      exclude: str = ""
+                      ) -> list[tuple[str, str, str, int]]:
     """Find existing library docs related to a new document.
 
-    Scores candidates by shared category (+2) and shared cross-cutting tags
-    (+1 per tag). Returns up to `limit` tuples of
-    (doc_name, display_alias, suggested_relation).
+    Scoring (link-prediction style — category alone never qualifies):
+      shared declared cross-tag      +4 each
+      shared significant title token +2 each, capped at +6
+      same primary category          +1
+    A candidate must reach MIN_LINK_SCORE with at least one non-category
+    signal. Returns up to `limit` tuples of
+    (doc_name, display_alias, suggested_relation, score).
     """
+    new_tokens = _link_tokens(" ".join(
+        [title, slug, *(aliases or []), *cross_tags]
+    ))
+    new_tags = set(cross_tags)
     related: list[tuple[int, str, str, str]] = []
     for path in BASE.glob("*.md"):
         name = path.name
-        if name in SKIP or name.endswith(f"-{DATE[:4]}.md"):
+        # Skip index/schema files and the document being created. Year-
+        # dated names (-2026.md) are NOT skipped: 90 of ~133 library docs
+        # carry a year suffix and are often the most relevant targets.
+        if name in SKIP or (exclude and name == f"{exclude}.md"):
             continue
         text = read_file(path)
         # Read frontmatter tags.
@@ -158,28 +204,46 @@ def find_related_docs(category: str, ptype: str, cross_tags: list[str],
         if not m:
             continue
         doc_tags: list[str] = []
-        doc_category = ""
-        in_tags = False
+        doc_aliases: list[str] = []
+        section: str | None = None
         for line in m.group(1).split("\n"):
-            if line.startswith("tags:"):
-                in_tags = True
+            if re.match(r"^\w", line):
+                section = line.split(":", 1)[0].strip()
                 continue
-            if in_tags:
-                t = re.match(r"^\s*-\s*(\S+)\s*$", line)
+            if section in ("tags", "aliases") and line.startswith((" ", "\t")):
+                t = re.match(r"^\s*-\s*(.+?)\s*$", line)
                 if t:
-                    doc_tags.append(t.group(1))
-                    continue
-                if line.strip() and not line.startswith(" "):
-                    in_tags = False
-            mc = re.match(r"^type:\s*(\S+)", line)
-            if mc:
-                # Not used for scoring yet, but kept for clarity.
-                _doc_type = mc.group(1)
+                    (doc_tags if section == "tags" else doc_aliases).append(t.group(1))
         doc_category = doc_tags[0] if doc_tags else ""
-        # Score.
-        score = 2 if doc_category == category else 0
-        score += len(set(doc_tags) & set(cross_tags))
-        if score <= 0:
+        # Score: declared cross-tags are the strongest signal — matched
+        # against the doc's own tags AND literal mentions in the body
+        # (docs mention contracts/topics they don't tag, e.g. a synthesis
+        # doc discussing "frame-package" without carrying the tag).
+        score = 4 * len(new_tags & set(doc_tags))
+        # Body mentions only count for compound tags (contain '-'): a
+        # single word like "blender" appears in dozens of unrelated docs.
+        body_hits = sum(
+            1 for t in new_tags - set(doc_tags)
+            if "-" in t and re.search(
+                rf"(?<![A-Za-z0-9]){re.escape(t)}(?![A-Za-z0-9])", text)
+        )
+        score += 4 * body_hits
+        # Title/filename/alias token overlap — the topical signal.
+        doc_tokens = _link_tokens(name.removesuffix(".md"))
+        h1 = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
+        if h1:
+            doc_tokens |= _link_tokens(h1.group(1))
+        for a in doc_aliases:
+            doc_tokens |= _link_tokens(a)
+        shared = new_tokens & doc_tokens
+        score += min(6, 2 * len(shared))
+        has_topic_signal = (
+            bool(new_tags & set(doc_tags)) or bool(body_hits) or bool(shared)
+        )
+        if not has_topic_signal:
+            continue
+        score += 1 if doc_category == category else 0
+        if score < MIN_LINK_SCORE:
             continue
         # Suggest relation based on page type.
         mtype = re.search(r"^type:\s*(\S+)", text, re.MULTILINE)
@@ -188,8 +252,8 @@ def find_related_docs(category: str, ptype: str, cross_tags: list[str],
         display = name.removesuffix(".md")
         related.append((score, name, display, relation))
     related.sort(key=lambda x: (-x[0], x[1]))
-    return [(name.removesuffix(".md"), display, relation) for _, name, display, relation
-            in related[:limit]]
+    return [(name.removesuffix(".md"), display, relation, score)
+            for score, name, display, relation in related[:limit]]
 
 
 def _infer_relation(doc_type: str, ptype: str) -> str:
@@ -263,13 +327,13 @@ def build_frontmatter(category: str, ptype: str, title: str, aliases: list[str],
     )
 
 
-def body_template(title: str, related_docs: list[tuple[str, str, str]] | None = None
+def body_template(title: str, related_docs: list[tuple[str, str, str, int]] | None = None
                    ) -> str:
     related_lines = ""
     if related_docs:
         related_lines = "\n".join(
             f"- [[{name}|{display}]] {relation}"
-            for name, display, relation in related_docs
+            for name, display, relation, _score in related_docs
         ) + "\n"
     else:
         related_lines = (
@@ -505,13 +569,17 @@ def main(argv: list[str] | None = None) -> int:
     cross_tags = list(args.cross_tag)
 
     # Find related docs for auto-links (prevents orphans at creation time).
-    related_docs: list[tuple[str, str, str]] = []
+    related_docs: list[tuple[str, str, str, int]] = []
     if not args.no_auto_links:
-        related_docs = find_related_docs(category, ptype, cross_tags)
+        related_docs = find_related_docs(
+            category, ptype, cross_tags,
+            title=title, aliases=aliases, slug=target.stem,
+            exclude=target.stem,
+        )
         if related_docs:
             print(f"\nAuto-linked {len(related_docs)} related document(s):")
-            for name, display, relation in related_docs:
-                print(f"  -> [[{name}|{display}]] {relation}")
+            for name, display, relation, score in related_docs:
+                print(f"  -> [[{name}|{display}]] {relation} (score {score})")
 
     # Build file content.
     fm = build_frontmatter(category, ptype, title, aliases, cross_tags)
@@ -534,7 +602,8 @@ def main(argv: list[str] | None = None) -> int:
     # find_related_docs() returns stems (no .md) so the wiki-links it emits
     # match the vault's link convention — add the extension back here.
     if not args.no_auto_links and related_docs:
-        for name, _display, _relation in related_docs:
+        backlinks = [r for r in related_docs if r[3] >= BACKLINK_MIN_SCORE][:MAX_BACKLINKS]
+        for name, _display, _relation, _score in backlinks:
             related_path = BASE / f"{name}.md"
             if related_path.exists():
                 _insert_backlink(related_path, target.stem, title)
