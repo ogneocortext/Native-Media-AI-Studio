@@ -1141,22 +1141,29 @@ Rules: `docs/plans/tasks/README.md`
     only) — completes the UTF-8 trio recommended for native-command
     interop.
   - New scripts/agent-shell-init.ps1 — the -NoProfile equivalent of
-    the profile's encoding setup. Agents run `pwsh -NoProfile` per the
-    command sheet, which skips the profile entirely; the script is
-    idempotent and verified to produce UTF-8 console/pipeline encodings
-    plus PYTHONUTF8=1 in a -NoProfile shell.
+    the profile's encoding setup AND Python env parity: UTF-8 console
+    both directions, $OutputEncoding, PYTHONUTF8=1, plus NMA_PYTHON /
+    PYTHON_ENV and the studio-env Scripts PATH prepend derived from
+    .python-env (hardcoded path only as fallback). Without the PATH
+    piece a -NoProfile shell resolved `python` to the system
+    interpreter, not the project env. Idempotent.
+  - New scripts/check-shell-env.ps1 — verifies the shell contract
+    (PS7+, three UTF-8 encodings, PYTHONUTF8, NMA_PYTHON exists, python
+    resolves to project env); exits 1 on failure so agents can self-
+    diagnose. Verified: bare -NoProfile fails 2-3 checks, post-init
+    passes all.
   - Profile startup check: the 7-command Get-Command probe moved inside
     the Test-InteractiveShell guard — agent/CI shells no longer pay for
     diagnostics they never display.
   - docs/powershell-command-sheet.md Common Traps gained a -NoProfile
     row pointing at the init script.
 - **Files:** scripts/agent-shell-init.ps1 (new),
-  docs/powershell-command-sheet.md, docs/plans/tasks/
-  platform-and-workflow.md; user-level: profile-common.ps1,
-  Microsoft.PowerShell_profile.ps1.
+  scripts/check-shell-env.ps1 (new), docs/powershell-command-sheet.md,
+  docs/plans/tasks/platform-and-workflow.md, .gitignore; user-level:
+  profile-common.ps1, Microsoft.PowerShell_profile.ps1.
 - **Acceptance:** profile parses with 0 errors (Parser::ParseFile);
-  agent-shell-init.ps1 verified in `pwsh -NoProfile -File` — all three
-  encodings UTF-8, PYTHONUTF8=1; profile-loaded shell verified —
-  PYUTF8=1, NMA_PYTHON set, studio python first on PATH; python
-  resolves to D:\conda-envs\nma-studio-cuda\Scripts\python.exe.
+  agent-shell-init.ps1 verified in `pwsh -NoProfile` — all encodings
+  UTF-8, PYTHONUTF8=1, python resolves to project env; check-shell-env
+  exits 1 bare / 0 post-init; profile-loaded shell verified — PYUTF8=1,
+  NMA_PYTHON set, studio python first on PATH.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

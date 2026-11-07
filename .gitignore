@@ -77,6 +77,7 @@ scripts/archive/
 !scripts/stop-tunnel.ps1
 !scripts/check-tunnel.ps1
 !scripts/agent-shell-init.ps1
+!scripts/check-shell-env.ps1
 # Tunnel runtime state - live public hostnames and PIDs for a
 # publicly-reachable endpoint; regenerate with scripts/start-tunnel.ps1.
 scripts/utility/tunnel-urls.json

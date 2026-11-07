@@ -272,7 +272,7 @@ $env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 | **Unix shell** | `bash`, `sh`, `zsh`, `cmd` | `pwsh` only |
 | **`bash` is WSL** | `bash script.sh` | `pwsh -File script.ps1` — `bash` is the WSL launcher, NOT Git Bash |
 | **`powershell` = 5.1** | `powershell -File script.ps1` | `pwsh -NoProfile -ExecutionPolicy Bypass -File script.ps1` |
-| **`-NoProfile` skips UTF-8 setup** | `pwsh -NoProfile -Command "<native call>"` showing mojibake | Dot-source `scripts/agent-shell-init.ps1` first (sets console UTF-8 both directions + `PYTHONUTF8=1`). `PYTHONUTF8` is also a User env var, so fresh processes get it anyway — the init script covers shells with a stale parent env block. |
+| **`-NoProfile` skips UTF-8 setup** | `pwsh -NoProfile -Command "<native call>"` showing mojibake, or `python` resolving to the wrong env | Dot-source `scripts/agent-shell-init.ps1` first (UTF-8 both directions + `PYTHONUTF8=1` + project-Python PATH parity). Verify with `scripts/check-shell-env.ps1` (exits 1 on failure). `PYTHONUTF8` is also a User env var, so fresh processes get it anyway — the init script covers shells with a stale parent env block. |
 | **Comma list via -File** | `-Services a,b,c` | Pass one service per `-Services` invocation, or use `-Command` |
 | **Text pipeline** | `Get-Content file \| grep "x"` | `Select-String -Path "file" -Pattern "x"` |
 | **Empty capture = success** | `$x = cmd.exe /c ...; if (-not $x) { ... }` | Check `$LASTEXITCODE` after native commands |
