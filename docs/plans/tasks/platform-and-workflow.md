@@ -1128,3 +1128,35 @@ Rules: `docs/plans/tasks/README.md`
   env var verified set; command-sheet and AGENTS.md carry the rule;
   check-banned-chars gate (T-PLT-40) remains the output-side net.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-42 — PowerShell profile review for agent-shell reliability
+- **Status:** done
+- **Goal:** Two-iteration line-by-line review of the pwsh profile stack
+  (Microsoft.PowerShell_profile.ps1, profile-common.ps1, profile.ps1,
+  powershell.config.json) so agents can run commands reliably; fix only
+  what the review justifies.
+- **What changed:**
+  - profile-common.ps1 Set-ConsoleUtf8 now also sets
+    [Console]::InputEncoding (was OutputEncoding + $OutputEncoding
+    only) — completes the UTF-8 trio recommended for native-command
+    interop.
+  - New scripts/agent-shell-init.ps1 — the -NoProfile equivalent of
+    the profile's encoding setup. Agents run `pwsh -NoProfile` per the
+    command sheet, which skips the profile entirely; the script is
+    idempotent and verified to produce UTF-8 console/pipeline encodings
+    plus PYTHONUTF8=1 in a -NoProfile shell.
+  - Profile startup check: the 7-command Get-Command probe moved inside
+    the Test-InteractiveShell guard — agent/CI shells no longer pay for
+    diagnostics they never display.
+  - docs/powershell-command-sheet.md Common Traps gained a -NoProfile
+    row pointing at the init script.
+- **Files:** scripts/agent-shell-init.ps1 (new),
+  docs/powershell-command-sheet.md, docs/plans/tasks/
+  platform-and-workflow.md; user-level: profile-common.ps1,
+  Microsoft.PowerShell_profile.ps1.
+- **Acceptance:** profile parses with 0 errors (Parser::ParseFile);
+  agent-shell-init.ps1 verified in `pwsh -NoProfile -File` — all three
+  encodings UTF-8, PYTHONUTF8=1; profile-loaded shell verified —
+  PYUTF8=1, NMA_PYTHON set, studio python first on PATH; python
+  resolves to D:\conda-envs\nma-studio-cuda\Scripts\python.exe.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
