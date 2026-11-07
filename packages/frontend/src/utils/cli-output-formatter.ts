@@ -135,6 +135,10 @@ const RESULTS_JSONL = fileURLToPath(
 );
 
 function recordTestResult(payload: Record<string, unknown>): void {
+  // Node-only module: imported solely by vitest/playwright reporters
+  // (vitest.config.ts, tests/ascii-reporter.ts) — never bundled into the
+  // browser app, so process.env is the correct API here.
+  // eslint-disable-next-line nma-env/no-process-env
   const flag = process.env.NMA_METRICS?.toLowerCase();
   if (flag === 'off' || flag === '0' || flag === 'false') return;
   try {

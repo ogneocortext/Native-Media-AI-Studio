@@ -1250,3 +1250,40 @@ Rules: `docs/plans/tasks/README.md`
   policy (1076 entries); `pnpm exec node --version` = v26.13.0;
   package.json valid JSON; tools\python.cmd resolves 3.11.9.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+
+### T-PLT-45 — pnpm peers check cleanup + TS7/lint regression fix
+- **Status:** done
+- **Goal:** Resolve `pnpm peers check` warnings honestly — remove dead
+  deps, allowlist only verified-tolerated mismatches, fix real breakage.
+- **What changed:**
+  - Removed `eslint-plugin-import` from packages/frontend — declared but
+    referenced nowhere (eslint.config.js uses js/tseslint/prettier/custom
+    rules only). Dead devDep.
+  - pnpm-workspace.yaml `peerDependencyRules.allowedVersions` added with
+    scoped `parent>peer` entries: tabler-react + its transitive
+    react-popper/react-text-mask (React 19 tolerated, sole consumer
+    DataManagementPage, marked TECH DEBT for replacement) and
+    @newkrok/three-particles + three-utils (three 0.186 tolerated in the
+    visualizer).
+  - REGRESSION FOUND AND FIXED: catalog had `typescript: ^7.0.2` despite
+    the documented constraint (a prior commit's own comment: "TypeScript
+    stays on 5.x — typescript-eslint peer-caps <6.1.0"). typescript-eslint
+    8.72.1 hard-fails at import on TS 7 — `pnpm lint` was broken. Restored
+    `typescript: ^5.9.3` + the constraint comment; removed the brief
+    `typescript: "7"` allowlist entry I'd added before discovering the
+    hard failure.
+  - cli-output-formatter.ts:138 `process.env.NMA_METRICS` was the only
+    nma-env/no-process-env error — the module is Node-only (vitest +
+    playwright reporters), added scoped eslint-disable with justification.
+- **Verified:** `pnpm peers check` → "No peer dependency issues found";
+  `pnpm lint` runs to completion (0 errors, pre-existing warnings only);
+  `tsc --version` = 5.9.3; pnpm install clean.
+- **Acceptance:** `pnpm peers check` exits 0; `pnpm lint` exits 0 errors
+  (warnings are pre-existing and out of scope); typescript resolves to
+  5.9.3 satisfying the typescript-eslint <6.1.0 peer natively, so no
+  allowlist entry is needed for it.
+- **Files:** pnpm-workspace.yaml, pnpm-lock.yaml,
+  packages/frontend/package.json,
+  packages/frontend/src/utils/cli-output-formatter.ts,
+  docs/plans/tasks/platform-and-workflow.md.
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

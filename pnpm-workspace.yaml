@@ -6,7 +6,7 @@ packages:
 catalog:
   react: ^19.3.1
   react-dom: ^19.3.1
-  typescript: ^7.0.2
+  typescript: ^5.9.3
   tailwindcss: ^4.3.5
   '@tailwindcss/vite': ^4.3.5
   eslint: ^10.14.0
@@ -29,6 +29,14 @@ catalog:
   comfyui-mcp: 0.52.206
   '@playwright/mcp': ^0.0.84
   '@tanstack/react-query': ^5.107.1
+# ---------------------------------------------------------------------------
+# TypeScript stays on 5.x: typescript-eslint 8.x (the lint toolchain)
+# peer-caps typescript at >=4.8.4 <6.1.0 AND hard-fails at import time on
+# TS 7 ("typescript-eslint does not support TS 7.0" — verified live), so
+# neither TS 6 nor the TS 7 native port can be adopted until
+# typescript-eslint ships support. The `typescript` catalog entry above
+# is the single source of truth; do not bump it past 5.x.
+# ---------------------------------------------------------------------------
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 sharedWorkspaceLockfile: true
@@ -188,3 +196,22 @@ minimumReleaseAgeExclude:
 - remotion@4.0.541
 - vite@8.3.6
 - ws@8.22.1
+# Known-tolerated peer mismatches (verified 2026-11-06). Each entry is
+# scoped to the dependent package so unrelated deps keep honest warnings.
+peerDependencyRules:
+  allowedVersions:
+    # tabler-react 1.30.1 (last published 2022, unmaintained) declares
+    # React <=18 peers but its Table/Button/Card surface works on
+    # React 19 — sole consumer is DataManagementPage. TECH DEBT: replace
+    # with project components or plain tailwind tables, then remove
+    # these entries and the dependency. react-popper/react-text-mask are
+    # tabler-react's own transitive deps.
+    tabler-react>react: "19"
+    tabler-react>react-dom: "19"
+    react-popper>react: "19"
+    react-text-mask>react: "19"
+    # @newkrok/three-particles is unmaintained (wants three ^0.182,
+    # strict 0.x caret) but its particle system runs on three 0.186 in
+    # the visualizer. three-utils is its transitive dep.
+    '@newkrok/three-particles>three': "0.186"
+    '@newkrok/three-utils>three': "0.186"
