@@ -206,3 +206,68 @@ The six looks above are proposals at the owner's usual terms:
 he curates — strikes, renames, re-palettes — before any of
 them is treated as house law, and the registry's first version
 contains only the looks that survive his pass.
+
+## 6. Checked against the actual catalog (2026-11-07)
+
+The owner asked for the catalog to be compared against the
+tracks actually generated, not hypothetical ones. Sources: the
+repo track-lyrics library (each render's captured Suno style
+prompt + BPM) and the session packages. Fourteen tracks:
+
+| Track | Sonic character (from its prompt) | Primary look | Also serves |
+|---|---|---|---|
+| The Last Original (sets 1–2) | Sparse synthwave, 130, dry intimate vocal, "raw human mix, not overproduced" | Monochrome Signal | Vice Sunset (palette only — see below) |
+| Human in the Loop | G-funk × riddim, 145, talkbox, dark digital + warm analog | Studio Console | Night Broadcast |
+| Rinse and Repeat | Phonk hip-hop, trade-off verses, chantable hooks | Night Broadcast | Analog Print |
+| Unproductive (v6-mini) | Future bass, 140, bright major-key lift, cathartic drop | Studio Console | Analog Print (bright variant) |
+| Unproductive (Valley Phonk) | Memphis drift phonk, 136, eerie bells, lo-fi grit | Night Broadcast | — |
+| Ad Nauseam | Hip-hop double-time, 145, heavy 808, haunting strings | Night Broadcast | Analog Print (satire) |
+| Patch Notes | Indie electronic × future bass, 150, polished wide modern | Studio Console | Arcade Velocity |
+| Out for Delivery | Satirical synth-pop, 130, playful exasperated | Analog Print | Studio Console |
+| Prototype Heart | Electro-pop × cinematic bass, 128, glitch vocals, robotic harmonies, anthem chorus | Studio Console (stretched — see below) | — |
+| Stay Until the Lights Come On | Psychedelic bass / melodic dubstep, 145, wobble, vinyl fragments | Night Broadcast | Arcade Velocity |
+| Screen Said Wait (set 5) | Metalstep DnB, double-time, crushing reese, dark aggressive | Arcade Velocity | Monochrome Signal (subject: a screen's message) |
+| Don't Recommend | Industrial darkwave / EBM, 145, relentless sequencer, factory clang | Monochrome Signal | Arcade Velocity (motion) |
+| Built My Own | Self-built-life anthem (Nov 2026 session) | Studio Console | Arcade Velocity |
+| Screen Name Days | Era romance — screen names, away messages, T9, burned mixes (ungenerated) | **none — gap** | — |
+
+### What the comparison forces
+
+1. **A missing era.** Screen Name Days has no look: its world
+   is early-web Y2K (CRT glow, pixel chrome, buddy-list UI,
+   CD-R Sharpie), which is *not* Vice Sunset's 1980s coast.
+   Candidate seventh look, born from this comparison:
+   **Dial-Up** — phosphor-green/cyan on CRT black, pixel UI
+   geometry, scanline texture, chunky stepped motion. The
+   owner's curation decides whether it joins.
+2. **Vice Sunset is nearly trackless.** Only The Last
+   Original leans toward it, and only in palette — that
+   track's production is dry and restrained, the opposite of
+   Vice Sunset's gloss. As written it is the catalog's strike
+   candidate; its honest remaining job is era *palette* duty
+   inside other looks.
+3. **Arcade Velocity is not a niche.** Four-plus tracks live
+   at 145–158 BPM with transient-led energy; Velocity is the
+   generated catalog's energy default. It and Night Broadcast
+   overlap in palette and separate in *motion* — cuts and
+   snaps versus slow pulses — so the registry should treat
+   motion character as the discriminating field between them.
+4. **Prototype Heart is the gloss outlier.** The catalog has
+   no glossy-pop look, and Console fits it only by stretching
+   (machine theme, robotic harmonies). Either Console gains a
+   declared gloss variant or Prototype Heart stands as a
+   deliberate one-off; pretending the fit is clean would be
+   exactly the improvisation this system exists to end.
+5. **Style attaches to the render, not the lyric set.**
+   Unproductive exists as a bright future-bass take and a dark
+   phonk take — one lyric set, two looks. Registry rule: a
+   style assignment is per track *render*, inherited from the
+   take's production character, never from the song title.
+
+Net effect on §3: Night Broadcast and Studio Console carry
+the catalog (4 and 4–5 primaries) — they are the house. Arcade
+Velocity is the energy register of the house rather than a
+separate room. Analog Print owns the satires. Monochrome
+Signal owns the two coldest, most conceptual tracks and fits
+them exactly. The curation pass in T-VID-24 now starts from
+this evidence instead of from taste alone.
