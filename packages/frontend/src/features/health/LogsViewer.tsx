@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Card } from "../../components/common";
 import { startComfyUI, getLogInfo, getLogContent, type LogInfo } from "../../services/api";
+import { usePolling } from "../../hooks";
 
 interface ParsedLogLine {
   timestamp: string;
@@ -152,15 +153,19 @@ export function LogsViewer() {
     }
   }, [expanded, activeLog]);
 
-  // Auto-refresh logs when expanded
-  useEffect(() => {
-    if (!expanded || !autoRefresh) return;
-    const interval = setInterval(() => {
+  // Auto-refresh logs when expanded (shared poller: hidden-tab pause,
+  // offline pause, failure backoff, one leader tab)
+  usePolling(
+    () => {
       void fetchLogContent();
       void fetchLogInfo();
-    }, 10000); // Increased from 3s to 10s
-    return () => clearInterval(interval);
-  }, [expanded, autoRefresh, activeLog]);
+    },
+    {
+      intervalMs: 10000,
+      enabled: expanded && autoRefresh,
+      leaderChannel: "health-logs",
+    },
+  );
 
   // Parse and filter log lines
   const parsedLines = useMemo(() => {

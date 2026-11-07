@@ -12,6 +12,7 @@ import {
   type GPUProcessInfo,
 } from "../../services/api";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { usePolling } from "../../hooks";
 import { downsample, calcStats, loadHistory, trendIcon, labelForProcess } from "./gpuHelpers";
 import { GpuMonitorHeader } from "./GpuMonitorHeader";
 import { GpuMetricCards } from "./GpuMetricCards";
@@ -213,11 +214,12 @@ export function GpuMonitorPage() {
   useEffect(() => {
     void fetchAll();
   }, [fetchAll]);
-  useEffect(() => {
-    if (paused) return;
-    const id = setInterval(async () => fetchAll(false), intervalSec * 1000);
-    return () => clearInterval(id);
-  }, [fetchAll, paused, intervalSec]);
+  usePolling(() => fetchAll(false), {
+    intervalMs: intervalSec * 1000,
+    enabled: !paused,
+    immediate: false, // mount effect above already fetches once
+    leaderChannel: "gpu-monitor",
+  });
 
   // Derived values
   const rangeMs = useMemo(() => RANGE_OPTIONS.find((r) => r.id === range)?.ms ?? 3600000, [range]);

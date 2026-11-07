@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Cpu, Loader2 } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
+import { usePolling } from "../../hooks";
 import { formatElapsed } from "../../utils/format";
 
 export function OllamaModelsCard() {
@@ -9,15 +10,14 @@ export function OllamaModelsCard() {
   const fetchOllamaModels = useHealthStore((s) => s.fetchOllamaModels);
   const granular = useHealthStore((s) => s.granular);
 
+  usePolling(fetchOllamaModels, {
+    intervalMs: 15000,
+    leaderChannel: "health-ollama-models",
+  });
   useEffect(() => {
-    void fetchOllamaModels();
-    const interval = setInterval(fetchOllamaModels, 15000); // Increased from 5s to 15s
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => {
-      clearInterval(interval);
-      clearInterval(clock);
-    };
-  }, [fetchOllamaModels]);
+    return () => clearInterval(clock);
+  }, []);
 
   const data = granular.ollamaModels ?? { loaded: false, models: [], activity: {} };
   const models = data.models || [];

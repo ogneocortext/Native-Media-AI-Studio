@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Terminal } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
+import { usePolling } from "../../hooks";
 import type { FFmpegProcessInfo } from "../../services/api";
 
 interface FFmpegStatusData {
@@ -19,11 +20,7 @@ export function FFmpegStatus() {
   const fetchFFmpegData = useHealthStore((s) => s.fetchFFmpegData);
   const granular = useHealthStore((s) => s.granular);
 
-  useEffect(() => {
-    void fetchFFmpegData();
-    const interval = setInterval(fetchFFmpegData, 10000); // Increased from 3s to 10s
-    return () => clearInterval(interval);
-  }, [fetchFFmpegData]);
+  usePolling(fetchFFmpegData, { intervalMs: 10000, leaderChannel: "health-ffmpeg" });
 
   useEffect(() => {
     const data = granular.ffmpeg;

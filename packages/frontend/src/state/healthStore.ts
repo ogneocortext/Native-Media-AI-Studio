@@ -28,6 +28,7 @@ import {
 } from "../services/api";
 import { sseService } from "../services/sseService";
 import { showToast } from "../utils/toast";
+import { startVisibleInterval } from "../utils/visibleInterval";
 
 interface GranularHealthData {
   gpu: {
@@ -245,8 +246,10 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     set({ sseConnected: false });
   },
 
-  // Granular data fetchers (centralized so components don't compete)
+  // Granular data fetchers (centralized so components don't compete;
+  // coalesced so overlapping card intervals can't double-hit endpoints)
   fetchGPUData: async () => {
+    if (!granularStart("gpu")) return;
     try {
       const [snapshot, processes] = await Promise.all([
         getGPUSnapshot(),
@@ -265,19 +268,25 @@ export const useHealthStore = create<HealthState>((set, get) => ({
           },
         },
       }));
+    } finally {
+      granularDone("gpu");
     }
   },
 
   fetchFFmpegData: async () => {
+    if (!granularStart("ffmpeg")) return;
     try {
       const data = await getFFmpegStatus();
       set((s) => ({ granular: { ...s.granular, ffmpeg: data } }));
     } catch {
       set((s) => ({ granular: { ...s.granular, ffmpeg: null } }));
+    } finally {
+      granularDone("ffmpeg");
     }
   },
 
   fetchOllamaModels: async () => {
+    if (!granularStart("ollama-models")) return;
     try {
       const data = await getLoadedModels();
       set((s) => ({ granular: { ...s.granular, ollamaModels: data } }));
@@ -285,19 +294,29 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       set((s) => ({
         granular: { ...s.granular, ollamaModels: { loaded: false, models: [], activity: {} } },
       }));
+    } finally {
+      granularDone("ollama-models");
     }
   },
 
   fetchComfyUIStatus: async () => {
+    if (!granularStart("comfyui-status")) return;
     try {
       const data = await getComfyUIStatus();
       set((s) => ({ granular: { ...s.granular, comfyui: data } }));
     } catch {
       set((s) => ({ granular: { ...s.granular, comfyui: null } }));
+    } finally {
+      granularDone("comfyui-status");
     }
   },
 
   fetchVRAMStatus: async () => {
+    // Coalesced callers get the freshest cached value instead of a new probe.
+    if (!granularStart("vram")) {
+      const cached = get().granular.vram;
+      return cached === undefined ? null : cached;
+    }
     try {
       const data = await getVRAMStatus();
       const vram = data.vram ?? null;
@@ -307,6 +326,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
     } catch {
       set((s) => ({ granular: { ...s.granular, vram: null, manager: null } }));
       return null;
+    } finally {
+      granularDone("vram");
     }
   },
 
@@ -356,14 +377,42 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 }));
 
 // ============================================================================
+// Granular fetch coalescing — several health cards run their own intervals
+// against the same endpoints. Without this, N mounted cards produce N
+// requests per interval; with it, overlapping callers share one in-flight
+// request and repeats inside GRANULAR_MIN_MS are skipped entirely.
+// ============================================================================
+const GRANULAR_MIN_MS = 8000;
+const granularLastRun = new Map<string, number>();
+const granularInflight = new Set<string>();
+
+/** Returns true and marks the key in-flight when a fetch may start. */
+function granularStart(key: string): boolean {
+  if (granularInflight.has(key)) return false;
+  if (Date.now() - (granularLastRun.get(key) ?? 0) < GRANULAR_MIN_MS) {
+    return false;
+  }
+  granularInflight.add(key);
+  return true;
+}
+
+function granularDone(key: string): void {
+  granularLastRun.set(key, Date.now());
+  granularInflight.delete(key);
+}
+
+// ============================================================================
 // VRAM status polling — keeps the manager state fresh so any component
 // (GPUCard, HealthPage, etc.) can read it without competing intervals.
+// Skips ticks while the tab is hidden and while the backend is offline
+// (those requests can only fail; fetchHealth/SSE restore freshness).
 // ============================================================================
-let vramPollInterval: ReturnType<typeof setInterval> | null = null;
+let vramPollInterval: (() => void) | null = null;
 
 export function startVRAMPolling(intervalMs = 15000) {
-  if (vramPollInterval) clearInterval(vramPollInterval);
-  vramPollInterval = setInterval(() => {
+  if (vramPollInterval) vramPollInterval();
+  vramPollInterval = startVisibleInterval(() => {
+    if (useHealthStore.getState().backend === "offline") return;
     useHealthStore
       .getState()
       .fetchVRAMStatus()
@@ -375,7 +424,7 @@ export function startVRAMPolling(intervalMs = 15000) {
 
 export function stopVRAMPolling() {
   if (vramPollInterval) {
-    clearInterval(vramPollInterval);
+    vramPollInterval();
     vramPollInterval = null;
   }
 }
@@ -389,11 +438,12 @@ startVRAMPolling();
 // intervals. Polls every 30s — long enough not to spam the backend, short
 // enough to notice when ComfyUI comes or goes.
 // ============================================================================
-let comfyuiPollInterval: ReturnType<typeof setInterval> | null = null;
+let comfyuiPollInterval: (() => void) | null = null;
 
 export function startComfyUIPolling(intervalMs = 30000) {
-  if (comfyuiPollInterval) clearInterval(comfyuiPollInterval);
-  comfyuiPollInterval = setInterval(() => {
+  if (comfyuiPollInterval) comfyuiPollInterval();
+  comfyuiPollInterval = startVisibleInterval(() => {
+    if (useHealthStore.getState().backend === "offline") return;
     useHealthStore
       .getState()
       .fetchComfyUIStatus()
@@ -405,7 +455,7 @@ export function startComfyUIPolling(intervalMs = 30000) {
 
 export function stopComfyUIPolling() {
   if (comfyuiPollInterval) {
-    clearInterval(comfyuiPollInterval);
+    comfyuiPollInterval();
     comfyuiPollInterval = null;
   }
 }
@@ -445,14 +495,19 @@ export const useHealthActions = () =>
   }));
 
 /** Subscribe to extended system-health (CPU/memory/disk) data only */
-export const useSystemHealth = () => useHealthStore((state) => state.systemHealth);
+export function useSystemHealth() {
+  return useHealthStore((state) => state.systemHealth);
+}
 
 /** Subscribe to adapter service status only */
-export const useServiceStatus = () => useHealthStore((state) => state.serviceStatus);
+export function useServiceStatus() {
+  return useHealthStore((state) => state.serviceStatus);
+}
 
 /** Subscribe to ComfyUI loading/action state only */
-export const useComfyUILoading = () =>
-  useHealthStore((state) => ({
+export function useComfyUILoading() {
+  return useHealthStore((state) => ({
     loading: state.comfyuiLoading,
     action: state.comfyuiAction,
   }));
+}

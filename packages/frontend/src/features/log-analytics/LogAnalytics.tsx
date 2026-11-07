@@ -31,6 +31,7 @@ import {
   Cell,
 } from "recharts";
 import { Card } from "../../components/common";
+import { usePolling } from "../../hooks";
 import {
   getLogAnalyticsSummary,
   getLogAnalyticsPatterns,
@@ -98,11 +99,12 @@ export function LogAnalytics() {
     void refreshAll();
   }, [refreshAll]);
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const id = setInterval(refreshAll, 30000);
-    return () => clearInterval(id);
-  }, [autoRefresh, refreshAll]);
+  usePolling(refreshAll, {
+    intervalMs: 30000,
+    enabled: autoRefresh,
+    immediate: false, // mount effect above already fetches once
+    leaderChannel: "log-analytics",
+  });
 
   const getRelativeTime = (iso?: string | null) => {
     if (!iso) return "No data";

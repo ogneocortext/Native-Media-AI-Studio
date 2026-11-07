@@ -112,7 +112,7 @@ CHECK_TIMEOUTS = {
     "check-repo-layout.py": 60,
     "check-path-references.py": 120,
     "report-nesting.py": 60,
-    "check-db-integrity.py": 30,
+    "check-db-integrity.py": 90,  # WAL read can stall behind the live backend under gate concurrency
     "check-secrets.py": 60,
     "check-staged-hygiene.py": 30,
 }

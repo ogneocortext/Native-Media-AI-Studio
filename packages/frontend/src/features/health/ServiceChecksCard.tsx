@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Activity, Loader2, CheckCircle, XCircle, Play, Pause, RefreshCw } from "lucide-react";
 import { Card } from "../../components/common";
 import { checkService } from "../../services/api";
+import { usePolling } from "../../hooks";
 
 interface ServiceCheck {
   service: string;
@@ -42,12 +43,11 @@ export function ServiceChecksCard() {
     await Promise.all(PROBED_SERVICES.map(async (service) => handleCheck(service)));
   }, [handleCheck]);
 
-  useEffect(() => {
-    void checkAll();
-    if (!autoRefresh) return;
-    const interval = setInterval(checkAll, CHECK_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [checkAll, autoRefresh]);
+  usePolling(checkAll, {
+    intervalMs: CHECK_INTERVAL_MS,
+    enabled: autoRefresh,
+    leaderChannel: "health-service-checks",
+  });
 
   return (
     <Card

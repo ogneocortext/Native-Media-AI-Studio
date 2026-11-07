@@ -51,7 +51,10 @@ export async function getServiceStatus(): Promise<ServiceStatus> {
 /**
  * TanStack Query hook for backend aggregate health.
  *
- * Refetches every 5s while the page is visible, caches for 30s, retries once.
+ * Refetches every 15s while the page is visible, caches for 30s, retries
+ * once. SSE already pushes `health_changed` events for instant updates, so
+ * this poll is only a fallback — 5s was probing every adapter (ComfyUI
+ * /system_stats, Ollama /api/tags) far more often than status can change.
  * Complements the Zustand healthStore (which owns SSE + granular polling);
  * this hook is for components that just need the latest aggregate health
  * without hand-rolling their own polling interval.
@@ -66,7 +69,7 @@ export function useHealthQuery(enabled = true) {
     staleTime: 5_000,
     gcTime: 30_000,
     retry: 1,
-    refetchInterval: 5_000,
+    refetchInterval: 15_000,
   });
 }
 

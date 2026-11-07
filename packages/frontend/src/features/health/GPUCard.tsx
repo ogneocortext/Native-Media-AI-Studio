@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { CpuIcon, MemoryStick, Activity, Thermometer, RefreshCw } from "lucide-react";
 import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
+import { usePolling } from "../../hooks";
 import { getApiBaseUrl } from "../../services/portConfig";
 import { getUsageColor, getUsageTextColor } from "./utils";
 
@@ -34,11 +35,9 @@ export function GPUCard() {
   const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
   const granular = useHealthStore((s) => s.granular);
 
-  useEffect(() => {
-    void fetchGPUData();
-    const interval = setInterval(fetchGPUData, 10000); // Increased from 5s to 10s
-    return () => clearInterval(interval);
-  }, [fetchGPUData]);
+  // Shared poller: pauses when the tab is hidden/offline, backs off on
+  // failure, and elects one leader tab — instead of a raw setInterval.
+  usePolling(fetchGPUData, { intervalMs: 10000, leaderChannel: "health-gpu-card" });
 
   useEffect(() => {
     const snapshot = granular.gpu.snapshot;

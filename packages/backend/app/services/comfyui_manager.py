@@ -120,8 +120,9 @@ class ComfyUIManager:
     """Manages the ComfyUI process lifecycle."""
 
     # Version info is cached because the UI polls /status frequently and each
-    # check spawns git subprocesses (including a network `git fetch`).
-    VERSION_CACHE_TTL = 30.0  # seconds
+    # cache miss spawns ~5 git subprocesses including a network `git fetch`.
+    # 60s keeps the fetch rate at ~1/min even with several status consumers.
+    VERSION_CACHE_TTL = 60.0  # seconds
 
     def __init__(self):
         self._process: subprocess.Popen | None = None

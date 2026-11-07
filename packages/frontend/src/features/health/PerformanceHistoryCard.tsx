@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -11,6 +11,7 @@ import {
 import { Card } from "../../components/common";
 import { TrendingUp, Play, Pause } from "lucide-react";
 import { useHealthStore } from "../../state/healthStore";
+import { usePolling } from "../../hooks";
 
 interface DataPoint {
   time: number;
@@ -65,12 +66,11 @@ export function PerformanceHistoryCard() {
     }
   }, [fetchGPUData, fetchVRAMStatus]);
 
-  useEffect(() => {
-    void loadData();
-    if (!autoRefresh) return;
-    const interval = setInterval(loadData, 10000); // Increased from 5s to 10s
-    return () => clearInterval(interval);
-  }, [loadData, autoRefresh]);
+  usePolling(loadData, {
+    intervalMs: 10000,
+    enabled: autoRefresh,
+    leaderChannel: "health-perf-history",
+  });
 
   // `color` drives the chart stroke/gradient (non-text). `activeBg` is the
   // AA-safe darker fill for the active selector pill (white text) and
