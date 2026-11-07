@@ -22,7 +22,7 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   determinism guarantee, and field reference. Ready for T-VID-02 render.
 
 ### T-VID-02 — Render a local video intro template from the recipe
-- **Status:** todo
+- **Status:** done
 - **Goal:** One intro rendered locally from the T-VID-01 recipe, sting
   synced to the measured beat grid, watermark/branding baked in from
   frame one.
@@ -109,10 +109,36 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   identical brand elements across two renders. Recipe instance passes
   the schema's validation rules. Owner approves the look before it
   becomes the template.
-- **Last session:** Orion, 2026-10-29 — executor-ready Plan written
-  (this block) from the T-VID-01 schema, Ledger §3.5, and a source
-  sweep (no recipe consumer exists; Remotion surface is
-  packages/video-editor). Render not started.
+- **Last session:** Devin, 2026-11-07 — done in this commit (code
+  landed earlier under 81c5e7b9 when a concurrent lint-sweep commit
+  picked up the uncommitted files; verified post-sweep). Evidence:
+  recipe `docs/plans/intro-recipes/neocortext-v1.recipe.json` passes
+  every schema validation rule (5.0 s ∈ [3,7]; phases 0.627+3.473+0.8
+  = 4.9 ≤ 5.0; scale 0.4; opacity 1.0; gain 0.0 dB; all hex colors).
+  Sting: `packages/video-editor/public/branding/sting-v1.wav`, 4.90 s,
+  measured via `tools/analyze_and_sync.py` — 184.6 BPM, 14 beats, first
+  beat 0.65 s; intro ramp completes at 0.627 s ≈ first downbeat, outro
+  fade spans 4.1–4.9 s across the final beats. Logo path resolved:
+  `packages/video-editor/public/branding/logo.svg` is byte-identical
+  (SHA256 FBF7868B2A86) to `packages/frontend/public/logo.svg` — the
+  frontend file is the source of truth; video-editor serves its own
+  copy via staticFile. Consumer:
+  `packages/video-editor/src/compositions/IntroTemplate.tsx`
+  (frame/fps-derived, no clocks/randomness) registered in Root.tsx as
+  `IntroTemplate` with calculateMetadata. Rendered twice via
+  `pnpm exec remotion render IntroTemplate output/intros/neocortext-v1.mp4
+  --props=<recipe>`: SHA256-identical MP4s (EA3F72181AB26ADB, 607,385 B)
+  — determinism proven byte-for-byte, stronger than the brand-element
+  check. ffprobe: h264 1920×1080 @ 24 fps, video stream 5.000 s, AAC
+  audio present, container 5.013 s (13 ms over, within one frame).
+  Vision QA (gemma4:e2b-it-qat): midpoint frame f60 — logo visible,
+  centered, no defects, score 10/10; f8 and f115 confirm fade-in/fade-out
+  phases. Scoped gates: `tsc --noEmit` and `eslint` on
+  packages/video-editor both clean (exit 0). PENDING: owner look
+  approval — the midpoint PNG is at
+  `packages/video-editor/output/intros/midpoint.png` (gitignored local
+  artifact) for review; intro is not promoted to template status until
+  the owner approves the look.
 
 ### T-VID-04 — Never show silent cloud-burst cost on local-only video estimates
 - **Status:** done
