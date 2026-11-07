@@ -215,7 +215,21 @@ export async function listItemTags(relativePath: string): Promise<Tag[]> {
     { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to list item tags");
-  return (await res.json()) as Tag[];
+  const data = (await res.json()) as { tags: Tag[] };
+  return data.tags;
+}
+
+export interface ItemOrganization {
+  tags: Record<string, Tag[]>;
+  collections: Record<string, Collection[]>;
+}
+
+export async function listItemOrganization(): Promise<ItemOrganization> {
+  const res = await fetchWithTimeout(`${MEDIA_LIBRARY_BASE}/items/organization`, {
+    timeout: 15000,
+  });
+  if (!res.ok) throw new Error("Failed to list item organization");
+  return (await res.json()) as ItemOrganization;
 }
 
 export async function addItemTag(relativePath: string, tagId: string): Promise<void> {

@@ -116,7 +116,8 @@ function WaveformVisualizer({
     const sliceWidth = width / data.length;
     let x = 0;
     for (let i = 0; i < data.length; i++) {
-      const v = Math.abs(data[i]) / 128.0;
+      // Server peaks are normalized floats in [-1, 1].
+      const v = Math.min(1, Math.abs(data[i]));
       const barHeight = Math.max(2, v * (height / 2));
       const y = height / 2 - barHeight / 2;
       ctx.fillRect(x, y, Math.max(1, sliceWidth - 0.5), barHeight);
@@ -281,6 +282,7 @@ export function FileCard({
   const mediaUrl = getOutputUrl(file.relative_path);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const sizeLabel =
@@ -300,12 +302,21 @@ export function FileCard({
     else if (onClick) onClick(file);
   };
 
+  // Double-click opens the detail modal; single click toggles selection.
+  const handleCardDoubleClick = () => {
+    onClick?.(file);
+  };
+
   // Pause audio when component unmounts
   useEffect(() => {
     return () => {
-      if (audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      const audio = audioRef.current;
+      if (audio) {
+        playingAudios.delete(audio);
+        if (!audio.paused) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
       }
     };
   }, []);
@@ -327,6 +338,7 @@ export function FileCard({
         ${selected ? "ring-2 ring-violet-500 bg-black/60" : "bg-black/40 border border-white/10 hover:bg-black/50"}
       `}
       onClick={handleCardClick}
+      onDoubleClick={handleCardDoubleClick}
     >
       {/* Selection checkbox */}
       {onSelect && (
@@ -389,14 +401,17 @@ export function FileCard({
                 onPlay={() => {
                   const audio = audioRef.current;
                   if (audio) pauseOtherAudios(audio);
+                  setIsAudioPlaying(true);
                 }}
                 onPause={() => {
                   const audio = audioRef.current;
                   if (audio) playingAudios.delete(audio);
+                  setIsAudioPlaying(false);
                 }}
                 onEnded={() => {
                   const audio = audioRef.current;
                   if (audio) playingAudios.delete(audio);
+                  setIsAudioPlaying(false);
                 }}
               />
               <div className="flex items-center justify-between mt-1">
@@ -414,13 +429,13 @@ export function FileCard({
                     }
                   }}
                   className="p-1.5 bg-violet-600/30 hover:bg-violet-600/50 rounded text-violet-300"
-                  aria-label={audioRef.current?.paused ? "Play audio" : "Pause audio"}
-                  title={audioRef.current?.paused ? "Play audio" : "Pause audio"}
+                  aria-label={isAudioPlaying ? "Pause audio" : "Play audio"}
+                  title={isAudioPlaying ? "Pause audio" : "Play audio"}
                 >
-                  {audioRef.current?.paused ? (
-                    <Play size={16} className="text-white" />
-                  ) : (
+                  {isAudioPlaying ? (
                     <Pause size={16} className="text-white" />
+                  ) : (
+                    <Play size={16} className="text-white" />
                   )}
                 </button>
                 <WaveformVisualizer

@@ -23,8 +23,13 @@ export function useFileFilters(
       });
     }
 
-    // Filter by file type (single combined filter)
-    if (filter.fileType !== "all") {
+    // Filter by file type (single combined filter). "other" means
+    // anything that is not audio/video/image (e.g. "3d", "model").
+    if (filter.fileType === "other") {
+      filtered = filtered.filter(
+        (f) => !["audio", "video", "image"].includes(f.file_type),
+      );
+    } else if (filter.fileType !== "all") {
       filtered = filtered.filter((f) => f.file_type === filter.fileType);
     }
 

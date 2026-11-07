@@ -6,22 +6,6 @@ export function useFileOperations() {
   const [isOperating, setIsOperating] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
 
-  const handleDelete = async (_filename: string, relativePath: string): Promise<boolean> => {
-    setIsOperating(true);
-    setOperationError(null);
-    try {
-      await fetchWithTimeout(`/api/outputs/${encodeURIComponent(relativePath)}`, {
-        method: "DELETE",
-      });
-      return true;
-    } catch (e) {
-      setOperationError(e instanceof Error ? e.message : "Delete failed");
-      return false;
-    } finally {
-      setIsOperating(false);
-    }
-  };
-
   const handleBulkDelete = async (
     paths: string[],
   ): Promise<{ deleted: number; failed: number }> => {
@@ -66,11 +50,11 @@ export function useFileOperations() {
     }
   };
 
-  const handleProbe = async (filename: string): Promise<MediaProbeResponse | null> => {
+  const handleProbe = async (path: string): Promise<MediaProbeResponse | null> => {
     setIsOperating(true);
     setOperationError(null);
     try {
-      const res = await probeMedia(filename);
+      const res = await probeMedia(path);
       return res;
     } catch (e) {
       setOperationError(e instanceof Error ? e.message : "Probe failed");
@@ -83,7 +67,6 @@ export function useFileOperations() {
   return {
     isOperating,
     operationError,
-    handleDelete,
     handleBulkDelete,
     handleRename,
     handleProbe,

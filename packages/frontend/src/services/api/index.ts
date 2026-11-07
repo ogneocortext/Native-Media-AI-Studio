@@ -287,6 +287,7 @@ export {
   createTag,
   listTagItems,
   listItemTags,
+  listItemOrganization,
   addItemTag,
   removeItemTag,
   setItemTags,
@@ -306,6 +307,7 @@ export type {
   CreateTagRequest,
   SetItemTagsRequest,
   MoveToTrashRequest,
+  ItemOrganization,
 } from "./media_library";
 
 // Diagnostics

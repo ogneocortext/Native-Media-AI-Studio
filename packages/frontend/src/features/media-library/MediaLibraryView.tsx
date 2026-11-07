@@ -22,7 +22,6 @@ import { BulkBar } from "./components/BulkBar";
 import { PlaybackModal } from "./components/PlaybackModal";
 import { DuplicatesPanel } from "./components/DuplicatesPanel";
 import { TrashPanel } from "./components/TrashPanel";
-import { fetchWithTimeout } from "../../services/fetchWithTimeout";
 import { extractThumbnailAtTime } from "../../services/api/media";
 import { formatFileSize, formatDateTime } from "../../utils/format";
 import { audioEntryLabel } from "../../state/audioNaming";
@@ -102,8 +101,6 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
-  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
-  const [trashOpen, setTrashOpen] = useState(false);
 
   const filteredFiles = useFileFilters(allFiles, filter, itemTags);
 
@@ -160,22 +157,8 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
     });
   };
 
-  const handleFindDuplicates = async () => {
-    setDuplicatesLoading(true);
-    try {
-      const res = await fetchWithTimeout("/api/outputs/duplicates/groups?quick=true", {
-        timeout: 30000,
-      });
-      if (!res.ok) {
-        throw new Error(`Duplicate scan failed (${res.status})`);
-      }
-    } catch (e) {
-      setOperationError(e instanceof Error ? e.message : "Duplicate scan failed");
-    } finally {
-      setDuplicatesLoading(false);
-    }
-    setDuplicatesOpen(true);
-  };
+  // DuplicatesPanel runs its own scan when opened; the button just opens it.
+  const handleFindDuplicates = () => setDuplicatesOpen(true);
 
   const handleBulkDeleteSelected = async () => {
     const paths = Array.from(selectedPaths);
@@ -311,7 +294,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
         </div>
       )}
 
-      <div className="mb-3 flex gap-1">
+      <div className="mb-3 flex flex-wrap gap-1">
         <button
           onClick={() => setView("library")}
           className={`px-3 py-1 text-xs rounded-md transition-colors ${
@@ -370,8 +353,8 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
       </div>
 
       {view === "library" || view === "favorites" ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-1">
+        <div className="mb-4 flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1">
             <button
               onClick={() => setViewMode("grid")}
               className={`px-2 py-1 text-xs rounded-md transition-colors ${
@@ -405,26 +388,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             <>
               <button
                 onClick={handleFindDuplicates}
-                disabled={duplicatesLoading}
-                className="px-3 py-1 text-xs bg-violet-900/30 border border-violet-700 rounded text-violet-300 hover:bg-violet-800/50 disabled:opacity-50"
+                className="px-3 py-1 text-xs bg-violet-900/30 border border-violet-700 rounded text-violet-300 hover:bg-violet-800/50"
               >
-                {duplicatesLoading ? (
-                  <span className="flex items-center gap-1">
-                    <RefreshCw size={12} className="animate-spin" />
-                    Scanning…
-                  </span>
-                ) : (
-                  <>
-                    <RefreshCw size={14} /> Find Duplicates
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setTrashOpen(true)}
-                className="px-3 py-1 text-xs text-muted hover:text-white border border-gray-600 rounded"
-                title="Trash"
-              >
-                <Trash2 size={14} className="mr-1" /> Trash
+                <RefreshCw size={14} /> Find Duplicates
               </button>
             </>
           )}
@@ -549,21 +515,14 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           restoreTrashItem={restoreTrashItem}
           purgeTrashItem={purgeTrashItem}
           emptyTrash={emptyTrash}
-          refetchOrg={refetchOrg}
+          // Restores/purges change the file listing too, not just org state.
+          refetchOrg={() => {
+            void refetchOrg();
+            void refetchFiles();
+          }}
         />
       )}
 
-      {trashOpen && (
-        <TrashPanel
-          isOpen={trashOpen}
-          onClose={() => setTrashOpen(false)}
-          trash={trash}
-          restoreTrashItem={restoreTrashItem}
-          purgeTrashItem={purgeTrashItem}
-          emptyTrash={emptyTrash}
-          refetchOrg={refetchOrg}
-        />
-      )}
       {playingFile && (
         <PlaybackModal
           isOpen={!!playingFile}
@@ -747,19 +706,22 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
+                {(selectedFile.file_type === "audio" ||
+                  selectedFile.file_type === "video") && (
+                  <button
+                    onClick={() => {
+                      handlePlay(selectedFile);
+                      setDetailOpen(false);
+                      setSelectedFile(null);
+                    }}
+                    className="px-3 py-1 text-sm bg-primary/20 text-primary rounded hover:bg-primary/30"
+                  >
+                    Play
+                  </button>
+                )}
                 <button
                   onClick={() => {
-                    handlePlay(selectedFile);
-                    setDetailOpen(false);
-                    setSelectedFile(null);
-                  }}
-                  className="px-3 py-1 text-sm bg-primary/20 text-primary rounded hover:bg-primary/30"
-                >
-                  Play
-                </button>
-                <button
-                  onClick={() => {
-                    void handleProbe(selectedFile.filename);
+                    void handleProbe(selectedFile.relative_path || selectedFile.filename);
                     setDetailOpen(false);
                     setSelectedFile(null);
                   }}
@@ -787,18 +749,6 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           isOpen={duplicatesOpen}
           onClose={() => setDuplicatesOpen(false)}
           onRefetch={refetchFiles}
-        />
-      )}
-
-      {trashOpen && (
-        <TrashPanel
-          isOpen={trashOpen}
-          onClose={() => setTrashOpen(false)}
-          trash={trash}
-          restoreTrashItem={restoreTrashItem}
-          purgeTrashItem={purgeTrashItem}
-          emptyTrash={emptyTrash}
-          refetchOrg={refetchOrg}
         />
       )}
     </main>

@@ -70,7 +70,7 @@ export function useMediaFiles() {
         modified_at: f.modified_at ?? f.modified_time ?? null,
         cover_image: f.cover_image ?? null,
         has_cover: f.has_cover ?? false,
-        metadata: f.metadata ?? null,
+        metadata: f.metadata ?? {},
         job_id: f.job_id ?? null,
         size: f.size_bytes ?? f.size ?? 0,
         modified_time: f.modified_at ?? f.modified_time ?? undefined,

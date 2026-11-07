@@ -19,6 +19,7 @@ import {
   emptyTrash,
   listCollections,
   listItemCollections,
+  listItemOrganization,
   listItemTags,
   listMediaFavorites,
   listTags,
@@ -93,16 +94,19 @@ export function useMediaLibrary(): MediaLibraryOrg {
     setLoading(true);
     setError(null);
     try {
-      const [favs, cols, tagsList, trashList] = await Promise.all([
+      const [favs, cols, tagsList, trashList, org] = await Promise.all([
         listMediaFavorites(),
         listCollections(),
         listTags(),
         listTrash(),
+        listItemOrganization(),
       ]);
       setFavorites(new Set(favs));
       setCollections(cols);
       setTags(tagsList);
       setTrash(trashList);
+      setItemTags(new Map(Object.entries(org.tags)));
+      setItemCollections(new Map(Object.entries(org.collections)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load library organization");
     } finally {

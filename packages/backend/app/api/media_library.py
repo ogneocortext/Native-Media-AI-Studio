@@ -24,6 +24,8 @@ from ..core.database import (
     create_collection,
     delete_collection,
     empty_trash,
+    get_all_item_collections,
+    get_all_item_tags,
     get_collection,
     get_collections_for_item,
     get_items_in_collection,
@@ -100,6 +102,14 @@ class TagItemAction(BaseModel):
 class ItemTagsResponse(BaseModel):
     relative_path: str
     tags: list[TagResponse] = []
+
+
+class ItemOrganizationResponse(BaseModel):
+    """Bulk item -> tags/collections maps so the library can render
+    badges and filters without one request per file."""
+
+    tags: dict[str, list[TagResponse]] = {}
+    collections: dict[str, list[CollectionResponse]] = {}
 
 
 class BulkTagsRequest(BaseModel):
@@ -245,6 +255,21 @@ async def list_item_collections(
 ) -> list[CollectionResponse]:
     """Return collections containing the given item."""
     return [CollectionResponse(**c) for c in get_collections_for_item(relative_path)]
+
+
+@router.get("/items/organization", response_model=ItemOrganizationResponse)
+async def item_organization() -> ItemOrganizationResponse:
+    """Return every item's tags and collections in two bulk maps."""
+    return ItemOrganizationResponse(
+        tags={
+            path: [TagResponse(**t) for t in tags]
+            for path, tags in get_all_item_tags().items()
+        },
+        collections={
+            path: [CollectionResponse(**c) for c in colls]
+            for path, colls in get_all_item_collections().items()
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

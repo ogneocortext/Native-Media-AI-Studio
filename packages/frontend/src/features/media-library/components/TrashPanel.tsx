@@ -25,9 +25,9 @@ export function TrashPanel({
   emptyTrash,
   refetchOrg,
 }: TrashPanelProps) {
-  if (!isOpen) return null;
-
   const [emptying, setEmptying] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleEmpty = async () => {
     if (!window.confirm("Empty the trash? This cannot be undone.")) return;

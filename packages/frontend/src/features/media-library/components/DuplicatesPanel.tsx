@@ -2,7 +2,7 @@
  * DuplicatesPanel — shows exact-duplicate groups and offers "Keep oldest,
  * delete the rest" via bulk delete.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { fetchWithTimeout } from "../../../services/fetchWithTimeout";
 
@@ -19,8 +19,6 @@ interface DuplicatesPanelProps {
 }
 
 export function DuplicatesPanel({ isOpen, onClose, onRefetch }: DuplicatesPanelProps) {
-  if (!isOpen) return null;
-
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +72,14 @@ export function DuplicatesPanel({ isOpen, onClose, onRefetch }: DuplicatesPanelP
   );
 
   const totalWasted = groups.reduce((sum, g) => sum + g.wasted_bytes, 0);
+
+  // Scan on open — previously nothing ever called findDuplicates, so the
+  // panel always showed "No exact duplicates found" even when they existed.
+  useEffect(() => {
+    if (isOpen) void findDuplicates();
+  }, [isOpen, findDuplicates]);
+
+  if (!isOpen) return null;
 
   return (
     <div

@@ -186,6 +186,22 @@ def get_collections_for_item(relative_path: str) -> list[dict]:
         return [_collection_row_to_dict(r) for r in rows]
 
 
+def get_all_item_collections() -> dict[str, list[dict]]:
+    """Return {relative_path: [collection,...]} for every organized item."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT i.relative_path, c.* FROM media_collections c
+            JOIN media_collection_items i ON i.collection_id = c.id
+            ORDER BY c.updated_at DESC
+            """
+        ).fetchall()
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        out.setdefault(r["relative_path"], []).append(_collection_row_to_dict(r))
+    return out
+
+
 def create_tag(name: str, color: str = "#8b5cf6") -> dict:
     """Create a tag. Raises if name already exists (caller should catch)."""
     tag_id = str(uuid.uuid4())
@@ -291,6 +307,22 @@ def get_items_with_tag(tag_id: str) -> list[str]:
             (tag_id,),
         ).fetchall()
         return [r["relative_path"] for r in rows]
+
+
+def get_all_item_tags() -> dict[str, list[dict]]:
+    """Return {relative_path: [tag,...]} for every tagged item."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT i.relative_path, t.* FROM media_tags t
+            JOIN media_item_tags i ON i.tag_id = t.id
+            ORDER BY t.name
+            """
+        ).fetchall()
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        out.setdefault(r["relative_path"], []).append(_tag_row_to_dict(r))
+    return out
 
 
 def move_to_trash(relative_path: str, file_type: str, retention_days: int = 30) -> bool:
