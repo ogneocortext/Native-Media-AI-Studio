@@ -103,6 +103,17 @@ class IdleMonitor:
                 )
                 await self._unload_adapter(adapter)
 
+        # In-process models get the same treatment: the retrieval
+        # cross-encoder keeps torch + ~1.1 GB of weights resident once
+        # loaded, so release them after the same idle timeout.
+        try:
+            from ..services.retrieval_service import unload_reranker_if_idle
+
+            if unload_reranker_if_idle(IDLE_TIMEOUT_SECONDS):
+                logger.info("Idle timeout: retrieval reranker unloaded")
+        except Exception as e:
+            logger.error("Reranker idle check failed: %s", e)
+
     async def _unload_adapter(self, adapter: BaseAdapter) -> None:
         """Unload a single adapter by calling its stop_service if available."""
         stop_method = getattr(adapter, "stop_service", None)

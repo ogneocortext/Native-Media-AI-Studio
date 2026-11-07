@@ -988,3 +988,30 @@ Rules: `docs/plans/tasks/README.md`
   → success, `mv_e2e_test_00001_.glb` (1.1 MB decimated) in
   `generated_3d/`, timing queue 2ms / inference 222s / post 20s.
 - **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit. Same-day LTX follow-through: the "already dispatched" claim hid a broken graph — `LTXVConditioning` was fed raw prompt strings (it only retimes CONDITIONING), `CLIPLoader type` was `"ltx"` not `"ltxv"`, `VHS_VideoCombine` format was the invalid `"video/mp4"`, and the I2V path's VAEEncode output was never wired into the sampler. All repaired to the native node contract; live `adapter.generate()` → `output/video/NativeMediaAI_LTX_00005.mp4` (25f 768×512, ~130 s). Stale-test repairs landed alongside: fake-clock monotonic patch, Atomic Chat auth-aware skip, vram fixture attrs, hardware-profile num_ctx/version, starlette/anyio filterwarning, Ollama `eval_count` pass-through.
+### T-PLT-35 - Retrieval reranker idle-unload (in-process RAM)
+- **Status:** done
+- **Goal:** Stop the cross-encoder reranker from holding torch +
+  transformers + ~1.1 GB of weights resident in the backend process
+  forever after the first `/api/retrieval/search`.
+- **Root cause:** `_get_reranker()` lazy-loads
+  `BAAI/bge-reranker-v2-m3` once and never releases it; `idle_monitor`
+  only knew how to unload external service adapters, not in-process
+  models. On a machine at ~88% RAM this is the difference between a
+  788 MB backend and a multi-GB one after any search.
+- **What changed:** `_rerank_cross_encoder` is now a locked wrapper
+  (`_reranker_lock`) around `_rerank_cross_encoder_impl`, stamping
+  `_reranker_last_used` on every real inference. New
+  `unload_reranker_if_idle(max_idle_seconds)` frees model+tokenizer,
+  calls `torch.cuda.empty_cache()` on CUDA, and `gc.collect()`; it
+  refuses to run while inference/load holds the lock and leaves
+  `_reranker_available` untouched so the next search lazily reloads.
+  `idle_monitor._check_idle_adapters` invokes it each tick with the
+  same 15-minute `IDLE_TIMEOUT_SECONDS`. `GET /api/retrieval/status`
+  gained `reranker_loaded` (via `is_reranker_loaded()`) so the Health
+  page / agents can see residency.
+- **Files:** services/retrieval_service.py, core/idle_monitor.py,
+  api/retrieval.py.
+- **Verification:** ruff clean; 44 retrieval service+route tests pass;
+  unload logic exercised directly (unloaded -> False, stale -> True +
+  refs cleared, fresh -> False).
+- **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.

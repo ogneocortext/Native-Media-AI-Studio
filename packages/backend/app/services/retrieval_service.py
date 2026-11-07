@@ -30,6 +30,7 @@ produce cross-encoder relevance logits, so it is *not* used for reranking.
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import logging
@@ -37,6 +38,7 @@ import math
 import operator
 import re
 import sqlite3
+import threading
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -128,6 +130,11 @@ _reranker_tokenizer = None
 _reranker_device = None
 _reranker_available: bool | None = None
 _reranker_warmed_up = False
+#: monotonic timestamp of the last real rerank; drives idle unload.
+_reranker_last_used = 0.0
+#: held while the model is being loaded or scoring so the idle monitor
+#: never frees weights mid-inference.
+_reranker_lock = threading.Lock()
 
 #: Result cache: key -> (results, expiry_timestamp). Key is a hash of the
 #: normalized query plus a hash of the candidate document contents.
@@ -253,6 +260,14 @@ def _sigmoid(x: float) -> float:
 
 
 def _rerank_cross_encoder(query: str, candidates: list[tuple[str, str]]) -> list[tuple[str, float]]:
+    """Locked wrapper: serialize load+inference so idle unload can't race it."""
+    if not candidates:
+        return []
+    with _reranker_lock:
+        return _rerank_cross_encoder_impl(query, candidates)
+
+
+def _rerank_cross_encoder_impl(query: str, candidates: list[tuple[str, str]]) -> list[tuple[str, float]]:
     """Score (query, passage) pairs jointly with a cross-encoder.
 
     A cross-encoder reads the query and passage together and emits a
@@ -264,9 +279,11 @@ def _rerank_cross_encoder(query: str, candidates: list[tuple[str, str]]) -> list
     Scores are raw logits; callers may apply sigmoid for [0,1] range
     via _sigmoid() if desired.
     """
+    global _reranker_last_used
     loaded = _get_reranker()
-    if loaded is None or not candidates:
+    if loaded is None:
         return []
+    _reranker_last_used = time.monotonic()
 
     model, tokenizer = loaded
 
@@ -311,6 +328,59 @@ def _rerank_cross_encoder(query: str, candidates: list[tuple[str, str]]) -> list
     scored = [(cid, s) for (cid, _), s in zip(candidates, scores, strict=True)]
     scored.sort(key=lambda kv: -kv[1])
     return scored
+
+
+def unload_reranker_if_idle(max_idle_seconds: float) -> bool:
+    """Release reranker weights when the model has been idle too long.
+
+    The cross-encoder keeps torch + transformers + ~1.1 GB of weights
+    resident once loaded; on a RAM-constrained workstation that is worth
+    reclaiming between searches. Returns True when weights were freed.
+    The next search lazily reloads the model (a few seconds + warm-up).
+    """
+    global \
+        _reranker_model, \
+        _reranker_tokenizer, \
+        _reranker_device, \
+        _reranker_warmed_up, \
+        _reranker_last_used
+
+    if _reranker_model is None:
+        return False
+    if not _reranker_lock.acquire(blocking=False):
+        return False  # inference or load in flight; retry next monitor tick
+    try:
+        idle = time.monotonic() - _reranker_last_used
+        if idle < max_idle_seconds:
+            return False
+        device = _reranker_device
+        _reranker_model = None
+        _reranker_tokenizer = None
+        _reranker_device = None
+        _reranker_warmed_up = False
+        _reranker_last_used = 0.0
+    finally:
+        _reranker_lock.release()
+
+    try:
+        if device == "cuda":
+            import torch  # noqa: PLC0415
+
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    gc.collect()
+    logger.info(
+        "Reranker unloaded after %.0fs idle (device=%s)",
+        idle,
+        device,
+    )
+    return True
+
+
+def is_reranker_loaded() -> bool:
+    """Whether reranker weights are currently resident in this process."""
+    return _reranker_model is not None
 
 
 def _parse_frontmatter_tags(text: str) -> list[str]:

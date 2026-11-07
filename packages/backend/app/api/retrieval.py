@@ -20,6 +20,7 @@ from ..services.retrieval_service import (
     VECTOR_MODEL_ALT,
     _scan_docs_for_indexing,
     get_index,
+    is_reranker_loaded,
     persist_chunk_embeddings,
     reset_index,
 )
@@ -45,6 +46,7 @@ class IndexStatus(BaseModel):
     embedding_model_available: bool = True
     embedding_models_available: list[str] = []
     rerank_model: str
+    reranker_loaded: bool = False
     built_at: float | None = None
     models_available: list[str] = []
 
@@ -192,6 +194,7 @@ async def index_status() -> IndexStatus:
         embedding_model_available=embedding_model_available,
         embedding_models_available=embedding_models_available,
         rerank_model=RERANK_MODEL,
+        reranker_loaded=is_reranker_loaded(),
         built_at=idx._built_at,
         models_available=model_names,
     )
