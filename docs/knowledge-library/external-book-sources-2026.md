@@ -32,28 +32,43 @@ worth recording once so they are not re-litigated per suggestion:
    project-specific docs for the same top-k slots and lower precision.
    The corpus stays project material.
 
-## The license rule (this repo is public)
+## The redistribution rule (owner policy)
 
-"Free to read" is not "free to ingest." Anything extracted from an
-external book that gets committed here is redistribution. Standing rule:
-**only public-domain or CC-BY / CC-BY-SA material may be committed, and
-the per-title license is checked on the title's own page at download
-time.** Verified 2026-11-06:
+**No external book text is committed to this repo — in any form, under
+any license.** Not excerpts, not converted EPUBs, not chunked corpora.
+This is stricter than the law requires (public-domain and CC-BY text
+could legally be committed); it is a policy choice, not merely a legal
+one, and it holds regardless of how permissive a title's license is.
 
-| Title | License | What that permits here |
+The only sanctioned flow is:
+
+1. **Private study** — read the source; any text extraction stays
+   local and uncommitted (see the recipe below).
+2. **Application** — what the source taught lands as *code changes*,
+   and/or as a **distilled knowledge doc written in this project's own
+   words**: facts, methods, and decisions, expressed as instructions to
+   this codebase — none of the source's text, structure, or phrasing.
+
+Licenses are still checked on the title's own page at download time,
+because they bound private use and any future commercialization of the
+work (the NC case below). Verified 2026-11-06:
+
+| Title | License | Posture here |
 |---|---|---|
-| *Think DSP* — Downey (Green Tea Press) | CC BY-NC 3.0 | Distill with attribution for personal/project use. **NC boundary:** derived material must not be commercialized. |
-| *The Scientist and Engineer's Guide to DSP* — Smith | © author; full text free to read at dspguide.com | Read-only reference. Nothing committed but our own notes. |
-| *Dive into Deep Learning* (d2l.ai) | Book CC BY-SA 4.0; code modified MIT | Genuinely open — but low fit: it teaches training models, which this studio rarely does. |
-| *Deep Learning* — Goodfellow et al. (MIT Press) | CC BY-NC-ND (author-hosted edition) | Read online only. **ND = no derivatives** — a converted/ingested corpus is exactly what it forbids. |
-| Murphy, *Probabilistic Machine Learning*; Hastie et al., *Elements of Statistical Learning* | Publisher ©; author-posted free PDFs | Read-only reference. |
+| *Think DSP* — Downey (Green Tea Press) | CC BY-NC 3.0 | Private study; distilled code/docs only. **NC boundary:** if derived work is ever commercialized, this title is out. |
+| *The Scientist and Engineer's Guide to DSP* — Smith | © author; full text free to read at dspguide.com | Read-only reference; distilled output only. |
+| *Dive into Deep Learning* (d2l.ai) | Book CC BY-SA 4.0; code modified MIT | The license would permit more; repo policy doesn't use it. Also low fit: it teaches training models, which this studio rarely does. |
+| *Deep Learning* — Goodfellow et al. (MIT Press) | CC BY-NC-ND (author-hosted edition) | Read online only; ND independently forbids derivative corpora. |
+| Murphy, *Probabilistic Machine Learning*; Hastie et al., *Elements of Statistical Learning* | Publisher ©; author-posted free PDFs | Read-only reference; distilled output only. |
 
 ## What actually earns a place
 
 The pattern is **distill, don't dump** — the same one used for the
-Remotion skills reference: one source, read for a specific gap, written
-up as one knowledge doc in this library's own terms. Current candidates,
-held until the gap is real:
+Remotion skills reference: one source, read for a specific gap, and the
+output is code changes plus a knowledge doc written from understanding,
+in this project's own words. These docs are an instruction set to the
+codebase, not a vessel for anyone else's text. Current candidates, held
+until the gap is real:
 
 - **Think DSP** — Python-first DSP (spectra, filters, convolution) that
   maps directly onto `audio-analysis` work. Distill when an analysis
@@ -61,16 +76,18 @@ held until the gap is real:
 - **DSP Guide (Smith)** — the practical companion to the same shelf;
   read online at need, cite in the distilled doc.
 
-## Extraction recipe (proven on this machine)
+## Extraction recipe — for private study only (proven on this machine)
 
-If a permitted book is ever ingested, the pipeline is the one already
-used to build the library EPUB archive, run in reverse:
+When a source needs close study, extract it locally with the same
+toolchain that builds the library EPUB archive, run in reverse:
 
 ```bash
 pandoc book.epub -t gfm -o book.md        # EPUB -> markdown
-# chunk on headings (## / ###), keep doc/section/token metadata per chunk
+# chunk on headings (## / ###) for study and note-taking
 ```
 
+The extraction lives **outside this repo** (local scratch) and is never
+committed; only the distilled output of the flow above lands here.
 Calibre's `ebook-convert` is the fallback for malformed EPUBs. Source
 quality decides extraction quality: prefer a born-digital EPUB over a
 scan-derived one (Standard Ebooks over raw Gutenberg when both exist).
