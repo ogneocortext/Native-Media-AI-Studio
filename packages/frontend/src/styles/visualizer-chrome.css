@@ -83,7 +83,11 @@
     align-items: center;
     gap: 0.5rem;
     flex: 1;
-    max-inline-size: 500px;
+    /* Was capped at 500px: with the preset badge + Enhance button inside
+       the same row the <select> collapsed to ~200px and the track name
+       ellipsized mid-word (vision audit). Let the row use the space it
+       has; the select keeps a readable floor via min-inline-size below. */
+    max-inline-size: 640px;
     min-inline-size: 0;
   }
 
@@ -173,6 +177,9 @@
 }
 .viz-track-select {
   flex: 1;
+  /* Floor so "night-drive (83 BPM)" stays readable next to the action
+     buttons; below this the selector row wraps instead of clipping. */
+  min-inline-size: 240px;
   padding: 0.4rem 0.75rem;
   border-radius: 6px;
   border: 1px solid var(--border-color);

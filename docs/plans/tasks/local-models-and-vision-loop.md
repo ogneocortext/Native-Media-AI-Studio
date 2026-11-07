@@ -116,3 +116,40 @@ Rules: `docs/plans/tasks/README.md`
   11434 is responding (ports show bound but return dashboard HTML / service
   disabled / connection refused). Unit tests cover the normalization/policy
   mapping acceptance criteria; live call pending service availability.
+
+### T-MOD-05 — Line-by-line review of tools/vision scripts (two passes)
+
+- **Status:** done
+- **Goal:** Owner asked for a twice-through line-by-line review of the
+  vision pipeline, then use it to improve the visualizer baseline.
+- **What changed (bugs found & fixed):**
+  - `analyze.mjs` — the Atomic Chat → direct-Ollama fallback posted the
+    *Atomic* model id (e.g. `unsloth/Qwen3_5-4B-GGUF-...`) to Ollama
+    `/api/chat`: guaranteed 404, self-healed only via the later
+    pickFallbackModel pass. Both atomic branches now resolve an
+    Ollama-side model via `resolveOllamaFallback()`, and the later
+    fallback skips a model already tried.
+  - `analyze.mjs` — `analyzeWithAtomicChat` hardcoded
+    `data:image/jpeg` while `encodeImage` returns PNG bytes for
+    pngPassthrough text modes; data URL now sniffs the PNG magic prefix.
+  - `analyze.mjs` — VRAM abort gate used `residentVisionModels()` which
+    reads `/api/tags` = *installed* models, so `modelAlreadyResident`
+    was true even with every model cold and the 85% abort never fired
+    when a real cold load was required. Now intersects with `/api/ps`
+    via `getRunningModels()` (baseName-compared).
+  - `vision-common.mjs` `ensureVisionModel` — `offload-ollama` unloads
+    ALL models including the target, but the `targetIsOllama` check
+    skipped the reload exactly then: "ensure" left the requested model
+    cold. Target is now always re-warmed after an offload.
+  - Cosmetics: duplicated comment block in `parseArgs`, one-line double
+    statement in `toAtomicChatModel`.
+- **Files:** tools/vision/{analyze.mjs,vision-common.mjs}.
+- **Verification:** `node --check` clean on all five vision files;
+  live `--mode ui --json` run against a real screenshot returned a
+  well-formed analysis through the fixed path.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — two full passes; 4 real bugs +
+  cosmetics fixed; noted (not fixed) run-interaction-audit's unescaped
+  `--label` interpolation and analyze.mjs's local analyzeWithOllama
+  duplicating vision-common (intentional: it needs format:json +
+  per-model profiles the shared helper lacks).

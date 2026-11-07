@@ -930,3 +930,30 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-07 — hierarchy pass landed; stage now
   carries only glanceable telemetry + one-click presets.
+
+### T-VIZ-44 — Baseline declutter pass driven by vision audit
+
+- **Status:** done
+- **Goal:** Owner: "the current baseline still looks wonky" — run the
+  vision pipeline (T-MOD-05-fixed) against the default 3D/geometric
+  baseline and fix what it reports.
+- **What changed:**
+  - `geometric.tsx` — wireframe icosahedron detail 2 → 1 (320-face
+    lattice read as noise); orbital spiral 420 → 300 points; outer
+    InstancedParticles 1000 → 620 with hueRange 0.2 → 0.12, baseSize
+    0.08 → 0.10, stretch 1.5 → 1.2 (tighter hue band, fewer larger
+    quads = designed shell instead of chaotic field).
+  - `visualizer-chrome.css` — track `<select>` had collapsed to ~202px
+    (vision read the clipped "night-drive (83 BPM)" as obscured by the
+    Enhance button): selector cap 500 → 640px, select
+    min-inline-size 240px. Measured: select 202 → 292px.
+- **Files:** viz-styles/geometric.tsx, styles/visualizer-chrome.css.
+- **Verification:** live captures before/after at t≈5/10/11.6s of
+  night-drive.wav through `__VIZ_TEST__`; gemma4 audit flagged dense
+  wireframe + saturated particle chaos + clipped track name — all three
+  addressed; post-fix audit reported no visible defects (model grading
+  is soft, so geometry was verified by measurement instead).
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — vision-loop improvement pass;
+  BuilderFigure silhouette confirmed as intentional toggleable layer,
+  not a defect.

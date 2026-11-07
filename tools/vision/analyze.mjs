@@ -20,7 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { baseName, encodeImage, residentVisionModels, pickFallbackModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
+import { baseName, encodeImage, residentVisionModels, pickFallbackModel, getRunningModels, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
 import { buildGemma4Prompt, GEMMA4_SYSTEM, GEMMA4_MODE_PROMPTS } from './prompts/gemma4-ui.mjs';
 import { buildQwen35Prompt, QWEN35_UI_PROMPT, QWEN35_MODE_PROMPTS, QWEN35_THINKING_CONFIG } from './prompts/qwen35-ui.mjs';
 
@@ -178,9 +178,6 @@ function parseArgs(argv) {
       // Files always win: an existing path is an image, never prompt text.
       // (The old order swallowed the 2nd+ image path as the prompt and dropped
       // the real prompt silently — this broke multi-image and MCP compare.)
-      // Files always win: an existing path is an image, never prompt text.
-      // (The old order swallowed the 2nd+ image path as the prompt and dropped
-      // the real prompt silently — this broke multi-image and MCP compare.)
       // statSync.isFile() so a directory arg is treated as text instead of
       // blowing up mid-run with EISDIR inside encodeURIComponent path.
       let isFile = false;
@@ -254,7 +251,8 @@ function buildMetadata(args) {
   return parts.length > 0 ? `\n\n---\n${parts.join('\n')}` : '';
 }
 
-function toAtomicChatModel(model, knownModels = atomicChatModelsCache) {  if (!model || typeof model !== 'string') return model;
+function toAtomicChatModel(model, knownModels = atomicChatModelsCache) {
+  if (!model || typeof model !== 'string') return model;
   if (model.startsWith('ollama/')) return model;
 
   // Normalize for comparison: lowercase, strip non-alphanumeric.
@@ -433,9 +431,14 @@ async function analyzeWithAtomicChat(images, prompt, model, maxTokens = 4096, en
   const profile = profileFor(model);
   const isQwen35 = model.includes('Qwen3_5') || model.includes('qwen3.5');
 
+  // encodeImage returns PNG bytes for pngPassthrough text modes — label the
+  // data URL by magic bytes, not a hardcoded jpeg, or vision APIs that sniff
+  // MIME get corrupt images.
   const imageParts = imageData.map((base64) => ({
     type: 'image_url',
-    image_url: { url: `data:image/jpeg;base64,${base64}` },
+    image_url: {
+      url: `data:${base64.startsWith('iVBORw0K') ? 'image/png' : 'image/jpeg'};base64,${base64}`,
+    },
   }));
 
   const body = {
@@ -656,8 +659,14 @@ async function main() {
       // prefers resident models (mode-map+resident / resident-sticky), so a
       // non-empty resident list means this run reuses loaded weights. Only
       // abort when a cold load would actually be required.
+      // NOTE: residentVisionModels() reads /api/tags = INSTALLED models, not
+      // loaded ones — the actually-running check must go through /api/ps or
+      // the abort is skipped even when every vision model is cold.
       const resident = await residentVisionModels();
-      const modelAlreadyResident = resident.length > 0;
+      const running = await getRunningModels();
+      const modelAlreadyResident = resident.some((r) =>
+        running.some((w) => baseName(w) === baseName(r))
+      );
       if (pct >= VRAM_ABORT_PCT && !modelAlreadyResident) {
         console.error(`[vision] ERROR: VRAM at ${pct}% >= abort threshold ${VRAM_ABORT_PCT}%. ` +
           `Free GPU memory first (POST /api/integrations/vram/offload-ollama) ` +
@@ -665,7 +674,8 @@ async function main() {
         process.exit(1);
       }
       if (pct >= VRAM_ABORT_PCT && modelAlreadyResident) {
-        console.error(`[vision] VRAM at ${pct}% but ${resident[0]} is resident — proceeding without new model load.`);
+        const warm = resident.find((r) => running.some((w) => baseName(w) === baseName(r)));
+        console.error(`[vision] VRAM at ${pct}% but ${warm} is loaded — proceeding without new model load.`);
       }
       if (pct >= VRAM_WARN_PCT) {
         console.error(`[vision] WARNING: VRAM at ${pct}% >= warn threshold ${VRAM_WARN_PCT}%. ` +
@@ -741,6 +751,18 @@ async function main() {
     // Auto-enable reasoning for complex analysis modes on capable models.
     const reasoningModes = new Set(['compare', 'music-video', 'regression', 'multicomp']);
     const autoThink = args.think || reasoningModes.has(args.mode);
+    // With --backend atomic the resolved model is an Atomic Chat resident
+    // (e.g. "unsloth/Qwen3_5-4B-GGUF-...") which does NOT exist in Ollama —
+    // posting it to /api/chat is a guaranteed 404. The direct-Ollama
+    // fallback must resolve an Ollama-side vision model instead, and the
+    // later pickFallbackModel pass must not retry that same model.
+    let atomicFallbackModel = null;
+    const resolveOllamaFallback = async () => {
+      if (!atomicFallbackModel) {
+        atomicFallbackModel = (await residentVisionModels())[0] || DEFAULT_VISION_MODEL;
+      }
+      return atomicFallbackModel;
+    };
     const ollamaAttempt = async (model, budget, keepAlive) => {
       const r = await analyzeWithOllama(args.images, fullPrompt, model, budget, encOpts, autoThink, keepAlive);
       lastDoneReason = r.done_reason;
@@ -772,7 +794,7 @@ async function main() {
           // 1024-first attempt almost always triggers a second full
           // generation for structured (ui/compare/ocr) prompts, doubling
           // latency past MCP timeouts.
-          await ollamaAttempt(activeModel, 4096);
+          await ollamaAttempt(await resolveOllamaFallback(), 4096);
           usedBackend = 'ollama-fallback';
           console.error(`[vision] Direct Ollama fallback succeeded.`);
         } catch (ollamaErr) {
@@ -798,7 +820,7 @@ async function main() {
         if (needsMore(analysis)) {
           console.error(`[vision] Atomic Chat response looks truncated, falling back to direct Ollama...`);
           try {
-            await ollamaAttempt(activeModel, 4096);
+            await ollamaAttempt(await resolveOllamaFallback(), 4096);
             usedBackend = 'ollama-fallback';
             console.error(`[vision] Direct Ollama fallback succeeded.`);
           } catch (ollamaErr) {
@@ -840,7 +862,11 @@ async function main() {
       // attempt. pickFallbackModel prefers VISION_FALLBACK_MODEL, then any
       // other resident vision model.
       const fallbackModel = await pickFallbackModel(activeModel);
-      if (fallbackModel && fallbackModel !== activeModel) {
+      if (
+        fallbackModel &&
+        fallbackModel !== activeModel &&
+        fallbackModel !== atomicFallbackModel
+      ) {
         console.error(`[vision] Still truncated, retrying with ${fallbackModel}...`);
         try {
           // '2m' pin: frees the second model's VRAM slot shortly after the

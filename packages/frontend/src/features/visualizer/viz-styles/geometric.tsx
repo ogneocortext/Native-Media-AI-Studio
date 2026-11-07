@@ -57,12 +57,12 @@ export function GeometricViz({
   useDisposeOnUnmount(coreMat);
 
   // Layer 4: Orbital particles (radius 3.5-5)
-  // 2026 declutter: 600 → 420. The orbital spiral plus the
-  // 1000 outer instanced quads plus the 6 mesh layers read as
-  // clutter in a single frame; trimming the spiral keeps the
-  // structure legible without losing the energy read.
+  // 2026 declutter: 600 → 420 → 300. The orbital spiral plus the
+  // instanced quads plus the 6 mesh layers read as clutter in a single
+  // frame; trimming the spiral keeps the structure legible without
+  // losing the energy read.
   const orbitGeom = useMemo(() => {
-    const n = 420;
+    const n = 300;
     const pos = new Float32Array(n * 3);
     const col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
@@ -343,9 +343,11 @@ export function GeometricViz({
           fog={false}
         />
       </mesh>
-      {/* Layer 2: Wireframe shell */}
+      {/* Layer 2: Wireframe shell — detail 1, not 2: at detail 2 the
+          320-face lattice read as visual noise behind the particles
+          (vision audit 2026-11). 80 faces keeps the structure legible. */}
       <mesh ref={wireRef}>
-        <icosahedronGeometry args={[1, 2]} />
+        <icosahedronGeometry args={[1, 1]} />
         <meshStandardMaterial
           color="#06b6d4"
           emissive="#0891b2"
@@ -385,18 +387,21 @@ export function GeometricViz({
           fog={false}
         />
       </points>
-      {/* Layer 5: Outer particle sphere — instanced quads */}
+      {/* Layer 5: Outer particle sphere — instanced quads. Decluttered
+          1000 → 620 and hueRange 0.2 → 0.12: the vision audit read the
+          field as oversaturated chaos; a tighter hue band plus fewer,
+          larger quads reads as a designed particle shell instead. */}
       <InstancedParticles
         audioData={audioData}
         vizParams={vizParams}
         sceneFrozen={sceneFrozen}
         prefersReducedMotion={prefersReducedMotion}
-        count={1000}
-        baseSize={0.08}
+        count={620}
+        baseSize={0.1}
         spread={4}
         hueBase={0.6}
-        hueRange={0.2}
-        stretch={1.5}
+        hueRange={0.12}
+        stretch={1.2}
       />
       {/* Layer 6: Outer ring */}
       <mesh ref={ringRef}>

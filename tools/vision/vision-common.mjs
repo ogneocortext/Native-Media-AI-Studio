@@ -338,20 +338,19 @@ export async function ensureVisionModel(model, opts = {}) {
     for (const m of toUnload) await unloadModel(m, log);
   }
 
-  // If the target is an Ollama model, load it now (it was just offloaded).
-  const targetIsOllama = running.some((m) => m === model);
-  if (!targetIsOllama) {
-    // Target wasn't running before — load it fresh.
-    try {
-      await fetch(`${OLLAMA_URL}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, keep_alive: '5m' }),
-        signal: AbortSignal.timeout(300000),
-      });
-    } catch (e) {
-      log(`load target model failed: ${e.message}`);
-    }
+  // offload-ollama unloads ALL Ollama models — including the target when it
+  // was resident (the old `targetIsOllama` check skipped the reload exactly
+  // then, so "ensure" left the requested model cold). Always re-warm the
+  // target; a generate ping against an already-loaded model is cheap.
+  try {
+    await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: '5m' }),
+      signal: AbortSignal.timeout(300000),
+    });
+  } catch (e) {
+    log(`load target model failed: ${e.message}`);
   }
 
   await new Promise((r) => setTimeout(r, settleMs));
