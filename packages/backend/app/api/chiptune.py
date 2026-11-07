@@ -7,8 +7,10 @@ by offering a roll-only mode before the full render.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
@@ -153,10 +155,42 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
             chip.write_wav(wav_path, pcm, sr)
             roll_path = wav_path.with_suffix(".roll.png")
             chip.render_roll(pat, sysname, roll_path)
+            # Render record: reproducibility sidecar next to the WAV.
+            record = {
+                "tool": "chiptune",
+                "version": 1,
+                "created_at": datetime.now(UTC).isoformat(),
+                "name": name,
+                "system": sysname,
+                "song": {
+                    "order": pat.order or None,
+                    "patterns": sorted(pat.patterns) or None,
+                    "tempo": pat.tempo,
+                    "swing": pat.swing,
+                    "transpose": req.transpose,
+                    "tempo_override": req.tempo,
+                    "vibrato": pat.vibrato or None,
+                    "filter": pat.filter,
+                    "ringmod": pat.ringmod or None,
+                    "waves": pat.waves or None,
+                },
+                "output": {
+                    "wav": str(wav_path.relative_to(PROJECT_ROOT)),
+                    "roll": str(roll_path.relative_to(PROJECT_ROOT)),
+                    "duration_s": round(len(pcm) / sr, 3),
+                    "sample_rate": sr,
+                },
+                "loudnorm": loud_info,
+            }
+            wav_path.with_suffix(".render.json").write_text(
+                json.dumps(_jsonable(record), indent=2), encoding="utf-8"
+            )
             results.append({
                 "system": sysname,
                 "wav": str(wav_path.relative_to(PROJECT_ROOT)),
                 "roll": str(roll_path.relative_to(PROJECT_ROOT)),
+                "record": str(wav_path.with_suffix(".render.json")
+                              .relative_to(PROJECT_ROOT)),
                 "loudnorm": _jsonable(loud_info),
                 "metrics": _jsonable(chip.pattern_report(pat, sysname)),
                 "signal": _jsonable(chip.signal_report(pcm, sr)),

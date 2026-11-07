@@ -16,6 +16,12 @@ Pattern file format (line-based, # comments):
     vibrato lead 0.12 5.0  # optional per-channel LFO: depth in semitones, rate Hz
     filter 2500 0.7        # optional resonant lowpass on the tonal bus (SID-style)
     ringmod lead 2.0       # optional: voice osc x carrier osc at ratio x freq
+    order A B A            # optional: song form over named pattern blocks
+
+    pattern A:             # optional section blocks (tracker order list);
+    lead: ...              # channels omitted in a block render as rests.
+                           # Without 'pattern' blocks the file is one
+                           # implicit pattern (back-compatible).
     wave lead pulse 25  # optional per-channel override: pulse|triangle|saw|noise + duty%
 
     lead: C-4 . . E-4~0,4,7 . . | G-4 . . A-4 . . | ...
@@ -191,6 +197,10 @@ class Pattern:
         self.filter: tuple[float, float] | None = None
         self.ringmod: dict[str, float] = {}
         self.channels: dict[str, list[str]] = {}
+        # Order-list support: named pattern blocks + 'order a b a'.
+        # p.channels is always the flattened song (order concatenated).
+        self.patterns: dict[str, dict[str, list[str]]] = {}
+        self.order: list[str] = []
 
 
 def note_to_freq(name: str) -> float:
@@ -211,6 +221,7 @@ def parse_chip(text: str) -> Pattern:
     # Backslash-newline continues the previous logical line — channel blocks
     # may span physical lines (the built-in DEMO relies on this).
     text = re.sub(r"\\\s*\n", " ", text)
+    cur: str | None = None  # None = implicit top-level pattern
     for raw in text.splitlines():
         # '#' starts a comment only at line start or after whitespace —
         # 'G#-4' sharp notes must survive.
@@ -218,11 +229,22 @@ def parse_chip(text: str) -> Pattern:
         line = (raw[:cm.start()] if cm else raw).strip()
         if not line:
             continue
+        if line.startswith("pattern ") and line.endswith(":"):
+            cur = line[len("pattern "):-1].strip()
+            if not cur:
+                raise ValueError("empty pattern name")
+            if cur in p.patterns:
+                raise ValueError(f"duplicate pattern {cur!r}")
+            p.patterns[cur] = {}
+            continue
         if ":" in line and not line.startswith(("system", "tempo", "wave")):
             name, _, cells = line.partition(":")
             # '|' is cosmetic bar separation; cells split on whitespace.
             toks = list(cells.replace("|", " ").split())
-            p.channels[name.strip()] = toks
+            if cur is None:
+                p.channels[name.strip()] = toks
+            else:
+                p.patterns[cur][name.strip()] = toks
             continue
         parts = line.split()
         if parts[0] == "system" and len(parts) > 1:
@@ -241,6 +263,29 @@ def parse_chip(text: str) -> Pattern:
             p.filter = (float(parts[1]), float(parts[2]))
         elif parts[0] == "ringmod" and len(parts) >= 3:
             p.ringmod[parts[1]] = float(parts[2])
+        elif parts[0] == "order" and len(parts) > 1:
+            p.order = parts[1:]
+    if p.patterns:
+        # Named blocks: flatten order -> p.channels. Every channel gets
+        # cells for every pattern (rests where a pattern omits it), so
+        # all downstream consumers see one aligned song.
+        order = p.order or list(p.patterns)
+        unknown = [n for n in order if n not in p.patterns]
+        if unknown:
+            raise ValueError(f"order references unknown pattern(s): {unknown}")
+        chan_order: list[str] = []
+        for pname in order:
+            for c in p.patterns[pname]:
+                if c not in chan_order:
+                    chan_order.append(c)
+        flat: dict[str, list[str]] = {c: [] for c in chan_order}
+        for pname in order:
+            patch = p.patterns[pname]
+            plen = max((len(v) for v in patch.values()), default=0)
+            for c in chan_order:
+                cells = patch.get(c) or []
+                flat[c].extend(cells + ["."] * (plen - len(cells)))
+        p.channels = flat
     if not p.channels:
         raise ValueError("no channel lines found (expected 'name: cells ...')")
     return p
