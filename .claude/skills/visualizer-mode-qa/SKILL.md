@@ -79,6 +79,28 @@ means whichever model is warm usually wins unless `--model` is passed.
   frames in `frames/<kind>__<id>/` before acting. The model occasionally
   invents HUD elements that aren't there.
 
+## Redesign rubric — knowledge library → mode families
+
+The scorecard tells you WHICH modes are weak; the library tells you HOW
+professional modes are built. Map dimension failures to the family:
+
+| Family | Files | Knowledge docs | 2027-polish moves |
+|---|---|---|---|
+| Canvas2D modes | `canvas2dModes.ts` (one render fn per mode, shared `VisualizerModeRenderContext`) | `2d-visualization-2026.md`, `audio-reactive-best-practices-2026.md` | Perceptual freq scales (Bark/Mel/ERB — already wired); asymmetric attack/release smoothing; per-drum differentiation (kick thick/slow, snare sharp, hat flash); motion trails via alpha-fill backgrounds; one reactive hero element per mode, not five mediocre ones |
+| FX shader presets | `shaders.ts` + `ShaderCanvas.tsx` | `audio-reactive-visualization-2026-11.md` (onset constants, SSF two-path), `visualization-effects` | Positive-only spectral flux for hits; beat-grid-locked motion (tempo, not amplitude); juiced middle smoothing tier; palette discipline — preset = role, not rainbow |
+| 3D stage | `viz-styles/*.tsx`, `VisualizerScene.tsx` | `3d-visualization-best-practices-2026.md`, `character-driven-visualization-research.md`, `color-strategy-2026.md` | delta-based motion, DPR adaptivity, instancing for repeats, deterministic templates, safe-mode photosensitivity, ACES pipeline, character must earn its place (silhouette reacting to audio, not a static prop) |
+| Chrome/HUD | `visualizer.css`, `visualizer-chrome.css`, topbar/preset bar/inspector | `color-strategy-2026.md` (APCA dark-mode rules), pro-tool control specs | Already tokenized; keep chrome subordinate to stage — scorecard `readability` findings on chrome are usually stage-space problems |
+
+Cross-cutting rules from the research that apply to EVERY mode:
+- **One visual rule per track** — strongest musical event → strongest
+  visual change; arrangement changes carry structure, not constant noise.
+- **Percussive → fast/large params; sustained → slow/atmospheric** —
+  the band→parameter table in `audio-reactive-visualization-2026-11.md` §1.
+- **Determinism** — no `Math.random()` outside seeded `rand`; exports and
+  regression captures must be reproducible.
+- **React out of the frame loop** — audio analysis never setStates per
+  frame; mutate refs inside `useFrame` only.
+
 ## Redesign loop
 
 1. Baseline: full `--modes all` run on a representative track → scorecard.
