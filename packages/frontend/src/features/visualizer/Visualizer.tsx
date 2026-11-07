@@ -1226,8 +1226,12 @@ export function Visualizer() {
 
           {/* Audio Latency card — the R3F probe only runs in 3D mode, so FPS
               telemetry lives in the canvas stats stack (RenderStatsBadge)
-              instead of a card with fabricated jank/drop metrics. */}
-          <div className="absolute top-3 right-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
+              instead of a card with fabricated jank/drop metrics.
+              Top-left: top-right is owned by mode chrome (ShaderHud in FX
+              mode, StylePicker in 3D) and bottom-right collided with it on
+              short stages — left/right separation is robust at any height.
+              pointer-events-none, so it can never swallow a control. */}
+          <div className="absolute top-3 left-3 z-40 pointer-events-none max-w-xs viz-latency-panel">
             <AudioLatencyCard audioCtxRef={audioCtxRef} />
             {vizMode === "3d" && rendererReady && (
               <div className="viz-stats-stack">

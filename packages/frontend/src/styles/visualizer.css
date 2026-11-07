@@ -1,5 +1,18 @@
 /* ============================================================
    VISUALIZER STYLES
+
+   Stage z-index ladder (inside .viz-canvas-wrap unless noted):
+     10  stage content fallbacks (layer-hidden, style picker base)
+     20  mode crossfade veil — pointer-events: none
+     25  letterbox bars — pointer-events: none
+     30  playhead seek strip, backend badge
+     40  stage chrome — quick presets, latency card, reactivity HUD,
+         style picker, loading overlay, AI preset row
+     100 test/debug panel
+     150 overlay scrim (position: fixed, viewport)
+     160 interactive chrome above the scrim — topbar, shader HUD
+         (fx overlay only; hidden during more/shortcuts overlays)
+     200 topbar dropdown menus (more, shortcuts)
    ============================================================ */
 
 /* --- Page layout ---

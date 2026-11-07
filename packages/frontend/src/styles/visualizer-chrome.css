@@ -225,12 +225,22 @@
 .viz-btn-group {
   position: relative;
 }
+/* display:flex lives here, not as a Tailwind `flex` class: globals.css puts
+   this file in @layer(components) while utilities sit in @layer(utilities),
+   and layered utilities beat layered components regardless of specificity —
+   a `flex` class would make the display:none overlay rule below lose. */
 .viz-shader-hud {
+  display: flex;
   z-index: 160;
 }
+/* During the More/shortcuts overlays the scrim (z-150) covers the stage.
+   Demoting the HUD to z-10 left it rendered-but-dead: visible under the
+   scrim, every click swallowed by the scrim — the "Warp does nothing"
+   bug. Hide it outright so there is no ghost layer to mis-click; the FX
+   overlay keeps the HUD at z-160 because the FX panel lives inside it. */
 .viz-page[data-viz-overlay="more"] .viz-shader-hud,
 .viz-page[data-viz-overlay="shortcuts"] .viz-shader-hud {
-  z-index: 10;
+  display: none;
 }
 .viz-more-menu {
   position: absolute;
@@ -1003,7 +1013,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  z-index: 10;
+  z-index: 40;
   max-height: calc(100% - 24px);
   overflow-y: auto;
   padding: 8px;

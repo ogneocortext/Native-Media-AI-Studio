@@ -856,3 +856,42 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   produces the same payload — schema bumped to v3.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
 - **Last session:** Devin, 2026-11-06 - implementation swept into `8b322e70`; audioContext singleton + shader texture2D fix in the follow-up commit.
+
+### T-VIZ-42 — Stage chrome deconfliction: dead Warp clicks, top-right triple-booking, z-ladder doc
+
+- **Status:** done
+- **Goal:** Owner report — "clicking Warp does nothing" plus overlapping
+  chrome with no hierarchy. Line-by-line review of Visualizer.tsx,
+  ShaderHud.tsx, ShaderVisualizer.tsx and both stylesheets, verified live
+  in headless Chromium (patchright) with real mouse hit-testing.
+- **What changed:**
+  - Root cause of the dead Warp click: with the More/shortcuts overlay
+    open, `.viz-page[data-viz-overlay] .viz-shader-hud` was demoted to
+    z-10 — under the z-150 scrim. The HUD stayed *visible* but every click
+    hit `.viz-overlay-scrim` (verified via elementFromPoint), which merely
+    dismissed the overlay. Now `display:none` — no ghost layer. First
+    attempt failed silently: globals.css imports this file into
+    `@layer(components)` while Tailwind utilities live in
+    `@layer(utilities)`, and layered utilities beat layered components
+    regardless of specificity — the `flex` class kept display:flex alive.
+    `display:flex` moved onto `.viz-shader-hud` itself and `flex` removed
+    from the element's class list.
+  - Top-right was triple-booked: ShaderHud (FX mode), StylePicker (3D),
+    and the AudioLatencyCard+stats stack (always) all claimed
+    top-right; the z-40 card buried the z-10 picker. Latency/stats moved
+    to `top-3 left-3` — pointer-events-none telemetry on the free corner;
+    left/right separation survives short stages where bottom-right
+    collided with the HUD (verified: 9px overlap at 720p before the move).
+  - `.viz-style-picker` z-index 10 → 40 (stage-chrome tier).
+  - Z-index ladder documented in a header comment in visualizer.css
+    (10 content → 40 chrome → 100 debug → 150 scrim → 160 interactive
+    chrome → 200 menus).
+- **Files:** features/visualizer/{ShaderHud.tsx,Visualizer.tsx},
+  styles/{visualizer.css,visualizer-chrome.css}.
+- **Verification:** live session — warp dropdown opens, "Deep Calm"
+  pins (label updates), HUD hides (computed display:none) under More
+  overlay and restores (display:flex) on dismiss; HUD/latency rects no
+  longer intersect; tsc -b clean; eslint 0 errors (pre-existing warnings).
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-07 — live-verified fix; note the
+  Tailwind cascade-layer trap for future display overrides in this file.

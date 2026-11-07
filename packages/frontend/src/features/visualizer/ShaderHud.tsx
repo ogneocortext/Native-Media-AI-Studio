@@ -118,7 +118,7 @@ export function ShaderHud({
     // the allowlist token the parent's outside-click listener passes; its
     // z-index comes only from visualizer.css, because that file lives in
     // layer(components) and a Tailwind `z-10` utility would beat it).
-    <div className="absolute top-2 right-2 flex flex-col gap-2 viz-shader-hud">
+    <div className="absolute top-2 right-2 flex-col gap-2 viz-shader-hud">
       <div className="flex gap-2 justify-end">
         <button
           onClick={() => setShowSelector(!showSelector)}
