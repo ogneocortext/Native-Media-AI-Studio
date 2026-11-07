@@ -22,6 +22,8 @@ Cells are separated by spaces; '|' separates bars (cosmetic). Tokens:
     C-4 .. B-8    note (sharp names too: C#4, Bb3)
     .             rest
     -             hold previous note
+    >NOTE         portamento — glides from the previous pitch to NOTE
+                  over the cell (semitone-space glide, tracker style)
     x             noise-channel hit (other channels: rest)
     NOTE~s1,s2    arpeggio — cycles the note + semitone offsets per cell
 
@@ -153,7 +155,7 @@ tempo 150
 lead: A-4 . . C-5 . . E-5 . . | D-5 . . C-5 . . A-4 . . | \
 G-4 . . A-4 . . C-5 . . | B-4 . . A-4 . . G-4 . . | \
 A-4 . . C-5 . . E-5 . . | D-5 . . E-5 . . D-5 . . | \
-C-5 . . B-4 . . A-4 . . | G-4 - - - - - - - - - - |
+C-5 . . >B-4 . . >A-4 . . | >G-4 - - - - - - - - - - |
 bass: A-2 . . . . . . . . . . | F-2 . . . . . . . . . . | \
 C-3 . . . . . . . . . . . | G-2 . . . . . . . . . . . | \
 A-2 . . . . . . . . . . . | F-2 . . . . . . . . . . . | \
@@ -321,7 +323,7 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
         raise ValueError(f"unknown system {sysname!r}; choose from {sorted(SYSTEMS)}")
     spec = SYSTEMS[sysname]
     chan_specs = spec["channels"]
-    sr = spec.get("output_sr", SR)
+    sr = SR  # always synthesize at 44.1k; output_sr decimates once at end
 
     slots = _assign_voices(p, chan_specs, sysname)
     bound = [s for s in slots if s]
@@ -368,6 +370,7 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
         # to phase. freq==0 regions render as silence.
         freq = np.zeros(len(t), dtype=np.float64)
         cur_f = 0.0
+        glide_f = 0.0  # pitch portamento carries from the last sounded note
         arp_semitones = [0.0]
         for i, cell in enumerate(cells):
             start = i * cell_samples
@@ -381,24 +384,36 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
             if cell == "-":
                 freq[start:end] = cur_f
                 continue
-            base, _, arp = cell.partition("~")
+            porta = cell.startswith(">")
+            base, _, arp = (cell[1:] if porta else cell).partition("~")
             try:
-                cur_f = note_to_freq(base)
+                target = note_to_freq(base)
             except ValueError:
-                cur_f = 0.0
+                target = 0.0
             if arp:
                 try:
                     arp_semitones = [float(x) for x in arp.split(",")]
                 except ValueError:
                     arp_semitones = [0.0]
-            if cur_f <= 0:
+            if target <= 0:
                 freq[start:end] = 0.0
+                cur_f = 0.0
                 continue
-            # Arpeggio cycles offsets across 8 substeps inside the cell.
-            sub_idx = (np.arange(end - start) * 8 // max(end - start, 1))
-            offs = np.array([arp_semitones[s % len(arp_semitones)]
-                             for s in sub_idx])
-            freq[start:end] = cur_f * (2.0 ** (offs / 12.0))
+            cur_f = target
+            if porta and glide_f > 0:
+                # Semitone-space glide across the cell.
+                n = end - start
+                prog = np.arange(n) / max(n - 1, 1)
+                dist = 12.0 * math.log2(target / glide_f)
+                freq[start:end] = glide_f * (2.0 ** (dist * prog / 12.0))
+            else:
+                # Arpeggio cycles offsets across 8 substeps inside the cell.
+                n = end - start
+                sub_idx = (np.arange(n) * 8 // max(n, 1))
+                offs = np.array([arp_semitones[s % len(arp_semitones)]
+                                 for s in sub_idx])
+                freq[start:end] = cur_f * (2.0 ** (offs / 12.0))
+            glide_f = target
         # SPC700-style vibrato: LFO on the freq track (post-arpeggio so it
         # rides the final pitch).
         vib = spec.get("vibrato")
@@ -487,6 +502,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--system", choices=sorted(SYSTEMS),
                     help="override the file's system preset")
     ap.add_argument("--demo", action="store_true", help="render the built-in demo")
+    ap.add_argument("--all", action="store_true",
+                    help="render across every system preset (A/B)")
     ap.add_argument("--out", help="output WAV path (default output/audio/<name>.wav)")
     ap.add_argument("--list", action="store_true", help="list system presets")
     args = ap.parse_args(argv)
@@ -513,19 +530,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[chiptune] {e}", file=sys.stderr)
         return 1
 
-    try:
-        pcm, sr = render(pat, system_name=args.system)
-    except ValueError as e:
-        print(f"[chiptune] {e}", file=sys.stderr)
-        return 1
-
-    spec = SYSTEMS[args.system or pat.system]
-    out = Path(args.out) if args.out else OUT_DIR / f"{name}.wav"
-    write_wav(out, pcm, sr)
-    secs = len(pcm) / sr
-    print(f"[chiptune] {spec['label']}")
-    print(f"[chiptune] {len(pat.channels)} voices, tempo {pat.tempo:g}, "
-          f"{secs:.2f}s @ {sr} Hz -> {out}")
+    systems = [args.system] if args.system else [pat.system]
+    if args.all:
+        systems = list(SYSTEMS)
+    for sysname in systems:
+        try:
+            pcm, sr = render(pat, system_name=sysname)
+        except ValueError as e:
+            print(f"[chiptune] {sysname}: {e}", file=sys.stderr)
+            continue
+        spec = SYSTEMS[sysname]
+        suffix = "" if sysname == pat.system and not args.all else f"-{sysname}"
+        out = (Path(args.out) if args.out and len(systems) == 1
+               else OUT_DIR / f"{name}{suffix}.wav")
+        write_wav(out, pcm, sr)
+        secs = len(pcm) / sr
+        print(f"[chiptune] {spec['label']}")
+        print(f"[chiptune] {len(pat.channels)} voices, tempo {pat.tempo:g}, "
+              f"{secs:.2f}s @ {sr} Hz -> {out}")
     return 0
 
 
