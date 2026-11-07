@@ -42,6 +42,7 @@ date: 2026-09-30
 - [[character-driven-visualization-research|🔬 Character-Driven Visualization]] — Character research
 - [[browser-character-pipeline-research-2026|🦴 Browser Character Pipeline — Research Agenda]] — The 11 unresearched engineering categories between character design and a rendered browser character: sourcing, auto-rigging, the house skeleton, retargeting, beat-mapped blending, character textures/KTX2, skinned LOD, mixer runtime, pose-pass encoding (NEW 2026-11-06)
 - [[browser-character-pipeline-verdicts-2026|✅ Browser Character Pipeline — Verdicts]] — The agenda answered: hybrid sourcing, HouseRig_v1 (47/59 bones), retarget + beat architecture, KTX2/single-material rules, runtime + disposal — distilled from an external research report and corrected against the studio's budgets (NEW 2026-11-06)
+- [[media-anti-patterns-audit-2026|🚫 Media Anti-Patterns — Audit]] — Measured verdict: the library teaches generation capability and almost no slop-avoidance (17 of 49 media docs carry any avoid-language; the 3 ComfyUI workflows ship positive-only adjective stacks with no negatives); the canonical anti-patterns doc + pointers + surface fixes are T-VID-25 (NEW 2026-11-07)
 - [[lyric-beat-visualization-2026|🎵 Lyric + Beat Visualization 2026]] — Code-driven, deterministic beat-synced lyric videos for HyperFrames/HTML compositions
 - [[music-video-vision-prompts|👁️ Music Video Vision Prompts]] — Structured vision-model prompts for section-aware, sync-checked still analysis and QA
 - [[remix-prompt-architecture-2026|🎯 Remix Prompt Architecture 2026-10]] — Remix prompt architecture, decomposed into clean dependency DAG of sibling modules (NEW 2026-10-30)
@@ -184,7 +185,7 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 19 documents |
+|| `#production/*` | Production workflow & creative guides | 20 documents |
 || `#technical/*` | System implementation & code | 24 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 23 documents |
