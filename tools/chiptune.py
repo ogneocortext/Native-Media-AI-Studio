@@ -146,12 +146,14 @@ def _quantize_duty(duty: int, system: str) -> int:
 
 
 DEMO = """
-# chiptune demo - built-in pattern (A minor, 8 bars x 16 cells)
+# chiptune demo - built-in pattern (A minor, 8 bars x 16 cells, 6 parts)
 system nes
 tempo 150
 
 lead: A-4 . C-5 . E-5 . A-5 . . G-5 . . E-5 . C-5 . | D-5 . . B-4 . . G-4 . . A-4 . . . . . . | C-5 . E-5 . G-5 . C-6 . . B-5 . . G-5 . E-5 . | F-5 . . E-5 . . D-5 . . E-5 . . >D-5 . . . | E-5 . G-5 . B-5 . E-6 . . D-6 . . B-5 . G-5 . | A-5 . . G-5 . . F-5 . . E-5 . . D-5 . . . | C-5 . E-5 . A-5 . C-6 . . B-5 . . G-5 . E-5 . | >A-4 - - - - - - - - - - - - - - -
 harmony: C-5 . . E-5 . . A-5 . . C-6 . . E-6 . . . | B-4 . . G-4 . . D-5 . . B-4 . . G-4 . . . | E-5 . . G-5 . . C-6 . . E-6 . . G-6 . . . | D-5 . . C-5 . . A-4 . . D-5 . . F-5 . . . | G-5 . . B-5 . . E-6 . . G-6 . . B-6 . . . | E-5 . . C-5 . . A-4 . . E-5 . . G-5 . . . | E-5 . . A-5 . . C-6 . . E-6 . . A-6 . . . | A-4 - - - - - - - - - - - - - - -
+pad: E-4 - - - - - - - - - - - - - - - | E-4 - - - - - - - - - - - - - - - | A-4 - - - - - - - - - - - - - - - | A-4 - - - - - - - - - - - - - - - | G-4 - - - - - - - - - - - - - - - | G-4 - - - - - - - - - - - - - - - | D-5 - - - - - - - - - - - - - - - | E-4 - - - - - - - - - - - - - - -
+arp: A-4 . C-5 . E-5 . A-4 . C-5 . E-5 . A-4 . C-5 . | E-5 . C-5 . A-4 . E-5 . C-5 . A-4 . E-5 . C-5 . | F-4 . A-4 . C-5 . F-4 . A-4 . C-5 . F-4 . A-4 . | C-5 . A-4 . F-4 . C-5 . A-4 . F-4 . C-5 . A-4 . | G-4 . C-5 . E-5 . G-4 . C-5 . E-5 . G-4 . C-5 . | E-5 . C-5 . G-4 . E-5 . C-5 . G-4 . E-5 . C-5 . | G-4 . B-4 . D-5 . G-4 . B-4 . D-5 . G-4 . B-4 . | A-4 . . E-5 . . C-5 . . A-5 . . . . . .
 bass: A-2 . A-2 . A-2 . A-2 . A-2 . A-2 . A-2 . A-2 . | F-2 . F-2 . F-2 . F-2 . F-2 . F-2 . F-2 . F-2 . | C-3 . C-3 . C-3 . C-3 . G-2 . G-2 . G-2 . G-2 . | A-2 . A-2 . A-2 . A-2 . G-2 . G-2 . E-2 . E-2 . | F-2 . F-2 . F-2 . F-2 . C-3 . C-3 . C-3 . C-3 . | F-2 . F-2 . F-2 . F-2 . E-2 . E-2 . E-2 . E-2 . | A-2 . A-2 . A-2 . A-2 . E-2 . E-2 . E-2 . E-2 . | A-2 - - - - - - - - - - - - - - -
 hat: x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x . | x . . x . . x . x . . x . . x -
 """
@@ -248,7 +250,7 @@ def _fm_voice(phase: np.ndarray, index: float, ratio: float = 1.0) -> np.ndarray
 
 
 def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
-                   sysname: str) -> list[tuple[str, str, int, list[str]] | None]:
+                   sysname: str, *, quiet: bool = False) -> list[tuple[str, str, int, list[str]] | None]:
     """Bind channel lines to system voices by role, not position.
 
     Names containing noise/hat/perc/drum -> the noise voice; 'bass' ->
@@ -305,8 +307,9 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
                 used.add(i)
                 break
         else:
-            print(f"[chiptune] WARN: channel {name!r} dropped — "
-                  f"{sysname} has no free voice for it")
+            if not quiet:
+                print(f"[chiptune] WARN: channel {name!r} dropped — "
+                      f"{sysname} has no free voice for it")
     return slots
 
 
@@ -516,7 +519,7 @@ def _note_semitone(name: str) -> int | None:
 def pattern_report(p: Pattern, sysname: str) -> dict:
     """Music-theoretic metrics from the pattern data (pre-render)."""
     spec = SYSTEMS[sysname]
-    slots = _assign_voices(p, spec["channels"], sysname)
+    slots = _assign_voices(p, spec["channels"], sysname, quiet=True)
     bound = [s for s in slots if s]
     n_cells = max(len(c) for _, _, _, c in bound) if bound else 0
     bars = max(1, n_cells // 16)
