@@ -19,6 +19,7 @@ from mathutils import Vector
 def _clear_scene() -> None:
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
+    bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
 
 
 def _import_glb(path: str) -> list:
@@ -31,7 +32,9 @@ def _face_count(meshes: list) -> int:
 
 
 def _decimate(meshes: list, target: int, total: int) -> None:
-    ratio = max(target / total, 0.0001)
+    if target >= total:
+        return
+    ratio = min(max(target / total, 0.0001), 1.0)
     for obj in meshes:
         if obj.type != "MESH" or not obj.data:
             continue
