@@ -1,8 +1,15 @@
 ---
 title: "Browser Character Pipeline — Research Agenda 2026"
 date: 2026-11-06
+type: concept
 tags:
+  - production
   - 3d
+  - research
+aliases:
+  - Browser Character Pipeline Research Agenda 2026
+cssclasses:
+  - production-guide
 ---
 
 # Browser Character Pipeline — Research Agenda 2026
@@ -104,3 +111,9 @@ in research time. All four are **research items**: reading and
 verdict-writing, no generation, no renders — the standing
 music-video hold is unaffected, and design/implementation items spin
 out only on the owner's word.
+
+**Answered 2026-11-06:** [[browser-character-pipeline-verdicts-2026]]
+— T-VID-19..22 done from two external deep-research reports (the
+second closed the pose-pass question the first one missed),
+distilled and corrected against this repo's budgets; the
+code-level findings spun out as T-VID-23.

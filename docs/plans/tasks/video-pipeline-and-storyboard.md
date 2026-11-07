@@ -293,37 +293,46 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
 - **Last session:** Orion, 2026-11-06 — registered with the scene-quality findings at the owner's request; not started.
 
 ### T-VID-19 — Research: character sourcing, auto-rigging, and the house skeleton standard
-- **Status:** todo
+- **Status:** done
 - **Goal:** A knowledge doc answering [[browser-character-pipeline-research-2026]] Steps 1–2 with verdicts for this studio: where rigged characters come from, how unrigged gen3d meshes get bones, and the one house skeleton every character and clip conforms to.
 - **Plan:** Questions (agenda doc Steps 1–2): character sources + licensing (incl. what gen3d output looks like as a character); auto-rigging routes compared (Mixamo / AccuRig / Blender addons — quality, skeleton compatibility, automation); the house skeleton decision (bone list, naming, twist bones, the ≤64-bone budget from [[pascal-3d-budget-discipline-2026]] spent where); skinning quality bar + a rig acceptance test. Answer shape: recommendations with reasons, checked against the budget doc and the hardware profile — not a link survey.
 - **Files:** docs/knowledge-library/browser-character-pipeline-research-2026.md (agenda); output: a new knowledge doc registered on landing
 - **Acceptance:** Doc exists and is registered in the library; the house skeleton is a named decision (bone list + naming) that T-VID-20 and T-VID-22 can build on; every agenda question carries a verdict.
 - **Gate:** Research may start any time (reading + writing only). Design/implementation items spin out only on the owner's word.
-- **Last session:** Orion, 2026-11-06 — registered with the research agenda at the owner's request; not started.
+- **Last session:** Orion, 2026-11-06 — done in this commit. Evidence: [[browser-character-pipeline-verdicts-2026]] §1–2 (registered in the library): hybrid sourcing verdict (Mixamo primary, redistribution nuance recorded), Blender-hub conversion chain with weight/decimate gates, and HouseRig_v1 as a named decision — 47-bone base / 59 hero, Mixamo-compatible names, twist bones included, finger chains rebalanced from the source report's 54-bone layout. Sources: two external AI deep-research reports run by the owner against the agenda (Gemini + Perplexity, both search-grounded), distilled per the external-sources policy; disagreements and corrections in verdicts §6.
 
 ### T-VID-20 — Research: animation clips, retargeting, and beat-mapped blending in three.js
-- **Status:** todo
+- **Status:** done
 - **Goal:** A knowledge doc answering agenda Step 3: how clips are sourced and retargeted onto the house skeleton, how the AnimationMixer blends them under song-section state machines, and how the measured beat grid maps onto clip phase deterministically.
 - **Plan:** Questions (agenda doc Step 3): clip sources + retargeting tooling (Blender retarget addons, three.js SkeletonUtils) and their failure modes (foot-slide, scale drift, root motion); mixer patterns (crossfades, additive layers, section-driven state machines) that survive multiple characters; beat-phase engineering — T-VID-03's grid → clip phase, extending [[character-animation-2026-summer-synthesis]]'s beatPhase philosophy into mixer mechanics.
 - **Files:** docs/knowledge-library/browser-character-pipeline-research-2026.md (agenda); output: a new knowledge doc registered on landing
 - **Acceptance:** Doc exists and is registered; retargeting route is a named recommendation; the beat→phase mapping is specified concretely enough to implement from.
 - **Depends on:** T-VID-19 (house skeleton). **Gate:** as T-VID-19.
-- **Last session:** Orion, 2026-11-06 — registered with the research agenda at the owner's request; not started.
+- **Last session:** Orion, 2026-11-06 — done in this commit. Evidence: verdicts doc §3: offline Blender retarget route (name-map + two-bone IK foot-lock, foot-slide ≤0.05 m and loop-closure ≤0.5° validation), clip metadata schema (BPM/loop/skeleton version), AI motion = reference only, and the beat architecture — audio clock + measured-grid interpolation (the source's uniform-beat controller math corrected), BPM-scaled intensity crossfades.
 
 ### T-VID-21 — Research: character textures, KTX2 budgets, and skinned LOD
-- **Status:** todo
+- **Status:** done
 - **Goal:** A knowledge doc answering agenda Steps 4–5: character PBR texture sets at browser budgets, the per-character KTX2 budget math, hair/eye approaches, skinned-LOD strategy, and the draw-call anatomy of multi-character scenes.
 - **Plan:** Questions (agenda doc Steps 4–5): skin/cloth/hair material approaches per character class within the ≤1 GB scene texture cap; KTX2 settings for multi-map characters (extending T-VID-12's scene-texture work); hair cards vs shells, eye shading cheats; bone-reduced LOD chains and the impostor threshold; per-character draw-call accounting against the ≤150 scene cap (materials, shadow pass).
 - **Files:** docs/knowledge-library/browser-character-pipeline-research-2026.md (agenda); docs/knowledge-library/pascal-3d-budget-discipline-2026.md (caps); output: a new knowledge doc registered on landing
 - **Acceptance:** Doc exists and is registered; per-class texture budgets and a skinned-LOD rule are stated as numbers/rules, not directions.
 - **Gate:** as T-VID-19 (research only; independent of T-VID-19/20, may run parallel in research time).
-- **Last session:** Orion, 2026-11-06 — registered with the research agenda at the owner's request; not started.
+- **Last session:** Orion, 2026-11-06 — done in this commit. Evidence: verdicts doc §4: KTX2 character settings (ETC1S albedo / UASTC normals, sRGB rule), per-class resolutions, single-material + atlas rule with draw-call anatomy (~2 calls/character), hair alphaTest values with the transparent:true ban. Skinned LOD depth came from the second report: offline chains (LOD1 ~31 joints, fingers collapse; LOD2 ~21) with projected-height thresholds + hysteresis, and the rule that a control-driving character never swaps to a billboard.
 
 ### T-VID-22 — Research: three.js runtime at character scale + pose-pass encoding
-- **Status:** todo
+- **Status:** done
 - **Goal:** A knowledge doc answering agenda Steps 6–7: AnimationMixer management for multiple characters (clip caching, memory disposal), character lighting under the studio's single shadow-casting directional, and how a skeleton is encoded as T-VID-13's pose pass.
 - **Plan:** Questions (agenda doc Steps 6–7): shared vs per-character mixers, clip cache strategy, GPU memory disposal on scene swap; flattering character shading without SSS (rim, wrap, gradient maps) under one shadow light; pose-pass encoding options (joint positions vs rotations, format, resolution) judged against what the T-VID-14 lane can consume.
 - **Files:** docs/knowledge-library/browser-character-pipeline-research-2026.md (agenda); docs/plans/tasks/video-pipeline-and-storyboard.md (T-VID-13 contract, T-VID-14 lane); output: a new knowledge doc registered on landing
 - **Acceptance:** Doc exists and is registered; pose encoding is a named format decision T-VID-13's spec can cite; runtime patterns are stated as rules for the factory/studio code.
 - **Depends on:** T-VID-19 (house skeleton — pose encoding encodes it), T-VID-13 (frame-package contract). **Gate:** as T-VID-19.
-- **Last session:** Orion, 2026-11-06 — registered with the research agenda at the owner's request; not started.
+- **Last session:** Orion, 2026-11-06 — done in this commit. Evidence: verdicts doc §5: renderer baseline, tight-stage 2048² shadow decision (headed test in T-VID-23), diffuse-wrap via onBeforeCompile (start 0.25, shadow-attenuated), reference-counted disposal discipline (factory gap spun out as T-VID-23). Pose encoding answered by the second report (Perplexity) after the first drifted to foreign-video extraction: one evaluated pose → three outputs (OpenPose-format control image via landmark markers, fixed-bounds depth image, Float32 numeric archive) — now T-VID-13's pose-pass contract input.
+
+### T-VID-23 — Studio character lifecycle: disposal, shadow baseline, diffuse-wrap option
+- **Status:** todo
+- **Goal:** Close the three code-level gaps the character research exposed in the Three.js Studio: (1) character/scene swaps dispose GPU resources (mixer stopAllAction + uncacheRoot, traverse-dispose of geometry/materials/textures); (2) the shadow-map size decision (current 1024² vs the research-recommended 2048²) made by a headed A/B on the reference rig, not by opinion; (3) an optional diffuse-wrap shading toggle for character materials (wrap ~0.5 skin / ~0.2 cloth) via onBeforeCompile on MeshStandardMaterial.
+- **Plan:** Evidence: [[browser-character-pipeline-verdicts-2026]] §5 (the factory's GLTF path never disposes — a slow GPU-memory leak across swaps; mount config runs a 1024² shadow map; no wrap shading exists). Steps: (1) disposal helper in the factory/object-manager path, called on every swap/removal, with a before/after GPU-memory reading across 10 swaps. (2) Headed A/B: same scene at 1024² vs 2048² shadow maps — frame-time p95 + visual check; record the winner in the mount config with the numbers. (3) Wrap toggle in the material path, default off, per-material wrap factor.
+- **Files:** packages/frontend/src/features/three-js-studio/hooks/useMeshFactory.ts; packages/frontend/src/features/three-js-studio/hooks/mountThreeScene.ts; docs/knowledge-library/browser-character-pipeline-verdicts-2026.md (§5)
+- **Acceptance:** Twenty consecutive character/scene swaps show no unbounded growth in renderer.info counts or the texture byte ledger; the shadow decision is recorded with measured p95 numbers; the wrap toggle visibly softens skin-class shading in a headed check; gates green (run-gates).
+- **Gate:** Implementation waits on the owner's word (live studio code); the shadow A/B is a headed check on the owner's rig.
+- **Last session:** Orion, 2026-11-06 — registered as the spin-out of T-VID-22's research findings; not started.
