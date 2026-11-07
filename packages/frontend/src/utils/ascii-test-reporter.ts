@@ -16,6 +16,7 @@ import type {
 import {
   CLIOutput,
   buildTestInsights,
+  classifyFailure,
   summarizeTestResults,
   type NormalizedTestResult,
   type TestOutcome,
@@ -28,6 +29,7 @@ interface RecordedTest {
   durationMs: number;
   error?: string;
   skipNote?: string;
+  code?: string;
 }
 
 function firstErrorLine(errors: readonly unknown[] | undefined): string {
@@ -54,14 +56,18 @@ export class AsciiArtVitestReporter implements Reporter {
     if (result.state === 'pending') return;
 
     const diagnostic = testCase.diagnostic();
+    const rawError =
+      result.state === 'failed'
+        ? (result.errors?.[0] as { message?: string } | undefined)?.message
+        : undefined;
     this.tests.push({
       name: testCase.fullName,
       file: testCase.module.moduleId,
       state: result.state,
       durationMs: diagnostic?.duration ?? 0,
-      error:
-        result.state === 'failed' ? firstErrorLine(result.errors) : undefined,
+      error: result.state === 'failed' ? firstErrorLine(result.errors) : undefined,
       skipNote: result.state === 'skipped' ? result.note : undefined,
+      code: result.state === 'failed' ? classifyFailure(rawError) : undefined,
     });
   }
 
@@ -79,6 +85,7 @@ export class AsciiArtVitestReporter implements Reporter {
       durationMs: t.durationMs,
       error: t.error,
       skipNote: t.skipNote,
+      code: t.code,
     }));
     const summary = summarizeTestResults(normalized);
     const { passed, failed, skipped, failures, slowest, skipReasons } =

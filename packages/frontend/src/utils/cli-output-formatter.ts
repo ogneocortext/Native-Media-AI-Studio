@@ -32,6 +32,9 @@ export interface TestFailure {
   file?: string;
   line?: number | null;
   message?: string;
+  /** Stable error code (E_ASSERT/E_ERROR/E_TIMEOUT/E_ENV/E_SETUP) — see
+   *  shared/cli-output-data.json error_codes for class + agent action. */
+  code?: string;
 }
 
 export interface SlowTest {
@@ -51,6 +54,7 @@ export interface NormalizedTestResult {
   durationMs: number;
   error?: string;
   skipNote?: string;
+  code?: string;
 }
 
 export interface TestReportSummary {
@@ -82,6 +86,7 @@ export function summarizeTestResults(
       file: t.file,
       line: t.line,
       message: t.error,
+      code: t.code,
     }));
 
   const slowest: SlowTest[] = [...tests]
@@ -115,6 +120,19 @@ export function summarizeTestResults(
 // cli_output.py too) so the Python and TypeScript reports never drift.
 const ASCII_ART_LIBRARY: Record<string, string[]> = outputData.ascii_art;
 const VERDICT_LINES: Record<string, string[]> = outputData.verdict_lines;
+const CLASSIFY_RULES: { code: string; keywords: string[] }[] =
+  outputData.classify_rules;
+
+/** Assign a stable error code to a failure message — mirrors
+ *  classify_failure() in cli_output.py; both read the same rules from
+ *  shared/cli-output-data.json. Unmatched messages get E_ERROR. */
+export function classifyFailure(message: string | undefined): string {
+  const text = (message ?? '').toLowerCase();
+  for (const rule of CLASSIFY_RULES) {
+    if (rule.keywords.some((k) => text.includes(k))) return rule.code;
+  }
+  return 'E_ERROR';
+}
 
 function pick<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)];
@@ -292,7 +310,9 @@ export class CLIOutput {
         const loc = f.file
           ? `${f.file}${f.line ? `:${f.line}` : ''}`
           : f.name;
-        const msg = (f.message ?? '').split('\n')[0].slice(0, 80);
+        const msg = `${f.code ? `[${f.code}] ` : ''}${(f.message ?? '')
+          .split('\n')[0]
+          .slice(0, 80)}`;
         return [f.name.split('>').pop()?.slice(0, 40) ?? '?', loc.slice(0, 40), msg];
       });
       lines.push(
@@ -332,6 +352,10 @@ export class CLIOutput {
     }
 
     const result = bad > 0 ? 'FAIL' : skipped > 0 ? 'PASS_WITH_SKIPS' : 'PASS';
+    const codeCounts: Record<string, number> = {};
+    for (const f of failures) {
+      if (f.code) codeCounts[f.code] = (codeCounts[f.code] ?? 0) + 1;
+    }
     lines.push(
       `# RESULT: ${result} | suite=${suite} | total=${total} | passed=${passed} | failed=${failed} | errors=${errors} | skipped=${skipped} | duration_s=${duration_s.toFixed(1)}`,
     );
@@ -345,6 +369,7 @@ export class CLIOutput {
         errors,
         skipped,
         duration_s: Number(duration_s.toFixed(1)),
+        ...(Object.keys(codeCounts).length ? { codes: codeCounts } : {}),
       })}`,
     );
 

@@ -952,6 +952,7 @@ def print_ascii_summary(report: InsightsReport,
         from cli_output import (
             CLIOutput,
             build_test_insights,
+            classify_failure,
             safe_print,
         )
 
@@ -962,6 +963,7 @@ def print_ascii_summary(report: InsightsReport,
                 "line": None,
                 "message": (t.message or "").splitlines()[0][:120]
                 if t.message else "",
+                "code": classify_failure(t.message or ""),
             }
             for t in report.all_failures[:20]
         ]

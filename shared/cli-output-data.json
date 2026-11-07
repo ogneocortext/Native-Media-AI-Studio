@@ -31,5 +31,32 @@
       "PASSED WITH SKIPS — verify skipped tests are intentionally excluded.",
       "Suite passed but coverage is incomplete; skipped != verified."
     ]
-  }
+  },
+  "error_codes": {
+    "E_ASSERT": {
+      "class": "test-logic",
+      "action": "Fix the assertion or the code under test, then rerun."
+    },
+    "E_ERROR": {
+      "class": "test-logic",
+      "action": "Read the stack trace — likely a bug in the code under test."
+    },
+    "E_TIMEOUT": {
+      "class": "environment",
+      "action": "Check service startup, machine load, and timeout budgets before touching test logic."
+    },
+    "E_ENV": {
+      "class": "environment",
+      "action": "Fix the missing service/file/dependency — the test itself is probably fine."
+    },
+    "E_SETUP": {
+      "class": "test-infra",
+      "action": "Failure happened in setup/fixture — inspect conftest and fixtures, not the test body."
+    }
+  },
+  "classify_rules": [
+    { "code": "E_TIMEOUT", "keywords": ["timeout", "timed out", "etimedout"] },
+    { "code": "E_ASSERT", "keywords": ["assert", "expected", "expect(", "tohave", "tobe", "tobeclose", "tothrow"] },
+    { "code": "E_ENV", "keywords": ["econnrefused", "connection refused", "connectionrefused", "enotfound", "eai_again", "enoent", "no such file", "filenotfound", "modulenotfounderror", "importerror", "service unavailable", "err_connection", "err_name_not_resolved"] }
+  ]
 }

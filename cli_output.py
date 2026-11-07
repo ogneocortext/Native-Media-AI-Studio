@@ -62,6 +62,27 @@ _DATA_PATH = Path(__file__).resolve().parent / "shared" / "cli-output-data.json"
 _DATA = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
 ASCII_ART_LIBRARY: dict[str, list[str]] = _DATA["ascii_art"]
 VERDICT_LINES: dict[str, list[str]] = _DATA["verdict_lines"]
+ERROR_CODES: dict[str, dict[str, str]] = _DATA["error_codes"]
+CLASSIFY_RULES: list[dict[str, Any]] = _DATA["classify_rules"]
+
+
+def classify_failure(message: str, phase: str | None = None) -> str:
+    """Assign a stable error code to a failure message.
+
+    Codes tell agents what kind of fix is needed: E_ASSERT/E_ERROR mean
+    test-logic, E_TIMEOUT/E_ENV mean environment, E_SETUP means fixtures.
+    Rules and fallback live in shared/cli-output-data.json so the TS
+    formatter classifies identically. `phase` is the pytest report phase
+    ('setup'/'call'/'teardown') — unmatched setup/teardown failures become
+    E_SETUP instead of the generic E_ERROR.
+    """
+    text = (message or "").lower()
+    for rule in CLASSIFY_RULES:
+        if any(k in text for k in rule["keywords"]):
+            return str(rule["code"])
+    if phase in ("setup", "teardown"):
+        return "E_SETUP"
+    return "E_ERROR"
 
 
 def get_ascii_art(category: str) -> str:
@@ -255,6 +276,9 @@ class CLIOutput:
                     )
                 msg = str(f.get("message", "")).splitlines()
                 msg = msg[0][:80] if msg else ""
+                code = str(f.get("code") or "")
+                if code:
+                    msg = f"[{code}] {msg}"
                 fail_rows.append([name.split("::")[-1][:40], loc[:40], msg])
             lines.extend((
                 self.format_table(
@@ -313,6 +337,13 @@ class CLIOutput:
             "errors": errors,
             "skipped": skipped,
             "duration_s": round(duration_s, 1),
+            "codes": {
+                code: n for code in ERROR_CODES
+                if (n := sum(
+                    1 for f in (failures or [])
+                    if str(f.get("code") or "") == code
+                ))
+            } or None,
         }, separators=(",", ":"))
         lines.extend((
             "# " + " | ".join(agent_bits),

@@ -19,6 +19,7 @@ import type {
 import {
   CLIOutput,
   buildTestInsights,
+  classifyFailure,
   summarizeTestResults,
   type NormalizedTestResult,
 } from "../src/utils/cli-output-formatter.ts";
@@ -31,6 +32,7 @@ interface RecordedTest {
   durationMs: number;
   error?: string;
   skipNote?: string;
+  code?: string;
 }
 
 // eslint-disable-next-line no-control-regex
@@ -76,14 +78,23 @@ export default class AsciiReporter implements Reporter {
       (a) => a.type === "skip" || a.type === "fixme",
     );
 
+    const outcome = outcomeOf(test, result);
     this.tests.set(test.id, {
       name: test.title,
       file: relFile(test.location.file),
       line: test.location.line,
-      outcome: outcomeOf(test, result),
+      outcome,
       durationMs: result.duration,
       error: result.error ? firstLine(result.error.message) : undefined,
       skipNote: skipAnnotation?.description,
+      // Playwright distinguishes timeouts structurally; everything else is
+      // classified from the error text by the shared keyword rules.
+      code:
+        outcome === "failed"
+          ? result.status === "timedOut"
+            ? "E_TIMEOUT"
+            : classifyFailure(result.error?.message)
+          : undefined,
     });
   }
 

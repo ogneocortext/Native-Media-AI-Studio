@@ -45,6 +45,21 @@ Two machine-readable lines are emitted. Agents should parse
 `# RESULT_JSON:` (strict JSON, unambiguous field names); the `# RESULT:`
 pipe line is the human-scan-friendly summary of the same data.
 
+When failures exist, `RESULT_JSON` also carries a `codes` histogram and
+each failure row is prefixed `[E_XXX]`. Codes classify *what kind of fix*
+is needed (single-sourced in `shared/cli-output-data.json`):
+
+| Code | Class | Agent action |
+|---|---|---|
+| `E_ASSERT` | test-logic | Fix the assertion or code under test |
+| `E_ERROR` | test-logic | Read the stack trace — likely a code bug |
+| `E_TIMEOUT` | environment | Check service startup/load/timeout budgets |
+| `E_ENV` | environment | Fix missing service/file/dep, not test logic |
+| `E_SETUP` | test-infra | Inspect conftest/fixtures, not the test body |
+
+Classification is keyword-based (`classify_failure` in `cli_output.py`,
+`classifyFailure` in the TS formatter — same rules from the JSON).
+
 ## Python API
 
 ```python

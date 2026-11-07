@@ -127,6 +127,7 @@ def pytest_terminal_summary(terminalreporter) -> None:
         from cli_output import (
             CLIOutput,
             build_test_insights,
+            classify_failure,
             safe_print,
         )
 
@@ -174,6 +175,8 @@ def pytest_terminal_summary(terminalreporter) -> None:
                 "file": nodeid.split("::")[0],
                 "line": lineno if isinstance(lineno, int) else None,
                 "message": message[:120],
+                "code": classify_failure(
+                    message, phase=getattr(report, "when", None)),
             }
 
         failures = [_failure_entry(r) for r in reports["failed"] + reports["error"]]
