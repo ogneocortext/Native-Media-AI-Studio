@@ -19,7 +19,7 @@
     },
     "timing_warning": "Entries carry no word-level timestamps. The loader distributes lines evenly across durationSec as placeholder timing for PREVIEW ONLY - never for final renders. A real LRC or word-timing pass supersedes the estimate.",
     "extending": "To add a track: create <filename>.json with {id,title,hasLrc,lyricsStatus,sections:[{name,lines[]}]}, then add a matching entry here. Keep ids and filenames in sync.",
-    "last_updated": "2026-10-22"
+    "last_updated": "2026-11-07"
   },
   "tracks": [
     {
@@ -130,6 +130,15 @@
       "lyricsStatus": "complete",
       "source": "Suno v6-mini",
       "title": "Out for Delivery"
+    },
+    {
+      "bpm": 105,
+      "file": "performance-review.json",
+      "hasLrc": false,
+      "id": "performance-review",
+      "lyricsStatus": "complete",
+      "source": "Suno v6-mini",
+      "title": "Performance Review"
     }
   ]
 }

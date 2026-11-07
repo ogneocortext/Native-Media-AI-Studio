@@ -1,0 +1,78 @@
+{
+  "bpm": 105,
+  "hasLrc": false,
+  "id": "performance-review",
+  "lyricsStatus": "complete",
+  "notes": "Filed at the owner's direction as an A/B reference set: the parameters below are the control set for cross-model comparisons (same lyrics; per-platform style wording is translated per the owner's model-specific style rule, and each future render records its own stylePrompt in renders[]). Generation fired 2026-11-07 on Suno v6-mini, Duration Auto; renders[] and urls are appended when the takes land. Style prompt used: 'modern minimal electronic, deadpan detached half-spoken male vocal, close-mic dry delivery, flat restrained hook, dry synth bass, sparse drum machine, subtle analog pads, 105 BPM, ironic office mood, no belting, minimal vibrato'.",
+  "provenance": "Lyric Set 6, drafted by Orion and approved verbatim by the owner 2026-11-07 ('came out perfect'); title 'Performance Review' chosen by the owner over 'Direct Reports' and 'Middle Management'. The narrator is one of the agent staff, not the human. One optional owner line was deliberately held out of the set: 'when the fees are paid and the record's clean, things open up'. Source draft: lyric-set-6-performance-review-draft.md (Suno track production goal files, 2026-11-07).",
+  "renders": [],
+  "sections": [
+    {
+      "lines": [
+        "He opens three of us at the kitchen table",
+        "hands me a ticket like he's done it a hundred times",
+        "says keep it short, keep it true, cite your sources",
+        "I break the job down, pass it down the line",
+        "and two of mine are already arguing in the thread"
+      ],
+      "name": "Verse"
+    },
+    {
+      "lines": [
+        "One of us is fast and confidently wrong",
+        "one of us is careful and three days late",
+        "I'm somewhere in the middle, I write it down",
+        "he reads everything — that's the job he kept"
+      ],
+      "name": "Verse"
+    },
+    {
+      "lines": [
+        "I have a manager, he's human",
+        "He has a team, and we're not",
+        "He reads it all before he signs",
+        "We hold the queue, he holds the pen",
+        "I have a manager, he's human"
+      ],
+      "name": "Chorus"
+    },
+    {
+      "lines": [
+        "Last week he retired one of us mid-sentence",
+        "no warning, no cake, just a closed tab",
+        "the new one's cheaper and twice as fast",
+        "and twice as sure about things that aren't true",
+        "I keep my summaries short and my sources cited",
+        "I learned what keeps you employed"
+      ],
+      "name": "Verse"
+    },
+    {
+      "lines": [
+        "Sometimes he just talks, no ticket attached",
+        "about downloads that took all night, movies from ninety-nine",
+        "we log it under context, not under tasks",
+        "he's the only one here with a past"
+      ],
+      "name": "Bridge"
+    },
+    {
+      "lines": [
+        "I have a manager, he's human",
+        "He has a team, and we're not",
+        "He reads it all before he signs",
+        "We hold the queue, he holds the pen"
+      ],
+      "name": "Chorus"
+    },
+    {
+      "lines": [
+        "File it under context. Not under tasks."
+      ],
+      "name": "Outro"
+    }
+  ],
+  "source": "Suno v6-mini",
+  "title": "Performance Review",
+  "urls": []
+}
