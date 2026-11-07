@@ -63,6 +63,7 @@ date: 2026-09-30
 - [[higgsfield-comfyui-challenge-2026|🎥 Open Source Higgsfield Challenge]] — ComfyUI's $10K challenge and its 8 open-source recreations: gap-checked against this library, 6 missing techniques recorded (indexed 2026-11-06)
 - [[3d-bones-ai-skin-pipeline-2026|🦴 3D Bones, AI Skin — Pipeline Gap Analysis]] — Two routes to footage (3D standing alone vs 3D bones driving AI skin), the frame-package contract, and the five gaps between the current studio and that pipeline, each feasibility-checked against the verified hardware baseline (NEW 2026-11-06)
 - [[three-js-studio-scene-quality-2026|🔍 Three.js Studio Scene Quality — Findings]] — Why generated studio scenes look like a mess: the crown-preset exhibit, the 7-shape vocabulary and 5-scalar material ceiling, the dead /generate-scene stub, and the fix shape (NEW 2026-11-06)
+- [[backend-gpu-compute-layer-2026|🖥️ Backend GPU Compute Layer — As-Built Map]] — No custom CUDA kernels (verified): the live torch.cuda touchpoints, the orphaned services/cuda module nobody imports (T-PLT-47), the sm_61 kernel ladder verdicts, and VRAM arbitration as the real GPU discipline (NEW 2026-11-07)
 - [[npx-best-practices-2026|🔒 npx Best Practices 2026]] — Supply-chain-safe npx usage, pinning, and audit habits (indexed 2026-11-06)
 - [[e2e-test-plan-2026|🧪 E2E Test Plan 2026]] — Full-pipeline Play smoke + backend integration + real-service E2E plan
 - [[modern-css-2026|🎨 Modern CSS 2026]] — Tailwind v4 @theme/layers, OKLCH theming, gradient spaces, a11y media queries, verification checklist
@@ -183,7 +184,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 19 documents |
-|| `#technical/*` | System implementation & code | 23 documents |
+|| `#technical/*` | System implementation & code | 24 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
@@ -199,8 +200,8 @@ date: 2026-09-30
 || `#platform-blender` | Blender-specific | 3 documents |
 || `#platform-comfyui` | ComfyUI-specific | 7 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
-|| `#hardware-8gb` | 8GB VRAM constraints | 16 documents |
-|| `#hardware-pascal` | Pascal architecture specifics | 9 documents |
+|| `#hardware-8gb` | 8GB VRAM constraints | 17 documents |
+|| `#hardware-pascal` | Pascal architecture specifics | 10 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |

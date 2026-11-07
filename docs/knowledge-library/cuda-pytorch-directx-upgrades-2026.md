@@ -18,6 +18,12 @@ type: comparison
 
 ---
 
+> **As-built companion (2026-11-07):** [[backend-gpu-compute-layer-2026]]
+> maps the GPU layer as it actually stands — no custom kernels, the
+> live torch.cuda touchpoints, and the orphaned `services/cuda`
+> module. This doc remains the forward-looking upgrades research;
+> read the as-built map first.
+
 ## 1. Executive Summary
 
 | Domain | Verdict | Key Action |

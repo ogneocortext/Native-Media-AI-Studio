@@ -59,7 +59,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (22/22 completed) ✅
+### 🛠️ Technical Implementation (23/23 completed) ✅
 - ✅ `playwright-e2e-2026.md`  → `#technical`
 - ✅ `database-operations-2026.md`  → `#technical`, `#database`, `#gpu`, `#telemetry`
 
@@ -81,6 +81,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `remotion-agent-skills-2026.md`  → `#technical`, `#remotion`, `#skills`, `#ai-agents`
 - ✅ `higgsfield-comfyui-challenge-2026.md`  → `#technical`, `#comfyui`, `#video-generation`, `#open-source`
 - ✅ `3d-bones-ai-skin-pipeline-2026.md`  → `#technical`, `#3d`, `#comfyui`, `#video-generation`
+- ✅ `backend-gpu-compute-layer-2026.md`  → `#technical`, `#cuda`, `#hardware-pascal`, `#hardware-8gb`
 - ✅ `three-js-studio-scene-quality-2026.md`  → `#technical`, `#3d`, `#three-js`
 - ✅ `programmatic-tool-calling-2026.md`  → `#technical`, `#ai-agents`, `#tooling`
 
