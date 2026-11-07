@@ -237,3 +237,48 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
 - **Acceptance:** Budget config exists and is consumed by gen3d (no hard-coded flat target remains); a generated asset carries a budget report; an over-budget scene spec is rejected by the validator with named violations before any engine starts.
 - **Gate:** Config + report work may start any time; gen3d behavior changes (decimation targets, texture post-step) wait on the owner's word — they touch the live generation path.
 - **Last session:** Orion, 2026-11-06 — registered with the budget doc at the owner's request; not started.
+
+### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
+- **Status:** todo
+- **Goal:** A written spec for the frame package the 3D builder emits per scene: beauty frames plus the control passes Route B consumes — depth, normals, segmentation/object-ID, pose for rigged characters, and camera metadata — versioned as one contract that [[3d-bones-ai-skin-pipeline-2026]] §3 defines as the pipeline's interface. Design only.
+- **Plan:** Evidence (2026-11-06): grep finds no pass/AOV support anywhere in scene/gen3d code; T-VID-05's spec covers objects/materials/lights/camera/bindings but no passes. Steps: (1) Pass list + semantics (what each pass encodes, value ranges, color space). (2) Formats + resolution relationship to beauty (full/half), naming and package versioning. (3) Storage/write budget on the SATA SSD (profile risk notes) — pass set sized so a song-length scene stays sane. (4) How the T-VID-05 spec requests passes (per-scene pass block) and how the validator checks them against the T-VID-12 scene caps.
+- **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 1); the T-VID-05 spec doc when written; docs/knowledge-library/pascal-3d-budget-discipline-2026.md (caps)
+- **Acceptance:** A frame-package spec exists that a builder implementer and a lane implementer (T-VID-14) can each build against without asking the other questions; pass set + formats + versioning are named decisions, not options.
+- **Gate:** Design work may start any time; any implementation item spun out of it waits on the owner's word and sits downstream of T-VID-02 and the storyboard critical path.
+- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+
+### T-VID-14 — Design the control-conditioned generation lane (frame packages → AI skin)
+- **Status:** todo
+- **Goal:** A written design for the ComfyUI lane that consumes frame packages (T-VID-13) and paints appearance under geometric control: depth/pose/segmentation conditioning + AnimateDiff-class temporal modeling on the profile's blessed SD 1.5 tier. Design only.
+- **Plan:** Evidence (2026-11-06): the integration is declared but unbuilt — `packages/backend/app/api/integrations_music_video.py:565` catalogs "Advanced AnimateDiff with controlnet and IP-adapter" (`mm_sd_v15_v2.safetensors`, `controlnet_openpose`) and `Settings.tsx` offers a "ControlNet + Image" mode, yet `config/comfyui/workflows/` holds 3 workflows, none control-based. Steps: (1) Workflow graph design: which passes feed which control units, weights per pass class. (2) Lane assignment under the hardware profile (768×768 fp16 defaults, VRAM-manager coexistence with Ollama, CPU lane for batch). (3) Seed/parameter contract for reproducibility (same package + params ⇒ same skin). (4) Failure vocabulary: what the lane reports when a package is malformed or a model is missing.
+- **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 2); config/comfyui/workflows/ (inventory); config/hardware-profile.json (lanes)
+- **Acceptance:** A workflow design exists that names every node class, input pass, and parameter; the model set fits the profile's limits without exception requests; reproducibility contract stated.
+- **Depends on:** T-VID-13 (frame-package contract). **Gate:** as T-VID-13.
+- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+
+### T-VID-15 — Design lighting + look rigs as spec data (the T-VID-11 pattern, scene side)
+- **Status:** todo
+- **Goal:** A rig registry for the 3D/scene side mirroring T-VID-11's camera registry: named lighting rigs (three-point, studio, practical archetypes as data), a lens set, and look/grade presets that T-VID-05 scene specs reference by name — so cinematography is a vocabulary, not per-scene improvisation. Design only.
+- **Plan:** Evidence: T-VID-11 covers camera for the I2V prompt path; no lighting/look vocabulary exists for scenes, and Route A output has no defined grade step. Steps: (1) Rig archetype list v0 with parameters (positions, intensities, color temps) expressed in spec terms. (2) Lens set (focal lengths + the look each implies) aligned with T-VID-11's vocabulary where they overlap — one camera language across both paths. (3) Look presets: LUT/grade references as spec fields; Route A's grade step named in the pipeline. (4) Budget conformance: rigs respect the budget doc's baked/static lighting + dynamic-light cap (≤3).
+- **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 3); docs/knowledge-library/pascal-3d-budget-discipline-2026.md (lighting caps); T-VID-11's registry design when written
+- **Acceptance:** A registry design exists with named rigs/lenses/looks and their spec representation; every rig provably fits the dynamic-light cap; overlap with T-VID-11's camera vocabulary is reconciled, not duplicated.
+- **Gate:** as T-VID-13.
+- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+
+### T-VID-16 — Design the character identity layer: one asset, both layers
+- **Status:** todo
+- **Goal:** A written design for the character asset as a single versioned definition — mesh, proportions, materials, rig, and identity reference set — consumed by the builder (geometry consistency) and by the generation lane (identity conditioning), so a character cannot drift between scenes or between layers. Design only.
+- **Plan:** Evidence: IP-Adapter is named in the declared integration (integrations_music_video.py:565) but no character-asset definition exists to key it to. Steps: (1) Character asset schema: identity block (reference set), geometry block (mesh/rig refs), material block, version field. (2) The consistency contract: same asset id + version ⇒ same proportions from the builder and same identity conditioning in the lane; what a version bump means and who approves it. (3) Reference-set curation rule: what images constitute an identity, minimum set, change procedure. (4) How scene specs instance characters (asset ref + per-scene overrides that may not touch identity fields).
+- **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 4); the T-VID-05 spec doc when written (asset refs)
+- **Acceptance:** A schema + contract exist that make "same character, new scene" a spec operation, not a hope; identity-affecting changes are versioned and gated by the curation rule.
+- **Depends on:** T-VID-05 (asset refs), T-VID-14 (lane identity inputs). **Gate:** as T-VID-13.
+- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
+
+### T-VID-17 — Design the bones render lane: deterministic capture spec
+- **Status:** todo
+- **Goal:** A written capture spec for turning scenes into frame packages: Eevee-class real-time raster as the decided engine lane, sampling/denoise settings, a resolution ladder tied to the budget doc, and deterministic frame export. Design only — the decision and its settings, no renders.
+- **Plan:** Evidence: no engine/settings decision exists for scene capture; the baseline argues it (§5 Gap 5 of the gap doc): no RT cores and a 6-physical-core CPU fallback make a Cycles-class lane unable to be the iteration loop on this hardware. Steps: (1) Engine decision recorded with the baseline reasoning (Eevee-class default; Cycles-class named as final-frame luxury, explicitly not the loop). (2) Capture settings: samples/denoise, resolution ladder (draft/final) mapped to budget-doc caps and the profile's 768×768 ComfyUI input expectations for Route B. (3) Determinism: frame stepping + seed discipline — the [[three-js-render-motion-2026]] clock discipline applied to the bpy side. (4) Throughput expectations per lane (CPU playbook: batch renders are solo/split-lane jobs).
+- **Files:** docs/knowledge-library/3d-bones-ai-skin-pipeline-2026.md (§5 Gap 5); docs/knowledge-library/ryzen-5500-cpu-playbook-2026.md (lanes); config/hardware-profile.json
+- **Acceptance:** A capture spec exists with the engine decision and its reasoning recorded; an implementer can cost a scene (frames × settings → wall-clock lane) from the spec alone.
+- **Gate:** as T-VID-13.
+- **Last session:** Orion, 2026-11-06 — registered with the bones/skin gap analysis at the owner's request; not started.
