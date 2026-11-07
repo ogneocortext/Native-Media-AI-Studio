@@ -168,6 +168,9 @@ for AI agents.
 ## 2026-10-21 — Knowledge library additions
 - Added `docs/knowledge-library/playwright-e2e-2026.md` → `#technical`
 
+## 2026-11-07 — Knowledge library additions
+- Added `docs/knowledge-library/texture-pipeline-ktx2-authoring-and-ingest-2026.md` → `#technical`
+
 ---
 
 ## How to use this log

@@ -285,6 +285,7 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
 - **Status:** doing
 - **Goal:** The budgets in `docs/knowledge-library/pascal-3d-budget-discipline-2026.md` become enforced data instead of prose: per-role decimation targets in gen3d, a texture post-step at ingest, a per-asset budget report, and budget validation in the T-VID-05 scene builder's validator — so an over-budget asset or scene is flagged before any engine starts.
 - **Plan:** Evidence: `packages/backend/app/services/gen3d/decimate_glb.py:8` defaults `target_faces` to a flat 50,000 and `gen3d_service.py` (~line 462) applies one target regardless of asset role; no texture budget exists anywhere in the ingest path. Steps: (1) Budgets as machine-readable config (one source the doc mirrors): role → { target_faces, max texture size, KTX2 required }, scene caps (draw calls, materials, dynamic lights). (2) gen3d: role parameter selects the decimation target; ingest post-step downscales + KTX2-converts textures and emits the LOD chain (LOD0/1/2 + sprite card); generation result gains a budget report (triangles, texture MB, materials, LOD presence). (3) T-VID-05's validator sums a scene spec against the scene caps and rejects over-budget specs with the violating line items named. (4) RenderStatsBadge shows budget-vs-actual for draw calls in the Three.js studio (rides on the T-VIZ-17/18 badge work).
+- **Gated spec — texture/KTX2 ingest tool (added 2026-11-07):** the missing middle between raw generator output and `check-asset-budget.py` validation, per [[texture-pipeline-ktx2-authoring-and-ingest-2026]]. One script (`tools/ingest-texture.py` or gen3d-side module) that: (1) extracts embedded maps from a GLB (gltf-transform or Blender headless), (2) classifies role from `asset-budgets.json`, (3) downscales to the role cap (hero/mid ≤2048², background ≤1024²), (4) encodes KTX2 via toktx (`--bcmp`; sRGB for `_c`, linear for `_n`/`_r`), (5) writes `assets/materials/<name>_{c,n,r}.ktx2`, (6) re-validates with `check-asset-budget.py` before reporting PASS. Until built, texture work is manual toktx + validator. Implementation stays gated on owner word (touches the live gen3d ingest path).
 - **Files:** docs/knowledge-library/pascal-3d-budget-discipline-2026.md (budget source); packages/backend/app/services/gen3d/ (decimate_glb.py, gen3d_service.py); the T-VID-05 spec doc when written
 - **Acceptance:** Budget config exists and is consumed by gen3d (no hard-coded flat target remains); a generated asset carries a budget report; an over-budget scene spec is rejected by the validator with named violations before any engine starts.
 - **Gate:** Config + report work may start any time; gen3d behavior changes (decimation targets, texture post-step) wait on the owner's word — they touch the live generation path.
@@ -301,7 +302,11 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   triposr GLB 30K tris PASS-cap/WARN-LOD; `stage.glb` correctly FAILs as
   background (15.7K>10K tris, 4096px>1024px textures, 0/26 KTX2);
   `mv_e2e_test` correctly FAILs as far (mesh where impostor required).
-  Ruff clean. STILL GATED (owner word required): gen3d role-param
+  Ruff clean. 2026-11-07 addendum (same commit): new KB doc
+  [[texture-pipeline-ktx2-authoring-and-ingest-2026]] covers the
+  authoring side (encoder choice, naming, ingest workflow, tooling
+  status) and a gated ingest-tool spec was added above — still no
+  gen3d behavior change without owner word. STILL GATED (owner word required): gen3d role-param
   decimation targets, ingest texture downscale/KTX2/LOD post-step,
   budget report inside generation results, T-VID-05 validator wiring,
   RenderStatsBadge budget-vs-actual.

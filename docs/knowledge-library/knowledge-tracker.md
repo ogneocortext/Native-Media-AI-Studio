@@ -59,7 +59,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (22/22 completed) ✅
+### 🛠️ Technical Implementation (23/23 completed) ✅
+- ✅ `texture-pipeline-ktx2-authoring-and-ingest-2026.md`  → `#technical`
 - ✅ `playwright-e2e-2026.md`  → `#technical`
 - ✅ `database-operations-2026.md`  → `#technical`, `#database`, `#gpu`, `#telemetry`
 
@@ -240,6 +241,7 @@ Still open:
 _Last updated: 2026-09-29_
 
 ## Related
+- [[texture-pipeline-ktx2-authoring-and-ingest-2026]] :see-also — Texture Pipeline — KTX2 Authoring and Ingest
 - [[playwright-e2e-2026]] :see-also — Playwright E2E 2026
 
 - [[tagging-guide.md]] :see-also
