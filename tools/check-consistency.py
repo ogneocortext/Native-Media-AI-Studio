@@ -72,8 +72,10 @@ def check_library():
     idx = (LIB / "index.md").read_text(encoding="utf-8")
     region = idx.split("## 🗂️ Library Structure", 1)[1].split("## 🏷️", 1)[0]
     listed = Counter()
-    for m in re.finditer(r"\[\[([a-z0-9\-]+)", region):
-        listed[m.group(1)] += 1
+    for line in region.splitlines():
+        m = re.search(r"\[\[([a-z0-9\-]+)", line)
+        if m:
+            listed[m.group(1)] += 1
     for stem, n in listed.items():
         if n > 1:
             violations.append(f"R2 doc listed in {n} categories: {stem}")

@@ -198,8 +198,8 @@ Rules: `docs/plans/tasks/README.md`
   `_background_tasks` set + `_spawn()` done-callback pattern.
 - **Acceptance:** ruff clean, pytest green (19 remix tests), tsc clean,
   import cycles 0.
-
-### T-AUD-10 - Caching audit: spectral-timeline + stem-feature disk caches, LRU fix
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-AUD-10 — Caching audit: spectral-timeline + stem-feature disk caches, LRU fix
 - **Status:** done
 - **Goal:** Owner: "check where there are issues with caching that needs to
   be fixed." Audit of analysis/stem/spectral caching surfaces.
@@ -238,7 +238,7 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - live cache-hit
   timing verification + pytest + vitest.
 
-### T-AUD-11 - Decompose RemixPanel.tsx + remove dead visualizer/remix shim tree
+### T-AUD-11 — Decompose RemixPanel.tsx + remove dead visualizer/remix shim tree
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - RemixPanel.tsx (~1400 lines)
   was the biggest remaining feature file.
@@ -264,8 +264,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** tsc clean for touched files (only pre-existing
   agent-chat WIP errors remain); eslint 0 errors; 42 remix/abCompare
   vitest pass; wizard behavior preserved (same seeds, same apply path).
-
-### T-AUD-12 - Extract RemixSlotsEditor from RemixPanel.tsx (1162 -> 947 + 286)
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-AUD-12 — Extract RemixSlotsEditor from RemixPanel.tsx (1162 -> 947 + 286)
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - the arrangement editor
   (bar timeline + per-slot layer cards) was the biggest remaining JSX
@@ -284,8 +284,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** features/remix/RemixPanel.tsx, RemixSlotsEditor.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors, 35
   remix vitest pass - pure move.
-
-### T-AUD-13 - Extract RemixActions render deck from RemixPanel.tsx (947 -> 846 + 197)
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-AUD-13 — Extract RemixActions render deck from RemixPanel.tsx (947 -> 846 + 197)
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - the render controls and
   everything they produce were the last big JSX cluster in RemixPanel.
@@ -301,8 +301,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** tsc clean for touched files, eslint 0 errors (the
   misused-promises warnings moved with the handlers, unchanged),
   35 remix vitest pass - pure move.
-
-### T-AUD-14 - Expose full analysis payload on Audio Analysis page + key/chroma for all backends
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-AUD-14 — Expose full analysis payload on Audio Analysis page + key/chroma for all backends
 - **Status:** done
 - **Goal:** Surface every meaningful backend analysis field in the UI and
   close the gap where only the tools/ pipeline emitted key detection and
@@ -355,3 +355,4 @@ Rules: `docs/plans/tasks/README.md`
   error in uncommitted ``ollama_tools.py`` WIP (stray ``]`` closing the
   tools list mid-dict) that had taken the whole backend down.
 - **Last session:** Devin, 2026-11-06
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).

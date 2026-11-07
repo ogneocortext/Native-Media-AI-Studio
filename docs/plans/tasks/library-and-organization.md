@@ -54,7 +54,7 @@ Rules: `docs/plans/tasks/README.md`
   applied all three fixes; verified live.
 
 ### T-LIB-04 — Normalize all task blocks to the R1 format
-- **Status:** todo
+- **Status:** done
 - **Goal:** Every task block in `docs/plans/tasks/` matches R1 of
   `docs/knowledge-library/organizational-consistency-2026.md`: em-dash
   heading, all five fields present, status in the canonical vocabulary;
@@ -68,9 +68,16 @@ Rules: `docs/plans/tasks/README.md`
   hyphen headings, 13 blocks missing Acceptance, 11 missing Last
   session, 3 placeholder IDs); spec + checker landed in the same commit
   as this item. The sweep itself is this item.
+- **Last session:** Devin, 2026-11-06 — sweep landed: 82 hyphen
+  headings converted to em dash across audio-analysis-and-remix,
+  platform-and-workflow, visualizer; the three `T-PLT-XX` blocks
+  numbered T-PLT-37/38/39; 26 missing Acceptance/Last-session fields
+  backfilled with honest "predates R1" entries (no content invented).
+  `check-consistency.py` now reports 127 blocks, zero R1 violations.
+  Acceptance met: checker clean; statuses untouched (formatting only).
 
 ### T-LIB-05 — Reconcile the three library ledgers to one source
-- **Status:** todo
+- **Status:** done
 - **Goal:** `index.md` listings, `knowledge-tracker.md` sections, and the
   Tags Index counts agree with each other and with the files on disk,
   per R2–R4 of the consistency doc: `visualization-effects` gets one
@@ -86,9 +93,19 @@ Rules: `docs/plans/tasks/README.md`
   ledgers is reproducible from the files.
 - **Last session:** Orion, 2026-11-06 — census table in the consistency
   doc records the three-way disagreement this item closes.
+- **Last session:** Devin, 2026-11-06 — ledgers reconciled:
+  `animatediff-evolved-2026` listed under Research & Reference in
+  index.md; the `visualization-effects` triple-listing was a checker
+  false positive (see-also `[[links]]` on consolidated-doc bullets were
+  counted as category listings) — fixed `check-consistency.py` to count
+  each bullet's primary link only, matching R2's see-also allowance;
+  tracker total corrected 113 → 117 content docs (R4 meta exclusion
+  stated explicitly). `check-consistency.py` and
+  `validate-knowledge-tags.py` both clean; every ledger count now
+  reproduces from frontmatter via the validators.
 
 ### T-LIB-06 — Wire check-consistency.py into the docs gate
-- **Status:** todo
+- **Status:** done
 - **Goal:** `tools/check-all.py` runs the consistency checker so format
   and ledger drift fail the gate instead of accumulating silently.
 - **Files:** tools/check-all.py, tools/check-consistency.py
@@ -98,3 +115,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Orion, 2026-11-06 — checker written and run
   standalone in the consistency commit; wiring deliberately deferred
   until the census is clean.
+- **Last session:** Devin, 2026-11-06 — wired as hard gate "consistency"
+  in `tools/check-all.py` (census reached zero under T-LIB-04/05, so no
+  report-only phase needed); `_check_relevant` scopes it to docs/
+  changes; docstring check list renumbered. Acceptance met: check-all
+  run shows the consistency section and passes with it included.

@@ -10,16 +10,17 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   2. tools/check-text-encoding.py       - rejects UTF-16 / NUL / invalid UTF-8
   3. tools/check-subprocess-encoding.py - rejects text=True with no encoding=
   4. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
-  5. tools/check-repo-layout.py         - generated output, duplicates, collisions
-  6. tools/check-path-references.py     - stale repo-relative path references
-  7. tools/report-nesting.py            - control-flow nesting vs baseline
-  8. tools/check-db-integrity.py        - studio.db + newest backup quick_check
-  9. tools/check-secrets.py             - credential patterns in tracked files
- 10. tools/check-staged-hygiene.py      - scratch files / over-broad staging
- 11. tools/docs-triage.py               - report-only untagged-doc grouping
- 12. tools/docs-tracker.py              - report-only doc provenance
- 13. tools/report-path-orphans.py       - report-only dangling references
- 14. tools/check-hooks-installed.py     - report-only git hooks state
+  5. tools/check-consistency.py         - R1-R4 task-block/library consistency
+  6. tools/check-repo-layout.py         - generated output, duplicates, collisions
+  7. tools/check-path-references.py     - stale repo-relative path references
+  8. tools/report-nesting.py            - control-flow nesting vs baseline
+  9. tools/check-db-integrity.py        - studio.db + newest backup quick_check
+ 10. tools/check-secrets.py             - credential patterns in tracked files
+ 11. tools/check-staged-hygiene.py      - scratch files / over-broad staging
+ 12. tools/docs-triage.py               - report-only untagged-doc grouping
+ 13. tools/docs-tracker.py              - report-only doc provenance
+ 14. tools/report-path-orphans.py       - report-only dangling references
+ 15. tools/check-hooks-installed.py     - report-only git hooks state
 
 Run:  python tools/check-all.py     (-v also runs the report-only checks)
       python tools/check-all.py --changed docs/x.md packages/backend/app/y.py
@@ -66,6 +67,10 @@ CHECKS = [
     ("text encoding", "check-text-encoding.py", [], False),
     ("subprocess encoding", "check-subprocess-encoding.py", [], False),
     ("knowledge tags", "validate-knowledge-tags.py", [], False),
+    # R1-R4 organizational consistency (task-block format, one category per
+    # doc, meta-file class). Hard gate since the 2026-11-06 census reached
+    # zero - drift now fails instead of accumulating (T-LIB-06).
+    ("consistency", "check-consistency.py", [], False),
     ("repo layout", "check-repo-layout.py", [], False),
     # Dangling repo-relative path references: the moved-file signature
     # (target gone, same basename still tracked elsewhere). The only
@@ -283,6 +288,10 @@ def _check_relevant(script: str, changed: set[str]) -> bool:
         # break them.
         return kl_changed
     if script == "check-docs-map.py":
+        return docs_changed
+    if script == "check-consistency.py":
+        # Scopes are docs/plans/tasks/ + docs/knowledge-library/ - both
+        # under docs/.
         return docs_changed
     if script == "check-text-encoding.py":
         return text_changed

@@ -22,12 +22,12 @@ type: tracker
 
 ## Migration Summary
 
-**Documents in library:** 113 (`docs/knowledge-library/*.md`, excluding `index.md` and `README.md`; count corrected 2026-11-05)
+**Documents in library:** 117 content docs (`docs/knowledge-library/*.md`, excluding `index.md`, `README.md`, and the six other meta files per R4 of `organizational-consistency-2026.md`; count corrected 2026-11-06 under T-LIB-05)
 **Migrated:** all tagged (100%)
 **Remaining:** 0
 
 This tracker also lists `../ux/audit-report.md`, which is tagged but lives
-outside the library, so it appears in a section but is not one of the 113.
+outside the library, so it appears in a section but is not one of the 117.
 
 Every document carries exactly one primary category as its **first** tag. The
 per-section counts below are derived from the documents' actual frontmatter, not

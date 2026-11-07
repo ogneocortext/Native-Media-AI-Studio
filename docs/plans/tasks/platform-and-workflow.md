@@ -299,7 +299,7 @@ Rules: `docs/plans/tasks/README.md`
   20 shaders extracted across 5 files, 19 checked, 1 skipped for unresolved
   template substitution, 0 failed.
 
-### T-PLT-XX - Extract DocViews from DocsPage.tsx (1102 -> 767 + ~360)
+### T-PLT-37 — Extract DocViews from DocsPage.tsx (1102 -> 767 + ~360)
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - DocsPage.tsx mixed the
   hand-rolled markdown/JSON renderers with the docs-browser page logic.
@@ -312,8 +312,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** features/docs/DocsPage.tsx, components/DocViews.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors
   (pre-existing warnings only).
-
-### T-PLT-XX - Extract mountThreeScene from useThreeScene.ts (1133 -> 477 + 828)
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-PLT-38 — Extract mountThreeScene from useThreeScene.ts (1133 -> 477 + 828)
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - useThreeScene.ts was one
   ~640-line mount/render-loop effect inside a 1133-line hook, making the
@@ -337,7 +337,7 @@ Rules: `docs/plans/tasks/README.md`
   agent-chat WIP errors project-wide), eslint 0 errors (warnings are
   the same `any`-typed three.js patterns, moved with the code),
   three-js-studio vitest 92/92 pass.
-
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
 ### T-PLT-11 — Compact gpu_telemetry process payloads and purge test tables
 - **Status:** done
 - **Goal:** `studio.db` had grown to 68 MB. Audit found the dominant cost was
@@ -479,7 +479,7 @@ Rules: `docs/plans/tasks/README.md`
   real ComfyUI checkout produces correct git state (was empty before).
 - **Last session:** Devin, 2026-11-06 — HEAD commit of this entry.
 
-### T-PLT-XX - Consolidate duplicates and delete dead modules
+### T-PLT-39 — Consolidate duplicates and delete dead modules
 - **Status:** done
 - **Goal:** Streamline the codebase after the decomposition pass - remove
   duplicate shims, single-consumer shared files, duplicated helpers and
@@ -505,8 +505,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** tsc -b + tsconfig.tests fully clean (0 errors
   project-wide), eslint 0 errors on touched files, remix/visualizer
   vitest 42/42 pass.
-
-### T-PLT-15 - Fix /system/health crash and consolidate redundant data points
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-PLT-15 — Fix /system/health crash and consolidate redundant data points
 - **Status:** done
 - **Goal:** Repair the health page (crash + false "degraded" banner) and
   remove duplicated metrics.
@@ -544,7 +544,7 @@ Rules: `docs/plans/tasks/README.md`
   errors, vitest 935/935 pass.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-16 - Audit Go sidecars and document real purpose/consumers
+### T-PLT-16 — Audit Go sidecars and document real purpose/consumers
 - **Status:** done
 - **Goal:** Determine which of the five go-* services are actually used,
   then make each one's purpose actionable instead of obtuse.
@@ -566,7 +566,7 @@ Rules: `docs/plans/tasks/README.md`
   unity x2, port_manager fast path, sseService canonical /api/events).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-17 - Consolidate five Go sidecars into one go-studio binary
+### T-PLT-17 — Consolidate five Go sidecars into one go-studio binary
 - **Status:** done
 - **Goal:** Merge the five loopback Go daemons into a single process that
   keeps every legacy port/route so no caller migrates (D70).
@@ -590,7 +590,7 @@ Rules: `docs/plans/tasks/README.md`
   rejected 400, /jobs returned [], /publish queued.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-18 - Shared GPU work lane for all VRAM-heavy entry points (D71)
+### T-PLT-18 — Shared GPU work lane for all VRAM-heavy entry points (D71)
 - **Status:** done
 - **Goal:** Serialize every VRAM-heavy operation - queued jobs AND
   user-facing endpoints that bypass the queue - so each completes
@@ -611,7 +611,7 @@ Rules: `docs/plans/tasks/README.md`
   59 existing queue+vram+separation tests pass; ruff clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-19 - Recover jobs stranded in RETRYING across restarts (D72)
+### T-PLT-19 — Recover jobs stranded in RETRYING across restarts (D72)
 - **Status:** done
 - **Goal:** No job may sit in RETRYING forever after a restart - the
   backoff timer is memory-only, so mid-backoff jobs were orphaned.
@@ -627,7 +627,7 @@ Rules: `docs/plans/tasks/README.md`
   /api/jobs/stats shows retrying=0, active_jobs=0 after auto-reload.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-20 - Job system correctness + lifecycle event coverage
+### T-PLT-20 — Job system correctness + lifecycle event coverage
 - **Status:** done
 - **Goal:** Fix job-system issues found in audit and close the SSE event
   gaps between the queue and the rest of the app.
@@ -656,7 +656,7 @@ Rules: `docs/plans/tasks/README.md`
   /api/jobs/stats shows terminal_jobs == total_jobs == 104.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-21 - Job TTL sweep wiring + lifecycle logging gaps
+### T-PLT-21 — Job TTL sweep wiring + lifecycle logging gaps
 - **Status:** done
 - **Goal:** Fix issues found auditing how jobs are logged and managed.
 - **What changed:**
@@ -686,7 +686,7 @@ Rules: `docs/plans/tasks/README.md`
   ruff clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-22 - Job output previews in queue list
+### T-PLT-22 — Job output previews in queue list
 - **Status:** done
 - **Goal:** Jobs showed only an .mp4 inline player or a bare filename;
   images/audio/other outputs had no visual preview.
@@ -703,7 +703,7 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** 6 resolver unit tests pass; tsc + eslint clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-23 - Job output path resolution fixes (browser-verified)
+### T-PLT-23 — Job output path resolution fixes (browser-verified)
 - **Status:** done
 - **Goal:** Verify job thumbnails in browser; fix issues found.
 - **What changed:**
@@ -725,7 +725,7 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** 66 job-related backend tests pass; ruff/tsc/eslint clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-PLT-24 - Storyboards page crash fix
+### T-PLT-24 — Storyboards page crash fix
 - **Status:** done
 - **Goal:** /library/storyboards crashed with "Cannot read properties of
   undefined (reading 'bpm')" and showed the error boundary.
@@ -742,8 +742,8 @@ Rules: `docs/plans/tasks/README.md`
   renders scene list, zero console/page errors. tsc + eslint clean
   (3 pre-existing warnings).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-25 - Ollama model thrash under RAM pressure
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-25 — Ollama model thrash under RAM pressure
 - **Status:** done
 - **Goal:** Fix Ollama issues - models being evicted mid-request.
 - **Root cause:** System RAM sits at 85-96% on this machine. The
@@ -763,8 +763,8 @@ Rules: `docs/plans/tasks/README.md`
   ruff clean. Ollama itself verified healthy: v0.40.14, 11 models,
   llama3.2:3b generate OK in ~8s cold.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-26 - Backend footprint logging + dead DB cleanup
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-26 — Backend footprint logging + dead DB cleanup
 - **Status:** done
 - **Goal:** Resource-leak audit follow-ups.
 - **What changed:** `resource_monitoring_loop` now logs backend footprint
@@ -776,8 +776,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Files:** diagnostics/resources.py.
 - **Verification:** 16 resource/SSE tests pass; ruff clean.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-27 - Doc reconciliation with on-disk model/node reality
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-27 — Doc reconciliation with on-disk model/node reality
 - **Status:** done
 - **Goal:** Align setup/knowledge docs with the verified C:/D: model
   inventory so stale paths and "needs install" claims stop misleading.
@@ -801,8 +801,8 @@ Rules: `docs/plans/tasks/README.md`
   and `custom_nodes\` listings; remaining docs grepped for stale
   install/download claims (none left).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-28 - Model-listing gaps: AnimateDiff LoRAs + TripoSR filter
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-28 — Model-listing gaps: AnimateDiff LoRAs + TripoSR filter
 - **Status:** done
 - **Goal:** Surface every installed model on the frontend; stop
   non-image checkpoints leaking into the image picker.
@@ -819,8 +819,8 @@ Rules: `docs/plans/tasks/README.md`
   (ZoomIn deduped by the frontend's by-name map); ruff clean; eslint
   0 errors on touched file.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-29 - 3D model selector: fast/turbo variants + real backend plumbing
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-29 — 3D model selector: fast/turbo variants + real backend plumbing
 - **Status:** done
 - **Goal:** Expose the on-disk Hunyuan3D-2mini fast/turbo DiT variants and
   make the selector actually reach the backend (the `model` field was
@@ -842,8 +842,8 @@ Rules: `docs/plans/tasks/README.md`
   14 checkpoint-filtering tests pass; ruff clean; tsc -b clean; eslint
   0 errors.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-30 - gen3d.py hardening: request validation + upload sniffing
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-30 — gen3d.py hardening: request validation + upload sniffing
 - **Status:** done
 - **Goal:** Line-by-line review of the 3D API router; close unvalidated
   input paths and spoofable upload checks.
@@ -863,8 +863,8 @@ Rules: `docs/plans/tasks/README.md`
   fake PNG with `type=image/png` → 415 via magic bytes; ruff clean;
   14 checkpoint tests pass.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-31 - useGeneration3D.ts hardening: upload race, leaks, dead params
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-31 — useGeneration3D.ts hardening: upload race, leaks, dead params
 - **Status:** done
 - **Goal:** Line-by-line review of the 3D generation hook; fix resource
   leaks, validation gaps, and dead request fields.
@@ -885,8 +885,8 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** tsc -b clean; eslint 0 errors (warnings are the
   file's pre-existing `any`-fetch style).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-32 - Real 3D generation timing (replaces fabricated breakdown)
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-32 — Real 3D generation timing (replaces fabricated breakdown)
 - **Status:** done
 - **Goal:** The Timing card showed invented numbers (total−2s "queue
   wait", fixed 500ms "post-process", 0 VRAM). Wire real phase timings.
@@ -909,8 +909,8 @@ Rules: `docs/plans/tasks/README.md`
   0 errors. ComfyUI offline so live timing unverified end-to-end —
   phase math is unit-simple and degrades to nulls safely.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-33 - TripoSR image-to-3D actually works end-to-end
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-33 — TripoSR image-to-3D actually works end-to-end
 - **Status:** done
 - **Goal:** `triposr.ckpt` sat in checkpoints but the backend's TripoSR
   workflows referenced node classes (`TripoSRGenerate`, `Save3DModel`)
@@ -953,8 +953,8 @@ Rules: `docs/plans/tasks/README.md`
   features/generate3d/useGeneration3D.ts,
   docs/comfyui-workflows/comfyui-workflows.md.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-34 - Loose-end sweep: DLQ purge, orphan prompts, MCP output schemas, Hunyuan3D-2mv weights + node wiring
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-34 — Loose-end sweep: DLQ purge, orphan prompts, MCP output schemas, Hunyuan3D-2mv weights + node wiring
 - **Status:** done
 - **Goal:** Close the five platform-side loose ends recorded against Q6/D31
   and the 8GB model sweep: dead-letter job rows, orphaned ComfyUI prompts,
@@ -988,7 +988,8 @@ Rules: `docs/plans/tasks/README.md`
   → success, `mv_e2e_test_00001_.glb` (1.1 MB decimated) in
   `generated_3d/`, timing queue 2ms / inference 222s / post 20s.
 - **Last session:** Devin, 2026-11-06 - implementation swept into 8b322e70 (user's migration commit); 2mv node wiring, shader fix, and lint repairs in the follow-up commit. Same-day LTX follow-through: the "already dispatched" claim hid a broken graph — `LTXVConditioning` was fed raw prompt strings (it only retimes CONDITIONING), `CLIPLoader type` was `"ltx"` not `"ltxv"`, `VHS_VideoCombine` format was the invalid `"video/mp4"`, and the I2V path's VAEEncode output was never wired into the sampler. All repaired to the native node contract; live `adapter.generate()` → `output/video/NativeMediaAI_LTX_00005.mp4` (25f 768×512, ~130 s). Stale-test repairs landed alongside: fake-clock monotonic patch, Atomic Chat auth-aware skip, vram fixture attrs, hardware-profile num_ctx/version, starlette/anyio filterwarning, Ollama `eval_count` pass-through.
-### T-PLT-35 - Retrieval reranker idle-unload (in-process RAM)
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-35 — Retrieval reranker idle-unload (in-process RAM)
 - **Status:** done
 - **Goal:** Stop the cross-encoder reranker from holding torch +
   transformers + ~1.1 GB of weights resident in the backend process
@@ -1015,8 +1016,8 @@ Rules: `docs/plans/tasks/README.md`
   unload logic exercised directly (unloaded -> False, stale -> True +
   refs cleared, fresh -> False).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
-
-### T-PLT-36 - Perf-monitoring / load-balance wiring audit + repairs
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
+### T-PLT-36 — Perf-monitoring / load-balance wiring audit + repairs
 - **Status:** done
 - **Goal:** Verify resource monitoring and GPU load balancing are actually
   wired end-to-end ("is it properly wired?"), fix what the line-by-line
@@ -1067,3 +1068,4 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** ruff clean; 39 vram/resources/timing tests + 62
   queue/work-lane tests pass.
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).

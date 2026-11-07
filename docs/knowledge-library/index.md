@@ -166,6 +166,7 @@ date: 2026-09-30
 - [[lyria-3.5-brief-library-README|🎵 Lyria 3.5 Brief Library]] - Research briefs on Lyria 3.5 music generation (indexed 2026-11-06)
 - [[suno-v6-style-tags-README|🎼 Suno v6 Style-Tag Library]] - Suno v6 style-tag reference for music prompts (indexed 2026-11-06)
 - [[external-book-sources-2026|📚 External Book Sources]] — Which free-EPUB sources actually apply to agent work here: the public-repo license rule, per-title license verdicts (Think DSP, DSP Guide, D2L, Goodfellow), the distill-don't-dump pattern, and the pandoc extraction recipe (NEW 2026-11-06)
+- [[animatediff-evolved-2026|🎬 AnimateDiff Evolved 2026]] — ComfyUI-AnimateDiff-Evolved (Kosinkadink) reference: node contract, motion-module workflow, and Pascal/8 GB VRAM fit notes (NEW 2026-11-06)
 
 ---
 

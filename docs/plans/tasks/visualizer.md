@@ -391,7 +391,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   566 visualizer vitest pass. Manual two-boundary pin check pending a
   live playback session.
 
-### T-VIZ-26 - Live QA pass: canvas2d render crash, audio-ctx lifecycle, dead controls
+### T-VIZ-26 — Live QA pass: canvas2d render crash, audio-ctx lifecycle, dead controls
 - **Status:** done
 - **Goal:** Fix confirmed live-page defects on /render/visualizer found during
   browser QA: every canvas2d mode threw `modeCtx.nowMs is not a function`
@@ -421,7 +421,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - live QA via
   playwright-mcp + local gemma4 vision model; all fixes verified in-browser.
 
-### T-VIZ-27 - Restore visualizer chrome CSS lost in the ee2714e slim rewrite
+### T-VIZ-27 — Restore visualizer chrome CSS lost in the ee2714e slim rewrite
 - **Status:** done
 - **Goal:** The ee2714e "slim" rewrite of visualizer.css dropped every
   component-chrome rule (topbar children, icon buttons, menus, tuning groups,
@@ -447,7 +447,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - CSS analysis via
   postcss extraction + live computed-style probes + gemma4 vision audit.
 
-### T-VIZ-28 - User-flow QA: A-B loop wrap, track-skip resume, stats-stack collision, topbar reachability
+### T-VIZ-28 — User-flow QA: A-B loop wrap, track-skip resume, stats-stack collision, topbar reachability
 - **Status:** done
 - **Goal:** Headed user-flow pass over /render/visualizer (track select,
   play, mode switches, transport, menus, file browser, mixer, remix):
@@ -482,7 +482,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed Chromium
   user-flow probes + computed-bbox checks; all fixes verified live.
 
-### T-VIZ-29 - Chrome redesign: slim bar, auto-hiding stage overlays, tabbed inspector
+### T-VIZ-29 — Chrome redesign: slim bar, auto-hiding stage overlays, tabbed inspector
 - **Status:** done
 - **Goal:** Owner feedback: "when a track is loaded there is too much going
   on at once" — rebuild the chrome to be less cluttered. Approved scope:
@@ -526,7 +526,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed Chromium
   probes + computed bboxes + gemma4 vision audit of inspector screenshots.
 
-### T-VIZ-30 - Feature separation: Remix builder out to /create/remix + z-index regression fix
+### T-VIZ-30 — Feature separation: Remix builder out to /create/remix + z-index regression fix
 - **Status:** done
 - **Goal:** Owner: "separate features that don't belong on the same page
   but keep cohesion between pages." Audit showed the visualizer's Remix
@@ -565,7 +565,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed handoff probe
   + z-index elementFromPoint verification + gemma4 vision audit.
 
-### T-VIZ-31 - Track-load preset cascade: single apply, sequenced transitions
+### T-VIZ-31 — Track-load preset cascade: single apply, sequenced transitions
 - **Status:** done
 - **Goal:** Owner: "presets triggered upon loading a track need to behave
   better instead of so many things firing off at the same time."
@@ -598,7 +598,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed cascade probe
   (tools/probes/viz-preset-cascade.mjs) + vitest + playwright specs.
 
-### T-VIZ-32 - Lazy stems-analysis fetch (audit: what else fired on load)
+### T-VIZ-32 — Lazy stems-analysis fetch (audit: what else fired on load)
 - **Status:** done
 - **Goal:** Owner: "what else is firing at the same time when it shouldn't."
   Full effect audit of the track-load path found one remaining unconditional
@@ -628,7 +628,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - headed lazy-fetch
   probe + effect-consumer audit.
 
-### T-VIZ-33 - Decompose Visualizer.tsx (1469 → ~1290 lines)
+### T-VIZ-33 — Decompose Visualizer.tsx (1469 → ~1290 lines)
 - **Status:** done
 - **Goal:** Owner: "break down any large files that are currently hard to
   process." Visualizer.tsx was the largest visualizer file and still
@@ -655,7 +655,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Last session:** Devin (SWE-2 Flash), 2026-11-05 - extraction +
   typecheck/lint/vitest/playwright verification.
 
-### T-VIZ-34 - Decompose StemMixer.tsx (989 -> 464 + 546-line hook)
+### T-VIZ-34 — Decompose StemMixer.tsx (989 -> 464 + 546-line hook)
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - StemMixer.tsx mixed the
   WebAudio stem graph with the panel view in one file.
@@ -674,8 +674,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** tsc clean for touched files (only pre-existing
   agent-chat WIP errors remain), eslint 0 errors, 573 visualizer vitest
   pass - pure move, no behavior change.
-
-### T-VIZ-35 - Extract ShaderHud from ShaderVisualizer.tsx (946 -> 789 + 160)
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-VIZ-35 — Extract ShaderHud from ShaderVisualizer.tsx (946 -> 789 + 160)
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - ShaderVisualizer.tsx was
   one ~680-line component mixing the render loop with overlay chrome.
@@ -694,8 +694,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Files:** ShaderVisualizer.tsx, ShaderHud.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors, 573
   visualizer vitest pass - pure move.
-
-### T-VIZ-36 - Extract KineticTransport from KineticTypographyPage.tsx
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-VIZ-36 — Extract KineticTransport from KineticTypographyPage.tsx
 - **Status:** done
 - **Goal:** Continue the large-file breakdown - the kinetic-typography
   page (~1350 lines) mixed track loading/presets/render orchestration
@@ -710,8 +710,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   components/KineticTransport.tsx (new)
 - **Acceptance:** tsc clean for touched files, eslint 0 errors (the
   feature has no vitest coverage - pre-existing warnings only).
-
-### T-VIZ-37 - localStorage analysis cache (skip ensure-analysis round-trip on repeat visits)
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-VIZ-37 — localStorage analysis cache (skip ensure-analysis round-trip on repeat visits)
 - **Status:** done
 - **Goal:** Owner: "tracks shouldn't need to analyze more than once." Backend already caches (DB + on-disk JSON, verified 0.3 s `status:"cached"` hit), but every page load still paid a network round-trip before presets/beat grid applied.
 - **What changed:**
@@ -733,8 +733,8 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   wrong-version / shapeless drops, index pruning, LRU eviction,
   re-save recency, storage-failure false); 595 visualizer tests pass;
   tsc + eslint clean on touched files.
-
-### T-VIZ-38 - Fix dead peak indicators and offscreen reflections in bar modes
+- **Last session:** completed before per-session logging was enforced on this entry; normalized 2026-11-06 under T-LIB-04.
+### T-VIZ-38 — Fix dead peak indicators and offscreen reflections in bar modes
 - **Status:** done
 - **Goal:** Owner: "lets do bar visualizations." Audit of the four
   bar-style Canvas2D modes against the bar-research doc found the
@@ -774,7 +774,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   renderMirroredBars, and that reflection tops stay inside the canvas).
 - **Last session:** Devin, 2026-11-06 - HEAD commit of this entry.
 
-### T-VIZ-39 - Fix stacked-frequency-bands index-space bug + invalid color-alpha strings
+### T-VIZ-39 — Fix stacked-frequency-bands index-space bug + invalid color-alpha strings
 - **Status:** done
 - **Goal:** Owner: "check where else math might be invalid and fix it."
   Full audit of canvas2dHelpers/perceptualScales/particles/canvas2dModes
@@ -814,7 +814,7 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Depends on:** gate cleared — T-VIZ-15/16/18/19 landed 2026-11-05/06, so the data contracts and governor this spike is judged against already exist.
 - **Last session:** Orion, 2026-11-05 — item registered together with the browser-tech-transfer research doc (same commit); no code touched.
 
-### T-VIZ-41 - Shared AudioContext + Tier 2 per-frame chroma palette
+### T-VIZ-41 — Shared AudioContext + Tier 2 per-frame chroma palette
 - **Status:** done
 - **Goal:** Close the two visualizer/audio loose ends: app-wide
   AudioContext consolidation (D4 follow-up) and Q5 Tier 2 per-frame
@@ -855,3 +855,4 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
   emits key + chroma_frames for every backend, so the live API path
   produces the same payload — schema bumped to v3.
 - **Last session:** Devin, 2026-11-06 - implementation swept into `8b322e70`; audioContext singleton + shader texture2D fix in the follow-up commit.
+- **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
