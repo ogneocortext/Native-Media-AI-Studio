@@ -227,7 +227,7 @@ function parseArgs(argv) {
 
 function buildPrompt(args, activeModel) {
   if (args.prompt) return args.prompt;
-  if (args.videoManifest) return buildVideoPrompt(args.videoManifest);
+  if (args.videoManifest) return buildVideoPrompt(args.videoManifest, args.context);
 
   const section = args.section ? ` for a ${args.section} section` : '';
   const profile = profileFor(activeModel);
@@ -270,20 +270,29 @@ function buildPrompt(args, activeModel) {
  * snapped vs. animated. A still-frame audit prompt would waste the
  * multi-image input.
  */
-function buildVideoPrompt(manifest) {
+function buildVideoPrompt(manifest, context) {
   const frames = manifest.keyframes
     .map((k) => `  t=${k.t.toFixed(1)}s`)
     .join('\n');
+  // Measured pixel-change boundaries — deterministic ground truth the model
+  // must align its transition claims to, instead of inventing timestamps.
+  const changes = (manifest.diff_ratios || [])
+    .filter((d) => d.changedRatio > 0.001)
+    .sort((a, b) => b.changedRatio - a.changedRatio)
+    .slice(0, 12)
+    .map((d) => `  t=${d.t.toFixed(1)}s  ${(d.changedRatio * 100).toFixed(1)}% pixels changed`)
+    .join('\n');
+  const marks = context ? `\nEXPECTED EVENTS (from the capture script):\n${context}\n` : '';
   return `You are given ${manifest.keyframes.length} keyframes sampled chronologically from a ${manifest.duration_s.toFixed(1)}s screen recording of an interactive UI.
 The frames in order:
 ${frames}
-
+${changes ? `\nMEASURED CHANGE HINTS (pixel-diff timestamps — where the picture changed, NOT what changed):\n${changes}\n` : ''}${marks}
 Analyze this as a TEMPORAL sequence, not independent screenshots:
-1. PER-FRAME STATE: for each keyframe, note which UI regions are visible (top bar, stage canvas, preset bar, inspector, telemetry chips, bottom bar).
-2. TRANSITIONS: what appeared, disappeared, moved, or resized between consecutive keyframes? Flag any element that SNAPS into place vs. animating smoothly, and any frame where two UI layers visually collide or overlap illegibly.
+1. PER-FRAME STATE: for each keyframe, identify which page/screen is shown (use the expected-events marks: a keyframe belongs to the page active at its timestamp) and which UI regions are visible.
+2. TRANSITIONS: describe the ACTUAL visual change you see between consecutive keyframes (page changed, panel opened, content loaded, element moved) with "t" = timestamp of the LATER frame. The change hints tell you WHERE to look — verify what changed visually; never copy a hint's percentage as the description. Flag any element that SNAPS into place vs. animating smoothly, and any frame where two UI layers visually collide or overlap illegibly.
 3. OVER TIME: does the layout stay stable, or do controls drift/crowd each other during mode switches or panel open/close?
 4. TOP FIXES: ranked concrete changes that would make the chrome feel stable and professional during interaction.
-Report what you can actually see in the frames; mark anything uncertain as uncertain.`;
+Report what you can actually see in the frames; put anything you cannot verify in "uncertain" rather than guessing.`;
 }
 
 function buildMetadata(args) {
@@ -1135,6 +1144,18 @@ async function main() {
       }
     }
     const ok = typeof analysis === 'string' && analysis.trim().length > 0;
+    // Schema modes return JSON *text* — parse it once here so consumers
+    // don't each re-implement the double-parse (found missing after three
+    // walkthroughs where every consumer hand-rolled JSON.parse(analysis)).
+    let analysisParsed;
+    if (ok) {
+      try {
+        const candidate = JSON.parse(analysis);
+        if (candidate && typeof candidate === 'object') analysisParsed = candidate;
+      } catch {
+        /* plain-text analysis — nothing to parse */
+      }
+    }
     provenance.prompt_sha256 = crypto.createHash('sha256').update(fullPrompt).digest('hex').slice(0, 16);
     provenance.duration_ms = Date.now() - runStartedAt;
     if (args.json) {
@@ -1147,6 +1168,7 @@ async function main() {
         used_thinking: lastFromThinking,
         done_reason: lastDoneReason,
         analysis: ok ? analysis : '',
+        analysis_parsed: analysisParsed,
         error: ok ? undefined : 'empty-analysis',
         provenance,
       }, null, 2));

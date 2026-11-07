@@ -77,6 +77,47 @@ transient overlaps (e.g. a centered bar colliding with a telemetry stack
 only while the inspector is open) are caught deterministically, not by
 asking the model to squint at frames.
 
+**Multi-page walkthroughs (`tools/vision/walkthrough.mjs`):** for "audit the
+first N sidebar pages" tasks, do NOT hand-roll a capture script per run —
+the orchestrator does capture → per-page analysis → video analysis →
+consolidated report in one command:
+
+```bash
+node tools/vision/walkthrough.mjs --pages "/,/library,/create/video" --analyze --out ./walkthrough-out
+# or a spec file for per-page control:
+node tools/vision/walkthrough.mjs --spec pages.json --analyze
+# spec: {"base":"http://127.0.0.1:5173","dwellMs":6000,"waitUntil":"networkidle",
+#        "pages":[{"path":"/library","label":"media-library","waitFor":".file-grid"}]}
+```
+
+It records video, screenshots each page, attributes console errors and
+>=400 responses to the producing page, feeds those errors back into each
+page's analysis as `--context`, feeds page-navigation marks into the video
+analysis so transitions can be correlated with routes, runs `--mode ui`
+per shot plus a `--video` pass (32 frames / 8 keyframes), and writes `report.md` + `report.json`.
+`--json` output now includes
+`analysis_parsed` (schema modes return JSON text; consumers no longer
+double-parse). Spec pages may set `"prompt"` to override the per-page
+analysis prompt for pages whose target the generic ui prompt mislabels.
+
+**Capture hygiene learned the hard way:**
+- `waitUntil:"networkidle"` can **time out** on apps holding persistent
+  connections (SSE, polling) — the goto itself fails at 30 s. Prefer
+  `"waitUntil":"load"` + `dwellMs` ≥ 5000, or per-page `waitFor` selectors.
+- Data-heavy pages (media library, admin dashboards) still show "Loading…"
+  at 3 s — analyses of mid-load screenshots produce confident findings
+  about a loading spinner. Verify the page actually rendered (waitFor or
+  longer dwell) before trusting findings.
+- Playwright `.webm` recordings may lack container duration; the tool
+  falls back to counting packets. Always check `provenance.video.duration_s`
+  — a truncated/stale recording silently analyzes only its first seconds.
+- **Model ceiling on dense video:** gemma4:e2b-it-qat can collapse to
+  describing one frame repeatedly when handed ~10 keyframes of a
+  multi-page walkthrough (observed: claimed "Loading..." on every frame of
+  a 49 s recording that visibly navigated 5 pages). Treat video analysis
+  as supplementary — the per-page screenshot analyses are the reliable
+  signal, and geometry sampling stays authoritative for overlaps.
+
 **Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...`)
 
 **VRAM management:** The vision script automatically unloads any other currently running Ollama models before loading the vision model, preventing OAM errors on GPUs with limited VRAM. The backend VRAM manager has been refactored to use proper async patterns with `asyncio.to_thread()` for GPU operations.

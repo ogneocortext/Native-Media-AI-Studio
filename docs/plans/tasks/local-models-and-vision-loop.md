@@ -275,3 +275,65 @@ Rules: `docs/plans/tasks/README.md`
     24 frames spanning full duration).
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-MOD-10 — Walkthrough set 3 + vision-tooling fixes found by real use
+
+- **Status:** done
+- **Goal:** Run the third sidebar walkthrough (Library x4 + Audio
+  Analysis) through tools/vision/walkthrough.mjs and fix what actual
+  use exposed.
+- **Run:** spec-driven capture, 5 pages, 49.3s webm, per-page ui
+  analysis + video pass; report.md/json in
+  ~/nav-walkthrough-3b/ (local, not committed). 19 console errors
+  (all the known React uncached-promise dev warning), 0 bad responses.
+- **Defects found in the tooling itself (all fixed):**
+  - **Stale-video selection (worst):** walkthrough.mjs picked
+    `videos[0]` from --out; a truncated .webm left by an earlier FAILED
+    run was analyzed instead of the real 49.3s recording — video
+    analysis silently covered only 24s. recordVideo now writes to
+    outDir/video and selection picks newest .webm by mtime.
+  - **duration_s=0 cascade:** Playwright webm has no container
+    duration (format.duration absent, stream.duration null), so
+    probeVideo returned 0 -> sampleFps thinning never engaged ->
+    -frames:v truncated long recordings to their first 24s. probeVideo
+    now falls back to counting packets via ffmpeg null remux
+    (demux-only, ~instant) and derives duration = frames/fps.
+  - **Video report never rendered:** walkthrough looked for
+    analysis_parsed.findings, but the video schema returns
+    transitions/overlaps — the temporal section was always empty.
+    Now renders transitions + overlaps with severity.
+  - **Marks clock skew:** marks used a t0 from before browser launch;
+    Playwright starts the webm at page creation. Marks now use
+    videoT0 = newPage() time so video timestamps align.
+  - **Dead reference:** page-prompt lookup used an out-of-scope
+    `route` variable (would ReferenceError under --analyze); now
+    indexes pageSpecs by mark order. Spec pages gained a "prompt"
+    field passed through as --prompt.
+  - **VLM timestamp hallucination:** video prompt now injects the
+    measured diff_ratios as "change HINTS" (where, not what) plus
+    capture marks as expected events, and demands per-frame page
+    identification — after observing the model copy hint percentages
+    as transition descriptions.
+  - **Wrong TARGET in ui prompt:** gemma4-ui hardcoded "Media Library"
+    for every page; now {{TARGET}} = --label, LAYER 1 region list
+    generalized (was file-browser-specific), findings gained
+    confidence field in prompt + schema (severity enum also gained
+    "cosmetic" to match the prompt's vocabulary).
+- **Model ceiling documented:** gemma4:e2b-it-qat degenerates on ~10
+  keyframes of a multi-page video (claimed a loading spinner on every
+  frame of a recording that verifiably navigated 5 pages — confirmed
+  by extracting frames manually and re-analyzing: f005=Media Library
+  file list, f008=Storyboards). Per-page screenshot analysis remains
+  the reliable signal; video analysis is supplementary; geometry
+  sampling stays authoritative for overlaps. Walkthrough video pass
+  uses 32 frames / 8 keyframes accordingly.
+- **Files:** tools/vision/{walkthrough.mjs (new), video-frames.mjs,
+  analyze.mjs, schemas.mjs, prompts/gemma4-ui.mjs},
+  .claude/skills/{vision-page-analysis,visual-qa-loop}/SKILL.md +
+  mirrors, docs/plans/tasks/local-models-and-vision-loop.md.
+- **Verification:** node --check all touched files; probeVideo on the
+  real webm returns duration 49.32 (was 0); video re-run spans full
+  duration with keyframes 0..48s; frame-level spot checks confirm the
+  recording navigated (f005 Media Library, f008 Storyboards).
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

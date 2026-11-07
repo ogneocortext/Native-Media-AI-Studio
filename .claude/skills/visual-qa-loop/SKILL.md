@@ -104,6 +104,10 @@ node tools/vision/analyze.mjs <image> "<task-specific prompt>" --mode ui
   or the MCP call times out (300s inner budget in `tools/vision/vision-common.mjs`).
 - Batch with `vision_batch_analyze` for many images in one call.
 - Ask for scored dimensions + a ranked "top 3 improvements" list, not prose.
+- **Multi-page audits:** use `tools/vision/walkthrough.mjs --spec pages.json --analyze`
+  instead of hand-rolled capture scripts — it records video, attributes
+  console/network errors per page, feeds them into each analysis, and writes
+  `report.md`. Data-heavy pages need `"waitUntil":"networkidle"` + dwell ≥5s.
 
 **Prompt template (visual style review):**
 ```

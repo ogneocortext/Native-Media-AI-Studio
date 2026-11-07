@@ -35,12 +35,12 @@ Return ONLY valid JSON matching the schema below—no markdown fences, no prose.
 export const GEMMA4_UI_PROMPT = `<|turn>user
 <|image|>
 
-TARGET: Media Library UI screenshot of Native Media AI Studio (\`output/\` file browser).
+TARGET: {{TARGET}} UI screenshot of Native Media AI Studio.
 
 LAYER 1 — LOCATE:
-Inspect these regions in order: (1) sidebar nav, (2) view tabs (Library/Favorites/Collections/Trash),
-(3) toolbar (Grid/List toggles, Find Duplicates, Trash, Refresh), (4) FilterBar (search + type pills + sort),
-(5) file cards grid/list, (6) detail modal, (7) playback modal, (8) empty states.
+Inspect the page's actual regions in order: navigation/sidebar, header/toolbar actions,
+view tabs or filters, the primary content area, any detail/preview panels, and empty states.
+Name what each region contains on THIS page before judging it.
 
 LAYER 2 — TASK:
 Produce a UX audit with concrete, actionable findings. For each finding: name the element,
@@ -48,10 +48,11 @@ describe what is visible, rate severity (critical/minor/cosmetic), and give the 
 
 LAYER 3 — STEPS:
 (1) Observe each region and list visible elements with positions.
-(2) Check named heuristics: 8pt grid spacing, WCAG 4.5:1 contrast, line-height multiples of 4px,
+(2) FIRST check the page state: if the screenshot shows a loading spinner, skeleton, or empty state, say so in "summary" and report only what is actually rendered — do NOT describe expected content that is not visible.
+(3) Check named heuristics: 8pt grid spacing, WCAG 4.5:1 contrast, line-height multiples of 4px,
    internal padding <= external margin.
-(3) Identify affordances: hover states, focus rings, disabled states, play buttons on media.
-(4) Conclude with ranked top-3 fixes by UX impact.
+(4) Identify affordances: hover states, focus rings, disabled states, play buttons on media.
+(5) Conclude with ranked top-3 fixes by UX impact.
 
 LAYER 4 — OUTPUT:
 Return JSON with these exact keys:
@@ -61,19 +62,11 @@ Return JSON with these exact keys:
 - "color": { primary_used: boolean, accent_used: boolean, contrast_ratio_issues: [string] }
 - "affordances": { hover_states: [string], focus_rings: [string], disabled_states: [string], play_buttons: [string] }
 - "empty_states": [string]
-- "findings": array of { element, issue, severity: "critical"|"minor"|"cosmetic", fix: string }
+- "findings": array of { element, issue, severity: "critical"|"minor"|"cosmetic", confidence: "high"|"medium"|"low", fix: string } — report only issues you can actually see; use confidence "low" when the evidence is ambiguous
 - "top_3_fixes": array of 3 strings ranked by UX impact
 <turn|>
 <|model>
 `;
-
-export function buildGemma4UIPrompt(args = {}) {
-  const label = args.label ? `\nSCREEN: ${args.label}` : '';
-  const section = args.section ? `\nSECTION: ${args.section}` : '';
-  const context = args.context ? `\nCONTEXT: ${args.context}` : '';
-  const viewport = args.viewport ? `\nVIEWPORT: ${args.viewport}` : '';
-  return GEMMA4_SYSTEM + GEMMA4_UI_PROMPT + label + section + context + viewport;
-}
 
 export const GEMMA4_MODE_PROMPTS = {
   ui: GEMMA4_UI_PROMPT,
@@ -159,7 +152,8 @@ Return JSON: { "axes": [string], "trend": string, "peaks": [string], "valleys": 
 };
 
 export function buildGemma4Prompt(mode, args = {}) {
-  const specific = GEMMA4_MODE_PROMPTS[mode] || GEMMA4_UI_PROMPT;
+  const specific = (GEMMA4_MODE_PROMPTS[mode] || GEMMA4_UI_PROMPT)
+    .replace('{{TARGET}}', args.label || 'application');
   const label = args.label ? `\nSCREEN: ${args.label}` : '';
   const context = args.context ? `\nCONTEXT: ${args.context}` : '';
   return GEMMA4_SYSTEM + specific + label + context;

@@ -41,7 +41,9 @@ export const MODE_SCHEMAS = {
         items: {
           type: 'object',
           properties: {
-            severity: { type: 'string', enum: ['critical', 'major', 'minor', 'info'] },
+            severity: { type: 'string', enum: ['critical', 'major', 'minor', 'cosmetic', 'info'] },
+            confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+            element: loose,
             issue: loose,
             fix: loose,
           },

@@ -9,7 +9,7 @@
  * plus the strongest change boundaries — so the VLM sees a compact
  * chronological strip instead of N near-identical images.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,14 +33,39 @@ export function probeVideo(videoPath) {
       return num && den ? num / den : 0;
     };
     const fps = rate(vs.avg_frame_rate) || rate(vs.r_frame_rate);
+    let duration = parseFloat(j.format?.duration) || parseFloat(vs.duration) || 0;
+    // Playwright .webm recordings carry no container duration (format.duration
+    // absent, stream.duration null). Count packets via a null remux — demux
+    // only, no decode, so it's fast even on long recordings.
+    if (!duration && fps > 0) {
+      const frames = countVideoFrames(videoPath);
+      if (frames > 0) duration = frames / fps;
+    }
     return {
-      duration: parseFloat(j.format?.duration) || 0,
+      duration,
       width: vs.width || 0,
       height: vs.height || 0,
       fps,
     };
   } catch {
     return null;
+  }
+}
+
+/** Frame count via `ffmpeg -c copy -f null -`; 0 on any failure.
+ *  ffmpeg writes progress to stderr, so spawnSync (not execFileSync). */
+function countVideoFrames(videoPath) {
+  try {
+    const res = spawnSync(
+      'ffmpeg',
+      ['-hide_banner', '-i', videoPath, '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'],
+      { encoding: 'utf-8', timeout: 120_000 },
+    );
+    const text = `${res.stderr || ''}`;
+    const matches = [...text.matchAll(/frame=\s*(\d+)/g)];
+    return matches.length ? parseInt(matches[matches.length - 1][1], 10) : 0;
+  } catch {
+    return 0;
   }
 }
 
