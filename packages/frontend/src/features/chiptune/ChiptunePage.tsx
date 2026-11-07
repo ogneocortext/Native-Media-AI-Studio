@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Cpu, Play, Eye, RefreshCw, Music } from "lucide-react";
+import { Cpu, Play, Eye, RefreshCw, Music, Save, Trash2 } from "lucide-react";
 import { getApiBase } from "../../services/api/core";
 import { DS } from "../../styles/designSystem";
 import { Card, StatusBadge } from "../../components/common";
@@ -39,6 +39,9 @@ export function ChiptunePage() {
   const [error, setError] = useState("");
   const [rolls, setRolls] = useState<{ system: string; url: string }[]>([]);
   const [takes, setTakes] = useState<{ system: string; url: string }[]>([]);
+  const [patterns, setPatterns] = useState<{ name: string }[]>([]);
+  const [loadedPattern, setLoadedPattern] = useState("");
+  const [saveName, setSaveName] = useState("");
 
   const loadMeta = useCallback(async () => {
     try {
@@ -48,6 +51,8 @@ export function ChiptunePage() {
       ]);
       setSystems(s.systems ?? []);
       setPattern(d.pattern ?? "");
+      const p = await fetch(`${api}/api/chiptune/patterns`).then((r) => r.json());
+      setPatterns(p.patterns ?? []);
     } catch (e) {
       setError(String(e));
     }
@@ -56,6 +61,48 @@ export function ChiptunePage() {
   useEffect(() => {
     void loadMeta();
   }, [loadMeta]);
+
+  const loadPattern = async (pname: string) => {
+    if (!pname) return;
+    try {
+      const j = await fetch(`${api}/api/chiptune/patterns/${pname}`).then((r) => r.json());
+      setPattern(j.pattern ?? "");
+      setLoadedPattern(pname);
+      setSaveName(pname);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const savePattern = async () => {
+    const target = saveName || loadedPattern || name;
+    if (!target) return;
+    try {
+      const r = await fetch(`${api}/api/chiptune/patterns/${target}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pattern }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail ?? r.statusText);
+      setLoadedPattern(target);
+      setSaveName(target);
+      await loadMeta();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const deletePattern = async () => {
+    if (!loadedPattern) return;
+    try {
+      await fetch(`${api}/api/chiptune/patterns/${loadedPattern}`, { method: "DELETE" });
+      setLoadedPattern("");
+      await loadMeta();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
 
   const submit = async (preview: boolean) => {
     setBusy(preview ? "preview" : "render");
@@ -123,6 +170,32 @@ export function ChiptunePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card title="Pattern (.chip)" icon={<Music size={18} />}>
+          <div className="flex gap-2 mb-2">
+            <select
+              value={loadedPattern}
+              onChange={(e) => loadPattern(e.target.value)}
+              className={`${DS.input} border border-gray-600 flex-1`}
+            >
+              <option value="">— saved patterns —</option>
+              {patterns.map((p) => (
+                <option key={p.name} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+            <input
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder="save as"
+              className={`${DS.input} border border-gray-600 w-32`}
+            />
+            <button onClick={savePattern} className={DS.btnSecondary} title="Save pattern">
+              <Save size={14} />
+            </button>
+            {loadedPattern && (
+              <button onClick={deletePattern} className={DS.btnSecondary} title="Delete pattern">
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
           <textarea
             value={pattern}
             onChange={(e) => setPattern(e.target.value)}

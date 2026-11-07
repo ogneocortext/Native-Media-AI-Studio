@@ -9,14 +9,19 @@ from __future__ import annotations
 
 import re
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..core.config import PROJECT_ROOT
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 router = APIRouter(prefix="/api/chiptune", tags=["Chiptune"])
+
+PATTERNS_DIR = PROJECT_ROOT / "assets" / "chiptune"
 
 _chip = None
 
@@ -161,3 +166,59 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
 
     return {"name": name, "preview": req.preview,
             "results": results, "errors": errors}
+
+
+# --- Pattern library: .chip sources as project data (T-MUS-06 seam) -------
+
+
+def _pattern_path(name: str) -> Path:
+    stem = _clean_name(name)
+    path = (PATTERNS_DIR / f"{stem}.chip").resolve()
+    if PATTERNS_DIR.resolve() not in path.parents and path != PATTERNS_DIR:
+        raise HTTPException(status_code=400, detail="invalid pattern name")
+    return path
+
+
+@router.get("/patterns")
+async def list_patterns() -> dict[str, Any]:
+    if not PATTERNS_DIR.exists():
+        return {"patterns": []}
+    return {"patterns": [
+        {"name": p.stem, "size": p.stat().st_size,
+         "modified": p.stat().st_mtime}
+        for p in sorted(PATTERNS_DIR.glob("*.chip"))
+    ]}
+
+
+@router.get("/patterns/{name}")
+async def get_pattern(name: str) -> dict[str, Any]:
+    path = _pattern_path(name)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="pattern not found")
+    return {"name": path.stem, "pattern": path.read_text(encoding="utf-8")}
+
+
+class SavePatternRequest(BaseModel):
+    pattern: str = Field(min_length=1)
+
+
+@router.put("/patterns/{name}")
+async def save_pattern(name: str, req: SavePatternRequest) -> dict[str, Any]:
+    chip = _load()
+    try:
+        chip.parse_chip(req.pattern)  # reject unparseable sources
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"invalid .chip: {e}") from e
+    path = _pattern_path(name)
+    PATTERNS_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(req.pattern, encoding="utf-8")
+    return {"name": path.stem, "saved": str(path.relative_to(PROJECT_ROOT))}
+
+
+@router.delete("/patterns/{name}")
+async def delete_pattern(name: str) -> dict[str, Any]:
+    path = _pattern_path(name)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="pattern not found")
+    path.unlink()
+    return {"name": path.stem, "deleted": True}
