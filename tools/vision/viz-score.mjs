@@ -145,30 +145,88 @@ export function parseTextFindings(text) {
 }
 
 export function normalizeResult(raw) {
-  // gemma path: analysis_parsed is the schema-shaped object
+  // Parsed-object path: gemma schema output uses lowercase keys, but qwen
+  // sometimes returns JSON that analyze.mjs parses into analysis_parsed with
+  // UPPERCASE keys (SCORES/FINDINGS/TOP 3 FIXES). Normalize both.
   const parsed = raw?.analysis_parsed;
   if (parsed && typeof parsed === 'object') {
+    const pick = (...names) => {
+      for (const n of names) {
+        const hit = Object.entries(parsed).find(([k]) => k.toLowerCase() === n.toLowerCase());
+        if (hit) return hit[1];
+      }
+      return undefined;
+    };
+    const rawScores = pick('scores', 'SCORES');
+    const scores = rawScores && typeof rawScores === 'object'
+      ? Object.fromEntries(Object.entries(rawScores).map(([k, v]) => [k.toLowerCase(), typeof v === 'number' ? v : parseFloat(v)]))
+      : null;
+    const rawFindings = pick('findings', 'FINDINGS');
+    const findings = Array.isArray(rawFindings)
+      ? rawFindings.map((f) => ({
+          severity: String(f.severity || 'info').toLowerCase(),
+          confidence: f.confidence,
+          element: f.element || '',
+          issue: f.issue || '',
+          fix: f.fix || f.shortest_fix || '',
+        }))
+      : [];
+    const rawFixes = pick('top_fixes', 'TOP 3 FIXES', 'TOP_FIXES');
+    const rawStrengths = pick('strengths', 'STRENGTHS');
+    const rawUncertain = pick('uncertain', 'UNCERTAIN');
     return {
-      scores: parsed.scores || null,
-      strengths: parsed.strengths || [],
-      findings: parsed.findings || [],
-      topFixes: parsed.top_fixes || [],
-      summary: parsed.summary || '',
-      uncertain: parsed.uncertain || [],
+      scores: scores && Object.values(scores).some(Number.isFinite) ? scores : null,
+      strengths: typeof rawStrengths === 'string' ? [rawStrengths] : (rawStrengths || []),
+      findings,
+      topFixes: Array.isArray(rawFixes) ? rawFixes.map(String) : [],
+      summary: String(pick('summary', 'OBSERVATION', 'observation') || '').slice(0, 300),
+      uncertain: Array.isArray(rawUncertain) ? rawUncertain.map(String) : (rawUncertain ? [String(rawUncertain)] : []),
       format: 'json',
     };
   }
-  // qwen path: structured text
+  // qwen path: structured text — but qwen sometimes ignores the format and
+  // emits a JSON object anyway (observed: neonRain returned {"SCORES": {...}}).
   const text = typeof raw?.analysis === 'string' ? raw.analysis : '';
-  return {
-    scores: parseTextScores(text),
-    strengths: parseTextList(text, 'STRENGTHS'),
-    findings: parseTextFindings(text),
-    topFixes: parseTextList(text, 'TOP 3 FIXES'),
-    summary: (text.match(/===\s*OBSERVATION\s*===([\s\S]*?)(?====|$)/i)?.[1] || '').split('\n').slice(-2).join(' ').trim(),
-    uncertain: parseTextList(text, 'UNCERTAIN'),
-    format: 'text',
-  };
+  let scores = parseTextScores(text);
+  let findings = parseTextFindings(text);
+  let strengths = parseTextList(text, 'STRENGTHS');
+  let topFixes = parseTextList(text, 'TOP 3 FIXES');
+  let uncertain = parseTextList(text, 'UNCERTAIN');
+  let summary = (text.match(/===\s*OBSERVATION\s*===([\s\S]*?)(?====|$)/i)?.[1] || '').split('\n').slice(-2).join(' ').trim();
+
+  if (!scores) {
+    try {
+      const j = JSON.parse(text);
+      const js = j.SCORES || j.scores;
+      if (js && typeof js === 'object') {
+        scores = {};
+        for (const [k, v] of Object.entries(js)) {
+          const n = parseFloat(v);
+          if (Number.isFinite(n)) scores[k.toLowerCase()] = n;
+        }
+      }
+      const jf = j.FINDINGS || j.findings;
+      if (Array.isArray(jf)) {
+        findings = jf.map((f) => ({
+          severity: String(f.severity || f.SEVERITY || 'info').toLowerCase(),
+          element: f.element || f.ELEMENT || '',
+          issue: f.issue || f.ISSUE || '',
+          fix: f.shortest_fix || f.fix || f.FIX || '',
+        }));
+      }
+      const jt = j['TOP 3 FIXES'] || j.top_fixes || j.TOP_FIXES;
+      if (Array.isArray(jt)) topFixes = jt.map(String);
+      const jn = j.STRENGTHS || j.strengths;
+      if (typeof jn === 'string') strengths = [jn];
+      else if (Array.isArray(jn)) strengths = jn.map(String);
+      uncertain = Array.isArray(j.UNCERTAIN || j.uncertain) ? (j.UNCERTAIN || j.uncertain).map(String) : uncertain;
+      summary = j.OBSERVATION || j.observation || j.summary || summary;
+      if (scores && Object.keys(scores).length) {
+        return { scores, strengths, findings, topFixes, summary: String(summary).slice(0, 300), uncertain, format: 'qwen-json' };
+      }
+    } catch { /* not JSON — keep text-parse results */ }
+  }
+  return { scores, strengths, findings, topFixes, summary, uncertain, format: 'text' };
 }
 
 function runAnalyze(frames, label, context, jsonOut, model) {
