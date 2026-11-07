@@ -33,7 +33,8 @@ they live in git, not in a chat window.
 
 - **feature-roadmap-2026-10.md** — Meta-plan sequencing three high-priority tracks
 - **storyboard-enrichment-s1-spec-2026-10.md** — S1 storyboard enrichment spec
-- **v2v-transformation-design-2026-11.md** — T-VID-07 V2V route design (route contract, shared stages, 8 GB verdicts); unblocks T-VID-08/09/10 specs
+- **v2v-transformation-design-2026-11.md** — T-VID-07 V2V route design + T-VID-08/09/10 spec sections; unblocks implementation items
+- **camera-rig-presets-2026-11.md** — T-VID-11 camera direction as typed preset data (rig registry, lossless 8-move seed)
 - **music-track-stack-integration.md** — Part 1 landed 2026-09-22; follow-ups partially landed
 
 ### In progress
