@@ -214,7 +214,7 @@ class AsciiArtService:
         try:
             from PIL import Image
         except ImportError:
-            raise RuntimeError("PIL not available for fallback")
+            raise RuntimeError("PIL not available for fallback") from None
 
         # Simple brightness mapping
         ramp = " @%#*+=-:. "
@@ -256,6 +256,7 @@ class AsciiArtService:
         text: str,
         font: str = "slant",
         width: int = 80,
+        *,
         color: bool = True,
         font_list: bool = False
     ) -> AsciiResult:
@@ -266,16 +267,16 @@ class AsciiArtService:
 
         # Try toilet first (supports color)
         if self.tools_available.get("toilet") and color:
-            return await self._toilet_banner(text, font, color)
+            return await self._toilet_banner(text, font, color=color)
 
         # Fallback to figlet
         if self.tools_available.get("figlet"):
-            return await self._figlet_banner(text, font, color)
+            return await self._figlet_banner(text, font, color=color)
 
         # Fallback: Python PyFiglet
         return await self._pyfiglet_banner(text, font)
 
-    async def _toilet_banner(self, text: str, font: str, color: bool) -> AsciiResult:
+    async def _toilet_banner(self, text: str, font: str, *, color: bool) -> AsciiResult:
         """Generate banner using toilet (supports color)."""
         cmd = ["toilet"]
 
@@ -311,7 +312,7 @@ class AsciiArtService:
             logger.warning(f"toilet failed: {e}")
             raise
 
-    async def _figlet_banner(self, text: str, font: str, color: bool) -> AsciiResult:
+    async def _figlet_banner(self, text: str, font: str, *, color: bool) -> AsciiResult:
         """Generate banner using figlet."""
         cmd = ["figlet"]
 
@@ -358,7 +359,7 @@ class AsciiArtService:
         try:
             from pyfiglet import figlet_format
         except ImportError:
-            raise RuntimeError("PyFiglet not available")
+            raise RuntimeError("PyFiglet not available") from None
 
         ascii_art = figlet_format(text, font=font, width=80)
 
@@ -449,7 +450,7 @@ class AsciiArtService:
             ascii_art = figlet_format(text, font=font, width=80)
             return ascii_art
         except ImportError:
-            raise RuntimeError("Rich or PyFiglet not available")
+            raise RuntimeError("Rich or PyFiglet not available") from None
 
     @staticmethod
     def rich_panel(content: str, title: str = "", style: str = "cyan") -> str:
@@ -487,6 +488,7 @@ async def image_to_ascii(
     image_path: str | Path,
     width: int = 80,
     height: int = 40,
+    *,
     colors: bool = True,
     format: str = "symbols"
 ) -> AsciiResult:
@@ -505,16 +507,9 @@ async def text_to_banner(
     text: str,
     font: str = "slant",
     width: int = 80,
+    *,
     color: bool = True
 ) -> AsciiResult:
     """Quick text to banner."""
     service = get_ascii_service()
     return await service.text_to_banner(text, font=font, width=80, color=color)
-
-
-def get_ascii_service() -> AsciiArtService:
-    """Get global ASCII art service instance."""
-    from .ascii_art_service import _ascii_service
-    if _ascii_service is None:
-        _ascii_service = AsciiArtService()
-    return _ascii_service

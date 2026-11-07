@@ -1230,8 +1230,9 @@ async def get_hyperframes_payload(filename: str, fps: int = 30, bands: int = 16)
     # payload must not get more fragile than it was.
     band_frames = None
     try:
-        from ..services.cuda import track_band_frames
         from tools.lib.audio import load_audio as _load_audio
+
+        from ..services.cuda import track_band_frames
 
         normalized = filename.replace("\\", "/")
         if normalized.startswith(str(AUDIO_DIR).replace("\\", "/")):

@@ -167,7 +167,7 @@ def status(
             typer.echo(f"DB path: {result['db_path']}")
             if result['indexed_at']:
                 import datetime
-                dt = datetime.datetime.fromtimestamp(float(result['indexed_at']))
+                dt = datetime.datetime.fromtimestamp(float(result['indexed_at']), tz=datetime.UTC)
                 typer.echo(f"Last indexed: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
     finally:
         close_pool()

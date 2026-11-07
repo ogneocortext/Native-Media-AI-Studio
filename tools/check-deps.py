@@ -85,7 +85,7 @@ class CheckResult:
 
 
 class DependencyChecker:
-    def __init__(self, workspace_root: Path, use_colors: bool = True):
+    def __init__(self, workspace_root: Path, *, use_colors: bool = True):
         self.workspace_root = workspace_root
         self.catalog_file = workspace_root / "pnpm-workspace.yaml"
         self.catalog: dict[str, str] = {}
@@ -236,7 +236,7 @@ class DependencyChecker:
             if HAS_PACKAGING:
                 return packaging.version.parse(latest).major > packaging.version.parse(current).major
             return int(latest.split('.')[0]) > int(current.split('.')[0])
-        except:
+        except Exception:
             return False
 
     def check_peer_deps(self) -> list[dict]:
@@ -284,7 +284,7 @@ class DependencyChecker:
                     deprecated = json.loads(stdout)
                     if deprecated:
                         pkg.deprecated = True
-                except:
+                except Exception:
                     pass
         return packages
 
@@ -299,7 +299,7 @@ class DependencyChecker:
                     pkg.breaking = True
                     pkg.major_bump = True
                     pkg.changelog_url = self._guess_changelog(pkg.name)
-            except:
+            except Exception:
                 pass
         return packages
 
@@ -346,7 +346,7 @@ class DependencyChecker:
         stdout, stderr, code = self.run_pnpm(["install", "--frozen-lockfile", "--dry-run"])
         return code != 0
 
-    def run_check(self, fix: bool = False, audit: bool = False, table: bool = False, yes: bool = False) -> CheckResult:
+    def run_check(self, *, fix: bool = False, audit: bool = False, table: bool = False, yes: bool = False) -> CheckResult:
         """Run full dependency check"""
         self._print("Checking dependencies...")
 
@@ -447,21 +447,21 @@ class DependencyChecker:
         )
 
         # Print summary
-        self._print_summary(result, peer_conflicts, security_issues_list, missing_catalog, lockfile_drift, table)
+        self._print_summary(result, peer_conflicts, security_issues_list, missing_catalog, lockfile_drift=lockfile_drift, table=table)
 
         if fix and (outdated_count > 0 or catalog_outdated_count > 0):
-            self._auto_fix(result, yes)
+            self._auto_fix(result, yes=yes)
 
         return result
 
     def _print_summary(self, result: CheckResult, peer_conflicts: list[dict],
                        security_issues: list[dict], missing_catalog: list[str],
-                       lockfile_drift: bool, table: bool):
+                       *, lockfile_drift: bool, table: bool):
         """Print formatted summary"""
         c = Colors
 
         if table:
-            self._print_table(result, peer_conflicts, security_issues, missing_catalog, lockfile_drift)
+            self._print_table(result, peer_conflicts, security_issues, missing_catalog, lockfile_drift=lockfile_drift)
             return
 
         print(f"\n{c.CYAN}{'=' * 70}{c.RESET}")
@@ -524,7 +524,7 @@ class DependencyChecker:
 
     def _print_table(self, result: CheckResult, peer_conflicts: list[dict],
                      security_issues: list[dict], missing_catalog: list[str],
-                     lockfile_drift: bool):
+                     *, lockfile_drift: bool):
         """Print table format summary"""
         c = Colors
         print(f"\n{c.BOLD}{'Package':<35} {'Current':<15} {'Latest':<15} {'Type':<12} {'Flags'}{c.RESET}")
@@ -532,11 +532,16 @@ class DependencyChecker:
 
         for p in result.packages:
             flags = []
-            if p.is_catalog: flags.append(f"{c.BLUE}CATALOG{c.RESET}")
-            if p.breaking: flags.append(f"{c.RED}BREAKING{c.RESET}")
-            if p.deprecated: flags.append(f"{c.YELLOW}DEPRECATED{c.RESET}")
-            if p.security: flags.append(f"{c.RED}SECURITY{c.RESET}")
-            if p.major_bump: flags.append(f"{c.MAGENTA}MAJOR{c.RESET}")
+            if p.is_catalog:
+                flags.append(f"{c.BLUE}CATALOG{c.RESET}")
+            if p.breaking:
+                flags.append(f"{c.RED}BREAKING{c.RESET}")
+            if p.deprecated:
+                flags.append(f"{c.YELLOW}DEPRECATED{c.RESET}")
+            if p.security:
+                flags.append(f"{c.RED}SECURITY{c.RESET}")
+            if p.major_bump:
+                flags.append(f"{c.MAGENTA}MAJOR{c.RESET}")
 
             ptype = "catalog" if p.is_catalog else "workspace"
             print(f"{p.name:<35} {p.current:<15} {p.latest:<15} {ptype:<12} {' '.join(flags)}")
@@ -544,7 +549,7 @@ class DependencyChecker:
         print(f"{c.CYAN}{'-' * 80}{c.RESET}")
         print(f"Total: {result.total_packages} | Outdated: {result.outdated} | Catalog: {result.catalog_outdated} | Breaking: {result.breaking_changes} | Deprecated: {result.deprecated_count} | Security: {result.security_issues}")
 
-    def _auto_fix(self, result: CheckResult, yes: bool = False):
+    def _auto_fix(self, result: CheckResult, *, yes: bool = False):
         """Auto-upgrade catalog packages (safe updates only)"""
         catalog_updates = [p for p in result.packages if p.is_catalog and not p.breaking and not p.deprecated]
 

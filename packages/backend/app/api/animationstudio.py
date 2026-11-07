@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,8 @@ router = APIRouter(prefix="/api/animationstudio", tags=["Animation Studio"])
 
 
 class KeyframeData(BaseModel):
-    trackId: str = Field(..., description="Track identifier")
+    model_config = ConfigDict(populate_by_name=True)
+    track_id: str = Field(..., alias="trackId", description="Track identifier")
     time: float = Field(..., description="Time in seconds")
     value: float = Field(..., description="Keyframe value")
 

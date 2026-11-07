@@ -6,6 +6,7 @@ Provides endpoints for ASCII art generation and manipulation.
 from __future__ import annotations
 
 import logging
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -73,6 +74,7 @@ def get_service() -> AsciiArtService:
 async def image_to_ascii_endpoint(
     width: int = Form(default=80, ge=10, le=300),
     height: int = Form(default=40, ge=10, le=200),
+    *,
     colors: bool = Form(default=True),
     color_mode: str = Form(default="240"),
     color_space: str = Form(default="din99d"),
@@ -182,7 +184,7 @@ async def text_to_banner_endpoint(
         }
     except Exception as e:
         logger.error(f"Text to banner failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/banner", response_model=dict)
@@ -208,7 +210,7 @@ async def banner_endpoint(
         }
     except Exception as e:
         logger.error(f"Banner generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/fonts", response_model=dict)
@@ -229,7 +231,7 @@ async def list_fonts(
         }
     except Exception as e:
         logger.error(f"Font listing failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/tools", response_model=dict)

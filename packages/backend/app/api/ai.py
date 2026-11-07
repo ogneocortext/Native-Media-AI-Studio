@@ -96,7 +96,7 @@ async def generate_scene(request: GenerateSceneRequest):
 
     except Exception as e:
         logger.error(f"Scene generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Scene generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Scene generation failed: {str(e)}") from e
 
 
 @router.get("/status", response_model=dict)
