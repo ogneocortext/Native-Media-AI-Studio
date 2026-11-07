@@ -1,0 +1,48 @@
+{
+  "$schema": "asset-budgets-v1",
+  "source_doc": "docs/knowledge-library/pascal-3d-budget-discipline-2026.md",
+  "note": "Machine-readable source for the Pascal 3D budget table. The knowledge doc mirrors these numbers; change them here, not in prose. Consumed by tools/check-asset-budget.py today; gen3d decimation/ingest wiring is gated on owner approval (T-VID-12).",
+  "target": "1080p60 real-time surfaces (Three.js / Unity). Offline Blender renders relax per-frame numbers, but the texture-memory rules still bind on the 8 GB card.",
+  "roles": {
+    "hero": {
+      "max_triangles": 250000,
+      "max_texture_px": 2048,
+      "ktx2_required": true,
+      "lod_required": true,
+      "sprite_card": false
+    },
+    "mid": {
+      "max_triangles": 50000,
+      "max_texture_px": 2048,
+      "ktx2_required": true,
+      "lod_required": true,
+      "sprite_card": false,
+      "note": "texture cap interpolates hero/background; doc names only those two roles"
+    },
+    "background": {
+      "max_triangles": 10000,
+      "max_texture_px": 1024,
+      "ktx2_required": true,
+      "lod_required": true,
+      "sprite_card": false
+    },
+    "far": {
+      "max_triangles": 0,
+      "max_texture_px": 1024,
+      "ktx2_required": true,
+      "lod_required": false,
+      "sprite_card": true,
+      "note": "impostor card, not a mesh — any geometry fails the triangle cap by design"
+    }
+  },
+  "scene_caps": {
+    "draw_calls": { "target": 150, "hard": 300 },
+    "visible_triangles_per_frame": 1500000,
+    "scene_texture_mb": 1024,
+    "unique_materials": 40,
+    "dynamic_lights": 3,
+    "bones_per_skinned_mesh": 64,
+    "max_skinned_meshes": 8,
+    "instancing_threshold": 4
+  }
+}

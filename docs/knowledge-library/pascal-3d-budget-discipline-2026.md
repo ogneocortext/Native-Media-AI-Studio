@@ -64,6 +64,10 @@ techniques below were written for. The scarce resources are:
 
 ## 3. The budgets (1080p, 60 fps target, real-time surfaces)
 
+> Machine-readable source: `config/asset-budgets.json` (T-VID-12). This
+> table mirrors it — edit the config, not this prose. Enforced today by
+> `tools/check-asset-budget.py`; gen3d ingest wiring is owner-gated.
+
 Starting budgets for Three.js / Unity real-time scenes, to be tuned by
 measurement (§7), not treated as laws:
 

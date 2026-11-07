@@ -256,13 +256,29 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
 - **Last session:** Devin, 2026-11-07 — done in this commit. Evidence: `docs/plans/camera-rig-presets-2026-11.md` exists with the rig schema (move/lens/lighting/look + fixed-order composer), the lossless 8-rig seed table (fragments byte-identical to the current dicts, empty lens/lighting/look), the named consumption point (`app/services/camera_rigs.py::resolve_prompt_suffix` called by both `_build_wan_i2v_workflow` and `_build_ltx_i2v_workflow`, inline dicts deleted, enum values become aliases of the seed set), the additive `camera_rig` request field, and the storyboard consumer rule (panels store rig ids, not prose). Registered in `docs/plans/README.md`. No code changed.
 
 ### T-VID-12 — Encode real-time 3D budgets in the asset + scene pipeline (Pascal budget discipline)
-- **Status:** todo
+- **Status:** doing
 - **Goal:** The budgets in `docs/knowledge-library/pascal-3d-budget-discipline-2026.md` become enforced data instead of prose: per-role decimation targets in gen3d, a texture post-step at ingest, a per-asset budget report, and budget validation in the T-VID-05 scene builder's validator — so an over-budget asset or scene is flagged before any engine starts.
 - **Plan:** Evidence: `packages/backend/app/services/gen3d/decimate_glb.py:8` defaults `target_faces` to a flat 50,000 and `gen3d_service.py` (~line 462) applies one target regardless of asset role; no texture budget exists anywhere in the ingest path. Steps: (1) Budgets as machine-readable config (one source the doc mirrors): role → { target_faces, max texture size, KTX2 required }, scene caps (draw calls, materials, dynamic lights). (2) gen3d: role parameter selects the decimation target; ingest post-step downscales + KTX2-converts textures and emits the LOD chain (LOD0/1/2 + sprite card); generation result gains a budget report (triangles, texture MB, materials, LOD presence). (3) T-VID-05's validator sums a scene spec against the scene caps and rejects over-budget specs with the violating line items named. (4) RenderStatsBadge shows budget-vs-actual for draw calls in the Three.js studio (rides on the T-VIZ-17/18 badge work).
 - **Files:** docs/knowledge-library/pascal-3d-budget-discipline-2026.md (budget source); packages/backend/app/services/gen3d/ (decimate_glb.py, gen3d_service.py); the T-VID-05 spec doc when written
 - **Acceptance:** Budget config exists and is consumed by gen3d (no hard-coded flat target remains); a generated asset carries a budget report; an over-budget scene spec is rejected by the validator with named violations before any engine starts.
 - **Gate:** Config + report work may start any time; gen3d behavior changes (decimation targets, texture post-step) wait on the owner's word — they touch the live generation path.
-- **Last session:** Orion, 2026-11-06 — registered with the budget doc at the owner's request; not started.
+- **Last session:** Devin, 2026-11-07 — ungated slice landed in this
+  commit (config + report only, per the Gate). Evidence:
+  `config/asset-budgets.json` encodes the pascal doc §3 table as data
+  (roles hero/mid/background/far → triangle + texture-px caps, KTX2/LOD
+  requirements, impostor-card rule for far; scene caps incl. draw calls,
+  1.5M tris/frame, 1 GB textures, 40 materials, 3 dynamic lights, 64
+  bones/skin, ≤8 skinned meshes, instancing ≥4); the doc now mirrors the
+  config with a pointer block. `tools/check-asset-budget.py` (stdlib-only)
+  inspects .glb/.gltf and reports triangles, texture MB/dimensions, KTX2
+  count, materials, skins, LOD nodes vs role caps — verified live:
+  triposr GLB 30K tris PASS-cap/WARN-LOD; `stage.glb` correctly FAILs as
+  background (15.7K>10K tris, 4096px>1024px textures, 0/26 KTX2);
+  `mv_e2e_test` correctly FAILs as far (mesh where impostor required).
+  Ruff clean. STILL GATED (owner word required): gen3d role-param
+  decimation targets, ingest texture downscale/KTX2/LOD post-step,
+  budget report inside generation results, T-VID-05 validator wiring,
+  RenderStatsBadge budget-vs-actual.
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
 - **Status:** todo
