@@ -329,7 +329,7 @@ function NavEntry({
           rel="noopener noreferrer"
           title={label}
           className={className}
-          onMouseEnter={() => preloadRoute(item.path)}
+          onMouseEnter={async () => preloadRoute(item.path)}
           onMouseLeave={() => {}}
         >
           {body}
@@ -344,7 +344,7 @@ function NavEntry({
         title={label}
         className={className}
         onClick={onNavigate}
-        onMouseEnter={() => preloadRoute(item.path)}
+        onMouseEnter={async () => preloadRoute(item.path)}
         onMouseLeave={() => {}}
         end={item.path === "/"}
       >

@@ -20,6 +20,11 @@ import {
   TakeTheCrownDuration,
   TakeTheCrownFps,
 } from "./TakeTheCrown";
+import {
+  IntroTemplate,
+  calculateIntroMetadata,
+  introDefaultProps,
+} from "./compositions/IntroTemplate";
 import { Composition } from "remotion";
 
 export const RemotionRoot: React.FC = () => {
@@ -89,6 +94,16 @@ export const RemotionRoot: React.FC = () => {
         fps={StillIRiseV7Fps}
         width={1080}
         height={1920}
+      />
+      <Composition
+        id="IntroTemplate"
+        component={IntroTemplate}
+        durationInFrames={120}
+        fps={24}
+        width={1920}
+        height={1080}
+        defaultProps={introDefaultProps}
+        calculateMetadata={calculateIntroMetadata}
       />
     </>
   );

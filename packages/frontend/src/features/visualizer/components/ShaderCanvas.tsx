@@ -170,7 +170,7 @@ export async function loadTextureFromImage(
       if (anisotropic) {
         const ext = gl.getExtension(
           "EXT_texture_filter_anisotropic",
-        ) as EXT_texture_filter_anisotropic | null;
+        );
         if (ext) {
           const maxAniso = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
           gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
@@ -206,7 +206,7 @@ export function disposeTexture(gl: WebGLRenderingContext, texture: WebGLTexture 
 export function getAnisotropicExt(
   gl: WebGLRenderingContext,
 ): EXT_texture_filter_anisotropic | null {
-  return gl.getExtension("EXT_texture_filter_anisotropic") as EXT_texture_filter_anisotropic | null;
+  return gl.getExtension("EXT_texture_filter_anisotropic");
 }
 
 /**
@@ -216,7 +216,7 @@ export function getAnisotropicExt(
 export function setAnisotropicFiltering(
   gl: WebGLRenderingContext,
   ext: EXT_texture_filter_anisotropic | null,
-  maxAniso: number = 16,
+  maxAniso = 16,
 ): number {
   if (!ext) return 0;
   const supported = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);

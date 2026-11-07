@@ -179,17 +179,17 @@ export function VizMoreMenu({
         className={`viz-icon-btn viz-more-item ${loopActive ? "active" : ""}`}
         aria-label={
           loopActive
-            ? `Looping ${formatTime(loopRegion!.start)} to ${formatTime(loopRegion!.end)} — click to clear`
+            ? `Looping ${formatTime(loopRegion.start)} to ${formatTime(loopRegion.end)} — click to clear`
             : loopPending
-              ? `Loop start set at ${formatTime(loopAnchor!)} — click to set the end`
+              ? `Loop start set at ${formatTime(loopAnchor)} — click to set the end`
               : "Loop A–B: click to set start, again for end, again to clear"
         }
         aria-pressed={loopActive}
         title={
           loopActive
-            ? `Loop ${formatTime(loopRegion!.start)}–${formatTime(loopRegion!.end)} — click to clear`
+            ? `Loop ${formatTime(loopRegion.start)}–${formatTime(loopRegion.end)} — click to clear`
             : loopPending
-              ? `Start set at ${formatTime(loopAnchor!)} — click to set end`
+              ? `Start set at ${formatTime(loopAnchor)} — click to set end`
               : "Loop A–B"
         }
       >

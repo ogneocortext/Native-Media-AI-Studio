@@ -17,12 +17,12 @@ export interface SkillInfo {
   tools: string[];
   tags: string[];
   uri: string;
-  resources: Array<{
+  resources: {
     uri: string;
     name: string;
     mimeType: string;
     size: number;
-  }>;
+  }[];
 }
 
 export interface SkillContent {
@@ -33,12 +33,12 @@ export interface SkillContent {
   tags: string[];
   frontmatter: Record<string, unknown>;
   body: string;
-  resources: Array<{
+  resources: {
     uri: string;
     name: string;
     mimeType: string;
     size: number;
-  }>;
+  }[];
 }
 
 export interface ToolInfo {
@@ -47,12 +47,12 @@ export interface ToolInfo {
 }
 
 export interface SkillResourceContent {
-  contents: Array<{
+  contents: {
     uri: string;
     mimeType: string;
     text?: string;
     blob?: string;
-  }>;
+  }[];
 }
 
 /**

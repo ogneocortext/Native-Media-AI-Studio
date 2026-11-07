@@ -717,7 +717,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           if (!isVirtual) {
             const transient = transientRef?.current;
             if (transient && transient.frequencyBinCount === freqN.length) {
-              transient.getFloatFrequencyData(freqF as Float32Array<ArrayBuffer>);
+              transient.getFloatFrequencyData(freqF);
               const tMin = transient.minDecibels;
               const tRange = transient.maxDecibels - tMin || 1;
               // Reuse freqN? No — freqN still feeds the silence check below.

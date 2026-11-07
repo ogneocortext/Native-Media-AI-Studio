@@ -252,7 +252,7 @@ export function InspectorTab({
             const file = e.dataTransfer.files[0];
             if (
               file &&
-              (file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|webp|gif)$/i))
+              (file.type.startsWith("image/") || (/\.(png|jpg|jpeg|webp|gif)$/i.exec(file.name)))
             ) {
               const url = URL.createObjectURL(file);
               onUpdate(object.id, { textureUrl: url });

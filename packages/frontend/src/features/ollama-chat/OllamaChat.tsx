@@ -255,7 +255,7 @@ function SimpleMarkdown({ content }: { content: string }): React.ReactNode {
         </div>
       );
     }
-    const headingMatch = trimmed.match(/^(#{1,3})\s(.+)/s);
+    const headingMatch = /^(#{1,3})\s(.+)/s.exec(trimmed);
     if (headingMatch) {
       const level = headingMatch[1].length;
       const text = headingMatch[2];
@@ -308,7 +308,7 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
   const time = msg.timestamp
     ? msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "";
-  const hasContent = Boolean(msg.content && msg.content.trim());
+  const hasContent = Boolean(msg.content?.trim());
   const isError = hasContent && msg.content.startsWith("Error:");
 
   return (

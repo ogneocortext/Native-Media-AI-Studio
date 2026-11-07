@@ -391,7 +391,7 @@ export function createSuspensefulFetch<T>(
   // Store promise in module scope to avoid recreation on render
   let cachedPromise: Promise<T> | null = null;
   
-  return () => {
+  return async () => {
     if (!cachedPromise) {
       cachedPromise = fetcher();
     }

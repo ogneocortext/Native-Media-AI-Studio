@@ -255,7 +255,7 @@ export async function setItemTags(relativePath: string, tagIds: string[]): Promi
   );
   if (!res.ok) throw new Error("Failed to set item tags");
   const data = (await res.json()) as { tags: Tag[] };
-  return data.tags ?? [];
+  return data.tags;
 }
 
 // ---------------------------------------------------------------------------
@@ -316,5 +316,5 @@ export async function emptyTrash(): Promise<number> {
   });
   if (!res.ok) throw new Error("Failed to empty trash");
   const data = (await res.json()) as { removed: number };
-  return data.removed ?? 0;
+  return data.removed;
 }

@@ -78,7 +78,7 @@ export function useHealthQuery(enabled = true) {
  * Call this from a component that mounts before any `useHealthQuery` consumer,
  * or from a route loader.
  */
-export function prefetchHealth() {
+export async function prefetchHealth() {
   return queryClient.prefetchQuery({
     queryKey: ["health", "aggregate"],
     queryFn: healthCheck,

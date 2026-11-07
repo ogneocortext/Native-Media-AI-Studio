@@ -1,0 +1,37 @@
+{
+  "$schema": "intro-recipe-v1.json",
+  "version": 1,
+  "name": "neocortext-v1",
+  "duration_seconds": 5.0,
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 24,
+    "background": "#000000"
+  },
+  "brand": {
+    "logo": {
+      "source": "branding/logo.svg",
+      "placement": { "x": 0.5, "y": 0.5 },
+      "scale": 0.4,
+      "opacity": 1.0,
+      "anchor": "center"
+    },
+    "palette": {
+      "primary": "#0766ee",
+      "secondary": "#bd50fd",
+      "tertiary": "#6259fd"
+    }
+  },
+  "sting": {
+    "source": "branding/sting-v1.wav",
+    "fade_in_sec": 0.05,
+    "fade_out_sec": 0.5,
+    "gain_db": 0.0
+  },
+  "motion": {
+    "curve": "ease-out",
+    "intro_animation": "fade-in",
+    "logo_dwell_sec": 3.473
+  }
+}

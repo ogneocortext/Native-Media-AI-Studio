@@ -164,7 +164,7 @@ export function AgentChat() {
   const handleRetry = (msgId: string) => {
     // Find the tool call message and re-trigger it
     const msg = messages.find((m) => m.id === msgId);
-    if (!msg || !msg.toolName) return;
+    if (!msg?.toolName) return;
 
     setMessages((prev) =>
       prev.map((m) =>
@@ -303,7 +303,7 @@ export function AgentChat() {
             const calls =
               typeof event.data === "string"
                 ? JSON.parse(event.data)
-                : (event.data as { tool_calls: Array<{ name: string; arguments: unknown }> });
+                : (event.data as { tool_calls: { name: string; arguments: unknown }[] });
             const toolCalls = calls.tool_calls || [];
 
             for (const tc of toolCalls) {

@@ -297,7 +297,7 @@ async function executeToolByName(
   toolName: string,
   toolArgs: Record<string, unknown>,
 ): Promise<ExecuteToolResponse> {
-  return executeTool({ tool_name: toolName, arguments: toolArgs as Record<string, any> }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  return executeTool({ tool_name: toolName, arguments: toolArgs });  
 }
 
 /**
@@ -454,7 +454,7 @@ The current user request is: "${userMessage}"`;
           content: stripMarkdownFences(response.response) || "I'll use tools to help with that.",
           tool_calls: toolDetails.map((tc) => ({
             name: tc.name,
-            arguments: tc.arguments as Record<string, unknown>,
+            arguments: tc.arguments,
           })),
         });
 

@@ -214,7 +214,7 @@ export function GpuMonitorPage() {
   useEffect(() => {
     void fetchAll();
   }, [fetchAll]);
-  usePolling(() => fetchAll(false), {
+  usePolling(async () => fetchAll(false), {
     intervalMs: intervalSec * 1000,
     enabled: !paused,
     immediate: false, // mount effect above already fetches once

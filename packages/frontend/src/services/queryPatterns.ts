@@ -13,14 +13,15 @@
  * Requires @tanstack/react-query v5.100+
  */
 
+import type {
+  UseMutationOptions,
+  UseQueryOptions,
+  UseSuspenseQueryOptions} from "@tanstack/react-query";
 import {
   useSuspenseQuery,
   useSuspenseQueries,
   useQueryClient,
-  type QueryKey,
-  UseMutationOptions,
-  UseQueryOptions,
-  UseSuspenseQueryOptions,
+  type QueryKey
 } from "@tanstack/react-query";
 import { schemas } from "../schemas/api";
 import { z } from "zod";
@@ -142,7 +143,7 @@ export function createQueryOptions<
       return validateOrThrow(schema, result);
     },
     ...rest,
-  } as UseQueryOptions<TData, Error, TData, TQueryKey>;
+  };
 }
 
 /**
@@ -729,7 +730,7 @@ export function useSuspenseConfigPorts() {
  *   const [health, jobs, config] = [healthResult.data, jobsResult.data, configResult.data];
  */
 export function useParallelSuspenseQueries(
-  queries: UseSuspenseQueryOptions<unknown, Error, unknown, QueryKey>[]
+  queries: UseSuspenseQueryOptions<unknown, Error, unknown>[]
 ) {
   return useSuspenseQueries({ queries });
 }

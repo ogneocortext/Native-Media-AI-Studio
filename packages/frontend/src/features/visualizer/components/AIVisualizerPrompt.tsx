@@ -131,7 +131,7 @@ export function AIVisualizerPrompt({
   const handleApply = useCallback(() => {
     console.log("[AIVisualizerPrompt] handleApply called, generatedPreset:", !!generatedPreset);
     if (!generatedPreset) return;
-    onApplyPreset(generatedPreset as unknown as VisualPreset);
+    onApplyPreset(generatedPreset);
     setRefreshKey((k) => k + 1);
     setGeneratedPreset(null);
     setDescription("");

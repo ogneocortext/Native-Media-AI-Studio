@@ -893,7 +893,7 @@ export function Visualizer() {
           recordingTime={recordingTime}
           onStartRecording={startRecording}
           onStopRecording={stopRecording}
-          onExportFrameAccurate={(seconds) => startFrameAccurateExport(seconds)}
+          onExportFrameAccurate={async (seconds) => startFrameAccurateExport(seconds)}
           isExporting={isExporting}
           exportProgress={exportProgress}
           recordedBlob={recordedBlob}
