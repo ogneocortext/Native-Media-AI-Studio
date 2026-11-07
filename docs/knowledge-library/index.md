@@ -98,6 +98,7 @@ date: 2026-09-30
 - [[advanced-visualization-techniques-2026|✨ Advanced Visualization Techniques 2026]] — ⚠️ Consolidated 2026-10-06 → see [[visualization-effects]] §11
 - [[canvas2d-bar-visualization-research|📊 Canvas2D Bar Visualization Research]] — Modern bar-mode improvements: smoothing, glow, reflections, HiDPI rendering
 - [[color-strategy-2026|🎨 Color Strategy 2026]] — APCA vs WCAG dark-mode contrast, measured token audit, tier rules
+- [[visual-style-system-2026|🎭 Visual Style System — House Looks]] — Six named looks (Studio Console, Arcade Velocity, Vice Sunset, Analog Print, Monochrome Signal, Night Broadcast) spec'd as shared style records across scene gen, visualizer, HyperFrames and the AI skin; anti-style rules; registry as T-VID-24 (NEW 2026-11-07)
 - [[design-auditing-2026|🔍 Design Auditing 2026]] — Contrast+axe+VLM audit layers, runbook for `contrast_audit.py`
 - [[dark-ui-color-system-2026|🌙 Dark UI Color System 2026]] — OKLCH dark-mode tokens, contrast, accessibility
 - [[design-philosophy-2026|💭 Design Philosophy 2026]] — UX principles and design-system philosophy
@@ -186,7 +187,7 @@ date: 2026-09-30
 || `#production/*` | Production workflow & creative guides | 19 documents |
 || `#technical/*` | System implementation & code | 24 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
-|| `#creative/*` | Design, effects & visualization | 22 documents |
+|| `#creative/*` | Design, effects & visualization | 23 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
 || `#research/*` | Industry trends & analysis | 22 documents |
@@ -205,7 +206,7 @@ date: 2026-09-30
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
-|| `#design` | Design systems & UX | 6 documents |
+|| `#design` | Design systems & UX | 7 documents |
 || `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 19 documents |
