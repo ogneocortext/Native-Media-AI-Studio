@@ -170,7 +170,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `agent-llm-loop-spec-2026-10.md`  → `#ai`, `#agent`, `#documentation`
 - ✅ `agent-chat-architecture-2026.md`  → `#ai`, `#agent`, `#architecture`, `#documentation`
 
-### 📊 Research & Reference (23/23 completed)
+### 📊 Research & Reference (24/24 completed)
 
 - ✅ `mashup-arrangement-theory-2026.md` → `#research`, `#audio`, `#creative-guide`
 
@@ -196,6 +196,7 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `ascii-art-trends-2026.md` → `#research`, `#ascii-art`, `#terminal`, `#generative-art`, `#visualization`
 - ✅ `animatediff-evolved-2026.md` → `#research`, `#animate-diff`, `#comfyui`, `#video-generation`, `#animate-diff-evolved`
 - ✅ `external-book-sources-2026.md` → `#research`, `#documentation`, `#knowledge-library`
+- ✅ `sheet-music-reference-rotation-2026.md` → `#research`, `#documentation`, `#knowledge-library`
 
 ## 📝 Migration Template
 
