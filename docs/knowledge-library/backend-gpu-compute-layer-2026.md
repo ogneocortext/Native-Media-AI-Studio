@@ -77,10 +77,12 @@ with CUDA and CPU paths. Its wiring is uneven:
   sweep of every plausible seam found contract mismatches
   everywhere: `image_processor.py` is PIL-image editing,
   `generate_thumbnail.py` renders GLB models, `export_matrix.py`
-  is ffmpeg, and ComfyUI ingests image files itself. Its fate —
-  build the ComfyUI-prep consumer it was designed for, leave it
-  documented, or remove it — is an explicit owner decision in
-  T-PLT-47, not something to fake-wire.
+  is ffmpeg, and ComfyUI ingests image files itself. **Decided
+  2026-11-07 (owner): build the consumer** — T-PLT-48 registers
+  a prep step on the backend's ComfyUI image-upload path (today
+  a raw pass-through at both seams), which is the job the class
+  was built for; T-VID-14's control images are its first
+  standing demand.
 
 The real defect the survey exposed was subtler than an orphan:
 `analyze_with_cuda` used the module only when CUDA was present,
