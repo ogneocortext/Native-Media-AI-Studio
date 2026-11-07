@@ -111,6 +111,7 @@ date: 2026-09-30
 
 - [[pascal-gpu-optimization-2026|🐴 Pascal GPU Optimization 2026]] — GTX 1070 Ti / sm_61 constraints: torch version, SDPA backends, torch.compile limits, VRAM optimization stack for ACE-Step Tier 3
 - [[pascal-3d-budget-discipline-2026|🎮 Pascal 3D Budget Discipline 2026]] — Real-time render budgets for the 1070 Ti: draw calls, per-role triangle/texture caps, LOD + impostors, baked lighting, CPU-side frame rules — the render-side companion to Pascal GPU Optimization (NEW 2026-11-06)
+- [[ryzen-5500-cpu-playbook-2026|🧮 Ryzen 5 5500 CPU Playbook 2026]] — Thread budgets and concurrency lanes for the 6C/12T Zen 3: Demucs/faster-whisper/llama.cpp caps, Blender decimate parallelism, NVENC-vs-x264 encode rule, PCIe 3.0 platform facts (NEW 2026-11-06)
 - [[hardware-verified-models|🖥️ Hardware-Verified Models]] — 8GB VRAM model matrix
 - [[music-gen-hardware-fit-2026|🎵 Music Gen Hardware Fit 2026]] — ACE-Step 1.5 on GTX 1070 Ti; install paths, VRAM budgets
 - [[hardware-benchmark-harness|🖥️ Hardware Benchmark Harness]] — Workstation hardware profile + bounded Ollama/ComfyUI benchmark runner with SQLite history
@@ -180,7 +181,7 @@ date: 2026-09-30
 || `#technical/*` | System implementation & code | 21 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 22 documents |
-|| `#performance/*` | Hardware & optimization | 8 documents |
+|| `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 20 documents |
 || `#research/*` | Industry trends & analysis | 22 documents |
 
@@ -199,7 +200,7 @@ date: 2026-09-30
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 6 documents |
-|| `#audio` | Audio analysis & processing | 23 documents |
+|| `#audio` | Audio analysis & processing | 24 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 15 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |

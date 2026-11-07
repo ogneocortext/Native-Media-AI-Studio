@@ -122,10 +122,11 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `three-js-render-motion-2026.md`  → `#creative`, `#3d`
 - ✅ `video-to-glsl-shader-recreation-2026.md`  → `#creative`, `#visualization`
 
-### ⚙️ Performance & Hardware (8/8 completed)
+### ⚙️ Performance & Hardware (9/9 completed)
 
 - ✅ `pascal-gpu-optimization-2026.md`  → `#performance`, `#hardware-pascal`, `#hardware-8gb`
 - ✅ `pascal-3d-budget-discipline-2026.md`  → `#performance`, `#hardware-pascal`, `#3d`, `#three-js`
+- ✅ `ryzen-5500-cpu-playbook-2026.md`  → `#performance`, `#audio`
 - ✅ `hardware-verified-models.md`  → `#performance`, `#hardware-8gb`
 - ✅ `music-gen-hardware-fit-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`
 - ✅ `hardware-benchmark-harness.md`  → `#performance`, `#hardware-8gb`
