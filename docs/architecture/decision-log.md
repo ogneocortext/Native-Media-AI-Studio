@@ -2091,3 +2091,63 @@
 - **Consequences:** No caller can hang indefinitely on ComfyUI/Ollama.
   TanStack Query provides caching, deduping, retry, and background refetching
   for server data. `tsc -b` clean; `ruff check` clean; ESLint 0 errors.
+
+### D76 — Nuked-OPN2 cycle-accurate YM2612 FM synthesis with EG state machine fixes (2026-11-07)
+
+- **Status:** Decided
+- **Context:** The behavioral FM synthesizer in `tools/chiptune.py` was a
+  simplified algorithmic approximation. For hardware-accurate Genesis/Mega Drive
+  sound, we integrated the die-shot-based Nuked-OPN2 emulator (v1.0.12,
+  `tools/nuked-opn2/`). Two critical bugs in the upstream EG state machine
+  prevented the first key-on after reset from producing proper attack:
+  1. Missing attack increment on state transition (ym3438.c:636-648) — when
+     `kon_event` transitioned from release→attack, the code only computed
+     attack increment if already in attack state. First key-on after reset
+     (state=release) got `inc=0` → level stayed at 0x3ff (silence).
+  2. AR=15 not mapped to instant attack (ym3438.c:776-780) — Real YM2612:
+     AR=15 = instant attack (0 samples). Emulator: AR=15 → rate=30 → slow
+     attack (~hundreds of ms). `eg_ratemax` only triggered for rate≥62.
+- **Decision:** (1) Patched upstream in `tools/nuked-opn2/ym3438.c`: compute
+  attack increment on ANY transition to attack state, not just attack→attack;
+  map AR=15 (0x0F) → rate=0x3F (max) for instant attack. (2) Built Python C
+  extension (`tools/nuked-opn2/nuked_opn2_module.c`) exposing
+  `write_register()`, `generate()`, `clock()`, `propagate()`, `read_test_pin()`.
+  (3) Added `core` field to `SystemSpec` in `chiptune_hardware.py` with
+  `"nuked-opn2"` as default for Genesis. (4) Created adapter pattern in
+  `packages/backend/app/adapters/chips/` for maintainability. (5) Removed
+  workaround dummy prime cycle from `_render_fm_nuked_opn2()` — first key-on
+  now works correctly.
+- **Files:** `tools/nuked-opn2/` (source + C extension), `tools/chiptune.py`
+  (adapter-based renderer), `packages/backend/app/core/chiptune_hardware.py`
+  (core field), `packages/backend/app/adapters/chips/nuked_opn2.py`,
+  `packages/backend/app/adapters/chips/__init__.py`
+- **Consequences:** First key-on after reset now produces full FM synthesis
+  with instant attack (peak=29162/32767 vs previous 384 DC bias). Genesis
+  render via `core="nuked-opn2"` matches real YM2612 hardware. Adapter pattern
+  isolates project from upstream API changes; `vendor.py` fetches exact
+  upstream versions.
+
+### D77 — Chip emulator adapter pattern for maintainable upstream integration (2026-11-07)
+
+- **Status:** Decided
+- **Context:** Six cycle-accurate chip emulators were integrated as Python C
+  extensions (Nuked-OPN2, Nuked-OPM, Nuked-OPL3, reSIDfp, snes-spc, SameBoy
+  placeholder). Each has different APIs, build systems, and version
+  lifecycles. Direct coupling would make upstream updates painful and risk
+  breaking the project when upstream APIs change.
+- **Decision:** Adapter pattern in `packages/backend/app/adapters/chips/`:
+  - Base `ChipAdapter` class with unified interface: `write_register()`,
+    `generate()`, `clock()`, `propagate()`, `reset()`, `initialize()`.
+  - `AdapterRegistry` maps system names → adapter classes, handles lazy
+    instantiation and sample-rate caching.
+  - Per-core adapters: `nuked_opn2.py`, `nuked_opm.py`, `nuked_opl3.py`,
+    `residfp.py`, `snes_spc.py`, `sameboy.py` (placeholder).
+  - `versions.py` pins exact upstream repos/commits.
+  - `vendor.py` script fetches/vendors exact upstream versions into `tools/`.
+  - Render pipeline uses `get_adapter(system_name)` — missing adapters return
+    `None` → graceful fallback to behavioral synthesis.
+- **Files:** `packages/backend/app/adapters/chips/` (new package)
+- **Consequences:** Maintainer workflow: `python vendor.py --all --force`
+  updates all cores to pinned upstream versions; project code unchanged.
+  Graceful degradation when optional cores fail to load. Clear separation
+  between project logic and upstream emulator APIs.

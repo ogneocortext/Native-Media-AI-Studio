@@ -16,6 +16,14 @@ from typing import Any
 import aiohttp
 
 from ..core.comfyui_client import WorkflowRejectedError
+from ..core.event_bus import (
+    QueueEventData,
+    emit_job_completed,
+    emit_job_failed,
+    emit_job_progress,
+    emit_job_started,
+    event_bus,
+)
 from ..core.logging_config import job_context
 from ..models.job import Job, JobStatus, JobType
 from ..queue.manager import queue_manager
@@ -25,7 +33,6 @@ from ..services.image_generator import ImageGenerationHandler
 from ..services.lipsync_handler import LipSyncHandler
 from ..services.music_video_handler import MusicVideoHandler, MusicVideoPreviewHandler
 from ..services.storyboard_generator import StoryboardGeneratorHandler
-from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
 
@@ -330,10 +337,11 @@ class JobProcessor:
         """
         last_reap = 0.0
         last_ttl_sweep = 0.0
+        last_queue_stats = 0.0
         while self._running:
             try:
-                last_reap, last_ttl_sweep = await self._periodic_maintenance(
-                    last_reap, last_ttl_sweep
+                last_reap, last_ttl_sweep, last_queue_stats = await self._periodic_maintenance(
+                    last_reap, last_ttl_sweep, last_queue_stats
                 )
 
                 # Select next job through the scheduler: effective-priority
@@ -353,11 +361,11 @@ class JobProcessor:
                 await asyncio.sleep(1)
 
     async def _periodic_maintenance(
-        self, last_reap: float, last_ttl_sweep: float
-    ) -> tuple[float, float]:
-        """Run the interval-gated sweeps (stale-job reaper, job TTL expiry).
+        self, last_reap: float, last_ttl_sweep: float, last_queue_stats: float
+    ) -> tuple[float, float, float]:
+        """Run the interval-gated sweeps (stale-job reaper, job TTL expiry, queue stats).
 
-        Returns the updated (last_reap, last_ttl_sweep) timestamps so the
+        Returns the updated (last_reap, last_ttl_sweep, last_queue_stats) timestamps so the
         caller can carry them across loop iterations.
         """
         now = time.monotonic()
@@ -370,7 +378,21 @@ class JobProcessor:
                 await queue_manager.expire_old_terminal_jobs()
             except Exception as e:
                 logger.error("Job TTL sweep failed: %s", e)
-        return last_reap, last_ttl_sweep
+        # Broadcast queue stats every 30 seconds
+        if now - last_queue_stats >= 30.0:
+            last_queue_stats = now
+            try:
+                stats = await queue_manager.get_queue_stats()
+                await event_bus.emit_queue_stats(QueueEventData(
+                    queued=stats.get("queued", 0),
+                    running=stats.get("running", 0),
+                    completed=stats.get("completed", 0),
+                    failed=stats.get("failed", 0),
+                    total=stats.get("total", 0),
+                ))
+            except Exception as e:
+                logger.debug("Queue stats broadcast failed: %s", e)
+        return last_reap, last_ttl_sweep, last_queue_stats
 
     async def _backoff_sleep(
         self, retry_count: int, base_seconds: float = 2.0, max_seconds: float = 60.0
@@ -385,9 +407,14 @@ class JobProcessor:
         await asyncio.sleep(delay + jitter)
 
     async def _broadcast_progress(self, job: Job):
-        """Broadcast job progress to SSE clients"""
+        """Broadcast job progress to event bus (reaches SSE + WS)"""
         try:
-            await sse_manager.broadcast("job.progress", {"job": job.model_dump(mode="json")})
+            await emit_job_progress(
+                job_id=job.id,
+                stage="processing",
+                progress=job.progress,
+                message=job.message or "Processing...",
+            )
         except Exception as e:
             logger.error("Error broadcasting progress: %s", e)
 
@@ -446,6 +473,12 @@ class JobProcessor:
             sorted(job.params.keys()) or "[]",
         )
         try:
+            # Emit job started event
+            await emit_job_started(
+                job_id=job.id,
+                job_type=job.job_type.value if hasattr(job.job_type, 'value') else str(job.job_type),
+            )
+
             # Update status to running
             await queue_manager.update_job(
                 job.id,
@@ -511,6 +544,12 @@ class JobProcessor:
                 time.monotonic() - _job_started,
                 sorted(result.keys()) if isinstance(result, dict) else type(result).__name__,
             )
+            # Emit job completed event
+            await emit_job_completed(
+                job_id=job.id,
+                job_type=job.job_type.value if hasattr(job.job_type, 'value') else str(job.job_type),
+                output_path=result.get("output_path") if isinstance(result, dict) else None,
+            )
 
         except JobCancelledError:
             # Cooperative cancellation: mark the job CANCELLED without retrying.
@@ -564,6 +603,14 @@ class JobProcessor:
                     next_retry,
                     job.max_retries,
                 )
+                # Emit retry event
+                await emit_job_progress(
+                    job_id=job.id,
+                    stage="retrying",
+                    progress=0.0,
+                    message=f"Retry {next_retry}/{job.max_retries}",
+                    details={"error": described, "retry": next_retry, "max_retries": job.max_retries},
+                )
                 await self._backoff_sleep(current.retry_count)
                 # Re-queue for processing
                 await queue_manager.update_job(job.id, status=JobStatus.QUEUED)
@@ -580,6 +627,12 @@ class JobProcessor:
                 # previous attempt's error from the RETRYING transition, so
                 # reusing `current.error` here reported a stale cause.
                 await queue_manager._move_to_dead_letter(job.id, described)
+                # Emit job failed event
+                await emit_job_failed(
+                    job_id=job.id,
+                    job_type=job.job_type.value if hasattr(job.job_type, 'value') else str(job.job_type),
+                    error=described,
+                )
 
         finally:
             self._current_job = None

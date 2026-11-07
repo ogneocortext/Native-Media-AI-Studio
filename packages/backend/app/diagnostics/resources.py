@@ -13,6 +13,7 @@ from typing import Any, ClassVar
 
 import psutil
 
+from ..core.event_bus import ResourceEventData, event_bus
 from ..sse.handler import sse_manager
 
 logger = logging.getLogger(__name__)
@@ -868,7 +869,7 @@ class ResourceMonitor:
         return warnings
 
     async def broadcast_warnings(self, warnings: list[dict[str, Any]]):
-        """Broadcast resource warnings via SSE, throttled to max once per 60s per resource type."""
+        """Broadcast resource warnings via event bus (reaches SSE + WS), throttled to max once per 60s per resource type."""
         import time as _time
 
         now = _time.time()
@@ -887,7 +888,16 @@ class ResourceMonitor:
             ) >= self._broadcast_interval_seconds
 
             if should_broadcast:
-                await sse_manager.broadcast("system.resource_warning", warning)
+                # Broadcast via event bus (reaches SSE + WS + any subscribers)
+                await event_bus.emit_resource_warning(ResourceEventData(
+                    resource_type=warning["type"],
+                    level=warning["level"],
+                    message=warning["message"],
+                    current_value=warning["current_value"],
+                    threshold=warning["threshold"],
+                    unit=warning.get("unit", "percent"),
+                    details=warning.get("details"),
+                ))
                 logger.warning(f"Resource warning broadcast: {warning['message']}")
                 self._last_broadcast_time[resource_type] = now
 

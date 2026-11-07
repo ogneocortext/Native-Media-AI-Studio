@@ -22,6 +22,7 @@ sse-starlette>=3.5.0
 pytest-asyncio>=0.24.0  # Async test support (required for tests/test_*.py)
 pytest-cov>=5.0.0  # Coverage reporting
 pytest-xdist>=3.6.0  # Parallel test execution
+pytest-testmon>=1.5.0  # Incremental test selection (run only affected tests)
 
 # Observability
 opentelemetry-api>=1.20.0

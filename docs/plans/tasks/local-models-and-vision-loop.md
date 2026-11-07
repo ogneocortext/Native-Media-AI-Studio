@@ -337,3 +337,35 @@ Rules: `docs/plans/tasks/README.md`
   recording navigated (f005 Media Library, f008 Storyboards).
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-MOD-11 — Vision model bake-off: qwen3.5:4b vs gemma4:e2b-it-qat
+
+- **Status:** done
+- **Trigger:** user noted other vision models are installed.
+- **Goal:** Determine which locally-available vision model (gemma4:e2b-it-qat
+  vs qwen3.5:4b) produces more accurate UI analysis for the vision
+  pipeline, and update the tooling to use the better model by default.
+- **Inventory:** Ollama vision-capable = gemma4:e2b-it-qat (4.3GB),
+  qwen3.5:4b (3.4GB, thinking mode). Cloud: muse-spark-open and
+  minimax-m3.1-flash return 402 Payment Required; beam:cloud has no
+  vision capability. llama3.2:3b tag lacks vision in this build.
+- **Measured on identical frames (f005 Media Library, f008 Storyboards):**
+  - gemma4:e2b-it-qat: mislabeled frames, hallucinated "Loading..."
+    across an entire 10-keyframe video that verifiably navigated.
+  - qwen3.5:4b: correct page ID + precise content (search placeholders,
+    card titles, button labels, filenames) on both frames; structured
+    === FINDINGS === text output (no JSON schema — thinking mode).
+- **Changes:** qwen35-ui prompt parameterized {{TARGET}}=label +
+  generalized regions + context injection (was hardcoded Media Library
+  like gemma's was); walkthrough.mjs gained --model passthrough and
+  extractTextFindings() so report.md works with either output format;
+  skill doc records the trade-off and cloud 402 status.
+- **Files:** tools/vision/{walkthrough.mjs, analyze.mjs,
+  prompts/qwen35-ui.mjs}, .claude/skills/vision-page-analysis/SKILL.md
+  + mirrors, docs/plans/tasks/local-models-and-vision-loop.md.
+- **Verification:** node --check clean; extractTextFindings validated
+  against real qwen3.5:4b output (4 findings parsed correctly);
+  qwen ui-mode run produced OBSERVATION/HEURISTIC_CHECKS/FINDINGS/
+  TOP_3_FIXES structure.
+- **Acceptance:** satisfied at completion.
+- **Last session:** Devin, 2026-11-08 — commit pending.

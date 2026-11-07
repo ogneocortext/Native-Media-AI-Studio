@@ -48,6 +48,13 @@ noise type — i.e. the subgenre:
     pico8    2x pulse + triangle + noise @ 22.05 kHz output
     loose    2x pulse + triangle + saw + noise, light bandlimit
     full     same voices, no bandlimit, stereo spread
+    snes     6 vox + noise, echo + vibrato, ~20 kHz
+    genesis  3x FM + PSG tone/noise, ~16 kHz
+    c64      3 mixed osc + noise, filter + ring-mod, ~9 kHz
+    atari    2x pulse + LFSR noise, ~8 kHz
+    pico8    2x pulse + triangle + noise @ 22.05 kHz output
+    loose    2x pulse + triangle + saw + noise, light bandlimit
+    full     same voices, no bandlimit, stereo spread
 
 Deterministic: same file + same system => byte-identical WAV (fixed seed
 for noise; PCM synthesis only, no wall-clock).
@@ -63,94 +70,54 @@ from pathlib import Path
 
 import numpy as np
 
+# Import the new hardware profiles
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from packages.backend.app.core.chiptune_hardware import (
+    ALL_SYSTEMS,
+    SYSTEM_ALIASES,
+    get_system_spec,
+)
+
 REPO = Path(__file__).resolve().parent.parent
 OUT_DIR = REPO / "output" / "audio"
 
 SR = 44100  # internal render rate; systems bandlimit on top
 
-# name -> (channels spec, bandwidth Hz or None, noise kind, stereo,
-#          optional echo {time_s, feedback, mix}, optional vibrato
-#          {rate, depth} applied to tonal voices)
-# channel spec: list of (default_wave, default_duty%)
-# wave kinds: pulse | triangle | saw | wave(GB) | vox(SNES-ish) | fm(2-op)
-SYSTEMS = {
-    "atari": {
-        "channels": [("pulse", 50), ("pulse", 50), ("noise", 0)],
-        "bandwidth": 8000,
-        "noise": "lfsr",
-        "stereo": False,
-        "label": "Atari 2600 — 2 pulse + noise, 8 kHz",
-    },
-    "nes": {
-        "channels": [("pulse", 50), ("pulse", 25), ("triangle", 0), ("noise", 0)],
-        "bandwidth": 15000,
-        "noise": "lfsr",
-        "stereo": False,
-        "label": "NES/Famicom — 2 pulse + triangle + noise",
-    },
-    "gameboy": {
-        "channels": [("pulse", 50), ("pulse", 50), ("wave", 0), ("noise", 0)],
-        "bandwidth": 11000,
-        "noise": "lfsr",
-        "stereo": False,
-        "label": "Game Boy — 2 pulse + wave + noise",
-    },
-    "pico8": {
-        "channels": [("pulse", 50), ("pulse", 50), ("triangle", 0), ("noise", 0)],
-        "bandwidth": None,  # native 22.05 kHz content
-        "noise": "lfsr",
-        "stereo": False,
-        "output_sr": 22050,
-        "label": "PICO-8 — 2 pulse + triangle + noise @22kHz",
-    },
-    "snes": {
-        # SPC700: 6 melodic (BRR-sampled — approximated by 'vox' voices),
-        # 1 noise, 1 PCM. Echo + vibrato are the defining SPC700 colors.
-        "channels": [("vox", 0)] * 6 + [("noise", 0)],
-        "bandwidth": 20000,
-        "noise": "lfsr",
-        "stereo": False,
-        "echo": {"time_s": 0.09, "feedback": 0.38, "mix": 0.22},
-        "vibrato": {"rate": 5.5, "depth": 0.005},
-        "label": "SNES/SPC700-style — 6 vox + noise, echo + vibrato",
-    },
-    "genesis": {
-        # YM2612: 6 FM voices (approximated by 3 'fm' voices) + SN76489
-        # PSG: 3 tone + 1 noise. FM is the signature Genesis sound.
-        "channels": [("fm", 0)] * 3 + [("pulse", 50), ("pulse", 25),
-                                     ("triangle", 0), ("noise", 0)],
-        "bandwidth": 16000,
-        "noise": "white",
-        "stereo": False,
-        "label": "Sega Genesis — 3x FM + PSG tone/noise",
-    },
-    "c64": {
-        # MOS 6581 SID: 3 mixed-waveform osc voices (pulse/saw/triangle/
-        # noise per voice via 'wave' overrides) + filter + ring-mod.
-        "channels": [("pulse", 50), ("saw", 0), ("triangle", 0),
-                     ("noise", 0)],
-        "bandwidth": 9000,
-        "noise": "lfsr",
-        "stereo": False,
-        "label": "C64 SID — 3 mixed osc + noise, filter + ring-mod",
-    },
-    "loose": {
-        "channels": [("pulse", 50), ("pulse", 50), ("triangle", 0),
-                     ("saw", 0), ("noise", 0)],
-        "bandwidth": 16000,
-        "noise": "white",
-        "stereo": False,
-        "label": "Loose chip — 5 voices, light bandlimit",
-    },
-    "full": {
-        "channels": [("pulse", 50), ("pulse", 50), ("triangle", 0),
-                     ("saw", 0), ("noise", 0)],
-        "bandwidth": None,
-        "noise": "white",
-        "stereo": True,
-        "label": "Full — same voices, no bandlimit, stereo",
-    },
-}
+
+# Backwards compatibility: map old system names to new hardware specs
+# The old SYSTEMS dict is replaced by get_system_spec() from chiptune_hardware
+def _get_legacy_system(name: str) -> dict:
+    """Convert new hardware spec to legacy format for backwards compatibility."""
+    spec = get_system_spec(name)
+    # Convert to legacy format
+    channels = []
+    for ch in spec.channels:
+        wave_name = ch.waveform.value
+        duty = ch.duty_percent
+        channels.append((wave_name, duty))
+
+    return {
+        "channels": channels,
+        "bandwidth": spec.bandwidth_hz,
+        "noise": spec.noise_type.value,
+        "stereo": spec.stereo,
+        "label": spec.label,
+        "output_sr": spec.output_sample_rate or spec.sample_rate,
+        "echo": spec.echo,
+        "vibrato": spec.vibrato,
+    }
+
+
+# Build legacy SYSTEMS dict for backwards compatibility
+SYSTEMS = {}
+for name, _spec in ALL_SYSTEMS.items():
+    SYSTEMS[name] = _get_legacy_system(name)
+
+# Note: SYSTEM_ALIASES are used by get_system_spec() for name resolution
+# but are NOT added to SYSTEMS to avoid duplicate entries in /api/chiptune/systems
+# for alias in SYSTEM_ALIASES:
+#     if alias not in SYSTEMS:
+#         SYSTEMS[alias] = SYSTEMS[SYSTEM_ALIASES[alias]]
 
 # Atari TIA pulse-duty quantization steps (fraction of period high).
 _ATARI_DUTIES = [0.0, 0.03125, 0.09375, 0.21875, 0.46875, 0.71875, 0.96875, 1.0]
@@ -584,12 +551,161 @@ def _assign_voices(p: Pattern, chan_specs: list[tuple[str, int]],
     return slots
 
 
-def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]:
+# ------------------------------------------------------------
+# Nuked-OPN2 FM Voice Renderer
+# ------------------------------------------------------------
+def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
+                          starts: list[int], sr: int, cell_sec: float) -> np.ndarray | None:
+    """Render an FM voice using Nuked-OPN2 cycle-accurate emulation.
+    
+    Uses algorithm 7 (all 4 operators as carriers) for simplicity.
+    Builds a register write timeline and runs the chip cycle-accurate.
+    """
+    try:
+        import nuked_opn2
+    except ImportError:
+        return None  # Fall back to behavioral
+    
+    # Initialize chip with algorithm 7 (all 4 operators as carriers)
+    chip = nuked_opn2.NukedOPN2()
+    chip.set_chip_type(3)  # MODE_YM2612 | MODE_READMODE
+    
+    # Disable DAC for pure FM
+    chip.write_register(0x2B, 0x00)
+    chip.write_register(0x22, 0x00)  # LFO off
+    chip.write_register(0x20, 0x07)  # Algorithm 7: all carriers
+    
+    # Configure all 4 operators as carriers with default envelope
+    for op_base in [0x30, 0x34, 0x38, 0x3C]:
+        chip.write_register(op_base, 0x00)        # MUL=1
+        chip.write_register(op_base + 0x10, 0x00)  # TL=0 (max volume)
+        chip.write_register(op_base + 0x20, 0x0F)  # AR=15 (fastest attack)
+        chip.write_register(op_base + 0x30, 0x00)  # DR=0
+        chip.write_register(op_base + 0x40, 0x0F)  # SR=0, RR=15
+        chip.write_register(op_base + 0x50, 0x00)  # SL=0
+        chip.write_register(op_base + 0x60, 0x00)  # SSG-EG=0
+    
+    # Build register write timeline from cells
+    events = []  # (sample_index, register, value)
+    cur_f = 0.0
+    glide_f = 0.0
+    arp_semitones = [0.0]
+    keyed = False
+    
+    def freq_to_fnum_block(freq_hz: float) -> tuple[int, int]:
+        """Convert frequency to F-Number and Block for YM2612."""
+        if freq_hz <= 0:
+            return 0, 0
+        master_clock = 7670454
+        internal_clock = master_clock / 6.0
+        fnum = int(round(freq_hz * (2**20) / internal_clock))
+        block = 0
+        while fnum >= 0x400 and block < 7:
+            fnum >>= 1
+            block += 1
+        return min(fnum, 0x3FF), block
+    
+    for i, cell in enumerate(cells):
+        start = starts[i]
+        if start >= len(cells) * int(cell_sec * 44100):  # Approximate bound check
+            continue
+        
+        if cell == ".":
+            events.append((start, 0x28, 0x00))  # Key off
+            continue
+        if cell == "-":
+            continue
+        
+        porta = cell.startswith(">")
+        drop = cell.startswith("<")
+        base, _, arp = (cell[1:] if (porta or drop) else cell).partition("~")
+        try:
+            target = note_to_freq(base)
+        except ValueError:
+            target = 0.0
+        if arp:
+            try:
+                arp_semitones = [float(x) for x in arp.split(",")]
+            except ValueError:
+                arp_semitones = [0.0]
+        
+        if target <= 0:
+            continue
+        
+        if porta:
+            pass  # Portamento not supported in register-level yet
+        elif drop:
+            target *= 2.0
+        
+        # Apply arpeggio (use first offset for simplicity)
+        arp_offset = arp_semitones[0] if arp_semitones else 0.0
+        final_freq = target * (2.0 ** (arp_offset / 12.0))
+        
+        if final_freq > 0:
+            fnum, block = freq_to_fnum_block(final_freq)
+            events.append((start, 0xA0, fnum & 0xFF))
+            events.append((start, 0xA4, ((block & 7) << 3) | (fnum >> 8)))
+            events.append((start, 0x28, 0xF0))  # Key on all operators
+        else:
+            events.append((start, 0x28, 0x00))
+    
+    # Generate audio by running the chip in chunks between events
+    total_samples = len(starts) - 1  # Number of cells
+    if total_samples <= 0:
+        return np.zeros(0, dtype=np.float32)
+    
+    # Sort events by sample index
+    events.sort(key=lambda x: x[0])
+    
+    # Convert events to time-based (seconds)
+    time_events = [(idx / 44100.0, reg, val) for idx, reg, val in events]
+    time_events.sort(key=lambda x: x[0])
+    
+    output_chunks = []
+    prev_time = 0.0
+    
+    for ev_time, reg, val in time_events:
+        if ev_time > prev_time:
+            duration = ev_time - prev_time
+            samples_needed = int(duration * 44100)
+            if samples_needed > 0:
+                raw = chip.generate(samples_needed, stereo=False)
+                import struct
+                samples = struct.unpack('<' + 'h' * (len(raw)//2), raw)
+                chunk = np.array(samples, dtype=np.float32) / 32768.0
+                output_chunks.append(chunk)
+        chip.write_register(reg, val)
+        prev_time = ev_time
+    
+    # Generate remaining
+    total_duration = len(starts) * (60.0 / 120 / 4.0)  # Approximate
+    if prev_time < total_duration:
+        duration = total_duration - prev_time
+        samples_needed = int(duration * 44100)
+        if samples_needed > 0:
+            raw = chip.generate(samples_needed, stereo=False)
+            import struct
+            samples = struct.unpack('<' + 'h' * (len(raw)//2), raw)
+            chunk = np.array(samples, dtype=np.float32) / 32768.0
+            output_chunks.append(chunk)
+    
+    if output_chunks:
+        full_output = np.concatenate(output_chunks)
+        return full_output.astype(np.float32)
+    
+    return None
+
+
+def render(p: Pattern, system_name: str | None = None, *, core: str | None = None) -> tuple[np.ndarray, int]:
     sysname = system_name or p.system
     if sysname not in SYSTEMS:
         raise ValueError(f"unknown system {sysname!r}; choose from {sorted(SYSTEMS)}")
     spec = SYSTEMS[sysname]
     chan_specs = spec["channels"]
+    
+    # Use core from spec if not explicitly provided
+    render_core = core or spec.get("core", "behavioral")
+    
     sr = SR  # always synthesize at 44.1k; output_sr decimates once at end
 
     slots = _assign_voices(p, chan_specs, sysname)
@@ -614,6 +730,27 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
         off = ((p.swing - 0.5) * 2 * cell_sec
                if i < n_cells and (i // 2) % 2 == 1 else 0.0)
         starts[i] = int(round((i * cell_sec + off) * sr))
+
+    # Initialize Nuked-OPN2 if using that core for FM voices
+    nuked_chip = None
+    fm_voice_indices = []  # (bound_index, channel_index) for FM voices
+    if render_core == "nuked-opn2":
+        try:
+            import nuked_opn2
+            nuked_chip = nuked_opn2.NukedOPN2()
+            nuked_chip.set_chip_type(3)  # MODE_YM2612 | MODE_READMODE
+            # Find FM voice indices in bound channels
+            for bi, (name, wave_kind, duty, cells) in enumerate(bound):
+                if wave_kind == "fm":
+                    fm_voice_indices.append((bi, name, duty))
+        except ImportError:
+            print("[chiptune] WARNING: nuked-opn2 not available, falling back to behavioral FM")
+            render_core = "behavioral"
+            nuked_chip = None
+        except Exception as e:
+            print(f"[chiptune] WARNING: nuked-opn2 init failed: {e}, falling back to behavioral FM")
+            render_core = "behavioral"
+            nuked_chip = None
 
     for ci, (name, wave_kind, duty, cells) in enumerate(bound):
         if wave_kind == "noise":
@@ -716,7 +853,17 @@ def render(p: Pattern, system_name: str | None = None) -> tuple[np.ndarray, int]
         if wave_kind == "fm":
             # duty field doubles as FM index*10 for fm voices (0 -> 1.6).
             index = duty / 10.0 if duty else 1.6
-            sig = _fm_voice(phase, index=index)
+            # Use Nuked-OPN2 if available and selected for this voice
+            if render_core == "nuked-opn2" and nuked_chip is not None:
+                # Try Nuked-OPN2 cycle-accurate rendering for this voice
+                fm_audio = _render_fm_nuked_opn2(p, name, cells, starts, sr, cell_sec)
+                if fm_audio is not None and len(fm_audio) == len(phase):
+                    sig = fm_audio
+                else:
+                    # Fall back to behavioral FM
+                    sig = _fm_voice(phase, index=index)
+            else:
+                sig = _fm_voice(phase, index=index)
         else:
             sig = _osc(wave_kind, duty, phase)
         ring = p.ringmod.get(name)

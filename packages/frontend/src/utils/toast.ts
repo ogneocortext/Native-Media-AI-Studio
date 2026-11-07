@@ -213,6 +213,10 @@ const NOOP_HANDLE: ToastHandle = {
   element: null as unknown as HTMLDivElement,
 };
 
+function isDomAvailable(): boolean {
+  return typeof document !== "undefined" && document.body !== null;
+}
+
 export function showToast(
   message: string,
   typeOrOptions: ToastType | ToastOptions = "success",
@@ -223,7 +227,7 @@ export function showToast(
   const priority = options.priority ?? "medium";
   const duration = options.duration ?? PRIORITY_DURATIONS[priority] ?? DEFAULT_DURATIONS[type];
 
-  if (typeof document === "undefined" || !document.body) {
+  if (!isDomAvailable()) {
     return NOOP_HANDLE; // non-DOM environment (SSR / node test)
   }
 

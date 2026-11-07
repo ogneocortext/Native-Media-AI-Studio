@@ -7,6 +7,7 @@ import logging
 import platform
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -32,20 +33,15 @@ def get_windows_version() -> str:
     if sys.platform != "win32":
         return platform.version()
 
-    # On Windows, platform.version() returns the NT kernel version (e.g., "10.0.22631")
-    # which doesn't directly tell us if it's Windows 10 or 11.
-    # Windows 11 starts from build 22000.
     try:
         version = sys.getwindowsversion()
         build = version.build
 
-        # Determine Windows display name based on build number
         display_name = next(
             (name for min_build, name in _WINDOWS_BUILD_NAMES if build >= min_build),
             f"10 (Build {build})",
         )
 
-        # Try to get the edition (Pro, Home, etc.)
         edition = _windows_edition()
         if edition:
             return f"Windows {display_name} {edition}"
@@ -74,10 +70,100 @@ def _windows_edition() -> str | None:
 
 class ServiceHealth(StrEnum):
     """Service health states"""
-
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     OFFLINE = "offline"
+
+
+@dataclass
+class CircuitBreakerState:
+    """Circuit breaker state for an adapter"""
+    failures: int = 0
+    last_failure: datetime | None = None
+    state: str = "closed"  # closed, open, half_open
+    last_success: datetime | None = None
+
+
+class CircuitBreaker:
+    """Circuit breaker for adapter health checks"""
+
+    def __init__(
+        self,
+        failure_threshold: int = 3,
+        recovery_timeout: float = 60.0,
+        half_open_max_calls: int = 3,
+    ):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.half_open_max_calls = half_open_max_calls
+        self._states: dict[str, CircuitBreakerState] = {}
+        self._half_open_calls: dict[str, int] = {}
+
+    def can_execute(self, name: str) -> bool:
+        """Check if we can execute a health check for this adapter"""
+        state = self._states.get(name)
+        if not state:
+            return True
+
+        if state.state == "open":
+            # Check if recovery timeout has passed
+            if state.last_failure and \
+               (datetime.now() - state.last_failure).total_seconds() > self.recovery_timeout:
+                state.state = "half_open"
+                self._half_open_calls[name] = 0
+                logger.info(f"Circuit breaker for {name} moved to half-open")
+                return True
+            return False
+
+        if state.state == "half_open":
+            calls = self._half_open_calls.get(name, 0)
+            return calls < self.half_open_max_calls
+
+        return True  # closed
+
+    def record_success(self, name: str):
+        """Record a successful health check"""
+        state = self._states.get(name)
+        if not state:
+            return
+
+        state.failures = 0
+        state.last_success = datetime.now()
+        state.state = "closed"
+        if name in self._half_open_calls:
+            del self._half_open_calls[name]
+
+    def record_failure(self, name: str):
+        """Record a failed health check"""
+        state = self._states.get(name)
+        if not state:
+            state = CircuitBreakerState()
+            self._states[name] = state
+
+        state.failures += 1
+        state.last_failure = datetime.now()
+
+        if state.state == "half_open":
+            state.state = "open"
+            logger.warning(f"Circuit breaker for {name} opened after half-open failure")
+        elif state.failures >= self.failure_threshold:
+            state.state = "open"
+            logger.warning(f"Circuit breaker for {name} opened after {state.failures} failures")
+
+    def get_state(self, name: str) -> str:
+        """Get current circuit breaker state"""
+        state = self._states.get(name)
+        return state.state if state else "closed"
+
+    def get_timeout(self, name: str, default_timeout: float) -> float:
+        """Get appropriate timeout based on circuit breaker state"""
+        state = self._states.get(name)
+        if not state or state.state == "closed":
+            return default_timeout
+
+        # If circuit is open or half-open, use much shorter timeout
+        # to fail fast and not block health endpoint
+        return min(default_timeout, 2.0)
 
 
 class HealthMonitor:
@@ -87,14 +173,23 @@ class HealthMonitor:
         self._last_check: datetime | None = None
         self._cache: dict[str, Any] = {}
         self._cached_health: dict[str, Any] | None = None
-        self._cache_ttl_seconds: float = 2.0  # Cache health for 2 seconds to avoid excessive checks
-        # Per-adapter health-check timeouts. Instance attributes (not class
-        # constants) so tests can shrink them to milliseconds instead of
-        # burning the real 8/15 s wall-clock on a hung-adapter fixture.
-        # Production values unchanged: 8 s default, 15 s for ComfyUI which
-        # can be slow to respond when rendering at 100% GPU.
-        self.default_timeout: float = 8.0
-        self.comfyui_timeout: float = 15.0
+        self._cache_ttl_seconds: float = 5.0  # Increased cache TTL for stability
+
+        # Circuit breaker for adapter health checks
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=3,
+            recovery_timeout=60.0,
+            half_open_max_calls=3,
+        )
+
+        # Offline adapter cache - remember adapters that are down
+        self._offline_cache: dict[str, dict[str, Any]] = {}
+        self._offline_cache_ttl: float = 30.0  # seconds
+
+        # Per-adapter timeouts - reduced defaults
+        self.default_timeout: float = 5.0  # Reduced from 8.0
+        self.comfyui_timeout: float = 8.0  # Reduced from 15.0
+        self.short_timeout: float = 2.0  # For offline services
 
     async def get_system_health(self) -> dict[str, Any]:
         """Get overall system health"""
@@ -140,7 +235,6 @@ class HealthMonitor:
 
     async def check_service(self, name: str, url: str | None = None) -> dict[str, Any]:
         """Check health of an external service using its adapter"""
-        # Import here to avoid circular imports
         from ..adapters.registry import adapter_registry
 
         adapter = adapter_registry.get(name)
@@ -188,17 +282,24 @@ class HealthMonitor:
                 "response_time_ms": None,
             }
 
-        # ComfyUI can be slow to respond when rendering at 100% GPU -- give it more time
-        timeout = self.comfyui_timeout if name == "comfyui" else self.default_timeout
+        # Check circuit breaker first
+        if not self._circuit_breaker.can_execute(name):
+            logger.debug(f"Circuit breaker open for {name}, skipping health check")
+            return self._get_offline_result(name, adapter)
+
+        # Determine timeout based on circuit breaker state
+        timeout = self._circuit_breaker.get_timeout(name,
+            self.comfyui_timeout if name == "comfyui" else self.default_timeout)
+
         start_time = time.perf_counter()
         try:
-            # Use asyncio.wait_for to enforce a per-adapter timeout
             is_healthy = await asyncio.wait_for(adapter.health_check(), timeout=timeout)
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             error = None
             if hasattr(adapter, "get_last_error"):
                 error = adapter.get_last_error()
-            return {
+
+            result = {
                 "name": name,
                 "status": ServiceHealth.HEALTHY.value
                 if is_healthy
@@ -208,26 +309,59 @@ class HealthMonitor:
                 "response_time_ms": response_time_ms,
                 "error": error,
             }
+
+            # Update circuit breaker
+            if is_healthy:
+                self._circuit_breaker.record_success(name)
+                # Remove from offline cache on success
+                self._offline_cache.pop(name, None)
+            else:
+                self._circuit_breaker.record_failure(name)
+                self._cache_offline_result(name, adapter)
+
+            return result
+
         except TimeoutError:
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            return {
-                "name": name,
-                "status": ServiceHealth.OFFLINE.value,
-                "url": adapter.base_url if adapter else url,
-                "adapter_name": adapter.name if adapter else None,
-                "error": "Health check timed out",
-                "response_time_ms": response_time_ms,
-            }
+            self._circuit_breaker.record_failure(name)
+            self._cache_offline_result(name, adapter)
+            return self._get_offline_result(name, adapter, "Health check timed out", response_time_ms)
+
         except Exception as e:
             response_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            return {
-                "name": name,
-                "status": ServiceHealth.OFFLINE.value,
-                "url": adapter.base_url if adapter else url,
-                "adapter_name": adapter.name if adapter else None,
-                "error": str(e),
-                "response_time_ms": response_time_ms,
-            }
+            self._circuit_breaker.record_failure(name)
+            self._cache_offline_result(name, adapter)
+            return self._get_offline_result(name, adapter, str(e), response_time_ms)
+
+    def _get_offline_result(self, name: str, adapter: Any, error: str = None, response_time_ms: float = None) -> dict[str, Any]:
+        """Get standardized offline result"""
+        return {
+            "name": name,
+            "status": ServiceHealth.OFFLINE.value,
+            "url": adapter.base_url if adapter else None,
+            "adapter_name": adapter.name if adapter else None,
+            "error": error,
+            "response_time_ms": response_time_ms,
+        }
+
+    def _cache_offline_result(self, name: str, adapter: Any):
+        """Cache offline result to avoid repeated checks"""
+        self._offline_cache[name] = {
+            "cached_at": datetime.now(),
+            "url": adapter.base_url if adapter else None,
+            "error": "Cached offline",
+        }
+
+    def _is_offline_cached(self, name: str) -> bool:
+        """Check if adapter is in offline cache and cache is still valid"""
+        if name not in self._offline_cache:
+            return False
+        entry = self._offline_cache[name]
+        age = (datetime.now() - entry["cached_at"]).total_seconds()
+        if age > self._offline_cache_ttl:
+            del self._offline_cache[name]
+            return False
+        return True
 
     async def check_all_services(self, config: Any) -> dict[str, Any]:
         """Check health of all configured services with per-adapter timeouts."""
@@ -236,7 +370,6 @@ class HealthMonitor:
         results = {}
         for name, adapter in adapter_registry.get_all_adapters().items():
             try:
-                # Use the timed variant so one hung adapter can't stall the whole endpoint
                 result = await self.check_service_with_timing(name)
                 results[name] = {
                     "name": name,
@@ -284,7 +417,6 @@ class HealthMonitor:
 
         for result in check_results:
             if isinstance(result, Exception):
-                # Find the adapter name from the tasks list
                 idx = check_results.index(result)
                 name = list(adapters.keys())[idx] if idx < len(adapters) else f"unknown_{idx}"
                 results[name] = {
@@ -294,7 +426,6 @@ class HealthMonitor:
                 }
                 continue
             adapter_name = result["name"]
-            # Map to simplified structure for health endpoint
             results[adapter_name] = {
                 "status": result["status"],
                 "url": result["url"],
@@ -304,16 +435,7 @@ class HealthMonitor:
         return results
 
     async def get_aggregate_health(self) -> dict[str, Any]:
-        """Get the full aggregate health status.
-        Returns:
-            dict with structure:
-            {
-                "status": "healthy|degraded|unhealthy",
-                "backend": "online|offline",
-                "adapters": {...},
-                "overall": "healthy|degraded"
-            }
-        """
+        """Get the full aggregate health status."""
         # Check if we have a recent cached result
         now = datetime.now()
         if (
@@ -341,7 +463,7 @@ class HealthMonitor:
 
         self._cached_health = {
             "status": status,
-            "backend": "online",  # Backend is online if it responds to health check
+            "backend": "online",
             "adapters": adapters_health,
             "overall": overall,
             "timestamp": now.isoformat(),

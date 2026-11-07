@@ -24,7 +24,7 @@ export function isAudioFile(file: File, accept?: string): boolean {
   // Some containers report video/* or application/* (e.g. ogg, m4a)
   if (file.type && /^(video\/ogg|application\/ogg|audio\/x-)/.test(file.type)) return true;
   const ext = getFileExtension(file.name);
-  if (AUDIO_EXTENSIONS.includes(ext ?? "")) return true;
+  if (AUDIO_EXTENSIONS.includes(ext)) return true;
   if (accept) {
     const tokens = accept.split(",").map((t) => t.trim().toLowerCase());
     if (tokens.includes(file.type.toLowerCase())) return true;

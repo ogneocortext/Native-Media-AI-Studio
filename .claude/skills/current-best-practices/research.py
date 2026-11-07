@@ -13,17 +13,18 @@ Usage (in agent code):
         build_search_queries,
         format_findings
     )
-    
+
     context = get_current_context()
     queries = build_search_queries("React Server Components", "frontend")
     # Execute queries via websearch tool...
     findings = format_findings("React Server Components", "frontend", raw_results)
 """
 
+import argparse
 import json
+import operator
 import sys
 from datetime import datetime
-from typing import Dict, List, Optional, Any
 
 
 def get_current_context() -> dict:
@@ -39,7 +40,7 @@ def get_current_context() -> dict:
     }
 
 
-def build_search_queries(topic: str, domain: str = "general") -> List[str]:
+def build_search_queries(topic: str, domain: str = "general") -> list[str]:
     """Build search queries for a topic in a domain."""
     templates = DOMAIN_QUERIES.get(domain, DOMAIN_QUERIES["general"])
     context = get_current_context()
@@ -63,7 +64,7 @@ def is_trusted_source(url: str) -> bool:
     return any(source in url_lower for source in TRUSTED_SOURCES)
 
 
-def extract_recommendations(excerpts: List[str]) -> List[dict]:
+def extract_recommendations(excerpts: list[str]) -> list[dict]:
     """Extract actionable recommendations from excerpts."""
     recommendations = []
     keywords = ["recommend", "best practice", "should", "use ", "avoid", "prefer", "default", "adopt", "migrate"]
@@ -80,25 +81,25 @@ def extract_recommendations(excerpts: List[str]) -> List[dict]:
 def format_findings(
     topic: str,
     domain: str,
-    raw_results: List[dict],
+    raw_results: list[dict],
     max_sources: int = 8,
     max_recommendations: int = 10
 ) -> dict:
     """
     Format raw websearch results into structured findings.
-    
+
     Args:
         topic: The research topic
         domain: The domain context
         raw_results: List of results from websearch tool (each with url, title, excerpts)
         max_sources: Maximum number of sources to include
         max_recommendations: Maximum number of recommendations
-    
+
     Returns:
         Structured findings dict
     """
     context = get_current_context()
-    
+
     # Filter and score results
     scored = []
     for r in raw_results:
@@ -106,27 +107,27 @@ def format_findings(
         url = r.get("url", "")
         if is_trusted_source(url):
             score += 10
-        
+
         # Prefer results mentioning current year
         excerpt_text = ""
         if r.get("excerpts"):
             excerpt_text = " ".join(r["excerpts"][:2])
         if str(context["year"]) in excerpt_text:
             score += 5
-        
+
         # Boost score for official documentation
         url_lower = url.lower()
         if any(doc in url_lower for doc in [".dev", "docs.", "documentation", "api.", "spec."]):
             score += 3
-        
+
         scored.append((score, r))
-    
-    scored.sort(key=lambda x: x[0], reverse=True)
-    
+
+    scored.sort(key=operator.itemgetter(0), reverse=True)
+
     # Extract sources and recommendations
     sources = []
     all_recommendations = []
-    
+
     for score, r in scored[:max_sources]:
         url = r.get("url", "")
         sources.append({
@@ -136,14 +137,14 @@ def format_findings(
             "trusted": is_trusted_source(url),
             "score": score,
         })
-        
+
         # Extract recommendations from excerpts
         if r.get("excerpts"):
             recs = extract_recommendations(r["excerpts"])
             for rec in recs:
                 rec["source"] = url
                 all_recommendations.append(rec)
-    
+
     # Deduplicate recommendations
     seen = set()
     unique_recs = []
@@ -152,7 +153,7 @@ def format_findings(
         if key not in seen:
             seen.add(key)
             unique_recs.append(rec)
-    
+
     return {
         "topic": topic,
         "domain": domain,
@@ -169,26 +170,26 @@ def research_via_websearch(
     topic: str,
     domain: str = "general",
     max_results: int = 8,
-    websearch_func: Optional[callable] = None
+    websearch_func: callable | None = None
 ) -> dict:
     """
     High-level research function that generates queries, executes them via websearch,
     and formats findings.
-    
+
     Args:
         topic: Topic to research
         domain: Domain context
         max_results: Maximum number of results per query
         websearch_func: Async function to execute websearch (agent provides this)
-    
+
     Returns:
         Structured findings
-    
+
     Note: If websearch_func is not provided, returns queries only for manual execution.
     """
     queries = build_search_queries(topic, domain)
     context = get_current_context()
-    
+
     result = {
         "topic": topic,
         "domain": domain,
@@ -196,7 +197,7 @@ def research_via_websearch(
         "current_context": context["date_string"],
         "note": "Execute queries via websearch tool and pass results to format_findings()"
     }
-    
+
     if websearch_func:
         # Execute all queries
         all_results = []
@@ -207,11 +208,11 @@ def research_via_websearch(
                     all_results.extend(search_results)
             except Exception as e:
                 print(f"Search failed for '{query}': {e}", file=sys.stderr)
-        
+
         # Format findings
         findings = format_findings(topic, domain, all_results)
         result["findings"] = findings
-    
+
     return result
 
 
@@ -219,27 +220,27 @@ def main():
     """CLI entry point for generating queries."""
     parser = argparse.ArgumentParser(description="Generate search queries for best practices research")
     parser.add_argument("--topic", required=False, help="Topic to research")
-    parser.add_argument("--domain", default="general", 
+    parser.add_argument("--domain", default="general",
                        choices=list(DOMAIN_QUERIES.keys()),
                        help="Domain context")
     parser.add_argument("--max-results", type=int, default=8, help="Max sources per query")
     parser.add_argument("--list-domains", action="store_true", help="List available domains")
     parser.add_argument("--json", action="store_true", help="Output JSON")
-    
+
     args = parser.parse_args()
-    
+
     if args.list_domains:
         print("Available domains:")
         for d in DOMAIN_QUERIES:
             print(f"  - {d}")
         return
-    
+
     if not args.topic:
         parser.error("--topic is required (or use --list-domains)")
-    
+
     queries = build_search_queries(args.topic, args.domain)
     context = get_current_context()
-    
+
     result = {
         "topic": args.topic,
         "domain": args.domain,
@@ -247,7 +248,7 @@ def main():
         "current_context": context["date_string"],
         "note": "Execute these queries via websearch tool, then pass results to format_findings()"
     }
-    
+
     if args.json:
         print(json.dumps(result, indent=2))
     else:
@@ -290,11 +291,13 @@ DOMAIN_QUERIES = {
         "{topic} recommendations {year}",
     ],
 }
- 
-def get_domain_queries(domain: str = "general") -> List[List[str]]:
+
+
+def get_domain_queries(domain: str = "general") -> list[list[str]]:
     """Get search query templates for a domain."""
     return DOMAIN_QUERIES.get(domain, DOMAIN_QUERIES["general"])
- 
+
+
 # Trusted source domains (prioritized)
 TRUSTED_SOURCES = [
     # Official docs

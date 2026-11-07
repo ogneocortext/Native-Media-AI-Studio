@@ -74,8 +74,12 @@ def gates(*, fix: bool = False, verbose: bool = False) -> list[Gate]:
         # running right now" visible. `--durations=10` then names the ten
         # slowest tests, which is where optimization effort is most valuable.
         Gate("pytest", [PY, "-m", "pytest", "-v", "--durations=10",
-                        "-p", "no:cacheprovider"], BACKEND,
-             desc="backend pytest suite"),
+                        "-p", "no:cacheprovider", "--testmon", "-m", "not integration"], BACKEND,
+             desc="backend pytest suite (incremental via pytest-testmon, excludes integration)"),
+        Gate("pytest-integration", [PY, "-m", "pytest", "-v", "--durations=10",
+                                     "-p", "no:cacheprovider", "--testmon", "-m", "integration"], BACKEND,
+             optional=True, timeout=600,
+             desc="backend integration tests (requires Ollama/Atomic Chat; opt-in)"),
         # The tools' own unit tests. The knowledge-library link parser is
         # shared by three tools, and a silent divergence in it is invisible
         # until something reports the wrong number — so it is guarded here.

@@ -235,7 +235,12 @@ function buildPrompt(args, activeModel) {
   const isGemma4 = activeModel.includes('gemma4');
 
   if (isQwen35) {
-    return buildQwen35Prompt(args.mode);
+    return buildQwen35Prompt(args.mode, {
+      label: args.label,
+      section: args.section,
+      context: args.context,
+      viewport: args.viewport,
+    });
   }
 
   if (isGemma4) {

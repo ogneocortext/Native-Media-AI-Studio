@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from ..core.config import OUTPUT_DIR, PROJECT_ROOT
+from ..core.chiptune_hardware import get_system_spec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -81,6 +82,9 @@ class RenderRequest(BaseModel):
     name: str = Field(default="chiptune", description="output file stem")
     system: str = Field(
         default="file", description="preset name, or 'all' for every system"
+    )
+    core: str | None = Field(
+        default=None, description="render core: 'behavioral' (default), 'nuked-opn2' (experimental)"
     )
     transpose: int = Field(default=0, description="semitone shift")
     tempo: float | None = Field(default=None, description="BPM override")
@@ -152,7 +156,12 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
     elif req.system in (None, "", "file"):
         systems = [pat.system]
     else:
-        systems = [req.system]
+        # Resolve alias to canonical system name
+        try:
+            resolved = get_system_spec(req.system).name
+        except ValueError:
+            resolved = req.system
+        systems = [resolved]
     bad = [s for s in systems if s not in chip.SYSTEMS]
     if bad:
         raise HTTPException(
@@ -178,7 +187,7 @@ async def render_pattern(req: RenderRequest) -> dict[str, Any]:
                 })
                 continue
 
-            pcm, sr = chip.render(pat, system_name=sysname)
+            pcm, sr = chip.render(pat, system_name=sysname, core=req.core)
             pcm, loud_info = chip.normalize_loudness(pcm, sr, req.loudness)
             suffix = "" if sysname == pat.system and req.system != "all" \
                 else f"-{sysname}"

@@ -20,23 +20,19 @@
 
 export const QWEN35_UI_PROMPT = `You are a senior UX/UI design auditor for Native Media AI Studio.
 
-SCREEN: Media Library UI screenshot of Native Media AI Studio (\`output/\` file browser).
+SCREEN: {{TARGET}} UI screenshot of Native Media AI Studio.
 
 TASK: Produce a UX audit with concrete, actionable findings. Think step by step:
 observe the whole screen first, then drill into each region, then conclude with
 ranked fixes. Report ONLY what is visible—do not infer beyond the pixels.
 
 REGIONS TO INSPECT (in order):
-1. Sidebar nav — is "System" section visible? Do inactive items contrast with active?
-2. View tabs (Library/Favorites/Collections/Trash) — is active state distinct but not aggressive?
-3. Toolbar — Grid/List toggles, Find Duplicates, Trash, Refresh. Are actions grouped logically?
-4. FilterBar — search bar width (does it dominate?), type pills (selected state clear?), sort options.
-5. File cards — thumbnails (are they green/broken blocks?), file type badges, metadata readability,
-   tag chips, collection badges, hover play-button overlay.
-6. Detail modal — inline tag/collection management, probe/play buttons.
-7. Playback modal — audio covers, video scrub, escape to close.
-8. Trash panel — restore/purge/empty, 30-day retention notice.
-9. Empty states — are they present and helpful?
+1. Navigation/sidebar — is the active section visible? Do inactive items contrast with active?
+2. Header/toolbar — page title, primary actions, status indicators; are actions grouped logically?
+3. View tabs or filters — is the active state distinct but not aggressive?
+4. Primary content area — cards, lists, grids, boards, or canvases actually rendered.
+5. Detail/preview panels and modals — metadata, actions, playback controls where present.
+6. Empty states — are they present and helpful when content is absent?
 
 NAMED HEURISTICS TO CHECK:
 - 8pt grid: spacing/sizing in multiples of 8; internal padding <= external margin
@@ -116,8 +112,14 @@ Return structured text: AXES | TREND | PEAKS | VALLEYS | ESTIMATED.
 `,
 };
 
-export function buildQwen35Prompt(mode, _args = {}) {
-  return QWEN35_MODE_PROMPTS[mode] || QWEN35_UI_PROMPT;
+export function buildQwen35Prompt(mode, args = {}) {
+  const prompt = QWEN35_MODE_PROMPTS[mode] || QWEN35_UI_PROMPT;
+  const target = (args.label || 'application').replace(/[-_]+/g, ' ');
+  const meta = [
+    args.section ? `SECTION: ${args.section}` : '',
+    args.context ? `RUNTIME CONTEXT:\n${args.context}` : '',
+  ].filter(Boolean).join('\n');
+  return prompt.replace('{{TARGET}}', target) + (meta ? `\n\n${meta}` : '');
 }
 
 export const QWEN35_THINKING_CONFIG = {

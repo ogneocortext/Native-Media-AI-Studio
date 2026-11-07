@@ -118,6 +118,20 @@ analysis prompt for pages whose target the generic ui prompt mislabels.
   as supplementary — the per-page screenshot analyses are the reliable
   signal, and geometry sampling stays authoritative for overlaps.
 
-**Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...`)
+**Default model:** `gemma4:e2b-it-qat` (override with `VISION_MODEL=...` or `--model`)
+
+**Model choice (measured 2026-11):** `qwen3.5:4b` is more accurate than
+gemma4 at page identification and content description — it correctly
+named pages and read filenames/placeholders that gemma4 hallucinated
+through (gemma claimed "Loading..." on every frame of a recording that
+visibly navigated 5 pages; qwen named Media Library and Storyboards
+correctly on the same frames). Trade-off: qwen runs thinking mode and
+returns structured TEXT (`=== FINDINGS ===`), not JSON schema —
+walkthrough.mjs parses both formats, but `analysis_parsed` is only
+present for gemma4/schema modes. Use `--model qwen3.5:4b` for audits
+where correctness matters more than machine-readability. Cloud vision
+models (`muse-spark-open:cloud`, `minimax-m3.1-flash:cloud`) return 402
+Payment Required — only `beam:cloud` is usable and it has no vision
+capability.
 
 **VRAM management:** The vision script automatically unloads any other currently running Ollama models before loading the vision model, preventing OAM errors on GPUs with limited VRAM. The backend VRAM manager has been refactored to use proper async patterns with `asyncio.to_thread()` for GPU operations.

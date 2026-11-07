@@ -42,10 +42,13 @@ def _ollama_reachable() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(
-    not (FORCE or _ollama_reachable()),
-    reason=f"no Ollama at {OLLAMA_URL} (set NMA_OLLAMA_TESTS=1 to require it)",
-)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not (FORCE or _ollama_reachable()),
+        reason=f"no Ollama at {OLLAMA_URL} (set NMA_OLLAMA_TESTS=1 to require it)",
+    ),
+]
 
 
 _ADAPTERS: list = []

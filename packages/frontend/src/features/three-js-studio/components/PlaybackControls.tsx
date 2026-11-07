@@ -28,11 +28,9 @@ export function PlaybackControls({
   onTimelineChange,
 }: PlaybackControlsProps) {
   return (
-    <div
-      className={`playback-controls absolute bottom-10 left-2 right-2 bg-[#12121a]/95 backdrop-blur-md rounded-xl border border-gray-700/60 shadow-2xl shadow-black/40 ${focusMode ? "hidden" : ""}`}
-    >
+    <div className={`playback-controls absolute bottom-10 left-2 right-2 bg-[#12121a]/95 backdrop-blur-md rounded-xl border border-gray-700/60 shadow-2xl shadow-black/40 ${focusMode ? "hidden" : ""}`}>
       {/* Main transport row */}
-      <div className="flex items-center gap-2 px-4 py-2.5">
+      <div className="flex flex-col xs:flex-row items-center gap-2 xs:gap-3 px-3 xs:px-4 py-2.5">
         {/* Render Transport — labelled as a group (plan 1.1) */}
         <div className="flex items-center gap-2" role="group" aria-label="Preview transport">
           <button
@@ -105,9 +103,9 @@ export function PlaybackControls({
         <div className="w-px h-8 bg-gray-700/60" />
 
         {/* Timeline Scrubber */}
-        <div className="flex-1 flex items-center gap-2 px-2">
-          <span className="text-[10px] text-gray-500 font-mono">{animationTime.toFixed(1)}s</span>
-          <div className="flex-1 relative">
+        <div className="flex-1 flex flex-col xs:flex-row items-center gap-1.5 xs:gap-2 px-2 w-full xs:w-auto min-w-0">
+          <span className="text-[10px] text-gray-500 font-mono shrink-0">{animationTime.toFixed(1)}s</span>
+          <div className="flex-1 relative min-w-0">
             <input
               type="range"
               min={0}
@@ -119,14 +117,14 @@ export function PlaybackControls({
               className="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-purple-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400 [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-purple-900/50"
             />
           </div>
-          <span className="text-[10px] text-gray-500 font-mono">
+          <span className="text-[10px] text-gray-500 font-mono shrink-0">
             {animationDuration.toFixed(0)}s
           </span>
         </div>
 
         {/* Keyframe indicator */}
         {keyframeTracks.length > 0 && (
-          <span className="text-[10px] text-purple-400 bg-purple-900/30 px-2 py-1 rounded-md font-medium">
+          <span className="text-[10px] text-purple-400 bg-purple-900/30 px-2 py-1 rounded-md font-medium shrink-0 xs:hidden">
             {keyframeTracks.length} keyframes
           </span>
         )}

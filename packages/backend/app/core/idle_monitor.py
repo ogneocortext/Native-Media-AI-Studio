@@ -25,6 +25,7 @@ import logging
 
 from ..adapters.base import BaseAdapter
 from ..adapters.registry import adapter_registry
+from ..core.event_bus import AdapterEventData, event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,13 @@ class IdleMonitor:
                     name,
                     idle,
                 )
+                # Emit adapter unload event
+                await event_bus.emit_adapter_change(AdapterEventData(
+                    name=name,
+                    status="unloading",
+                    adapter_type=type(adapter).__name__,
+                    url=getattr(adapter, 'base_url', None),
+                ))
                 await self._unload_adapter(adapter)
 
         # In-process models get the same treatment: the retrieval
@@ -111,6 +119,11 @@ class IdleMonitor:
 
             if unload_reranker_if_idle(IDLE_TIMEOUT_SECONDS):
                 logger.info("Idle timeout: retrieval reranker unloaded")
+                await event_bus.emit_notification({
+                    "title": "Model Unloaded",
+                    "message": "Retrieval reranker unloaded due to inactivity",
+                    "level": "info",
+                })
         except Exception as e:
             logger.error("Reranker idle check failed: %s", e)
 

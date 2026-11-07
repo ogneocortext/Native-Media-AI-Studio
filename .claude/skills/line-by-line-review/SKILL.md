@@ -128,12 +128,68 @@ Distinguish **bugs found & fixed** from **pre-existing issues not touched**
 Also say when a pass found *fewer* issues than the last one — diminishing
 returns is information the user needs.
 
+---
+
+## Common Pitfalls by Language
+
+### Python
+- Boolean positional arguments (ruff: `boolean-arg`)
+- Negative sentinels for "infinite" (`max_retries = -1`) — use `None` or `math.inf`
+- Mutable default arguments (`def f(x=[])`)
+- `except:` catching everything (use `except Exception:`)
+- `is` vs `==` for strings/integers
+- Mutable default dict/set in dataclasses (use `field(default_factory=...)`)
+
+### TypeScript/JavaScript
+- `any` type leaking through generics
+- `==` vs `===` loose equality
+- Missing `await` on async calls
+- `for...in` on arrays (use `for...of`)
+- Optional chaining `?.` on possibly-null before method calls
+- Enum value drift between Python/TS ports
+
+### Configuration Files (YAML/TOML/JSON)
+- Trailing commas (valid in TOML, not JSON)
+- Indentation consistency (2 vs 4 spaces)
+- Duplicate keys (YAML merges, JSON overwrites)
+- Unquoted strings that look like booleans/numbers (`yes`/`no`/`on`/`off`)
+
+### Database Migrations
+- Reversibility (down migration works)
+- Idempotency (safe to run twice)
+- Column defaults for existing rows
+- Index creation `CONCURRENTLY` in Postgres
+
+### Documentation
+- Code blocks with executable commands (test them!)
+- Version-specific notes (add version badges)
+- Broken internal links (run link checker)
+
+---
+
+## Quick Reference Card
+
+| Step | Command | Purpose |
+|---|---|---|
+| Scope | `git diff --name-only` | List changed files |
+| Read | `cat file.py \| less` | Read top-to-bottom |
+| API check | `grep -r "function_name" node_modules/` | Find real signatures |
+| Dead code | `grep -r "function_name" --include="*.py" . \| grep -v "def "` | Find callers |
+| Lint | `ruff check file.py --fix` | Auto-fix style |
+| Typecheck | `mypy file.py` | Catch type bugs |
+| Test | `pytest tests/ -k "func" -v` | Run relevant tests |
+| Diff | `git diff --no-color` | Re-read own changes |
+
+---
+
 ## Mirror maintenance
 
 This skill exists in four places: `.kilo/skills/` (tracked canonical),
 `.claude/skills/`, `.agents/skills/`, `.devin/skills/` (local mirrors).
 **Update all copies together** — the drift this skill warns about applies
 to the skill itself.
+
+---
 
 ## Checklist (condensed)
 

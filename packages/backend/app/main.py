@@ -14,7 +14,7 @@ from pathlib import Path
 
 if sys.platform == "win32":
     try:
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except Exception:
         pass
 
@@ -290,6 +290,12 @@ async def health_broadcast_loop():
             current_interval = _health_broadcast_interval
 
             health_status = await health_monitor.get_aggregate_health()
+            # Guard against None return
+            if health_status is None:
+                logger.warning("health_monitor.get_aggregate_health() returned None, skipping broadcast")
+                await asyncio.sleep(current_interval)
+                continue
+
             # Map internal adapter statuses to the API contract (healthy -> online)
             # on a COPY. get_aggregate_health returns the shared cached dict, so
             # mutating it in place would corrupt the cache: the /api/health endpoint
@@ -335,29 +341,163 @@ async def health_broadcast_loop():
         except Exception as e:
             consecutive_errors += 1
             backoff = min(2**consecutive_errors, max_backoff)
-            logger.error(
-                "health.broadcast_error", consecutive_errors=consecutive_errors, error=str(e)
+            structured_logger.error(
+                "health.broadcast_error",
+                consecutive_errors=consecutive_errors,
+                error=str(e),
             )
             await asyncio.sleep(backoff)
 
 
+# Supervised background task manager
+class SupervisedTaskManager:
+    """Manages background tasks with automatic restart on failure."""
+
+    def __init__(self):
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._task_configs: dict[str, dict] = {}
+        self._supervisor_task: asyncio.Task | None = None
+        self._running = False
+
+    def add_task(
+        self,
+        name: str,
+        coro_factory: callable,
+        *,
+        restart_on_failure: bool = True,
+        restart_delay: float = 5.0,
+        max_restarts: int | None = None,
+    ):
+        """Register a task for supervised execution.
+
+        Args:
+            name: Unique task name
+            coro_factory: Factory function that returns a new coroutine
+            restart_on_failure: Whether to restart on failure
+            restart_delay: Delay before restart (seconds)
+            max_restarts: Max restarts (None or -1 = infinite, 0 = no restarts)
+        """
+        self._task_configs[name] = {
+            "coro_factory": coro_factory,
+            "restart_on_failure": restart_on_failure,
+            "restart_delay": restart_delay,
+            "max_restarts": max_restarts,
+            "restart_count": 0,
+        }
+
+    async def start_all(self):
+        """Start all registered tasks and the supervisor."""
+        self._running = True
+
+        for _name, _config in self._task_configs.items():
+            self._tasks[_name] = asyncio.create_task(
+                self._run_supervised(_name, _config)
+            )
+            logger.info(f"Supervised task started: {_name}")
+
+        # Start supervisor
+        self._supervisor_task = asyncio.create_task(self._supervisor_loop())
+        logger.info("Task supervisor started")
+
+    async def _run_supervised(self, name: str, config: dict):
+        """Run a task with supervision."""
+        coro_factory = config["coro_factory"]
+        restart_on_failure = config["restart_on_failure"]
+        restart_delay = config["restart_delay"]
+        max_restarts = config["max_restarts"]
+        restart_count = config["restart_count"]
+
+        # Treat -1 as infinite (same as None) for backwards compatibility
+        infinite_restarts = max_restarts is None or max_restarts == -1
+
+        while self._running:
+            try:
+                coro = coro_factory()
+                await coro
+                # Task completed normally - don't restart
+                logger.info(f"Task {name} completed normally")
+                break
+
+            except asyncio.CancelledError:
+                logger.info(f"Task {name} cancelled")
+                break
+            except Exception as e:
+                structured_logger.error("task.crashed", task=name, error=str(e), restart_count=restart_count)
+
+                if not restart_on_failure:
+                    logger.error(f"Task {name} not configured for restart, stopping")
+                    break
+
+                if not infinite_restarts and restart_count >= max_restarts:
+                    logger.error(f"Task {name} exceeded max restarts ({max_restarts})")
+                    break
+
+                restart_count += 1
+                config["restart_count"] = restart_count
+                logger.info(f"Restarting task {name} in {restart_delay}s (attempt {restart_count})")
+                await asyncio.sleep(restart_delay)
+
+    async def _supervisor_loop(self):
+        """Monitor all tasks and log their status."""
+        while self._running:
+            try:
+                for name, task in list(self._tasks.items()):
+                    if task.done():
+                        if not self._running:
+                            continue
+                        try:
+                            exc = task.exception()
+                            if exc and not isinstance(exc, asyncio.CancelledError):
+                                config = self._task_configs.get(name, {})
+                                if config.get("restart_on_failure", True):
+                                    logger.warning(f"Task {name} finished unexpectedly, will be restarted by supervisor")
+                                    # Task will be restarted by its own loop
+                        except asyncio.CancelledError:
+                            pass
+                await asyncio.sleep(10)  # Check every 10 seconds
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                structured_logger.error("supervisor.error", error=str(e))
+                await asyncio.sleep(10)
+
+    async def stop_all(self):
+        """Stop all tasks and the supervisor."""
+        self._running = False
+
+        # Cancel supervisor
+        if self._supervisor_task:
+            self._supervisor_task.cancel()
+            try:
+                await self._supervisor_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel all tasks
+        for _name, task in self._tasks.items():
+            if not task.done():
+                task.cancel()
+
+        # Wait for all tasks to finish
+        for _name, task in self._tasks.items():
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                structured_logger.warning("task.shutdown_error", task=_name, error=str(e))
+
+        self._tasks.clear()
+        logger.info("All supervised tasks stopped")
+
+
+# Global supervised task manager
+_task_manager = SupervisedTaskManager()
+
+
 async def _cancel_background_tasks():
     """Cancel all background tasks and wait for completion."""
-    for task in _background_tasks:
-        if not task.done():
-            task.cancel()
-    for task in _background_tasks:
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            structured_logger.warning("background.task_shutdown_error", error=str(e))
-    _background_tasks.clear()
-
-
-# Background task handles
-_background_tasks: list[asyncio.Task] = []
+    await _task_manager.stop_all()
 
 
 @asynccontextmanager
@@ -463,11 +603,21 @@ async def lifespan(app: FastAPI):
     # Verify ACE-Step bridge integrity on startup.
     _verify_ace_bridge_startup()
 
-    # Start background tasks
-    _background_tasks.append(asyncio.create_task(health_broadcast_loop()))
+# Start background tasks via supervised manager
+    _task_manager.add_task(
+        name="health_broadcast",
+        coro_factory=health_broadcast_loop,
+        restart_on_failure=True,
+        restart_delay=5.0,
+    )
+    _task_manager.add_task(
+        name="resource_monitoring",
+        coro_factory=resource_monitoring_loop,
+        restart_on_failure=True,
+        restart_delay=5.0,
+    )
+    await _task_manager.start_all()
     logger.info("Health broadcast background task started")
-
-    _background_tasks.append(asyncio.create_task(resource_monitoring_loop()))
     logger.info("Resource monitoring task started (30s interval)")
 
     # Start the idle monitor that auto-unloads services after 15 minutes of inactivity

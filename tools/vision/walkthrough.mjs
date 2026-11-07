@@ -35,6 +35,9 @@
  *   --no-video        skip Playwright video recording
  *   --video-only      skip screenshots; only record + analyze video
  *   --mode MODE       analyze mode for pages (default ui)
+ *   --model NAME      vision model override (e.g. qwen3.5:4b — thinking
+ *                     mode, structured-text findings; more accurate page
+ *                     ID than gemma4 but no JSON schema output)
  */
 
 import { createRequire } from 'node:module';
@@ -67,6 +70,7 @@ function parseArgs(argv) {
     noVideo: false,
     videoOnly: false,
     mode: 'ui',
+    model: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -84,6 +88,7 @@ function parseArgs(argv) {
     else if (a === '--no-video') args.noVideo = true;
     else if (a === '--video-only') args.videoOnly = true;
     else if (a === '--mode') args.mode = next();
+    else if (a === '--model') args.model = next();
     else if (a === '--help' || a === '-h') {
       console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0]);
       process.exit(0);
@@ -101,10 +106,11 @@ function labelFor(route, idx, labels) {
   return seg.replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
 }
 
-function runAnalyze(image, label, mode, contextText, jsonOut, prompt) {
+function runAnalyze(image, label, mode, contextText, jsonOut, prompt, model) {
   const argv = [ANALYZE, image, '--mode', mode, '--label', label, '--json'];
   if (contextText) argv.push('--context', contextText.slice(0, 4000));
   if (prompt) argv.push('--prompt', prompt);
+  if (model) argv.push('--model', model);
   const res = spawnSync(process.execPath, argv, {
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
@@ -115,6 +121,27 @@ function runAnalyze(image, label, mode, contextText, jsonOut, prompt) {
     console.error(`[walkthrough] analyze ${label} exited ${res.status}: ${(res.stderr || '').slice(-300)}`);
   }
   return jsonOut;
+}
+
+// qwen3.5 (thinking mode) can't do JSON-schema output — it returns
+// structured text with "=== FINDINGS ===" sections instead. Extract those
+// lines so report.md works regardless of which vision model ran.
+function extractTextFindings(analysisText) {
+  if (typeof analysisText !== 'string') return null;
+  const section = analysisText.split(/===\s*FINDINGS\s*===/i)[1];
+  if (!section) return null;
+  const body = section.split(/===/)[0];
+  const findings = [];
+  for (const line of body.split('\n')) {
+    const m = line.match(/\[SEVERITY:\s*(\w+)\]\s*(?:Element:\s*)?([^|]+)\|\s*Issue:\s*([^|]+)\|\s*Fix:\s*(.+)/i)
+      || line.match(/\[SEVERITY:\s*(\w+)\]\s*(.+)/i);
+    if (m) {
+      findings.push(m.length >= 5
+        ? { severity: m[1].toLowerCase(), element: m[2].trim(), issue: m[3].trim(), fix: m[4].trim() }
+        : { severity: m[1].toLowerCase(), issue: m[2].trim() });
+    }
+  }
+  return findings.length ? findings : null;
 }
 
 async function main() {
@@ -289,11 +316,11 @@ async function main() {
       ctxParts.push(`HTTP >=400 responses on this page:\n${pageBad.map((r) => `${r.status} ${r.url}`).join('\n')}`);
     const jsonOut = path.join(outDir, `analysis-${m.label}.json`);
     console.error(`[walkthrough] analyzing ${m.label}...`);
-    runAnalyze(shot, m.label, args.mode, ctxParts.join('\n\n') || null, jsonOut, pageSpecs[idx]?.prompt);
+    runAnalyze(shot, m.label, args.mode, ctxParts.join('\n\n') || null, jsonOut, pageSpecs[idx]?.prompt, args.model);
     try {
       const raw = JSON.parse(fs.readFileSync(jsonOut, 'utf8'));
       report.pages[m.label] = raw.analysis_parsed ?? raw.analysis;
-      const findings = raw.analysis_parsed?.findings;
+      const findings = raw.analysis_parsed?.findings ?? extractTextFindings(raw.analysis);
       if (Array.isArray(findings)) {
         lines.push(`## ${m.label}`, '');
         for (const f of findings) {
@@ -320,7 +347,8 @@ async function main() {
       // degenerates (repeats one frame description across all keyframes) at
       // ~10 images; 8 keyframes kept temporal claims coherent in testing.
       [ANALYZE, '--video', videoPath, '--mode', 'video', '--json',
-        '--video-frames', '32', '--video-keyframes', '8', '--context', marksContext],
+        '--video-frames', '32', '--video-keyframes', '8', '--context', marksContext]
+        .concat(args.model ? ['--model', args.model] : []),
       { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 600_000 },
     );
     fs.writeFileSync(videoJson, res.stdout || '');

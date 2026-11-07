@@ -70,13 +70,13 @@ export function StudioHeader({
 
   return (
     <div
-      className={`header-bar flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 bg-[#0f0f14]/90 backdrop-blur-xl border-b border-white/5 shrink-0 min-w-0 ${focusMode ? "hidden" : ""}`}
+      className={`header-bar flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-2.5 bg-[#0f0f14]/90 backdrop-blur-xl border-b border-white/5 shrink-0 min-w-0 overflow-x-auto ${focusMode ? "hidden" : ""}`}
     >
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 hidden sm:flex">
         <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
           <Sparkles size={14} className="text-white" />
         </div>
-        <span className="font-semibold text-sm hidden lg:inline">Three.js Studio</span>
+        <span className="font-semibold text-sm">Three.js Studio</span>
       </div>
       <div className="w-px h-6 bg-white/10 mx-1 hidden lg:block" />
       {/* Object palette — grouped, larger hit area */}
@@ -123,12 +123,12 @@ export function StudioHeader({
         <Maximize2 size={14} />
       </button>
       {/* Track selector — larger, clearer */}
-      <div className="flex items-center gap-2 ml-1 sm:ml-2 bg-black/30 px-3 py-1.5 rounded-xl border border-white/5 flex-1 min-w-0 max-w-full sm:max-w-[280px]">
-        <Music size={14} className="text-violet-400 shrink-0" />
+      <div className="flex items-center gap-2 ml-1 sm:ml-2 bg-black/30 px-3 py-1.5 rounded-xl border border-white/5 flex-1 min-w-0 max-w-full max-w-[200px] sm:max-w-[280px]">
+<Music size={14} className="text-violet-400 shrink-0" />
         <select
           value={selectedTrack}
           onChange={(e) => onSelectTrack(e.target.value)}
-          className="bg-transparent text-sm text-white outline-none flex-1 min-w-0 truncate placeholder:text-white/40"
+          className="bg-transparent text-sm text-white outline-none flex-1 min-w-0 truncate placeholder:text-white/40 max-w-[160px] sm:max-w-[280px]"
           disabled={tracksLoading}
         >
           {tracksLoading && (
