@@ -1227,3 +1227,54 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
     accidentally deleted `class _StdCapture:` line in
     logging_config.py — its absence nested _StdCapture's __init__ inside
     SafeRotatingFileHandler, crashing backend startup on maxBytes.
+
+### T-VIZ-52 — First full mode baseline: 23/23 scored on verified audio playback
+
+- **Status:** done
+- **Goal:** Run the T-VIZ-51 pipeline end-to-end on real audio-reactive
+  playback and turn the scorecard into a redesign backlog.
+- **Capture:** `viz-capture-2026-11-07T21-03-46-183Z/` — "Ship It Anyway"
+  (220s track), all 23 modes, dwell 6s, `audioVerified: true` (the
+  currentTime-advance check added in the T-VIZ-51 review pass). Prior
+  run `viz-capture-2026-11-07T20-02-18-372Z/` scored a dead backend —
+  kept as the idle-state baseline (audioVerified:false banner).
+- **Scorecard (verified audio, qwen3.5:4b, 3 frames/mode):**
+  - 4.0 tier (10): 3D Stage, electricHorizon, neonRain, neonGrid,
+    westCoastSunset, abstractWaves, mirrored-bars, radial, constellation,
+    particles
+  - 3.0 tier (11): foggyNoir, fireCrown, spectralReactor,
+    segmented-led-bars, stereo-split-bars, dot-peak-matrix, waveform,
+    spectrogram, lissajous, aurora, kinetic-type
+  - 2.0 tier (2): bars, stacked-frequency-bands
+- **Systemic findings (cross-mode, verified in scorecard.md):**
+  1. "Stepped/jittery" motion flagged on bars, stacked-frequency-bands,
+     segmented-led-bars, waveform, aurora — despite the T-VIZ-15 shared
+     envelope stage. Suspect envelope attack (k=0.5) is too hot for
+     "fluid" perception, or modes need a second visual-state damp layer.
+  2. Flat solid fills / no internal gradients — bars, stereo-split,
+     stacked-frequency-bands, dot-peak-matrix.
+  3. Ambiguous thin tick/dash marks above bars read as clutter or
+     out-of-sync data (stereo-split-bars, stacked-frequency-bands).
+  4. Stick figure flagged in 4+ modes as wireframe/underwhelming/static
+     — cross-mode distraction; BuilderFigure needs glow/react integration
+     or per-mode compositing decision.
+  5. foggyNoir reactivity=2: "ambient breathing, not beat-mapped" — needs
+     tempo-locked pulse per audio-reactive-visualization-2026-11.md.
+  6. Faint decorative elements (background rings/dashes) blend into
+     dark bg — raise opacity or add glow.
+- **Parser fixes landed during scoring:** qwen-JSON `analysis_parsed`
+  uppercase keys normalized (neonRain unscored -> 4.0); `--from-analyses`
+  rebuilt scorecard offline; stereo-split-bars recovered via `--only`
+  retry (qwen thinking-overflow is intermittent — retry works).
+- **Redesign backlog (ranked by scorecard impact):**
+  1. bars + stacked-frequency-bands (2.0): gradients, declutter ticks,
+     stronger perceived smoothing.
+  2. foggyNoir/fireCrown/spectralReactor shader presets (react<=3):
+     beat-grid-locked motion, spectral-band-differentiated response.
+  3. BuilderFigure integration pass (cross-mode finding).
+  4. Per-mode second-stage damp for the motion=2 cluster.
+- **Files:** tools/vision/viz-score.mjs (parser), scorecard artifacts in
+  viz-capture-2026-11-07T21-03-46-183Z/.
+- **Acceptance:** satisfied — baseline measured, redesign backlog ranked.
+- **Last session:** Devin, 2026-11-07 — commits ce99bd17, 935f9c23,
+  4c7c9a1d, 4aa74d8a.
