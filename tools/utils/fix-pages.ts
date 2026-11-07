@@ -42,4 +42,4 @@ pageFiles.forEach(file => {
   }
 });
 
-console.log('\n✅ All pages fixed! Now run npm run build');
+console.log('\n✅ All pages fixed! Now run pnpm run build');
