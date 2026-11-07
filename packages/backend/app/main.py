@@ -43,6 +43,7 @@ from .api.test_analytics import router as test_analytics_router
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
+from .core.event_bus import HealthEventData, event_bus
 from .core.idle_monitor import idle_monitor
 from .core.logging_config import setup_logging, structured_logger
 from .core.metrics import MetricsMiddleware, metrics_endpoint
@@ -225,17 +226,69 @@ for subdir in ["images", "video", "audio", "previews", "logs"]:
 storage_dir = PROJECT_ROOT / "storage"
 storage_dir.mkdir(parents=True, exist_ok=True)
 
-# Background task handles
-_background_tasks: list[asyncio.Task] = []
+# Track when heavy jobs are running for adaptive health monitoring
+_heavy_job_running: bool = False
+_health_broadcast_interval: float = 60.0  # Start with idle interval (60s)
+_IDLE_HEALTH_INTERVAL: float = 60.0  # 60s during idle
+_HEAVY_HEALTH_INTERVAL: float = 5.0  # 5s during heavy jobs
+
+# Job types considered "heavy" (resource-intensive)
+_HEAVY_JOB_TYPES: set = {
+    "music_video",
+    "music_video_preview",
+    "narrative_video",
+    "scene_render",
+    "comfyui_workflow",
+    "remotion_render",
+    "visualizer",
+    "storyboard_generation",
+}
+
+
+async def _check_heavy_job_running() -> bool:
+    """Check if a heavy job is currently running."""
+    running_job = queue_manager._running_job
+    if running_job is None:
+        return False
+    job_type = running_job.job_type
+    job_type_value = job_type.value if hasattr(job_type, "value") else str(job_type)
+    return job_type_value in _HEAVY_JOB_TYPES
+
+
+async def _on_job_update(job):
+    """Callback for job updates to track heavy job status."""
+    global _heavy_job_running, _health_broadcast_interval
+
+    was_heavy = _heavy_job_running
+    _heavy_job_running = await _check_heavy_job_running()
+
+    # Adjust interval based on heavy job status
+    if _heavy_job_running:
+        _health_broadcast_interval = _HEAVY_HEALTH_INTERVAL
+    else:
+        _health_broadcast_interval = _IDLE_HEALTH_INTERVAL
+
+    if was_heavy != _heavy_job_running:
+        logger.info(
+            "Health broadcast interval changed",
+            heavy_job_running=_heavy_job_running,
+            interval=_health_broadcast_interval,
+        )
 
 
 async def health_broadcast_loop():
-    """Background loop that broadcasts health status every 5 seconds to both SSE and WS."""
+    """Background loop that broadcasts health status.
+    Runs every 5s during heavy jobs, every 60s during idle.
+    """
     consecutive_errors = 0
     max_backoff = 30  # Max seconds to wait between retries
+    last_health_status: dict | None = None
 
     while True:
         try:
+            # Get current interval (may change based on heavy job status)
+            current_interval = _health_broadcast_interval
+
             health_status = await health_monitor.get_aggregate_health()
             # Map internal adapter statuses to the API contract (healthy -> online)
             # on a COPY. get_aggregate_health returns the shared cached dict, so
@@ -252,14 +305,31 @@ async def health_broadcast_loop():
                     for name, adapter in health_status.get("adapters", {}).items()
                 },
             }
-            await sse_manager.broadcast_health_status(broadcast_status)
-            # Mirror to legacy WS clients
-            try:
-                await connection_manager.broadcast_health_status(broadcast_status)
-            except Exception:
-                pass
+
+            # During idle, only broadcast if health actually changed
+            unchanged = (
+                not _heavy_job_running
+                and last_health_status is not None
+                and {k: v for k, v in broadcast_status.items() if k != "timestamp"}
+                == {k: v for k, v in last_health_status.items() if k != "timestamp"}
+            )
+            if unchanged:
+                # Health unchanged during idle - skip broadcast
+                await asyncio.sleep(current_interval)
+                continue
+            if not _heavy_job_running:
+                last_health_status = broadcast_status
+
+            # Broadcast via event bus (reaches SSE + WS + any other subscribers)
+            await event_bus.emit_health_change(HealthEventData(
+                status=broadcast_status.get("status", "unknown"),
+                overall=broadcast_status.get("overall", "unknown"),
+                backend=broadcast_status.get("backend", "offline"),
+                adapters=broadcast_status.get("adapters", {}),
+            ))
+
             consecutive_errors = 0  # Reset on success
-            await asyncio.sleep(5)
+            await asyncio.sleep(current_interval)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -284,6 +354,10 @@ async def _cancel_background_tasks():
         except Exception as e:
             structured_logger.warning("background.task_shutdown_error", error=str(e))
     _background_tasks.clear()
+
+
+# Background task handles
+_background_tasks: list[asyncio.Task] = []
 
 
 @asynccontextmanager
@@ -352,15 +426,13 @@ async def lifespan(app: FastAPI):
         structured_logger.error("config.port_resolution_failed", error=str(e))
         raise
 
-    # Subscribe to job updates -- fan-out to both SSE and legacy WS
+    # Subscribe to job updates -- fan-out via event bus
     async def _fanout_job_update(job):
-        await sse_manager.send_job_update(job)
-        try:
-            await connection_manager.send_job_update(job)
-        except Exception:
-            pass
+        await event_bus.send_job_update(job)
 
     await queue_manager.subscribe(_fanout_job_update)
+    # Tracks heavy-job status so health broadcasts speed up during renders.
+    await queue_manager.subscribe(_on_job_update)
 
     # Start the processor
     try:
@@ -402,6 +474,10 @@ async def lifespan(app: FastAPI):
     await idle_monitor.start()
     logger.info("Idle monitor started (15-minute timeout)")
 
+    # Wire up event bus with delivery managers
+    event_bus.set_managers(sse_manager=sse_manager, ws_manager=connection_manager)
+    logger.info("Event bus wired with SSE and WebSocket managers")
+
     yield
 
     logger.info("Shutting down Native Media AI Studio...")
@@ -431,6 +507,7 @@ async def lifespan(app: FastAPI):
     # duplicate subscribers on the queue manager.
     try:
         await queue_manager.unsubscribe(_fanout_job_update)
+        await queue_manager.unsubscribe(_on_job_update)
     except Exception as e:
         structured_logger.warning("queue.fanout_unsubscribe_failed", error=str(e))
 
@@ -1173,8 +1250,10 @@ async def sse_endpoint(request: Request):
                         "id": event["id"],
                         "data": event["data"],
                     }
-            except (ValueError, TypeError):
-                pass  # Invalid Last-Event-ID, proceed without replay
+            except Exception:
+                # Malformed replay payload or bad Last-Event-ID: skip replay
+                # rather than killing the stream after headers are sent.
+                pass
 
         try:
             # Send initial connection event
