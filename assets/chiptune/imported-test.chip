@@ -1,0 +1,8 @@
+# imported from test-import.mid via import_midi (v1: top note
+# per cell, constant tempo, velocity/CC ignored)
+system nes
+tempo 120
+
+drums: x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . x . . . .
+melody: C-4 - - - E-4 - - - G-4 - - - C-5 - - - B-4 - - - G-4 - - - E-4 - - - D-4 - - - C-4 - - - E-4 - - - G-4 - - - C-5 - - - E-5 - - - C-5 - - - G-4 - - - E-4 - - - .
+bass: C-2 - - - - - - - - - - - . . . . F-2 - - - - - - - - - - - . . . . C-2 - - - - - - - - - - - . . . . G-2 - - - - - - - - - - - . . . . .

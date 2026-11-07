@@ -13,7 +13,7 @@ import sys
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from ..core.config import PROJECT_ROOT
@@ -99,6 +99,23 @@ async def list_systems() -> dict[str, Any]:
 async def get_demo() -> dict[str, Any]:
     chip = _load()
     return {"pattern": chip.DEMO}
+
+
+@router.post("/import-midi")
+async def import_midi_endpoint(file: UploadFile) -> dict[str, Any]:
+    """MIDI upload -> .chip text (v1: top note per cell, constant tempo)."""
+    chip = _load()
+    if not (file.filename or "").lower().endswith((".mid", ".midi")):
+        raise HTTPException(status_code=400, detail="expected a .mid/.midi file")
+    tmp = PROJECT_ROOT / "output" / "tmp" / f"chiptune-import-{file.filename}"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_bytes(await file.read())
+    try:
+        return {"pattern": chip.import_midi(tmp), "source": file.filename}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"midi import failed: {e}") from e
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 @router.post("/render")

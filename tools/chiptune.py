@@ -291,6 +291,146 @@ def parse_chip(text: str) -> Pattern:
     return p
 
 
+_PC_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def midi_pitch_name(pitch: int) -> str:
+    """MIDI note number -> .chip name ('C-4' style; MIDI# == our semitone)."""
+    return f"{_PC_SHARP[pitch % 12]}-{pitch // 12 - 1}"
+
+
+def import_midi(path: str | Path) -> str:
+    """MIDI file -> .chip text (v1 importer).
+
+    Limitations (documented, not silent):
+      - top simultaneous pitch per 16th cell per MIDI channel (chords
+        collapse to the highest note)
+      - constant tempo = first set_tempo event; tempo changes ignored
+      - velocity, time signature, CC ignored
+      - channel 10 (drums) -> 'x' noise hits; other channels -> melodic
+    """
+    import mido
+
+    mid = mido.MidiFile(str(path))
+    tpq = mid.ticks_per_beat
+    tempo_us = 500000
+    for tr in mid.tracks:
+        tick = 0
+        for msg in tr:
+            tick += msg.time
+            if msg.type == "set_tempo":
+                tempo_us = msg.tempo
+                break
+        else:
+            continue
+        break
+    bpm = max(20, min(300, round(60_000_000 / tempo_us)))
+    sec_per_tick = (tempo_us / 1e6) / tpq
+    cell_sec = 60.0 / bpm / 4.0
+
+    # Track names -> channel names, so 'Bass'/'Drums' metadata survives
+    # into role binding (a channel fed by one named track gets that name).
+    chan_track_name: dict[int, str] = {}
+    for tr in mid.tracks:
+        tname = None
+        tr_chans: set[int] = set()
+        for msg in tr:
+            if msg.type == "track_name":
+                tname = msg.name
+            elif msg.type in ("note_on", "note_off"):
+                tr_chans.add(msg.channel)
+        if tname:
+            for c in tr_chans:
+                chan_track_name.setdefault(c, tname)
+
+    # note intervals per MIDI channel: (start_s, end_s, pitch)
+    chan_notes: dict[int, list[tuple[float, float, int]]] = {}
+    total_ticks = 0
+    for tr in mid.tracks:
+        tick = 0
+        open_notes: dict[tuple[int, int], int] = {}
+        tr_notes: list[tuple[int, int, int, int]] = []
+        for msg in tr:
+            tick += msg.time
+            total_ticks = max(total_ticks, tick)
+            if msg.type == "note_on" and msg.velocity > 0:
+                open_notes[(msg.channel, msg.note)] = tick
+            elif (msg.type == "note_off"
+                  or (msg.type == "note_on" and msg.velocity == 0)):
+                start = open_notes.pop((msg.channel, msg.note), None)
+                if start is not None:
+                    tr_notes.append((msg.channel, msg.note, start, tick))
+        for (ch, note), start in open_notes.items():
+            tr_notes.append((ch, note, start, total_ticks))
+        for ch, note, s, e in tr_notes:
+            chan_notes.setdefault(ch, []).append(
+                (s * sec_per_tick, max(e, s + 1) * sec_per_tick, note))
+
+    if not chan_notes:
+        raise ValueError("no notes found in MIDI file")
+
+    n_cells = max(1, int(total_ticks * sec_per_tick / cell_sec) + 1)
+
+    def _cells_for(notes: list[tuple[float, float, int]]) -> list[str]:
+        cells: list[str] = []
+        prev: int | None = None
+        for i in range(n_cells):
+            cs, ce = i * cell_sec, (i + 1) * cell_sec
+            top = None
+            for s, e, pt in notes:
+                if s < ce and e > cs and (top is None or pt > top):
+                    top = pt
+            if top is None:
+                cells.append(".")
+                prev = None
+            elif prev == top:
+                cells.append("-")
+            else:
+                cells.append(midi_pitch_name(top))
+                prev = top
+        return cells
+
+    def _drum_cells(notes: list[tuple[float, float, int]]) -> list[str]:
+        cells = []
+        for i in range(n_cells):
+            cs, ce = i * cell_sec, (i + 1) * cell_sec
+            cells.append("x" if any(s < ce and e > cs
+                                    for s, e, _ in notes) else ".")
+        return cells
+
+    # Emit drums first, then melodic channels by descending mean pitch so
+    # the lead-ish line binds to the first free voice.
+    lines = [
+        f"# imported from {Path(path).name} via import_midi (v1: top note",
+        "# per cell, constant tempo, velocity/CC ignored)",
+        "system nes",
+        f"tempo {bpm}",
+        "",
+    ]
+
+    def _ch_name(ch: int) -> str:
+        if ch == 9:
+            return "drums"
+        tname = chan_track_name.get(ch)
+        if tname:
+            s = re.sub(r"[^A-Za-z0-9]+", "-", tname).strip("-").lower()
+            if s:
+                return s
+        return f"ch{ch + 1}"
+
+    melodic = []
+    for ch in sorted(chan_notes):
+        notes = chan_notes[ch]
+        if ch == 9:
+            lines.append(f"drums: {' '.join(_drum_cells(notes))}")
+        else:
+            mean_pitch = sum(p for _, _, p in notes) / len(notes)
+            melodic.append((mean_pitch, ch))
+    for _, ch in sorted(melodic, reverse=True):
+        lines.append(f"{_ch_name(ch)}: {' '.join(_cells_for(chan_notes[ch]))}")
+    return "\n".join(lines) + "\n"
+
+
 def _lfsr_noise(n: int, clock_div: int = 13, seed: int = 1) -> np.ndarray:
     """Deterministic LFSR noise — the NES/GB-style periodic hash noise."""
     rng = np.random.default_rng(seed)
@@ -1051,7 +1191,27 @@ def main(argv: list[str] | None = None) -> int:
                     help="shift all notes by N semitones (genre/key tool)")
     ap.add_argument("--tempo", type=float, default=None, metavar="BPM",
                     help="override the pattern's tempo")
+    ap.add_argument("--midi", action="store_true",
+                    help="treat input file as MIDI and convert to .chip "
+                         "(prints to stdout or writes --out <name>.chip)")
     args = ap.parse_args(argv)
+
+    if args.midi:
+        if not args.file:
+            ap.error("--midi requires a .mid file argument")
+        try:
+            chip_text = import_midi(args.file)
+        except Exception as e:
+            print(f"[chiptune] midi import failed: {e}", file=sys.stderr)
+            return 1
+        if args.out:
+            out = Path(args.out)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(chip_text, encoding="utf-8")
+            print(f"[chiptune] wrote {out}")
+        else:
+            sys.stdout.write(chip_text)
+        return 0
 
     if args.list:
         for k, v in SYSTEMS.items():

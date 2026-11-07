@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Cpu, Play, Eye, RefreshCw, Music, Save, Trash2 } from "lucide-react";
+import { Cpu, Play, Eye, RefreshCw, Music, Save, Trash2, FileMusic } from "lucide-react";
 import { getApiBase } from "../../services/api/core";
 import { DS } from "../../styles/designSystem";
 import { Card, StatusBadge } from "../../components/common";
@@ -104,6 +104,24 @@ export function ChiptunePage() {
     }
   };
 
+  const importMidi = async (file: File) => {
+    setBusy("preview");
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch(`${api}/api/chiptune/import-midi`, { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.detail ?? r.statusText);
+      setPattern(j.pattern ?? "");
+      setLoadedPattern("");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
   const submit = async (preview: boolean) => {
     setBusy(preview ? "preview" : "render");
     setError("");
@@ -195,6 +213,20 @@ export function ChiptunePage() {
                 <Trash2 size={14} />
               </button>
             )}
+            <label className={DS.btnSecondary} title="Import .mid -> .chip">
+              <FileMusic size={14} />
+              <input
+                type="file"
+                accept=".mid,.midi"
+                className="hidden"
+                disabled={!!busy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void importMidi(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
           </div>
           <textarea
             value={pattern}
