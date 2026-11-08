@@ -37,3 +37,24 @@ if (-not (Test-Path -LiteralPath $manageScript)) {
 
 Write-Host "`nStarting background services via manage-servers.ps1..." -ForegroundColor Cyan
 & $manageScript -Action start -Services $services
+
+# Resource watchdog: monitors RAM/commit charge and reaps orphaned worker
+# processes (dead parent, >60 min old, not in the service allowlist).
+# Logs to output\logs\resource-watchdog.jsonl. Skipped if already running.
+$watchdogScript = Join-Path $ProjectRoot 'tools\resource-watchdog.py'
+$watchdogRunning = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'resource-watchdog\.py' }
+if (-not $watchdogRunning -and (Test-Path -LiteralPath $watchdogScript)) {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        $logDir = Join-Path $ProjectRoot 'output\logs'
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+        Start-Process -FilePath $pythonCmd.Source `
+            -ArgumentList @('tools\resource-watchdog.py', 'watch', '--interval', '60', '--reap', '--min-age', '60') `
+            -WorkingDirectory $ProjectRoot `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $logDir 'watchdog.out.log') `
+            -RedirectStandardError (Join-Path $logDir 'watchdog.err.log')
+        Write-Host "Resource watchdog started (log: output\logs\resource-watchdog.jsonl)" -ForegroundColor DarkGray
+    }
+}

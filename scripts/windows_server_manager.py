@@ -143,9 +143,8 @@ class HybridServerManager:
         self.health_endpoint = f"http://127.0.0.1:{self.config.get('port', 8004)}/api/health"
         self.health_check_interval = 30
 
-        # Paths
-        self.project_root = Path.cwd()
-        self.backend_dir = Path.cwd() / "packages" / "backend"
+        # Paths — keep the project_root passed to __init__; do not override
+        # with Path.cwd() (callers may launch from any directory).
 
         # Load server configs
         self.server_configs = self._load_server_configs()
@@ -161,7 +160,7 @@ class HybridServerManager:
             "supports_reload": True,
             "startup_timeout": 30,
             "memory_efficient": True,
-            "extra_args": ["--interface", "asgi", "--static-files", "/static=./static", "--blocking-threads", "4", "--runtime-threads", "2", "--runtime-blocking-threads", "2"],
+            "extra_args": ["--blocking-threads", "4", "--runtime-threads", "2", "--runtime-blocking-threads", "2"],
         },
 "uvicorn": {
             "type": "uvicorn",
@@ -170,7 +169,7 @@ class HybridServerManager:
             "supports_reload": True,
             "startup_timeout": 30,
             "memory_efficient": False,
-            "extra_args": ["--loop", "winloop", "--http", "h2", "--no-access-log"],  # HTTP/2 + winloop
+            "extra_args": ["--no-access-log"],  # uvicorn has no --http h2/--loop winloop; h2 is hypercorn's job
         },
 "hypercorn": {
             "type": "hypercorn",
@@ -282,6 +281,11 @@ class HybridServerManager:
                 cmd.extend(["--processes", str(config["workers"])])
             cmd.append(config["app_module"])
 
+        extra = server.get("extra_args") or []
+        if extra:
+            # Insert before the app-module positional so flags precede the
+            # target on every CLI (all four servers use argparse-style parsers).
+            cmd = cmd[:-1] + extra + cmd[-1:]
         return cmd
 
     def start_server(self, server_type: str) -> subprocess.Popen | None:
