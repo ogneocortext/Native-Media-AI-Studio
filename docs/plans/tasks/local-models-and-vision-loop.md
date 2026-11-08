@@ -369,3 +369,27 @@ Rules: `docs/plans/tasks/README.md`
   TOP_3_FIXES structure.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-MOD-12 — Vision task-tier routing: fast/describe vs workhorse vs deep
+- **Status:** done
+- **Goal:** Right-size the vision model per task — back-to-back mesh/UI
+  iteration loops need a fast small VLM, not the 4 GB reasoning model;
+  detail audits still need gemma4; subtle defect hunts need qwen3.5.
+- **Measured (2026-11-08, mesh-QA renders, warm):** moondream ~1.5 s
+  describe (hallucinates detail, answers detection prompts with raw
+  bbox coords — smoke checks only); gemma4:e2b-it-qat ~7 s structured
+  findings (workhorse); qwen3.5:4b ~27 s warm / ~133 s cold (deep —
+  caught thin-limb + disjointed-part defects gemma4 missed).
+- **Changes:** pulled `moondream` (~1.8 GB); analyze.mjs gained
+  `fast`/`describe` modes -> `VISION_MODEL_FAST` env or moondream +
+  MODEL_PROFILES entry; vision-mcp `vision_describe` gained `model`
+  param (forwards `--model`, warms that model) and `fast`/`describe`
+  mode enum values; ollama-model-ops skill records the tier table.
+- **Files:** tools/vision/analyze.mjs, tools/mcp/vision-mcp.mjs,
+  .claude/skills/ollama-model-ops/SKILL.md (+ .devin mirror),
+  docs/plans/tasks/local-models-and-vision-loop.md.
+- **Verification:** node --check clean on both files; live runs —
+  `--mode fast` routed to moondream (mode-map+resident), moondream
+  warm describe 1.5 s, qwen/gemma timings recorded above.
+- **Acceptance:** satisfied — tier routing live and documented.
+- **Last session:** Devin, 2026-11-08 — implemented + measured + committed.

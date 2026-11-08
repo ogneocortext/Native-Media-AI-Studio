@@ -35,9 +35,27 @@ description: >-
 | `qwen3.5:4b` / `:9b` | — | llamacpp | coding / reasoning | 36 tok/s (4b) |
 | `llama3.2:3b` | — | ggml | section-chain fallback | 17 tok/s |
 | `minicpm-v:8b` | 5.5 GB | ggml | OCR specialist | 183s cold load |
+| `moondream` | ~1.8 GB | ggml | **fast vision iterate tier** | ~1.5s warm describe |
 | `nomic-embed-text:v1.5` | — | — | embeddings | — |
 
 Cloud stubs (not local): `glm-5.3:cloud`, `deepseek-v4-flash:cloud`, `deepseek-v4.1:flash:cloud`.
+
+## Vision task routing (measured 2026-11-08 on mesh-QA renders)
+
+Pick the model for the task, not the biggest one available:
+
+| Tier | Model | Warm latency | Use for | Do NOT use for |
+|------|-------|--------------|---------|----------------|
+| fast iterate | `moondream` (`--mode fast`/`describe`, or `model:"moondream"`) | ~1.5 s | "did it render", gross composition, smoke checks | deformation/detail QA — it hallucinates details (reported a "black suit" on a gray figure) and answers detection prompts with raw bbox coords |
+| workhorse | `gemma4:e2b-it-qat` (default, `--mode ui`) | ~7 s | mesh/UI QA, structured findings, OCR-adjacent | — |
+| deep reasoning | `qwen3.5:4b` (`--model qwen3.5:4b`) | ~27 s warm / ~133 s cold | subtle defect hunts (caught thin-limb + disjointed-part issues gemma4 missed) | back-to-back iteration loops |
+
+Routing mechanics: `tools/vision/analyze.mjs` `MODE_MODEL` maps modes
+to models with resident-stickiness; `fast`/`describe` modes resolve to
+`VISION_MODEL_FAST` env or `moondream`. The MCP `vision_describe` tool
+accepts `mode:"fast"|"describe"` or an explicit `model` param
+(forwarded as `--model`, and that model is warmed instead of the
+primary). Override anything with `--model`/`VISION_MODEL`.
 
 ## Health check
 

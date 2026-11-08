@@ -1307,6 +1307,27 @@ class Gen3DService:
             result["warning"] = (
                 f"final GLB was missing after postprocess; restored from {recovered_from}"
             )
+
+        # Asset registry (schema v25): record the finished GLB so track↔asset
+        # queries can find it. Best-effort — register_asset never raises.
+        try:
+            from ..asset_registry import register_asset
+
+            register_asset(
+                "model_3d",
+                str(dst),
+                name=dst.name,
+                source="gen3d",
+                meta={
+                    "prompt_id": prompt_id,
+                    "role": role,
+                    "budget_verdict": budget_report.get("verdict"),
+                    "texture_stage": texture_stage.get("method"),
+                    "recovered_from": recovered_from,
+                },
+            )
+        except Exception as e:  # noqa: BLE001 - bookkeeping must not fail generation
+            logger.debug("asset registry skipped for %s: %s", dst.name, e)
         return result
 
     @staticmethod

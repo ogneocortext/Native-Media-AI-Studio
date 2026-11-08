@@ -53,6 +53,11 @@ const MODEL_PROFILES = {
   // Structured JSON output NOT supported when thinking enabled → use text output.
   'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M': { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'resident fallback, reasoning model', jsonOutput: false, thinking: true },
   'qwen3.5:4b':          { temp: 0.3, tempExtract: 0, numCtx: 8192,  maxDim: 1280, note: 'resident fallback, reasoning model', jsonOutput: false, thinking: true },
+  // Fast iterate/describe tier: moondream is a ~1.8 GB captioning VLM —
+  // orders of magnitude faster than the 4 GB reasoning models for
+  // back-to-back mesh/UI QA loops where "does this look right" is the
+  // whole question. Detail-critical audits still route to gemma4.
+  'moondream':           { temp: 0.3, tempExtract: 0, numCtx: 4096,  maxDim: 1280, note: 'fast describe/iterate tier', jsonOutput: false, thinking: false },
 };
 const DEFAULT_PROFILE = { temp: 0.3, tempExtract: 0, numCtx: VISION_NUM_CTX, maxDim: 1568, note: 'generic', jsonOutput: true };
 
@@ -79,6 +84,10 @@ const MODE_MODEL = {
   vizmode: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   depth: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   consistency: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
+  // 'fast'/'describe' = rapid iteration tier (mesh QA loops, quick
+  // look-checks). Override the model with VISION_MODEL_FAST.
+  fast: process.env.VISION_MODEL_FAST || 'moondream',
+  describe: process.env.VISION_MODEL_FAST || 'moondream',
 };
 
 function profileFor(model) {

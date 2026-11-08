@@ -835,6 +835,35 @@ def _migrate_v24(conn: sqlite3.Connection):
         """)
 
 
+def _migrate_v25(conn: sqlite3.Connection):
+    """Add the assets registry: every produced/consumed media asset linked
+    to the track (and audio file) it belongs to.
+
+    Until now generation outputs lived only on disk + in per-table columns
+    (tracks.comfyui_visual_ids, jobs.output_path), so "which track owns
+    this stem/model/texture/prompt" was unanswerable. This table is the
+    single join point: kind discriminates asset class, meta carries
+    producer provenance (prompt, model, budget verdict, texture stage).
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS assets (
+            id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            path TEXT NOT NULL,
+            name TEXT DEFAULT '',
+            track_id TEXT,
+            audio_id TEXT,
+            source TEXT DEFAULT '',
+            meta TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_assets_track ON assets(track_id);
+        CREATE INDEX IF NOT EXISTS idx_assets_audio ON assets(audio_id);
+        CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
+        CREATE INDEX IF NOT EXISTS idx_assets_source ON assets(source);
+    """)
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -956,6 +985,8 @@ def init_db(db_path: Path | None = None):
                         _migrate_v23(conn)
                     if current_version < 24:
                         _migrate_v24(conn)
+                    if current_version < 25:
+                        _migrate_v25(conn)
 
                     set_schema_version(conn, SCHEMA_VERSION)
                     logger.info("Database initialized at version %d", SCHEMA_VERSION)

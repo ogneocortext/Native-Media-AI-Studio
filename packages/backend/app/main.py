@@ -40,6 +40,7 @@ from .api.integrations_misc import router as integrations_misc_router
 from .api.integrations_music_video import router as integrations_music_video_router
 from .api.sub_agent import router as sub_agent_router
 from .api.test_analytics import router as test_analytics_router
+from .api.vst import router as vst_router
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
@@ -972,6 +973,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 from .api import (  # noqa: E402
     ai,
     animationstudio,
+    assets,
     audio,
     audio_edit,
     audio_mastering,
@@ -1018,6 +1020,7 @@ app.include_router(integrations_music_video_router, prefix="/api/integrations")
 app.include_router(integrations_generation_router, prefix="/api/integrations")
 app.include_router(integrations_misc_router, prefix="/api/integrations")
 app.include_router(outputs.router)
+app.include_router(assets.router)
 app.include_router(treblo_tags.router)
 app.include_router(audio.router)
 # Stem routes live in their own module but share the /api/audio prefix, so the
@@ -1025,6 +1028,8 @@ app.include_router(audio.router)
 # audio.py only works while both routers are registered here.
 app.include_router(audio_stems.router)
 app.include_router(chiptune.router)
+# VST plugin hosting for AI music creation
+app.include_router(vst_router)
 # File editing (/extract, /rename, /trim, /file) lives in its own module but
 # shares the /api/audio prefix, so the public paths are unchanged. All three
 # audio routers must stay registered here or the split silently drops routes.

@@ -149,3 +149,34 @@ Rules: `docs/plans/tasks/README.md`
   outputStore default limit 200→500. Verified live: API returns 409
   outputs across 16 top dirs (was ~10 from 5 dirs); tsc errors seen are
   unrelated untracked admin-page WIP; eslint clean on touched files.
+
+### T-LIB-08 — Asset registry: track↔asset join table (schema v25)
+- **Status:** done
+- **Goal:** Answer "which track has which stems, models, textures,
+  prompts, audio sources" from one queryable place instead of
+  scavenging per-producer columns (tracks.comfyui_visual_ids,
+  jobs.output_path, filesystem stem dirs).
+- **Changes:** migration `_migrate_v25` adds `assets` table
+  (id, kind, path, name, track_id, audio_id, source, meta JSON,
+  created_at + indexes on track/audio/kind/source); SCHEMA_VERSION
+  24->25. `services/asset_registry.py`: `register_asset` (never
+  raises — bookkeeping must not fail producers), `list_assets`,
+  `assets_for_track` grouped summary. `api/assets.py` router:
+  GET /api/assets (filters), GET /api/assets/track/{id} (by-kind
+  counts + rows), POST /api/assets (manual register). gen3d
+  `_postprocess_glb` registers every finished GLB as kind=model_3d
+  with role/prompt_id/budget verdict/texture stage in meta.
+- **Files:** packages/backend/app/core/{migrations,connection}.py,
+  packages/backend/app/services/asset_registry.py (new),
+  packages/backend/app/api/assets.py (new), packages/backend/app/main.py,
+  packages/backend/app/services/gen3d/gen3d_service.py,
+  docs/plans/tasks/library-and-organization.md.
+- **Verification:** all 25 migrations run clean on a fresh in-memory
+  DB; live backend restarted -> PRAGMA user_version=25, assets table
+  live; POST /api/assets registered hero_dj.glb (id returned);
+  GET /api/assets?kind=model_3d returns it; ruff clean on touched
+  files.
+- **Acceptance:** satisfied — registry live, first producer wired,
+  endpoint verified. Remaining: wire more producers (comfyui images,
+  stems separation, blender exports) and a library-UI surface.
+- **Last session:** Devin, 2026-11-08 — implemented + verified + committed.

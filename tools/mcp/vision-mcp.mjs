@@ -359,14 +359,14 @@ async function warmModel(model, enabled = true) {
 // Kept in sync with its VISION_MODEL default so warmup targets the right model.
 const PRIMARY_VISION_MODEL = process.env.VISION_MODEL || "gemma4:e2b-it-qat";
 
-async function describeImage(imagePath, prompt, mode) {
+async function describeImage(imagePath, prompt, mode, model) {
   const abs = resolveImagePath(imagePath);
   const finalPrompt = prompt || "Describe this image in detail.";
   const finalMode = mode || "ui";
   const reqId = generateRequestId();
 
   // Check cache first
-  const cacheKey = `${abs}_${finalPrompt}_${finalMode}`;
+  const cacheKey = `${abs}_${finalPrompt}_${finalMode}_${model || ""}`;
   const cached = imageCache.get(cacheKey);
   if (cached) {
     logRequest(reqId, "vision_describe", `cache-hit image=${abs}`);
@@ -383,12 +383,14 @@ async function describeImage(imagePath, prompt, mode) {
       "Ollama is not reachable at " + OLLAMA_URL + ". Start it with `ollama serve`.",
     );
   }
-  await ensureVisionModel(PRIMARY_VISION_MODEL, { log: vramLog });
-  await warmModel(PRIMARY_VISION_MODEL);
+  const warmTarget = model || PRIMARY_VISION_MODEL;
+  await ensureVisionModel(warmTarget, { log: vramLog });
+  await warmModel(warmTarget);
 
   // Primary: use the standalone analyzer which has sharp + model-aware dispatch
   try {
     const args = [abs, finalPrompt, "--mode", finalMode];
+    if (model) args.push("--model", model);
     const result = await runNode(ANALYZE_MJS, args);
     imageCache.set(cacheKey, result);
     logRequest(reqId, "vision_describe", "primary-ok");
@@ -915,9 +917,16 @@ server.setRequestHandler("tools/list", async () => ({
               "table",
               "chart",
               "multicomp",
+              "fast",
+              "describe",
             ],
             description:
-              "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source. 'ocr' = text extraction. 'table' = markdown table. 'chart' = chart reading.",
+              "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source. 'ocr' = text extraction. 'table' = markdown table. 'chart' = chart reading. 'fast'/'describe' = rapid iteration tier (small fast VLM, e.g. moondream) for back-to-back look-checks.",
+          },
+          model: {
+            type: "string",
+            description:
+              "Optional Ollama model override (e.g. 'moondream' for fast iteration, 'gemma4:e2b-it-qat' for detailed audits, 'qwen3.5:4b' for deep reasoning). Overrides mode routing.",
           },
         },
         required: ["image_path"],
@@ -1036,6 +1045,7 @@ server.setRequestHandler("tools/call", async (request) => {
         effectiveArgs?.image_path,
         effectiveArgs?.prompt || null,
         effectiveArgs?.mode || "ui",
+        effectiveArgs?.model || null,
       );
       return textResponse(text);
     }
