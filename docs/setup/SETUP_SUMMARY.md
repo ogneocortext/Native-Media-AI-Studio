@@ -129,6 +129,7 @@ See `docs/setup/CONDA_SETUP.md`, `docs/setup/VIDEO_SETUP.md`, `docs/setup/MODEL_
 - `scripts/start-services.ps1` — Detached background launcher (backend + frontend + Go sidecars)
 - `scripts/check-env-health.ps1` — Python env decoupling & CUDA validation
 - `scripts/capture-visualizer-frames.mjs` — Frame capture utility (→ `tools/vision/analyze.mjs` for analysis)
+- `tools/resource-watchdog.py` — RAM/commit-charge monitor + orphan reaper (`status` / `watch` / `reap`); logs to `output/logs/resource-watchdog.jsonl`
 
 ### Output (gitignored)
 - `output/images/`, `output/video/`, `output/audio/`, `output/generated_3d/`, `output/audio_analysis/`
