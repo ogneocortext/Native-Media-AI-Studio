@@ -21,7 +21,10 @@
 > (see Shell / Process Management below).
 >
 > **Mandatory before any command work:** read
-> `docs/powershell-command-sheet.md` in full. It is the authoritative
+> `docs/powershell-command-sheet.md` in full — **§0 "Escaping Rules"
+> first**: any command containing a newline, backtick, `$`, or both
+> quote types must be written to a file and executed, never inlined.
+> It is the authoritative
 > PowerShell 7 command reference for this Windows machine. **Do NOT use
 > `bash`, `cmd`, `sh`, `zsh`, or any Unix shell** on this machine —
 > `bash` here resolves to the WSL launcher, NOT Git Bash, and will

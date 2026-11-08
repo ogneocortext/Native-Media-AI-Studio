@@ -73,9 +73,15 @@ never default to the biggest model.
 These are distilled from real incidents in this repo. An unattended agent
 must not do any of them:
 
-- **PowerShell 7 for repo commands.** No bash heredocs for commits
-  (`git commit -m "$(cat <<'EOF' …)"` fails in pwsh — write the message to
-  a temp file, `git commit -F`). No `bash -lc` wrapping.
+- **PowerShell 7 for repo commands — and §0 of the command sheet is
+  mandatory.** The #1 recurring failure is escaping: heredocs
+  (`git commit -m "$(cat <<'EOF' …)"`, `python - <<'PY'`) do not exist in
+  pwsh and fail every time; backticks/`$` inside `"..."` get mangled;
+  mid-line `@'...'@` here-strings misparse. **Rule: newline, backtick,
+  `$`, or both quote types in a command → write a file, run the file.**
+  Commits go through `git commit -F <msgfile>`; scratch scripts live in
+  `docs/scratch/` or `$env:TEMP`. Full pattern table:
+  `docs/powershell-command-sheet.md` §0. No `bash -lc` wrapping.
 - **Commit trailer is a bare agent name** — `Co-authored-by: Devin`, never
   a `…@users.noreply.github.com` email (the commit-msg hook rejects
   third-party emails; it cost a commit cycle already).

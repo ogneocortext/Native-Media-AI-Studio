@@ -14,6 +14,52 @@ Read this before running your first command. Keep it open while working.
 
 ---
 
+## 0. Escaping Rules — the #1 recurring agent failure
+
+**The decision rule: if a command contains a newline, a backtick, `$`, or both
+single AND double quotes — do NOT inline it. Write it to a file with the `write`
+tool, then execute the file.** Every escaping incident this repo has seen
+(heredoc syntax errors, mangled commit messages, corrupted markdown writes,
+broken `python -c` one-liners) traces back to ignoring this rule.
+
+### Banned inline patterns (they fail EVERY time in pwsh)
+
+| Pattern | Why it fails | Do this instead |
+|---------|-------------|-----------------|
+| `git commit -m "$(cat <<'EOF' ... EOF)"` | Bash heredoc — pwsh has no `$(cat <<)`; `<` is a reserved operator | Write message to `$env:TEMP\commit-msg.txt` with the `write` tool, then `git commit -F $env:TEMP\commit-msg.txt` |
+| `python - <<'PY' ... PY` | Same — heredoc is not pwsh | Write `docs/scratch/<name>.py`, run `python docs/scratch/<name>.py` |
+| `Add-Content file @'...'@` mid-line | Here-strings must start at the beginning of a line; embedded in a compound command they parse as separate statements | Put the here-string on its own lines, or use the `write`/`edit` tool for file content |
+| `python -c "...multi-line..."` / `node -e "..."` | pwsh parses the whole string first; embedded `"`, `$`, backticks get eaten | Write a `.py`/`.mjs` scratch file and run it |
+| Double-quoted strings containing `` ` `` or `$` | `` ` `` is pwsh's escape char (`` `n ``→newline, `` `t ``→tab); `$var` expands | Single-quote `'...'` for literal text, or `@'...'@` here-string |
+
+### Safe patterns (use these)
+
+```powershell
+# Commit message — always via file, never -m with complex text
+Set-Content "$env:TEMP\commit-msg.txt" -Value $msg -NoNewline   # or the write tool
+git commit -F "$env:TEMP\commit-msg.txt"
+
+# Inline python that fits on ONE line with NO inner quotes
+git log -1 --format=%s | python -c "import sys; print(sys.stdin.read().upper())"
+
+# JSON payloads — single quotes are literal in pwsh
+Invoke-RestMethod -Body '{"key": "value"}' -ContentType 'application/json'
+
+# File content — NEVER through the shell. Use the write/edit tools.
+# Markdown with `code` spans or ``` fences gets destroyed by backtick
+# expansion in "..." and @"..."@ — see §9 trap table.
+```
+
+### The one-line test
+
+Before running any non-trivial `exec` command, ask: **can I write this as a
+file instead?** If yes — write the file (`write` tool for content,
+`docs/scratch/` for scripts, `$env:TEMP` for throwaway), run the file, delete
+it after. File-based execution has zero escaping surface. Inline commands are
+only for short, single-quote-safe, single-line operations.
+
+---
+
 ## 1. Shell Identity Check (run first)
 
 ```powershell
