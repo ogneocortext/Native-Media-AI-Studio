@@ -826,6 +826,10 @@ app.add_middleware(
         "*.ngrok-free.app",
         "*.ngrok.app",
         "*.trycloudflare.com",
+        # Tailnet (Tailscale serve TCP forward -> localhost:8004) so remote
+        # agents like Maya can reach the API at http://100.95.60.73:8004.
+        "100.95.60.73",
+        "customrig.tailb89a58.ts.net",
     ],
 )
 

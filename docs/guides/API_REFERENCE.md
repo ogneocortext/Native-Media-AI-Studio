@@ -223,6 +223,19 @@ POST /api/video/generate-section
 → Poll GET /api/jobs/{job_id} until status completed/failed
 ```
 
+### Lip-sync (MuseTalk, local GPU)
+
+```
+POST /api/video/lipsync        single clip/portrait -> queued LIPSYNC job
+POST /api/video/lipsync-batch  long audio -> chunked jobs + stitch
+GET  /api/video/lipsync-batch/{batch_id}          batch status
+POST /api/video/lipsync-batch/{batch_id}/stitch   concatenate chunks
+DELETE /api/video/lipsync-batch/{batch_id}        cleanup (409 while active)
+```
+
+Full external-caller contract (base URL, payloads, polling, download
+route, tailnet access): `docs/guides/LIPSYNC_API.md`.
+
 ---
 
 ## Outputs

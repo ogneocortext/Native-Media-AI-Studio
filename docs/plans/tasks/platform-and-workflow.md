@@ -1670,6 +1670,12 @@ Rules: `docs/plans/tasks/README.md`
   latents.pt prep aspirational vs v1.5 --use_saved_coord pkl cache
   (per-video coord reuse would need stable staged names + persistent
   prep dir — landmark pass is only ~40 s of ~220 s, deferred);
-  batch_size>1 untested on 8 GB VRAM.
+  batch_size>1 untested on 8 GB VRAM. Remote route proven 2026-11-08:
+  tailscale serve --tcp=8004 forwards tailnet -> localhost:8004;
+  TrustedHost allowlist gained 100.95.60.73 + customrig ts.net name;
+  full HTTP smoke (POST /api/video/lipsync -> poll /api/jobs/{id} ->
+  GET /output/video/...mp4) PASS over http://100.95.60.73:8004,
+  contract documented in docs/guides/LIPSYNC_API.md.
 - **Last session:** Devin, 2026-11-09 — real MuseTalk v1.5 install +
-  first live inference PASS end-to-end; ledger + config + wrapper.
+  first live inference PASS end-to-end; tailnet HTTP route live +
+  remote smoke PASS; ledger + config + wrapper + LIPSYNC_API.md.
