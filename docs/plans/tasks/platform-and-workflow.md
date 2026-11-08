@@ -1586,3 +1586,31 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — hook blocks every banned class, passes
   every legit near-miss, fails open on bad input.
 - **Last session:** Devin, 2026-11-08 — test+review+fix cycle complete.
+
+### T-CLONE-01 — Linux-VM clone friendliness (Muse agent workflow)
+- **Status:** done
+- **Goal:** A second agent (Meta Muse) clones into a Linux VM, works
+  there, pushes small changes + plans back. Remove every Windows-only
+  assumption that would break or silently ungate that workflow.
+- **Changes:** config/settings.json output_dir -> portable "output" +
+  AppConfig resolves relative output_dir vs PROJECT_ROOT + save_config
+  writes repo-relative form (was committed absolute D:\ path); exec hook
+  pwsh bans now Windows-only, POSIX gets destructive-git only,
+  EXEC_GUARD_FORCE_POSIX test override; .claude/settings.json hook tries
+  python then python3; git-hooks/pre-push falls back to python3 (was
+  silently skipping ALL gates on python3-only distros); package.json
+  verify/verify:e2e use `python` not tools\python.cmd, db:migrate no
+  longer hardcodes D:\conda-envs; requirements.txt gains openai (module-
+  level import, clean checkout could not boot); new
+  docs/setup/LINUX_VM.md; README/CONTRIBUTING/SETUP_SUMMARY pointers.
+- **Files:** config/settings.json, packages/backend/app/core/config.py,
+  packages/backend/requirements.txt, package.json,
+  .claude/settings.json, scripts/git-hooks/pre-push,
+  tools/hooks/check-exec-command.py, tools/hooks/test-check-exec-command.py,
+  docs/setup/LINUX_VM.md, docs/setup/SETUP_SUMMARY.md,
+  CONTRIBUTING.md, README.md, docs/plans/tasks/platform-and-workflow.md
+- **Verification:** hook matrix 85/85 incl. 10 POSIX-sim cases; load_config
+  resolves "output" -> <repo>/output; JSON valid; docs gates pass.
+- **Acceptance:** satisfied — clone->hooks->venv->uvicorn/vite->gates all
+  work on Linux; Windows rig unchanged.
+- **Last session:** Devin, 2026-11-08 — committed+pushed.

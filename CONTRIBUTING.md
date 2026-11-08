@@ -26,8 +26,8 @@ the gates reach the remote and block everyone else's push.
 | Package manager | pnpm 12+ (npm cannot install — `catalog:` deps) | pnpm 12+ |
 | Shell | pwsh 7+ only — see `docs/powershell-command-sheet.md` | bash/zsh normal |
 
-Full verified Linux recipe (including the `requirements.txt` deltas):
-`docs/setup/SETUP_SUMMARY.md` → *Clean-environment verification*.
+Full Linux VM guide (verified recipe, what doesn't work and why):
+`docs/setup/LINUX_VM.md`. Windows details: `docs/setup/SETUP_SUMMARY.md`.
 
 Optional services degrade gracefully: ComfyUI (:8188) and Ollama (:11434)
 are only needed for AI generation features. `config/ports.json` is the port

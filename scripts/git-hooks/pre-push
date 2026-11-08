@@ -45,10 +45,14 @@ for candidate in \
         break
     fi
 done
-if [ -z "$PYTHON" ] && command -v python >/dev/null 2>&1; then
-    PYTHON="python"
+if [ -z "$PYTHON" ]; then
+    for candidate in python python3; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            PYTHON="$candidate"
+            break
+        fi
+    done
 fi
-
 if [ -z "$PYTHON" ]; then
     echo "pre-push: no Python interpreter found; skipping checks." >&2
     echo "            Set one in scripts/git-hooks/pre-push or install Python." >&2

@@ -38,8 +38,8 @@ workaround.
 Portability check (2026-11-07): the full stack was installed and run
 from a clean checkout on a plain Linux VM (Python 3.12, Node 24,
 pnpm 12.17) — CPU feature surface; GPU generation still needs the
-Windows setup above. Recipe and known gaps:
-`docs/setup/SETUP_SUMMARY.md`.
+Windows setup above. Step-by-step recipe and known gaps:
+`docs/setup/LINUX_VM.md`.
 
 ## Getting started
 

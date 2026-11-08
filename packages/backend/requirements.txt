@@ -29,6 +29,11 @@ pytest-cov>=5.0.0  # Coverage reporting
 pytest-xdist>=3.6.0  # Parallel test execution
 pytest-testmon>=1.5.0  # Incremental test selection (run only affected tests)
 
+# Local LLM sub-agent: OpenAI-compatible client pointed at Ollama
+# (tools/qwen_subagent, imported at module load by app/api/sub_agent.py —
+# a clean checkout cannot boot without it).
+openai>=1.40.0
+
 # Observability
 opentelemetry-api>=1.20.0
 opentelemetry-sdk>=1.20.0

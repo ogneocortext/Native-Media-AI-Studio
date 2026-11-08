@@ -70,13 +70,13 @@ frontend served by Vite on :5173, and the API verified end-to-end
 through the Vite proxy. ComfyUI and Ollama report offline and the
 app degrades gracefully, as designed.
 
-Verified recipe (deltas from the rig's setup):
+Verified recipe (deltas from the rig's setup) — now canonical in
+`docs/setup/LINUX_VM.md`:
 
 - **Backend**: Python 3.12 venv; `requirements.txt` **minus the
   three `opentelemetry-*` lines** (that pin stack does not resolve
-  on Python 3.12 — it expects the rig's 3.11) **plus `openai`**
-  (imported at module load via `tools.qwen_subagent`, missing from
-  requirements.txt); `requirements-torch.txt` skipped (no GPU).
+  on Python 3.12 — it expects the rig's 3.11). `openai` is now in
+  requirements.txt, so no extra install is needed.
 - **Frontend**: `pnpm install --frozen-lockfile` at the **repo
   root** (pnpm 12.17.0 workspace; the frontend's `catalog:` deps
   mean npm cannot install this project at all).
@@ -84,15 +84,13 @@ Verified recipe (deltas from the rig's setup):
   below the README's Node 26+ line, which reflects the rig, not a
   hard floor.
 
-Known cold-boot gaps on main (the rig's uncommitted working tree
-covers both; fix list registered as **T-PLT-49**):
+Known cold-boot gaps on main — **both resolved** (verified 2026-11-08):
 
-1. `app/main.py` imports `app/api/test_analytics.py`, which is not
-   committed — a clean checkout cannot boot without it.
-2. `app/core/database.py`'s media re-export omits
-   `get_all_item_collections` and `get_all_item_tags`; both exist
-   in `app/core/media.py` and `app/api/media_library.py` imports
-   them from `database`.
+1. ~~`app/main.py` imports `app/api/test_analytics.py`, which is not
+   committed~~ — file is tracked now.
+2. ~~`app/core/database.py`'s media re-export omits
+   `get_all_item_collections` and `get_all_item_tags`~~ — both
+   re-exported (database.py:157,396).
 
 ## 🚀 Quick Start (Current)
 
