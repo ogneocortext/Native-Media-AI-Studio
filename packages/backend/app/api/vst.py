@@ -8,7 +8,15 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel
 
 from ..core.config import OUTPUT_DIR, PROJECT_ROOT
@@ -422,11 +430,11 @@ async def vst_params_websocket(websocket: WebSocket, chain_name: str):
     """WebSocket endpoint for real-time VST parameter streaming."""
     await websocket.accept()
     host = get_vst_host()
-    
+
     if chain_name not in host.chains:
         await websocket.close(code=4004, reason=f"Chain not found: {chain_name}")
         return
-    
+
     try:
         while True:
             chain = host.chains.get(chain_name)
@@ -438,15 +446,15 @@ async def vst_params_websocket(websocket: WebSocket, chain_name: str):
                     plugin_params = plugin_data.get("parameters", {})
                     if plugin_params:
                         params[plugin_name] = plugin_params
-                
+
                 await websocket.send_json({
                     "chain_name": chain_name,
                     "params": params,
                     "timestamp": time.time()
                 })
-            
+
             await asyncio.sleep(0.05)  # 20Hz update rate
-            
+
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for chain: {chain_name}")
     except Exception as e:
