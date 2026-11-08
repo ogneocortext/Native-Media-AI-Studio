@@ -1675,7 +1675,13 @@ Rules: `docs/plans/tasks/README.md`
   TrustedHost allowlist gained 100.95.60.73 + customrig ts.net name;
   full HTTP smoke (POST /api/video/lipsync -> poll /api/jobs/{id} ->
   GET /output/video/...mp4) PASS over http://100.95.60.73:8004,
-  contract documented in docs/guides/LIPSYNC_API.md.
+  contract documented in docs/guides/LIPSYNC_API.md. Upload path added
+  same day: POST /api/video/lipsync-upload (multipart audio + optional
+  image/video_path/image_path) staging uuid-named files under
+  output/uploads/lipsync/ (scanner-excluded), 50 MB cap, ext allowlists,
+  shared _enqueue_lipsync with /lipsync; remote multipart smoke PASS
+  (~4.5 min still+wav -> 200-frame 8 s mp4 via /output).
 - **Last session:** Devin, 2026-11-09 — real MuseTalk v1.5 install +
   first live inference PASS end-to-end; tailnet HTTP route live +
-  remote smoke PASS; ledger + config + wrapper + LIPSYNC_API.md.
+  remote smoke PASS; lipsync-upload endpoint + remote multipart proof;
+  ledger + config + wrapper + LIPSYNC_API.md.

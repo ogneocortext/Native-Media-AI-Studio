@@ -182,3 +182,151 @@ def test_split_command_empty_quoted_arg_and_bad_quote():
     assert _split_command('cmd --flag "" tail') == ["cmd", "--flag", "", "tail"]
     with pytest.raises(LipSyncError, match="Unterminated quote"):
         _split_command('cmd "unterminated')
+
+
+# ---------------------------------------------------------------------------
+# POST /api/video/lipsync-upload — multipart staging + shared job flow
+# ---------------------------------------------------------------------------
+
+import io  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+
+
+class _FakeUpload:
+    """Minimal UploadFile stand-in: filename + async read()."""
+
+    def __init__(self, data: bytes, filename: str):
+        self._buf = io.BytesIO(data)
+        self.filename = filename
+
+    async def read(self, n: int = -1) -> bytes:
+        return self._buf.read(n)
+
+
+def _patched_upload_root(monkeypatch, tmp_path):
+    """Point the lazy PROJECT_ROOT import at a temp tree."""
+    import app.core.config as cfg
+
+    monkeypatch.setattr(cfg, "PROJECT_ROOT", tmp_path)
+
+
+def test_lipsync_upload_route_registered():
+    from app.api.video import router
+
+    paths = [r.path for r in router.routes]
+    assert "/api/video/lipsync-upload" in paths
+
+
+def test_store_lipsync_upload_stages_uuid_name(monkeypatch, tmp_path):
+    import asyncio
+
+    from app.api import video as video_api
+
+    _patched_upload_root(monkeypatch, tmp_path)
+    dest = asyncio.run(
+        video_api._store_lipsync_upload(
+            _FakeUpload(b"RIFFfake", "my song.TAKE.wav"), {".wav"}, "audio"
+        )
+    )
+    # Client filename never survives — stored name is a bare uuid + ext.
+    assert dest.parent == tmp_path / "output" / "uploads" / "lipsync"
+    assert dest.name.endswith(".wav")
+    assert dest.stem != "my song.TAKE"
+    assert len(dest.stem) == 32  # uuid4().hex
+    assert dest.read_bytes() == b"RIFFfake"
+
+
+def test_store_lipsync_upload_rejects_bad_extension(monkeypatch, tmp_path):
+    import asyncio
+
+    from app.api import video as video_api
+
+    _patched_upload_root(monkeypatch, tmp_path)
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            video_api._store_lipsync_upload(
+                _FakeUpload(b"MZ", "evil.exe"), {".wav", ".mp3"}, "audio"
+            )
+        )
+    assert ei.value.status_code == 400
+    # Traversal-looking names are just bad extensions here — nothing written.
+    assert not (tmp_path / "output" / "uploads").exists() or not any(
+        (tmp_path / "output" / "uploads").rglob("*")
+    )
+
+
+def test_store_lipsync_upload_size_cap_413(monkeypatch, tmp_path):
+    import asyncio
+
+    from app.api import video as video_api
+
+    _patched_upload_root(monkeypatch, tmp_path)
+    monkeypatch.setattr(video_api, "_LIPSYNC_UPLOAD_MAX_BYTES", 16)
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            video_api._store_lipsync_upload(
+                _FakeUpload(b"x" * 64, "a.wav"), {".wav"}, "audio"
+            )
+        )
+    assert ei.value.status_code == 413
+
+
+def test_lipsync_upload_rejects_image_plus_video_path():
+    """image upload + video_path is ambiguous -> 400 before any staging."""
+    import asyncio
+
+    from app.api import video as video_api
+
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            video_api.lipsync_upload(
+                audio=_FakeUpload(b"wav", "a.wav"),
+                image=_FakeUpload(b"png", "p.png"),
+                video_path="D:\\clip.mp4",
+            )
+        )
+    assert ei.value.status_code == 400
+
+
+def test_lipsync_upload_passes_staged_paths_to_enqueue(monkeypatch, tmp_path):
+    """Staged audio/image paths land in the shared enqueue call unchanged."""
+    import asyncio
+
+    from app.api import video as video_api
+
+    _patched_upload_root(monkeypatch, tmp_path)
+    captured = {}
+
+    async def fake_enqueue(**kwargs):
+        captured.update(kwargs)
+        return video_api.LipSyncResponse(success=True, job_id="j1")
+
+    monkeypatch.setattr(video_api, "_enqueue_lipsync", fake_enqueue)
+    resp = asyncio.run(
+        video_api.lipsync_upload(
+            audio=_FakeUpload(b"wavdata", "take.wav"),
+            image=_FakeUpload(b"pngdata", "still.PNG"),
+            video_path=None,
+            image_path=None,
+            output_path=None,
+            section="hook",
+        )
+    )
+    assert resp.success is True
+    assert captured["section"] == "hook"
+    assert captured["video_path"] is None
+    assert captured.get("audio_filename") is None
+    audio_path = captured["audio_path"]
+    image_path = captured["image_path"]
+    assert audio_path.endswith(".wav") and Path(audio_path).is_file()
+    assert image_path.endswith(".png") and Path(image_path).is_file()
+    # Both staged under the dedicated uploads dir, uuid names only.
+    assert "lipsync" in audio_path and "lipsync" in image_path
+
+
+def test_uploads_dir_excluded_from_media_scan():
+    from app.api.outputs_scanner import _SCAN_EXCLUDE_DIRS
+
+    assert "uploads" in _SCAN_EXCLUDE_DIRS

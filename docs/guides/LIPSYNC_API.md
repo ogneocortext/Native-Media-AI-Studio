@@ -67,8 +67,47 @@ Errors: `400` bad request, `404` source/audio file not found,
 **Important:** `video_path`/`audio_path`/`output_path` are **filesystem
 paths on this machine**, not uploads. To feed remote media, first copy
 the files onto this host (e.g. into `output/audio/` or `output/video/`
-and reference them by absolute path). There is no multipart upload
-route for lip-sync inputs today.
+and reference them by absolute path). For audio + still-image inputs
+use the upload endpoint below — it is the intended remote path.
+
+## Upload inputs (remote callers)
+
+```
+POST /api/video/lipsync-upload
+Content-Type: multipart/form-data
+```
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `audio` | file | yes | Audio to sync to. Allowlist: `.wav` `.mp3` `.m4a` `.flac`; ≤ 50 MB (413 beyond) |
+| `image` | file | no | Still portrait to animate + lip-sync. Allowlist: `.png` `.jpg` `.jpeg` `.webp`; ≤ 50 MB |
+| `video_path` | string | no | Rig-local clip (same as `/lipsync`) — mutually exclusive with `image`/`image_path` |
+| `image_path` | string | no | Rig-local still — used only when no `image` file is sent |
+| `section` | string | no (default `"chorus"`) | Section label |
+| `output_path` | string | no | Exact output path; same default rule as `/lipsync` |
+
+Staging behavior:
+
+- Files are stored under `output/uploads/lipsync/` as
+  `<uuid4-hex>.<ext>` — the client-supplied filename is used for its
+  extension only, never for the stored name (no traversal, no
+  collisions, no overwrites).
+- `output/uploads/` is excluded from the media-library scanner, so
+  staged inputs never appear as library items.
+- Sending both an `image` file and `image_path`/`video_path` → 400.
+- Bad extension → 400; oversized → 413; missing audio part → 422
+  (FastAPI required-field).
+- The staged paths feed the same job machinery unchanged — response
+  shape, polling (`GET /api/jobs/{job_id}`), and download
+  (`GET /output/video/...`) are identical to `/lipsync`.
+
+Example:
+
+```bash
+curl -X POST http://100.95.60.73:8004/api/video/lipsync-upload \
+  -F "audio=@voice.wav" -F "image=@portrait.png" \
+  -F "section=hook" -F "output_path=D:\\...\\output\\video\\out.mp4"
+```
 
 ## Poll status
 
@@ -135,6 +174,12 @@ entirely over `http://100.95.60.73:8004`:
   and the queue was live — the model cost dominates, not the network)
 - `GET /output/video/lipsync_remote_smoke.mp4` → 200, byte-identical
   size to the local render (826,536 B)
+
+Upload-path proof (same day, still image + wav over multipart):
+`POST /api/video/lipsync-upload` → job `a945bfd6-…` → completed in
+**~4.5 min** wall (still input skips per-frame landmark detection) →
+`GET /output/video/lipsync_upload_smoke.mp4` → 200, 171,888 B, 8.0 s,
+704×1216 @ 25 fps, 200 frames.
 
 Network overhead is negligible; the ~25–30× realtime factor is MuseTalk
 inference on the 1070 Ti at `batch_size: 1` (kept at 1 — 8 GB VRAM).

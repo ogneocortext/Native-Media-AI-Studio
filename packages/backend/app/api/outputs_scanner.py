@@ -38,7 +38,7 @@ _SCAN_EXCLUDE_DIRS = frozenset({
     "fingerprints", "interaction-audit", "kb-context-cache",
     "kb-embed-cache", "logs", "metadata", "runtime", "scratch",
     "screenshots", "setup-env", "structure", "tests", "thumbnails",
-    "workflows",
+    "uploads", "workflows",
 })
 
 # Frame-sequence dumps (frame_0001.png, f000123.png) are pipeline

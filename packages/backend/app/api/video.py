@@ -8,11 +8,13 @@ import asyncio
 import logging
 import shutil
 import subprocess
+import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
@@ -840,20 +842,86 @@ class LipSyncResponse(BaseModel):
     message: str | None = None
 
 
-@router.post("/lipsync", response_model=LipSyncResponse)
-async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
-    """Enqueue a local lip-sync job (MuseTalk, D42).
+#: Upload staging for POST /lipsync-upload. Lives under output/uploads/ —
+#: the outputs scanner excludes "uploads" so staged inputs never appear in
+#: the media library (same reason batch intermediates live in output/runtime).
+_LIPSYNC_UPLOAD_DIR_NAME = ("output", "uploads", "lipsync")
+_LIPSYNC_UPLOAD_AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".flac"}
+_LIPSYNC_UPLOAD_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+_LIPSYNC_UPLOAD_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 
-    Fails fast with 503 + guidance when the local MuseTalk install is
-    incomplete (weights missing or inference.command unset) -- the job never
-    enters the queue in that state. Poll the job via GET /api/jobs/{job_id}.
+
+async def _store_lipsync_upload(
+    file: UploadFile, allowed_exts: set[str], kind: str
+) -> Path:
+    """Stream an upload to a collision-proof path; return the staged file.
+
+    The client-supplied filename is used for its extension only — the stored
+    name is a fresh uuid, so no field can traverse or overwrite. Writes to a
+    temp file first so a rejected/oversized upload leaves nothing behind.
+    """
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported {kind} type {ext or '(none)'!r} — "
+                f"allowed: {', '.join(sorted(allowed_exts))}"
+            ),
+        )
+    from ..core.config import PROJECT_ROOT as _PR
+
+    upload_dir = _PR.joinpath(*_LIPSYNC_UPLOAD_DIR_NAME)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = Path(tempfile.gettempdir()) / f"{uuid.uuid4().hex}.upload"
+    size = 0
+    try:
+        with open(tmp_path, "wb") as buffer:
+            while chunk := await file.read(8192):
+                size += len(chunk)
+                if size > _LIPSYNC_UPLOAD_MAX_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            f"{kind} too large. Maximum size: "
+                            f"{_LIPSYNC_UPLOAD_MAX_BYTES // (1024 * 1024)} MB"
+                        ),
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+    dest = upload_dir / f"{uuid.uuid4().hex}{ext}"
+    # shutil.move, not Path.replace: temp dir and output/ can sit on
+    # different drives (os.replace fails cross-volume on Windows).
+    shutil.move(str(tmp_path), str(dest))
+    return dest
+
+
+async def _enqueue_lipsync(
+    *,
+    video_path: str | None,
+    image_path: str | None,
+    audio_path: str | None = None,
+    audio_filename: str | None = None,
+    section: str,
+    output_path: str | None,
+) -> LipSyncResponse:
+    """Shared submit path for /lipsync and /lipsync-upload.
+
+    Enqueue a local lip-sync job (MuseTalk, D42). Fails fast with 503 +
+    guidance when the local install is incomplete; poll via
+    GET /api/jobs/{job_id}.
     """
     try:
         from ..models.job import JobCreateRequest, JobType
         from ..queue.manager import queue_manager
         from ..services.lipsync import MuseTalkAdapter
 
-        source = request.video_path or request.image_path
+        source = video_path or image_path
         if not source:
             raise ValueError("video_path or image_path is required")
         if not Path(source).is_file():
@@ -868,14 +936,14 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
                 + " -- see config/lipsync.json"
             )
 
-        audio_path = _resolve_lipsync_audio(request.audio_path, request.audio_filename)
+        resolved_audio = _resolve_lipsync_audio(audio_path, audio_filename)
 
         params = {
-            "video_path": request.video_path,
-            "image_path": request.image_path,
-            "audio_path": audio_path,
-            "section": request.section,
-            "output_path": request.output_path,
+            "video_path": video_path,
+            "image_path": image_path,
+            "audio_path": resolved_audio,
+            "section": section,
+            "output_path": output_path,
         }
         jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
         job = await queue_manager.enqueue(jcr)
@@ -883,8 +951,8 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
         # Mirror the handler's output-path resolution (services/lipsync_handler.py)
         # so this field names a real file: request.output_path wins, otherwise
         # the handler defaults to output/video/<source-stem>_lipsync_<job8>.mp4.
-        if request.output_path:
-            resolved_output = request.output_path
+        if output_path:
+            resolved_output = output_path
         else:
             from ..core.config import PROJECT_ROOT as _PR
 
@@ -897,8 +965,8 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
             success=True,
             job_id=job.id,
             output_path=resolved_output,
-            section=request.section,
-            message=f"Queued lip-sync for section '{request.section}' as job {job.id[:8]}",
+            section=section,
+            message=f"Queued lip-sync for section '{section}' as job {job.id[:8]}",
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -910,6 +978,60 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
     except Exception as exc:
         logger.exception("Lip-sync endpoint error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/lipsync", response_model=LipSyncResponse)
+async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
+    """Enqueue a local lip-sync job (MuseTalk, D42)."""
+    return await _enqueue_lipsync(
+        video_path=request.video_path,
+        image_path=request.image_path,
+        audio_path=request.audio_path,
+        audio_filename=request.audio_filename,
+        section=request.section,
+        output_path=request.output_path,
+    )
+
+
+@router.post("/lipsync-upload", response_model=LipSyncResponse)
+async def lipsync_upload(
+    audio: UploadFile = File(...),
+    image: UploadFile | None = File(default=None),
+    video_path: str | None = Form(default=None),
+    image_path: str | None = Form(default=None),
+    section: str = Form(default="chorus"),
+    output_path: str | None = Form(default=None),
+) -> LipSyncResponse:
+    """Lip-sync job with uploaded inputs — the remote-caller path (Maya).
+
+    multipart/form-data: ``audio`` file is required (staged under
+    output/uploads/lipsync/ with a uuid name, extension-allowlisted,
+    50 MB cap). ``image`` file is an optional still to animate; when
+    absent, ``image_path`` names a rig-local still, and ``video_path``
+    names a rig-local clip — same rules as POST /lipsync (never both an
+    image source and a video source). Response shape and polling are
+    identical to /lipsync.
+    """
+    if image is not None and (video_path or image_path):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either an image upload or image_path/video_path, not both",
+        )
+    staged_audio = await _store_lipsync_upload(
+        audio, _LIPSYNC_UPLOAD_AUDIO_EXTS, "audio"
+    )
+    staged_image = (
+        await _store_lipsync_upload(image, _LIPSYNC_UPLOAD_IMAGE_EXTS, "image")
+        if image is not None
+        else None
+    )
+    return await _enqueue_lipsync(
+        video_path=video_path,
+        image_path=str(staged_image) if staged_image else image_path,
+        audio_path=str(staged_audio),
+        section=section,
+        output_path=output_path,
+    )
 
 
 # ---------------------------------------------------------------------------
