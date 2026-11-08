@@ -171,14 +171,14 @@ class VSTHost:
                 min_val = getattr(param, 'min_value', None)
                 max_val = getattr(param, 'max_value', None)
                 unit_val = getattr(param, 'label', '') if hasattr(param, 'label') else ''
-                
+
                 # Provide defaults for required fields
                 parameters.append({
                     "name": getattr(param, 'name', 'unknown'),
                     "min": min_val if min_val is not None else 0.0,
                     "max": max_val if max_val is not None else 1.0,
                     "default": default_val if default_val is not None else 0.0,
-                    "unit": unit_val if unit_val else '',
+                    "unit": unit_val or '',
                 })
 
             return VSTPluginInfo(
@@ -228,7 +228,7 @@ class VSTHost:
         if cache_key in self._pedalboard_cache:
             return self._pedalboard_cache[cache_key]
 
-        board = Pedalboard(sample_rate=chain.sample_rate)
+        board = Pedalboard()
 
         for plugin_data in chain.plugins:
             plugin_name = plugin_data["name"]
@@ -237,7 +237,7 @@ class VSTHost:
             # Set parameter values
             for param_name, value in plugin_data.get("parameters", {}).items():
                 try:
-                    param = next(p for p in plugin.parameters if p.name == param_name)
+                    param = next(p for p in plugin.parameters.values() if p.name == param_name)
                     param.value = value
                 except StopIteration:
                     logger.warning(f"Parameter {param_name} not found in {plugin_name}")
@@ -261,7 +261,11 @@ class VSTHost:
 
     def process_file(self, chain_name: str, input_path: Path, output_path: Path) -> dict:
         """Process an audio file through a VST chain."""
-        with AudioFile(input_path) as f:
+        # Convert Path to string for pedalboard compatibility on Windows
+        input_path_str = str(input_path)
+        output_path_str = str(output_path)
+
+        with AudioFile(input_path_str) as f:
             audio = f.read(f.frames)
             sr = f.samplerate
 
@@ -271,7 +275,7 @@ class VSTHost:
 
         output = self.process_audio(chain_name, audio, sr)
 
-        with AudioFile(output_path, 'w', sr, output.shape[0]) as f:
+        with AudioFile(output_path_str, 'w', sr, output.shape[0]) as f:
             f.write(output)
 
         return {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import tempfile
 from pathlib import Path
@@ -22,6 +23,9 @@ router = APIRouter(prefix="/api/vst", tags=["VST"])
 
 VST_ASSETS_DIR = PROJECT_ROOT / "assets" / "vst"
 VST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+
+logger = logging.getLogger(__name__)
+
 
 # --- Request/Response Models ---
 
@@ -58,7 +62,11 @@ def convert_plugin_info(p: Any) -> PluginInfo:
     """Convert VSTPluginInfo to API PluginInfo with proper parameter conversion."""
     # Convert parameters to PluginParameter format
     api_params = []
-    for param in p.parameters:
+    
+    # Handle both list (from scan) and dict (from cached plugin) formats
+    params_source = p.parameters.values() if isinstance(p.parameters, dict) else p.parameters
+    
+    for param in params_source:
         # Handle both dict and PluginParameter formats
         if isinstance(param, dict):
             # Get value from default or default to 0.0
@@ -82,7 +90,7 @@ def convert_plugin_info(p: Any) -> PluginInfo:
                 unit=getattr(param, "unit", ""),
                 value=val,
             ))
-
+    
     return PluginInfo(
         name=p.name,
         path=p.path,
@@ -116,15 +124,9 @@ class ChainResponse(BaseModel):
     block_size: int
 
 
-class PresetCreate(BaseModel):
-    plugin_name: str
-    name: str
-    parameters: dict[str, float]
-
-
 class ProcessRequest(BaseModel):
     chain_name: str
-    input_path: str | None = None  # Relative to OUTPUT_DIR
+    input_path: str | None = None
     output_name: str = "processed"
 
 
@@ -136,17 +138,22 @@ class ProcessResponse(BaseModel):
     channels: int
 
 
-# --- Plugin Discovery ---
+# --- VST Plugin Endpoints ---
+
 
 @router.get("/scan")
 async def scan_plugins() -> dict[str, Any]:
     """Scan all VST paths for plugins."""
     host = get_vst_host()
-    plugins = host.scan_vst_plugins()
-    return {
-        "plugins": [convert_plugin_info(p) for p in plugins],
-        "count": len(plugins),
-    }
+    try:
+        plugins = host.scan_vst_plugins()
+        return {
+            "plugins": [convert_plugin_info(p) for p in plugins],
+            "count": len(plugins),
+        }
+    except Exception as e:
+        logger.error(f"Scan failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Scan failed: {e}") from None
 
 
 @router.get("/plugins")
@@ -184,7 +191,7 @@ async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
     try:
         plugin = host.load_plugin(plugin_name)
         parameters = []
-        for param in plugin.parameters.values():
+        for param_name, param in plugin.parameters.items():
             parameters.append({
                 "name": param.name,
                 "min": param.min_value,
@@ -193,12 +200,13 @@ async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
                 "value": param.value,
                 "unit": param.label if hasattr(param, 'label') else '',
             })
-        return {"plugin": plugin_name, "parameters": parameters}
+        return {"parameters": parameters}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load plugin: {e}") from None
 
 
 # --- Chain Management ---
+
 
 @router.post("/chains")
 async def create_chain(chain: ChainCreate) -> ChainResponse:
@@ -275,7 +283,7 @@ async def delete_chain(chain_name: str) -> dict[str, Any]:
 
 @router.get("/chains/{chain_name}/export")
 async def export_chain(chain_name: str) -> dict[str, Any]:
-    """Export a chain to portable format."""
+    """Export a chain to a portable format."""
     host = get_vst_host()
     try:
         return host.export_chain(chain_name)
@@ -343,98 +351,53 @@ async def process_upload(
         shutil.copyfileobj(file.file, tmp)
         input_path = Path(tmp.name)
 
-    output_path = OUTPUT_DIR / f"{output_name}.wav"
-
     try:
+        output_path = OUTPUT_DIR / f"{output_name}.wav"
         result = host.process_file(chain_name, input_path, output_path)
         return ProcessResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing failed: {e}") from None
     finally:
-        input_path.unlink(missing_ok=True)
+        if input_path.exists():
+            input_path.unlink()
 
 
-# --- Preset Management ---
-
-@router.post("/presets")
-async def save_preset(preset: PresetCreate) -> PresetResponse:
-    """Save a preset for a plugin."""
+@router.get("/parameters")
+async def get_all_parameters() -> dict[str, list[PluginParameter]]:
+    """Get all parameters for all loaded plugins."""
     host = get_vst_host()
-
-    if preset.plugin_name not in host.plugins:
-        raise HTTPException(status_code=404, detail=f"Plugin not found: {preset.plugin_name}") from None
-
-    vst_preset = VSTPreset(
-        plugin_name=preset.plugin_name,
-        name=preset.name,
-        parameters=preset.parameters,
-    )
-    host.save_preset(vst_preset)
-
-    return PresetResponse(**vars(vst_preset))
-
-
-@router.get("/presets/{plugin_name}")
-async def list_presets(plugin_name: str) -> dict[str, Any]:
-    """List all presets for a plugin."""
-    host = get_vst_host()
-    if plugin_name not in host.plugins:
-        raise HTTPException(status_code=404, detail=f"Plugin not found: {plugin_name}") from None
-
-    presets = host.list_presets(plugin_name)
-    return {"plugin": plugin_name, "presets": presets}
-
-
-@router.get("/presets/{plugin_name}/{preset_name}")
-async def get_preset(plugin_name: str, preset_name: str) -> PresetResponse:
-    """Get a specific preset."""
-    host = get_vst_host()
-    preset = host.load_preset(plugin_name, preset_name)
-    if not preset:
-        raise HTTPException(status_code=404, detail=f"Preset not found: {preset_name}") from None
-    return PresetResponse(**vars(preset))
+    if not host.plugins:
+        host.scan_vst_plugins()
+    result = {}
+    for name, plugin_info in host.plugins.items():
+        if not plugin_info.is_valid:
+            continue
+        try:
+            plugin = host.load_plugin(name)
+            params = []
+            for param_name, param in plugin.parameters.items():
+                params.append(PluginParameter(
+                    name=param.name,
+                    value=param.value,
+                    min=param.min_value,
+                    max=param.max_value,
+                    default=param.default_value,
+                    unit=param.label if hasattr(param, 'label') else '',
+                ))
+            result[name] = params
+        except Exception:
+            continue
+    return result
 
 
-@router.post("/presets/{plugin_name}/{preset_name}/apply")
-async def apply_preset(plugin_name: str, preset_name: str) -> dict[str, Any]:
-    """Apply a preset to a plugin and return parameter values."""
-    host = get_vst_host()
-    try:
-        parameters = host.apply_preset(plugin_name, preset_name)
-        return {"plugin": plugin_name, "preset": preset_name, "parameters": parameters}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from None
-
-
-@router.delete("/presets/{plugin_name}/{preset_name}")
-async def delete_preset(plugin_name: str, preset_name: str) -> dict[str, Any]:
-    """Delete a preset."""
-    host = get_vst_host()
-    if plugin_name not in host.presets:
-        raise HTTPException(status_code=404, detail=f"Plugin not found: {plugin_name}") from None
-
-    host.presets[plugin_name] = [p for p in host.presets[plugin_name] if p.name != preset_name]
-    return {"deleted": True, "plugin": plugin_name, "preset": preset_name}
-
-
-# --- Utility ---
-
-@router.post("/reset")
-async def reset_host() -> dict[str, Any]:
-    """Reset the VST host (clears all chains, presets, cache)."""
-    reset_vst_host()
-    host = get_vst_host()
-    host.scan_vst_plugins()
-    return {"reset": True, "plugins_found": len(host.plugins)}
-
+# --- Utility Endpoints ---
 
 @router.get("/health")
-async def health_check() -> dict[str, Any]:
-    """Health check for VST service."""
-    host = get_vst_host()
-    return {
-        "status": "ok",
-        "plugins_loaded": len(host.plugins),
-        "chains_saved": len(host.chains),
-        "presets_saved": sum(len(p) for p in host.presets.values()),
-    }
+async def health_check() -> dict[str, str]:
+    """Health check endpoint."""
+    return {"status": "ok"}
+
+
+@router.post("/reset")
+async def reset_host():
+    """Reset the VST host (clear plugins, chains, cache)."""
+    reset_vst_host()
+    return {"status": "reset"}
